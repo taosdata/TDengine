@@ -39,8 +39,7 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
           tsdbFreeBufBlock(pBufBlock);
         } else {
           pPool->nElasticBlocks ++;
-          cnt ++ ; 
-          printf(" elastic block add one ok. current blocks=%d \n", pPool->nElasticBlocks);
+          cnt ++ ;
         }
     }
  } 

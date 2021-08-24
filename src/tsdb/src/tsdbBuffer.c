@@ -63,11 +63,6 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
   STsdbBufPool *pPool = pRepo->pPool;
 
   ASSERT(pPool != NULL);
-
-  // debug test
-  pCfg->cacheBlockSize = 1;
-  pCfg->totalBlocks = 4;
-
   pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024; // MB
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
@@ -126,7 +121,7 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
     if(tsDeathLockKillQuery) {
       // supply new Block 
       if(tsdbInsertNewBlock(pRepo) > 0) {
-        tsdbWarn("vgId:%d Insert elastic new block to solve.", REPO_ID(pRepo));
+        tsdbWarn("vgId:%d add new elastic block . elasticBlocks=%d totalBlocks=%d", REPO_ID(pRepo), pBufPool->nElasticBlocks, pBufPool->nBufBlocks);
         break;
       } else {
         // no newBlock, kill query free

@@ -215,6 +215,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   return code;
 }
 
+#ifdef TEST_IMPL
 // wait moment
 int waitMoment(SQInfo* pQInfo){
   if(pQInfo->sql) {
@@ -239,7 +240,7 @@ int waitMoment(SQInfo* pQInfo){
       }
     }
 
-    printf("wait sleep %dms ... sql=%s\n", ms, pQInfo->sql);
+    printf("wait sleep %dms. sql=%s\n", ms, pQInfo->sql);
     
     if(ms < 1000) {
       taosMsleep(ms);
@@ -257,7 +258,7 @@ int waitMoment(SQInfo* pQInfo){
   }
   return 1;
 }
-
+#endif
 
 bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
@@ -303,8 +304,9 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   int64_t st = taosGetTimestampUs();
   pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot, &newgroup);
   pQInfo->summary.elapsedTime += (taosGetTimestampUs() - st);
+#ifdef TEST_IMPL
   waitMoment(pQInfo);
-
+#endif
   publishOperatorProfEvent(pRuntimeEnv->proot, QUERY_PROF_AFTER_OPERATOR_EXEC);
   pRuntimeEnv->resultInfo.total += GET_NUM_OF_RESULTS(pRuntimeEnv);
 
@@ -730,7 +732,6 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
   SLongQuery* plq;
   for(i=0; i < cnt; i++) {
     plq = (SLongQuery* )taosArrayGetP(qids, i);
-    printf(" sort i=%d span=%d qid=0x%"PRIx64" exeTime=0x%"PRIx64". \n",(int)i, (int)(now - plq->startExecTs), plq->qId, plq->startExecTs);
     if(plq->startExecTs > now) continue;
     if(now - plq->startExecTs >= longQueryMs) {
       qKillQueryByQId(pMgmt, plq->qId, 500, 10); // wait 50*100 ms 
@@ -752,7 +753,7 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
 
 //solve tsdb no block to commit
 bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
-  qWarn("start solve no block problem.");
+  qWarn("pRepo=%p start solve no block problem.", pRepo);
   if(qFixedNoBlock(pRepo, pMgmt, 20*1000)) {
     return true;
   }
