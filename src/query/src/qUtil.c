@@ -581,7 +581,11 @@ void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw) {
   tbufWriteUint32(bw, pDist->numOfTables);
   tbufWriteUint16(bw, pDist->numOfFiles);
   tbufWriteUint64(bw, pDist->totalSize);
+  tbufWriteUint64(bw, pDist->totalRows);
+  tbufWriteInt32(bw, pDist->maxRows);
+  tbufWriteInt32(bw, pDist->minRows);
   tbufWriteUint32(bw, pDist->numOfRowsInMemTable);
+  tbufWriteUint32(bw, pDist->numOfSmallBlocks);
   tbufWriteUint64(bw, taosArrayGetSize(pDist->dataBlockInfos));
 
   // compress the binary string
@@ -616,13 +620,17 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
   pDist->numOfTables = tbufReadUint32(&br);
   pDist->numOfFiles  = tbufReadUint16(&br);
   pDist->totalSize   = tbufReadUint64(&br);
+  pDist->totalRows   = tbufReadUint64(&br);
+  pDist->maxRows     = tbufReadInt32(&br);
+  pDist->minRows     = tbufReadInt32(&br);
   pDist->numOfRowsInMemTable = tbufReadUint32(&br);
-  int64_t numOfBlocks = tbufReadUint64(&br);
+  pDist->numOfSmallBlocks = tbufReadUint32(&br);
+  int64_t numSteps = tbufReadUint64(&br);
 
   bool comp = tbufReadUint8(&br);
   uint32_t compLen = tbufReadUint32(&br);
 
-  size_t originalLen = (size_t) (numOfBlocks*sizeof(SFileBlockInfo));
+  size_t originalLen = (size_t) (numSteps *sizeof(SFileBlockInfo));
 
   char* outputBuf = NULL;
   if (comp) {
@@ -633,12 +641,12 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
 
     int32_t orignalLen = tsDecompressString(compStr, compLen, 1, outputBuf,
                                             (int32_t)originalLen , ONE_STAGE_COMP, NULL, 0);
-    assert(orignalLen == numOfBlocks*sizeof(SFileBlockInfo));
+    assert(orignalLen == numSteps *sizeof(SFileBlockInfo));
   } else {
     outputBuf = (char*) tbufReadBinary(&br, &originalLen);
   }
 
-  pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t) numOfBlocks, sizeof(SFileBlockInfo));
+  pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t)numSteps, sizeof(SFileBlockInfo));
   if (comp) {
     tfree(outputBuf);
   }

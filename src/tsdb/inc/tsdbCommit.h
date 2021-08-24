@@ -29,6 +29,8 @@ typedef struct {
   int64_t  size;
 } SKVRecord;
 
+#define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
+
 void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);

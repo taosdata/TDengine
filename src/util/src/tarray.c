@@ -110,6 +110,11 @@ void* taosArrayGetLast(const SArray* pArray) {
 
 size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }
 
+void taosArraySetSize(SArray* pArray, size_t size) {
+  assert(size <= pArray->capacity);
+  pArray->size = size;
+}
+
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   if (pArray == NULL || pData == NULL) {
     return NULL;

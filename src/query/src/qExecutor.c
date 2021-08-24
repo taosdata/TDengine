@@ -4546,7 +4546,15 @@ static SSDataBlock* doBlockInfoScan(void* param) {
 
   STableBlockDist tableBlockDist = {0};
   tableBlockDist.numOfTables     = (int32_t)pOperator->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
-  tableBlockDist.dataBlockInfos  = taosArrayInit(512, sizeof(SFileBlockInfo));
+
+  int32_t numRowSteps = tsMaxRowsInFileBlock / TSDB_BLOCK_DIST_STEP_ROWS;
+  if (tsMaxRowsInFileBlock % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+    ++numRowSteps;
+  }
+  tableBlockDist.dataBlockInfos  = taosArrayInit(numRowSteps, sizeof(SFileBlockInfo));
+  taosArraySetSize(tableBlockDist.dataBlockInfos, numRowSteps);
+  tableBlockDist.maxRows = INT_MIN;
+  tableBlockDist.minRows = INT_MAX;
 
   tsdbGetFileBlocksDistInfo(pTableScanInfo->pQueryHandle, &tableBlockDist);
   tableBlockDist.numOfRowsInMemTable = (int32_t) tsdbGetNumOfRowsInMemTable(pTableScanInfo->pQueryHandle);
