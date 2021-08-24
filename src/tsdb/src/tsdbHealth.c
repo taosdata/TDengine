@@ -31,7 +31,7 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
   STsdbBufPool *pPool = pRepo->pPool;
   int32_t cnt = 0;
 
-  if(tsdbIdleMemEnough() && tsdbAllowNewBlock(pRepo)) {
+  if(tsdbAllowNewBlock(pRepo)) {
     STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pPool->bufBlockSize);
     if (pBufBlock) {
         if (tdListAppend(pPool->bufBlockList, (void *)(&pBufBlock)) < 0) {
@@ -67,37 +67,9 @@ bool tsdbUrgeQueryFree(STsdbRepo * pRepo) {
   return hTimer != NULL;
 }
 
-bool tsdbIdleMemEnough() {
-  // TODO config to taos.cfg
-  int32_t lowestRate = 5;  // below 10% idle memory, return not enough memory
-  float  memoryUsedMB = 0;
-  float  memoryAvailMB;
-
-  if (!taosGetSysMemory(&memoryUsedMB)) {
-    tsdbWarn("tsdbHealth get memory error, return false.");
-    return true;
-  }
-
-  if(memoryUsedMB > tsTotalMemoryMB || tsTotalMemoryMB == 0) {
-    tsdbWarn("tsdbHealth used memory(%d MB) large total memory(%d MB), return false.", (int)memoryUsedMB, (int)tsTotalMemoryMB);
-    return true;
-  }
-
-  memoryAvailMB = (float)tsTotalMemoryMB - memoryUsedMB;
-  int32_t rate = (int32_t)(memoryAvailMB/tsTotalMemoryMB * 100);
-  if(rate < lowestRate){
-    tsdbWarn("tsdbHealth real rate :%d less than lowest rate:%d, so return false.", rate, lowestRate);
-    return false;
-  }
-
-  return true;
-}
-
 bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
-  //TODO config to taos.cfg
-  int32_t nMaxElastic = 1;
+  int32_t nMaxElastic = pRepo->config.totalBlocks/3;
   STsdbBufPool* pPool = pRepo->pPool;
-  printf("tsdbAllowNewBlock nElasticBlock(%d) MaxElasticBlocks(%d)\n", pPool->nElasticBlocks, nMaxElastic);
   if(pPool->nElasticBlocks >= nMaxElastic) {
     tsdbWarn("tsdbAllowNewBlock return fasle. nElasticBlock(%d) >= MaxElasticBlocks(%d)", pPool->nElasticBlocks, nMaxElastic);
     return false;
@@ -106,8 +78,6 @@ bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
 }
 
 bool tsdbNoProblem(STsdbRepo* pRepo) {
-  if(!tsdbIdleMemEnough()) 
-     return false;
   if(listNEles(pRepo->pPool->bufBlockList) == 0) 
      return false;
   return true;

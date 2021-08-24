@@ -123,22 +123,20 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
-    tsdbWarn("vgId:%d Pool empty,nBufBlocks=%d nElastic=%d nRecycle=%d", REPO_ID(pRepo), pBufPool->nBufBlocks, pBufPool->nElasticBlocks, pBufPool->nRecycleBlocks);
-    // supply new Block 
-    if(tsdbInsertNewBlock(pRepo) > 0) {
-      tsdbWarn("vgId:%d Insert new block to solve.", REPO_ID(pRepo));
-      break;
-    } else {
-      // no newBlock, kill query free
-      if(!tsdbUrgeQueryFree(pRepo)) {
-        tsdbWarn("vgId:%d Urge query free thread start failed.", REPO_ID(pRepo));
+    if(tsDeathLockKillQuery) {
+      // supply new Block 
+      if(tsdbInsertNewBlock(pRepo) > 0) {
+        tsdbWarn("vgId:%d Insert elastic new block to solve.", REPO_ID(pRepo));
+        break;
+      } else {
+        // no newBlock, kill query free
+        if(!tsdbUrgeQueryFree(pRepo))
+          tsdbWarn("vgId:%d Urge query free thread start failed.", REPO_ID(pRepo));
       }
     }
 
     pRepo->repoLocked = false;
-    tsdbDebug("vgId:%d wait for new block...", REPO_ID(pRepo));
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));
-    tsdbDebug("vgId:%d waited new block ok.", REPO_ID(pRepo));
     pRepo->repoLocked = true;
   }
 
@@ -160,7 +158,7 @@ STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
   STsdbBufBlock *pBufBlock = (STsdbBufBlock *)malloc(sizeof(*pBufBlock) + bufBlockSize);
   if (pBufBlock == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
+    return NULL;
   }
 
   pBufBlock->blockId = 0;
@@ -168,10 +166,6 @@ STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
   pBufBlock->remain = bufBlockSize;
 
   return pBufBlock;
-
-_err:
-  tsdbFreeBufBlock(pBufBlock);
-  return NULL;
 }
 
  void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
@@ -216,10 +210,7 @@ void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic
   tsdbFreeBufBlock(pBufBlock);
   free(pNode);
   if(bELastic)
-   {
       pPool->nElasticBlocks--;
-      printf(" elastic block reduce one ok. current blocks=%d \n", pPool->nElasticBlocks);
-   }
   else
     pPool->nBufBlocks--;
 }

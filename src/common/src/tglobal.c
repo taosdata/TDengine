@@ -276,6 +276,9 @@ uint32_t curRange     = 100;    // range
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
 #endif
 
+// long query death-lock
+int8_t tsDeathLockKillQuery = 0;
+
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
 void (*monExecuteSQLFp)(char *sql) = NULL;
@@ -1647,6 +1650,16 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 #endif
 
+  // enable kill long query
+  cfg.option = "deathLockKillQuery";
+  cfg.ptr = &tsDeathLockKillQuery;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
 }
 
 void taosInitGlobalCfg() {
