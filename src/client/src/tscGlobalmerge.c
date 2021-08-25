@@ -1004,7 +1004,7 @@ static void ensureOutputBuf(SSLimitOperatorInfo * pInfo, SSDataBlock *pResultBlo
   if (pInfo->capacity < pResultBlock->info.rows + numOfRows) {
     int32_t total = pResultBlock->info.rows + numOfRows;
 
-    int32_t num = taosArrayGetSize(pResultBlock->pDataBlock);
+    size_t num = taosArrayGetSize(pResultBlock->pDataBlock);
     for (int32_t i = 0; i < num; ++i) {
       SColumnInfoData *pInfoData = taosArrayGet(pResultBlock->pDataBlock, i);
 
