@@ -328,10 +328,8 @@ msr_decode_steim1 (int32_t *input, int inputlength, int64_t samplecount,
   /* Check data integrity by comparing last sample to Xn (reverse integration constant) */
   if (outputptr != output && *(outputptr - 1) != Xn)
   {
-#if 0
     ms_log (1, "%s: Warning: Data integrity check for Steim1 failed, Last sample=%d, Xn=%d\n",
             srcname, *(outputptr - 1), Xn);
-#endif
   }
 
   return (outputptr - output);
@@ -572,10 +570,8 @@ msr_decode_steim2 (int32_t *input, int inputlength, int64_t samplecount,
   /* Check data integrity by comparing last sample to Xn (reverse integration constant) */
   if (outputptr != output && *(outputptr - 1) != Xn)
   {
-#if 0
     ms_log (1, "%s: Warning: Data integrity check for Steim2 failed, Last sample=%d, Xn=%d\n",
             srcname, *(outputptr - 1), Xn);
-#endif
   }
 
   return (outputptr - output);

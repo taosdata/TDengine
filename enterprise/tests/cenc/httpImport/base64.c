@@ -93,13 +93,7 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
       if (c4 != '=') {
         *out++ = (unsigned char)(((CHAR64(c3) << 6) & 0xc0) | CHAR64(c4));
         *outlen += 1;
-      } else {
-        *out = '\0';
-        return result;
       }
-    } else {
-      *out = '\0';
-      return result;
     }
   }
 

@@ -10,11 +10,11 @@
 
 CC            = gcc
 CXX           = g++
-CFLAGS        = -O0 -pipe -g -Wall# -DFILTER_DEBUG
-CXXFLAGS      = -O0 -pipe -g -Wall
+CFLAGS        = -pipe -g -Wall
+CXXFLAGS      = -pipe -g -Wall
 INCPATH       = -I. -I/usr/local/include
 LINK          = gcc
-LFLAGS        = -L/usr/local/lib -lmseed -ltaos -lcurl -lm -lpthread
+LFLAGS        = -L/usr/local/lib -lmseed -ltaos -lcurl -lm
 AR            = ar cqs
 RANLIB        = 
 TAR           = tar -cf
@@ -43,13 +43,11 @@ OBJECTS_DIR   = ./
 SOURCES       = PickData.c \
 		FilterPicker5.c \
 		FilterPicker5_Memory.c \
-		subscribe.c \
-		base64.c
+		subscribe.c 
 OBJECTS       = PickData.o \
 		FilterPicker5.o \
 		FilterPicker5_Memory.o \
-		subscribe.o \
-		base64.o
+		subscribe.o
 DESTDIR       = 
 TARGET        = subscribe
 
@@ -80,8 +78,9 @@ all: $(TARGET)
 $(TARGET):  $(OBJECTS)  
 	$(LINK) -o $(TARGET) $(OBJECTS) $(LFLAGS) 
 
-clean:
+clean:compiler_clean 
 	-$(DEL_FILE) $(TARGET) $(OBJECTS)
+	-$(DEL_FILE) *~ core *.core
 
 
 ####### Sub-libraries
@@ -90,7 +89,37 @@ distclean: clean
 	-$(DEL_FILE) $(TARGET) 
 
 
+compiler_rcc_make_all:
+compiler_rcc_clean:
+compiler_uic_make_all:
+compiler_uic_clean:
+compiler_image_collection_make_all: qmake_image_collection.cpp
+compiler_image_collection_clean:
+	-$(DEL_FILE) qmake_image_collection.cpp
+compiler_yacc_decl_make_all:
+compiler_yacc_decl_clean:
+compiler_yacc_impl_make_all:
+compiler_yacc_impl_clean:
+compiler_lex_make_all:
+compiler_lex_clean:
+compiler_clean: 
+
 ####### Compile
+
+PickData.o: PickData.c ew_bridge.h \
+		PickData.h
+	$(CC) -c $(CFLAGS) $(INCPATH) -o PickData.o PickData.c
+
+FilterPicker5.o: FilterPicker5.c ew_bridge.h \
+		PickData.h \
+		FilterPicker5_Memory.h \
+		FilterPicker5.h
+	$(CC) -c $(CFLAGS) $(INCPATH) -o FilterPicker5.o FilterPicker5.c
+
+FilterPicker5_Memory.o: FilterPicker5_Memory.c ew_bridge.h \
+		PickData.h \
+		FilterPicker5_Memory.h
+	$(CC) -c $(CFLAGS) $(INCPATH) -o FilterPicker5_Memory.o FilterPicker5_Memory.c
 
 FilterPicker5.o: FilterPicker5.c ew_bridge.h \
 		PickData.h \
@@ -106,9 +135,6 @@ FilterPicker5_Memory.o: FilterPicker5_Memory.c ew_bridge.h \
 PickData.o: PickData.c ew_bridge.h \
 		PickData.h
 	$(CC) -c $(CFLAGS) $(INCPATH) -o PickData.o PickData.c
-
-base64.o: base64.c base64.h
-	$(CC) -c $(CFLAGS) $(INCPATH) -o base64.o base64.c
 
 subscribe.o: subscribe.c sachdr.h \
 		ew_bridge.h \
