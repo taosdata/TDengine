@@ -586,7 +586,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     tscBuildAndSendRequest(pSql, NULL);
     return false;
   }
-
+  tscFreeRegisteredSqlObj
   return true;
 }
 

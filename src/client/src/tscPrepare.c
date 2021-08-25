@@ -1503,14 +1503,6 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
     return NULL;
   }
 
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
-    free(pSql);
-    free(pStmt);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscError("failed to malloc payload buffer");
-    return NULL;
-  }
-
   tsem_init(&pSql->rspSem, 0, 0);
   pSql->signature = pSql;
   pSql->pTscObj   = pObj;
@@ -1812,7 +1804,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
   }
 
-  taos_free_result(pStmt->pSql);
+  tscFreeRegisteredSqlObj(pStmt->pSql));
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
