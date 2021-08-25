@@ -4607,8 +4607,8 @@ int32_t functionCompatList[] = {
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
     //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   stddev_dst, interp    rate    irate
     1,          1,        1,         1,       -1,      1,          1,           1,          5,        1,      1,
-    // tid_tag, derivative, blk_info, histogram,hll,   mode,       sample,      ceil,     floor,      round
-    6,          8,        7,        -1,       -1,     -1,         -1,           1,        1,          1
+    // tid_tag, derivative, blk_info,ceil,     floor,  round
+    6,          8,        7,         1,        1,      1
 };
 
 SAggFunctionInfo aAggs[] = {{
