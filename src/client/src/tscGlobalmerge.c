@@ -981,7 +981,7 @@ static void doHandleDataInCurrentGroup(SSLimitOperatorInfo* pInfo, SSDataBlock* 
   } else {
     // discard the data rows in current group
     if (pInfo->limit.limit < 0 || (pInfo->limit.limit >= 0 && pInfo->rowsTotal < pInfo->limit.limit)) {
-      int32_t num1 = taosArrayGetSize(pInfo->pRes->pDataBlock);
+      size_t num1 = taosArrayGetSize(pInfo->pRes->pDataBlock);
       for (int32_t i = 0; i < num1; ++i) {
         SColumnInfoData *pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
         SColumnInfoData *pDstInfoData = taosArrayGet(pInfo->pRes->pDataBlock, i);
