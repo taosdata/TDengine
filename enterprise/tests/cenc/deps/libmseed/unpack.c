@@ -424,6 +424,13 @@ msr3_unpack_mseed2 (char *record, int reclen, MS3Record **ppmsr,
       ms_gswap2 (&next_blkt);
     }
 
+    /* Work around for cenc */
+    if (next_blkt && next_blkt > reclen) {
+      blkt_count++;
+      blkt_offset = 0;
+      continue;
+    }
+
     /* Get blockette length */
     blkt_length = ms2_blktlen (blkt_type, record + blkt_offset, msr->swapflag);
 
@@ -852,6 +859,22 @@ msr3_unpack_mseed2 (char *record, int reclen, MS3Record **ppmsr,
         dval = (double) *pMS2B1001_TIMINGQUALITY (record + blkt_offset);
         mseh_set_number (msr, "FDSN.Time.Quality", &dval);
       }
+    }
+
+    /* For cenc */
+    else if (blkt_type == 1002)
+    {
+      if (next_blkt && ((next_blkt < (blkt_offset + blkt_length)) || (next_blkt > reclen)))
+      {
+        blkt_offset = 0;
+      }
+      else
+      {
+        blkt_offset = next_blkt;
+      }
+
+      blkt_count++;
+      continue;
     }
 
     else if (blkt_type == 2000)
@@ -1426,12 +1449,14 @@ ms_decode_data (const void *input, size_t inputsize, uint8_t encoding,
     break;
   }
 
+#if 0
   if (nsamples >= 0 && nsamples != samplecount)
   {
     ms_log (2, "%s: only decoded %d samples of %" PRId64 " expected\n",
             (sid) ? sid : "", nsamples, samplecount);
     return MS_GENERROR;
   }
+#endif
 
   return nsamples;
 } /* End of ms_decode_data() */
@@ -1598,6 +1623,9 @@ ms2_blktlen (uint16_t blkttype, const char *blkt, int8_t swapflag)
     blktlen = 8;
     break;
   case 1001: /* Data Extension */
+    blktlen = 8;
+    break;
+  case 1002: /* Cenc Extension */
     blktlen = 8;
     break;
   case 2000: /* Opaque Data */

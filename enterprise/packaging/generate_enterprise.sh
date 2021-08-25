@@ -57,4 +57,3 @@ cp  -f $communityDir/release/* ./
 #git checkout -b release/v$version
 #git merge master
 #git push origin release/v$version
-

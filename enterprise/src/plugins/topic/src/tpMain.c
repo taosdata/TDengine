@@ -30,7 +30,6 @@
 #include "mnodeWrite.h"
 
 #define TP_SCHEMA_SQL_LEN 4096
-#define TP_BINARY_LEN     16000
 
 extern void *  tsDbSdb;
 extern char *  mnodeGetDbStr(char *src);
@@ -111,7 +110,7 @@ static void tpBuildDropDbSql(char *sql, const char *topic) {
 
 static void tpBuildCreateStableSql(char *sql, const char *topic) {
   snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (off timestamp, ts timestamp, content binary(%d)) tags(pid int)",
-           topic, TP_BINARY_LEN);
+           topic, tsTopicBianryLen);
 }
 
 static void tpBuildCreateCtableSql(char *sql, const char *topic, int32_t tableId) {
