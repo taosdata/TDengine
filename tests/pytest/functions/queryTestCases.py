@@ -15,6 +15,7 @@ import sys
 import subprocess
 import random
 import math
+import numpy as np
 
 from util.log import *
 from util.cases import *
@@ -57,16 +58,33 @@ class TDTestCase:
 
     def td3690(self):
         tdLog.printNoPrefix("==========TD-3690==========")
+
+        tdSql.prepare()
+
+        tdSql.execute("show variables")
+        res_off = tdSql.cursor.fetchall()
+        resList = np.array(res_off)
+        index = np.where(resList == "offlineThreshold")
+        index_value = np.dstack((index[0])).squeeze()
         tdSql.query("show variables")
-        tdSql.checkData(53, 1, 864000)
+        tdSql.checkData(index_value, 1, 864000)
 
     def td4082(self):
         tdLog.printNoPrefix("==========TD-4082==========")
+
+        tdSql.prepare()
+
         cfgfile = self.getCfgFile()
         max_compressMsgSize = 100000000
 
+        tdSql.execute("show variables")
+        res_com = tdSql.cursor.fetchall()
+        rescomlist = np.array(res_com)
+        cpms_index = np.where(rescomlist == "compressMsgSize")
+        index_value = np.dstack((cpms_index[0])).squeeze()
+
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, -1)
+        tdSql.checkData(index_value, 1, -1)
 
         tdSql.query("show dnodes")
         index = tdSql.getData(0, 0)
@@ -80,7 +98,7 @@ class TDTestCase:
 
         tdDnodes.start(index)
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, 100000000)
+        tdSql.checkData(index_value, 1, 100000000)
 
         tdDnodes.stop(index)
         cmd = f"sed -i '$s/{max_compressMsgSize}/{max_compressMsgSize+10}/g' {cfgfile} "
@@ -91,7 +109,7 @@ class TDTestCase:
 
         tdDnodes.start(index)
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, -1)
+        tdSql.checkData(index_value, 1, -1)
 
         tdDnodes.stop(index)
         cmd = f"sed -i '$d' {cfgfile}"
@@ -104,8 +122,12 @@ class TDTestCase:
 
     def td4097(self):
         tdLog.printNoPrefix("==========TD-4097==========")
+
         tdSql.execute("drop database if exists db")
         tdSql.execute("drop database if exists db1")
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
         tdSql.execute("create database  if not exists db keep 3650")
         tdSql.execute("create database  if not exists db1 keep 3650")
         tdSql.execute("create database  if not exists new keep 3650")
@@ -267,10 +289,22 @@ class TDTestCase:
         # keep ~ [days,365000]
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database  if not exists db")
+
+        tdSql.execute("show variables")
+        res_kp = tdSql.cursor.fetchall()
+        resList = np.array(res_kp)
+        keep_index = np.where(resList == "keep")
+        index_value = np.dstack((keep_index[0])).squeeze()
+
         tdSql.query("show variables")
-        tdSql.checkData(38, 1, 3650)
+        tdSql.checkData(index_value, 1, 3650)
+
         tdSql.query("show databases")
-        tdSql.checkData(0,7,"3650,3650,3650")
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "3650,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 3650)
 
         days = tdSql.getData(0, 6)
         tdSql.error("alter database db keep 3650001")
@@ -289,14 +323,22 @@ class TDTestCase:
 
         tdSql.execute("alter database db keep 36500")
         tdSql.query("show databases")
-        tdSql.checkData(0, 7, "3650,3650,36500")
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "36500,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 36500)
+
         tdSql.execute("drop database if exists db")
 
         tdSql.execute("create database  if not exists db1")
         tdSql.query("show databases")
-        tdSql.checkData(0, 7, "3650,3650,3650")
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "3650,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 3650)
+
         tdSql.query("show variables")
-        tdSql.checkData(38, 1, 3650)
+        tdSql.checkData(index_value, 1, 3650)
 
         tdSql.execute("alter database db1 keep 365")
         tdSql.execute("drop database if exists db1")
@@ -1007,9 +1049,9 @@ class TDTestCase:
     def run(self):
 
         # master branch
-        # self.td3690()
-        # self.td4082()
-        # self.td4288()
+        self.td3690()
+        self.td4082()
+        self.td4288()
         # self.td4724()
         # self.td5798()
         # self.td5935()
