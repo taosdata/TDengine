@@ -2436,7 +2436,7 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   SPair* p = pSchedMsg->msg;
 
   for (int32_t i = p->first; i < p->second; ++i) {
-   if (i == pSql->subState.numOfSub) {
+   if (i >= pSql->subState.numOfSub) {
       tfree(p);
       return;
     }
