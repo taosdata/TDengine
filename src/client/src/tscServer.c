@@ -26,6 +26,7 @@
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "ttimer.h"
+#include "httpInt.h"
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -1434,6 +1435,9 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = TSDB_MSG_TYPE_CM_SHOW;
   pCmd->payloadLen = sizeof(SShowMsg) + 100;
 
+  char        *p = NULL;
+  HttpContext *pCtx = NULL;
+
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1453,7 +1457,26 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if (tNameIsEmpty(&pTableMetaInfo->name)) {
     pthread_mutex_lock(&pObj->mutex);
-    tstrncpy(pShowMsg->db, pObj->db, sizeof(pShowMsg->db));  
+    STscObj *pTscObj = pSql->pTscObj;
+    switch (pTscObj->from) {
+    case TAOS_REQ_FROM_HTTP:
+      pCtx = pSql->param;
+      if (pCtx && pCtx->db[0] != '\0') {
+        char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
+        int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
+        assert(len <= sizeof(db));
+
+        p = db;
+      }
+      break;
+    default:
+      break;
+    }
+    if (p == NULL) {
+      tstrncpy(pShowMsg->db, pObj->db, sizeof(pShowMsg->db));
+    } else {
+      tstrncpy(pShowMsg->db, p, strlen(p) + 1);
+    }
     pthread_mutex_unlock(&pObj->mutex);
   } else {
     tNameGetFullDbName(&pTableMetaInfo->name, pShowMsg->db);
