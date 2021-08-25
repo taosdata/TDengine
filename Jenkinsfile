@@ -135,7 +135,7 @@ pipeline {
           }
       }
       stage('Parallel test stage') {
-        //only build pr && ci skip
+        //only build pr
         when {
           allOf{
               changeRequest()

@@ -1,8 +1,8 @@
-CFLAGS += -g -O0 -Wall# -DIN_DATA_DEBUG -DHTTP_IMPORT_DEBUG
+CFLAGS += -g -Wall# -DHTTP_IMPORT_DEBUG
 INCOPTS = -I/usr/include -I/usr/local/include -I.
-LIBOPTS = -L/usr/local/lib -lmseed -ltaos -lcurl -lpthread
+LIBOPTS = -L/usr/local/lib -lmseed -ltaos -lcurl
 
-SRCS = urlencode.c base64.c httpImport.c
+SRCS = base64.c httpImport.c
 OBJS = $(SRCS:.c=.o)
 
 TARGET = httpImport
