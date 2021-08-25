@@ -392,7 +392,7 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     return -1;
   }
 
-  if (tsdbLoadSchema(pRepo) < 0) {
+  if ((!(pRepo->state & TSDB_STATE_BAD_SCHEMA)) && tsdbLoadSchema(pRepo) < 0) {
     tsdbError("vgId:%d failed to open FS while loading schema since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
