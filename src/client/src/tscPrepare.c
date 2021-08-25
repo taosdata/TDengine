@@ -155,6 +155,22 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         var->i64 = *(int64_t*)tb->buffer;
         break;
 
+      case  TSDB_DATA_TYPE_UTINYINT:
+        var->u64 = *(uint8_t*)tb->buffer;
+        break;
+
+      case  TSDB_DATA_TYPE_USMALLINT:
+        var->u64 = *(uint16_t*)tb->buffer;
+        break;
+
+      case  TSDB_DATA_TYPE_UINT:
+        var->u64 = *(uint32_t*)tb->buffer;
+        break;
+
+      case  TSDB_DATA_TYPE_UBIGINT:
+        var->u64 = *(uint64_t*)tb->buffer;
+        break;
+
       case TSDB_DATA_TYPE_FLOAT:
         var->dKey = GET_FLOAT_VAL(tb->buffer);
         break;
@@ -262,6 +278,13 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
       taosStringBuilderAppendInteger(&sb, var->i64);
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      taosStringBuilderAppendInteger(&sb, var->u64);  // maybe overflow if u64 is too big
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
