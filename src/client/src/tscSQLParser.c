@@ -7231,9 +7231,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
         s = &pSchema[colIndex];
       }
     }
-  
-    size_t size = tscNumOfExprs(pQueryInfo);
-  
+    
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
 
       int32_t f = TSDB_FUNC_TAG;
@@ -7241,8 +7239,10 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
         f = TSDB_FUNC_TAGPRJ;
       }
 
+      int32_t pos = tscGetFirstInvisibleFieldPos(pQueryInfo);      
+
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
-      SExprInfo*   pExpr = tscExprAppend(pQueryInfo, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
+      SExprInfo*   pExpr = tscExprInsert(pQueryInfo, pos, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
 
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
       tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
@@ -7252,12 +7252,14 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
 
       // NOTE: tag column does not add to source column list
       SColumnList ids = createColumnList(1, 0, pColIndex->colIndex);
-      insertResultField(pQueryInfo, (int32_t)size, &ids, s->bytes, (int8_t)s->type, s->name, pExpr);
+      insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, s->name, pExpr);
     } else {
       // if this query is "group by" normal column, time window query is not allowed
       if (isTimeWindowQuery(pQueryInfo)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
+
+      size_t size = tscNumOfExprs(pQueryInfo);
 
       bool hasGroupColumn = false;
       for (int32_t j = 0; j < size; ++j) {
