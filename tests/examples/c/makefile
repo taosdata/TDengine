@@ -26,5 +26,5 @@ clean:
 	rm $(ROOT)batchprepare
 	rm $(ROOT)stream
 	rm $(ROOT)subscribe
-	rm $(ROOT)apitest]
+	rm $(ROOT)apitest
 	rm $(ROOT)stmt
