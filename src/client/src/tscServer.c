@@ -841,6 +841,11 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
     tableSerialize = totalTables * sizeof(STableIdInfo);
   }
 
+  SCond* pCond = &pQueryInfo->tagCond.tbnameCond;
+  if (pCond->len > 0) {
+    srcColListSize += pCond->len;
+  }
+
   return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + srcColFilterSize + srcTagFilterSize +
          exprSize + tsBufSize + tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }

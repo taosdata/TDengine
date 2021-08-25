@@ -4089,7 +4089,7 @@ static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockD
   } else {
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
-    
+
     int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
     if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
       ++maxSteps;
@@ -4223,7 +4223,7 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
     taosArrayDestroy(pDist->dataBlockInfos);
     pDist->dataBlockInfos = NULL;
   }
-  
+
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
   pResInfo->hasResult = DATA_SET_FLAG;

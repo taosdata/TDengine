@@ -268,7 +268,7 @@ def _load_taos():
     try:
         return load_func[platform.system()]()
     except:
-        sys.exit('unsupported platform to TDengine connector')
+        raise InterfaceError('unsupported platform or failed to load taos client library')
 
 
 class CTaosInterface(object):
