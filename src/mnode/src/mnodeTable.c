@@ -2934,10 +2934,11 @@ static SMultiTableMeta* ensureMsgBufferSpace(SMultiTableMeta *pMultiMeta, SArray
       (*totalMallocLen) *= 2;
     }
 
-    pMultiMeta = realloc(pMultiMeta, *totalMallocLen);
-    if (pMultiMeta == NULL) {
+    SMultiTableMeta* pMultiMeta1 = realloc(pMultiMeta, *totalMallocLen);
+    if (pMultiMeta1 == NULL) {
       return NULL;
     }
+    pMultiMeta = pMultiMeta1;
   }
 
   return pMultiMeta;
