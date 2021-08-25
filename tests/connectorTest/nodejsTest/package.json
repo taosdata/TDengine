@@ -1,0 +1,34 @@
+{
+  "name": "td2.0-connector",
+  "version": "2.0.10",
+  "description": "A Node.js connector for TDengine.",
+  "main": "tdengine.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/test.js && node test/testMicroseconds.js &&  node test/testNanoseconds.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taosdata/tdengine.git"
+  },
+  "keywords": [
+    "TDengine",
+    "TAOS Data",
+    "Time Series Database",
+    "Connector"
+  ],
+  "author": "TaosData Inc.",
+  "license": "AGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/taosdata/tdengine/issues"
+  },
+  "homepage": "https://github.com/taosdata/tdengine#readme",
+  "dependencies": {
+    "ffi-napi": "^3.1.0",
+    "ref-array-napi": "^1.2.1",
+    "ref-napi": "^1.5.2",
+    "ref-struct-napi": "^1.1.1"
+  }
+}
