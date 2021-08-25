@@ -1,4 +1,4 @@
-// TAOS standard API example. The same syntax as MySQL, but only a subet 
+// TAOS standard API example. The same syntax as MySQL, but only a subet
 // to compile: gcc -o prepare prepare.c -ltaos
 
 #include <stdio.h>
@@ -6,14 +6,12 @@
 #include <string.h>
 #include "taos.h"
 
-
 void taosMsleep(int mseconds);
 
-int main(int argc, char *argv[])
-{
-  TAOS     *taos;
-  TAOS_RES *result;
-  int      code;
+int main(int argc, char *argv[]) {
+  TAOS *     taos;
+  TAOS_RES * result;
+  int        code;
   TAOS_STMT *stmt;
 
   // connect to server
@@ -26,9 +24,9 @@ int main(int argc, char *argv[])
   if (taos == NULL) {
     printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
     exit(1);
-  }   
+  }
 
-  result = taos_query(taos, "drop database demo"); 
+  result = taos_query(taos, "drop database demo");
   taos_free_result(result);
 
   result = taos_query(taos, "create database demo");
@@ -44,7 +42,9 @@ int main(int argc, char *argv[])
   taos_free_result(result);
 
   // create table
-  const char* sql = "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), blob nchar(10))";
+  const char *sql =
+      "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin "
+      "binary(40), blob nchar(10))";
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
@@ -59,16 +59,16 @@ int main(int argc, char *argv[])
 
   // insert 10 records
   struct {
-      int64_t ts;
-      int8_t b;
-      int8_t v1;
-      int16_t v2;
-      int32_t v4;
-      int64_t v8;
-      float f4;
-      double f8;
-      char bin[40];
-      char blob[80];
+    int64_t ts;
+    int8_t  b;
+    int8_t  v1;
+    int16_t v2;
+    int32_t v4;
+    int64_t v8;
+    float   f4;
+    double  f8;
+    char    bin[40];
+    char    blob[80];
   } v = {0};
 
   stmt = taos_stmt_init(taos);
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 
   sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
+  if (code != 0) {
     printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
   }
   v.ts = 1591060628000;
@@ -203,4 +203,3 @@ int main(int argc, char *argv[])
 
   return 0;
 }
-
