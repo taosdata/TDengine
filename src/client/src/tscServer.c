@@ -698,38 +698,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   taosReleaseRef(tscObjRef, handle);
   rpcFreeCont(rpcMsg->pCont);
-<<<<<<< HEAD
-  free(rpcMsg);
-  free(pEpSet);
-}
-
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
-  int64_t st = taosGetTimestampUs();
-  SSchedMsg schedMsg = {0};
-
-  schedMsg.fp = doProcessMsgFromServer;
-
-  SRpcMsg* rpcMsgCopy = calloc(1, sizeof(SRpcMsg));
-  memcpy(rpcMsgCopy, rpcMsg, sizeof(struct SRpcMsg));
-  schedMsg.ahandle = (void*)rpcMsgCopy;
-
-  SRpcEpSet* pEpSetCopy = NULL;
-  if (pEpSet != NULL) {
-    pEpSetCopy = calloc(1, sizeof(SRpcEpSet));
-    memcpy(pEpSetCopy, pEpSet, sizeof(SRpcEpSet));
-  }
-
-  schedMsg.thandle = (void*)pEpSetCopy;
-  schedMsg.msg = NULL;
-
-  taosScheduleTask(tscQhandle, &schedMsg);
-
-  int64_t et = taosGetTimestampUs();
-  if (et - st > 100) {
-    tscDebug("add message to task queue, elapsed time:%"PRId64, et - st);
-  }
-=======
->>>>>>> origin/master
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
