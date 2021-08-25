@@ -15,8 +15,10 @@ exe:
 	gcc $(CFLAGS) ./batchprepare.c  -o $(ROOT)batchprepare  $(LFLAGS)
 	gcc $(CFLAGS) ./stmtBatchTest.c -o $(ROOT)stmtBatchTest $(LFLAGS)
 	gcc $(CFLAGS) ./stmtTest.c -o $(ROOT)stmtTest $(LFLAGS)
+	gcc $(CFLAGS) ./stmt.c -o $(ROOT)stmt $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
 	rm $(ROOT)stmtBatchTest
 	rm $(ROOT)stmtTest
+	rm $(ROOT)stmt
