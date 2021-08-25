@@ -324,7 +324,7 @@ class TDTestCase:
         tdSql.execute("alter database db keep 36500")
         tdSql.query("show databases")
         if ("community" in selfPath):
-            tdSql.checkData(0, 7, "36500,3650,3650")
+            tdSql.checkData(0, 7, "36500,36500,36500")
         else:
             tdSql.checkData(0, 7, 36500)
 
