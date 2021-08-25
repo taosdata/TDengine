@@ -18,6 +18,9 @@
 
 #define TSDB_FS_VERSION 0
 
+// ================== TSDB global config
+extern bool tsdbForceKeepFile;
+
 // ================== CURRENT file header info
 typedef struct {
   uint32_t version;  // Current file system version (relating to code)
@@ -42,8 +45,9 @@ typedef struct {
 typedef struct {
   pthread_rwlock_t lock;
 
-  SFSStatus* cstatus;    // current status
-  SHashObj*  metaCache;  // meta cache
+  SFSStatus* cstatus;         // current status
+  SHashObj*  metaCache;       // meta cache
+  SHashObj*  metaCacheComp;   // meta cache for compact
   bool       intxn;
   SFSStatus* nstatus;  // new status
 } STsdbFS;

@@ -43,9 +43,7 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
-//TODO: may need to fine tune this threshold
-#define QUERY_COMP_THRESHOLD (1024 * 512)
-#define NEEDTO_COMPRESS_QUERY(size) ((size) > QUERY_COMP_THRESHOLD ? 1 : 0)
+#define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData? 1 : 0)
 
 enum {
   // when query starts to execute, this status will set
@@ -623,6 +621,7 @@ int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int3
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
+void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

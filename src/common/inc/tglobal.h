@@ -107,6 +107,9 @@ extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
 
+//tsdb 
+extern bool tsdbForceKeepFile;
+
 // balance
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
@@ -160,6 +163,7 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsTickPerDay[3];
+extern int32_t tsTopicBianryLen;
 
 // system info
 extern char    tsOsName[];

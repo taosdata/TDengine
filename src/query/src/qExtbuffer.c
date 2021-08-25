@@ -768,60 +768,6 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   free(buf);
 }
 
-void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn) {
-  assert(numOfRows > 0 && numOfCols > 0 && index >= 0 && index < numOfCols);
-
-  int32_t bytes = pSchema[index].bytes;
-  int32_t size = bytes + sizeof(int32_t);
-
-  char* buf = calloc(1, size * numOfRows);
-
-  for(int32_t i = 0; i < numOfRows; ++i) {
-    char* dest = buf + size * i;
-    memcpy(dest, ((char*)pCols[index]) + bytes * i, bytes);
-    *(int32_t*)(dest+bytes) = i;
-  }
-
-  qsort(buf, numOfRows, size, compareFn);
-
-  int32_t prevLength = 0;
-  char* p = NULL;
-
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    int32_t bytes1 = pSchema[i].bytes;
-
-    if (i == index) {
-      for(int32_t j = 0; j < numOfRows; ++j){
-        char* src  = buf + (j * size);
-        char* dest = (char*) pCols[i] + (j * bytes1);
-        memcpy(dest, src, bytes1);
-      }
-    } else {
-      // make sure memory buffer is enough
-      if (prevLength < bytes1) {
-        char *tmp = realloc(p, bytes1 * numOfRows);
-        assert(tmp);
-
-        p = tmp;
-        prevLength = bytes1;
-      }
-
-      memcpy(p, pCols[i], bytes1 * numOfRows);
-
-      for(int32_t j = 0; j < numOfRows; ++j){
-        char* dest = (char*) pCols[i] + bytes1 * j;
-
-        int32_t newPos = *(int32_t*)(buf + (j * size) + bytes);
-        char* src = p + (newPos * bytes1);
-        memcpy(dest, src, bytes1);
-      }
-    }
-  }
-
-  tfree(buf);
-  tfree(p);
-}
-
 /*
  * deep copy of sschema
  */
@@ -1156,4 +1102,58 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
 
   destroyColumnModel(pDesc->pColumnModel);
   tfree(pDesc);
+}
+
+void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn) {
+  assert(numOfRows > 0 && numOfCols > 0 && index >= 0 && index < numOfCols);
+
+  int32_t bytes = pSchema[index].bytes;
+  int32_t size = bytes + sizeof(int32_t);
+
+  char* buf = calloc(1, size * numOfRows);
+
+  for(int32_t i = 0; i < numOfRows; ++i) {
+    char* dest = buf + size * i;
+    memcpy(dest, ((char*) pCols[index]) + bytes * i, bytes);
+    *(int32_t*)(dest+bytes) = i;
+  }
+
+  qsort(buf, numOfRows, size, compareFn);
+
+  int32_t prevLength = 0;
+  char* p = NULL;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    int32_t bytes1 = pSchema[i].bytes;
+
+    if (i == index) {
+      for(int32_t j = 0; j < numOfRows; ++j){
+        char* src  = buf + (j * size);
+        char* dest = ((char*)pCols[i]) + (j * bytes1);
+        memcpy(dest, src, bytes1);
+      }
+    } else {
+      // make sure memory buffer is enough
+      if (prevLength < bytes1) {
+        char *tmp = realloc(p, bytes1 * numOfRows);
+        assert(tmp);
+
+        p = tmp;
+        prevLength = bytes1;
+      }
+
+      memcpy(p, pCols[i], bytes1 * numOfRows);
+
+      for(int32_t j = 0; j < numOfRows; ++j){
+        char* dest = ((char*)pCols[i]) + bytes1 * j;
+
+        int32_t newPos = *(int32_t*)(buf + (j * size) + bytes);
+        char* src = p + (newPos * bytes1);
+        memcpy(dest, src, bytes1);
+      }
+    }
+  }
+
+  tfree(buf);
+  tfree(p);
 }

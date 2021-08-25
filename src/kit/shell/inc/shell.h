@@ -25,7 +25,6 @@
 #define MAX_USERNAME_SIZE      64
 #define MAX_DBNAME_SIZE        64
 #define MAX_IP_SIZE            20
-#define MAX_PASSWORD_SIZE      20
 #define MAX_HISTORY_SIZE       1000
 #define MAX_COMMAND_SIZE       1048586
 #define HISTORY_FILE           ".taos_history"

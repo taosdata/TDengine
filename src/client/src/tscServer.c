@@ -337,10 +337,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
-  SRpcMsg* rpcMsg = pSchedMsg->ahandle;
-  SRpcEpSet* pEpSet = pSchedMsg->thandle;
-
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pSql == NULL) {
@@ -372,7 +369,7 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     tscDebug("0x%"PRIx64" sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
-        pSql->self, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
+             pSql->self, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
@@ -407,9 +404,9 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     // 1. super table subquery
     // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
     if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
-                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
-                                               !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
-                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
+                                                TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
+         !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
+        (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
       // do nothing in case of super table subquery
     }  else {
       pSql->retry += 1;
@@ -485,7 +482,7 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
 
       pRes->numOfRows += pMsg->affectedRows;
       tscDebug("0x%"PRIx64" SQL cmd:%s, code:%s inserted rows:%d rspLen:%d", pSql->self, sqlCmd[pCmd->command],
-          tstrerror(pRes->code), pMsg->affectedRows, pRes->rspLen);
+               tstrerror(pRes->code), pMsg->affectedRows, pRes->rspLen);
     } else {
       tscDebug("0x%"PRIx64" SQL cmd:%s, code:%s rspLen:%d", pSql->self, sqlCmd[pCmd->command], tstrerror(pRes->code), pRes->rspLen);
     }
@@ -500,28 +497,30 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
     }
+
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     if (pRes->code == TSDB_CODE_RPC_FQDN_ERROR) {
-      tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64); 
-      // handle three situation 
-      // 1. epset retry, only return last failure ep   
-      // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn 
-      // 3. other situation, no expected 
+      tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64);
+      // handle three situation
+      // 1. epset retry, only return last failure ep
+      // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn
+      // 3. other situation, no expected
       if (pEpSet) {
         sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),pEpSet->fqdn[(pEpSet->inUse)%(pEpSet->numOfEps)]);
       } else if (pCmd->command >= TSDB_SQL_MGMT) {
         SRpcEpSet tEpset;
 
         SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
-        taosCorBeginRead(&pCorEpSet->version); 
-        tEpset = pCorEpSet->epSet;   
-        taosCorEndRead(&pCorEpSet->version); 
+        taosCorBeginRead(&pCorEpSet->version);
+          tEpset = pCorEpSet->epSet;
+        taosCorEndRead(&pCorEpSet->version);
 
         sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),tEpset.fqdn[(tEpset.inUse)%(tEpset.numOfEps)]);
       } else {
         sprintf(tscGetErrorMsgPayload(pCmd), "%s", tstrerror(pRes->code));
       }
     }
+
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
@@ -534,33 +533,6 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
   rpcFreeCont(rpcMsg->pCont);
   free(rpcMsg);
   free(pEpSet);
-}
-
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
-  int64_t st = taosGetTimestampUs();
-  SSchedMsg schedMsg = {0};
-
-  schedMsg.fp = doProcessMsgFromServer;
-
-  SRpcMsg* rpcMsgCopy = calloc(1, sizeof(SRpcMsg));
-  memcpy(rpcMsgCopy, rpcMsg, sizeof(struct SRpcMsg));
-  schedMsg.ahandle = (void*)rpcMsgCopy;
-
-  SRpcEpSet* pEpSetCopy = NULL;
-  if (pEpSet != NULL) {
-    pEpSetCopy = calloc(1, sizeof(SRpcEpSet));
-    memcpy(pEpSetCopy, pEpSet, sizeof(SRpcEpSet));
-  }
-
-  schedMsg.thandle = (void*)pEpSetCopy;
-  schedMsg.msg = NULL;
-
-  taosScheduleTask(tscQhandle, &schedMsg);
-
-  int64_t et = taosGetTimestampUs();
-  if (et - st > 100) {
-    tscDebug("add message to task queue, elapsed time:%"PRId64, et - st);
-  }
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
@@ -2678,7 +2650,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char **data, int8_t compressed, int compLen) {
+static void decompressQueryColData(SSqlObj *pSql, SSqlRes *pRes, SQueryInfo* pQueryInfo, char **data, int8_t compressed, int32_t compLen) {
   int32_t decompLen = 0;
   int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   int32_t *compSizes;
@@ -2715,6 +2687,9 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
     pData = *data + compLen + numOfCols * sizeof(int32_t);
   }
 
+  tscDebug("0x%"PRIx64" decompress col data, compressed size:%d, decompressed size:%d",
+      pSql->self, (int32_t)(compLen + numOfCols * sizeof(int32_t)), decompLen);
+
   int32_t tailLen = pRes->rspLen - sizeof(SRetrieveTableRsp) - decompLen;
   memmove(*data + decompLen, pData, tailLen);
   memmove(*data, outputBuf, decompLen);
@@ -2749,7 +2724,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   //Decompress col data if compressed from server
   if (pRetrieve->compressed) {
     int32_t compLen = htonl(pRetrieve->compLen);
-    decompressQueryColData(pRes, pQueryInfo, &pRes->data, pRetrieve->compressed, compLen);
+    decompressQueryColData(pSql, pRes, pQueryInfo, &pRes->data, pRetrieve->compressed, compLen);
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);

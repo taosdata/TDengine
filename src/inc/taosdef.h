@@ -88,6 +88,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
 
+#define SHELL_MAX_PASSWORD_LEN          20
+
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
@@ -275,6 +277,7 @@ do { \
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
 #define TSDB_TABLES_STEP                1000
+#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
