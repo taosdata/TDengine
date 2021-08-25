@@ -552,7 +552,7 @@ Query OK, 1 row(s) in set (0.000141s)
 * Springbootdemo：springboot示例源程序
 * SpringJdbcTemplate：SpringJDBC模板
 
-请参考：![JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
+请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## 常见问题
 
