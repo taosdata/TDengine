@@ -3688,36 +3688,6 @@ void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
   }
 }
 
-void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
-  bool    needCopyTs = false;
-  int32_t tsNum = 0;
-  char *src = NULL;
-  for (int32_t i = 0; i < numOfOutput; i++) {
-    int32_t functionId = pCtx[i].functionId;
-    if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
-      needCopyTs = true;
-      if (i > 0  && pCtx[i-1].functionId == TSDB_FUNC_TS_DUMMY){
-        SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i - 1); // find ts data
-        src = pColRes->pData;
-      }
-    }else if(functionId == TSDB_FUNC_TS_DUMMY) {
-      tsNum++;
-    }
-  }
-
-  if (!needCopyTs) return;
-  if (tsNum < 2) return;
-  if (src == NULL) return;
-
-  for (int32_t i = 0; i < numOfOutput; i++) {
-    int32_t functionId = pCtx[i].functionId;
-    if(functionId == TSDB_FUNC_TS_DUMMY) {
-      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i);
-      memcpy(pColRes->pData, src, pColRes->info.bytes * pRes->info.rows);
-    }
-  }
-}
-
 void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
   for (int32_t j = 0; j < size; ++j) {
     SResultRowCellInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
