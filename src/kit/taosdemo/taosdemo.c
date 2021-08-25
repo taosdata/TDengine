@@ -3328,8 +3328,7 @@ static void* createTable(void *sarg)
         }
 
         len = 0;
-        if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
-                    NO_INSERT_TYPE, false)) {
+        if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer, NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
             free(pThreadInfo->buffer);
             return NULL;

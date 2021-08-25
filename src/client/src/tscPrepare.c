@@ -206,6 +206,8 @@ static int normalStmtPrepare(STscStmt* stmt) {
         return code;
       }
       start = i + token.n;
+    } else if (token.type == TK_ILLEGAL) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "invalid sql");
     }
 
     i += token.n;
