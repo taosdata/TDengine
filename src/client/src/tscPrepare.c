@@ -1812,7 +1812,6 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
   }
 
-  tscCloseTscObj(pStmt->pSql->pTscObj);
   tscFreeSqlObj(pStmt->pSql);
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
