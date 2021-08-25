@@ -394,6 +394,7 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
             params->buffer_length = sizeof(v.c2);
             params->buffer = &v.c2;
             params->length = &params->buffer_length;
+            break;
         case TSDB_DATA_TYPE_BIGINT:
             params->buffer_length = sizeof(v.c3);
             params->buffer = &v.c3;
@@ -403,6 +404,7 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
             params->buffer_length = sizeof(v.c4);
             params->buffer = &v.c4;
             params->length = &params->buffer_length;
+            break;
         case TSDB_DATA_TYPE_DOUBLE:
             params->buffer_length = sizeof(v.c5);
             params->buffer = &v.c5;
@@ -422,6 +424,7 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
             params->buffer_length = sizeof(v.c8);
             params->buffer = &v.c8;
             params->length = &params->buffer_length;
+            break;
         case TSDB_DATA_TYPE_BOOL:
             params->buffer_length = sizeof(v.c9);
             params->buffer = &v.c9;
