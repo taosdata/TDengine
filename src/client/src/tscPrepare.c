@@ -277,6 +277,7 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
       taosStringBuilderAppendInteger(&sb, var->i64);
       break;
 
