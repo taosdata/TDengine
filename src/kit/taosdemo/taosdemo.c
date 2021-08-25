@@ -443,6 +443,7 @@ typedef struct SThreadInfo_S {
     uint64_t  start_table_from;
     uint64_t  end_table_to;
     int64_t   ntables;
+    int64_t   tables_created;
     uint64_t  data_of_rate;
     int64_t   start_time;
     char*     cols;
@@ -639,6 +640,7 @@ SArguments g_args = {
 
 static SDbs            g_Dbs;
 static int64_t         g_totalChildTables = 0;
+static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
 
@@ -660,6 +662,13 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 #define errorPrint(fmt, ...) \
     do {\
+        fprintf(stderr, " \033[31m");\
+        fprintf(stderr, "ERROR: "fmt, __VA_ARGS__);\
+        fprintf(stderr, " \033[0m");\
+    } while(0)
+
+#define errorPrint2(fmt, ...) \
+    do {\
         struct tm      Tm, *ptm;\
         struct timeval timeSecs; \
         time_t         curTime;\
@@ -671,8 +680,8 @@ static FILE *          g_fpOfInsertResult = NULL;
                 ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,\
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec,\
                 taosGetSelfPthreadId());\
-        fprintf(stderr, "ERROR: "fmt, __VA_ARGS__);\
         fprintf(stderr, " \033[0m");\
+        errorPrint(fmt, __VA_ARGS__);\
     } while(0)
 
 // for strncpy buffer overflow
@@ -815,6 +824,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-f") == 0) {
             arguments->demo_mode = false;
+
+            if (NULL == argv[i+1]) {
+                printHelp();
+                errorPrint("%s", "\n\t-f need a valid json file following!\n");
+                exit(EXIT_FAILURE);
+            }
             arguments->metaFile = argv[++i];
         } else if (strcmp(argv[i], "-c") == 0) {
             if (argc == i+1) {
@@ -951,6 +966,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->num_of_tables = atoi(argv[++i]);
+            g_totalChildTables = arguments->num_of_tables;
         } else if (strcmp(argv[i], "-n") == 0) {
             if ((argc == i+1) ||
                     (!isStringNumber(argv[i+1]))) {
@@ -1121,7 +1137,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
         } else if ((strcmp(argv[i], "--version") == 0) ||
-                (strcmp(argv[i], "-V") == 0)){
+                (strcmp(argv[i], "-V") == 0)) {
             printVersion();
             exit(0);
         } else if (strcmp(argv[i], "--help") == 0) {
@@ -1227,7 +1243,7 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
     verbosePrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
     if (code != 0) {
         if (!quiet) {
-            errorPrint("Failed to execute %s, reason: %s\n",
+            errorPrint2("Failed to execute %s, reason: %s\n",
                     command, taos_errstr(res));
         }
         taos_free_result(res);
@@ -1249,7 +1265,7 @@ static void appendResultBufToFile(char *resultBuf, threadInfo *pThreadInfo)
 {
     pThreadInfo->fp = fopen(pThreadInfo->filePath, "at");
     if (pThreadInfo->fp == NULL) {
-        errorPrint(
+        errorPrint2(
                 "%s() LN%d, failed to open result file: %s, result will not save to file\n",
                 __func__, __LINE__, pThreadInfo->filePath);
         return;
@@ -1268,7 +1284,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
 
     char* databuf = (char*) calloc(1, 100*1024*1024);
     if (databuf == NULL) {
-        errorPrint("%s() LN%d, failed to malloc, warning: save result to file slowly!\n",
+        errorPrint2("%s() LN%d, failed to malloc, warning: save result to file slowly!\n",
                 __func__, __LINE__);
         return ;
     }
@@ -1308,7 +1324,7 @@ static void selectAndGetResult(
     if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
         TAOS_RES *res = taos_query(pThreadInfo->taos, command);
         if (res == NULL || taos_errno(res) != 0) {
-            errorPrint("%s() LN%d, failed to execute sql:%s, reason:%s\n",
+            errorPrint2("%s() LN%d, failed to execute sql:%s, reason:%s\n",
                     __func__, __LINE__, command, taos_errstr(res));
             taos_free_result(res);
             return;
@@ -1327,19 +1343,19 @@ static void selectAndGetResult(
         }
 
     } else {
-        errorPrint("%s() LN%d, unknown query mode: %s\n",
+        errorPrint2("%s() LN%d, unknown query mode: %s\n",
                 __func__, __LINE__, g_queryInfo.queryMode);
     }
 }
 
-static char *rand_bool_str(){
+static char *rand_bool_str() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randbool_buff + (cursor * BOOL_BUFF_LEN);
+    return g_randbool_buff + ((cursor % MAX_PREPARED_RAND) * BOOL_BUFF_LEN);
 }
 
-static int32_t rand_bool(){
+static int32_t rand_bool() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
@@ -1351,7 +1367,8 @@ static char *rand_tinyint_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randtinyint_buff + (cursor * TINYINT_BUFF_LEN);
+    return g_randtinyint_buff +
+        ((cursor % MAX_PREPARED_RAND) * TINYINT_BUFF_LEN);
 }
 
 static int32_t rand_tinyint()
@@ -1367,7 +1384,8 @@ static char *rand_smallint_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randsmallint_buff + (cursor * SMALLINT_BUFF_LEN);
+    return g_randsmallint_buff +
+        ((cursor % MAX_PREPARED_RAND) * SMALLINT_BUFF_LEN);
 }
 
 static int32_t rand_smallint()
@@ -1383,7 +1401,7 @@ static char *rand_int_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint_buff + (cursor * INT_BUFF_LEN);
+    return g_randint_buff + ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
 }
 
 static int32_t rand_int()
@@ -1399,7 +1417,8 @@ static char *rand_bigint_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randbigint_buff + (cursor * BIGINT_BUFF_LEN);
+    return g_randbigint_buff +
+        ((cursor % MAX_PREPARED_RAND) * BIGINT_BUFF_LEN);
 }
 
 static int64_t rand_bigint()
@@ -1415,7 +1434,7 @@ static char *rand_float_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randfloat_buff + (cursor * FLOAT_BUFF_LEN);
+    return g_randfloat_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
 
@@ -1432,7 +1451,8 @@ static char *demo_current_float_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_current_buff + (cursor * FLOAT_BUFF_LEN);
+    return g_rand_current_buff +
+        ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
 static float UNUSED_FUNC demo_current_float()
@@ -1449,7 +1469,8 @@ static char *demo_voltage_int_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_voltage_buff + (cursor * INT_BUFF_LEN);
+    return g_rand_voltage_buff +
+        ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
 }
 
 static int32_t UNUSED_FUNC demo_voltage_int()
@@ -1464,10 +1485,10 @@ static char *demo_phase_float_str() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_phase_buff + (cursor * FLOAT_BUFF_LEN);
+    return g_rand_phase_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
-static float UNUSED_FUNC demo_phase_float(){
+static float UNUSED_FUNC demo_phase_float() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
@@ -1546,7 +1567,7 @@ static void init_rand_data() {
     g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randdouble_buff);
 
-    for (int i = 0; i < MAX_PREPARED_RAND; i++){
+    for (int i = 0; i < MAX_PREPARED_RAND; i++) {
         g_randint[i] = (int)(taosRandom() % 65535);
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
@@ -2141,7 +2162,7 @@ static void xDumpFieldToFile(FILE* fp, const char* val,
             fprintf(fp, "%d", *((int32_t *)val));
             break;
         case TSDB_DATA_TYPE_BIGINT:
-            fprintf(fp, "%" PRId64, *((int64_t *)val));
+            fprintf(fp, "%"PRId64"", *((int64_t *)val));
             break;
         case TSDB_DATA_TYPE_FLOAT:
             fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
@@ -2172,7 +2193,7 @@ static int xDumpResultToFile(const char* fname, TAOS_RES* tres) {
 
     FILE* fp = fopen(fname, "at");
     if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file: %s\n",
+        errorPrint2("%s() LN%d, failed to open file: %s\n",
                 __func__, __LINE__, fname);
         return -1;
     }
@@ -2219,7 +2240,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
     int32_t code = taos_errno(res);
 
     if (code != 0) {
-        errorPrint( "failed to run <show databases>, reason: %s\n",
+        errorPrint2("failed to run <show databases>, reason: %s\n",
                 taos_errstr(res));
         return -1;
     }
@@ -2235,7 +2256,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
 
         dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
         if (dbInfos[count] == NULL) {
-            errorPrint( "failed to allocate memory for some dbInfo[%d]\n", count);
+            errorPrint2("failed to allocate memory for some dbInfo[%d]\n", count);
             return -1;
         }
 
@@ -2388,7 +2409,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 
     request_buf = malloc(req_buf_len);
     if (NULL == request_buf) {
-        errorPrint("%s", "ERROR, cannot allocate memory.\n");
+        errorPrint("%s", "cannot allocate memory.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -2527,7 +2548,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 static char* getTagValueFromTagSample(SSuperTable* stbInfo, int tagUsePos) {
     char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
     if (NULL == dataBuf) {
-        errorPrint("%s() LN%d, calloc failed! size:%d\n",
+        errorPrint2("%s() LN%d, calloc failed! size:%d\n",
                 __func__, __LINE__, TSDB_MAX_SQL_LEN+1);
         return NULL;
     }
@@ -2627,7 +2648,7 @@ static char* generateTagValuesForStb(SSuperTable* stbInfo, int64_t tableSeq) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
                     "%"PRId64",", rand_bigint());
         }  else {
-            errorPrint("No support data type: %s\n", stbInfo->tags[i].dataType);
+            errorPrint2("No support data type: %s\n", stbInfo->tags[i].dataType);
             tmfree(dataBuf);
             return NULL;
         }
@@ -2666,7 +2687,7 @@ static int calcRowLen(SSuperTable*  superTbls) {
         }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
             lenOfOneRow += TIMESTAMP_BUFF_LEN;
         } else {
-            errorPrint("get error data type : %s\n", dataType);
+            errorPrint2("get error data type : %s\n", dataType);
             exit(EXIT_FAILURE);
         }
     }
@@ -2697,7 +2718,7 @@ static int calcRowLen(SSuperTable*  superTbls) {
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
         } else {
-            errorPrint("get error tag type : %s\n", dataType);
+            errorPrint2("get error tag type : %s\n", dataType);
             exit(EXIT_FAILURE);
         }
     }
@@ -2734,7 +2755,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
     if (code != 0) {
         taos_free_result(res);
         taos_close(taos);
-        errorPrint("%s() LN%d, failed to run command %s\n",
+        errorPrint2("%s() LN%d, failed to run command %s\n",
                 __func__, __LINE__, command);
         exit(EXIT_FAILURE);
     }
@@ -2746,7 +2767,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         if (NULL ==  childTblName) {
             taos_free_result(res);
             taos_close(taos);
-            errorPrint("%s() LN%d, failed to allocate memory!\n", __func__, __LINE__);
+            errorPrint2("%s() LN%d, failed to allocate memory!\n", __func__, __LINE__);
             exit(EXIT_FAILURE);
         }
     }
@@ -2756,7 +2777,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         int32_t* len = taos_fetch_lengths(res);
 
         if (0 == strlen((char *)row[0])) {
-            errorPrint("%s() LN%d, No.%"PRId64" table return empty name\n",
+            errorPrint2("%s() LN%d, No.%"PRId64" table return empty name\n",
                     __func__, __LINE__, count);
             exit(EXIT_FAILURE);
         }
@@ -2777,7 +2798,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
                 tmfree(childTblName);
                 taos_free_result(res);
                 taos_close(taos);
-                errorPrint("%s() LN%d, realloc fail for save child table name of %s.%s\n",
+                errorPrint2("%s() LN%d, realloc fail for save child table name of %s.%s\n",
                         __func__, __LINE__, dbName, sTblName);
                 exit(EXIT_FAILURE);
             }
@@ -2874,7 +2895,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
     int childTblCount = 10000;
     superTbls->childTblName = (char*)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
     if (superTbls->childTblName == NULL) {
-    errorPrint("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
+    errorPrint2("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
     return -1;
     }
     getAllChildNameOfSuperTable(taos, dbName,
@@ -2900,7 +2921,7 @@ static int createSuperTable(
     int  lenOfOneRow = 0;
 
     if (superTbl->columnCount == 0) {
-        errorPrint("%s() LN%d, super table column count is %d\n",
+        errorPrint2("%s() LN%d, super table column count is %d\n",
                 __func__, __LINE__, superTbl->columnCount);
         free(command);
         return -1;
@@ -2964,7 +2985,7 @@ static int createSuperTable(
         } else {
             taos_close(taos);
             free(command);
-            errorPrint("%s() LN%d, config error data type : %s\n",
+            errorPrint2("%s() LN%d, config error data type : %s\n",
                     __func__, __LINE__, dataType);
             exit(EXIT_FAILURE);
         }
@@ -2977,7 +2998,7 @@ static int createSuperTable(
     if (NULL == superTbl->colsOfCreateChildTable) {
         taos_close(taos);
         free(command);
-        errorPrint("%s() LN%d, Failed when calloc, size:%d",
+        errorPrint2("%s() LN%d, Failed when calloc, size:%d",
                 __func__, __LINE__, len+1);
         exit(EXIT_FAILURE);
     }
@@ -2987,7 +3008,7 @@ static int createSuperTable(
             __func__, __LINE__, superTbl->colsOfCreateChildTable);
 
     if (superTbl->tagCount == 0) {
-        errorPrint("%s() LN%d, super table tag count is %d\n",
+        errorPrint2("%s() LN%d, super table tag count is %d\n",
                 __func__, __LINE__, superTbl->tagCount);
         free(command);
         return -1;
@@ -3054,7 +3075,7 @@ static int createSuperTable(
         } else {
             taos_close(taos);
             free(command);
-            errorPrint("%s() LN%d, config error tag type : %s\n",
+            errorPrint2("%s() LN%d, config error tag type : %s\n",
                     __func__, __LINE__, dataType);
             exit(EXIT_FAILURE);
         }
@@ -3069,7 +3090,7 @@ static int createSuperTable(
             "create table if not exists %s.%s (ts timestamp%s) tags %s",
             dbName, superTbl->sTblName, cols, tags);
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
-        errorPrint( "create supertable %s failed!\n\n",
+        errorPrint2("create supertable %s failed!\n\n",
                 superTbl->sTblName);
         free(command);
         return -1;
@@ -3085,7 +3106,7 @@ int createDatabasesAndStables(char *command) {
     int    ret = 0;
     taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, NULL, g_Dbs.port);
     if (taos == NULL) {
-        errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+        errorPrint2("Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
         return -1;
     }
 
@@ -3181,7 +3202,7 @@ int createDatabasesAndStables(char *command) {
 
             if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
                 taos_close(taos);
-                errorPrint( "\ncreate database %s failed!\n\n",
+                errorPrint("\ncreate database %s failed!\n\n",
                         g_Dbs.db[i].dbName);
                 return -1;
             }
@@ -3211,7 +3232,7 @@ int createDatabasesAndStables(char *command) {
             ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                     &g_Dbs.db[i].superTbls[j]);
             if (0 != ret) {
-                errorPrint("\nget super table %s.%s info failed!\n\n",
+                errorPrint2("\nget super table %s.%s info failed!\n\n",
                         g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName);
                 continue;
             }
@@ -3239,7 +3260,7 @@ static void* createTable(void *sarg)
 
     pThreadInfo->buffer = calloc(buff_len, 1);
     if (pThreadInfo->buffer == NULL) {
-        errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
+        errorPrint2("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
         exit(EXIT_FAILURE);
     }
 
@@ -3258,10 +3279,11 @@ static void* createTable(void *sarg)
                     pThreadInfo->db_name,
                     g_args.tb_prefix, i,
                     pThreadInfo->cols);
+            batchNum ++;
         } else {
             if (stbInfo == NULL) {
                 free(pThreadInfo->buffer);
-                errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
+                errorPrint2("%s() LN%d, use metric, but super table info is NULL\n",
                         __func__, __LINE__);
                 exit(EXIT_FAILURE);
             } else {
@@ -3307,13 +3329,14 @@ static void* createTable(void *sarg)
 
         len = 0;
         if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
-                    NO_INSERT_TYPE, false)){
-            errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
+                    NO_INSERT_TYPE, false)) {
+            errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
             free(pThreadInfo->buffer);
             return NULL;
         }
+        pThreadInfo->tables_created += batchNum;
 
-        uint64_t  currentPrintTime = taosGetTimestampMs();
+        uint64_t currentPrintTime = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
             printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
                     pThreadInfo->threadID, pThreadInfo->start_table_from, i);
@@ -3324,7 +3347,7 @@ static void* createTable(void *sarg)
     if (0 != len) {
         if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
                     NO_INSERT_TYPE, false)) {
-            errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
+            errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
         }
     }
 
@@ -3369,7 +3392,7 @@ static int startMultiThreadCreateChildTable(
                 db_name,
                 g_Dbs.port);
         if (pThreadInfo->taos == NULL) {
-            errorPrint( "%s() LN%d, Failed to connect to TDengine, reason:%s\n",
+            errorPrint2("%s() LN%d, Failed to connect to TDengine, reason:%s\n",
                     __func__, __LINE__, taos_errstr(NULL));
             free(pids);
             free(infos);
@@ -3383,6 +3406,7 @@ static int startMultiThreadCreateChildTable(
         pThreadInfo->use_metric = true;
         pThreadInfo->cols = cols;
         pThreadInfo->minDelay = UINT64_MAX;
+        pThreadInfo->tables_created = 0;
         pthread_create(pids + i, NULL, createTable, pThreadInfo);
     }
 
@@ -3393,6 +3417,8 @@ static int startMultiThreadCreateChildTable(
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
         taos_close(pThreadInfo->taos);
+
+        g_actualChildTables += pThreadInfo->tables_created;
     }
 
     free(pids);
@@ -3419,7 +3445,6 @@ static void createChildTables() {
                     verbosePrint("%s() LN%d: %s\n", __func__, __LINE__,
                             g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
                     uint64_t startFrom = 0;
-                    g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
                     verbosePrint("%s() LN%d: create %"PRId64" child tables from %"PRIu64"\n",
                             __func__, __LINE__, g_totalChildTables, startFrom);
@@ -3544,7 +3569,7 @@ static int readSampleFromCsvFileToMem(
 
     FILE*  fp = fopen(stbInfo->sampleFile, "r");
     if (fp == NULL) {
-        errorPrint( "Failed to open sample file: %s, reason:%s\n",
+        errorPrint("Failed to open sample file: %s, reason:%s\n",
                 stbInfo->sampleFile, strerror(errno));
         return -1;
     }
@@ -3556,7 +3581,7 @@ static int readSampleFromCsvFileToMem(
         readLen = tgetline(&line, &n, fp);
         if (-1 == readLen) {
             if(0 != fseek(fp, 0, SEEK_SET)) {
-                errorPrint( "Failed to fseek file: %s, reason:%s\n",
+                errorPrint("Failed to fseek file: %s, reason:%s\n",
                         stbInfo->sampleFile, strerror(errno));
                 fclose(fp);
                 return -1;
@@ -3599,7 +3624,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     // columns
     cJSON *columns = cJSON_GetObjectItem(stbInfo, "columns");
     if (columns && columns->type != cJSON_Array) {
-        printf("ERROR: failed to read json, columns not found\n");
+        errorPrint("%s", "failed to read json, columns not found\n");
         goto PARSE_OVER;
     } else if (NULL == columns) {
         superTbls->columnCount = 0;
@@ -3609,8 +3634,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
 
     int columnSize = cJSON_GetArraySize(columns);
     if ((columnSize + 1/* ts */) > TSDB_MAX_COLUMNS) {
-        errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
-                __func__, __LINE__, TSDB_MAX_COLUMNS);
+        errorPrint("failed to read json, column size overflow, max column size is %d\n",
+                TSDB_MAX_COLUMNS);
         goto PARSE_OVER;
     }
 
@@ -3628,8 +3653,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         if (countObj && countObj->type == cJSON_Number) {
             count = countObj->valueint;
         } else if (countObj && countObj->type != cJSON_Number) {
-            errorPrint("%s() LN%d, failed to read json, column count not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, column count not found\n");
             goto PARSE_OVER;
         } else {
             count = 1;
@@ -3640,8 +3664,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         cJSON *dataType = cJSON_GetObjectItem(column, "type");
         if (!dataType || dataType->type != cJSON_String
                 || dataType->valuestring == NULL) {
-            errorPrint("%s() LN%d: failed to read json, column type not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, column type not found\n");
             goto PARSE_OVER;
         }
         //tstrncpy(superTbls->columns[k].dataType, dataType->valuestring, DATATYPE_BUFF_LEN);
@@ -3669,8 +3692,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
 
     if ((index + 1 /* ts */) > MAX_NUM_COLUMNS) {
-        errorPrint("%s() LN%d, failed to read json, column size overflow, allowed max column size is %d\n",
-                __func__, __LINE__, MAX_NUM_COLUMNS);
+        errorPrint("failed to read json, column size overflow, allowed max column size is %d\n",
+                MAX_NUM_COLUMNS);
         goto PARSE_OVER;
     }
 
@@ -3681,15 +3704,14 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     // tags
     cJSON *tags = cJSON_GetObjectItem(stbInfo, "tags");
     if (!tags || tags->type != cJSON_Array) {
-        errorPrint("%s() LN%d, failed to read json, tags not found\n",
-                __func__, __LINE__);
+        errorPrint("%s", "failed to read json, tags not found\n");
         goto PARSE_OVER;
     }
 
     int tagSize = cJSON_GetArraySize(tags);
     if (tagSize > TSDB_MAX_TAGS) {
-        errorPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n",
-                __func__, __LINE__, TSDB_MAX_TAGS);
+        errorPrint("failed to read json, tags size overflow, max tag size is %d\n",
+                TSDB_MAX_TAGS);
         goto PARSE_OVER;
     }
 
@@ -3703,7 +3725,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         if (countObj && countObj->type == cJSON_Number) {
             count = countObj->valueint;
         } else if (countObj && countObj->type != cJSON_Number) {
-            printf("ERROR: failed to read json, column count not found\n");
+            errorPrint("%s", "failed to read json, column count not found\n");
             goto PARSE_OVER;
         } else {
             count = 1;
@@ -3714,8 +3736,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         cJSON *dataType = cJSON_GetObjectItem(tag, "type");
         if (!dataType || dataType->type != cJSON_String
                 || dataType->valuestring == NULL) {
-            errorPrint("%s() LN%d, failed to read json, tag type not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, tag type not found\n");
             goto PARSE_OVER;
         }
         tstrncpy(columnCase.dataType, dataType->valuestring,
@@ -3725,8 +3746,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         if (dataLen && dataLen->type == cJSON_Number) {
             columnCase.dataLen = dataLen->valueint;
         } else if (dataLen && dataLen->type != cJSON_Number) {
-            errorPrint("%s() LN%d, failed to read json, column len not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, column len not found\n");
             goto PARSE_OVER;
         } else {
             columnCase.dataLen = 0;
@@ -3741,16 +3761,16 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
 
     if (index > TSDB_MAX_TAGS) {
-        errorPrint("%s() LN%d, failed to read json, tags size overflow, allowed max tag count is %d\n",
-                __func__, __LINE__, TSDB_MAX_TAGS);
+        errorPrint("failed to read json, tags size overflow, allowed max tag count is %d\n",
+                TSDB_MAX_TAGS);
         goto PARSE_OVER;
     }
 
     superTbls->tagCount = index;
 
     if ((superTbls->columnCount + superTbls->tagCount + 1 /* ts */) > TSDB_MAX_COLUMNS) {
-        errorPrint("%s() LN%d, columns + tags is more than allowed max columns count: %d\n",
-                __func__, __LINE__, TSDB_MAX_COLUMNS);
+        errorPrint("columns + tags is more than allowed max columns count: %d\n",
+                TSDB_MAX_COLUMNS);
         goto PARSE_OVER;
     }
     ret = true;
@@ -3773,7 +3793,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!host) {
         tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
     } else {
-        printf("ERROR: failed to read json, host not found\n");
+        errorPrint("%s", "failed to read json, host not found\n");
         goto PARSE_OVER;
     }
 
@@ -3811,7 +3831,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!threads) {
         g_Dbs.threadCount = 1;
     } else {
-        printf("ERROR: failed to read json, threads not found\n");
+        errorPrint("%s", "failed to read json, threads not found\n");
         goto PARSE_OVER;
     }
 
@@ -3821,32 +3841,28 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!threads2) {
         g_Dbs.threadCountByCreateTbl = 1;
     } else {
-        errorPrint("%s() LN%d, failed to read json, threads2 not found\n",
-                __func__, __LINE__);
+        errorPrint("%s", "failed to read json, threads2 not found\n");
         goto PARSE_OVER;
     }
 
     cJSON* gInsertInterval = cJSON_GetObjectItem(root, "insert_interval");
     if (gInsertInterval && gInsertInterval->type == cJSON_Number) {
         if (gInsertInterval->valueint <0) {
-            errorPrint("%s() LN%d, failed to read json, insert interval input mistake\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, insert interval input mistake\n");
             goto PARSE_OVER;
         }
         g_args.insert_interval = gInsertInterval->valueint;
     } else if (!gInsertInterval) {
         g_args.insert_interval = 0;
     } else {
-        errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
-                __func__, __LINE__);
+        errorPrint("%s", "failed to read json, insert_interval input mistake\n");
         goto PARSE_OVER;
     }
 
     cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
     if (interlaceRows && interlaceRows->type == cJSON_Number) {
         if (interlaceRows->valueint < 0) {
-            errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, interlace_rows input mistake\n");
             goto PARSE_OVER;
 
         }
@@ -3854,8 +3870,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!interlaceRows) {
         g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
     } else {
-        errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n",
-                __func__, __LINE__);
+        errorPrint("%s", "failed to read json, interlace_rows input mistake\n");
         goto PARSE_OVER;
     }
 
@@ -3928,14 +3943,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
     cJSON* dbs = cJSON_GetObjectItem(root, "databases");
     if (!dbs || dbs->type != cJSON_Array) {
-        printf("ERROR: failed to read json, databases not found\n");
+        errorPrint("%s", "failed to read json, databases not found\n");
         goto PARSE_OVER;
     }
 
     int dbSize = cJSON_GetArraySize(dbs);
     if (dbSize > MAX_DB_COUNT) {
         errorPrint(
-                "ERROR: failed to read json, databases size overflow, max database is %d\n",
+                "failed to read json, databases size overflow, max database is %d\n",
                 MAX_DB_COUNT);
         goto PARSE_OVER;
     }
@@ -3948,13 +3963,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         // dbinfo
         cJSON *dbinfo = cJSON_GetObjectItem(dbinfos, "dbinfo");
         if (!dbinfo || dbinfo->type != cJSON_Object) {
-            printf("ERROR: failed to read json, dbinfo not found\n");
+            errorPrint("%s", "failed to read json, dbinfo not found\n");
             goto PARSE_OVER;
         }
 
         cJSON *dbName = cJSON_GetObjectItem(dbinfo, "name");
         if (!dbName || dbName->type != cJSON_String || dbName->valuestring == NULL) {
-            printf("ERROR: failed to read json, db name not found\n");
+            errorPrint("%s", "failed to read json, db name not found\n");
             goto PARSE_OVER;
         }
         tstrncpy(g_Dbs.db[i].dbName, dbName->valuestring, TSDB_DB_NAME_LEN);
@@ -3969,8 +3984,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!drop) {
             g_Dbs.db[i].drop = g_args.drop_database;
         } else {
-            errorPrint("%s() LN%d, failed to read json, drop input mistake\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, drop input mistake\n");
             goto PARSE_OVER;
         }
 
@@ -3982,7 +3996,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!precision) {
             memset(g_Dbs.db[i].dbCfg.precision, 0, SMALL_BUFF_LEN);
         } else {
-            printf("ERROR: failed to read json, precision not found\n");
+            errorPrint("%s", "failed to read json, precision not found\n");
             goto PARSE_OVER;
         }
 
@@ -3992,7 +4006,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!update) {
             g_Dbs.db[i].dbCfg.update = -1;
         } else {
-            printf("ERROR: failed to read json, update not found\n");
+            errorPrint("%s", "failed to read json, update not found\n");
             goto PARSE_OVER;
         }
 
@@ -4002,7 +4016,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!replica) {
             g_Dbs.db[i].dbCfg.replica = -1;
         } else {
-            printf("ERROR: failed to read json, replica not found\n");
+            errorPrint("%s", "failed to read json, replica not found\n");
             goto PARSE_OVER;
         }
 
@@ -4012,7 +4026,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!keep) {
             g_Dbs.db[i].dbCfg.keep = -1;
         } else {
-            printf("ERROR: failed to read json, keep not found\n");
+            errorPrint("%s", "failed to read json, keep not found\n");
             goto PARSE_OVER;
         }
 
@@ -4022,7 +4036,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!days) {
             g_Dbs.db[i].dbCfg.days = -1;
         } else {
-            printf("ERROR: failed to read json, days not found\n");
+            errorPrint("%s", "failed to read json, days not found\n");
             goto PARSE_OVER;
         }
 
@@ -4032,7 +4046,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!cache) {
             g_Dbs.db[i].dbCfg.cache = -1;
         } else {
-            printf("ERROR: failed to read json, cache not found\n");
+            errorPrint("%s", "failed to read json, cache not found\n");
             goto PARSE_OVER;
         }
 
@@ -4042,7 +4056,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!blocks) {
             g_Dbs.db[i].dbCfg.blocks = -1;
         } else {
-            printf("ERROR: failed to read json, block not found\n");
+            errorPrint("%s", "failed to read json, block not found\n");
             goto PARSE_OVER;
         }
 
@@ -4062,7 +4076,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!minRows) {
             g_Dbs.db[i].dbCfg.minRows = 0;    // 0 means default
         } else {
-            printf("ERROR: failed to read json, minRows not found\n");
+            errorPrint("%s", "failed to read json, minRows not found\n");
             goto PARSE_OVER;
         }
 
@@ -4072,7 +4086,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!maxRows) {
             g_Dbs.db[i].dbCfg.maxRows = 0;    // 0 means default
         } else {
-            printf("ERROR: failed to read json, maxRows not found\n");
+            errorPrint("%s", "failed to read json, maxRows not found\n");
             goto PARSE_OVER;
         }
 
@@ -4082,7 +4096,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!comp) {
             g_Dbs.db[i].dbCfg.comp = -1;
         } else {
-            printf("ERROR: failed to read json, comp not found\n");
+            errorPrint("%s", "failed to read json, comp not found\n");
             goto PARSE_OVER;
         }
 
@@ -4092,7 +4106,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!walLevel) {
             g_Dbs.db[i].dbCfg.walLevel = -1;
         } else {
-            printf("ERROR: failed to read json, walLevel not found\n");
+            errorPrint("%s", "failed to read json, walLevel not found\n");
             goto PARSE_OVER;
         }
 
@@ -4102,7 +4116,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!cacheLast) {
             g_Dbs.db[i].dbCfg.cacheLast = -1;
         } else {
-            printf("ERROR: failed to read json, cacheLast not found\n");
+            errorPrint("%s", "failed to read json, cacheLast not found\n");
             goto PARSE_OVER;
         }
 
@@ -4122,24 +4136,22 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (!fsync) {
             g_Dbs.db[i].dbCfg.fsync = -1;
         } else {
-            errorPrint("%s() LN%d, failed to read json, fsync input mistake\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, fsync input mistake\n");
             goto PARSE_OVER;
         }
 
         // super_talbes
         cJSON *stables = cJSON_GetObjectItem(dbinfos, "super_tables");
         if (!stables || stables->type != cJSON_Array) {
-            errorPrint("%s() LN%d, failed to read json, super_tables not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, super_tables not found\n");
             goto PARSE_OVER;
         }
 
         int stbSize = cJSON_GetArraySize(stables);
         if (stbSize > MAX_SUPER_TABLE_COUNT) {
             errorPrint(
-                    "%s() LN%d, failed to read json, supertable size overflow, max supertable is %d\n",
-                    __func__, __LINE__, MAX_SUPER_TABLE_COUNT);
+                    "failed to read json, supertable size overflow, max supertable is %d\n",
+                    MAX_SUPER_TABLE_COUNT);
             goto PARSE_OVER;
         }
 
@@ -4152,8 +4164,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             cJSON *stbName = cJSON_GetObjectItem(stbInfo, "name");
             if (!stbName || stbName->type != cJSON_String
                     || stbName->valuestring == NULL) {
-                errorPrint("%s() LN%d, failed to read json, stb name not found\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, stb name not found\n");
                 goto PARSE_OVER;
             }
             tstrncpy(g_Dbs.db[i].superTbls[j].sTblName, stbName->valuestring,
@@ -4161,7 +4172,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
             cJSON *prefix = cJSON_GetObjectItem(stbInfo, "childtable_prefix");
             if (!prefix || prefix->type != cJSON_String || prefix->valuestring == NULL) {
-                printf("ERROR: failed to read json, childtable_prefix not found\n");
+                errorPrint("%s", "failed to read json, childtable_prefix not found\n");
                 goto PARSE_OVER;
             }
             tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
@@ -4182,7 +4193,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!autoCreateTbl) {
                 g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
             } else {
-                printf("ERROR: failed to read json, auto_create_table not found\n");
+                errorPrint("%s", "failed to read json, auto_create_table not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4192,7 +4203,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!batchCreateTbl) {
                 g_Dbs.db[i].superTbls[j].batchCreateTableNum = 1000;
             } else {
-                printf("ERROR: failed to read json, batch_create_tbl_num not found\n");
+                errorPrint("%s", "failed to read json, batch_create_tbl_num not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4212,8 +4223,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!childTblExists) {
                 g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
             } else {
-                errorPrint("%s() LN%d, failed to read json, child_table_exists not found\n",
-                        __func__, __LINE__);
+                errorPrint("%s",
+                        "failed to read json, child_table_exists not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4223,11 +4234,12 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
             cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
             if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
-                errorPrint("%s() LN%d, failed to read json, childtable_count input mistake\n",
-                        __func__, __LINE__);
+                errorPrint("%s",
+                        "failed to read json, childtable_count input mistake\n");
                 goto PARSE_OVER;
             }
             g_Dbs.db[i].superTbls[j].childTblCount = count->valueint;
+            g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
             cJSON *dataSource = cJSON_GetObjectItem(stbInfo, "data_source");
             if (dataSource && dataSource->type == cJSON_String
@@ -4239,8 +4251,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 tstrncpy(g_Dbs.db[i].superTbls[j].dataSource, "rand",
                         min(SMALL_BUFF_LEN, strlen("rand") + 1));
             } else {
-                errorPrint("%s() LN%d, failed to read json, data_source not found\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, data_source not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4254,8 +4265,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
                     g_Dbs.db[i].superTbls[j].iface= STMT_IFACE;
                 } else {
-                    errorPrint("%s() LN%d, failed to read json, insert_mode %s not recognized\n",
-                            __func__, __LINE__, stbIface->valuestring);
+                    errorPrint("failed to read json, insert_mode %s not recognized\n",
+                            stbIface->valuestring);
                     goto PARSE_OVER;
                 }
             } else if (!stbIface) {
@@ -4269,7 +4280,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if ((childTbl_limit) && (g_Dbs.db[i].drop != true)
                     && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
                 if (childTbl_limit->type != cJSON_Number) {
-                    printf("ERROR: failed to read json, childtable_limit\n");
+                    errorPrint("%s", "failed to read json, childtable_limit\n");
                     goto PARSE_OVER;
                 }
                 g_Dbs.db[i].superTbls[j].childTblLimit = childTbl_limit->valueint;
@@ -4282,7 +4293,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
                 if ((childTbl_offset->type != cJSON_Number)
                         || (0 > childTbl_offset->valueint)) {
-                    printf("ERROR: failed to read json, childtable_offset\n");
+                    errorPrint("%s", "failed to read json, childtable_offset\n");
                     goto PARSE_OVER;
                 }
                 g_Dbs.db[i].superTbls[j].childTblOffset = childTbl_offset->valueint;
@@ -4298,7 +4309,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp,
                         "now", TSDB_DB_NAME_LEN);
             } else {
-                printf("ERROR: failed to read json, start_timestamp not found\n");
+                errorPrint("%s", "failed to read json, start_timestamp not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4308,7 +4319,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!timestampStep) {
                 g_Dbs.db[i].superTbls[j].timeStampStep = g_args.timestamp_step;
             } else {
-                printf("ERROR: failed to read json, timestamp_step not found\n");
+                errorPrint("%s", "failed to read json, timestamp_step not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4323,7 +4334,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 tstrncpy(g_Dbs.db[i].superTbls[j].sampleFormat, "csv",
                         SMALL_BUFF_LEN);
             } else {
-                printf("ERROR: failed to read json, sample_format not found\n");
+                errorPrint("%s", "failed to read json, sample_format not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4338,7 +4349,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 memset(g_Dbs.db[i].superTbls[j].sampleFile, 0,
                         MAX_FILE_NAME_LEN);
             } else {
-                printf("ERROR: failed to read json, sample_file not found\n");
+                errorPrint("%s", "failed to read json, sample_file not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4356,7 +4367,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 memset(g_Dbs.db[i].superTbls[j].tagsFile, 0, MAX_FILE_NAME_LEN);
                 g_Dbs.db[i].superTbls[j].tagSource = 0;
             } else {
-                printf("ERROR: failed to read json, tags_file not found\n");
+                errorPrint("%s", "failed to read json, tags_file not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4372,8 +4383,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!maxSqlLen) {
                 g_Dbs.db[i].superTbls[j].maxSqlLen = g_args.max_sql_len;
             } else {
-                errorPrint("%s() LN%d, failed to read json, stbMaxSqlLen input mistake\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, stbMaxSqlLen input mistake\n");
                 goto PARSE_OVER;
             }
             /*
@@ -4390,31 +4400,28 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                } else if (!multiThreadWriteOneTbl) {
                g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl = 0;
                } else {
-               printf("ERROR: failed to read json, multiThreadWriteOneTbl not found\n");
+               errorPrint("%s", "failed to read json, multiThreadWriteOneTbl not found\n");
                goto PARSE_OVER;
                }
                */
             cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
             if (insertRows && insertRows->type == cJSON_Number) {
                 if (insertRows->valueint < 0) {
-                    errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
-                            __func__, __LINE__);
+                    errorPrint("%s", "failed to read json, insert_rows input mistake\n");
                     goto PARSE_OVER;
                 }
                 g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
             } else if (!insertRows) {
                 g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
             } else {
-                errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, insert_rows input mistake\n");
                 goto PARSE_OVER;
             }
 
             cJSON* stbInterlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
             if (stbInterlaceRows && stbInterlaceRows->type == cJSON_Number) {
                 if (stbInterlaceRows->valueint < 0) {
-                    errorPrint("%s() LN%d, failed to read json, interlace rows input mistake\n",
-                            __func__, __LINE__);
+                    errorPrint("%s", "failed to read json, interlace rows input mistake\n");
                     goto PARSE_OVER;
                 }
                 g_Dbs.db[i].superTbls[j].interlaceRows = stbInterlaceRows->valueint;
@@ -4432,8 +4439,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
             } else {
                 errorPrint(
-                        "%s() LN%d, failed to read json, interlace rows input mistake\n",
-                        __func__, __LINE__);
+                        "%s", "failed to read json, interlace rows input mistake\n");
                 goto PARSE_OVER;
             }
 
@@ -4449,7 +4455,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!disorderRatio) {
                 g_Dbs.db[i].superTbls[j].disorderRatio = 0;
             } else {
-                printf("ERROR: failed to read json, disorderRatio not found\n");
+                errorPrint("%s", "failed to read json, disorderRatio not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4459,7 +4465,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else if (!disorderRange) {
                 g_Dbs.db[i].superTbls[j].disorderRange = 1000;
             } else {
-                printf("ERROR: failed to read json, disorderRange not found\n");
+                errorPrint("%s", "failed to read json, disorderRange not found\n");
                 goto PARSE_OVER;
             }
 
@@ -4467,8 +4473,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (insertInterval && insertInterval->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].insertInterval = insertInterval->valueint;
                 if (insertInterval->valueint < 0) {
-                    errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
-                            __func__, __LINE__);
+                    errorPrint("%s", "failed to read json, insert_interval input mistake\n");
                     goto PARSE_OVER;
                 }
             } else if (!insertInterval) {
@@ -4476,8 +4481,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                         __func__, __LINE__, g_args.insert_interval);
                 g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
             } else {
-                errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, insert_interval input mistake\n");
                 goto PARSE_OVER;
             }
 
@@ -4509,7 +4513,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     } else if (!host) {
         tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
     } else {
-        printf("ERROR: failed to read json, host not found\n");
+        errorPrint("%s", "failed to read json, host not found\n");
         goto PARSE_OVER;
     }
 
@@ -4547,23 +4551,21 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     } else if (!answerPrompt) {
         g_args.answer_yes = false;
     } else {
-        printf("ERROR: failed to read json, confirm_parameter_prompt not found\n");
+        errorPrint("%s", "failed to read json, confirm_parameter_prompt not found\n");
         goto PARSE_OVER;
     }
 
     cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
     if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
         if (gQueryTimes->valueint <= 0) {
-            errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-                    __func__, __LINE__);
+            errorPrint("%s()", "failed to read json, query_times input mistake\n");
             goto PARSE_OVER;
         }
         g_args.query_times = gQueryTimes->valueint;
     } else if (!gQueryTimes) {
         g_args.query_times = 1;
     } else {
-        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-                __func__, __LINE__);
+        errorPrint("%s", "failed to read json, query_times input mistake\n");
         goto PARSE_OVER;
     }
 
@@ -4571,7 +4573,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (dbs && dbs->type == cJSON_String && dbs->valuestring != NULL) {
         tstrncpy(g_queryInfo.dbName, dbs->valuestring, TSDB_DB_NAME_LEN);
     } else if (!dbs) {
-        printf("ERROR: failed to read json, databases not found\n");
+        errorPrint("%s", "failed to read json, databases not found\n");
         goto PARSE_OVER;
     }
 
@@ -4585,7 +4587,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         tstrncpy(g_queryInfo.queryMode, "taosc",
                 min(SMALL_BUFF_LEN, strlen("taosc") + 1));
     } else {
-        printf("ERROR: failed to read json, query_mode not found\n");
+        errorPrint("%s", "failed to read json, query_mode not found\n");
         goto PARSE_OVER;
     }
 
@@ -4595,7 +4597,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         g_queryInfo.specifiedQueryInfo.concurrent = 1;
         g_queryInfo.specifiedQueryInfo.sqlCount = 0;
     } else if (specifiedQuery->type != cJSON_Object) {
-        printf("ERROR: failed to read json, super_table_query not found\n");
+        errorPrint("%s", "failed to read json, super_table_query not found\n");
         goto PARSE_OVER;
     } else {
         cJSON* queryInterval = cJSON_GetObjectItem(specifiedQuery, "query_interval");
@@ -4610,8 +4612,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
             if (specifiedQueryTimes->valueint <= 0) {
                 errorPrint(
-                        "%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
-                        __func__, __LINE__, specifiedQueryTimes->valueint);
+                        "failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+                        specifiedQueryTimes->valueint);
                 goto PARSE_OVER;
 
             }
@@ -4628,8 +4630,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         if (concurrent && concurrent->type == cJSON_Number) {
             if (concurrent->valueint <= 0) {
                 errorPrint(
-                        "%s() LN%d, query sqlCount %d or concurrent %d is not correct.\n",
-                        __func__, __LINE__,
+                        "query sqlCount %d or concurrent %d is not correct.\n",
                         g_queryInfo.specifiedQueryInfo.sqlCount,
                         g_queryInfo.specifiedQueryInfo.concurrent);
                 goto PARSE_OVER;
@@ -4647,8 +4648,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             } else if (0 == strcmp("async", specifiedAsyncMode->valuestring)) {
                 g_queryInfo.specifiedQueryInfo.asyncMode = ASYNC_MODE;
             } else {
-                errorPrint("%s() LN%d, failed to read json, async mode input error\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, async mode input error\n");
                 goto PARSE_OVER;
             }
         } else {
@@ -4671,7 +4671,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             } else if (0 == strcmp("no", restart->valuestring)) {
                 g_queryInfo.specifiedQueryInfo.subscribeRestart = false;
             } else {
-                printf("ERROR: failed to read json, subscribe restart error\n");
+                errorPrint("%s", "failed to read json, subscribe restart error\n");
                 goto PARSE_OVER;
             }
         } else {
@@ -4687,7 +4687,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             } else if (0 == strcmp("no", keepProgress->valuestring)) {
                 g_queryInfo.specifiedQueryInfo.subscribeKeepProgress = 0;
             } else {
-                printf("ERROR: failed to read json, subscribe keepProgress error\n");
+                errorPrint("%s", "failed to read json, subscribe keepProgress error\n");
                 goto PARSE_OVER;
             }
         } else {
@@ -4699,15 +4699,13 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         if (!specifiedSqls) {
             g_queryInfo.specifiedQueryInfo.sqlCount = 0;
         } else if (specifiedSqls->type != cJSON_Array) {
-            errorPrint("%s() LN%d, failed to read json, super sqls not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, super sqls not found\n");
             goto PARSE_OVER;
         } else {
             int superSqlSize = cJSON_GetArraySize(specifiedSqls);
             if (superSqlSize * g_queryInfo.specifiedQueryInfo.concurrent
                     > MAX_QUERY_SQL_COUNT) {
-                errorPrint("%s() LN%d, failed to read json, query sql(%d) * concurrent(%d) overflow, max is %d\n",
-                        __func__, __LINE__,
+                errorPrint("failed to read json, query sql(%d) * concurrent(%d) overflow, max is %d\n",
                         superSqlSize,
                         g_queryInfo.specifiedQueryInfo.concurrent,
                         MAX_QUERY_SQL_COUNT);
@@ -4721,7 +4719,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
                 cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
                 if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
-                    printf("ERROR: failed to read json, sql not found\n");
+                    errorPrint("%s", "failed to read json, sql not found\n");
                     goto PARSE_OVER;
                 }
                 tstrncpy(g_queryInfo.specifiedQueryInfo.sql[j],
@@ -4761,7 +4759,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
                     memset(g_queryInfo.specifiedQueryInfo.result[j],
                             0, MAX_FILE_NAME_LEN);
                 } else {
-                    printf("ERROR: failed to read json, super query result file not found\n");
+                    errorPrint("%s",
+                            "failed to read json, super query result file not found\n");
                     goto PARSE_OVER;
                 }
             }
@@ -4774,7 +4773,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         g_queryInfo.superQueryInfo.threadCnt = 1;
         g_queryInfo.superQueryInfo.sqlCount = 0;
     } else if (superQuery->type != cJSON_Object) {
-        printf("ERROR: failed to read json, sub_table_query not found\n");
+        errorPrint("%s", "failed to read json, sub_table_query not found\n");
         ret = true;
         goto PARSE_OVER;
     } else {
@@ -4788,24 +4787,22 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
         if (superQueryTimes && superQueryTimes->type == cJSON_Number) {
             if (superQueryTimes->valueint <= 0) {
-                errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
-                        __func__, __LINE__, superQueryTimes->valueint);
+                errorPrint("failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+                        superQueryTimes->valueint);
                 goto PARSE_OVER;
             }
             g_queryInfo.superQueryInfo.queryTimes = superQueryTimes->valueint;
         } else if (!superQueryTimes) {
             g_queryInfo.superQueryInfo.queryTimes = g_args.query_times;
         } else {
-            errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, query_times input mistake\n");
             goto PARSE_OVER;
         }
 
         cJSON* threads = cJSON_GetObjectItem(superQuery, "threads");
         if (threads && threads->type == cJSON_Number) {
             if (threads->valueint <= 0) {
-                errorPrint("%s() LN%d, failed to read json, threads input mistake\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, threads input mistake\n");
                 goto PARSE_OVER;
 
             }
@@ -4827,8 +4824,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             tstrncpy(g_queryInfo.superQueryInfo.sTblName, stblname->valuestring,
                     TSDB_TABLE_NAME_LEN);
         } else {
-            errorPrint("%s() LN%d, failed to read json, super table name input error\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, super table name input error\n");
             goto PARSE_OVER;
         }
 
@@ -4840,8 +4836,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             } else if (0 == strcmp("async", superAsyncMode->valuestring)) {
                 g_queryInfo.superQueryInfo.asyncMode = ASYNC_MODE;
             } else {
-                errorPrint("%s() LN%d, failed to read json, async mode input error\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, async mode input error\n");
                 goto PARSE_OVER;
             }
         } else {
@@ -4851,8 +4846,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         cJSON* superInterval = cJSON_GetObjectItem(superQuery, "interval");
         if (superInterval && superInterval->type == cJSON_Number) {
             if (superInterval->valueint < 0) {
-                errorPrint("%s() LN%d, failed to read json, interval input mistake\n",
-                        __func__, __LINE__);
+                errorPrint("%s", "failed to read json, interval input mistake\n");
                 goto PARSE_OVER;
             }
             g_queryInfo.superQueryInfo.subscribeInterval = superInterval->valueint;
@@ -4870,7 +4864,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             } else if (0 == strcmp("no", subrestart->valuestring)) {
                 g_queryInfo.superQueryInfo.subscribeRestart = false;
             } else {
-                printf("ERROR: failed to read json, subscribe restart error\n");
+                errorPrint("%s", "failed to read json, subscribe restart error\n");
                 goto PARSE_OVER;
             }
         } else {
@@ -4886,7 +4880,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             } else if (0 == strcmp("no", superkeepProgress->valuestring)) {
                 g_queryInfo.superQueryInfo.subscribeKeepProgress = 0;
             } else {
-                printf("ERROR: failed to read json, subscribe super table keepProgress error\n");
+                errorPrint("%s",
+                        "failed to read json, subscribe super table keepProgress error\n");
                 goto PARSE_OVER;
             }
         } else {
@@ -4923,14 +4918,13 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         if (!superSqls) {
             g_queryInfo.superQueryInfo.sqlCount = 0;
         } else if (superSqls->type != cJSON_Array) {
-            errorPrint("%s() LN%d: failed to read json, super sqls not found\n",
-                    __func__, __LINE__);
+            errorPrint("%s", "failed to read json, super sqls not found\n");
             goto PARSE_OVER;
         } else {
             int superSqlSize = cJSON_GetArraySize(superSqls);
             if (superSqlSize > MAX_QUERY_SQL_COUNT) {
-                errorPrint("%s() LN%d, failed to read json, query sql size overflow, max is %d\n",
-                        __func__, __LINE__, MAX_QUERY_SQL_COUNT);
+                errorPrint("failed to read json, query sql size overflow, max is %d\n",
+                        MAX_QUERY_SQL_COUNT);
                 goto PARSE_OVER;
             }
 
@@ -4942,8 +4936,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
                 cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
                 if (!sqlStr || sqlStr->type != cJSON_String
                         || sqlStr->valuestring == NULL) {
-                    errorPrint("%s() LN%d, failed to read json, sql not found\n",
-                            __func__, __LINE__);
+                    errorPrint("%s", "failed to read json, sql not found\n");
                     goto PARSE_OVER;
                 }
                 tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring,
@@ -4951,14 +4944,13 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
                 cJSON *result = cJSON_GetObjectItem(sql, "result");
                 if (result != NULL && result->type == cJSON_String
-                        && result->valuestring != NULL){
+                        && result->valuestring != NULL) {
                     tstrncpy(g_queryInfo.superQueryInfo.result[j],
                             result->valuestring, MAX_FILE_NAME_LEN);
                 } else if (NULL == result) {
                     memset(g_queryInfo.superQueryInfo.result[j], 0, MAX_FILE_NAME_LEN);
                 }  else {
-                    errorPrint("%s() LN%d, failed to read json, sub query result file not found\n",
-                            __func__, __LINE__);
+                    errorPrint("%s", "failed to read json, sub query result file not found\n");
                     goto PARSE_OVER;
                 }
             }
@@ -4976,7 +4968,7 @@ static bool getInfoFromJsonFile(char* file) {
 
     FILE *fp = fopen(file, "r");
     if (!fp) {
-        printf("failed to read %s, reason:%s\n", file, strerror(errno));
+        errorPrint("failed to read %s, reason:%s\n", file, strerror(errno));
         return false;
     }
 
@@ -4987,14 +4979,14 @@ static bool getInfoFromJsonFile(char* file) {
     if (len <= 0) {
         free(content);
         fclose(fp);
-        printf("failed to read %s, content is null", file);
+        errorPrint("failed to read %s, content is null", file);
         return false;
     }
 
     content[len] = 0;
     cJSON* root = cJSON_Parse(content);
     if (root == NULL) {
-        printf("ERROR: failed to cjson parse %s, invalid json format\n", file);
+        errorPrint("failed to cjson parse %s, invalid json format\n", file);
         goto PARSE_OVER;
     }
 
@@ -5007,13 +4999,13 @@ static bool getInfoFromJsonFile(char* file) {
         } else if (0 == strcasecmp("subscribe", filetype->valuestring)) {
             g_args.test_mode = SUBSCRIBE_TEST;
         } else {
-            printf("ERROR: failed to read json, filetype not support\n");
+            errorPrint("%s", "failed to read json, filetype not support\n");
             goto PARSE_OVER;
         }
     } else if (!filetype) {
         g_args.test_mode = INSERT_TEST;
     } else {
-        printf("ERROR: failed to read json, filetype not found\n");
+        errorPrint("%s", "failed to read json, filetype not found\n");
         goto PARSE_OVER;
     }
 
@@ -5023,8 +5015,8 @@ static bool getInfoFromJsonFile(char* file) {
             || (SUBSCRIBE_TEST == g_args.test_mode)) {
         ret = getMetaFromQueryJsonFile(root);
     } else {
-        errorPrint("%s() LN%d, input json file type error! please input correct file type: insert or query or subscribe\n",
-                __func__, __LINE__);
+        errorPrint("%s",
+                "input json file type error! please input correct file type: insert or query or subscribe\n");
         goto PARSE_OVER;
     }
 
@@ -5142,7 +5134,7 @@ static int64_t generateStbRowData(
                 || (0 == strncasecmp(stbInfo->columns[i].dataType,
                         "NCHAR", 5))) {
             if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
-                errorPrint( "binary or nchar length overflow, max size:%u\n",
+                errorPrint2("binary or nchar length overflow, max size:%u\n",
                         (uint32_t)TSDB_MAX_BINARY_LEN);
                 return -1;
             }
@@ -5154,7 +5146,7 @@ static int64_t generateStbRowData(
             }
             char* buf = (char*)calloc(stbInfo->columns[i].dataLen+1, 1);
             if (NULL == buf) {
-                errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
+                errorPrint2("calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
                 return -1;
             }
             rand_string(buf, stbInfo->columns[i].dataLen);
@@ -5199,7 +5191,8 @@ static int64_t generateStbRowData(
                         "SMALLINT", 8)) {
                 tmp = rand_smallint_str();
                 tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                tstrncpy(pstr + dataLen, tmp,
+                        min(tmpLen + 1, SMALLINT_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                         "TINYINT", 7)) {
                 tmp = rand_tinyint_str();
@@ -5212,11 +5205,12 @@ static int64_t generateStbRowData(
                 tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BOOL_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                         "TIMESTAMP", 9)) {
-                tmp = rand_int_str();
+                tmp = rand_bigint_str();
                 tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, INT_BUFF_LEN));
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BIGINT_BUFF_LEN));
             }  else {
-                errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
+                errorPrint2("Not support data type: %s\n",
+                        stbInfo->columns[i].dataType);
                 return -1;
             }
 
@@ -5229,8 +5223,7 @@ static int64_t generateStbRowData(
             return 0;
     }
 
-    dataLen -= 1;
-    dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
+    tstrncpy(pstr + dataLen - 1, ")", 2);
 
     verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
     verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
@@ -5242,7 +5235,7 @@ static int64_t generateData(char *recBuf, char **data_type,
         int64_t timestamp, int lenOfBinary) {
     memset(recBuf, 0, MAX_DATA_SIZE);
     char *pstr = recBuf;
-    pstr += sprintf(pstr, "(%" PRId64, timestamp);
+    pstr += sprintf(pstr, "(%"PRId64"", timestamp);
 
     int columnCount = g_args.num_of_CPR;
 
@@ -5254,9 +5247,9 @@ static int64_t generateData(char *recBuf, char **data_type,
         } else if (strcasecmp(data_type[i % columnCount], "INT") == 0) {
             pstr += sprintf(pstr, ",%d", rand_int());
         } else if (strcasecmp(data_type[i % columnCount], "BIGINT") == 0) {
-            pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+            pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
         } else if (strcasecmp(data_type[i % columnCount], "TIMESTAMP") == 0) {
-            pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+            pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
         } else if (strcasecmp(data_type[i % columnCount], "FLOAT") == 0) {
             pstr += sprintf(pstr, ",%10.4f", rand_float());
         } else if (strcasecmp(data_type[i % columnCount], "DOUBLE") == 0) {
@@ -5268,7 +5261,7 @@ static int64_t generateData(char *recBuf, char **data_type,
         } else if (strcasecmp(data_type[i % columnCount], "BINARY") == 0) {
             char *s = malloc(lenOfBinary + 1);
             if (s == NULL) {
-                errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
+                errorPrint2("%s() LN%d, memory allocation %d bytes failed\n",
                         __func__, __LINE__, lenOfBinary + 1);
                 exit(EXIT_FAILURE);
             }
@@ -5278,7 +5271,7 @@ static int64_t generateData(char *recBuf, char **data_type,
         } else if (strcasecmp(data_type[i % columnCount], "NCHAR") == 0) {
             char *s = malloc(lenOfBinary + 1);
             if (s == NULL) {
-                errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
+                errorPrint2("%s() LN%d, memory allocation %d bytes failed\n",
                         __func__, __LINE__, lenOfBinary + 1);
                 exit(EXIT_FAILURE);
             }
@@ -5305,7 +5298,7 @@ static int prepareSampleDataForSTable(SSuperTable *stbInfo) {
     sampleDataBuf = calloc(
             stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
     if (sampleDataBuf == NULL) {
-        errorPrint("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
+        errorPrint2("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
                 __func__, __LINE__,
                 stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
                 strerror(errno));
@@ -5316,7 +5309,7 @@ static int prepareSampleDataForSTable(SSuperTable *stbInfo) {
     int ret = readSampleFromCsvFileToMem(stbInfo);
 
     if (0 != ret) {
-        errorPrint("%s() LN%d, read sample from csv file failed.\n",
+        errorPrint2("%s() LN%d, read sample from csv file failed.\n",
                 __func__, __LINE__);
         tmfree(sampleDataBuf);
         stbInfo->sampleDataBuf = NULL;
@@ -5371,7 +5364,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             debugPrint("%s() LN%d, stmt=%p",
                     __func__, __LINE__, pThreadInfo->stmt);
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
-                errorPrint("%s() LN%d, failied to execute insert statement. reason: %s\n",
+                errorPrint2("%s() LN%d, failied to execute insert statement. reason: %s\n",
                         __func__, __LINE__, taos_stmt_errstr(pThreadInfo->stmt));
 
                 fprintf(stderr, "\n\033[31m === Please reduce batch number if WAL size exceeds limit. ===\033[0m\n\n");
@@ -5381,7 +5374,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             break;
 
         default:
-            errorPrint("%s() LN%d: unknown insert mode: %d\n",
+            errorPrint2("%s() LN%d: unknown insert mode: %d\n",
                     __func__, __LINE__, stbInfo->iface);
             affectedRows = 0;
     }
@@ -5609,7 +5602,7 @@ static int generateStbSQLHead(
                     tableSeq % stbInfo->tagSampleCount);
         }
         if (NULL == tagsValBuf) {
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
+            errorPrint2("%s() LN%d, tag buf failed to allocate  memory\n",
                     __func__, __LINE__);
             return -1;
         }
@@ -5760,7 +5753,7 @@ static int32_t prepareStmtBindArrayByType(
     if (0 == strncasecmp(dataType,
                 "BINARY", strlen("BINARY"))) {
         if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint( "binary length overflow, max size:%u\n",
+            errorPrint2("binary length overflow, max size:%u\n",
                     (uint32_t)TSDB_MAX_BINARY_LEN);
             return -1;
         }
@@ -5783,7 +5776,7 @@ static int32_t prepareStmtBindArrayByType(
     } else if (0 == strncasecmp(dataType,
                 "NCHAR", strlen("NCHAR"))) {
         if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint( "nchar length overflow, max size:%u\n",
+            errorPrint2("nchar length overflow, max size:%u\n",
                     (uint32_t)TSDB_MAX_BINARY_LEN);
             return -1;
         }
@@ -5931,7 +5924,7 @@ static int32_t prepareStmtBindArrayByType(
                             value, &tmpEpoch, strlen(value),
                             timePrec, 0)) {
                     free(bind_ts2);
-                    errorPrint("Input %s, time format error!\n", value);
+                    errorPrint2("Input %s, time format error!\n", value);
                     return -1;
                 }
                 *bind_ts2 = tmpEpoch;
@@ -5947,7 +5940,7 @@ static int32_t prepareStmtBindArrayByType(
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
     }  else {
-        errorPrint( "No support data type: %s\n", dataType);
+        errorPrint2("Not support data type: %s\n", dataType);
         return -1;
     }
 
@@ -5964,7 +5957,7 @@ static int32_t prepareStmtBindArrayByTypeForRand(
     if (0 == strncasecmp(dataType,
                 "BINARY", strlen("BINARY"))) {
         if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint( "binary length overflow, max size:%u\n",
+            errorPrint2("binary length overflow, max size:%u\n",
                     (uint32_t)TSDB_MAX_BINARY_LEN);
             return -1;
         }
@@ -5987,7 +5980,7 @@ static int32_t prepareStmtBindArrayByTypeForRand(
     } else if (0 == strncasecmp(dataType,
                 "NCHAR", strlen("NCHAR"))) {
         if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint( "nchar length overflow, max size:%u\n",
+            errorPrint2("nchar length overflow, max size: %u\n",
                     (uint32_t)TSDB_MAX_BINARY_LEN);
             return -1;
         }
@@ -6139,7 +6132,7 @@ static int32_t prepareStmtBindArrayByTypeForRand(
                 if (TSDB_CODE_SUCCESS != taosParseTime(
                             value, &tmpEpoch, strlen(value),
                             timePrec, 0)) {
-                    errorPrint("Input %s, time format error!\n", value);
+                    errorPrint2("Input %s, time format error!\n", value);
                     return -1;
                 }
                 *bind_ts2 = tmpEpoch;
@@ -6157,7 +6150,7 @@ static int32_t prepareStmtBindArrayByTypeForRand(
 
         *ptr += bind->buffer_length;
     }  else {
-        errorPrint( "No support data type: %s\n", dataType);
+        errorPrint2("No support data type: %s\n", dataType);
         return -1;
     }
 
@@ -6175,7 +6168,7 @@ static int32_t prepareStmtWithoutStb(
     TAOS_STMT *stmt = pThreadInfo->stmt;
     int ret = taos_stmt_set_tbname(stmt, tableName);
     if (ret != 0) {
-        errorPrint("failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: %s\n",
+        errorPrint2("failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: %s\n",
                 tableName, ret, taos_stmt_errstr(stmt));
         return ret;
     }
@@ -6184,7 +6177,7 @@ static int32_t prepareStmtWithoutStb(
 
     char *bindArray = malloc(sizeof(TAOS_BIND) * (g_args.num_of_CPR + 1));
     if (bindArray == NULL) {
-        errorPrint("Failed to allocate %d bind params\n",
+        errorPrint2("Failed to allocate %d bind params\n",
                 (g_args.num_of_CPR + 1));
         return -1;
     }
@@ -6225,13 +6218,13 @@ static int32_t prepareStmtWithoutStb(
             }
         }
         if (0 != taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
-            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             break;
         }
         // if msg > 3MB, break
         if (0 != taos_stmt_add_batch(stmt)) {
-            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             break;
         }
@@ -6254,7 +6247,7 @@ static int32_t prepareStbStmtBindTag(
 {
     char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
     if (bindBuffer == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
+        errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
                 __func__, __LINE__, DOUBLE_BUFF_LEN);
         return -1;
     }
@@ -6286,7 +6279,7 @@ static int32_t prepareStbStmtBindRand(
 {
     char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
     if (bindBuffer == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
+        errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
                 __func__, __LINE__, DOUBLE_BUFF_LEN);
         return -1;
     }
@@ -6389,7 +6382,7 @@ static int32_t prepareStbStmtRand(
         }
 
         if (NULL == tagsValBuf) {
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
+            errorPrint2("%s() LN%d, tag buf failed to allocate  memory\n",
                     __func__, __LINE__);
             return -1;
         }
@@ -6397,7 +6390,7 @@ static int32_t prepareStbStmtRand(
         char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
         if (NULL == tagsArray) {
             tmfree(tagsValBuf);
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
+            errorPrint2("%s() LN%d, tag buf failed to allocate  memory\n",
                     __func__, __LINE__);
             return -1;
         }
@@ -6416,14 +6409,14 @@ static int32_t prepareStbStmtRand(
         tmfree(tagsArray);
 
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             return -1;
         }
     } else {
         ret = taos_stmt_set_tbname(stmt, tableName);
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             return -1;
         }
@@ -6431,7 +6424,7 @@ static int32_t prepareStbStmtRand(
 
     char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
     if (bindArray == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind params\n",
+        errorPrint2("%s() LN%d, Failed to allocate %d bind params\n",
                 __func__, __LINE__, (stbInfo->columnCount + 1));
         return -1;
     }
@@ -6450,7 +6443,7 @@ static int32_t prepareStbStmtRand(
         }
         ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             free(bindArray);
             return -1;
@@ -6458,7 +6451,7 @@ static int32_t prepareStbStmtRand(
         // if msg > 3MB, break
         ret = taos_stmt_add_batch(stmt);
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             free(bindArray);
             return -1;
@@ -6502,7 +6495,7 @@ static int32_t prepareStbStmtWithSample(
         }
 
         if (NULL == tagsValBuf) {
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
+            errorPrint2("%s() LN%d, tag buf failed to allocate  memory\n",
                     __func__, __LINE__);
             return -1;
         }
@@ -6510,7 +6503,7 @@ static int32_t prepareStbStmtWithSample(
         char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
         if (NULL == tagsArray) {
             tmfree(tagsValBuf);
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
+            errorPrint2("%s() LN%d, tag buf failed to allocate  memory\n",
                     __func__, __LINE__);
             return -1;
         }
@@ -6529,14 +6522,14 @@ static int32_t prepareStbStmtWithSample(
         tmfree(tagsArray);
 
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             return -1;
         }
     } else {
         ret = taos_stmt_set_tbname(stmt, tableName);
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             return -1;
         }
@@ -6558,14 +6551,14 @@ static int32_t prepareStbStmtWithSample(
         }
         ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             return -1;
         }
         // if msg > 3MB, break
         ret = taos_stmt_add_batch(stmt);
         if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+            errorPrint2("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
             return -1;
         }
@@ -6726,7 +6719,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
-        errorPrint( "%s() LN%d, Failed to alloc %"PRIu64" Bytes, reason:%s\n",
+        errorPrint2( "%s() LN%d, Failed to alloc %"PRIu64" Bytes, reason:%s\n",
                 __func__, __LINE__, maxSqlLen, strerror(errno));
         return NULL;
     }
@@ -6774,7 +6767,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
             getTableName(tableName, pThreadInfo, tableSeq);
             if (0 == strlen(tableName)) {
-                errorPrint("[%d] %s() LN%d, getTableName return null\n",
+                errorPrint2("[%d] %s() LN%d, getTableName return null\n",
                         pThreadInfo->threadID, __func__, __LINE__);
                 free(pThreadInfo->buffer);
                 return NULL;
@@ -6841,7 +6834,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             debugPrint("[%d] %s() LN%d, generated records is %d\n",
                     pThreadInfo->threadID, __func__, __LINE__, generated);
             if (generated < 0) {
-                errorPrint("[%d] %s() LN%d, generated records is %d\n",
+                errorPrint2("[%d] %s() LN%d, generated records is %d\n",
                         pThreadInfo->threadID, __func__, __LINE__, generated);
                 goto free_of_interlace;
             } else if (generated == 0) {
@@ -6895,7 +6888,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         startTs = taosGetTimestampUs();
 
         if (recOfBatch == 0) {
-            errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
+            errorPrint2("[%d] %s() LN%d Failed to insert records of batch %d\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     batchPerTbl);
             if (batchPerTbl > 0) {
@@ -6922,7 +6915,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         pThreadInfo->totalDelay += delay;
 
         if (recOfBatch != affectedRows) {
-            errorPrint("[%d] %s() LN%d execInsert insert %d, affected rows: %"PRId64"\n%s\n",
+            errorPrint2("[%d] %s() LN%d execInsert insert %d, affected rows: %"PRId64"\n%s\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     recOfBatch, affectedRows, pThreadInfo->buffer);
             goto free_of_interlace;
@@ -6980,7 +6973,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
-        errorPrint( "Failed to alloc %"PRIu64" Bytes, reason:%s\n",
+        errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
                 maxSqlLen,
                 strerror(errno));
         return NULL;
@@ -7021,7 +7014,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                     __func__, __LINE__,
                     pThreadInfo->threadID, tableSeq, tableName);
             if (0 == strlen(tableName)) {
-                errorPrint("[%d] %s() LN%d, getTableName return null\n",
+                errorPrint2("[%d] %s() LN%d, getTableName return null\n",
                         pThreadInfo->threadID, __func__, __LINE__);
                 free(pThreadInfo->buffer);
                 return NULL;
@@ -7110,7 +7103,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             pThreadInfo->totalDelay += delay;
 
             if (affectedRows < 0) {
-                errorPrint("%s() LN%d, affected rows: %d\n",
+                errorPrint2("%s() LN%d, affected rows: %d\n",
                         __func__, __LINE__, affectedRows);
                 goto free_of_progressive;
             }
@@ -7272,7 +7265,7 @@ static int convertHostToServAddr(char *host, uint16_t port, struct sockaddr_in *
     uint16_t rest_port = port + TSDB_PORT_HTTP;
     struct hostent *server = gethostbyname(host);
     if ((server == NULL) || (server->h_addr == NULL)) {
-        errorPrint("%s", "ERROR, no such host");
+        errorPrint2("%s", "no such host");
         return -1;
     }
 
@@ -7297,7 +7290,7 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
 {
     stbInfo->sampleBindArray = calloc(1, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
     if (stbInfo->sampleBindArray == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
+        errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
                 __func__, __LINE__, (uint64_t)sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
         return -1;
     }
@@ -7306,7 +7299,7 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
     for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
         char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
         if (bindArray == NULL) {
-            errorPrint("%s() LN%d, Failed to allocate %d bind params\n",
+            errorPrint2("%s() LN%d, Failed to allocate %d bind params\n",
                     __func__, __LINE__, (stbInfo->columnCount + 1));
             return -1;
         }
@@ -7338,7 +7331,7 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
 
                 char *bindBuffer = calloc(1, index + 1);
                 if (bindBuffer == NULL) {
-                    errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
+                    errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
                             __func__, __LINE__, DOUBLE_BUFF_LEN);
                     return -1;
                 }
@@ -7376,7 +7369,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         } else if (0 == strncasecmp(precision, "ns", 2)) {
             timePrec = TSDB_TIME_PRECISION_NANO;
         } else {
-            errorPrint("Not support precision: %s\n", precision);
+            errorPrint2("Not support precision: %s\n", precision);
             exit(EXIT_FAILURE);
         }
     }
@@ -7406,7 +7399,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     if ((stbInfo) && (0 == strncasecmp(stbInfo->dataSource,
                     "sample", strlen("sample")))) {
         if (0 != prepareSampleDataForSTable(stbInfo)) {
-            errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
+            errorPrint2("%s() LN%d, prepare sample data for stable failed!\n",
                     __func__, __LINE__);
             exit(EXIT_FAILURE);
         }
@@ -7416,7 +7409,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             g_Dbs.host, g_Dbs.user,
             g_Dbs.password, db_name, g_Dbs.port);
     if (NULL == taos0) {
-        errorPrint("%s() LN%d, connect to server fail , reason: %s\n",
+        errorPrint2("%s() LN%d, connect to server fail , reason: %s\n",
                 __func__, __LINE__, taos_errstr(NULL));
         exit(EXIT_FAILURE);
     }
@@ -7471,7 +7464,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 limit * TSDB_TABLE_NAME_LEN);
         if (stbInfo->childTblName == NULL) {
             taos_close(taos0);
-            errorPrint("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
+            errorPrint2("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
             exit(EXIT_FAILURE);
         }
 
@@ -7577,7 +7570,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     g_Dbs.password, db_name, g_Dbs.port);
             if (NULL == pThreadInfo->taos) {
                 free(infos);
-                errorPrint(
+                errorPrint2(
                         "%s() LN%d, connect to server fail from insert sub thread, reason: %s\n",
                         __func__, __LINE__,
                         taos_errstr(NULL));
@@ -7593,7 +7586,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 if (NULL == pThreadInfo->stmt) {
                     free(pids);
                     free(infos);
-                    errorPrint(
+                    errorPrint2(
                             "%s() LN%d, failed init stmt, reason: %s\n",
                             __func__, __LINE__,
                             taos_errstr(NULL));
@@ -7601,11 +7594,11 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 }
 
                 int ret = taos_stmt_prepare(pThreadInfo->stmt, stmtBuffer, 0);
-                if (ret != 0){
+                if (ret != 0) {
                     free(pids);
                     free(infos);
                     free(stmtBuffer);
-                    errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
+                    errorPrint2("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
                             ret, taos_stmt_errstr(pThreadInfo->stmt));
                     exit(EXIT_FAILURE);
                 }
@@ -7749,7 +7742,7 @@ static void *readTable(void *sarg) {
     char *tb_prefix = pThreadInfo->tb_prefix;
     FILE *fp = fopen(pThreadInfo->filePath, "a");
     if (NULL == fp) {
-        errorPrint( "fopen %s fail, reason:%s.\n", pThreadInfo->filePath, strerror(errno));
+        errorPrint2("fopen %s fail, reason:%s.\n", pThreadInfo->filePath, strerror(errno));
         free(command);
         return NULL;
     }
@@ -7785,7 +7778,7 @@ static void *readTable(void *sarg) {
             int32_t code = taos_errno(pSql);
 
             if (code != 0) {
-                errorPrint( "Failed to query:%s\n", taos_errstr(pSql));
+                errorPrint2("Failed to query:%s\n", taos_errstr(pSql));
                 taos_free_result(pSql);
                 taos_close(taos);
                 fclose(fp);
@@ -7867,7 +7860,7 @@ static void *readMetric(void *sarg) {
             int32_t code = taos_errno(pSql);
 
             if (code != 0) {
-                errorPrint( "Failed to query:%s\n", taos_errstr(pSql));
+                errorPrint2("Failed to query:%s\n", taos_errstr(pSql));
                 taos_free_result(pSql);
                 taos_close(taos);
                 fclose(fp);
@@ -7914,7 +7907,7 @@ static int insertTestProcess() {
     debugPrint("%d result file: %s\n", __LINE__, g_Dbs.resultFile);
     g_fpOfInsertResult = fopen(g_Dbs.resultFile, "a");
     if (NULL == g_fpOfInsertResult) {
-        errorPrint( "Failed to open %s for save result\n", g_Dbs.resultFile);
+        errorPrint("Failed to open %s for save result\n", g_Dbs.resultFile);
         return -1;
     }
 
@@ -7947,18 +7940,30 @@ static int insertTestProcess() {
     double start;
     double end;
 
-    // create child tables
-    start = taosGetTimestampMs();
-    createChildTables();
-    end = taosGetTimestampMs();
-
     if (g_totalChildTables > 0) {
-        fprintf(stderr, "Spent %.4f seconds to create %"PRId64" tables with %d thread(s)\n\n",
-                (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+        fprintf(stderr,
+                "creating %"PRId64" table(s) with %d thread(s)\n\n",
+                g_totalChildTables, g_Dbs.threadCountByCreateTbl);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                    "Spent %.4f seconds to create %"PRId64" tables with %d thread(s)\n\n",
-                    (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+                "creating %"PRId64" table(s) with %d thread(s)\n\n",
+                g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+        }
+
+        // create child tables
+        start = taosGetTimestampMs();
+        createChildTables();
+        end = taosGetTimestampMs();
+
+        fprintf(stderr,
+                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                (end - start)/1000.0, g_totalChildTables,
+                g_Dbs.threadCountByCreateTbl, g_actualChildTables);
+        if (g_fpOfInsertResult) {
+            fprintf(g_fpOfInsertResult,
+                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                (end - start)/1000.0, g_totalChildTables,
+                g_Dbs.threadCountByCreateTbl, g_actualChildTables);
         }
     }
 
@@ -8016,7 +8021,7 @@ static void *specifiedTableQuery(void *sarg) {
                 NULL,
                 g_queryInfo.port);
         if (taos == NULL) {
-            errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            errorPrint2("[%d] Failed to connect to TDengine, reason:%s\n",
                     pThreadInfo->threadID, taos_errstr(NULL));
             return NULL;
         } else {
@@ -8028,7 +8033,7 @@ static void *specifiedTableQuery(void *sarg) {
     sprintf(sqlStr, "use %s", g_queryInfo.dbName);
     if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
         taos_close(pThreadInfo->taos);
-        errorPrint( "use database %s failed!\n\n",
+        errorPrint("use database %s failed!\n\n",
                 g_queryInfo.dbName);
         return NULL;
     }
@@ -8069,7 +8074,7 @@ static void *specifiedTableQuery(void *sarg) {
         uint64_t  currentPrintTime = taosGetTimestampMs();
         uint64_t  endTs = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
-            debugPrint("%s() LN%d, endTs=%"PRIu64"ms, startTs=%"PRIu64"ms\n",
+            debugPrint("%s() LN%d, endTs=%"PRIu64" ms, startTs=%"PRIu64" ms\n",
                     __func__, __LINE__, endTs, startTs);
             printf("thread[%d] has currently completed queries: %"PRIu64", QPS: %10.6f\n",
                     pThreadInfo->threadID,
@@ -8194,7 +8199,7 @@ static int queryTestProcess() {
             NULL,
             g_queryInfo.port);
     if (taos == NULL) {
-        errorPrint( "Failed to connect to TDengine, reason:%s\n",
+        errorPrint("Failed to connect to TDengine, reason:%s\n",
                 taos_errstr(NULL));
         exit(EXIT_FAILURE);
     }
@@ -8252,7 +8257,7 @@ static int queryTestProcess() {
                         taos_close(taos);
                         free(infos);
                         free(pids);
-                        errorPrint( "use database %s failed!\n\n",
+                        errorPrint2("use database %s failed!\n\n",
                                 g_queryInfo.dbName);
                         return -1;
                     }
@@ -8350,7 +8355,7 @@ static int queryTestProcess() {
 static void stable_sub_callback(
         TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
     if (res == NULL || taos_errno(res) != 0) {
-        errorPrint("%s() LN%d, failed to subscribe result, code:%d, reason:%s\n",
+        errorPrint2("%s() LN%d, failed to subscribe result, code:%d, reason:%s\n",
                 __func__, __LINE__, code, taos_errstr(res));
         return;
     }
@@ -8363,7 +8368,7 @@ static void stable_sub_callback(
 static void specified_sub_callback(
         TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
     if (res == NULL || taos_errno(res) != 0) {
-        errorPrint("%s() LN%d, failed to subscribe result, code:%d, reason:%s\n",
+        errorPrint2("%s() LN%d, failed to subscribe result, code:%d, reason:%s\n",
                 __func__, __LINE__, code, taos_errstr(res));
         return;
     }
@@ -8402,7 +8407,7 @@ static TAOS_SUB* subscribeImpl(
     }
 
     if (tsub == NULL) {
-        errorPrint("failed to create subscription. topic:%s, sql:%s\n", topic, sql);
+        errorPrint2("failed to create subscription. topic:%s, sql:%s\n", topic, sql);
         return NULL;
     }
 
@@ -8433,7 +8438,7 @@ static void *superSubscribe(void *sarg) {
                 g_queryInfo.dbName,
                 g_queryInfo.port);
         if (pThreadInfo->taos == NULL) {
-            errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            errorPrint2("[%d] Failed to connect to TDengine, reason:%s\n",
                     pThreadInfo->threadID, taos_errstr(NULL));
             free(subSqlStr);
             return NULL;
@@ -8444,7 +8449,7 @@ static void *superSubscribe(void *sarg) {
     sprintf(sqlStr, "USE %s", g_queryInfo.dbName);
     if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
         taos_close(pThreadInfo->taos);
-        errorPrint( "use database %s failed!\n\n",
+        errorPrint2("use database %s failed!\n\n",
                 g_queryInfo.dbName);
         free(subSqlStr);
         return NULL;
@@ -8580,7 +8585,7 @@ static void *specifiedSubscribe(void *sarg) {
                 g_queryInfo.dbName,
                 g_queryInfo.port);
         if (pThreadInfo->taos == NULL) {
-            errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            errorPrint2("[%d] Failed to connect to TDengine, reason:%s\n",
                     pThreadInfo->threadID, taos_errstr(NULL));
             return NULL;
         }
@@ -8687,7 +8692,7 @@ static int subscribeTestProcess() {
             g_queryInfo.dbName,
             g_queryInfo.port);
     if (taos == NULL) {
-        errorPrint( "Failed to connect to TDengine, reason:%s\n",
+        errorPrint2("Failed to connect to TDengine, reason:%s\n",
                 taos_errstr(NULL));
         exit(EXIT_FAILURE);
     }
@@ -8715,7 +8720,7 @@ static int subscribeTestProcess() {
                 g_queryInfo.specifiedQueryInfo.sqlCount);
     } else {
         if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-            errorPrint("%s() LN%d, sepcified query sqlCount %d.\n",
+            errorPrint2("%s() LN%d, sepcified query sqlCount %d.\n",
                     __func__, __LINE__,
                     g_queryInfo.specifiedQueryInfo.sqlCount);
             exit(EXIT_FAILURE);
@@ -8732,7 +8737,7 @@ static int subscribeTestProcess() {
                 g_queryInfo.specifiedQueryInfo.concurrent *
                 sizeof(threadInfo));
         if ((NULL == pids) || (NULL == infos)) {
-            errorPrint("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
+            errorPrint2("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
             exit(EXIT_FAILURE);
         }
 
@@ -8767,7 +8772,7 @@ static int subscribeTestProcess() {
                     g_queryInfo.superQueryInfo.threadCnt *
                     sizeof(threadInfo));
             if ((NULL == pidsOfStable) || (NULL == infosOfStable)) {
-                errorPrint("%s() LN%d, malloc failed for create threads\n",
+                errorPrint2("%s() LN%d, malloc failed for create threads\n",
                         __func__, __LINE__);
                 // taos_close(taos);
                 exit(EXIT_FAILURE);
@@ -9033,7 +9038,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
 
         memcpy(cmd + cmd_len, line, read_len);
         if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE, false)) {
-            errorPrint("%s() LN%d, queryDbExec %s failed!\n",
+            errorPrint2("%s() LN%d, queryDbExec %s failed!\n",
                     __func__, __LINE__, cmd);
             tmfree(cmd);
             tmfree(line);
@@ -9107,7 +9112,7 @@ static void queryResult() {
             g_Dbs.port);
     if (pThreadInfo->taos == NULL) {
         free(pThreadInfo);
-        errorPrint( "Failed to connect to TDengine, reason:%s\n",
+        errorPrint2("Failed to connect to TDengine, reason:%s\n",
                 taos_errstr(NULL));
         exit(EXIT_FAILURE);
     }
@@ -9129,7 +9134,7 @@ static void testCmdLine() {
     if (strlen(configDir)) {
         wordexp_t full_path;
         if (wordexp(configDir, &full_path, 0) != 0) {
-            errorPrint( "Invalid path %s\n", configDir);
+            errorPrint("Invalid path %s\n", configDir);
             return;
         }
         taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);

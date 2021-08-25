@@ -1527,8 +1527,9 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
   pCmd->insertParam.objectId = pSql->self;
 
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
-
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);  
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
