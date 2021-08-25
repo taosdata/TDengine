@@ -832,7 +832,6 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu", info->id, cTableName, taosArrayGetSize(rowsBind));
 
   int32_t code = 0;
-  int32_t try = 0;
 
   TAOS_STMT* stmt = taos_stmt_init(taos);
   if (stmt == NULL) {
@@ -850,7 +849,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   }
 
   bool tryAgain = false;
-
+  int32_t try = 0;
   do {
     code = taos_stmt_set_tbname(stmt, cTableName);
     if (code != 0) {
@@ -878,7 +877,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
 
     code = taos_stmt_execute(stmt);
     if (code != 0) {
-      tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s", info->id, code, tstrerror(code));
+      tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s, try:%d", info->id, code, tstrerror(code), try);
     }
 
     tryAgain = false;
@@ -892,7 +891,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
       TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
       int32_t   code2 = taos_errno(res2);
       if (code2 != TSDB_CODE_SUCCESS) {
-        tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        tscError("SML:0x%" PRIx64 " insert child table. reset query cache. error: %s", info->id, taos_errstr(res2));
       }
       taos_free_result(res2);
       if (tryAgain) {
@@ -901,9 +900,6 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     }
   } while (tryAgain);
 
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" %d:%s", info->id, code, tstrerror(code));
-  }
 
   taos_stmt_close(stmt);
   return code;
