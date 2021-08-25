@@ -348,36 +348,34 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
     assert(stmt != NULL);
     char *stmt_sql = calloc(1, 1024);
     struct {
-        int64_t c1;
-        int32_t c2;
-        int64_t c3;
-        float c4;
-        double c5;
-        char c6[10];
-        int16_t c7;
-        int8_t c8;
-        int8_t c9;
-        char c10[32];
-        uint32_t c11;
-        uint64_t c12;
-        uint16_t c13;
-        uint8_t c14;
+        int64_t long_value;
+        int64_t ts_value;
+        uint64_t ulong_value;
+        int32_t int_value;
+        uint32_t uint_value;
+        int16_t small_value;
+        uint16_t usmall_value;
+        int8_t tiny_value;
+        uint8_t utiny_value;
+        float float_value;
+        double double_value;
+        char binary_value[10];
+        char nchar_value[32];
     } v = {0};
-    v.c1 = (int64_t)1591060628000;
-    v.c2 = (int32_t)1;
-    v.c3 = (int64_t)1;
-    v.c4 = (float)1;
-    v.c5 = (double)1;
-    strcpy(v.c6, "abcdefgh");
-    v.c7 = 1;
-    v.c8 = 1;
-    v.c9 = 1;
-    strcpy(v.c10, "一二三四五六七八");
-    uintptr_t c10len=strlen(v.c10);
-    v.c11 = 1;
-    v.c12 = 1;
-    v.c13 = 1;
-    v.c14 = 1;
+    v.ts_value = (int64_t)1591060628000;
+    v.long_value = (int64_t)1;
+    v.int_value = (int32_t)1;
+    v.small_value = (int16_t)1;
+    v.tiny_value = (int8_t)1;
+    v.ulong_value = (uint64_t)1;
+    v.uint_value = (uint32_t)1;
+    v.usmall_value = (uint16_t)1;
+    v.utiny_value = (uint8_t)1;
+    v.float_value = (float)1;
+    v.double_value = (double)1;
+    strcpy(v.binary_value, "abcdefgh");
+    strcpy(v.nchar_value, "一二三四五六七八");
+    uintptr_t nchar_value_len = strlen(v.nchar_value);
     sprintf(stmt_sql, "select * from stmt_test.t1 where %s = ?", col);
     printf("stmt_sql: %s\n", stmt_sql);
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
@@ -386,73 +384,73 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
     params->is_null = NULL;
     switch(type){
         case TSDB_DATA_TYPE_TIMESTAMP:
-            params->buffer_length = sizeof(v.c1);
-            params->buffer = &v.c1;
+            params->buffer_length = sizeof(v.ts_value);
+            params->buffer = &v.ts_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_INT:
-            params->buffer_length = sizeof(v.c2);
-            params->buffer = &v.c2;
+            params->buffer_length = sizeof(v.int_value);
+            params->buffer = &v.int_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_BIGINT:
-            params->buffer_length = sizeof(v.c3);
-            params->buffer = &v.c3;
+            params->buffer_length = sizeof(v.long_value);
+            params->buffer = &v.long_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_FLOAT:
-            params->buffer_length = sizeof(v.c4);
-            params->buffer = &v.c4;
+            params->buffer_length = sizeof(v.float_value);
+            params->buffer = &v.float_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_DOUBLE:
-            params->buffer_length = sizeof(v.c5);
-            params->buffer = &v.c5;
+            params->buffer_length = sizeof(v.double_value);
+            params->buffer = &v.double_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_BINARY:
-            params->buffer_length = sizeof(v.c6);
-            params->buffer = &v.c6;
+            params->buffer_length = sizeof(v.binary_value);
+            params->buffer = &v.binary_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_SMALLINT:
-            params->buffer_length = sizeof(v.c7);
-            params->buffer = &v.c7;
+            params->buffer_length = sizeof(v.small_value);
+            params->buffer = &v.small_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_TINYINT:
-            params->buffer_length = sizeof(v.c8);
-            params->buffer = &v.c8;
+            params->buffer_length = sizeof(v.tiny_value);
+            params->buffer = &v.tiny_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_BOOL:
-            params->buffer_length = sizeof(v.c9);
-            params->buffer = &v.c9;
+            params->buffer_length = sizeof(v.tiny_value);
+            params->buffer = &v.tiny_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_NCHAR:
-            params->buffer_length = sizeof(v.c10);
-            params->buffer = &v.c10;
-            params->length = &c10len;
+            params->buffer_length = sizeof(v.nchar_value);
+            params->buffer = &v.nchar_value;
+            params->length = &nchar_value_len;
             break;
         case TSDB_DATA_TYPE_UINT:
-            params->buffer_length = sizeof(v.c11);
-            params->buffer = &v.c11;
+            params->buffer_length = sizeof(v.uint_value);
+            params->buffer = &v.uint_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_UBIGINT:
-            params->buffer_length = sizeof(v.c12);
-            params->buffer = &v.c12;
+            params->buffer_length = sizeof(v.ulong_value);
+            params->buffer = &v.ulong_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_USMALLINT:
-            params->buffer_length = sizeof(v.c13);
-            params->buffer = &v.c13;
+            params->buffer_length = sizeof(v.usmall_value);
+            params->buffer = &v.usmall_value;
             params->length = &params->buffer_length;
             break;
         case TSDB_DATA_TYPE_UTINYINT:
-            params->buffer_length = sizeof(v.c14);
-            params->buffer = &v.c14;
+            params->buffer_length = sizeof(v.utiny_value);
+            params->buffer = &v.utiny_value;
             params->length = &params->buffer_length;
             break;
         default:
