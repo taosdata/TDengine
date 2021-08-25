@@ -1804,7 +1804,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
   }
 
-  tscFreeRegisteredSqlObj(pStmt->pSql));
+  tscFreeRegisteredSqlObj(pStmt->pSql);
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
