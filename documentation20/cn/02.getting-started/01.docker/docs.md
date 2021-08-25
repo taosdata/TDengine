@@ -1,6 +1,6 @@
 # 通过 Docker 快速体验 TDengine
 
-虽然并不推荐在生产环境中通过 Docker 来部署 TDengine 服务，但 Docker 工具能够很好地屏蔽底层操作系统的环境差异，很适合在开发测试或初次体验时用于安装运行 TDengine 的工具集。特别是，借助 Docker，能够比较方便地在 Mac OSX 和 Windows 系统上尝试 TDengine，而无需安装虚拟机或额外租用 Linux 服务器。
+虽然并不推荐在生产环境中通过 Docker 来部署 TDengine 服务，但 Docker 工具能够很好地屏蔽底层操作系统的环境差异，很适合在开发测试或初次体验时用于安装运行 TDengine 的工具集。特别是，借助 Docker，能够比较方便地在 Mac OSX 和 Windows 系统上尝试 TDengine，而无需安装虚拟机或额外租用 Linux 服务器。另外，从2.0.14.0版本开始，TDengine提供的镜像已经可以同时支持X86-64、X86、arm64、arm32平台，像NAS、树莓派、嵌入式开发板之类可以运行docker的非主流计算机也可以基于本文档轻松体验TDengine。
 
 下文通过 Step by Step 风格的介绍，讲解如何通过 Docker 快速建立 TDengine 的单节点运行环境，以支持开发和测试。
 
@@ -12,7 +12,7 @@ Docker 工具自身的下载请参考 [Docker官网文档](https://docs.docker.c
 
 ```bash
 $ docker -v
-Docker version 20.10.5, build 55c4c88
+Docker version 20.10.3, build 48d30b5
 ```
 
 ## 在 Docker 容器中运行 TDengine
@@ -20,21 +20,22 @@ Docker version 20.10.5, build 55c4c88
 1，使用命令拉取 TDengine 镜像，并使它在后台运行。
 
 ```bash
-$ docker run -d tdengine/tdengine
-cdf548465318c6fc2ad97813f89cc60006393392401cae58a27b15ca9171f316
+$  docker run -d --name tdengine tdengine/tdengine
+7760c955f225d72e9c1ec5a4cef66149a7b94dae7598b11eb392138877e7d292
 ```
 
-- **docker run**：通过 Docker 运行一个容器。
-- **-d**：让容器在后台运行。
-- **tdengine/tdengine**：拉取的 TDengine 官方发布的应用镜像。
-- **cdf548465318c6fc2ad97813f89cc60006393392401cae58a27b15ca9171f316**：这个返回的长字符是容器 ID，我们可以通过容器 ID 来查看对应的容器。
+- **docker run**：通过 Docker 运行一个容器
+- **--name tdengine**：设置容器名称，我们可以通过容器名称来查看对应的容器
+- **-d**：让容器在后台运行
+- **tdengine/tdengine**：拉取的 TDengine 官方发布的应用镜像
+- **7760c955f225d72e9c1ec5a4cef66149a7b94dae7598b11eb392138877e7d292**：这个返回的长字符是容器 ID，我们也可以通过容器 ID 来查看对应的容器
 
 2，确认容器是否已经正确运行。
 
 ```bash
 $ docker ps
 CONTAINER ID   IMAGE               COMMAND   CREATED          STATUS          ···
-cdf548465318   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ···
+c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ···
 ```
 
 - **docker ps**：列出所有正在运行状态的容器信息。
@@ -47,25 +48,25 @@ cdf548465318   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ·
 3，进入 Docker 容器内，使用 TDengine。
 
 ```bash
-$ docker exec -it cdf548465318 /bin/bash
-root@cdf548465318:~/TDengine-server-2.0.13.0#
+$ docker exec -it tdengine /bin/bash
+root@c452519b0f9b:~/TDengine-server-2.0.20.13# 
 ```
 
 - **docker exec**：通过 docker exec 命令进入容器，如果退出，容器不会停止。
 - **-i**：进入交互模式。
 - **-t**：指定一个终端。
-- **cdf548465318**：容器 ID，需要根据 docker ps 指令返回的值进行修改。
+- **c452519b0f9b**：容器 ID，需要根据 docker ps 指令返回的值进行修改。
 - **/bin/bash**：载入容器后运行 bash 来进行交互。
 
 4，进入容器后，执行 taos shell 客户端程序。
 
 ```bash
-$ root@cdf548465318:~/TDengine-server-2.0.13.0# taos
+$ root@c452519b0f9b:~/TDengine-server-2.0.20.13# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.13.0
+Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
-taos>
+taos> 
 ```
 
 TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息。如果失败，会有错误信息打印出来。
@@ -78,45 +79,74 @@ TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息�
 
 ```bash
 $ taos> q
-root@cdf548465318:~/TDengine-server-2.0.13.0#
+root@c452519b0f9b:~/TDengine-server-2.0.20.13#
 ```
 
 2，在命令行界面执行 taosdemo。
 
 ```bash
-$ root@cdf548465318:~/TDengine-server-2.0.13.0# taosdemo
-###################################################################
-# Server IP:                         localhost:0
-# User:                              root
-# Password:                          taosdata
-# Use metric:                        true
-# Datatype of Columns:               int int int int int int int float
-# Binary Length(If applicable):      -1
-# Number of Columns per record:      3
-# Number of Threads:                 10
-# Number of Tables:                  10000
-# Number of Data per Table:          100000
-# Records/Request:                   1000
-# Database name:                     test
-# Table prefix:                      t
-# Delete method:                     0
-# Test time:                         2021-04-13 02:05:20
-###################################################################
+root@c452519b0f9b:~/TDengine-server-2.0.20.13# taosdemo
+
+taosdemo is simulating data generated by power equipments monitoring...
+
+host:                       127.0.0.1:6030
+user:                       root
+password:                   taosdata
+configDir:                  
+resultFile:                 ./output.txt
+thread num of insert data:  10
+thread num of create table: 10
+top insert interval:        0
+number of records per req:  30000
+max sql length:             1048576
+database count:             1
+database[0]:
+  database[0] name:      test
+  drop:                  yes
+  replica:               1
+  precision:             ms
+  super table count:     1
+  super table[0]:
+      stbName:           meters
+      autoCreateTable:   no
+      childTblExists:    no
+      childTblCount:     10000
+      childTblPrefix:    d
+      dataSource:        rand
+      iface:             taosc
+      insertRows:        10000
+      interlaceRows:     0
+      disorderRange:     1000
+      disorderRatio:     0
+      maxSqlLen:         1048576
+      timeStampStep:     1
+      startTimestamp:    2017-07-14 10:40:00.000
+      sampleFormat:      
+      sampleFile:        
+      tagsFile:          
+      columnCount:       3
+column[0]:FLOAT column[1]:INT column[2]:FLOAT 
+      tagCount:            2
+        tag[0]:INT tag[1]:BINARY(16) 
+
+         Press enter key to continue or Ctrl-C to stop
 ```
 
-回车后，该命令将新建一个数据库 test，并且自动创建一张超级表 meters，并以超级表 meters 为模版创建了 1 万张表，表名从 "t0" 到 "t9999"。每张表有 10 万条记录，每条记录有 f1，f2，f3 三个字段，时间戳 ts 字段从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:41:39 999"。每张表带有 areaid 和 loc 两个标签 TAG，areaid 被设置为 1 到 10，loc 被设置为 "beijing" 或 "shanghai"。
+回车后，该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
+
+执行这条命令大概需要几分钟，最后共插入 1 亿条记录。
 
 3，进入 TDengine 终端，查看 taosdemo 生成的数据。
 
 - **进入命令行。**
 
 ```bash
-$ root@cdf548465318:~/TDengine-server-2.0.13.0# taos
+$ root@c452519b0f9b:~/TDengine-server-2.0.20.13# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.13.0
+Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
-taos>
+taos> 
 ```
 
 - **查看数据库。**
@@ -124,8 +154,8 @@ taos>
 ```bash
 $ taos> show databases;
   name        |      created_time       |   ntables   |   vgroups   |    ···
-  test        | 2021-04-13 02:14:15.950 |       10000 |           6 |    ···
-  log         | 2021-04-12 09:36:37.549 |           4 |           1 |	   ···
+  test        | 2021-08-18 06:01:11.021 |       10000 |           6 |    ···
+  log         | 2021-08-18 05:51:51.065 |           4 |           1 |	   ···
 
 ```
 
@@ -136,10 +166,10 @@ $ taos> use test;
 Database changed.
 
 $ taos> show stables;
-       name              |      created_time       | columns |  tags  |   tables    |
-=====================================================================================
-       meters            | 2021-04-13 02:14:15.955 |       4 |      2 |       10000 |
-Query OK, 1 row(s) in set (0.001737s)
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ meters                         | 2021-08-18 06:01:11.116 |       4 |      2 |       10000 |
+Query OK, 1 row(s) in set (0.003259s)
 
 ```
 
@@ -147,42 +177,45 @@ Query OK, 1 row(s) in set (0.001737s)
 
 ```bash
 $ taos> select * from test.t0 limit 10;
-           ts            |     f1      |     f2      |     f3      |
-====================================================================
- 2017-07-14 02:40:01.000 |           3 |           9 |           0 |
- 2017-07-14 02:40:02.000 |           0 |           1 |           2 |
- 2017-07-14 02:40:03.000 |           7 |           2 |           3 |
- 2017-07-14 02:40:04.000 |           9 |           4 |           5 |
- 2017-07-14 02:40:05.000 |           1 |           2 |           5 |
- 2017-07-14 02:40:06.000 |           6 |           3 |           2 |
- 2017-07-14 02:40:07.000 |           4 |           7 |           8 |
- 2017-07-14 02:40:08.000 |           4 |           6 |           6 |
- 2017-07-14 02:40:09.000 |           5 |           7 |           7 |
- 2017-07-14 02:40:10.000 |           1 |           5 |           0 |
-Query OK, 10 row(s) in set (0.003638s)
+
+DB error: Table does not exist (0.002857s)
+taos> select * from test.d0 limit 10;
+           ts            |       current        |   voltage   |        phase         |
+======================================================================================
+ 2017-07-14 10:40:00.000 |             10.12072 |         223 |              0.34167 |
+ 2017-07-14 10:40:00.001 |             10.16103 |         224 |              0.34445 |
+ 2017-07-14 10:40:00.002 |             10.00204 |         220 |              0.33334 |
+ 2017-07-14 10:40:00.003 |             10.00030 |         220 |              0.33333 |
+ 2017-07-14 10:40:00.004 |              9.84029 |         216 |              0.32222 |
+ 2017-07-14 10:40:00.005 |              9.88028 |         217 |              0.32500 |
+ 2017-07-14 10:40:00.006 |              9.88110 |         217 |              0.32500 |
+ 2017-07-14 10:40:00.007 |             10.08137 |         222 |              0.33889 |
+ 2017-07-14 10:40:00.008 |             10.12063 |         223 |              0.34167 |
+ 2017-07-14 10:40:00.009 |             10.16086 |         224 |              0.34445 |
+Query OK, 10 row(s) in set (0.016791s)
 
 ```
 
-- **查看 t0 表的标签值。**
+- **查看 d0 表的标签值。**
 
 ```bash
-$ taos> select areaid, loc from test.t0;
-   areaid    |    loc     |
-===========================
-          10 | shanghai   |
-Query OK, 1 row(s) in set (0.002904s)
+$ taos> select groupid, location from test.d0;
+   groupid   |     location     |
+=================================
+           0 | shanghai         |
+Query OK, 1 row(s) in set (0.003490s)
 
 ```
 
 ## 停止正在 Docker 中运行的 TDengine 服务
 
 ```bash
-$ docker stop cdf548465318
-cdf548465318
+$ docker stop tdengine
+tdengine
 ```
 
 - **docker stop**：通过 docker stop 停止指定的正在运行中的 docker 镜像。
-- **cdf548465318**：容器 ID，根据 docker ps 指令返回的结果进行修改。
+- **tdengine**：容器名称。
 
 ## 编程开发时连接在 Docker 中的 TDengine
 
@@ -195,7 +228,7 @@ $ docker run -d -v /etc/taos:/etc/taos -P 6041:6041 tdengine/tdengine
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 
 $ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
-{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep1,keep2,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","precision","status"],"data":[],"rows":0}
+{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["test","2021-08-18 06:01:11.021",10000,4,1,1,10,"3650,3650,3650",16,6,100,4096,1,3000,2,0,"ms",0,"ready"],["log","2021-08-18 05:51:51.065",4,1,1,1,10,"30,30,30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":2}
 ```
 
 - 第一条命令，启动一个运行了 TDengine 的 docker 容器，并且将容器的 6041 端口映射到宿主机的 6041 端口上。
@@ -206,6 +239,5 @@ $ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 2，直接通过 exec 命令，进入到 docker 容器中去做开发。也即，把程序代码放在 TDengine 服务端所在的同一个 Docker 容器中，连接容器本地的 TDengine 服务。
 
 ```bash
-$ docker exec -it 526aa188da /bin/bash
+$ docker exec -it tdengine /bin/bash
 ```
-

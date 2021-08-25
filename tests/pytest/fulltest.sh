@@ -80,6 +80,7 @@ python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
 python3 ./test.py -f tag_lite/timestamp.py
+python3 ./test.py -f tag_lite/TestModifyTag.py
 
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
 python3 test.py -f dbmgmt/nanoSecondCheck.py
@@ -381,7 +382,9 @@ python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
-python3 ./test.py -f alter/alterColMultiTimes.py 
+python3 ./test.py -f alter/alterColMultiTimes.py
+python3 ./test.py -f query/queryWildcardLength.py
+python3 ./test.py -f query/queryTbnameUpperLower.py
 
 #======================p4-end===============
 

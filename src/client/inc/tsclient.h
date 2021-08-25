@@ -128,7 +128,7 @@ typedef struct {
   int32_t kvLen;    // len of SKVRow
 } SMemRowInfo;
 typedef struct {
-  uint8_t      memRowType;   // default is 0, that is SDataRow
+  uint8_t      memRowType;   // default is 0, that is SDataRow 
   uint8_t      compareStat;  // 0 no need, 1 need compare
   TDRowTLenT   kvRowInitLen;
   SMemRowInfo *rowInfo;
