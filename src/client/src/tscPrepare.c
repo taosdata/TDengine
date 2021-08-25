@@ -1781,6 +1781,9 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
   if (!pStmt->isInsert) {
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
