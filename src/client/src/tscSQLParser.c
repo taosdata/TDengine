@@ -5810,14 +5810,13 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg7 = "only primary timestamp/column in groupby clause allowed as order column";
   const char* msg8 = "only column in groupby clause allowed as order column";
   const char* msg9 = "orderby column must projected in subquery";
+  const char* msg10 = "not support distinct mixed with order by";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  if (pQueryInfo->distinct || pSqlNode->pSortOrder == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+  if (pSqlNode->pSortOrder == NULL) {
+    return TSDB_CODE_SUCCESS; 
+  } 
   char* pMsgBuf = tscGetErrorMsgPayload(pCmd);
   SArray* pSortOrder = pSqlNode->pSortOrder;
 
@@ -5836,6 +5835,9 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     if (size > 2) {
       return invalidOperationMsg(pMsgBuf, msg2);
     }
+  }
+  if (size > 0 && pQueryInfo->distinct) {
+    return invalidOperationMsg(pMsgBuf, msg10); 
   }
 
   // handle the first part of order by
