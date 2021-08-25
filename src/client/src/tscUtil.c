@@ -2093,6 +2093,22 @@ TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   return f;
 }
 
+int32_t tscGetFirstInvisibleFieldPos(SQueryInfo* pQueryInfo) { 
+  if (pQueryInfo->fieldsInfo.numOfOutput <= 0 || pQueryInfo->fieldsInfo.internalField == NULL) {
+    return 0;
+  }
+
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+    SInternalField* pField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
+    if (!pField->visible) {
+      return i;
+    }    
+  }
+  
+  return pQueryInfo->fieldsInfo.numOfOutput; 
+}
+
+
 SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
   assert(pFieldInfo != NULL);
   pFieldInfo->numOfOutput++;
