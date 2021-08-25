@@ -883,11 +883,14 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     tryAgain = false;
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID
         || code == TSDB_CODE_VND_INVALID_VGROUP_ID
-        || code == TSDB_CODE_TDB_TABLE_RECONFIGURE) && try++ < TSDB_MAX_REPLICA) {
+        || code == TSDB_CODE_TDB_TABLE_RECONFIGURE
+        || code == TSDB_CODE_APP_NOT_READY
+        || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && try++ < TSDB_MAX_REPLICA) {
       tryAgain = true;
     }
 
-    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+        code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
       TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
       int32_t   code2 = taos_errno(res2);
       if (code2 != TSDB_CODE_SUCCESS) {
