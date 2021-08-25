@@ -105,7 +105,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_NO_META_CACHED            TAOS_DEF_ERROR_CODE(0, 0x021C)  //"No table meta cached")
 #define TSDB_CODE_TSC_DUP_COL_NAMES             TAOS_DEF_ERROR_CODE(0, 0x021D)  //"duplicated column names")
 #define TSDB_CODE_TSC_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021E)  //"Invalid tag length")
-#define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid tag length")
+#define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid tag length")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
@@ -188,6 +188,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_FUNC              TAOS_DEF_ERROR_CODE(0, 0x0374)  //"Invalid func")
 #define TSDB_CODE_MND_INVALID_FUNC_BUFSIZE      TAOS_DEF_ERROR_CODE(0, 0x0375)  //"Invalid func bufSize")
 
+#define TSDB_CODE_MND_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x0376)  //"invalid tag length")
+#define TSDB_CODE_MND_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x0377)   //"invalid column length")
+
 #define TSDB_CODE_MND_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0380)  //"Database not specified or available")
 #define TSDB_CODE_MND_DB_ALREADY_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0381)  //"Database already exists")
 #define TSDB_CODE_MND_INVALID_DB_OPTION         TAOS_DEF_ERROR_CODE(0, 0x0382)  //"Invalid database options")
@@ -213,9 +216,6 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0404)  //"Action in progress")
 #define TSDB_CODE_DND_TOO_MANY_VNODES           TAOS_DEF_ERROR_CODE(0, 0x0405)  //"Too many vnode directories")
 #define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0406)  //"Dnode is exiting"
-
-#define TSDB_CODE_MND_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x410)  //"invalid tag length")
-#define TSDB_CODE_MND_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x411)   //"invalid column length")
 
 // vnode
 #define TSDB_CODE_VND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0500)  //"Action in progress")
