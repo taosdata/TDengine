@@ -7956,12 +7956,12 @@ static int insertTestProcess() {
         end = taosGetTimestampMs();
 
         fprintf(stderr,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
                 g_Dbs.threadCountByCreateTbl, g_actualChildTables);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
                 g_Dbs.threadCountByCreateTbl, g_actualChildTables);
         }
