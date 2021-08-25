@@ -367,8 +367,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pSql == NULL) {
     rpcFreeCont(rpcMsg->pCont);
-    free(rpcMsg);
-    free(pEpSet);
     return;
   }
 
@@ -386,8 +384,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
-    free(rpcMsg);
-    free(pEpSet);
     return;
   }
 
@@ -399,8 +395,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
-    free(rpcMsg);
-    free(pEpSet);
     return;
   }
 
@@ -454,8 +448,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
           taosReleaseRef(tscObjRef, handle);
           rpcFreeCont(rpcMsg->pCont);
-          free(rpcMsg);
-          free(pEpSet);
           return;
         }
       }
@@ -539,8 +531,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   taosReleaseRef(tscObjRef, handle);
   rpcFreeCont(rpcMsg->pCont);
-  free(rpcMsg);
-  free(pEpSet);
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
