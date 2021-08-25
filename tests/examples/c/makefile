@@ -19,9 +19,9 @@ exe:
 	gcc $(CFLAGS) ./apitest.c -o $(ROOT)apitest $(LFLAGS)
 
 clean:
-	rm $(ROOT)asyncdemo
-	rm $(ROOT)demo
-	rm $(ROOT)prepare
-	rm $(ROOT)stream
-	rm $(ROOT)subscribe
-	rm $(ROOT)apitest
+	rm -f $(ROOT)asyncdemo
+	rm -f $(ROOT)demo
+	rm -f $(ROOT)prepare
+	rm -f $(ROOT)stream
+	rm -f $(ROOT)subscribe
+	rm -f $(ROOT)apitest
