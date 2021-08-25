@@ -898,7 +898,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
       }
       taos_free_result(res2);
       if (tryAgain) {
-        taosMsleep(100 * (2 << (try)));
+        taosMsleep(50 * (2 << (try)));
       }
     }
   } while (tryAgain);
