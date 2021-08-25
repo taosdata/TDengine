@@ -1016,7 +1016,7 @@ static void ensureOutputBuf(SSLimitOperatorInfo * pInfo, SSDataBlock *pResultBlo
       }
 
       pInfo->capacity  = total;
-      pInfo->threshold = total * 0.8;
+      pInfo->threshold = (int64_t) (total * 0.8);
     }
   }
 }
