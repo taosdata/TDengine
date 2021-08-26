@@ -3241,6 +3241,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
 
   taosArrayDestroy(pQueryInfo->pUpstream);
   pQueryInfo->pUpstream = NULL;
+  pQueryInfo->bufLen = 0;
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -3661,27 +3662,25 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->active = pNewQueryInfo;
 
   memcpy(&pNewQueryInfo->interval, &pQueryInfo->interval, sizeof(pNewQueryInfo->interval));
-  pNewQueryInfo->type   = pQueryInfo->type;
-  pNewQueryInfo->window = pQueryInfo->window;
-  pNewQueryInfo->limit  = pQueryInfo->limit;
-  pNewQueryInfo->slimit = pQueryInfo->slimit;
-  pNewQueryInfo->order  = pQueryInfo->order;
-  pNewQueryInfo->vgroupLimit = pQueryInfo->vgroupLimit;
-  pNewQueryInfo->tsBuf  = NULL;
-  pNewQueryInfo->fillType = pQueryInfo->fillType;
-  pNewQueryInfo->fillVal  = NULL;
+  pNewQueryInfo->type         = pQueryInfo->type;
+  pNewQueryInfo->window       = pQueryInfo->window;
+  pNewQueryInfo->limit        = pQueryInfo->limit;
+  pNewQueryInfo->slimit       = pQueryInfo->slimit;
+  pNewQueryInfo->order        = pQueryInfo->order;
+  pNewQueryInfo->tsBuf        = NULL;
+  pNewQueryInfo->fillType     = pQueryInfo->fillType;
+  pNewQueryInfo->fillVal      = NULL;
+  pNewQueryInfo->clauseLimit  = pQueryInfo->clauseLimit;
+  pNewQueryInfo->prjOffset    = pQueryInfo->prjOffset;
   pNewQueryInfo->numOfFillVal = 0;
-  pNewQueryInfo->clauseLimit = pQueryInfo->clauseLimit;
-  pNewQueryInfo->prjOffset = pQueryInfo->prjOffset;
-  pNewQueryInfo->numOfTables = 0;
+  pNewQueryInfo->numOfTables  = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
-  pNewQueryInfo->bufLen = pQueryInfo->bufLen;
-  pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
-
-  pNewQueryInfo->distinct =  pQueryInfo->distinct;
+  pNewQueryInfo->bufLen       = pQueryInfo->bufLen;
+  pNewQueryInfo->vgroupLimit  = pQueryInfo->vgroupLimit;
+  pNewQueryInfo->distinct     =  pQueryInfo->distinct;
   pNewQueryInfo->multigroupResult = pQueryInfo->multigroupResult;
 
-  pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
+  pNewQueryInfo->buf          = malloc(pQueryInfo->bufLen);
   if (pNewQueryInfo->buf == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
