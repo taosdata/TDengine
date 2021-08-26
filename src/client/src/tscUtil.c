@@ -3078,6 +3078,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->slimit.offset  = 0;
   pQueryInfo->pUpstream      = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->window         = TSWINDOW_INITIALIZER;
+  pQueryInfo->multigroupResult = true;
 }
 
 int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
@@ -3089,7 +3090,6 @@ int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
   }
 
   tscInitQueryInfo(pQueryInfo);
-
   pQueryInfo->msg = pCmd->payload;  // pointer to the parent error message buffer
 
   if (pCmd->pQueryInfo == NULL) {
@@ -3171,6 +3171,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->window         = pSrc->window;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
   pQueryInfo->pTableMetaInfo = NULL;
+  pQueryInfo->multigroupResult = pSrc->multigroupResult;
 
   pQueryInfo->bufLen         = pSrc->bufLen;
   pQueryInfo->orderProjectQuery = pSrc->orderProjectQuery;
@@ -3570,7 +3571,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
-
+  pNewQueryInfo->multigroupResult = pQueryInfo->multigroupResult;
 
   pNewQueryInfo->distinct =  pQueryInfo->distinct;
   if (pNewQueryInfo->buf == NULL) {
@@ -3795,12 +3796,12 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry)) {
       pParentSql->res.code = code;
-      
+
       tscAsyncResultOnError(pParentSql);
       return;
     }
 
-    tscFreeSubobj(pParentSql);    
+    tscFreeSubobj(pParentSql);
     tfree(pParentSql->pSubs);
 
     pParentSql->res.code = TSDB_CODE_SUCCESS;
@@ -3809,9 +3810,9 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
              tstrerror(code), pParentSql->retry);
 
-    
+
     tscResetSqlCmd(&pParentSql->cmd, true);
-    
+
     code = tsParseSql(pParentSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       return;
@@ -3880,7 +3881,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->maxRetry  = pSql->maxRetry;
 
       pNew->cmd.resColumnId = TSDB_RES_COL_ID;
-      
+
       tsem_init(&pNew->rspSem, 0, 0);
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
@@ -4416,7 +4417,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
   size_t      sz   = 0;
   STableMeta* pChild = *ppChild;
   STableMeta* pChild1;
-   
+
   taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
 
   // tableMeta exists, build child table meta according to the super table meta
@@ -4427,9 +4428,9 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     int32_t tableMetaSize =  sizeof(STableMeta)  + totalBytes;
     if (*tableMetaCapacity < tableMetaSize) {
       pChild1 = realloc(pChild, tableMetaSize);
-      if(pChild1 == NULL) 
+      if(pChild1 == NULL)
         return -1;
-      pChild = pChild1; 
+      pChild = pChild1;
       *tableMetaCapacity = (size_t)tableMetaSize;
     }
 
@@ -4701,6 +4702,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->distinct          = pQueryInfo->distinct;
   pQueryAttr->sw                = pQueryInfo->sessionWindow;
   pQueryAttr->stateWindow       = pQueryInfo->stateWindow;
+  pQueryAttr->multigroupResult  = pQueryInfo->multigroupResult;
 
   pQueryAttr->numOfCols         = numOfCols;
   pQueryAttr->numOfOutput       = numOfOutput;
