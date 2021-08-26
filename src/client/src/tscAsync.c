@@ -168,6 +168,9 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
     } else {
       pRes->code = numOfRows;
     }
+    if (pRes->code == TSDB_CODE_SUCCESS) {
+      pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;           
+    }
 
     tscAsyncResultOnError(pSql);
     return;

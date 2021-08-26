@@ -2265,7 +2265,7 @@ void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
 
     destroySup(pSup);
     taos_free_result(pSql);
-    parent->res.code = code;
+    parent->res.code = c;
     tscAsyncResultOnError(parent);
     return;
   }
