@@ -1739,7 +1739,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
   SSqlObj* pParentSql = pSupporter->pObj;
-  
+
   // There is only one subquery and table for each subquery.
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -1768,7 +1768,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
       return;
     }
-    
+
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1794,7 +1794,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   if (!(pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0))) {
     if (!subAndCheckDone(pSql, pParentSql, pSupporter->subqueryIndex)) {
       return;
-    }      
+    }
   }
 
   tscSetupOutputColumnIndex(pParentSql);
@@ -1806,7 +1806,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   if (pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
     pSql->fp = joinRetrieveFinalResCallback;  // continue retrieve data
     pSql->cmd.command = TSDB_SQL_FETCH;
-    
+
     tscBuildAndSendRequest(pSql, NULL);
   } else {  // first retrieve from vnode during the secondary stage sub-query
     // set the command flag must be after the semaphore been correctly set.
@@ -1982,7 +1982,7 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
     }
-    
+
     pthread_mutex_init(&pSql->subState.mutex, NULL);
   }
 
@@ -1996,7 +1996,7 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
     }
-    
+
     code = tscCreateJoinSubquery(pSql, i, pSupporter);
     if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
       tscDestroyJoinSupporter(pSupporter);
@@ -2022,7 +2022,7 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
         (*pSub->fp)(pSub->param, pSub, 0);
         continue;
       }
-      
+
       if ((code = tscBuildAndSendRequest(pSub, NULL)) != TSDB_CODE_SUCCESS) {
         pRes->code = code;
         (*pSub->fp)(pSub->param, pSub, 0);
@@ -2046,16 +2046,16 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
 
 static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
   assert(numOfSubs <= pSql->subState.numOfSub && numOfSubs >= 0);
-  
+
   for(int32_t i = 0; i < numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     assert(pSub != NULL);
-    
+
     SRetrieveSupport* pSupport = pSub->param;
-    
+
     tfree(pSupport->localBuffer);
     tfree(pSupport);
-    
+
     taos_free_result(pSub);
   }
 }
@@ -2278,7 +2278,9 @@ void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
     destroySup(pSup);
     taos_free_result(pSql);
     parent->res.code = code;
-    tscAsyncResultOnError(parent);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscAsyncResultOnError(parent);
+    }
     return;
   }
 
@@ -2462,13 +2464,13 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
-  
+
   // pRes->code check only serves in launching metric sub-queries
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
     pCmd->command = TSDB_SQL_RETRIEVE_GLOBALMERGE;  // enable the abort of kill super table function.
     return pRes->code;
   }
-  
+
   tExtMemBuffer   **pMemoryBuf = NULL;
   tOrderDescriptor *pDesc  = NULL;
 
@@ -2488,7 +2490,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   }
 
   assert(pState->numOfSub > 0);
-  
+
   int32_t ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
   if (ret != 0) {
     pRes->code = ret;
