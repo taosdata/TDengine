@@ -1217,10 +1217,10 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "topicBianryLen";
+  cfg.option = "topicBinaryLen";
   cfg.ptr = &tsTopicBianryLen;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 16;
   cfg.maxValue = 16000;
   cfg.ptrLength = 0;
