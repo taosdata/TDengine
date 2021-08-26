@@ -462,7 +462,7 @@ static int taos_set_config_imp(const char *config){
       continue;
     }
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION)){
-      printf("set failed:%s->%s", item->string, item->valuestring);
+      printf("set failed:%s->%s, paras err or can not set from file", item->string, item->valuestring);
       ret = -2;
     }
   }
