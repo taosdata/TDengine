@@ -370,6 +370,15 @@ struct arguments g_args = {
     false       // performance_print
 };
 
+static void errorPrintReqArg2(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option requires a number argument '-%s'\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+}
+
 /* Parse a single option. */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     /* Get the input argument from argp_parse, which we
@@ -390,6 +399,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'p':
             break;
         case 'P':
+            if (!isStringNumber(arg)) {
+                errorPrintReqArg2("taosdump", "P");
+                exit(EXIT_FAILURE);
+            }
             g_args.port = atoi(arg);
             break;
         case 'q':
