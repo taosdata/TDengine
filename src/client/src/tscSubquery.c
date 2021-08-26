@@ -1138,7 +1138,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
         return;
       }
 
-      tscAsyncResultOnError(pParentSql);
+      if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+        tscAsyncResultOnError(pParentSql);
+      }
       return;
     }
 
@@ -1263,7 +1265,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   // check for the error code firstly
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
-    // todo retry if other subqueries are not failed yet 
+    // todo retry if other subqueries are not failed yet
     assert(numOfRows < 0 && numOfRows == taos_errno(pSql));
     tscError("0x%"PRIx64" sub query failed, code:%s, index:%d", pSql->self, tstrerror(numOfRows), pSupporter->subqueryIndex);
 
@@ -1287,13 +1289,15 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
         if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
           return;
         }
-        
-        tscAsyncResultOnError(pParentSql);
+
+        if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+          tscAsyncResultOnError(pParentSql);
+        }
 
         return;
       }
     }
-      
+
     fwrite(pRes->data, (size_t)pRes->numOfRows, 1, pSupporter->f);
     fclose(pSupporter->f);
     pSupporter->f = NULL;
@@ -1306,8 +1310,10 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       if (quitAllSubquery(pSql, pParentSql, pSupporter)){
         return;
       }
-      
-      tscAsyncResultOnError(pParentSql);
+
+      if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+        tscAsyncResultOnError(pParentSql);
+      }
 
       return;
     }
@@ -1401,12 +1407,12 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
       return;
     }
-    
+
     tscAsyncResultOnError(pParentSql);
     return;
   }
 
-  
+
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     assert(numOfRows == taos_errno(pSql));
 
