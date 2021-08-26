@@ -7,7 +7,7 @@ LFLAGS = '-Wl,-rpath,/usr/local/taos/driver/' -ltaos -lpthread -lm -lrt
 CFLAGS = -O0 -g -Wall -Wno-deprecated -fPIC -Wno-unused-result -Wconversion \
 	-Wno-char-subscripts -D_REENTRANT -Wno-format -D_REENTRANT -DLINUX \
 	-Wno-unused-function -D_M_X64 -I/usr/local/taos/include -std=gnu99 \
-	-fsanitize=address
+	-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment
 
 all: $(TARGET)
 
