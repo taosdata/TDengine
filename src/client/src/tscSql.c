@@ -892,7 +892,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tfree(pSql);

@@ -144,6 +144,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
 bool timeWindowInterpoRequired(SQueryInfo *pQueryInfo);
@@ -190,6 +191,7 @@ void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
 void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArray* pExprList);
 
 static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
+int32_t tscGetFirstInvisibleFieldPos(SQueryInfo* pQueryInfo);
 
 int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize);
 void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t uid);
