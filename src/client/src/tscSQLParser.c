@@ -422,7 +422,6 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
   close(fd);
-  tfree(*buf);
   return TSDB_CODE_SUCCESS;
 }
 
