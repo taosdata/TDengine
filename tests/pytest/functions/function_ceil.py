@@ -1405,6 +1405,16 @@ class TDTestCase:
                         or select_command[s] == "1, ceil(ubigint_col), 1"\
                         or select_command[s] == "1, ceil(usmallint_col), 1"\
                         or select_command[s] == "1, ceil(utinyint_col), 1"\
+                        or select_command[s] == "int_col, ceil(int_col), int_col"\
+                        or select_command[s] == "bigint_col, ceil(bigint_col), bigint_col"\
+                        or select_command[s] == "float_col, ceil(float_col), float_col"\
+                        or select_command[s] == "double_col, ceil(double_col), double_col"\
+                        or select_command[s] == "smallint_col, ceil(smallint_col), smallint_col"\
+                        or select_command[s] == "tinyint_col, ceil(tinyint_col), tinyint_col"\
+                        or select_command[s] == "uint_col, ceil(uint_col), uint_col"\
+                        or select_command[s] == "ubigint_col, ceil(ubigint_col), ubigint_col"\
+                        or select_command[s] == "usmallint_col, ceil(usmallint_col), usmallint_col"\
+                        or select_command[s] == "utinyint_col, ceil(utinyint_col), utinyint_col"\
                         or select_command[s] == "ceil(int_col) as anyName"\
                         or select_command[s] == "ceil(bigint_col) as anyName"\
                         or select_command[s] == "ceil(float_col) as anyName"\
