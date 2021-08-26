@@ -86,6 +86,10 @@ typedef struct STscStmt {
   return _code;             \
 } while (0)
 
+#define STMT_CHECK if (pStmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) { \
+                      STMT_RET(TSDB_CODE_TSC_DISCONNECTED);  \
+                    }
+
 static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
   return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
 }
@@ -1525,9 +1529,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
 int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (sql == NULL) {
     tscError("sql is NULL");
@@ -1604,9 +1606,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   STscStmt* pStmt = (STscStmt*)stmt;
   int32_t code = 0;
 
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   SSqlObj* pSql = pStmt->pSql;
   SSqlCmd* pCmd = &pSql->cmd;
@@ -1766,6 +1766,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
 int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  STMT_CHECK
   pStmt->mtb.subSet = true;
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
@@ -1774,6 +1775,7 @@ int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  STMT_CHECK
   pStmt->mtb.subSet = false;
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
@@ -1781,9 +1783,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
   if (!pStmt->isInsert) {
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
@@ -1819,9 +1819,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
 
 int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (pStmt->isInsert) {
     if (pStmt->multiTbInsert) {
@@ -1850,9 +1848,7 @@ int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
 int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
@@ -1883,9 +1879,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX || colIdx < 0) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
@@ -1918,9 +1912,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
 
 int taos_stmt_add_batch(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (pStmt->isInsert) {
     if (pStmt->last != STMT_BIND && pStmt->last != STMT_BIND_COL) {
@@ -1947,9 +1939,7 @@ int taos_stmt_reset(TAOS_STMT* stmt) {
 int taos_stmt_execute(TAOS_STMT* stmt) {
   int ret = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (pStmt->isInsert) {
     if (pStmt->last != STMT_ADD_BATCH) {
@@ -1995,7 +1985,6 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
     tscError("result has been used already.");
     return NULL;
   }
-
   TAOS_RES* result = pStmt->pSql;
   pStmt->pSql = NULL;
   return result;
@@ -2004,9 +1993,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
 int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (insert) *insert = pStmt->isInsert;
 
@@ -2016,9 +2003,7 @@ int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
 int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (pStmt->isInsert) {
     SSqlObj* pSql = pStmt->pSql;
@@ -2035,9 +2020,7 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
 int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
-  }
+  STMT_CHECK
 
   if (pStmt->isInsert) {
     SSqlCmd* pCmd = &pStmt->pSql->cmd;
