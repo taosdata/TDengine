@@ -375,7 +375,7 @@ taos -C  或  taos --dump-config
     timezone GMT-8
     timezone Asia/Shanghai
     ```
-    均是合法的设置东八区时区的格式。
+    均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone Asia/Shanghai` 这样的写法，而必须写成 `timezone UTC-8`。
 
     时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
     ```sql

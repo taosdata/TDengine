@@ -698,7 +698,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
   }
 
   // fill operator
-  if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
+  if (pQueryAttr->fillType != TSDB_FILL_NONE && pQueryAttr->interval.interval > 0) {
     op = OP_Fill;
     taosArrayPush(plan, &op);
   }
