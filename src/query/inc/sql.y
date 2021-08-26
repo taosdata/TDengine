@@ -80,7 +80,7 @@ cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0); 
 cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
-cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
+cmd ::= SHOW VNODES ids(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
 
 %type dbPrefix {SStrToken}
