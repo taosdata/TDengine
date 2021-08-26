@@ -34,6 +34,7 @@ if __name__ == "__main__":
     logSql = True
     stop = 0
     restart = False
+    numOfDnode = 1
     opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghr', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind',
         'help'
@@ -75,6 +76,9 @@ if __name__ == "__main__":
 
         if key in ['-c', '--cluster']:
             testCluster = True
+
+        if key in ['-d', '--dnode']:
+            numOfDnode = value
 
         if key in ['-g', '--valgrind']:
             valgrind = 1
@@ -120,9 +124,9 @@ if __name__ == "__main__":
     uModule = importlib.import_module(moduleName)
     try:
         ucase = uModule.TDTestCase()
-        tdDnodes.deploy(1, ucase.updatecfgDict)
+        tdDnodes.deploy(numOfDnode, ucase.updatecfgDict)
     except:
-        tdDnodes.deploy(1, {})
+        tdDnodes.deploy(numOfDnode, {})
     tdDnodes.start(1)
 
     if masterIp == "":
