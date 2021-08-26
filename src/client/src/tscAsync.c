@@ -315,6 +315,9 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
 }
 
 void tscAsyncResultOnError(SSqlObj* pSql) {
+  if (pSql->res.code == TSDB_CODE_SUCCESS) {
+    return;
+  }
   SSchedMsg schedMsg = {0};
   schedMsg.fp = tscAsyncResultCallback;
   schedMsg.ahandle = (void *)pSql->self;
