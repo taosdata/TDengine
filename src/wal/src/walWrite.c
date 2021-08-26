@@ -25,6 +25,7 @@
 
 static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
 
+//TODO: call back vnode to reset offset
 int32_t walRenew(void *handle) {
   if (handle == NULL) return 0;
 
@@ -134,6 +135,7 @@ static int walValidateChecksum(SWalHead *pHead) {
 
 #endif
 
+// return num of bytes if succeed
 int32_t walWrite(void *handle, SWalHead *pHead) {
   if (handle == NULL) return -1;
 
@@ -161,6 +163,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
+    code = contLen;
     wTrace("vgId:%d, write wal, fileId:%" PRId64 " tfd:%" PRId64 " hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,
            pWal->fileId, pWal->tfd, pHead->version, pWal->version, pHead->len);
     pWal->version = pHead->version;
@@ -259,6 +262,7 @@ static void walFtruncate(SWal *pWal, int64_t tfd, int64_t offset) {
 static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int64_t tfd, int64_t *offset) {
   int64_t pos = *offset;
   while (1) {
+    //TODO: replace char-by-char reading method
     pos++;
 
     if (tfLseek(tfd, pos, SEEK_SET) < 0) {
@@ -484,8 +488,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     if (ret < pHead->len) {
       wError("vgId:%d, file:%s, failed to read wal body, ret:%d len:%d", pWal->vgId, name, ret, pHead->len);
-      offset += sizeof(SWalHead);
-      continue;
+      walFtruncate(pWal, tfd, offset);
+      break;
     }
 
     if ((pHead->sver >= 1) && !walValidateChecksum(pHead)) {
@@ -528,8 +532,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     if (ret < pHead->len) {
       wError("vgId:%d, file:%s, failed to read wal body, ret:%d len:%d", pWal->vgId, name, ret, pHead->len);
-      offset += sizeof(SWalHead);
-      continue;
+      walFtruncate(pWal, tfd, offset);
+      break;
     }
 
 #endif
