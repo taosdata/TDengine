@@ -2050,12 +2050,12 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
   for(int32_t i = 0; i < numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     assert(pSub != NULL);
-
+    
     SRetrieveSupport* pSupport = pSub->param;
-
+    
     tfree(pSupport->localBuffer);
     tfree(pSupport);
-
+    
     taos_free_result(pSub);
   }
 }
