@@ -750,7 +750,10 @@ void taos_stop_query(TAOS_RES *res) {
         pSql->rpcRid = -1;
       }
 
-      tscAsyncResultOnError(pSql);
+      // pSql->res.code might be set to 0 in rpcCancelRequest
+      if (pSql->res.code != TSDB_CODE_SUCCESS) {
+        tscAsyncResultOnError(pSql);
+      }
     }
   }
 
