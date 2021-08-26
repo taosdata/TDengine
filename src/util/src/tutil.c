@@ -224,8 +224,7 @@ char* strntolower_s(char *dst, const char *src, int32_t n) {
 
   assert(dst != NULL);
   if (n == 0) {
-    *p = 0;
-    return dst;
+    return NULL;
   }
 
   while (n-- > 0) {
