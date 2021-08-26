@@ -223,7 +223,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   char quote = 0;
   
   while (*string != 0) {
-    if (isspace(*string)) {
+    if (*string == ' ' || *string == '\t') {
       ++string;
     } else {
       break;
@@ -244,12 +244,12 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
       break;
     }
 
-    if (*string == '#' || isspace(*string)) {
+    if (*string == '#' || *string == '\n' || *string == '\r') {
       *string = 0;
       break;
     }
 
-    if (isspace(*string) && !quote) {
+    if ((*string == ' ' || *string == '\t') && !quote) {
       break;
     } else {
       ++string;
