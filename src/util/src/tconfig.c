@@ -294,11 +294,12 @@ SGlobalCfg *taosGetConfigOption(const char *option) {
 }
 
 bool taosReadConfigOption(const char *option, char *value, char *value2, char *value3,
-                          int8_t cfgStatus) {
+                          int8_t cfgStatus, int8_t sourceType) {
   bool ret = false;
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
+    if (sourceType != 0 && !(sourceType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (strcasecmp(cfg->option, option) != 0) continue;
 
     switch (cfg->valType) {
@@ -479,7 +480,7 @@ bool taosReadGlobalCfg() {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    taosReadConfigOption(option, value, value2, value3, TAOS_CFG_CSTATUS_FILE);
+    taosReadConfigOption(option, value, value2, value3, TAOS_CFG_CSTATUS_FILE, 0);
   }
 
   fclose(fp);

@@ -454,7 +454,7 @@ static int taos_set_config_imp(const char *config){
   int size = cJSON_GetArraySize(root);
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
-    if(item && !taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION)){
+    if(item && !taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
       ret = -2;
     }
   }
