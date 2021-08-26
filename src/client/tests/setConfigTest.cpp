@@ -3,6 +3,7 @@
 
 #include "taos.h"
 #include "tglobal.h"
+#include "tconfig.h"
 
 /* test parse time function */
 TEST(testCase, set_config_test) {
@@ -12,10 +13,13 @@ TEST(testCase, set_config_test) {
   const char *config2 = "{\"debugFlag\":\"199\"}";
   taos_set_config(config2);     // not take effect
 
-  ASSERT_EQ(taosReadGlobalCfg(), true);   // load file config, not take effect
-  ASSERT_EQ(taosCheckGlobalCfg(), 0);
+  bool readResult = taosReadGlobalCfg();
+  ASSERT_TRUE(readResult);   // load file config, not take effect
+  int32_t checkResult = taosCheckGlobalCfg();
+  ASSERT_EQ(checkResult, 0);
 
   SGlobalCfg *cfg = taosGetConfigOption("debugFlag");
   ASSERT_EQ(cfg->cfgStatus, TAOS_CFG_CSTATUS_OPTION);
-  ASSERT_EQ(*(int32_t*)cfg.ptr, 135);
+  int32_t result = *(int32_t*)cfg.ptr;
+  ASSERT_EQ(result, 131);
 }
