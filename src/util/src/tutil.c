@@ -197,7 +197,7 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   if (n == 0) {
     *p = 0;
     return dst;
-  } 
+  }
   for (c = *src++; n-- > 0; c = *src++) {
     if (esc) {
       esc = 0;
@@ -216,6 +216,27 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   }
 
   *p = 0;
+  return dst;
+}
+
+char* strntolower_s(char *dst, const char *src, int32_t n) {
+  char *p = dst, c;
+
+  assert(dst != NULL);
+  if (n == 0) {
+    *p = 0;
+    return dst;
+  }
+
+  while (n-- > 0) {
+    c = *src;
+    if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    }
+    *p++ = c;
+    src++;
+  }
+
   return dst;
 }
 
