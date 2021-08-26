@@ -640,7 +640,7 @@ SArguments g_args = {
 
 
 static SDbs            g_Dbs;
-static int64_t         g_totalChildTables = 0;
+static int64_t         g_totalChildTables = DEFAULT_CHILDTABLES;
 static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
@@ -9144,7 +9144,6 @@ static void testCmdLine() {
     }
 
     g_args.test_mode = INSERT_TEST;
-    g_totalChildTables = DEFAULT_CHILDTABLES;
     insertTestProcess();
 
     if (false == g_Dbs.insert_only)
@@ -9157,6 +9156,7 @@ int main(int argc, char *argv[]) {
     debugPrint("meta file: %s\n", g_args.metaFile);
 
     if (g_args.metaFile) {
+        g_totalChildTables = 0;
         initOfInsertMeta();
         initOfQueryMeta();
 
