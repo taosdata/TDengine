@@ -148,6 +148,7 @@ typedef struct SQueryInfo {
   bool               orderProjectQuery;
   bool               stateWindow;
   bool               globalMerge;
+  bool               multigroupResult;
 } SQueryInfo;
 
 /**
