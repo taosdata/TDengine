@@ -9143,6 +9143,7 @@ static void testCmdLine() {
     }
 
     g_args.test_mode = INSERT_TEST;
+    g_totalChildTables = 10000;
     insertTestProcess();
 
     if (false == g_Dbs.insert_only)

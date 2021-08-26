@@ -301,85 +301,82 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
 int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
 
-    SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
+  SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
 
-    if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
+  if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
+    tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
+    return -1;
+  }
+
+  size_t size = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
+  if (tsdbMakeRoom((void **)(&(pReadh->pBlkData)), size) < 0) return -1;
+
+  int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
+  if (nread < 0) {
+    tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset, size);
+    return -1;
+  }
+
+  if (nread < size) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d block statis part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
+              " read bytes: %" PRId64,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size, nread);
+    return -1;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkData), (uint32_t)size)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size);
+    return -1;
+  }
+
+#ifdef __TD_6117__
+  if (tsdbQueryFromSMA) {
+    SDFile *pDFileAggr = TSDB_READ_AGGR_FILE(pReadh);
+
+    if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
       tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
-                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
+                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset,
+                tstrerror(terrno));
       return -1;
     }
 
-    size_t size = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
-    if (tsdbMakeRoom((void **)(&(pReadh->pBlkData)), size) < 0) return -1;
+    size_t sizeAggr = TSDB_BLOCK_AGGR_SIZE(pBlock->numOfCols);
+    if (tsdbMakeRoom((void **)(&(pReadh->pAggrBlkData)), sizeAggr) < 0) return -1;
 
-    int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
-    if (nread < 0) {
+    int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
+    if (nreadAggr < 0) {
       tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
-                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset,
-                size);
+                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), tstrerror(terrno),
+                (int64_t)pBlock->aggrOffset, sizeAggr);
       return -1;
     }
 
-    if (nread < size) {
+    if (nreadAggr < sizeAggr) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
       tsdbError("vgId:%d block statis part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
                 " read bytes: %" PRId64,
-                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size, nread);
+                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset, sizeAggr,
+                nreadAggr);
       return -1;
     }
 
-    if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkData), (uint32_t)size)) {
+    if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pAggrBlkData), (uint32_t)sizeAggr)) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
       tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64
                 " len :%" PRIzu,
-                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size);
+                TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset, sizeAggr);
       return -1;
     }
-
-#ifdef __TD_6117__
-    if (tsdbQueryFromSMA) {
-      SDFile *pDFileAggr = TSDB_READ_AGGR_FILE(pReadh);
-
-      if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
-        tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
-                  TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset,
-                  tstrerror(terrno));
-        return -1;
-      }
-
-      size_t sizeAggr = TSDB_BLOCK_AGGR_SIZE(pBlock->numOfCols);
-      if (tsdbMakeRoom((void **)(&(pReadh->pAggrBlkData)), sizeAggr) < 0) return -1;
-
-      int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
-      if (nreadAggr < 0) {
-        tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64
-                  " len :%" PRIzu,
-                  TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), tstrerror(terrno),
-                  (int64_t)pBlock->aggrOffset, sizeAggr);
-        return -1;
-      }
-
-      if (nreadAggr < sizeAggr) {
-        terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-        tsdbError("vgId:%d block statis part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
-                  " read bytes: %" PRId64,
-                  TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset, sizeAggr,
-                  nreadAggr);
-        return -1;
-      }
-
-      if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pAggrBlkData), (uint32_t)sizeAggr)) {
-        terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-        tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64
-                  " len :%" PRIzu,
-                  TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset, sizeAggr);
-        return -1;
-      }
-    }
+  }
 
 #endif
 
-return 0;
+  return 0;
 }
 
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
