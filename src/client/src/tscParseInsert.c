@@ -1802,11 +1802,13 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
+    if (pSql->res.code != TSDB_CODE_SUCCESS) {
+      tscAsyncResultOnError(pSql);
+    }
     tscError("0x%"PRIx64" failed to open file %s to load data from file, code:%s", pSql->self, pCmd->payload, tstrerror(pSql->res.code));
 
     tfree(pSupporter);
     taos_free_result(pNew);
-    tscAsyncResultOnError(pSql);
     return;
   }
 

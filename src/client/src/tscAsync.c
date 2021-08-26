@@ -62,7 +62,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
-  
+
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
     tscAsyncResultOnError(pSql);
@@ -214,7 +214,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
   pSql->param   = param;
 
   tscResetForNextRetrieve(pRes);
-  
+
   // handle outer query based on the already retrieved nest query results.
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
@@ -343,9 +343,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscError("0x%"PRIx64" get %s failed, code:%s", pSql->self, msg, tstrerror(code));
     if (code == TSDB_CODE_RPC_FQDN_ERROR) {
       size_t sz = strlen(tscGetErrorMsgPayload(&sub->cmd));
-      tscAllocPayload(&pSql->cmd, (int)sz + 1); 
+      tscAllocPayload(&pSql->cmd, (int)sz + 1);
       memcpy(tscGetErrorMsgPayload(&pSql->cmd), tscGetErrorMsgPayload(&sub->cmd), sz);
-    } 
+    }
     goto _error;
   }
 
