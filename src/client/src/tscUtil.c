@@ -2093,6 +2093,22 @@ TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
   return f;
 }
 
+int32_t tscGetFirstInvisibleFieldPos(SQueryInfo* pQueryInfo) { 
+  if (pQueryInfo->fieldsInfo.numOfOutput <= 0 || pQueryInfo->fieldsInfo.internalField == NULL) {
+    return 0;
+  }
+
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+    SInternalField* pField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
+    if (!pField->visible) {
+      return i;
+    }    
+  }
+  
+  return pQueryInfo->fieldsInfo.numOfOutput; 
+}
+
+
 SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
   assert(pFieldInfo != NULL);
   pFieldInfo->numOfOutput++;
@@ -3778,6 +3794,8 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
 
     if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry)) {
+      pParentSql->res.code = code;
+      
       tscAsyncResultOnError(pParentSql);
       return;
     }
@@ -3858,6 +3876,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->signature = pNew;
       pNew->sqlstr    = strdup(pSql->sqlstr);
       pNew->fp        = tscSubqueryCompleteCallback;
+      pNew->fetchFp   = tscSubqueryCompleteCallback;
       pNew->maxRetry  = pSql->maxRetry;
 
       pNew->cmd.resColumnId = TSDB_RES_COL_ID;
