@@ -102,6 +102,7 @@ extern char configDir[];
 #define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
 #define DEFAULT_TIMESTAMP_STEP  1
+#define DEFAULT_CHILDTABLES     10000
 
 
 enum TEST_MODE {
@@ -625,7 +626,7 @@ SArguments g_args = {
     0,               // interlace_rows;
     30000,           // num_of_RPR
     (1024*1024),     // max_sql_len
-    10000,           // num_of_tables
+    DEFAULT_CHILDTABLES,    // num_of_tables
     10000,           // num_of_DPT
     0,               // abort
     0,               // disorderRatio
@@ -3328,6 +3329,7 @@ static void* createTable(void *sarg)
         }
 
         len = 0;
+
         if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
                     NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
@@ -7956,12 +7958,12 @@ static int insertTestProcess() {
         end = taosGetTimestampMs();
 
         fprintf(stderr,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
                 g_Dbs.threadCountByCreateTbl, g_actualChildTables);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
                 g_Dbs.threadCountByCreateTbl, g_actualChildTables);
         }
@@ -9142,6 +9144,7 @@ static void testCmdLine() {
     }
 
     g_args.test_mode = INSERT_TEST;
+    g_totalChildTables = DEFAULT_CHILDTABLES;
     insertTestProcess();
 
     if (false == g_Dbs.insert_only)
