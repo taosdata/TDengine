@@ -105,6 +105,8 @@ extern char configDir[];
 
 #define DEFAULT_TIMESTAMP_STEP  1
 #define DEFAULT_INTERLACE_ROWS  0
+#define DEFAULT_DATATYPE_NUM    3
+#define DEFAULT_CHILDTABLES     10000
 
 
 enum TEST_MODE {
@@ -585,8 +587,6 @@ char    *g_randdouble_buff = NULL;
 char    *g_aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
-#define DEFAULT_DATATYPE_NUM    3
-
 SArguments g_args = {
     NULL,           // metaFile
     0,              // test_mode
@@ -628,7 +628,7 @@ SArguments g_args = {
     DEFAULT_INTERLACE_ROWS, // interlace_rows;
     30000,           // num_of_RPR
     (1024*1024),     // max_sql_len
-    10000,           // num_of_tables
+    DEFAULT_CHILDTABLES,    // num_of_tables
     10000,           // num_of_DPT
     0,               // abort
     0,               // disorderRatio
@@ -9494,6 +9494,7 @@ static void testCmdLine() {
     }
 
     g_args.test_mode = INSERT_TEST;
+    g_totalChildTables = DEFAULT_CHILDTABLES;
     insertTestProcess();
 
     if (false == g_Dbs.insert_only)
