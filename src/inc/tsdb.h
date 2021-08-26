@@ -44,6 +44,7 @@ extern "C" {
 #define TSDB_STATE_OK 0x0
 #define TSDB_STATE_BAD_META 0x1
 #define TSDB_STATE_BAD_DATA 0x2
+#define TSDB_STATE_BAD_SCHEMA 0x4
 
 // --------- TSDB APPLICATION HANDLE DEFINITION
 typedef struct {

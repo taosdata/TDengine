@@ -199,7 +199,7 @@ int tsdbScanAndTryFixSFile(STsdbRepo *pRepo) {
   if (access(TSDB_FILE_FULL_NAME(pSFile), F_OK) != 0) {
     tsdbError("vgId:%d schema file %s not exist, report to upper layer to fix it", REPO_ID(pRepo),
         TSDB_FILE_FULL_NAME(pSFile));
-    pRepo->state |= TSDB_STATE_BAD_META;
+    pRepo->state |= TSDB_STATE_BAD_SCHEMA;
     TSDB_FILE_SET_STATE(pSFile, TSDB_FILE_STATE_BAD);
     return 0;
   }
@@ -233,7 +233,7 @@ int tsdbScanAndTryFixSFile(STsdbRepo *pRepo) {
     tsdbError("vgId:%d schema file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
         REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pSFile), sfstat.st_size, pSFile->info.size
         );
-    pRepo->state |= TSDB_STATE_BAD_META;
+    pRepo->state |= TSDB_STATE_BAD_SCHEMA;
     TSDB_FILE_SET_STATE(pSFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
