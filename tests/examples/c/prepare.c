@@ -20,7 +20,7 @@ void verify_prepare(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to create database, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   taos_free_result(result);
@@ -37,7 +37,7 @@ void verify_prepare(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to create table, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   taos_free_result(result);
 
@@ -153,7 +153,7 @@ void verify_prepare(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   v.ts = 1591060628000;
   for (int i = 0; i < 10; ++i) {
@@ -227,7 +227,7 @@ void verify_prepare2(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to create database, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   taos_free_result(result);
 
@@ -243,7 +243,7 @@ void verify_prepare2(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to create table, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   taos_free_result(result);
 
@@ -349,14 +349,14 @@ void verify_prepare2(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   code = taos_stmt_set_tbname(stmt, "m1");
   if (code != 0) {
     printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   int64_t ts = 1591060628000;
@@ -392,7 +392,7 @@ void verify_prepare2(TAOS* taos) {
   if (taos_stmt_execute(stmt) != 0) {
     printf("\033[31mfailed to execute insert statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   taos_stmt_close(stmt);
@@ -420,7 +420,7 @@ void verify_prepare2(TAOS* taos) {
   if (taos_stmt_execute(stmt) != 0) {
     printf("\033[31mfailed to execute select statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   result = taos_stmt_use_result(stmt);
@@ -461,7 +461,7 @@ void verify_prepare3(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to create database, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   taos_free_result(result);
 
@@ -477,7 +477,7 @@ void verify_prepare3(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to create table, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   taos_free_result(result);
 
@@ -601,14 +601,14 @@ void verify_prepare3(TAOS* taos) {
   if (code != 0) {
     printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   code = taos_stmt_set_tbname_tags(stmt, "m1", tags);
   if (code != 0) {
     printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   int64_t ts = 1591060628000;
@@ -644,7 +644,7 @@ void verify_prepare3(TAOS* taos) {
   if (taos_stmt_execute(stmt) != 0) {
     printf("\033[31mfailed to execute insert statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
   taos_stmt_close(stmt);
 
@@ -672,7 +672,7 @@ void verify_prepare3(TAOS* taos) {
   if (taos_stmt_execute(stmt) != 0) {
     printf("\033[31mfailed to execute select statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    exit(EXIT_FAILURE)
+    exit(EXIT_FAILURE);
   }
 
   result = taos_stmt_use_result(stmt);
