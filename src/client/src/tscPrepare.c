@@ -1986,7 +1986,6 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
     return NULL;
   }
   TAOS_RES* result = pStmt->pSql;
-  pStmt->pSql = NULL;
   return result;
 }
 

@@ -468,7 +468,6 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
   assert(taos_stmt_close(stmt) == 0);
   free(params);
   free(stmt_sql);
-  taos_free_result(result);
 }
 
 void taos_stmt_use_result_test() {
