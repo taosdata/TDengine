@@ -43,7 +43,7 @@ void taosStringBuilderAppendStringLen(SStringBuilder* sb, const char* str, size_
 void taosStringBuilderAppendString(SStringBuilder* sb, const char* str);
 void taosStringBuilderAppendNull(SStringBuilder* sb);
 void taosStringBuilderAppendInteger(SStringBuilder* sb, int64_t v);
-void taosStringBuilderAppendUnsignedInteger(SStringBuilder* sb, uint64_t v)
+void taosStringBuilderAppendUnsignedInteger(SStringBuilder* sb, uint64_t v);
 void taosStringBuilderAppendDouble(SStringBuilder* sb, double v);
 
 #ifdef __cplusplus
