@@ -966,13 +966,17 @@ Go连接器支持的系统有：
 
 **提示：建议Go版本是1.13及以上，并开启模块支持：**
 ```sh
-  go env -w GO111MODULE=on  
-  go env -w GOPROXY=https://goproxy.io,direct  
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.io,direct
 ```
 在taosdemo.go所在目录下进行编译和执行：
 ```sh
-  go mod init *demo*  
-  go build   ./demo -h fqdn -p serverPort  
+go mod init taosdemo
+go get github.com/taosdata/driver-go/taosSql
+# use win branch in Windows platform.
+#go get github.com/taosdata/driver-go/taosSql@win
+go build
+./taosdemo -h fqdn -p serverPort
 ```
 
 ### Go连接器的使用
