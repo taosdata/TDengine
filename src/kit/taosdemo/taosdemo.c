@@ -760,7 +760,7 @@ static void printHelp() {
             "Direct output to the named file. Default is './output.txt'.");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
             "The select sql file.");
-    printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t",
+    printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
             "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
     printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
             "The data_type of columns, default: FLOAT, INT, FLOAT.");
@@ -793,8 +793,8 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-M, --random", "\t\t\t",
             "The value of records generated are totally random.");
     printf("%s\n", "\t\t\t\tThe default is to simulate power equipment senario.");
-    printf("%s%s%s%s\n", indent, "-x, --insert-only", "\t\t",
-            "Not insert only flag.");
+    printf("%s%s%s%s\n", indent, "-x, --no-insert", "\t\t",
+            "No-insert flag.");
     printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Default input yes for prompt.");
     printf("%s%s%s%s\n", indent, "-O, --disorder=NUMBER", "\t\t",
             "Insert order mode--0: In order, 1 ~ 50: disorder ratio. Default is in order.");
@@ -1359,7 +1359,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 || (0 == strcmp(argv[i], "--random"))) {
             arguments->demo_mode = false;
         } else if ((strcmp(argv[i], "-x") == 0)
-                || (0 == strcmp(argv[i], "--insert-only"))) {
+                || (0 == strcmp(argv[i], "--no-insert"))) {
             arguments->insert_only = false;
         } else if ((strcmp(argv[i], "-y") == 0)
                 || (0 == strcmp(argv[i], "--answer-yes"))) {
