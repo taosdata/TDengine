@@ -442,13 +442,11 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 static int taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
-    printf("already set config");
     return 0;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
-    printf("failed to set config, invalid json format: %s", config);
     return -1;
   }
 
@@ -456,13 +454,7 @@ static int taos_set_config_imp(const char *config){
   int size = cJSON_GetArraySize(root);
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
-    if (!item) {
-      printf("failed to read index:%d", i);
-      ret = -2;
-      continue;
-    }
-    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION)){
-      printf("set failed:%s->%s, paras err or can not set from file", item->string, item->valuestring);
+    if(item && !taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION)){
       ret = -2;
     }
   }
