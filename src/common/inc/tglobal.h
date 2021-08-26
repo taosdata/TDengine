@@ -110,6 +110,10 @@ extern int8_t  tsCacheLastRow;
 //tsdb 
 extern bool tsdbForceKeepFile;
 
+#ifdef __TD_6117__
+extern bool tsdbQueryFromSMA;
+#endif
+
 // balance
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;

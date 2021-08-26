@@ -156,6 +156,10 @@ int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 // For backward compatibility
 bool tsdbForceKeepFile = false;
 
+#ifdef __TD_6117__
+bool tsdbQueryFromSMA = true;
+#endif
+
 // balance
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;

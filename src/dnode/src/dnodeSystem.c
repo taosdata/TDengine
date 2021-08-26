@@ -42,6 +42,11 @@ int32_t main(int32_t argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       dump_config = 1;
+    }
+#ifdef __TD_6117__
+    else if (strcmp(argv[i], "--disable-query-from-sma") == 0) {
+      tsdbQueryFromSMA = false;
+#endif
     } else if (strcmp(argv[i], "--force-keep-file") == 0) {
       tsdbForceKeepFile = true;
     } else if (strcmp(argv[i], "--compact-mnode-wal") == 0) {

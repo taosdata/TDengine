@@ -42,6 +42,11 @@ typedef struct {
   int32_t numOfRows : 24;
   int32_t len;
   int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+#ifdef __TD_6117__
+  int64_t hasAggr : 1;
+  int64_t aggrOffset : 63;
+  int32_t aggrLen;
+#endif
   int16_t numOfSubBlocks;
   int16_t numOfCols;  // not including timestamp column
   TSKEY   keyFirst;
@@ -70,6 +75,18 @@ typedef struct {
   char     padding[1];
 } SBlockCol;
 
+typedef struct {
+  int16_t colId;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  uint8_t type;
+  char    reserved[15];  // Adjust the size of reserved array whenever adding new field of SAggrBlkCol.
+} SAggrBlkCol;
+
 // Code here just for back-ward compatibility
 static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
   pBlockCol->offset = offset & ((((uint32_t)1) << 24) - 1);
@@ -88,6 +105,12 @@ typedef struct {
   uint64_t  uid;        // For recovery usage
   SBlockCol cols[];
 } SBlockData;
+typedef struct {
+  int32_t     delimiter;  // For recovery usage
+  int32_t     numOfCols;  // For recovery usage
+  uint64_t    uid;        // For recovery usage
+  SAggrBlkCol cols[];
+} SAggrBlkData;
 
 struct SReadH {
   STsdbRepo * pRepo;
@@ -98,9 +121,13 @@ struct SReadH {
   int         cidx;
   SBlockInfo *pBlkInfo;
   SBlockData *pBlkData;  // Block info
+#ifdef __TD_6117__
+  SAggrBlkData *pAggrBlkData;  // Block info
+#endif
   SDataCols * pDCols[2];
-  void *      pBuf;   // buffer
+  void *      pRBuf;  // buffer
   void *      pCBuf;  // compression buffer
+  void *      pExBuf;  // extra buffer
 };
 
 #define TSDB_READ_REPO(rh) ((rh)->pRepo)
@@ -110,10 +137,13 @@ struct SReadH {
 #define TSDB_READ_HEAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_HEAD)
 #define TSDB_READ_DATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_DATA)
 #define TSDB_READ_LAST_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_LAST)
-#define TSDB_READ_BUF(rh) ((rh)->pBuf)
+#define TSDB_READ_AGGR_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_SMA)
+#define TSDB_READ_BUF(rh) ((rh)->pRBuf)
 #define TSDB_READ_COMP_BUF(rh) ((rh)->pCBuf)
+#define TSDB_READ_EXBUF(rh) ((rh)->pExBuf)
 
 #define TSDB_BLOCK_STATIS_SIZE(ncols) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_AGGR_SIZE(ncols) (sizeof(SAggrBlkData) + sizeof(SAggrBlkCol) * (ncols) + sizeof(TSCKSUM))
 
 int   tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo);
 void  tsdbDestroyReadH(SReadH *pReadh);

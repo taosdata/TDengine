@@ -19,6 +19,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "head",     // TSDB_FILE_HEAD
     "data",     // TSDB_FILE_DATA
     "last",     // TSDB_FILE_LAST
+    "sma",      // TSDB_FILE_SMA(Small Materialized Aggregation)
     "",         // TSDB_FILE_MAX
     "meta",     // TSDB_FILE_META
 };

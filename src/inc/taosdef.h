@@ -447,6 +447,8 @@ typedef enum {
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
 
+#define __TD_6117__
+
 extern char *qtypeStr[];
 
 #ifdef __cplusplus
