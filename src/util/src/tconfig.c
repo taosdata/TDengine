@@ -299,7 +299,7 @@ bool taosReadConfigOption(const char *option, char *value, char *value2, char *v
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
-    if (sourceType != 0 && !(sourceType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (sourceType != 0 && !(cfg->cfgType & sourceType)) continue;
     if (strcasecmp(cfg->option, option) != 0) continue;
 
     switch (cfg->valType) {
