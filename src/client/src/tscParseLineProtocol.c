@@ -705,42 +705,6 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
   return 0;
 }
 
-static int32_t changeChildTableTagValue(TAOS* taos, const char* cTableName, const char* tagName, TAOS_BIND* bind, SSmlLinesInfo* info) {
-  char sql[512];
-  sprintf(sql, "alter table %s set tag %s=?", cTableName, tagName);
-
-  int32_t code;
-  TAOS_STMT* stmt = taos_stmt_init(taos);
-  code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
-
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" taos_stmt_prepare return %d:%s", info->id, code, tstrerror(code));
-    taos_stmt_close(stmt);
-    return code;
-  }
-
-  code = taos_stmt_bind_param(stmt, bind);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" taos_stmt_bind_param return %d:%s", info->id, code, tstrerror(code));
-    taos_stmt_close(stmt);
-    return code;
-  }
-
-  code = taos_stmt_execute(stmt);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s", info->id, code, tstrerror(code));
-    taos_stmt_close(stmt);
-    return code;
-  }
-
-  code = taos_stmt_close(stmt);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" taos_stmt_close return %d:%s", info->id, code, tstrerror(code));
-    return code;
-  }
-  return code;
-}
-
 static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, const char* sTableName,
                                           SArray* tagsSchema, SArray* tagsBind, SSmlLinesInfo* info) {
   size_t numTags = taosArrayGetSize(tagsSchema);
@@ -970,15 +934,6 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
       tagKVs[*pFieldSchemaIdx] = kv;
     }
   }
-
-  int32_t notNullTagsIndices[TSDB_MAX_TAGS] = {0};
-  int32_t numNotNullTags = 0;
-  for (int32_t i = 0; i < numTags; ++i) {
-    if (tagKVs[i] != NULL) {
-      notNullTagsIndices[numNotNullTags] = i;
-      ++numNotNullTags;
-    }
-  }
   
   SArray* tagBinds = taosArrayInit(numTags, sizeof(TAOS_BIND));
   taosArraySetSize(tagBinds, numTags);
@@ -1001,68 +956,8 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
     bind->is_null = NULL;
   }
 
-  // select tag1,tag2,... from stable where tbname in (ctable)
-  char* sql = malloc(tsMaxSQLStringLen+1);
-  int freeBytes = tsMaxSQLStringLen + 1;
-  snprintf(sql, freeBytes, "select tbname, ");
-  for (int i = 0; i < numNotNullTags ; ++i)  {
-    snprintf(sql + strlen(sql), freeBytes-strlen(sql), "%s,", tagKVs[notNullTagsIndices[i]]->key);
-  }
-  snprintf(sql + strlen(sql) - 1, freeBytes - strlen(sql) + 1,
-           " from %s where tbname in (\'%s\')", sTableName, cTableName);
-  sql[strlen(sql)] = '\0';
+  int32_t code = creatChildTableIfNotExists(taos, cTableName, sTableName, sTableSchema->tags, tagBinds, info);
 
-  TAOS_RES* result = taos_query(taos, sql);
-  free(sql);
-
-  int32_t code = taos_errno(result);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" get child table %s tags failed. error string %s", info->id, cTableName, taos_errstr(result));
-    goto cleanup;
-  }
-
-  // check tag value and set tag values if different
-  TAOS_ROW row = taos_fetch_row(result);
-  if (row != NULL) {
-    int numFields = taos_field_count(result);
-    TAOS_FIELD* fields = taos_fetch_fields(result);
-    int* lengths = taos_fetch_lengths(result);
-    for (int i = 1; i < numFields; ++i) {
-      uint8_t dbType = fields[i].type;
-      int32_t length = lengths[i];
-      char* val = row[i];
-
-      TAOS_SML_KV* tagKV = tagKVs[notNullTagsIndices[i-1]];
-      if (tagKV->type != dbType) {
-        tscError("SML:0x%"PRIx64" child table %s tag %s type mismatch. point type : %d, db type : %d",
-                 info->id, cTableName, tagKV->key, tagKV->type, dbType);
-        return TSDB_CODE_TSC_INVALID_VALUE;
-      }
-
-      assert(tagKV->value);
-
-      if (val == NULL || length != tagKV->length || memcmp(tagKV->value, val, length) != 0) {
-        uintptr_t valPointer = (uintptr_t)tagKV;
-        size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-        assert(pFieldSchemaIdx != NULL);
-        TAOS_BIND* bind = taosArrayGet(tagBinds, *pFieldSchemaIdx);
-        code = changeChildTableTagValue(taos, cTableName, tagKV->key, bind, info);
-        if (code != 0) {
-          tscError("SML:0x%"PRIx64" change child table tag failed. table name %s, tag %s", info->id, cTableName, tagKV->key);
-          goto cleanup;
-        }
-      }
-    }
-    tscDebug("SML:0x%"PRIx64" successfully applied point tags. child table: %s", info->id, cTableName);
-  } else {
-    code = creatChildTableIfNotExists(taos, cTableName, sTableName, sTableSchema->tags, tagBinds, info);
-    if (code != 0) {
-      goto cleanup;
-    }
-  }
-
-cleanup:
-  taos_free_result(result);
   for (int i = 0; i < taosArrayGetSize(tagBinds); ++i) {
     TAOS_BIND* bind = taosArrayGet(tagBinds, i);
     free(bind->length);
