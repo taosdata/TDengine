@@ -5,7 +5,7 @@
 #include "tglobal.h"
 
 /* test parse time function */
-TEST(testCase, result_field_test) {
+TEST(testCase, set_config_test) {
   const char *config = "{\"debugFlag\":\"131\"}";
   taos_set_config(config);
 
