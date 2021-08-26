@@ -203,7 +203,7 @@ The configuration parameters in properties are as follows:
 * TSDBDriver.PROPERTY_KEY_LOCALE: client locale. The default value is the current system locale.
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE: timezone used by the client. The default value is the current timezone of the system.
 * TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is flase.
-* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
+* TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
 #### Establishing a connection with configuration file
@@ -317,14 +317,17 @@ Since version 2.1.2.0, TDengine's JDBC-JNI implementation has significantly impr
 Statement stmt = conn.createStatement();
 Random r = new Random();
 
+// In the INSERT statement, the VALUES clause allows you to specify a specific column; If automatic table creation is adopted, the TAGS clause needs to set the parameter values of all TAGS columns
 TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags (?, ?) (ts, c1, c2) values(?, ?, ?)");
 
 s.setTableName("w1");
 
+// set tags
 s.setTagInt(0, r.nextInt(10));
 s.setTagString(1, "Beijing");
 int numOfRows = 10;
 
+// set values
 ArrayList<Long> ts = new ArrayList<>();
 for (int i = 0; i < numOfRows; i++){
     ts.add(System.currentTimeMillis() + i);
@@ -341,9 +344,10 @@ for (int i = 0; i < numOfRows; i++){
 }
 s.setString(2, s2, 10);
 
+// The cache is not cleared after AddBatch. Do not bind new data again before ExecuteBatch
 s.columnDataAddBatch();
 s.columnDataExecuteBatch();
-
+// Clear the cache, after which you can bind new data(including table names, tags, values):
 s.columnDataClearBatch();
 s.columnDataCloseBatch();
 ```
@@ -498,6 +502,10 @@ Query OK, 1 row(s) in set (0.000141s)
 
 - Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
 - Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
+
+## Example Codes
+
+you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## FAQ
 

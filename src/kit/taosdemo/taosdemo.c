@@ -443,6 +443,7 @@ typedef struct SThreadInfo_S {
     uint64_t  start_table_from;
     uint64_t  end_table_to;
     int64_t   ntables;
+    int64_t   tables_created;
     uint64_t  data_of_rate;
     int64_t   start_time;
     char*     cols;
@@ -639,6 +640,7 @@ SArguments g_args = {
 
 static SDbs            g_Dbs;
 static int64_t         g_totalChildTables = 0;
+static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
 
@@ -964,6 +966,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->num_of_tables = atoi(argv[++i]);
+            g_totalChildTables = arguments->num_of_tables;
         } else if (strcmp(argv[i], "-n") == 0) {
             if ((argc == i+1) ||
                     (!isStringNumber(argv[i+1]))) {
@@ -1134,7 +1137,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
         } else if ((strcmp(argv[i], "--version") == 0) ||
-                (strcmp(argv[i], "-V") == 0)){
+                (strcmp(argv[i], "-V") == 0)) {
             printVersion();
             exit(0);
         } else if (strcmp(argv[i], "--help") == 0) {
@@ -1345,14 +1348,14 @@ static void selectAndGetResult(
     }
 }
 
-static char *rand_bool_str(){
+static char *rand_bool_str() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randbool_buff + ((cursor % MAX_PREPARED_RAND) * BOOL_BUFF_LEN);
 }
 
-static int32_t rand_bool(){
+static int32_t rand_bool() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
@@ -1485,7 +1488,7 @@ static char *demo_phase_float_str() {
     return g_rand_phase_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
-static float UNUSED_FUNC demo_phase_float(){
+static float UNUSED_FUNC demo_phase_float() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
@@ -1564,7 +1567,7 @@ static void init_rand_data() {
     g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randdouble_buff);
 
-    for (int i = 0; i < MAX_PREPARED_RAND; i++){
+    for (int i = 0; i < MAX_PREPARED_RAND; i++) {
         g_randint[i] = (int)(taosRandom() % 65535);
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
@@ -3276,6 +3279,7 @@ static void* createTable(void *sarg)
                     pThreadInfo->db_name,
                     g_args.tb_prefix, i,
                     pThreadInfo->cols);
+            batchNum ++;
         } else {
             if (stbInfo == NULL) {
                 free(pThreadInfo->buffer);
@@ -3324,14 +3328,16 @@ static void* createTable(void *sarg)
         }
 
         len = 0;
+
         if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
-                    NO_INSERT_TYPE, false)){
+                    NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
             free(pThreadInfo->buffer);
             return NULL;
         }
+        pThreadInfo->tables_created += batchNum;
 
-        uint64_t  currentPrintTime = taosGetTimestampMs();
+        uint64_t currentPrintTime = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
             printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
                     pThreadInfo->threadID, pThreadInfo->start_table_from, i);
@@ -3401,6 +3407,7 @@ static int startMultiThreadCreateChildTable(
         pThreadInfo->use_metric = true;
         pThreadInfo->cols = cols;
         pThreadInfo->minDelay = UINT64_MAX;
+        pThreadInfo->tables_created = 0;
         pthread_create(pids + i, NULL, createTable, pThreadInfo);
     }
 
@@ -3411,6 +3418,8 @@ static int startMultiThreadCreateChildTable(
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
         taos_close(pThreadInfo->taos);
+
+        g_actualChildTables += pThreadInfo->tables_created;
     }
 
     free(pids);
@@ -3437,7 +3446,6 @@ static void createChildTables() {
                     verbosePrint("%s() LN%d: %s\n", __func__, __LINE__,
                             g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
                     uint64_t startFrom = 0;
-                    g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
                     verbosePrint("%s() LN%d: create %"PRId64" child tables from %"PRIu64"\n",
                             __func__, __LINE__, g_totalChildTables, startFrom);
@@ -4232,6 +4240,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 goto PARSE_OVER;
             }
             g_Dbs.db[i].superTbls[j].childTblCount = count->valueint;
+            g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
             cJSON *dataSource = cJSON_GetObjectItem(stbInfo, "data_source");
             if (dataSource && dataSource->type == cJSON_String
@@ -4936,7 +4945,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
                 cJSON *result = cJSON_GetObjectItem(sql, "result");
                 if (result != NULL && result->type == cJSON_String
-                        && result->valuestring != NULL){
+                        && result->valuestring != NULL) {
                     tstrncpy(g_queryInfo.superQueryInfo.result[j],
                             result->valuestring, MAX_FILE_NAME_LEN);
                 } else if (NULL == result) {
@@ -7586,7 +7595,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 }
 
                 int ret = taos_stmt_prepare(pThreadInfo->stmt, stmtBuffer, 0);
-                if (ret != 0){
+                if (ret != 0) {
                     free(pids);
                     free(infos);
                     free(stmtBuffer);
@@ -7932,18 +7941,30 @@ static int insertTestProcess() {
     double start;
     double end;
 
-    // create child tables
-    start = taosGetTimestampMs();
-    createChildTables();
-    end = taosGetTimestampMs();
-
     if (g_totalChildTables > 0) {
-        fprintf(stderr, "Spent %.4f seconds to create %"PRId64" tables with %d thread(s)\n\n",
-                (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+        fprintf(stderr,
+                "creating %"PRId64" table(s) with %d thread(s)\n\n",
+                g_totalChildTables, g_Dbs.threadCountByCreateTbl);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                    "Spent %.4f seconds to create %"PRId64" tables with %d thread(s)\n\n",
-                    (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+                "creating %"PRId64" table(s) with %d thread(s)\n\n",
+                g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+        }
+
+        // create child tables
+        start = taosGetTimestampMs();
+        createChildTables();
+        end = taosGetTimestampMs();
+
+        fprintf(stderr,
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                (end - start)/1000.0, g_totalChildTables,
+                g_Dbs.threadCountByCreateTbl, g_actualChildTables);
+        if (g_fpOfInsertResult) {
+            fprintf(g_fpOfInsertResult,
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                (end - start)/1000.0, g_totalChildTables,
+                g_Dbs.threadCountByCreateTbl, g_actualChildTables);
         }
     }
 
