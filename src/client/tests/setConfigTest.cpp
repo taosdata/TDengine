@@ -20,6 +20,6 @@ TEST(testCase, set_config_test) {
 
   SGlobalCfg *cfg = taosGetConfigOption("debugFlag");
   ASSERT_EQ(cfg->cfgStatus, TAOS_CFG_CSTATUS_OPTION);
-  int32_t result = *(int32_t*)cfg.ptr;
+  int32_t result = *(int32_t*)cfg->ptr;
   ASSERT_EQ(result, 131);
 }
