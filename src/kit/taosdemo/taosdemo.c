@@ -3680,6 +3680,7 @@ static void* createTable(void *sarg)
         }
 
         len = 0;
+
         if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
                     NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
@@ -8308,12 +8309,12 @@ static int insertTestProcess() {
         end = taosGetTimestampMs();
 
         fprintf(stderr,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
                 g_Dbs.threadCountForCreateTbl, g_actualChildTables);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
                 g_Dbs.threadCountForCreateTbl, g_actualChildTables);
         }
