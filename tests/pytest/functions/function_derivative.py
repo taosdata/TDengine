@@ -72,7 +72,6 @@ class TDTestCase:
                 tdSql.checkData(1, 1, "2018-09-17 09:00:20.009")
                 tdSql.checkData(1, 3, "2018-09-17 09:00:20.009")
 
-
                 tdSql.query("select ts from(select ts,derivative(col, 10s, 0) from stb group by tbname)")
 
                 tdSql.checkData(0, 0, "2018-09-17 09:00:10.000")

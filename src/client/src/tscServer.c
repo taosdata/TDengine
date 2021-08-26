@@ -377,7 +377,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   pSql->rpcRid = -1;
-
   if (pObj->signature != pObj) {
     tscDebug("0x%"PRIx64" DB connection is closed, cmd:%d pObj:%p signature:%p", pSql->self, pCmd->command, pObj, pObj->signature);
 
@@ -703,8 +702,13 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
     }
   }
 
-  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + srcColFilterSize + srcTagFilterSize + exprSize + tsBufSize +
-         tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
+  SCond* pCond = &pQueryInfo->tagCond.tbnameCond;
+  if (pCond->len > 0) {
+    srcColListSize += pCond->len;
+  }
+
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + srcColFilterSize + srcTagFilterSize +
+         exprSize + tsBufSize + tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, char *pMsg,
@@ -2921,7 +2925,9 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   if (pTableMetaInfo->tableMetaCapacity != 0 && pTableMetaInfo->pTableMeta != NULL) {
     memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
   } 
-  taosHashGetCloneExt(tscTableMetaMap, name, len, NULL, (void **)&(pTableMetaInfo->pTableMeta), &pTableMetaInfo->tableMetaCapacity);
+  if (NULL == taosHashGetCloneExt(tscTableMetaMap, name, len, NULL, (void **)&(pTableMetaInfo->pTableMeta), &pTableMetaInfo->tableMetaCapacity)) {
+    tfree(pTableMetaInfo->pTableMeta);
+  }
   
   STableMeta* pMeta   = pTableMetaInfo->pTableMeta;
   STableMeta* pSTMeta = (STableMeta *)(pSql->pBuf);

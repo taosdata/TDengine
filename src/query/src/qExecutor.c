@@ -3635,21 +3635,9 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
 
     // set the correct pointer after the memory buffer reallocated.
     int32_t functionId = pBInfo->pCtx[i].functionId;
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE){
+
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
       if (i > 0) pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
-    }
-  }
-}
-
-void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
-  SSDataBlock* pDataBlock = pBInfo->pRes;
-
-  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
-
-    int32_t functionId = pBInfo->pCtx[i].functionId;
-    if (functionId < 0) {
-      memset(pBInfo->pCtx[i].pOutput, 0, pColInfo->info.bytes * (*bufCapacity));
     }
   }
 }
@@ -3680,6 +3668,19 @@ void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) 
     if(functionId == TSDB_FUNC_TS_DUMMY) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i);
       memcpy(pColRes->pData, src, pColRes->info.bytes * pRes->info.rows);
+    }
+  }
+}
+
+void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
+  SSDataBlock* pDataBlock = pBInfo->pRes;
+
+  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+
+    int32_t functionId = pBInfo->pCtx[i].functionId;
+    if (functionId < 0) {
+      memset(pBInfo->pCtx[i].pOutput, 0, pColInfo->info.bytes * (*bufCapacity));
     }
   }
 }
@@ -7548,12 +7549,15 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->numOfCols = htons(pQueryMsg->numOfCols);
   pQueryMsg->numOfOutput = htons(pQueryMsg->numOfOutput);
   pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
+
   pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
   pQueryMsg->colCondLen = htons(pQueryMsg->colCondLen);  
+
   pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
   pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
   pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
   pQueryMsg->tsBuf.tsOrder = htonl(pQueryMsg->tsBuf.tsOrder);
+
   pQueryMsg->numOfTags = htonl(pQueryMsg->numOfTags);
   pQueryMsg->tbnameCondLen = htonl(pQueryMsg->tbnameCondLen);
   pQueryMsg->secondStageOutput = htonl(pQueryMsg->secondStageOutput);

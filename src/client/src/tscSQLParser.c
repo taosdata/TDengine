@@ -893,6 +893,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_SELECT: {
+      const char * msg1 = "no nested query supported in union clause";
       code = loadAllTableMeta(pSql, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -905,6 +906,10 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
 
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
+
+        if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        }
 
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
         if ((code = validateSqlNode(pSql, pSqlNode, pQueryInfo)) != TSDB_CODE_SUCCESS) {
@@ -5102,10 +5107,6 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
     tSqlExprDestroy(pCondExpr->pTableCond);
   }
 
-  if (pCondExpr->pTagCond) {
-    tSqlExprDestroy(pCondExpr->pTagCond);
-  }
-
   if (pCondExpr->pColumnCond) {
     tSqlExprDestroy(pCondExpr->pColumnCond);
   }
@@ -7228,9 +7229,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
         s = &pSchema[colIndex];
       }
     }
-  
-    size_t size = tscNumOfExprs(pQueryInfo);
-  
+    
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
 
       int32_t f = TSDB_FUNC_TAG;
@@ -7238,8 +7237,10 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
         f = TSDB_FUNC_TAGPRJ;
       }
 
+      int32_t pos = tscGetFirstInvisibleFieldPos(pQueryInfo);      
+
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
-      SExprInfo*   pExpr = tscExprAppend(pQueryInfo, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
+      SExprInfo*   pExpr = tscExprInsert(pQueryInfo, pos, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
 
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
       tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
@@ -7249,12 +7250,14 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
 
       // NOTE: tag column does not add to source column list
       SColumnList ids = createColumnList(1, 0, pColIndex->colIndex);
-      insertResultField(pQueryInfo, (int32_t)size, &ids, s->bytes, (int8_t)s->type, s->name, pExpr);
+      insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, s->name, pExpr);
     } else {
       // if this query is "group by" normal column, time window query is not allowed
       if (isTimeWindowQuery(pQueryInfo)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
+
+      size_t size = tscNumOfExprs(pQueryInfo);
 
       bool hasGroupColumn = false;
       for (int32_t j = 0; j < size; ++j) {
@@ -8483,7 +8486,10 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     size_t len = strlen(name);
       
-    taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity);
+    if (NULL == taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity)) {
+      // not found
+      tfree(pTableMeta);
+    }
 
     if (pTableMeta && pTableMeta->id.uid > 0) {
       tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);

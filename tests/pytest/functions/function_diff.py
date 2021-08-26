@@ -94,6 +94,23 @@ class TDTestCase:
         tdSql.error("select diff(col13) from test")
         tdSql.error("select diff(col14) from test")
 
+        tdSql.query("select ts,diff(col1),ts from test1")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
+        tdSql.checkData(0, 3, "2018-09-17 09:00:00.000")
+        tdSql.checkData(9, 0, "2018-09-17 09:00:00.009")
+        tdSql.checkData(9, 1, "2018-09-17 09:00:00.009")
+        tdSql.checkData(9, 3, "2018-09-17 09:00:00.009")
+
+        tdSql.query("select ts,diff(col1),ts from test group by tbname")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
+        tdSql.checkData(0, 3, "2018-09-17 09:00:00.000")
+        tdSql.checkData(9, 0, "2018-09-17 09:00:00.009")
+        tdSql.checkData(9, 1, "2018-09-17 09:00:00.009")
+        tdSql.checkData(9, 3, "2018-09-17 09:00:00.009")
 
         tdSql.query("select ts,diff(col1),ts from test1")
         tdSql.checkRows(10)
