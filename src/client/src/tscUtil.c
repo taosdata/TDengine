@@ -3937,6 +3937,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
       if (ps == NULL) {
+        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tscFreeSqlObj(pNew);
         goto _error;
       }

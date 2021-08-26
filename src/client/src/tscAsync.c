@@ -169,7 +169,9 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
       pRes->code = numOfRows;
     }
 
-    tscAsyncResultOnError(pSql);
+    if (pRes->code != TSDB_CODE_SUCCESS) {
+      tscAsyncResultOnError(pSql);
+    }
     return;
   }
 
