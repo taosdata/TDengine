@@ -38,7 +38,7 @@ void taos_stmt_init_test() {
   stmt = taos_stmt_init(taos);
   assert(stmt == NULL);
   // ASM ERROR
-  // assert(taos_stmt_close(stmt) != 0);
+  assert(taos_stmt_close(stmt) != 0);
   taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("Cannot connect to tdengine server\n");
@@ -72,11 +72,11 @@ void taos_stmt_preprare_test() {
   // below will make client dead lock
   assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
 
-  // assert(taos_stmt_close(stmt) == 0);
-  // stmt = taos_stmt_init(taos);
+  assert(taos_stmt_close(stmt) == 0);
+  stmt = taos_stmt_init(taos);
   assert(stmt != NULL);
   sprintf(stmt_sql, "select from ?");
-  assert(taos_stmt_prepare(stmt, stmt_sql, 0) != 0);
+  assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
   assert(taos_stmt_close(stmt) == 0);
 
   stmt = taos_stmt_init(taos);
@@ -106,7 +106,7 @@ void taos_stmt_set_tbname_test() {
   TAOS_STMT *stmt = NULL;
   char *     name = calloc(1, 200);
   // ASM ERROR
-  // assert(taos_stmt_set_tbname(stmt, name) != 0);
+  assert(taos_stmt_set_tbname(stmt, name) != 0);
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("Cannot connect to tdengine server\n");
@@ -137,7 +137,7 @@ void taos_stmt_set_tbname_tags_test() {
   char *     name = calloc(1, 20);
   TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND));
   // ASM ERROR
-  // assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
+  assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("Cannot connect to tdengine server\n");
@@ -175,7 +175,7 @@ void taos_stmt_set_sub_tbname_test() {
   TAOS_STMT *stmt = NULL;
   char *     name = calloc(1, 200);
   // ASM ERROR
-  // assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
+  assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("Cannot connect to tdengine server\n");
@@ -194,8 +194,8 @@ void taos_stmt_set_sub_tbname_test() {
   assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
   sprintf(name, "tb");
   assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
-  // assert(taos_load_table_info(taos, "super, tb") == 0);
-  // assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
+  assert(taos_load_table_info(taos, "super, tb") == 0);
+  assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
   free(name);
   free(stmt_sql);
   assert(taos_stmt_close(stmt) == 0);
@@ -494,7 +494,7 @@ void taos_stmt_use_result_test() {
   execute_simple_sql(
       taos, "insert into t1 values (1591060628001, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now, 1, 1, 1, 1)");
 
-  // taos_stmt_use_result_query(taos, "ts", TSDB_DATA_TYPE_TIMESTAMP);
+  taos_stmt_use_result_query(taos, "ts", TSDB_DATA_TYPE_TIMESTAMP);
   taos_stmt_use_result_query(taos, "c1", TSDB_DATA_TYPE_INT);
   taos_stmt_use_result_query(taos, "c2", TSDB_DATA_TYPE_BIGINT);
   taos_stmt_use_result_query(taos, "c3", TSDB_DATA_TYPE_FLOAT);
@@ -504,7 +504,7 @@ void taos_stmt_use_result_test() {
   taos_stmt_use_result_query(taos, "c7", TSDB_DATA_TYPE_TINYINT);
   taos_stmt_use_result_query(taos, "c8", TSDB_DATA_TYPE_BOOL);
   taos_stmt_use_result_query(taos, "c9", TSDB_DATA_TYPE_NCHAR);
-  // taos_stmt_use_result_query(taos, "c10", TSDB_DATA_TYPE_TIMESTAMP);
+  taos_stmt_use_result_query(taos, "c10", TSDB_DATA_TYPE_TIMESTAMP);
   taos_stmt_use_result_query(taos, "c11", TSDB_DATA_TYPE_UINT);
   taos_stmt_use_result_query(taos, "c12", TSDB_DATA_TYPE_UBIGINT);
   taos_stmt_use_result_query(taos, "c13", TSDB_DATA_TYPE_USMALLINT);
@@ -516,8 +516,8 @@ void taos_stmt_use_result_test() {
 void taos_stmt_close_test() {
   printf("start taos_stmt_close test\n");
   // ASM ERROR
-  // TAOS_STMT *stmt = NULL;
-  // assert(taos_stmt_close(stmt) != 0);
+  TAOS_STMT *stmt = NULL;
+  assert(taos_stmt_close(stmt) != 0);
   printf("finish taos_stmt_close test\n");
 }
 
@@ -539,7 +539,7 @@ void test_api_reliability() {
 void test_query() { taos_stmt_use_result_test(); }
 
 int main(int argc, char *argv[]) {
-  // test_api_reliability();
+  test_api_reliability();
   test_query();
   return 0;
 }
