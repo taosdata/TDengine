@@ -289,7 +289,7 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
-      taosStringBuilderAppendInteger(&sb, var->u64);  // maybe overflow if u64 is too big
+      taosStringBuilderAppendUnsignedInteger(&sb, var->u64);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
