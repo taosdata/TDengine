@@ -12,7 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import random
-from taos.error import LinesError
 import time
 from copy import deepcopy
 import numpy as np
