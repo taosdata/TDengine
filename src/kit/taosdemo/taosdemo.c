@@ -810,6 +810,10 @@ static void printHelp() {
     /*    printf("%s%s%s%s\n", indent, "-D", indent,
           "Delete database if exists. 0: no, 1: yes, default is 1");
           */
+    printf("\nMandatory or optional arguments to long options are also mandatory or optional\n\
+for any corresponding short options.\n\
+\n\
+Report bugs to <support@taosdata.com>.\n");
 }
 
 static bool isStringNumber(char *input)
