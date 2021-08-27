@@ -121,6 +121,14 @@ int64_t taosWrite(FileFd fd, void *buf, int64_t n) {
   return n;
 }
 
+int64_t taosFsize(FileFd fd) {
+  struct stat fStat;
+  if(fstat(fd, &fStat) < 0) {
+    return -1;
+  }
+  return fStat.st_size;
+}
+
 int64_t taosLSeek(FileFd fd, int64_t offset, int32_t whence) { return (int64_t)lseek(fd, (long)offset, whence); }
 
 int64_t taosCopy(char *from, char *to) {

@@ -112,6 +112,17 @@ bool tfValid(int64_t tfd) {
   return true;
 }
 
+int64_t tfSize(int64_t tfd) {
+  void *p = taosAcquireRef(tsFileRsetId, tfd);
+  if (p == NULL) return -1;
+
+  int32_t fd = (int32_t)(uintptr_t)p;
+  int64_t ret = taosFsize(fd);
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return ret;
+}
+
 int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
   if (p == NULL) return -1;

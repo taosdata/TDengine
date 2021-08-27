@@ -40,6 +40,7 @@ typedef int32_t SocketFd;
 int64_t taosRead(FileFd fd, void *buf, int64_t count);
 int64_t taosWrite(FileFd fd, void *buf, int64_t count);
 
+int64_t taosFsize(FileFd fd);
 int64_t taosLSeek(FileFd fd, int64_t offset, int32_t whence);
 int32_t taosFtruncate(FileFd fd, int64_t length);
 int32_t taosFsync(FileFd fd);
