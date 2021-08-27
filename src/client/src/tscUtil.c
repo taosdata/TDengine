@@ -3428,6 +3428,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 
   pRes->row = 0;
   pRes->numOfRows = 0;
+  pRes->dataConverted = false;
 }
 
 void tscInitResForMerge(SSqlRes* pRes) {
