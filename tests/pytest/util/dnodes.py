@@ -125,7 +125,7 @@ class TDDnode:
             "charset":"UTF-8",
             "asyncLog":"0",
             "anyIp":"0",
-            "tsEnableTelemetryReporting":"0",
+            "telemetryReporting":"0",
             "dDebugFlag":"135",
             "tsdbDebugFlag":"135",
             "mDebugFlag":"135",
