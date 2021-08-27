@@ -116,7 +116,7 @@ static int32_t validateColumnName(char* name);
 static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType);
 static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
-static bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
+static int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
 static bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo);
 static bool hasNormalColumnFilter(SQueryInfo* pQueryInfo);
 
@@ -1533,9 +1533,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
 /*
  * tags name /column name is truncated in sql.y
  */
-bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
-  //const char* msg1 = "timestamp not allowed in tags";
-  const char* msg2 = "duplicated column names";
+int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg3 = "tag length too long";
   const char* msg4 = "invalid tag name";
   const char* msg5 = "invalid binary/nchar tag length";
@@ -1550,8 +1548,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
   // no more max columns
   if (numOfTags + numOfCols >= TSDB_MAX_COLUMNS) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   // no more than 6 tags
@@ -1559,8 +1556,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
     char msg[128] = {0};
     sprintf(msg, "tags no more than %d", TSDB_MAX_TAGS);
 
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
   // no timestamp allowable
@@ -1570,8 +1566,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   //}
 
   if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
@@ -1583,20 +1578,17 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
   // length less than TSDB_MAX_TASG_LEN
   if (nLen + pTagField->bytes > TSDB_MAX_TAGS_LEN) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
   // tags name can not be a keyword
   if (validateColumnName(pTagField->name) != TSDB_CODE_SUCCESS) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   // binary(val), val can not be equalled to or less than 0
   if ((pTagField->type == TSDB_DATA_TYPE_BINARY || pTagField->type == TSDB_DATA_TYPE_NCHAR) && pTagField->bytes <= 0) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
   // field name must be unique
@@ -1604,17 +1596,15 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
     if (strncasecmp(pTagField->name, pSchema[i].name, sizeof(pTagField->name) - 1) == 0) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      return false;
+      return tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pTagField->name, NULL);
     }
   }
 
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
-bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
+int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg1 = "too many columns";
-  const char* msg2 = "duplicated column names";
   const char* msg3 = "column length too long";
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid column name";
@@ -1629,18 +1619,15 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   
   // no more max columns
   if (numOfCols >= TSDB_MAX_COLUMNS || numOfTags + numOfCols >= TSDB_MAX_COLUMNS) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_UBIGINT) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   if (validateColumnName(pColField->name) != TSDB_CODE_SUCCESS) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
@@ -1651,25 +1638,22 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   }
 
   if (pColField->bytes <= 0) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   // length less than TSDB_MAX_BYTES_PER_ROW
   if (nLen + pColField->bytes > TSDB_MAX_BYTES_PER_ROW) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    return false;
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
   // field name must be unique
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
     if (strncasecmp(pColField->name, pSchema[i].name, sizeof(pColField->name) - 1) == 0) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      return false;
+      return tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pColField->name, NULL);
     }
   }
 
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 /* is contained in pFieldList or not */
@@ -5782,7 +5766,6 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg19 = "invalid new tag name";
   const char* msg20 = "table is not super table";
   const char* msg21 = "only binary/nchar column length could be modified";
-  const char* msg22 = "new column length should be bigger than old one";
   const char* msg23 = "only column length coulbe be modified";
   const char* msg24 = "invalid binary/nchar column length";
 
@@ -5834,8 +5817,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     TAOS_FIELD* p = taosArrayGet(pFieldList, 0);
-    if (!validateOneTags(pCmd, p)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+    int32_t ret = validateOneTag(pCmd, p);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
     }
   
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
@@ -6011,8 +5995,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     TAOS_FIELD* p = taosArrayGet(pFieldList, 0);
-    if (!validateOneColumn(pCmd, p)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+    int32_t ret = validateOneColumn(pCmd, p);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
     }
   
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
@@ -6075,7 +6060,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     if (pItem->bytes <= pColSchema->bytes) {
-      return invalidOperationMsg(pMsg, msg22);
+      return tscErrorMsgWithCode(TSDB_CODE_TSC_INVALID_COLUMN_LENGTH, pMsg, pItem->name, NULL);
     }
 
     SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
@@ -6126,7 +6111,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     if (pItem->bytes <= pColSchema->bytes) {
-      return invalidOperationMsg(pMsg, msg22);
+      return tscErrorMsgWithCode(TSDB_CODE_TSC_INVALID_TAG_LENGTH, pMsg, pItem->name, NULL);
     }
 
     SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
