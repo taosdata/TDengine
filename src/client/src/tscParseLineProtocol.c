@@ -386,7 +386,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(50);
+        taosMsleep(100);
       }
       break;
     }
@@ -411,7 +411,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(50);
+        taosMsleep(100);
       }
       break;
     }
@@ -433,7 +433,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(50);
+        taosMsleep(100);
       }
       break;
     }
@@ -455,7 +455,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(50);
+        taosMsleep(100);
       }
       break;
     }
@@ -497,7 +497,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(50);
+        taosMsleep(100);
       }
       break;
     }
@@ -846,12 +846,12 @@ static int32_t doInsertChildTableWithStmt(TAOS* taos, char* sql, char* cTableNam
       }
       taos_free_result(res2);
       if (tryAgain) {
-        taosMsleep(50 * (2 << try));
+        taosMsleep(100 * (2 << try));
       }
     }
     if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (tryAgain) {
-        taosMsleep( 50 * (2 << try));
+        taosMsleep( 100 * (2 << try));
       }
     }
   } while (tryAgain);
