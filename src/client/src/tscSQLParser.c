@@ -432,7 +432,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 
 
 int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
-  const char *msg1 = "invalidate  function name";
+  const char *msg1 = "invalidate function name";
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
   const char *msg4 = "invalid script";
@@ -450,7 +450,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       createInfo->name.z[createInfo->name.n] = 0;
       // funcname's naming rule is same to column 
-      if (!validateColumnName(createInfo->name.z)) {
+      if (validateColumnName(createInfo->name.z) != TSDB_CODE_SUCCESS) {
         return  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
       strdequote(createInfo->name.z);
