@@ -1783,7 +1783,9 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  STMT_CHECK
+  if (pStmt == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
   if (!pStmt->isInsert) {
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
@@ -1812,7 +1814,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
   }
 
-  tscFreeSqlObj(pStmt->pSql);
+  taos_free_result(pStmt->pSql);
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
@@ -1986,6 +1988,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
     return NULL;
   }
   TAOS_RES* result = pStmt->pSql;
+  pStmt->pSql = NULL;
   return result;
 }
 
