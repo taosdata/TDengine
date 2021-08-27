@@ -116,11 +116,11 @@ class TDTestCase:
         '''
             schemaless insert api
         '''
+        print(threading.current_thread().name, "length=", len(batch_list))
+        print(threading.current_thread().name, 'firstline', batch_list[0])
+        print(threading.current_thread().name, 'lastline:', batch_list[-1])
         self._conn.insert_lines(batch_list)
-        # print(threading.current_thread().name, "length=", len(batch_list))
-        # print(threading.current_thread().name, 'firstline', batch_list[0])
-        # print(threading.current_thread().name, 'lastline:', batch_list[-1])
-        # print(threading.current_thread().name, 'end')
+        print(threading.current_thread().name, 'end')
 
     def splitGenerator(self, table_list, sub_list_len):
         '''
@@ -235,16 +235,16 @@ class TDTestCase:
         # col4_time /= test_times
         # print(col4_time)
 
-        # tdCom.cleanTb()
+        tdCom.cleanTb()
         for i in range(test_times):
-            time_used = self.schemalessPerfTest(count=1000, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
+            time_used = self.schemalessPerfTest(count=100, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
             col1000_time += time_used
         col1000_time /= test_times    
         print(col1000_time)
         
         tdCom.cleanTb()
         for i in range(test_times):
-            time_used = self.schemalessPerfTest(count=4000, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
+            time_used = self.schemalessPerfTest(count=400, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
             col4000_time += time_used
         col4000_time /= test_times
         print(col4000_time)
@@ -254,7 +254,7 @@ class TDTestCase:
     def run(self):
         print("running {}".format(__file__))
         tdSql.prepare()
-        result = self.getPerfResults(test_times=3, table_count=1000, sub_list_len=100, thread_count=10)
+        result = self.getPerfResults(test_times=1, table_count=1000, sub_list_len=100, thread_count=10)
         print(result)
 
     def stop(self):
