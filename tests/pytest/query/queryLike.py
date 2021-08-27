@@ -17,7 +17,6 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 
-
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
