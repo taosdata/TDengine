@@ -452,16 +452,15 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   struct stat fStat;
   if (fstat(tfd, &fStat) == 0) {
     if(pWal->fOffset >= fStat.st_size) {
-      ASSERT(pWal->fOffset == fStat.st_size);
       tfClose(tfd);
       tfree(buffer);
       return 0;
     }
   }
 
-  if(pWal->fOffset && taosLSeek(tfd, pWal->fOffset, SEEK_SET) < 0) {
+  if(pWal->fOffset && taosLSeek((int32_t)tfd, pWal->fOffset, SEEK_SET) < 0) {
     //TODO: read and search the version
-    taosLSeek(tfd, 0, SEEK_SET);
+    taosLSeek((int32_t)tfd, 0, SEEK_SET);
   }
 
   int32_t   code = TSDB_CODE_SUCCESS;
