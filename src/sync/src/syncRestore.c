@@ -233,12 +233,12 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 
   int32_t code = syncRestoreFile(pPeer, &fversion, &fOffset);
   if (code < 0) {
-    (*pNode->stopSyncFileFp)(pNode->vgId, fversion);
+    (*pNode->stopSyncFileFp)(pNode->vgId, fversion, fOffset);
     sError("%s, failed to restore files", pPeer->id);
     return -1;
   }
 
-  (*pNode->stopSyncFileFp)(pNode->vgId, fversion);
+  (*pNode->stopSyncFileFp)(pNode->vgId, fversion, fOffset);
   nodeVersion = fversion;
 
   sInfo("%s, start to restore wal, fver:%" PRIu64, pPeer->id, nodeVersion);

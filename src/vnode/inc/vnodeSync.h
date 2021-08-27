@@ -26,7 +26,7 @@ int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
 void     vnodeNotifyRole(int32_t vgId, int8_t role);
 void     vnodeCtrlFlow(int32_t vgId, int32_t level);
 void     vnodeStartSyncFile(int32_t vgId);
-void     vnodeStopSyncFile(int32_t vgId, uint64_t fversion);
+void     vnodeStopSyncFile(int32_t vgId, uint64_t fversion, uint64_t fOffset);
 void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
 int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver, uint64_t *offset, uint64_t *fOffset);

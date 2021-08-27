@@ -74,7 +74,7 @@ typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t level);
 
 // when data file is synced successfully, notity app
 typedef void     (*FStartSyncFile)(int32_t vgId);
-typedef void     (*FStopSyncFile)(int32_t vgId, uint64_t fversion);
+typedef void     (*FStopSyncFile)(int32_t vgId, uint64_t fversion, uint64_t fOffset);
 
 // get file version
 typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver, uint64_t *offset, uint64_t *fOffset);

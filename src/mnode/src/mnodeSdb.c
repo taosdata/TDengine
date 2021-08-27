@@ -262,7 +262,7 @@ static void sdbNotifyRole(int32_t vgId, int8_t role) {
 
 static void sdbStartFileSync(int32_t vgId) {}
 
-static void sdbStopFileSync(int32_t vgId, uint64_t fversion) {}
+static void sdbStopFileSync(int32_t vgId, uint64_t fversion, uint64_t fOffset) {}
 
 static void sdbNotifyFlowCtrl(int32_t vgId, int32_t level) {}
 
