@@ -278,24 +278,19 @@ public class TSDBJNIConnector {
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
 
     public long prepareStmt(String sql) throws SQLException {
-        long stmt;
-        try {
-            stmt = prepareStmtImp(sql.getBytes(), this.taos);
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING);
-        }
+        long stmt = prepareStmtImp(sql.getBytes(), this.taos);
 
         if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, "connection already closed");
         }
-
         if (stmt == TSDBConstants.JNI_SQL_NULL) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_SQL_NULL);
         }
-
         if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY);
+        }
+        if (stmt == TSDBConstants.JNI_TDENGINE_ERROR) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR);
         }
 
         return stmt;
@@ -313,8 +308,7 @@ public class TSDBJNIConnector {
     private native int setBindTableNameImp(long stmt, String name, long conn);
 
     public void setBindTableNameAndTags(long stmt, String tableName, int numOfTags, ByteBuffer tags, ByteBuffer typeList, ByteBuffer lengthList, ByteBuffer nullList) throws SQLException {
-        int code = setTableNameTagsImp(stmt, tableName, numOfTags, tags.array(), typeList.array(), lengthList.array(),
-                nullList.array(), this.taos);
+        int code = setTableNameTagsImp(stmt, tableName, numOfTags, tags.array(), typeList.array(), lengthList.array(), nullList.array(), this.taos);
         if (code != TSDBConstants.JNI_SUCCESS) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind table name and corresponding tags");
         }
