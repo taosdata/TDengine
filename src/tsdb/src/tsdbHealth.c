@@ -24,6 +24,7 @@
 #include "tsdbLog.h"
 #include "tsdbHealth.h"
 #include "ttimer.h"
+#include "tthread.h"
 
 
 // return malloc new block count 
@@ -47,30 +48,44 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
 }
 
 // switch anther thread to run
-void cbKillQueryFree(void* param1, void* param2) {
+void* cbKillQueryFree(void* param1) {
   STsdbRepo* pRepo =  (STsdbRepo*)param1;
   // vnode
   if(pRepo->appH.notifyStatus) {
     pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_NOBLOCK, TSDB_CODE_SUCCESS);
   }
+
+  // free 
+  if(pRepo->pthread){
+    void* p = pRepo->pthread;
+    pRepo->pthread = NULL;
+    free(p);
+  }
+
+  return NULL;
 }
 
 // return true do free , false do nothing
 bool tsdbUrgeQueryFree(STsdbRepo * pRepo) {
-  // 1 start timer
-  if(pRepo->tmrCtrl == NULL){
-    pRepo->tmrCtrl = taosTmrInit(0, 0, 0, "REPO");
+  // check previous running
+  if(pRepo->pthread && taosThreadRunning(pRepo->pthread)) {
+    tsdbWarn("vgId:%d pre urge thread is runing. nBlocks=%d nElasticBlocks=%d", REPO_ID(pRepo), pRepo->pPool->nBufBlocks, pRepo->pPool->nElasticBlocks);
+    return false;
   }
-
-  tmr_h hTimer = taosTmrStart(cbKillQueryFree, 1, pRepo, pRepo->tmrCtrl);
-  return hTimer != NULL;
+  // create new
+  pRepo->pthread = taosCreateThread(cbKillQueryFree, pRepo);
+  if(pRepo->pthread == NULL) {
+    tsdbError("vgId:%d create urge thread error.", REPO_ID(pRepo));
+    return false;
+  }
+  return true;
 }
 
 bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
   int32_t nMaxElastic = pRepo->config.totalBlocks/3;
   STsdbBufPool* pPool = pRepo->pPool;
   if(pPool->nElasticBlocks >= nMaxElastic) {
-    tsdbWarn("tsdbAllowNewBlock return fasle. nElasticBlock(%d) >= MaxElasticBlocks(%d)", pPool->nElasticBlocks, nMaxElastic);
+    tsdbWarn("vgId:%d tsdbAllowNewBlock return fasle. nElasticBlock(%d) >= MaxElasticBlocks(%d)", REPO_ID(pRepo), pPool->nElasticBlocks, nMaxElastic);
     return false;
   }
   return true;

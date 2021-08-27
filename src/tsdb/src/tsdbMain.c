@@ -17,6 +17,7 @@
 #include "taosdef.h"
 #include "tsdbint.h"
 #include "ttimer.h"
+#include "tthread.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -127,9 +128,9 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
-  if(pRepo->tmrCtrl){
-    taosTmrCleanUp(pRepo->tmrCtrl);
-    pRepo->tmrCtrl = NULL;
+  if(pRepo->pthread){
+    taosDestoryThread(pRepo->pthread);
+    pRepo->pthread = NULL;
   }
 
   if (toCommit) {
@@ -552,7 +553,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     pRepo->appH = *pAppH;
   }
   pRepo->repoLocked = false;
-  pRepo->tmrCtrl = NULL;
+  pRepo->pthread = NULL;
 
   int code = pthread_mutex_init(&(pRepo->mutex), NULL);
   if (code != 0) {
