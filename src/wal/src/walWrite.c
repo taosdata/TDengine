@@ -448,7 +448,10 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   } else {
     wDebug("vgId:%d, file:%s, open for restore", pWal->vgId, name);
   }
-  taosLSeek(tfd, pWal->fOffset, SEEK_SET);
+  if(pWal->fOffset && taosLSeek(tfd, pWal->fOffset, SEEK_SET) < 0) {
+    //TODO: read and search the version
+    taosLSeek(tfd, 0, SEEK_SET);
+  }
 
   int32_t   code = TSDB_CODE_SUCCESS;
   int64_t   offset = 0;
