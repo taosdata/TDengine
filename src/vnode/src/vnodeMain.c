@@ -84,7 +84,9 @@ int32_t vnodeSync(int32_t vgId) {
 
     pVnode->version = 0;
     pVnode->fversion = 0;
-    walResetVersion(pVnode->wal, pVnode->fversion);
+    pVnode->offset = 0;
+    pVnode->fOffset = 0;
+    walResetVersion(pVnode->wal, pVnode->fversion, pVnode->fOffset);
 
     syncRecover(pVnode->sync);
   }
@@ -265,6 +267,10 @@ int32_t vnodeOpen(int32_t vgId) {
   pVnode->vgId     = vgId;
   pVnode->fversion = 0;
   pVnode->version  = 0;  
+
+  pVnode->offset   = 0;
+  pVnode->fOffset  = 0;
+
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   pVnode->rootDir = strdup(rootDir);
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
@@ -284,6 +290,7 @@ int32_t vnodeOpen(int32_t vgId) {
   code = vnodeReadVersion(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
     pVnode->version = 0;
+    pVnode->offset  = 0;
     vError("vgId:%d, failed to read file version, generate it from data file", pVnode->vgId);
     // Allow vnode start even when read file version fails, set file version as wal version or zero
     // vnodeCleanUp(pVnode);
@@ -291,6 +298,7 @@ int32_t vnodeOpen(int32_t vgId) {
   }
 
   pVnode->fversion = pVnode->version;
+  pVnode->fOffset  = pVnode->offset;
   
   pVnode->wqueue = dnodeAllocVWriteQueue(pVnode);
   pVnode->qqueue = dnodeAllocVQueryQueue(pVnode);
@@ -333,8 +341,10 @@ int32_t vnodeOpen(int32_t vgId) {
       vnodeCleanUp(pVnode);
       return TSDB_CODE_VND_INVALID_TSDB_STATE;
     } else {
-      pVnode->fversion = 0;
       pVnode->version = 0;
+      pVnode->fversion = 0;
+      pVnode->offset = 0;
+      pVnode->fOffset = 0;
     }
   }
 
@@ -360,10 +370,13 @@ int32_t vnodeOpen(int32_t vgId) {
     return terrno;
   }
 
+  walSetFOffset(pVnode->wal, pVnode->fOffset);
   walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
   if (pVnode->version == 0) {
     pVnode->fversion = 0;
-    pVnode->version = walGetVersion(pVnode->wal);
+    pVnode->fOffset = 0;
+
+    pVnode->version = walGetVersion(pVnode->wal, &pVnode->offset);
   }
 
   code = tsdbSyncCommit(pVnode->tsdb);
@@ -373,8 +386,10 @@ int32_t vnodeOpen(int32_t vgId) {
     return code;
   }
 
-  walRemoveAllOldFiles(pVnode->wal);
-  walRenew(pVnode->wal);
+  //TODO: init a lifecycle checker
+  /*walRemoveAllOldFiles(pVnode->wal);*/
+  /*walRenew(pVnode->wal);*/
+  /*pVnode->offset = 0;*/
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   if (pVnode->qMgmt == NULL) {
@@ -468,7 +483,7 @@ void vnodeDestroy(SVnodeObj *pVnode) {
     if (code != 0) {
       vError("vgId:%d, failed to commit while close tsdb repo, keep wal", pVnode->vgId);
     } else {
-      walRemoveAllOldFiles(pVnode->wal);
+      /*walRemoveAllOldFiles(pVnode->wal);*/
     }
     walClose(pVnode->wal);
     pVnode->wal = NULL;
@@ -542,10 +557,9 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->isCommiting = 1;
     pVnode->cversion = pVnode->version;
+    pVnode->cOffset  = pVnode->offset;
     vInfo("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    if (!vnodeInInitStatus(pVnode)) {
-      return walRenew(pVnode->wal);
-    }
+    //do not create new wal file here any more
     return 0;
   }
 
@@ -553,10 +567,9 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     pVnode->isCommiting = 0;
     pVnode->isFull = 0;
     pVnode->fversion = pVnode->cversion;
+    pVnode->fOffset  = pVnode->cOffset;
     vInfo("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    if (!vnodeInInitStatus(pVnode)) {
-      walRemoveOneOldFile(pVnode->wal);
-    }
+    //do not remove old file here any more
     return vnodeSaveVersion(pVnode);
   }
 

@@ -56,6 +56,9 @@ typedef struct {
   uint64_t version;   // current version
   uint64_t cversion;  // version while commit start
   uint64_t fversion;  // version on saved data file
+  uint64_t offset;    // offset to version of current wal file
+  uint64_t cOffset;   // offset to cversion
+  uint64_t fOffset;   // offset to fversion
   void *   wqueue;    // write queue
   void *   qqueue;    // read query queue
   void *   fqueue;    // read fetch/cancel queue

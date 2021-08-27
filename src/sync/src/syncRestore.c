@@ -25,7 +25,7 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static int32_t syncRecvFileVersion(SSyncPeer *pPeer, uint64_t *fversion) {
+static int32_t syncRecvFileVersion(SSyncPeer *pPeer, uint64_t *fversion, uint64_t *fOffset) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   SFileVersion fileVersion;
@@ -46,10 +46,11 @@ static int32_t syncRecvFileVersion(SSyncPeer *pPeer, uint64_t *fversion) {
   }
 
   *fversion = htobe64(fileVersion.fversion);
+  *fOffset  = htobe64(fileVersion.fOffset);
   return 0;
 }
 
-static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
+static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion, uint64_t *fOffset) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   if (pNode->recvFileFp && (*pNode->recvFileFp)(pNode->pTsdb, pPeer->syncFd) != 0) {
@@ -57,7 +58,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     return -1;
   }
 
-  if (syncRecvFileVersion(pPeer, fversion) < 0) {
+  if (syncRecvFileVersion(pPeer, fversion, fOffset) < 0) {
     return -1;
   }
 
@@ -217,6 +218,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
   uint64_t fversion = 0;
+  uint64_t fOffset  = 0;
 
   sInfo("%s, start to restore, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   SSyncRsp rsp = {.sync = 1, .tranId = syncGenTranId()};
@@ -229,7 +231,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   sInfo("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   (*pNode->startSyncFileFp)(pNode->vgId);
 
-  int32_t code = syncRestoreFile(pPeer, &fversion);
+  int32_t code = syncRestoreFile(pPeer, &fversion, &fOffset);
   if (code < 0) {
     (*pNode->stopSyncFileFp)(pNode->vgId, fversion);
     sError("%s, failed to restore files", pPeer->id);

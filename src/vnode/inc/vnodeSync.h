@@ -29,7 +29,7 @@ void     vnodeStartSyncFile(int32_t vgId);
 void     vnodeStopSyncFile(int32_t vgId, uint64_t fversion);
 void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
-int32_t  vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver);
+int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver, uint64_t *offset, uint64_t *fOffset);
 
 void     vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool force);
 

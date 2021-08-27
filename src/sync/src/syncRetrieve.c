@@ -27,55 +27,62 @@
 
 static int32_t syncGetWalVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
+  uint64_t offset, fOffset;
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver, &offset, &fOffset);
   if (code != 0) {
-    sInfo("%s, vnode is commiting while retrieve, last wver:%" PRIu64, pPeer->id, pPeer->lastWalVer);
+    sInfo("%s, vnode is commiting when retrieve, last wver:%" PRIu64, pPeer->id, pPeer->lastWalVer);
     return -1;
   }
 
   pPeer->lastWalVer = wver;
+  pPeer->lastWalOff = offset;
   return code;
 }
 
 static bool syncIsWalModified(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
+  uint64_t offset, fOffset;
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver, &offset, &fOffset);
   if (code != 0) {
-    sInfo("%s, vnode is commiting while retrieve, last wver:%" PRIu64, pPeer->id, pPeer->lastWalVer);
+    sInfo("%s, vnode is commiting when retrieve, last wver:%" PRIu64, pPeer->id, pPeer->lastWalVer);
     return true;
   }
 
   if (wver != pPeer->lastWalVer) {
-    sInfo("%s, wal is modified while retrieve, wver:%" PRIu64 ", last:%" PRIu64, pPeer->id, wver, pPeer->lastWalVer);
+    sInfo("%s, wal is modified when retrieve, wver:%" PRIu64 ", last:%" PRIu64, pPeer->id, wver, pPeer->lastWalVer);
     return true;
   }
 
   return false;
 }
 
+//TODO: sync offset also
 static int32_t syncGetFileVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
+  uint64_t offset, fOffset;
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver, &offset, &fOffset);
   if (code != 0) {
-    sInfo("%s, vnode is commiting while get fver for retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
+    sInfo("%s, vnode is commiting when get fver for retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
     return -1;
   }
 
   pPeer->lastFileVer = fver;
+  pPeer->lastFileOff = fOffset;
   return code;
 }
 
 static bool syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
+  uint64_t offset, fOffset;
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver, &offset, &fOffset);
   if (code != 0) {
-    sInfo("%s, vnode is commiting while retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
+    sInfo("%s, vnode is commiting when retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
     pPeer->fileChanged = 1;
     return true;
   }
 
   if (fver != pPeer->lastFileVer) {
-    sInfo("%s, files are modified while retrieve, fver:%" PRIu64 ", last:%" PRIu64, pPeer->id, fver, pPeer->lastFileVer);
+    sInfo("%s, files are modified when retrieve, fver:%" PRIu64 ", last:%" PRIu64, pPeer->id, fver, pPeer->lastFileVer);
     pPeer->fileChanged = 1;
     return true;
   }
@@ -92,7 +99,9 @@ static int32_t syncSendFileVersion(SSyncPeer *pPeer) {
   syncBuildFileVersion(&fileVersion, pNode->vgId);
 
   uint64_t fver = pPeer->lastFileVer;
+  uint64_t fOffset = pPeer->lastFileOff;
   fileVersion.fversion = htobe64(fver);
+  fileVersion.fOffset  = htobe64(fOffset);
   int32_t ret = taosWriteMsg(pPeer->syncFd, &fileVersion, sizeof(SFileVersion));
   if (ret != sizeof(SFileVersion)) {
     sError("%s, failed to write fver:%" PRIu64 " since %s", pPeer->id, fver, strerror(errno));
@@ -163,7 +172,7 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
 
   if (ret != pHead->len) {
     // file is not at end yet, it shall be reloaded
-    sInfo("sfd:%d, a partial wal conetnt is read out, ret:%d", sfd, ret);
+    sInfo("sfd:%d, a partial wal content is read out, ret:%d", sfd, ret);
     return 0;
   }
 
@@ -424,8 +433,8 @@ void *syncRetrieveData(void *param) {
 
   uint32_t ip = syncResolvePeerFqdn(pPeer);
   if (!ip) {
-      syncReleasePeer(pPeer);
-      return NULL;
+    syncReleasePeer(pPeer);
+    return NULL;
   }
 
   SSyncNode *pNode = pPeer->pSyncNode;

@@ -100,6 +100,7 @@ typedef struct {
 typedef struct {
   SSyncHead head;
   uint64_t  fversion;
+  uint64_t  fOffset;
 } SFileVersion;
 
 typedef struct {

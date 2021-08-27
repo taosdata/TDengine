@@ -60,6 +60,19 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   }
   pVnode->version = (uint64_t)ver->valueint;
 
+  cJSON *off = cJSON_GetObjectItem(root, "offset");
+  if (off) {
+    if (off->type != cJSON_Number) {
+      vError("vgId:%d, failed to read %s, offset not found", pVnode->vgId, file);
+      goto PARSE_VER_ERROR;
+    }
+    pVnode->fOffset = (uint64_t)off->valueint;
+    pVnode->offset = pVnode->fOffset;
+  } else {
+    pVnode->fOffset = 0;
+    pVnode->offset = 0;
+  }
+
   terrno = TSDB_CODE_SUCCESS;
   vInfo("vgId:%d, read %s successfully, fver:%" PRIu64, pVnode->vgId, file, pVnode->version);
 
@@ -86,7 +99,8 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRIu64 "\n", pVnode->fversion);
+  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRIu64 ",\n", pVnode->fversion);
+  len += snprintf(content + len, maxLen - len, "  \"offset\": %" PRIu64 "\n", pVnode->fOffset);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);

@@ -107,7 +107,7 @@ void vnodeStartSyncFile(int32_t vgId) {
   vnodeRelease(pVnode);
 }
 
-void vnodeStopSyncFile(int32_t vgId, uint64_t fversion) {
+void vnodeStopSyncFile(int32_t vgId, uint64_t fversion, uint64_t fOffset) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while stop filesync", vgId);
@@ -115,9 +115,11 @@ void vnodeStopSyncFile(int32_t vgId, uint64_t fversion) {
   }
 
   pVnode->fversion = fversion;
-  pVnode->version = fversion;
+  pVnode->version  = fversion;
+  pVnode->fOffset  = fOffset;
+  pVnode->offset   = fOffset;
   vnodeSaveVersion(pVnode);
-  walResetVersion(pVnode->wal, fversion);
+  walResetVersion(pVnode->wal, fversion, fOffset);
 
   vInfo("vgId:%d, datafile is synced, fver:%" PRIu64 " vver:%" PRIu64, vgId, fversion, fversion);
   vnodeSetReadyStatus(pVnode);
@@ -154,7 +156,7 @@ int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rpara
   return code;
 }
 
-int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
+int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver, uint64_t *offset, uint64_t *fOffset) {
   SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while write to cache", vgId);
@@ -168,6 +170,8 @@ int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
   } else {
     *fver = pVnode->fversion;
     *wver = pVnode->version;
+    *offset = pVnode->offset;
+    *fOffset = pVnode->fOffset;
   }
 
   vnodeRelease(pVnode);

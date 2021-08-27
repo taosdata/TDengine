@@ -42,6 +42,8 @@ extern int32_t wDebugFlag;
 
 typedef struct {
   uint64_t version;
+  uint64_t offset;
+  uint64_t fOffset;
   int64_t  fileId;
   int64_t  rid;
   int64_t  tfd;

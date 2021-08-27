@@ -185,6 +185,7 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("vgId:1, open sdb wal for restore");
+  walSetFOffset(tsSdbMgmt.wal, 0);
   int32_t code = walRestore(tsSdbMgmt.wal, NULL, sdbProcessWrite);
   if (code != TSDB_CODE_SUCCESS) {
     sdbError("vgId:1, failed to open wal for restore since %s", tstrerror(code));
@@ -265,9 +266,11 @@ static void sdbStopFileSync(int32_t vgId, uint64_t fversion) {}
 
 static void sdbNotifyFlowCtrl(int32_t vgId, int32_t level) {}
 
-static int32_t sdbGetSyncVersion(int32_t vgId, uint64_t *fver, uint64_t *vver) {
+static int32_t sdbGetSyncVersion(int32_t vgId, uint64_t *fver, uint64_t *vver, uint64_t *offset, uint64_t *fOffset) {
   *fver = 0;
   *vver = 0;
+  *offset = 0;
+  *fOffset = 0;
   return 0;
 }
 

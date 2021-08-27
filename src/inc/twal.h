@@ -25,6 +25,7 @@ typedef enum {
   TAOS_WAL_FSYNC = 2
 } EWalType;
 
+//TODO; remove this config
 typedef enum {
   TAOS_WAL_NOT_KEEP = 0,
   TAOS_WAL_KEEP = 1
@@ -58,14 +59,16 @@ int32_t  walAlter(twalh pWal, SWalCfg *pCfg);
 void     walStop(twalh);
 void     walClose(twalh);
 int32_t  walRenew(twalh);
-void     walRemoveOneOldFile(twalh);
-void     walRemoveAllOldFiles(twalh);
+//replace by a notification
+//void     walRemoveOneOldFile(twalh);
+//void     walRemoveAllOldFiles(twalh);
+int32_t  walSetFOffset(twalh, uint64_t fOffset);
 int32_t  walWrite(twalh, SWalHead *);
 void     walFsync(twalh, bool forceFsync);
 int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
-uint64_t walGetVersion(twalh);
-void     walResetVersion(twalh, uint64_t newVer);
+uint64_t walGetVersion(twalh, uint64_t *offset);
+void     walResetVersion(twalh, uint64_t newVer, uint64_t newOff);
 
 #ifdef __cplusplus
 }

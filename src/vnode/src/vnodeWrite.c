@@ -107,6 +107,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   }
 
   pVnode->version = pHead->version;
+  pVnode->offset += code;
 
   // write data locally
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, pRspRet);

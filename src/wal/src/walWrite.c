@@ -49,6 +49,7 @@ int32_t walRenew(void *handle) {
   } else {
     if (walGetNewFile(pWal, &pWal->fileId) != 0) pWal->fileId = 0;
     pWal->fileId++;
+    pWal->offset = 0;
   }
 
   snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
@@ -135,6 +136,13 @@ static int walValidateChecksum(SWalHead *pHead) {
 
 #endif
 
+int32_t walSetFOffset(void *handle, uint64_t fOffset) {
+  if (handle == NULL) return -1;
+  SWal *  pWal = handle;
+  pWal->fOffset = fOffset;
+  return 0;
+}
+
 // return num of bytes if succeed
 int32_t walWrite(void *handle, SWalHead *pHead) {
   if (handle == NULL) return -1;
@@ -159,7 +167,9 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
 
   pthread_mutex_lock(&pWal->mutex);
 
-  if (tfWrite(pWal->tfd, pHead, contLen) != contLen) {
+  if ((code = tfWrite(pWal->tfd, pHead, contLen)) != contLen) {
+    //TODO: consider truncating here
+    if(code > 0) pWal->offset += code;
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
@@ -167,6 +177,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
     wTrace("vgId:%d, write wal, fileId:%" PRId64 " tfd:%" PRId64 " hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,
            pWal->fileId, pWal->tfd, pHead->version, pWal->version, pHead->len);
     pWal->version = pHead->version;
+    pWal->offset += contLen;
   }
 
   pthread_mutex_unlock(&pWal->mutex);
@@ -437,6 +448,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   } else {
     wDebug("vgId:%d, file:%s, open for restore", pWal->vgId, name);
   }
+  taosLSeek(tfd, pWal->fOffset, SEEK_SET);
 
   int32_t   code = TSDB_CODE_SUCCESS;
   int64_t   offset = 0;
@@ -543,6 +555,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
            pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
 
     pWal->version = pHead->version;
+    pWal->offset  = offset;
 
     // wInfo("writeFp: %ld", offset);
     if (0 != walSMemRowCheck(pHead)) {
@@ -562,10 +575,11 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   return code;
 }
 
-uint64_t walGetVersion(twalh param) {
+uint64_t walGetVersion(twalh param, uint64_t* offset) {
   SWal *pWal = param;
   if (pWal == 0) return 0;
 
+  *offset = pWal->offset;
   return pWal->version;
 }
 
@@ -574,10 +588,11 @@ uint64_t walGetVersion(twalh param) {
 // Some new wal record cannot be written to the wal file in dnode1 for wal version not reset, then fversion and the record in wal file may inconsistent, 
 // At this time, if dnode2 down, dnode1 switched to master. After dnode2 start and restore data from dnode1, data loss will occur
 
-void walResetVersion(twalh param, uint64_t newVer) {
+void walResetVersion(twalh param, uint64_t newVer, uint64_t newOff) {
   SWal *pWal = param;
   if (pWal == 0) return;
   wInfo("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->version, newVer);
 
   pWal->version = newVer;
+  pWal->offset  = newOff;
 }
