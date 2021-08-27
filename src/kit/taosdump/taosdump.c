@@ -231,9 +231,9 @@ static struct argp_option options[] = {
     {"inpath", 'i', "INPATH",      0,  "Input file path.", 1},
     {"resultFile", 'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.", 1},
 #ifdef _TD_POWER_
-    {"config", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
 #else
-    {"config", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
 #endif
     {"encode", 'e', "ENCODE", 0,  "Input file encoding.", 1},
     // dump unit options
@@ -367,6 +367,15 @@ struct arguments g_args = {
     false       // performance_print
 };
 
+static void errorPrintReqArg3(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option '%s' requires an argument\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+}
+
 /* Parse a single option. */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     /* Get the input argument from argp_parse, which we
@@ -418,9 +427,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.resultFile = arg;
             break;
         case 'c':
+            if (0 == strlen(arg)) {
+                errorPrintReqArg3("taosdump", "-c or --config-dir");
+                exit(EXIT_FAILURE);
+            }
             if (wordexp(arg, &full_path, 0) != 0) {
                 errorPrint("Invalid path %s\n", arg);
-                return -1;
+                exit(EXIT_FAILURE);
             }
             tstrncpy(configDir, full_path.we_wordv[0], MAX_FILE_NAME_LEN);
             wordfree(&full_path);
