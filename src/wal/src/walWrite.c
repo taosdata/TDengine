@@ -450,11 +450,12 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   }
 
   struct stat fStat;
-  if (fstat(tfd, &fStat) == 0) {
+  if (fstat((int)tfd, &fStat) == 0) {
     if(pWal->fOffset >= fStat.st_size) {
-      tfClose(tfd);
-      tfree(buffer);
-      return 0;
+      pWal->fOffset = 0;
+      /*tfClose(tfd);*/
+      /*tfree(buffer);*/
+      /*return 0;*/
     }
   }
 
