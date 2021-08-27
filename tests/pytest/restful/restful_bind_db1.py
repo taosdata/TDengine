@@ -22,8 +22,6 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import time, datetime
-
-
 import requests, json
 import threading
 import string
@@ -97,38 +95,29 @@ class TDTestCase():
         "insert into test.tb values (now , 2, 2.0) ",
         "select * from tb",
         "select * from test.tb"]
-
         
         for sql in sqls:
             print("===================")
             check_unbind_db(url,sql,header)
 
         print("==================="*5)
-        
         print("                        check bind db about restful                  ")
-
         print("==================="*5)
-        
         url = "http://127.0.0.1:6041/rest/sql/des"
         for sql in sqls:
             print("===================")
             check_bind_db(url,sql,header)
-        
         # check data
-
         tdSql.query("select * from test.tb")
         tdSql.checkRows(1)
         tdSql.query("select * from des.tb")
         tdSql.checkRows(2)
-        
-
 
         os.system('sudo timedatectl set-ntp on')
 
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

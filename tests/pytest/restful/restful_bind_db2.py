@@ -22,13 +22,10 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import time, datetime
-
-
 import requests, json
 import threading
 import string
 import random
- 
 
 def check_res(url, data, header):
     resp = requests.post(url, data, headers = header )
@@ -49,7 +46,6 @@ class TDTestCase():
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
 
     def run(self):
         tdSql.prepare()
@@ -59,7 +55,6 @@ class TDTestCase():
         tdSql.execute('drop database if exists des')
         tdSql.execute('create database test')
         tdSql.execute('create database des')
-
         header = {'Authorization': 'Basic cm9vdDp0YW9zZGF0YQ=='}
         url = "http://127.0.0.1:6041/rest/sql/"
 
@@ -87,8 +82,6 @@ class TDTestCase():
         "select * from test.tb",
         "create table des.tb (ts timestamp, id int , data double)",
         "insert into des.tb values (now , 3, 3.0)"]
-
-        
         for sql in sqls:
             print("===================")
             if sql == "create table test.tb (ts timestamp, id int , data double)":
@@ -103,13 +96,9 @@ class TDTestCase():
         tdSql.query("select * from des.tb")
         tdSql.checkRows(1)
 
-
         print("==================="*5)
-        
         print("                        check bind db about restful                  ")
-
         print("==================="*5)
-
 
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists test')
@@ -127,33 +116,11 @@ class TDTestCase():
                 print ("%s run occur error as expect ,check pass!" %(sql))
             else:
                 check_res(url,sql,header)
-        
         # check data
-
         tdSql.query("select * from test.tb")
         tdSql.checkRows(1)
         tdSql.query("select * from des.tb")
         tdSql.checkRows(3)
-        
-        
-        
-
-        
-      
-        # curl(url ,data , header)
-
-    
-
-        # threads = []        
-        # for i in range(self.numOfThreads):
-        #     thread = threading.Thread(target=self.insertData, args=(i,))
-        #     thread.start()
-        #     threads.append(thread)   
-        
-        
-        
-        
-
 
         os.system('sudo timedatectl set-ntp on')
 
