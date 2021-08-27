@@ -1078,12 +1078,13 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
   const char* msg1 = "sliding cannot be used without interval";
   const char* msg2 = "interval cannot be less than 1 us";
   const char* msg3 = "interval value is too small";
+  const char* msg4 = "only point interpolation query requires keyword EVERY";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  
+
   if (!TPARSER_HAS_TOKEN(pSqlNode->interval.interval)) {
     if (TPARSER_HAS_TOKEN(pSqlNode->sliding)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -1109,7 +1110,6 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
   }
 
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit != 'y') {
-
     // interval cannot be less than 10 milliseconds
     if (convertTimePrecision(pQueryInfo->interval.interval, tinfo.precision, TSDB_TIME_PRECISION_MICRO) < tsMinIntervalTime) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -1122,6 +1122,11 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
 
   if (parseSlidingClause(pCmd, pQueryInfo, &pSqlNode->sliding) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  bool interpQuery = tscIsPointInterpQuery(pQueryInfo);
+  if ((pSqlNode->interval.token == TK_EVERY && (!interpQuery)) || (pSqlNode->interval.token == TK_INTERVAL && interpQuery)) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   // The following part is used to check for the invalid query expression.
@@ -2467,6 +2472,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg10 = "derivative duration should be greater than 1 Second";
   const char* msg11 = "third parameter in derivative should be 0 or 1";
   const char* msg12 = "parameter is out of range [1, 100]";
+  const char* msg13 = "parameter list required";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3018,6 +3024,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
+      if (taosArrayGetSize(pItem->pNode->Expr.paramList) <= 0) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);        
+      }
+      
       tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);;
       if (pParamElem->pNode->tokenId != TK_ID) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -8196,7 +8206,10 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     size_t len = strlen(name);
       
-    taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity);
+    if (NULL == taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity)){
+      tfree(pTableMeta);
+      tableMetaCapacity = 0;
+    }
 
     if (pTableMeta && pTableMeta->id.uid > 0) {
       tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);

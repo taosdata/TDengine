@@ -4433,7 +4433,9 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
   STableMeta* pChild = *ppChild;
   STableMeta* pChild1;
 
-  taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
+  if(NULL == taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
+    tfree(p); 
+  }
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
