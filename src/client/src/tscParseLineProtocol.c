@@ -371,12 +371,15 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       buildColumnDescription(action->alterSTable.field, result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      char* errStr = taos_errstr(res);
+      char* begin = strstr(errStr, "duplicated column names");
+      bool tscDupColNames = (begin != NULL);
       if (code != TSDB_CODE_SUCCESS) {
-        tscError("SML:0x%"PRIx64" apply schema action. error: %s", info->id, taos_errstr(res));
+        tscError("SML:0x%"PRIx64" apply schema action. error: %s", info->id, errStr);
       }
       taos_free_result(res);
 
-      if (code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || code == TSDB_CODE_TSC_DUP_COL_NAMES) {
+      if (code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || code == TSDB_CODE_MND_TAG_ALREAY_EXIST || tscDupColNames) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
         if (code != TSDB_CODE_SUCCESS) {
@@ -393,12 +396,15 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      char* errStr = taos_errstr(res);
+      char* begin = strstr(errStr, "duplicated column names");
+      bool tscDupColNames = (begin != NULL);
       if (code != TSDB_CODE_SUCCESS) {
         tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
       }
       taos_free_result(res);
 
-      if (code == TSDB_CODE_MND_TAG_ALREAY_EXIST || code == TSDB_CODE_TSC_DUP_COL_NAMES) {
+      if (code == TSDB_CODE_MND_TAG_ALREAY_EXIST || code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || tscDupColNames) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
         if (code != TSDB_CODE_SUCCESS) {
