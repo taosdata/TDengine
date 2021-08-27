@@ -935,6 +935,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+        } else if (strcmp(argv[i], "-PP") == 0) {
+            arguments->performance_print = true;
         } else if ((0 == strncmp(argv[i], "-P", strlen("-P")))
                 || (0 == strncmp(argv[i], "--port", strlen("--port")))) {
             if (2 == strlen(argv[i])) {
@@ -1642,8 +1644,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->debug_print = true;
         } else if (strcmp(argv[i], "-gg") == 0) {
             arguments->verbose_print = true;
-        } else if (strcmp(argv[i], "-PP") == 0) {
-            arguments->performance_print = true;
         } else if ((0 == strncmp(argv[i], "-O", strlen("-O")))
                 || (0 == strncmp(argv[i], "--disorder", strlen("--disorder")))) {
             if (2 == strlen(argv[i])) {
