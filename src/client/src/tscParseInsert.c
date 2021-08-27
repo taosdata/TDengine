@@ -1757,6 +1757,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       pSql->res.numOfRows = 0;
       code = doPackSendDataBlock(pSql, pInsertParam, pTableMeta, count, pTableDataBlock);
       if (code != TSDB_CODE_SUCCESS) {
+        pParentSql->res.code = code;
         goto _error;
       }
 
@@ -1777,6 +1778,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
 
 _error:
+  pParentSql->res.code = code;
   tfree(tokenBuf);
   tfree(line);
   taos_free_result(pSql);
