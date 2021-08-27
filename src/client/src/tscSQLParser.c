@@ -7153,7 +7153,9 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
     if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_DIFF) {
       for (int32_t j = 0; j < upNum; ++j) {
         SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
-        if (groupbyTbname(pUp)) {
+        STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);
+        bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+        if ((!isSTable) || groupbyTbname(pUp)) {
           return TSDB_CODE_SUCCESS;
         }
       }
