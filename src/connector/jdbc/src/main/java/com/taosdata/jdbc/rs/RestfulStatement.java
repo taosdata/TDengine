@@ -88,17 +88,24 @@ public class RestfulStatement extends AbstractStatement {
     }
 
     private String getUrl() throws SQLException {
+        String dbname = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_DBNAME);
+        if (dbname == null || dbname.trim().isEmpty()) {
+            dbname = "";
+        } else {
+            dbname = "/" + dbname.toLowerCase();
+        }
         TimestampFormat timestampFormat = TimestampFormat.valueOf(conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).trim().toUpperCase());
         String url;
+
         switch (timestampFormat) {
             case TIMESTAMP:
-                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
+                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt" + dbname;
                 break;
             case UTC:
-                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
+                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc" + dbname;
                 break;
             default:
-                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql" + dbname;
         }
         return url;
     }

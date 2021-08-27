@@ -504,8 +504,8 @@ Query OK, 1 row(s) in set (0.000141s)
 - Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
 
 ## Example Codes
-you see sample code here: ![JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
+you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## FAQ
 

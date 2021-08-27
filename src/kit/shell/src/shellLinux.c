@@ -108,7 +108,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->is_raw_time = true;
       break;
     case 'f':
-      if (wordexp(arg, &full_path, 0) != 0) {
+      if ((0 == strlen(arg)) || (wordexp(arg, &full_path, 0) != 0)) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }

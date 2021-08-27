@@ -162,7 +162,10 @@ cmd ::= DESCRIBE ids(X) cpxName(Y). {
     X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
-
+cmd ::= DESC ids(X) cpxName(Y). {
+    X.n += Y.n;
+    setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
+}
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
