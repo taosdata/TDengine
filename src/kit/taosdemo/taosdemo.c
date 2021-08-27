@@ -102,7 +102,7 @@ extern char configDir[];
 #define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
 #define DEFAULT_TIMESTAMP_STEP  1
-
+#define DEFAULT_CHILDTABLES     10000
 
 enum TEST_MODE {
     INSERT_TEST,            // 0
@@ -625,7 +625,7 @@ SArguments g_args = {
     0,               // interlace_rows;
     30000,           // num_of_RPR
     (1024*1024),     // max_sql_len
-    10000,           // num_of_tables
+    DEFAULT_CHILDTABLES,    // num_of_tables
     10000,           // num_of_DPT
     0,               // abort
     0,               // disorderRatio
@@ -639,7 +639,7 @@ SArguments g_args = {
 
 
 static SDbs            g_Dbs;
-static int64_t         g_totalChildTables = 0;
+static int64_t         g_totalChildTables = DEFAULT_CHILDTABLES;
 static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
@@ -9154,6 +9154,7 @@ int main(int argc, char *argv[]) {
     debugPrint("meta file: %s\n", g_args.metaFile);
 
     if (g_args.metaFile) {
+        g_totalChildTables = 0;
         initOfInsertMeta();
         initOfQueryMeta();
 
