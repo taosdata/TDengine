@@ -1540,6 +1540,8 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->qId = 0;
   pRes->numOfRows = 1;
 
+  registerSqlObj(pSql);
+
   strtolower(pSql->sqlstr, sql);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
@@ -1548,8 +1550,6 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
     pSql->cmd.insertParam.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
-
-    registerSqlObj(pSql);
 
     int32_t ret = stmtParseInsertTbTags(pSql, pStmt);
     if (ret != TSDB_CODE_SUCCESS) {
