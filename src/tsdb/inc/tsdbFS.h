@@ -19,7 +19,7 @@
 /**
  * The fileset .head/.data/.last/.sma use the same TSDB_FS_VERSION.
  * 0 - original format before 2021.08.25 // TODO update date 2021.08.25 to release version.
- * 1 - extract aggregation block data from .data file and save to separated .sma file since 2021.08.25 // TODO update
+ * 1 - extract aggregate block data from .data file and save to separate .sma file since 2021.08.25 // TODO update
  * date to release version.
  */
 #define TSDB_FS_VERSION 1

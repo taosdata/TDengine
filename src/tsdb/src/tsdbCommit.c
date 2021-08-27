@@ -1096,7 +1096,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
     pBlockCol->type = pDataCol->type;
 
     pAggrBlkCol->colId = pDataCol->colId;
-    pAggrBlkCol->type = pDataCol->type;
 
     if (tDataTypes[pDataCol->type].statisFunc) {
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),

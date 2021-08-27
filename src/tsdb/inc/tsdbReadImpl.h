@@ -44,7 +44,8 @@ typedef struct {
   int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
 #ifdef __TD_6117__
   int64_t hasAggr : 1;
-  int64_t aggrOffset : 63;
+  int64_t blkVer : 7;
+  int64_t aggrOffset : 56;
   int32_t aggrLen;
 #endif
   int16_t numOfSubBlocks;
@@ -83,8 +84,8 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-  uint8_t type;
-  char    reserved[15];  // Adjust the size of reserved array whenever adding new field of SAggrBlkCol.
+  // uint8_t type;
+  // char    reserved[15];  // Adjust the size of reserved array whenever adding new field of SAggrBlkCol.
 } SAggrBlkCol;
 
 // Code here just for back-ward compatibility
