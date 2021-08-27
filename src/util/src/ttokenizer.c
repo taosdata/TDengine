@@ -140,6 +140,7 @@ static SKeyword keywordTable[] = {
     {"FROM",         TK_FROM},
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
+    {"EVERY",        TK_EVERY},
     {"SESSION",      TK_SESSION},
     {"STATE_WINDOW", TK_STATE_WINDOW},
     {"FILL",         TK_FILL},

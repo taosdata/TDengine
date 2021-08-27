@@ -94,15 +94,15 @@ cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
-}    
+}
 cmd ::= SHOW CREATE STABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &X);
-}    
+}
 
 cmd ::= SHOW CREATE DATABASE ids(X). {
   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);
-} 
+}
 
 cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
@@ -159,6 +159,11 @@ cmd ::= USE ids(X).              { setDCLSqlElems(pInfo, TSDB_SQL_USE_DB, 1, &X)
 
 /////////////////////////////////THE DESCRIBE STATEMENT/////////////////////////////////////
 cmd ::= DESCRIBE ids(X) cpxName(Y). {
+    X.n += Y.n;
+    setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
+}
+
+cmd ::= DESC ids(X) cpxName(Y). {
     X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
@@ -274,7 +279,7 @@ wal(Y)     ::= WAL INTEGER(X).                { Y = X; }
 fsync(Y)   ::= FSYNC INTEGER(X).              { Y = X; }
 comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
-update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }     
+update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
 partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
 
@@ -323,7 +328,7 @@ alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbTyp
 alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
-typename(A) ::= ids(X). { 
+typename(A) ::= ids(X). {
   X.type = 0;
   tSetColumnType (&A, &X);
 }
@@ -479,7 +484,7 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 //////////////////////// The SELECT statement /////////////////////////////////
 %type select {SSqlNode*}
 %destructor select {destroySqlNode($$);}
-select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) sliding_opt(S) session_option(H) windowstate_option(D) fill_opt(F)groupby_opt(P) having_opt(N) orderby_opt(Z) slimit_opt(G) limit_opt(L). {
+select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_option(K) sliding_opt(S) session_option(H) windowstate_option(D) fill_opt(F)groupby_opt(P) having_opt(N) orderby_opt(Z) slimit_opt(G) limit_opt(L). {
   A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &D, &S, F, &L, &G, N);
 }
 
@@ -569,10 +574,14 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 %type tmvar {SStrToken}
 tmvar(A) ::= VARIABLE(X).   {A = X;}
 
-%type interval_opt {SIntervalVal}
-interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0;}
-interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(X) RP.    {N.interval = E; N.offset = X;}
-interval_opt(N) ::= .                           {memset(&N, 0, sizeof(N));}
+%type interval_option {SIntervalVal}
+interval_option(N) ::= intervalKey(A) LP tmvar(E) RP.                {N.interval = E; N.offset.n = 0; N.token = A;}
+interval_option(N) ::= intervalKey(A) LP tmvar(E) COMMA tmvar(X) RP. {N.interval = E; N.offset = X;   N.token = A;}
+interval_option(N) ::= .                                             {memset(&N, 0, sizeof(N));}
+
+%type intervalKey {int32_t}
+intervalKey(A)     ::= INTERVAL.                                     {A = TK_INTERVAL;}
+intervalKey(A)     ::= EVERY.                                        {A = TK_EVERY;   }
 
 %type session_option {SSessionWindowVal}
 session_option(X) ::= .                                                  {X.col.n = 0; X.gap.n = 0;}
@@ -581,6 +590,7 @@ session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
    X.col = V;
    X.gap = Y;
 }
+
 %type windowstate_option {SWindowStateVal}
 windowstate_option(X) ::= .                                                { X.col.n = 0; X.col.z = NULL;}
 windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
