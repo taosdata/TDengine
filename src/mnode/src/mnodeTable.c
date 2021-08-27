@@ -1246,13 +1246,13 @@ static int32_t mnodeAddSuperTableTag(SMnodeMsg *pMsg, SSchema schema[], int32_t 
     if (mnodeFindSuperTableColumnIndex(pStable, schema[i].name) > 0) {
       mError("msg:%p, app:%p stable:%s, add tag, column:%s already exist", pMsg, pMsg->rpcMsg.ahandle,
              pStable->info.tableId, schema[i].name);
-      return TSDB_CODE_MND_TAG_ALREAY_EXIST;
+      return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
     }
 
     if (mnodeFindSuperTableTagIndex(pStable, schema[i].name) > 0) {
       mError("msg:%p, app:%p stable:%s, add tag, tag:%s already exist", pMsg, pMsg->rpcMsg.ahandle,
              pStable->info.tableId, schema[i].name);
-      return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
+      return TSDB_CODE_MND_TAG_ALREAY_EXIST;
     }
   }
 
@@ -1518,6 +1518,13 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg) {
   // update
   SSchema *schema = (SSchema *) (pStable->schema + col);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
+
+  if (pAlter->schema[0].bytes <= schema->bytes) {
+    mError("msg:%p, app:%p stable:%s, modify column len. column:%s, len from %d to %d", pMsg, pMsg->rpcMsg.ahandle,
+           pStable->info.tableId, name, schema->bytes, pAlter->schema[0].bytes);
+    return TSDB_CODE_MND_INVALID_COLUMN_LENGTH;
+  }
+
   schema->bytes = pAlter->schema[0].bytes;
   pStable->sversion++;
   mInfo("msg:%p, app:%p stable %s, start to modify column %s len to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
@@ -1548,6 +1555,12 @@ static int32_t mnodeChangeSuperTableTag(SMnodeMsg *pMsg) {
   // update
   SSchema *schema = (SSchema *) (pStable->schema + col + pStable->numOfColumns);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
+  if (pAlter->schema[0].bytes <= schema->bytes) {
+    mError("msg:%p, app:%p stable:%s, modify tag len. tag:%s, len from %d to %d", pMsg, pMsg->rpcMsg.ahandle,
+           pStable->info.tableId, name, schema->bytes, pAlter->schema[0].bytes);
+    return TSDB_CODE_MND_INVALID_TAG_LENGTH;
+  }
+
   schema->bytes = pAlter->schema[0].bytes;
   pStable->tversion++;
   mInfo("msg:%p, app:%p stable %s, start to modify tag len %s to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
