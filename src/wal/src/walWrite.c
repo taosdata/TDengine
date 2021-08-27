@@ -167,7 +167,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
 
   pthread_mutex_lock(&pWal->mutex);
 
-  if ((code = tfWrite(pWal->tfd, pHead, contLen)) != contLen) {
+  if ((code = (int32_t)tfWrite(pWal->tfd, pHead, contLen)) != contLen) {
     //TODO: consider truncating here
     if(code > 0) pWal->offset += code;
     code = TAOS_SYSTEM_ERROR(errno);
@@ -448,6 +448,17 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   } else {
     wDebug("vgId:%d, file:%s, open for restore", pWal->vgId, name);
   }
+
+  struct stat fStat;
+  if (fstat(tfd, &fStat) == 0) {
+    if(pWal->fOffset >= fStat.st_size) {
+      ASSERT(pWal->fOffset == fStat.st_size);
+      tfClose(tfd);
+      tfree(buffer);
+      return 0;
+    }
+  }
+
   if(pWal->fOffset && taosLSeek(tfd, pWal->fOffset, SEEK_SET) < 0) {
     //TODO: read and search the version
     taosLSeek(tfd, 0, SEEK_SET);
