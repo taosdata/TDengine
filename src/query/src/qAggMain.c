@@ -4032,9 +4032,21 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
-    if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
+    if (INT64_MIN == pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
+      continue;
+    }
+
+    if (primaryKey[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = primaryKey[i];
+      
       continue;
     }
     
