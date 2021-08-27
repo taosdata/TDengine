@@ -887,8 +887,8 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu", info->id, cTableName, taosArrayGetSize(rowsBind));
 
   size_t rows = taosArrayGetSize(rowsBind);
-  int32_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
-  int32_t batchSize = MIN(maxBatchSize, rows);
+  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
+  size_t batchSize = MIN(maxBatchSize, rows);
   SArray* batchBind = taosArrayInit(batchSize, POINTER_BYTES);
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i=0; i<rows;) {
