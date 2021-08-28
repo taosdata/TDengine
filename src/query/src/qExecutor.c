@@ -5313,7 +5313,7 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
 
       // TSDB_FUNC_TAG_DUMMY function needs to be ignored
       if (index->colId == pExpr->colInfo.colId &&
-          ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && pExpr->functionId == TSDB_FUNC_TAG) ||
+          ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && ((pExpr->functionId == TSDB_FUNC_TAG) || (pExpr->functionId == TSDB_FUNC_TAGPRJ))) ||
            (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && pExpr->functionId == TSDB_FUNC_PRJ))) {
         index->colIndex = j;
         index->colId = pExpr->resColId;
