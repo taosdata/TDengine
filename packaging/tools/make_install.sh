@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-set -x
+# set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -167,8 +167,7 @@ function install_bin() {
 
     #Make link
     if [ "$osType" != "Darwin" ]; then
-        [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos
-            ${bin_link_dir}/taos    || :
+        [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
@@ -176,10 +175,7 @@ function install_bin() {
     fi
     
     if [ "$osType" != "Darwin" ]; then
-       [ -x ${install_main_dir}/bin/remove.sh ] &&
-            ${csudo} ln -s
-            ${install_main_dir}/bin/remove.sh
-            ${bin_link_dir}/rmtaos  || :
+       [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
     fi
 }
 
@@ -226,7 +222,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
