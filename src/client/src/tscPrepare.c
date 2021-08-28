@@ -1522,6 +1522,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->isBind    = true;
   pStmt->pSql     = pSql;
   pStmt->last     = STMT_INIT;
+  registerSqlObj(pSql);
 
   return pStmt;
 }
@@ -1566,6 +1567,8 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->qId = 0;
   pRes->numOfRows = 1;
 
+  registerSqlObj(pSql);
+
   strtolower(pSql->sqlstr, sql);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
@@ -1574,8 +1577,6 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
     pSql->cmd.insertParam.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
-
-    registerSqlObj(pSql);
 
     int32_t ret = stmtParseInsertTbTags(pSql, pStmt);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -1783,7 +1784,9 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  STMT_CHECK
+  if (pStmt == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
   if (!pStmt->isInsert) {
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
@@ -1805,14 +1808,15 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
       if (pStmt->pSql){
         taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+        pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       }
-      pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
+
       taosArrayDestroy(pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);
     }
   }
 
-  tscFreeSqlObj(pStmt->pSql);
+  taos_free_result(pStmt->pSql);
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
@@ -1960,11 +1964,7 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     if (sql == NULL) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
-      if (pStmt->pSql != NULL) {
-        tscFreeSqlObj(pStmt->pSql);
-        pStmt->pSql = NULL;
-      }
-
+      taosReleaseRef(tscObjRef, pStmt->pSql->self);
       pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
       ret = taos_errno(pStmt->pSql);
       free(sql);
@@ -1986,6 +1986,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
     return NULL;
   }
   TAOS_RES* result = pStmt->pSql;
+  pStmt->pSql = NULL;
   return result;
 }
 
