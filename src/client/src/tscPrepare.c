@@ -1522,6 +1522,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->isBind    = true;
   pStmt->pSql     = pSql;
   pStmt->last     = STMT_INIT;
+  registerSqlObj(pSql);
 
   return pStmt;
 }
@@ -1574,8 +1575,6 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
     pSql->cmd.insertParam.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
-
-    registerSqlObj(pSql);
 
     int32_t ret = stmtParseInsertTbTags(pSql, pStmt);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -1815,6 +1814,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
   }
 
   taos_free_result(pStmt->pSql);
+  taosReleaseRef(tscObjRef, pStmt->pSql->self);
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
@@ -1962,12 +1962,9 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     if (sql == NULL) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
-      if (pStmt->pSql != NULL) {
-        tscFreeSqlObj(pStmt->pSql);
-        pStmt->pSql = NULL;
-      }
-
+      taosReleaseRef(tscObjRef, pStmt->pSql->self);
       pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
+      taosAcquireRef(tscObjRef, pStmt->pSql->self);
       ret = taos_errno(pStmt->pSql);
       free(sql);
     }
