@@ -376,6 +376,7 @@ typedef struct SSqlObj {
   
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
+  struct SSqlObj  *rootObj;
 
   int64_t          metaRid;
   int64_t          svgroupRid;
@@ -912,4 +913,3 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
 #endif
 
 #endif
-                            
