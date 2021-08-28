@@ -93,6 +93,11 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer, uint64_t *wver) {
       break;
     }
 
+    //TODO: write wal file also
+    if(pHead->version < pPeer->lastFileVer) {
+      continue;
+    }
+
     sTrace("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
 
     if (lastVer == pHead->version) {
