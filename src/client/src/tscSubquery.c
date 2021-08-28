@@ -860,6 +860,37 @@ static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSq
   return true;
 }
 
+
+bool tscReparseSql(SSqlObj *sql, int32_t code){
+  if (!((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && sql->retry < sql->maxRetry)) {
+    return true;
+  }
+
+  sql->res.code = TSDB_CODE_SUCCESS;
+  sql->retry++;
+  
+  tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", sql->self,
+      tstrerror(code), sql->retry);
+  
+  tscResetSqlCmd(&sql->cmd, true);
+  code = tsParseSql(sql, true);
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    return false;
+  }
+  
+  if (code != TSDB_CODE_SUCCESS) {
+    sql->res.code = code;
+    tscAsyncResultOnError(sql);
+    return false;
+  }
+  
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&sql->cmd);
+  executeQuery(sql, pQueryInfo);
+
+  return false;
+}
+
+
 static void setTidTagType(SJoinSupporter* p, uint8_t type) {
   for (int32_t i = 0; i < p->num; ++i) {
     STidTags * tag = (STidTags*) varDataVal(p->pIdTagList + i * p->tagSize);
@@ -1746,36 +1777,6 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   // restore the offset value for super table query in case of final result.
 //  tscRestoreFuncForSTableQuery(pQueryInfo);
 //  tscFieldInfoUpdateOffset(pQueryInfo);
-}
-
-
-bool tscReparseSql(SSqlObj *sql, int32_t code){
-  if (!((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && sql->retry < sql->maxRetry)) {
-    return true;
-  }
-
-  sql->res.code = TSDB_CODE_SUCCESS;
-  sql->retry++;
-  
-  tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", sql->self,
-      tstrerror(code), sql->retry);
-  
-  tscResetSqlCmd(&sql->cmd, true);
-  code = tsParseSql(sql, true);
-  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    return false;
-  }
-  
-  if (code != TSDB_CODE_SUCCESS) {
-    sql->res.code = code;
-    tscAsyncResultOnError(sql);
-    return false;
-  }
-  
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(&sql->cmd);
-  executeQuery(sql, pQueryInfo);
-
-  return false;
 }
 
 
