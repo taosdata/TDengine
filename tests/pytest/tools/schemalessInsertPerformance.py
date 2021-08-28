@@ -109,7 +109,9 @@ class TDTestCase:
             create 1 stb
         '''
         input_sql = self.getPerfSql(count=count, init=True)
+        print(threading.current_thread().name, "create stb line:", input_sql)
         self._conn.insertLines([input_sql])
+        print(threading.current_thread().name, "create stb end")
 
     def batchCreateTable(self, batch_list):
         '''
@@ -196,7 +198,7 @@ class TDTestCase:
         '''
         table_list = self.genTableList(count=count, table_count=table_count)
         create_tables_start_time = time.time()
-        self.createStb()
+        self.createStb(count=count)
         table_list_generator = self.genTbListGenerator(table_list, sub_list_len)
         create_tables_generator, insert_rows_generator = itertools.tee(table_list_generator, 2)
         self.multiThreadRun(self.threadCreateTables(table_list_generator=create_tables_generator, thread_count=thread_count))
