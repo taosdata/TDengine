@@ -1782,7 +1782,9 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  STMT_CHECK
+  if (pStmt == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
   if (!pStmt->isInsert) {
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
@@ -1797,20 +1799,22 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     if (pStmt->multiTbInsert) {
       taosHashCleanup(pStmt->mtb.pTableHash);
       bool rmMeta = false;
-      if (pStmt->pSql->res.code != 0) {
+      if (pStmt->pSql && pStmt->pSql->res.code != 0) {
         rmMeta = true;
       }
       tscDestroyDataBlock(pStmt->mtb.lastBlock, rmMeta);
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
-      taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
-      pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
+      if (pStmt->pSql){
+        taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+        pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
+      }
+
       taosArrayDestroy(pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);
     }
   }
 
   taos_free_result(pStmt->pSql);
-  taosReleaseRef(tscObjRef, pStmt->pSql->self);
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
@@ -1960,7 +1964,6 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     } else {
       taosReleaseRef(tscObjRef, pStmt->pSql->self);
       pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
-      taosAcquireRef(tscObjRef, pStmt->pSql->self);
       ret = taos_errno(pStmt->pSql);
       free(sql);
     }
@@ -1981,6 +1984,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
     return NULL;
   }
   TAOS_RES* result = pStmt->pSql;
+  pStmt->pSql = NULL;
   return result;
 }
 
