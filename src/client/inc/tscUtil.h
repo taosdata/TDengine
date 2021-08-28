@@ -36,7 +36,7 @@ extern "C" {
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
 
 #define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
-  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo) || UTIL_TABLE_IS_TMP_TABLE(metaInfo)))
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
 #define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
@@ -364,6 +364,8 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
+
+char* cloneCurrentDBName(SSqlObj* pSql);
 
 #ifdef __cplusplus
 }
