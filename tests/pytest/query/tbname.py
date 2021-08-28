@@ -53,6 +53,9 @@ class TDTestCase:
             "select * from cars where id=0 and tbname in ('carzero', 'cartwo')")
         tdSql.checkRows(1)
 
+        tdSql.query("select * from cars where tbname in ('carZero', 'CARONE')")
+        tdSql.checkRows(2)
+
         """
         tdSql.query("select * from cars where tbname like 'car%'")
         tdSql.checkRows(2)

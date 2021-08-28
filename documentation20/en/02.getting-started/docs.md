@@ -16,9 +16,7 @@ Please visit our [TDengine Official Docker Image: Distribution, Downloading, and
 
 It’s extremely easy to install for TDengine, which takes only a few seconds from downloaded to successful installed. The server installation package includes clients and connectors. We provide 3 installation packages, which you can choose according to actual needs:
 
-Click [here](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85) to download the install package.
-
-For more about installation process, please refer [TDengine Installation Packages: Install and Uninstall](https://www.taosdata.com/blog/2019/08/09/566.html), and [Video Tutorials](https://www.taosdata.com/blog/2020/11/11/1941.html).
+Click [here](https://www.taosdata.com/en/getting-started/#Install-from-Package) to download the install package.
 
 ## <a class="anchor" id="start"></a>Quick Launch
 

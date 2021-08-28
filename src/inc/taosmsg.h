@@ -536,6 +536,8 @@ typedef struct SRetrieveTableRsp {
   int16_t precision;
   int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
+  int8_t  compressed;
+  int32_t compLen;
   char    data[];
 } SRetrieveTableRsp;
 
@@ -879,7 +881,7 @@ typedef struct {
   uint64_t sqlObjId;
   int32_t  pid;
   char     fqdn[TSDB_FQDN_LEN];
-  bool     stableQuery;
+  uint8_t  stableQuery;
   int32_t  numOfSub;
   char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
