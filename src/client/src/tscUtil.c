@@ -4073,6 +4073,31 @@ int32_t tscInvalidOperationMsg(char* msg, const char* additionalInfo, const char
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
+int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql) {
+  const char* msgFormat1 = "%s:%s";
+  const char* msgFormat2 = "%s:\'%s\' (%s)";
+  const char* msgFormat3 = "%s:\'%s\'";
+
+  const int32_t BACKWARD_CHAR_STEP = 0;
+
+  if (sql == NULL) {
+    assert(errMsg != NULL);
+    sprintf(dstBuffer, msgFormat1, tstrerror(code), errMsg);
+    return code;
+  }
+
+  char buf[64] = {0};  // only extract part of sql string
+  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
+
+  if (errMsg != NULL) {
+    sprintf(dstBuffer, msgFormat2, tstrerror(code), buf, errMsg);
+  } else {
+    sprintf(dstBuffer, msgFormat3, tstrerror(code), buf);  // no additional information for invalid sql error
+  }
+
+  return code;
+}
+
 bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
   assert(pQueryInfo != NULL && pQueryInfo->clauseLimit != 0);
   return (pQueryInfo->clauseLimit > 0 && pRes->numOfClauseTotal >= pQueryInfo->clauseLimit);
