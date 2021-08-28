@@ -59,6 +59,7 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
 //query buffer management
@@ -157,6 +158,7 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsTickPerDay[3];
+extern int32_t tsTopicBianryLen;
 
 // system info
 extern char    tsOsName[];

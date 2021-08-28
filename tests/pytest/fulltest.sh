@@ -28,6 +28,7 @@ python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
+python3 ./test.py -f insert/specialSql.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -76,6 +77,7 @@ python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
 python3 ./test.py -f tag_lite/timestamp.py
+python3 ./test.py -f tag_lite/TestModifyTag.py
 
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
 python3 test.py -f dbmgmt/nanoSecondCheck.py
@@ -151,6 +153,7 @@ python3 ./test.py -f import_merge/importCSV.py
 python3 ./test.py -f import_merge/import_update_0.py
 python3 ./test.py -f import_merge/import_update_1.py
 python3 ./test.py -f import_merge/import_update_2.py
+python3 ./test.py -f update/merge_commit_data.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
@@ -179,7 +182,7 @@ python3 ./test.py -f update/allow_update-0.py
 python3 ./test.py -f update/append_commit_data.py
 python3 ./test.py -f update/append_commit_last-0.py
 python3 ./test.py -f update/append_commit_last.py
-python3 ./test.py -f update/merge_commit_data.py
+
 
 python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
@@ -253,7 +256,7 @@ python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
 python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
-python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
+# python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
@@ -384,6 +387,7 @@ python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f query/queryGroupTbname.py
 
 #======================p4-end===============
 
