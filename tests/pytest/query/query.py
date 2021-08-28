@@ -13,10 +13,10 @@
 
 import sys
 import taos
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
 
 
 class TDTestCase:
