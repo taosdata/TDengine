@@ -120,8 +120,10 @@ class TDTestCase:
         print(threading.current_thread().name, "length=", len(batch_list))
         print(threading.current_thread().name, 'firstline', batch_list[0][0:50], '...', batch_list[0][-50:-1])
         print(threading.current_thread().name, 'lastline:', batch_list[-1][0:50], '...', batch_list[-1][-50:-1])
+        begin = time.time_ns();
         self._conn.insertLines(batch_list)
-        print(threading.current_thread().name, 'end')
+        end = time.time_ns();
+        print(threading.current_thread().name, 'end time:', (end-begin)/10**9)
 
     def splitGenerator(self, table_list, sub_list_len):
         '''
