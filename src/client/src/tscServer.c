@@ -3011,6 +3011,8 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }
     }
+
+    tscDebug("0x%"PRIx64 " %s retrieve tableMeta from cache, numOfCols:%d, numOfTags:%d", pSql->self, name, pMeta->tableInfo.numOfColumns, pMeta->tableInfo.numOfTags);
     return TSDB_CODE_SUCCESS;
   }
 
