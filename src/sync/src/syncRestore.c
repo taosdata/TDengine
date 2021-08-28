@@ -45,8 +45,8 @@ static int32_t syncRecvFileVersion(SSyncPeer *pPeer, uint64_t *fversion, uint64_
     return -1;
   }
 
-  *fversion = htobe64(fileVersion.fversion);
-  *fOffset  = htobe64(fileVersion.fOffset);
+  *fversion = be64toh(fileVersion.fversion);
+  *fOffset  = be64toh(fileVersion.fOffset);
   return 0;
 }
 
