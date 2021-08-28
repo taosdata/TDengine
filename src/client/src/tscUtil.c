@@ -3538,7 +3538,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
-  pNew->sqlstr    = strdup(pSql->sqlstr);
+  pNew->sqlstr    = strdup(pSql->sqlstr);  
+  pNew->rootObj   = pSql->rootObj;
   tsem_init(&pNew->rspSem, 0, 0);
 
   SSqlCmd* pnCmd  = &pNew->cmd;
@@ -3814,7 +3815,9 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     // todo refactor
     tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
 
-    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry)) {
+    SSqlObj *rootObj = pParentSql->rootObj;
+
+    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && rootObj->retry < rootObj->maxRetry)) {
       pParentSql->res.code = code;
 
       tscAsyncResultOnError(pParentSql);
@@ -3824,29 +3827,32 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     tscFreeSubobj(pParentSql);
     tfree(pParentSql->pSubs);
 
-    pParentSql->res.code = TSDB_CODE_SUCCESS;
-    pParentSql->retry++;
+    tscFreeSubobj(rootObj);
+    tfree(rootObj->pSubs);
 
-    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
-             tstrerror(code), pParentSql->retry);
+    rootObj->res.code = TSDB_CODE_SUCCESS;
+    rootObj->retry++;
+
+    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", rootObj->self,
+             tstrerror(code), rootObj->retry);
 
 
-    tscResetSqlCmd(&pParentSql->cmd, true);
+    tscResetSqlCmd(&rootObj->cmd, true);
 
-    code = tsParseSql(pParentSql, true);
+    code = tsParseSql(rootObj, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       return;
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-      pParentSql->res.code = code;
-      tscAsyncResultOnError(pParentSql);
+      rootObj->res.code = code;
+      tscAsyncResultOnError(rootObj);
       return;
     }
 
-    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(&rootObj->cmd);
 
-    executeQuery(pParentSql, pQueryInfo);
+    executeQuery(rootObj, pQueryInfo);
     return;
   }
 
@@ -3898,7 +3904,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->sqlstr    = strdup(pSql->sqlstr);
       pNew->fp        = tscSubqueryCompleteCallback;
       pNew->fetchFp   = tscSubqueryCompleteCallback;
-      pNew->maxRetry  = pSql->maxRetry;
+      pNew->maxRetry  = pSql->maxRetry;      
+      pNew->rootObj   = pSql->rootObj;
 
       pNew->cmd.resColumnId = TSDB_RES_COL_ID;
 

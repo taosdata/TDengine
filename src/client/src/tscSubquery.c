@@ -1728,6 +1728,37 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 //  tscFieldInfoUpdateOffset(pQueryInfo);
 }
 
+
+bool tscReparseSql(SSqlObj *sql, int32_t code){
+  if (!((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && sql->retry < sql->maxRetry)) {
+    return true;
+  }
+
+  sql->res.code = TSDB_CODE_SUCCESS;
+  sql->retry++;
+  
+  tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", sql->self,
+      tstrerror(code), sql->retry);
+  
+  tscResetSqlCmd(&sql->cmd, true);
+  code = tsParseSql(sql, true);
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    return false;
+  }
+  
+  if (code != TSDB_CODE_SUCCESS) {
+    sql->res.code = code;
+    tscAsyncResultOnError(sql);
+    return false;
+  }
+  
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&sql->cmd);
+  executeQuery(sql, pQueryInfo);
+
+  return false;
+}
+
+
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = (SSqlObj*)tres;
 
@@ -1747,6 +1778,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
       return;
     }
 
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
+      return;
+    }
+    
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1760,6 +1795,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     pParentSql->res.code = code;
 
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
     
@@ -2767,14 +2806,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
 
     int32_t code = pParentSql->res.code;
-    SSqlObj *userSql = NULL;
-    if (pParentSql->param) {
-      userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
-    }
-
-    if (userSql == NULL) {
-      userSql = pParentSql;
-    }
+    SSqlObj *userSql = pParentSql->rootObj;
 
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
       if (userSql != pParentSql) {
