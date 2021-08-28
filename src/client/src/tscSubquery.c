@@ -3448,6 +3448,8 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     char* pData = getResultBlockPosition(pCmd1, pRes1, pIndex->columnIndex, &bytes);
     memcpy(data, pData, bytes * numOfRes);
 
+    pRes->dataConverted = pRes1->dataConverted;
+
     data += bytes * numOfRes;
   }
 
@@ -3473,7 +3475,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   doArithmeticCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
 
   pRes->data = pFilePage->data;
-  tscSetResRawPtr(pRes, pQueryInfo);
+  tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
 }
 
 void tscBuildResFromSubqueries(SSqlObj *pSql) {

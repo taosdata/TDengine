@@ -690,9 +690,13 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
     memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
   }
+
+  if (convertNchar) {
+    pRes->dataConverted = true;
+  }
 }
 
-void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo, bool converted) {
   assert(pRes->numOfCols > 0);
   if (pRes->numOfRows == 0) {
     return;
@@ -705,7 +709,7 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     pRes->length[i] = pInfo->field.bytes;
 
     offset += pInfo->field.bytes;
-    setResRawPtrImpl(pRes, pInfo, i, true);
+    setResRawPtrImpl(pRes, pInfo, i, converted ? false : true);
   }
 }
 
@@ -3424,6 +3428,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 
   pRes->row = 0;
   pRes->numOfRows = 0;
+  pRes->dataConverted = false;
 }
 
 void tscInitResForMerge(SSqlRes* pRes) {
