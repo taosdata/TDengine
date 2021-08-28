@@ -34,7 +34,7 @@
 #define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", __FILE__, __LINE__, monDebugFlag, __VA_ARGS__); }}
 
 #define SQL_LENGTH     1030
-#define LOG_LEN_STR    100
+#define LOG_LEN_STR    512
 #define IP_LEN_STR     TSDB_EP_LEN
 #define CHECK_INTERVAL 1000
 
