@@ -387,6 +387,7 @@ python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f query/queryGroupTbname.py
 
 #======================p4-end===============
 

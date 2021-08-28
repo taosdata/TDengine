@@ -3464,6 +3464,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   }
 
   if (numOfRes == 0) {  // no result any more, free all subquery objects
+    pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
     return;
   }
