@@ -452,7 +452,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   int64_t fSize = tfSize(tfd);
   if(fSize > 0) {
     if(pWal->fOffset > fSize) {
-      ASSERT(pWal->fOffset == fSize + 1);
+      /*ASSERT(pWal->fOffset == fSize + 1);*/
       tfClose(tfd);
       tfree(buffer);
       return 0;

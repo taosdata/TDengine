@@ -56,7 +56,6 @@ static bool syncIsWalModified(SSyncNode *pNode, SSyncPeer *pPeer) {
   return false;
 }
 
-//TODO: sync offset also
 static int32_t syncGetFileVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
   uint64_t offset, fOffset;
