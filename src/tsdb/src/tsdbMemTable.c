@@ -106,7 +106,7 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
         tsdbRecycleBufferBlock(pBufPool, pNode, false);
         pBufPool->nRecycleBlocks -= 1;
       } else {
-        if(pBufPool->nElasticBlocks > 0 && listNEles(pBufPool->bufBlockList) > 0) {
+        if(pBufPool->nElasticBlocks > 0 && listNEles(pBufPool->bufBlockList) > 2) {
           tsdbRecycleBufferBlock(pBufPool, pNode, true);
         } else {
           tdListAppendNode(pBufPool->bufBlockList, pNode);

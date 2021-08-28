@@ -121,7 +121,7 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
     if(tsDeadLockKillQuery) {
       // supply new Block 
       if(tsdbInsertNewBlock(pRepo) > 0) {
-        tsdbWarn("vgId:%d add new elastic block . elasticBlocks=%d totalBlocks=%d", REPO_ID(pRepo), pBufPool->nElasticBlocks, pBufPool->nBufBlocks);
+        tsdbWarn("vgId:%d add new elastic block . elasticBlocks=%d cur free Blocks=%d", REPO_ID(pRepo), pBufPool->nElasticBlocks, pBufPool->bufBlockList->numOfEles);
         break;
       } else {
         // no newBlock, kill query free
@@ -205,7 +205,10 @@ void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic
   tsdbFreeBufBlock(pBufBlock);
   free(pNode);
   if(bELastic)
-      pPool->nElasticBlocks--;
+  {
+    pPool->nElasticBlocks--;
+    tsdbWarn("pPool=%p elastic block reduce one . nElasticBlocks=%d cur free Blocks=%d", pPool, pPool->nElasticBlocks, pPool->bufBlockList->numOfEles);
+  }
   else
     pPool->nBufBlocks--;
 }

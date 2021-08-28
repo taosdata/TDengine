@@ -240,7 +240,7 @@ int waitMoment(SQInfo* pQInfo){
       }
     }
     if(ms == 0) return 0;
-    qWarn("wait sleep %dms. sql=%s", ms, pQInfo->sql);
+    printf("test wait sleep %dms. sql=%s ...\n", ms, pQInfo->sql);
     
     if(ms < 1000) {
       taosMsleep(ms);
@@ -250,7 +250,7 @@ int waitMoment(SQInfo* pQInfo){
         taosMsleep(1000);
         used_ms += 1000;
         if(isQueryKilled(pQInfo)){
-          qWarn("check query is canceled, sleep break... %s", pQInfo->sql);
+          printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
           break;
         }
       }
@@ -753,9 +753,16 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
 
 //solve tsdb no block to commit
 bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
-  qWarn("pRepo=%p start solve no block problem.", pRepo);
+  qWarn("pRepo=%p start solve problem.", pRepo);
   if(qFixedNoBlock(pRepo, pMgmt, 10*60*1000)) {
     return true;
   }
-  return qFixedNoBlock(pRepo, pMgmt, 2*60*1000);
+  if(qFixedNoBlock(pRepo, pMgmt, 2*60*1000)){
+    return true;
+  }
+  if(qFixedNoBlock(pRepo, pMgmt, 30*1000)){
+    return true;
+  }
+  qWarn("pRepo=%p solve problem failed.", pRepo);
+  return false;
 }
