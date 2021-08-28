@@ -892,12 +892,14 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   size_t batchSize = MIN(maxBatchSize, rows);
   SArray* batchBind = taosArrayInit(batchSize, POINTER_BYTES);
   int32_t code = TSDB_CODE_SUCCESS;
-  for (int i=0; i<rows;) {
+  for (int i = 0; i < rows;) {
     int j = i;
     for (; j < i + batchSize && j<rows; ++j) {
       taosArrayPush(batchBind, taosArrayGet(rowsBind, j));
     }
-    if (j>=i) {
+    if (j > i) {
+      tscDebug("SML:0x%"PRIx64" insert child table batch from line %d to line %d. total rows: %zu, batch size: %zu",
+               info->id, i, j - 1, rows, batchSize);
       code = doInsertChildTableWithStmt(taos, sql, cTableName, batchBind, info);
       if (code != 0) {
         taosArrayDestroy(batchBind);
