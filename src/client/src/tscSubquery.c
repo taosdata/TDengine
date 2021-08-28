@@ -1102,6 +1102,10 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       return;
     }
 
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
+      return;
+    }
+
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1116,6 +1120,10 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     pParentSql->res.code = numOfRows;
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
 
@@ -1256,6 +1264,10 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       return;
     }
 
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
+      return;
+    }
+
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1269,6 +1281,10 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     pParentSql->res.code = numOfRows;
     if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
 
@@ -1399,6 +1415,10 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" abort query due to other subquery failure. code:%d, global code:%d", pSql->self, numOfRows, pParentSql->res.code);
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
     
