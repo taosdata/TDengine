@@ -121,8 +121,6 @@ step4:
 		return -1
 	endi
 
-sleep 2000
-
 sql show d1.vgroups
 print online vgroups: $data03
 if $data03 != 3 then

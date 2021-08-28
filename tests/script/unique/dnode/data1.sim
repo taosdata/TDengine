@@ -106,7 +106,7 @@ print ========== step6
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
-sleep 20000
+sleep 10000
 
 print ========== step7
 sql select * from d1.t1 order by t desc
