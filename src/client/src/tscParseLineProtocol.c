@@ -885,11 +885,11 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
   sql[strlen(sql)] = '\0';
 
-  tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu", info->id, cTableName, taosArrayGetSize(rowsBind));
-
   size_t rows = taosArrayGetSize(rowsBind);
   size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
   size_t batchSize = MIN(maxBatchSize, rows);
+  tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu, batch size: %zu",
+           info->id, cTableName, rows, batchSize);
   SArray* batchBind = taosArrayInit(batchSize, POINTER_BYTES);
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < rows;) {
@@ -898,8 +898,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
       taosArrayPush(batchBind, taosArrayGet(rowsBind, j));
     }
     if (j > i) {
-      tscDebug("SML:0x%"PRIx64" insert child table batch from line %d to line %d. total rows: %zu, batch size: %zu",
-               info->id, i, j - 1, rows, batchSize);
+      tscDebug("SML:0x%"PRIx64" insert child table batch from line %d to line %d.", info->id, i, j - 1);
       code = doInsertChildTableWithStmt(taos, sql, cTableName, batchBind, info);
       if (code != 0) {
         taosArrayDestroy(batchBind);
