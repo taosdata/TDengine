@@ -5978,20 +5978,30 @@ static int64_t generateData(char *recBuf, char **data_type,
 
 static int generateSampleMemoryFromRand(SSuperTable *stbInfo)
 {
-    uint64_t pos = 0;
-    char data[MAX_DATA_SIZE] = {0};
+    char data[MAX_DATA_SIZE];
+    memset(data, 0, MAX_DATA_SIZE);
+
+    char *buff = malloc(stbInfo->lenOfOneRow);
+    if (NULL == buff) {
+        errorPrint2("%s() LN%d, memory allocation %"PRId64" bytes failed\n",
+                __func__, __LINE__, stbInfo->lenOfOneRow);
+        exit(EXIT_FAILURE);
+    }
 
     for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
+        uint64_t pos = 0;
+        memset(buff, 0, stbInfo->lenOfOneRow);
+
         for (int c = 0; c < stbInfo->columnCount; c++) {
             char *tmp;
             if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "BINARY", strlen("BINARY"))) {
                 rand_string(data, stbInfo->columns[c].dataLen);
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", data);
+                pos += sprintf(buff + pos, "%s,", data);
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "NCHAR", strlen("NCHAR"))) {
                 rand_string(data, stbInfo->columns[c].dataLen);
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", data);
+                pos += sprintf(buff + pos, "%s,", data);
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "INT", strlen("INT"))) {
                 if ((g_args.demo_mode) && (c == 1)) {
@@ -5999,10 +6009,10 @@ static int generateSampleMemoryFromRand(SSuperTable *stbInfo)
                 } else {
                     tmp = rand_int_str();
                 }
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", tmp);
+                pos += sprintf(buff + pos, "%s,", tmp);
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "BIGINT", strlen("BIGINT"))) {
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", rand_bigint_str());
+                pos += sprintf(buff + pos, "%s,", rand_bigint_str());
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "FLOAT", strlen("FLOAT"))) {
                 if (g_args.demo_mode) {
@@ -6014,27 +6024,29 @@ static int generateSampleMemoryFromRand(SSuperTable *stbInfo)
                 } else {
                     tmp = rand_float_str();
                 }
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", tmp);
+                pos += sprintf(buff + pos, "%s,", tmp);
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "DOUBLE", strlen("DOUBLE"))) {
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", rand_double_str());
+                pos += sprintf(buff + pos, "%s,", rand_double_str());
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "SMALLINT", strlen("SMALLINT"))) {
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", rand_smallint_str());
+                pos += sprintf(buff + pos, "%s,", rand_smallint_str());
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "TINYINT", strlen("TINYINT"))) {
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", rand_tinyint_str());
+                pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "BOOL", strlen("BOOL"))) {
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", rand_bool_str());
+                pos += sprintf(buff + pos, "%s,", rand_bool_str());
             } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
                         "TIMESTAMP", strlen("TIMESTAMP"))) {
-                pos += sprintf(stbInfo->sampleDataBuf + pos, "%s,", rand_bigint_str());
+                pos += sprintf(buff + pos, "%s,", rand_bigint_str());
             }
         }
-        pos += sprintf(stbInfo->sampleDataBuf + pos - 1, "\n");
+        *(buff + pos - 1) = 0;
+        memcpy(stbInfo->sampleDataBuf + i * stbInfo->lenOfOneRow, buff, pos);
     }
 
+    free(buff);
     return 0;
 }
 
@@ -7777,7 +7789,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             pstr += len;
             remainderBufLen -= len;
 
-startTs = taosGetTimestampUs();
+            // measure prepare + insert
+            startTs = taosGetTimestampUs();
 
             int32_t generated;
             if (stbInfo) {
@@ -7843,7 +7856,8 @@ startTs = taosGetTimestampUs();
             start_time +=  generated * timeStampStep;
             pThreadInfo->totalInsertRows += generated;
 
-// CBD            startTs = taosGetTimestampUs();
+            // only measure insert
+            // startTs = taosGetTimestampUs();
 
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
