@@ -365,6 +365,8 @@ STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
+char* cloneCurrentDBName(SSqlObj* pSql);
+
 #ifdef __cplusplus
 }
 #endif
