@@ -19,6 +19,7 @@
 #include "httpLog.h"
 #include "httpRestHandle.h"
 #include "httpRestJson.h"
+#include "tglobal.h"
 
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};
@@ -111,6 +112,14 @@ bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
   pContext->db[0] = '\0';
 
   HttpString *path = &pContext->parser->path[REST_USER_USEDB_URL_POS];
+  if (tsHttpDbNameMandatory) {
+    if (path->pos == 0) {
+      httpError("context:%p, fd:%d, user:%s, database name is mandatory", pContext, pContext->fd, pContext->user);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVALID_URL);
+      return false;
+    }
+  }
+
   if (path->pos > 0 && !(strlen(sql) > 4 && (sql[0] == 'u' || sql[0] == 'U') &&
       (sql[1] == 's' || sql[1] == 'S') && (sql[2] == 'e' || sql[2] == 'E') && sql[3] == ' '))
   {

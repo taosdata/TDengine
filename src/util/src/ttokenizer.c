@@ -137,6 +137,7 @@ static SKeyword keywordTable[] = {
     {"COMMA",        TK_COMMA},
     {"NULL",         TK_NULL},
     {"SELECT",       TK_SELECT},
+    {"EVERY",        TK_EVERY},
     {"FROM",         TK_FROM},
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
