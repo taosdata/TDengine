@@ -32,6 +32,8 @@ typedef struct {
   uint8_t type;
   int16_t length;
   char* value;
+
+  uint32_t fieldSchemaIdx;
 } TAOS_SML_KV;
 
 typedef struct {
@@ -44,6 +46,8 @@ typedef struct {
   // first kv must be timestamp
   TAOS_SML_KV* fields;
   int32_t fieldNum;
+
+  uint32_t schemaIdx;
 } TAOS_SML_DATA_POINT;
 
 typedef enum {
@@ -56,7 +60,6 @@ typedef enum {
 
 typedef struct {
   uint64_t id;
-  SHashObj* smlDataToSchema;
 } SSmlLinesInfo;
 
 //=================================================================================================
@@ -175,8 +178,7 @@ static int32_t buildSmlKvSchema(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* arra
     taosHashPut(hash, field.name, tagKeyLen, &fieldIdx, sizeof(fieldIdx));
   }
 
-  uintptr_t valPointer = (uintptr_t)smlKv;
-  taosHashPut(info->smlDataToSchema, &valPointer, sizeof(uintptr_t), &fieldIdx, sizeof(fieldIdx));
+  smlKv->fieldSchemaIdx = (uint32_t)fieldIdx;
 
   return 0;
 }
@@ -270,8 +272,7 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       }
     }
 
-    uintptr_t valPointer = (uintptr_t)point;
-    taosHashPut(info->smlDataToSchema, &valPointer, sizeof(uintptr_t), &stableIdx, sizeof(stableIdx));
+    point->schemaIdx = (uint32_t)stableIdx;
   }
 
   size_t numStables = taosArrayGetSize(stableSchemas);
@@ -916,10 +917,7 @@ static int32_t arrangePointsByChildTableName(TAOS_SML_DATA_POINT* points, int nu
                                              SHashObj* cname2points, SArray* stableSchemas, SSmlLinesInfo* info) {
   for (int32_t i = 0; i < numPoints; ++i) {
     TAOS_SML_DATA_POINT * point = points + i;
-    uintptr_t valPointer = (uintptr_t)point;
-    size_t* pSchemaIndex = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-    assert(pSchemaIndex != NULL);
-    SSmlSTableSchema* stableSchema = taosArrayGet(stableSchemas, *pSchemaIndex);
+    SSmlSTableSchema* stableSchema = taosArrayGet(stableSchemas, point->schemaIdx);
 
     for (int j = 0; j < point->tagNum; ++j) {
       TAOS_SML_KV* kv =  point->tags + j;
@@ -963,10 +961,7 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
     TAOS_SML_DATA_POINT * pDataPoint = taosArrayGetP(cTablePoints, i);
     for (int j = 0; j < pDataPoint->tagNum; ++j) {
       TAOS_SML_KV* kv = pDataPoint->tags + j;
-      uintptr_t valPointer = (uintptr_t)kv;
-      size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-      assert(pFieldSchemaIdx != NULL);
-      tagKVs[*pFieldSchemaIdx] = kv;
+      tagKVs[kv->fieldSchemaIdx] = kv;
     }
   }
   
@@ -980,10 +975,7 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
   for (int j = 0; j < numTags; ++j) {
     if (tagKVs[j] == NULL) continue;
     TAOS_SML_KV* kv =  tagKVs[j];
-    uintptr_t valPointer = (uintptr_t)kv;
-    size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-    assert(pFieldSchemaIdx != NULL);
-    TAOS_BIND* bind = taosArrayGet(tagBinds, *pFieldSchemaIdx);
+    TAOS_BIND* bind = taosArrayGet(tagBinds, kv->fieldSchemaIdx);
     bind->buffer_type = kv->type;
     bind->length = malloc(sizeof(uintptr_t*));
     *bind->length = kv->length;
@@ -1026,10 +1018,7 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
     }
     for (int j = 0; j < point->fieldNum; ++j) {
       TAOS_SML_KV* kv = point->fields + j;
-      uintptr_t valPointer = (uintptr_t)kv;
-      size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-      assert(pFieldSchemaIdx != NULL);
-      TAOS_BIND* bind = colBinds + *pFieldSchemaIdx;
+      TAOS_BIND* bind = colBinds + kv->fieldSchemaIdx;
       bind->buffer_type = kv->type;
       bind->length = malloc(sizeof(uintptr_t*));
       *bind->length = kv->length;
@@ -1067,10 +1056,7 @@ static int32_t applyDataPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t 
     SArray* cTablePoints = *pCTablePoints;
 
     TAOS_SML_DATA_POINT* point = taosArrayGetP(cTablePoints, 0);
-    uintptr_t valPointer = (uintptr_t)point;
-    size_t* pSchemaIndex = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-    assert(pSchemaIndex != NULL);
-    SSmlSTableSchema*    sTableSchema = taosArrayGet(stableSchemas, *pSchemaIndex);
+    SSmlSTableSchema*    sTableSchema = taosArrayGet(stableSchemas, point->schemaIdx);
 
     tscDebug("SML:0x%"PRIx64" apply child table tags. child table: %s", info->id, point->childTableName);
     code = applyChildTableTags(taos, point->childTableName, point->stableName, sTableSchema, cTablePoints, info);
@@ -1113,7 +1099,6 @@ int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLine
   tscDebug("SML:0x%"PRIx64" taos_sml_insert. number of points: %d", info->id, numPoint);
 
   int32_t code = TSDB_CODE_SUCCESS;
-  info->smlDataToSchema = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, false);
 
   tscDebug("SML:0x%"PRIx64" build data point schemas", info->id);
   SArray* stableSchemas = taosArrayInit(32, sizeof(SSmlSTableSchema)); // SArray<STableColumnsSchema>
@@ -1143,11 +1128,10 @@ clean_up:
     taosArrayDestroy(schema->tags);
   }
   taosArrayDestroy(stableSchemas);
-  taosHashCleanup(info->smlDataToSchema);
   return code;
 }
 
-int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
+int tsc_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
   SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
   info->id = genLinesSmlId();
   int code = tscSmlInsert(taos, points, numPoint, info);
