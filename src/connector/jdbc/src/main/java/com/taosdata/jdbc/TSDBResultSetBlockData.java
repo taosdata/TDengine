@@ -32,6 +32,7 @@ import java.util.List;
 import com.taosdata.jdbc.utils.NullType;
 
 public class TSDBResultSetBlockData {
+    private static final int BINARY_LENGTH_OFFSET = 2;
     private int numOfRows = 0;
     private int rowIndex = 0;
 
@@ -404,10 +405,8 @@ public class TSDBResultSetBlockData {
 
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 ByteBuffer bb = (ByteBuffer) this.colData.get(col);
-                bb.position(fieldSize * this.rowIndex);
-
+                bb.position((fieldSize + BINARY_LENGTH_OFFSET) * this.rowIndex);
                 int length = bb.getShort();
-
                 byte[] dest = new byte[length];
                 bb.get(dest, 0, length);
                 if (NullType.isBinaryNull(dest, length)) {
@@ -419,16 +418,13 @@ public class TSDBResultSetBlockData {
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 ByteBuffer bb = (ByteBuffer) this.colData.get(col);
-                bb.position(fieldSize * this.rowIndex);
-
+                bb.position((fieldSize + BINARY_LENGTH_OFFSET) * this.rowIndex);
                 int length = bb.getShort();
-
                 byte[] dest = new byte[length];
                 bb.get(dest, 0, length);
                 if (NullType.isNcharNull(dest, length)) {
                     return null;
                 }
-
                 try {
                     String charset = TaosGlobalConfig.getCharset();
                     return new String(dest, charset);
