@@ -599,19 +599,19 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pSql->cmd.payload, "table name is invalid");
-      tscFreeRegisteredSqlObj(pSql);
+      taosReleaseRef(tscObjRef, pSql->self);
       return code;
     }
 
     SName sname = {0};
     if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
-      tscFreeRegisteredSqlObj(pSql);
+      taosReleaseRef(tscObjRef, pSql->self);
       return code;
     }
     char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
     memset(fullTableName, 0, tListLen(fullTableName));
     tNameExtractFullName(&sname, fullTableName);
-    tscFreeRegisteredSqlObj(pSql);
+    taosReleaseRef(tscObjRef, pSql->self);
 
     size_t size = 0;
     taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);

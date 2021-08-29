@@ -1812,7 +1812,11 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
   }
 
-  tscFreeSqlObj(pStmt->pSql);
+  if (RID_VALID(pStmt->pSql->self)) {
+    taosReleaseRef(tscObjRef, pStmt->pSql->self);
+  } else {
+    tscFreeSqlObj(pStmt->pSql);
+  }
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
@@ -1961,7 +1965,11 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
       if (pStmt->pSql != NULL) {
-        tscFreeSqlObj(pStmt->pSql);
+        if (RID_VALID(pStmt->pSql->self)) {
+          taosReleaseRef(tscObjRef, pStmt->pSql->self);
+        } else {
+          tscFreeSqlObj(pStmt->pSql);
+        }
         pStmt->pSql = NULL;
       }
 
