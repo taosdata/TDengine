@@ -28,7 +28,7 @@ class insertFromCSVPerformace:
         self.tbName = tbName
         self.branchName = branchName
         self.type = buildType
-        self.ts = 1500074556514
+        self.ts = 1500000000000
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
@@ -46,13 +46,20 @@ class insertFromCSVPerformace:
             config = self.config)
 
     def writeCSV(self):
-        with open('test3.csv','w', encoding='utf-8', newline='') as csvFile:
+        tsset = set()
+        rows = 0
+        with open('test4.csv','w', encoding='utf-8', newline='') as csvFile:
             writer = csv.writer(csvFile, dialect='excel')
-            for i in range(1000000):
-                newTimestamp = self.ts + random.randint(10000000, 10000000000) + random.randint(1000, 10000000) + random.randint(1, 1000)
-                d = datetime.datetime.fromtimestamp(newTimestamp / 1000)
-                dt = str(d.strftime("%Y-%m-%d %H:%M:%S.%f"))
-                writer.writerow(["'%s'" % dt, random.randint(1, 100), random.uniform(1, 100), random.randint(1, 100), random.randint(1, 100)])
+            while True:
+                newTimestamp = self.ts + random.randint(1, 10) * 10000000000 + random.randint(1, 10) * 1000000000 + random.randint(1, 10) * 100000000 + random.randint(1, 10) * 10000000 + random.randint(1, 10) * 1000000 + random.randint(1, 10) * 100000 + random.randint(1, 10) * 10000 + random.randint(1, 10) * 1000 + random.randint(1, 10) * 100 + random.randint(1, 10) * 10 + random.randint(1, 10)
+                if newTimestamp not in tsset:
+                    tsset.add(newTimestamp)
+                    d = datetime.datetime.fromtimestamp(newTimestamp / 1000)
+                    dt = str(d.strftime("%Y-%m-%d %H:%M:%S.%f"))
+                    writer.writerow(["'%s'" % dt, random.randint(1, 100), random.uniform(1, 100), random.randint(1, 100), random.randint(1, 100)])
+                    rows += 1
+                    if rows == 2000000:
+                        break
     
     def removCSVHeader(self):
         data = pd.read_csv("ordered.csv")
@@ -71,7 +78,9 @@ class insertFromCSVPerformace:
             cursor.execute("create table if not exists t1(ts timestamp, c1 int, c2 float, c3 int, c4 int)")
             startTime = time.time()
             cursor.execute("insert into t1 file 'outoforder.csv'")
-            totalTime += time.time() - startTime                      
+            totalTime += time.time() - startTime 
+            time.sleep(1)
+                                 
         out_of_order_time = (float) (totalTime / 10)
         print("Out of Order - Insert time: %f" % out_of_order_time)                      
         
@@ -81,7 +90,8 @@ class insertFromCSVPerformace:
             cursor.execute("create table if not exists t2(ts timestamp, c1 int, c2 float, c3 int, c4 int)")
             startTime = time.time()
             cursor.execute("insert into t2 file 'ordered.csv'")
-            totalTime += time.time() - startTime            
+            totalTime += time.time() - startTime
+            time.sleep(1)          
 
         in_order_time = (float) (totalTime / 10)
         print("In order - Insert time: %f" % in_order_time)

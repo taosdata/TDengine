@@ -671,7 +671,7 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
     taosNetCheckSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
   }else if (0 == strcmp("fqdn", role)) {
     taosNetTestFqdn(host);
-  }else {
+  } else {
     taosNetTestStartup(host, port);
   }
 
