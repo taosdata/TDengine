@@ -275,7 +275,7 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       quot = t / 1000;
       fractionLen = 5;
       format = ".%03" PRId64;
-      mod = t % 1000;
+      mod = ((t) % 1000 + 1000) % 1000;
       break;
     }
 
@@ -283,7 +283,7 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       quot = t / 1000000;
       fractionLen = 8;
       format = ".%06" PRId64;
-      mod = t % 1000000;
+      mod = ((t) % 1000000 + 1000000) % 1000000;
       break;
     }
 
@@ -291,7 +291,7 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       quot = t / 1000000000;
       fractionLen = 11;
       format = ".%09" PRId64;
-      mod = t % 1000000000;
+      mod = ((t) % 1000000000 + 1000000000) % 1000000000;
       break;
     }
 
@@ -322,7 +322,7 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       quot = t / 1000;
       fractionLen = 5;
       format = ".%03" PRId64;
-      mod = t % 1000;
+      mod = ((t) % 1000 + 1000) % 1000;
       break;
     }
 
@@ -330,7 +330,7 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       quot = t / 1000000;
       fractionLen = 8;
       format = ".%06" PRId64;
-      mod = t % 1000000;
+      mod = ((t) % 1000000 + 1000000) % 1000000;
       break;
     }
 
@@ -338,7 +338,7 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       quot = t / 1000000000;
       fractionLen = 11;
       format = ".%09" PRId64;
-      mod = t % 1000000000;
+      mod = ((t) % 1000000000 + 1000000000) % 1000000000;
       break;
     }
 
