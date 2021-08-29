@@ -110,7 +110,7 @@ class TDTestCase:
         '''
         input_sql = self.getPerfSql(count=count, init=True)
         print(threading.current_thread().name, "create stb line:", input_sql)
-        self._conn.insertLines([input_sql])
+        self._conn.insert_lines([input_sql])
         print(threading.current_thread().name, "create stb end")
 
     def batchCreateTable(self, batch_list):
@@ -121,7 +121,7 @@ class TDTestCase:
         print(threading.current_thread().name, 'firstline', batch_list[0][0:50], '...', batch_list[0][-50:-1])
         print(threading.current_thread().name, 'lastline:', batch_list[-1][0:50], '...', batch_list[-1][-50:-1])
         begin = time.time_ns();
-        self._conn.insertLines(batch_list)
+        self._conn.insert_lines(batch_list)
         end = time.time_ns();
         print(threading.current_thread().name, 'end time:', (end-begin)/10**9)
 
