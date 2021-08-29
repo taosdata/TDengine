@@ -1381,6 +1381,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+
+            g_totalChildTables = arguments->num_of_tables;
         } else if ((0 == strncmp(argv[i], "-n", strlen("-n")))
                 || (0 == strncmp(argv[i], "--records", strlen("--records")))) {
             if (2 == strlen(argv[i])) {
@@ -1399,11 +1401,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--records");
                     exit(EXIT_FAILURE);
                 }
-            } else if (0 == strncmp(argv[i], "-r", strlen("-r"))) {
-                if (isStringNumber((char *)(argv[i] + strlen("-r")))) {
-                    arguments->num_of_DPT = atoi((char *)(argv[i]+strlen("-r")));
+            } else if (0 == strncmp(argv[i], "-n", strlen("-n"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-n")))) {
+                    arguments->num_of_DPT = atoi((char *)(argv[i]+strlen("-n")));
                 } else {
-                    errorPrintReqArg2(argv[0], "-r");
+                    errorPrintReqArg2(argv[0], "-n");
                     exit(EXIT_FAILURE);
                 }
             } else if (strlen("--records") == strlen(argv[i])) {
@@ -1419,8 +1421,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-
-            g_totalChildTables = arguments->num_of_DPT;
         } else if ((0 == strncmp(argv[i], "-d", strlen("-d")))
                 || (0 == strncmp(argv[i], "--database", strlen("--database")))) {
             if (2 == strlen(argv[i])) {
