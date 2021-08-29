@@ -70,7 +70,6 @@ static int  convertTimestampStrToInt64(tVariant *pVar, int32_t precision);
 static bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, uint8_t precision);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
-static char* cloneCurrentDBName(SSqlObj* pSql);
 static int32_t getDelimiterIndex(SStrToken* pTableName);
 static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
@@ -1674,14 +1673,6 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
 }
 
 static char* getAccountId(SSqlObj* pSql) { return pSql->pTscObj->acctId; }
-
-static char* cloneCurrentDBName(SSqlObj* pSql) {
-  pthread_mutex_lock(&pSql->pTscObj->mutex);
-  char *p = strdup(pSql->pTscObj->db);  
-  pthread_mutex_unlock(&pSql->pTscObj->mutex);
-
-  return p;
-}
 
 /* length limitation, strstr cannot be applied */
 static int32_t getDelimiterIndex(SStrToken* pTableName) {

@@ -361,6 +361,8 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
 void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
+char* cloneCurrentDBName(SSqlObj* pSql);
+
 #ifdef __cplusplus
 }
 #endif
