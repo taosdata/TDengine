@@ -10,7 +10,7 @@
 
 int numThreads = 8;
 int numSuperTables = 8;
-int numChildTablesPerThread = 4;
+int numChildTables = 4; // per thread, per super table
 int numRowsPerChildTable = 2048;
 
 void shuffle(char** lines, size_t n) {
@@ -42,6 +42,7 @@ typedef struct  {
   TAOS* taos;
   char** lines;
   int numLines;
+  int64_t costTime;
 } SThreadInsertArgs;
 
 static void* insertLines(void* args) {
@@ -52,6 +53,7 @@ static void* insertLines(void* args) {
   int64_t begin = getTimeInUs();
   int32_t code = taos_insert_lines(insertArgs->taos, insertArgs->lines, insertArgs->numLines);
   int64_t end = getTimeInUs();
+  insertArgs->costTime = end-begin;
   printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);
   return NULL;
 }
@@ -91,8 +93,8 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < numSuperTables; i++) {
       char* lineStb = calloc(512, 1);
       snprintf(lineStb, 512, lineFormat, i,
-               numThreads * numSuperTables * numChildTablesPerThread,
-               ts + numThreads * numSuperTables * numChildTablesPerThread * numRowsPerChildTable);
+               numThreads * numSuperTables * numChildTables,
+               ts + numThreads * numSuperTables * numChildTables * numRowsPerChildTable);
       linesStb[i] = lineStb;
     }
     SThreadInsertArgs args = {0};
@@ -109,7 +111,7 @@ int main(int argc, char* argv[]) {
   printf("generate lines...\n");
   char*** linesThread = calloc(numThreads, sizeof(char**));
   for (int i = 0; i < numThreads; ++i) {
-    char** lines = calloc(numSuperTables * numChildTablesPerThread * numRowsPerChildTable, sizeof(char*));
+    char** lines = calloc(numSuperTables * numChildTables * numRowsPerChildTable, sizeof(char*));
     linesThread[i] = lines;
   }
 
@@ -117,10 +119,10 @@ int main(int argc, char* argv[]) {
     int l = 0;
     char** lines = linesThread[t];
     for (int i = 0; i < numSuperTables; ++i) {
-      for (int j = 0; j < numChildTablesPerThread; ++j) {
+      for (int j = 0; j < numChildTables; ++j) {
         for (int k = 0; k < numRowsPerChildTable; ++k) {
           int stIdx = i;
-          int ctIdx = t*numSuperTables*numChildTablesPerThread + j;
+          int ctIdx = t*numSuperTables*numChildTables + j;
           char* line = calloc(512, 1);
           snprintf(line, 512, lineFormat, stIdx, ctIdx, ts + 10 * l);
           lines[l] = line;
@@ -132,24 +134,35 @@ int main(int argc, char* argv[]) {
 
   printf("shuffle lines...\n");
   for (int t = 0; t < numThreads; ++t) {
-    shuffle(linesThread[t], numSuperTables * numChildTablesPerThread * numRowsPerChildTable);
+    shuffle(linesThread[t], numSuperTables * numChildTables * numRowsPerChildTable);
   }
 
-  printf("begin multi-thread insertion...");
+  printf("begin multi-thread insertion...\n");
+  int64_t begin = taosGetTimestampUs();
   pthread_t* tids = calloc(numThreads, sizeof(pthread_t));
   SThreadInsertArgs* argsThread = calloc(numThreads, sizeof(SThreadInsertArgs));
   for (int i=0; i < numThreads; ++i) {
     argsThread[i].lines = linesThread[i];
     argsThread[i].taos = taos;
-    argsThread[i].numLines = numSuperTables * numChildTablesPerThread * numRowsPerChildTable;
+    argsThread[i].numLines = numSuperTables * numChildTables * numRowsPerChildTable;
     pthread_create(tids+i, NULL, insertLines, argsThread+i);
   }
-
 
   for (int i = 0; i < numThreads; ++i) {
     pthread_join(tids[i], NULL);
   }
+  int64_t end = taosGetTimestampUs();
 
+  int totalLines = numThreads*numSuperTables*numChildTables*numRowsPerChildTable;
+  printf("TOTAL LINES: %d\n", totalLines);
+  printf("THREADS: %d\n", numThreads);
+  int64_t sumTime = 0;
+  for (int i=0; i<numThreads; ++i) {
+    sumTime += argsThread[i].costTime;
+  }
+  printf("TIME: %d(ms)\n", (int)(end-begin)/1000);
+  double throughput = (double)(totalLines)/(double)(end-begin) * 1000000;
+  printf("THROUGHPUT:%d/s\n", (int)throughput);
   free(argsThread);
   free(tids);
   for (int i = 0; i < numThreads; ++i) {
