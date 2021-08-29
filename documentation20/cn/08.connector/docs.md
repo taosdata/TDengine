@@ -888,11 +888,12 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 下面仅列出一些与 RESTful 接口有关的配置参数，其他系统参数请看配置文件里的说明。（注意：配置修改后，需要重启 taosd 服务才能生效）
 
-- 对外提供 RESTful 服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）
-- httpMaxThreads: 启动的线程数量，默认为 2（2.0.17.0 版本开始，默认值改为 CPU 核数的一半向下取整）
-- restfulRowLimit: 返回结果集（JSON 格式）的最大条数，默认值为 10240
-- httpEnableCompress: 是否支持压缩，默认不支持，目前 TDengine 仅支持 gzip 压缩格式
-- httpDebugFlag: 日志开关，默认 131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认 131
+- 对外提供 RESTful 服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）。
+- httpMaxThreads: 启动的线程数量，默认为 2（2.0.17.0 版本开始，默认值改为 CPU 核数的一半向下取整）。
+- restfulRowLimit: 返回结果集（JSON 格式）的最大条数，默认值为 10240。
+- httpEnableCompress: 是否支持压缩，默认不支持，目前 TDengine 仅支持 gzip 压缩格式。
+- httpDebugFlag: 日志开关，默认 131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认 131。
+- httpDbNameMandatory: 是否必须在 RESTful url 中指定默认的数据库名。默认为 0，即关闭此检查。如果设置为 1，那么每个 RESTful url 中都必须设置一个默认数据库名，否则无论此时执行的 SQL 语句是否需要指定数据库，都会返回一个执行错误，拒绝执行此 SQL 语句。
 
 ## <a class="anchor" id="csharp"></a>CSharp Connector
 
