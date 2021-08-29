@@ -2749,7 +2749,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       }
     } else {  // reach the maximum retry count, abort
       atomic_val_compare_exchange_32(&pParentSql->res.code, TSDB_CODE_SUCCESS, numOfRows);
-      tscError("0x%"PRIx64" sub:0x%"PRIx64" retrieve failed,code:%s,orderOfSub:%d failed.no more retry,set global code:%s", pParentSql->self, pSql->self,
+      tscError("0x%"PRIx64" sub:0x%"PRIx64" retrieve failed, code:%s, orderOfSub:%d FAILED. no more retry, set global code:%s", pParentSql->self, pSql->self,
                tstrerror(numOfRows), subqueryIndex, tstrerror(pParentSql->res.code));
     }
   }
