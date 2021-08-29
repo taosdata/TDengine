@@ -22,6 +22,7 @@
 
 #include <qSqlparser.h>
 #include "os.h"
+#include "regex.h"
 #include "qPlan.h"
 #include "qSqlparser.h"
 #include "qTableMeta.h"
