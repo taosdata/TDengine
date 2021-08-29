@@ -1522,6 +1522,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->isBind    = true;
   pStmt->pSql     = pSql;
   pStmt->last     = STMT_INIT;
+  registerSqlObj(pSql);
 
   return pStmt;
 }
@@ -1783,7 +1784,9 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  STMT_CHECK
+  if (pStmt == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
   if (!pStmt->isInsert) {
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
@@ -1805,8 +1808,9 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
       if (pStmt->pSql){
         taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+        pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       }
-      pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
+
       taosArrayDestroy(pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);
     }
@@ -1817,6 +1821,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
   } else {
     tscFreeSqlObj(pStmt->pSql);
   }
+
   tfree(pStmt);
   STMT_RET(TSDB_CODE_SUCCESS);
 }
@@ -1994,6 +1999,7 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
     return NULL;
   }
   TAOS_RES* result = pStmt->pSql;
+  pStmt->pSql = NULL;
   return result;
 }
 

@@ -1892,7 +1892,7 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
       return pRes->code;
     }
 
-    tscSetResRawPtr(pRes, pQueryInfo);
+    tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   } else {
     tscResetForNextRetrieve(pRes);
   }
@@ -2807,7 +2807,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
        !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) &&
        !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE))) {
-    tscSetResRawPtr(pRes, pQueryInfo);
+    tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
   if (pSql->pSubscription != NULL) {
@@ -3011,6 +3011,8 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }
     }
+
+    tscDebug("0x%"PRIx64 " %s retrieve tableMeta from cache, numOfCols:%d, numOfTags:%d", pSql->self, name, pMeta->tableInfo.numOfColumns, pMeta->tableInfo.numOfTags);
     return TSDB_CODE_SUCCESS;
   }
 

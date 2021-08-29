@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "taos"
+version = "2.1.0"
+description = "TDengine connector for python"
+authors = ["Taosdata Inc. <support@taosdata.com>"]
+license = "AGPL-3.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^2.7 || ^3.4"
+typing = "*"
+
+[tool.poetry.dev-dependencies]
+pytest = [
+  { version = "^4.6", python = "^2.7" },
+  { version = "^6.2", python = "^3.7" }
+]
+pdoc = { version = "^7.1.1", python = "^3.7" }
+mypy = { version = "^0.910", python = "^3.6" }
+black = { version = "^21.7b0", python = "^3.6" }
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 119

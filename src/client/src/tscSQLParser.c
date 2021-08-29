@@ -3486,6 +3486,27 @@ static bool groupbyTagsOrNull(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool groupbyTbname(SQueryInfo* pQueryInfo) {
+  if (pQueryInfo->groupbyExpr.columnInfo == NULL ||
+    taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo) == 0) {
+    return false;
+  }
+
+  size_t s = taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo);
+  for (int32_t i = 0; i < s; i++) {
+    SColIndex* colIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, i);
+    if (colIndex->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
+
+
+
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery) {
   int32_t startIdx = 0;
   int32_t aggUdf = 0;
@@ -7114,6 +7135,35 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   }
 }
 
+
+int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
+  const char* msg1 = "TWA/Diff/Derivative/Irate are not allowed to apply to super table without group by tbname";
+
+  int32_t numOfExprs = (int32_t)tscNumOfExprs(pQueryInfo);
+  size_t upNum = taosArrayGetSize(pQueryInfo->pUpstream);
+  
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+  
+    int32_t f = pExpr->base.functionId;
+    if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_DIFF) {
+      for (int32_t j = 0; j < upNum; ++j) {
+        SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
+        STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);
+        bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+        if ((!isSTable) || groupbyTbname(pUp)) {
+          return TSDB_CODE_SUCCESS;
+        }
+      }
+    
+      return invalidOperationMsg(msg, msg1);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode) {
   const char* msg1 = "only one expression allowed";
   const char* msg2 = "invalid expression in select clause";
@@ -8088,6 +8138,10 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
     int32_t num = (int32_t)taosArrayGetSize(sub->pSubquery);
     for (int32_t i = 0; i < num; ++i) {
       SSqlNode* p = taosArrayGetP(sub->pSubquery, i);
+      if (p->from == NULL) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      
       if (p->from->type == SQL_NODE_FROM_TABLELIST) {
         int32_t code = getTableNameFromSqlNode(p, tableNameList, msgBuf, pSql);
         if (code != TSDB_CODE_SUCCESS) {
@@ -8660,6 +8714,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     if ((code = doFunctionsCompatibleCheck(pCmd, pQueryInfo, tscGetErrorMsgPayload(pCmd))) != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if ((code = validateFunctionFromUpstream(pQueryInfo, tscGetErrorMsgPayload(pCmd))) != TSDB_CODE_SUCCESS) {
       return code;
     }
 
