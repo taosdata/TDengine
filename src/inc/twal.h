@@ -61,7 +61,7 @@ void     walClose(twalh);
 int32_t  walRenew(twalh);
 //replace by a notification
 //void     walRemoveOneOldFile(twalh);
-//void     walRemoveAllOldFiles(twalh);
+void     walRemoveAllOldFiles(twalh);
 int32_t  walSetFOffset(twalh, uint64_t fOffset);
 int32_t  walWrite(twalh, SWalHead *);
 void     walFsync(twalh, bool forceFsync);

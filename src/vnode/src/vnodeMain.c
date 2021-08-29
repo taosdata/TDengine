@@ -254,6 +254,7 @@ int32_t vnodeOpen(int32_t vgId) {
   char temp[TSDB_FILENAME_LEN * 3];
   char rootDir[TSDB_FILENAME_LEN * 2];
   char walRootDir[TSDB_FILENAME_LEN * 2] = {0};
+  bool fileIntact = true;
   snprintf(rootDir, TSDB_FILENAME_LEN * 2, "%s/vnode%d", tsVnodeDir, vgId);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
@@ -341,6 +342,7 @@ int32_t vnodeOpen(int32_t vgId) {
       vnodeCleanUp(pVnode);
       return TSDB_CODE_VND_INVALID_TSDB_STATE;
     } else {
+      fileIntact = false;
       pVnode->version = 0;
       pVnode->fversion = 0;
       pVnode->offset = 0;
@@ -370,24 +372,27 @@ int32_t vnodeOpen(int32_t vgId) {
     return terrno;
   }
 
-  walSetFOffset(pVnode->wal, pVnode->fOffset);
-  walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
-  if (pVnode->version == 0) {
-    pVnode->fversion = 0;
-    pVnode->fOffset = 0;
+  if(fileIntact) {
+    walSetFOffset(pVnode->wal, pVnode->fOffset);
+    walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
+    if (pVnode->version == 0) {
+      pVnode->fversion = 0;
+      pVnode->fOffset = 0;
 
-    pVnode->version = walGetVersion(pVnode->wal, &pVnode->offset);
-  }
+      pVnode->version = walGetVersion(pVnode->wal, &pVnode->offset);
+    }
 
-  code = tsdbSyncCommit(pVnode->tsdb);
-  if (code != 0) {
-    vError("vgId:%d, failed to commit after restore from wal since %s", pVnode->vgId, tstrerror(code));
-    vnodeCleanUp(pVnode);
-    return code;
+    code = tsdbSyncCommit(pVnode->tsdb);
+    if (code != 0) {
+      vError("vgId:%d, failed to commit after restore from wal since %s", pVnode->vgId, tstrerror(code));
+      vnodeCleanUp(pVnode);
+      return code;
+    }
+  } else {
+    walRemoveAllOldFiles(pVnode->wal);
   }
 
   //TODO: init a lifecycle checker
-  /*walRemoveAllOldFiles(pVnode->wal);*/
   /*walRenew(pVnode->wal);*/
   /*pVnode->offset = 0;*/
 
