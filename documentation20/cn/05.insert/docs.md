@@ -4,7 +4,7 @@ TDengine支持多种接口写入数据，包括SQL, Prometheus, Telegraf, EMQ MQ
 
 ## <a class="anchor" id="sql"></a>SQL写入
 
-应用通过C/C++, JDBC, GO, 或Python Connector 执行SQL insert语句来插入数据，用户还可以通过TAOS Shell，手动输入SQL insert语句插入数据。比如下面这条insert 就将一条记录写入到表d1001中：
+应用通过C/C++, JDBC, GO, C#, 或Python Connector 执行SQL insert语句来插入数据，用户还可以通过TAOS Shell，手动输入SQL insert语句插入数据。比如下面这条insert 就将一条记录写入到表d1001中：
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
