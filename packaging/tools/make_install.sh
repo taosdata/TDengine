@@ -25,8 +25,8 @@ if [ "$osType" != "Darwin" ]; then
     data_dir="/var/lib/taos"
     log_dir="/var/log/taos"
 else
-    data_dir="/var/local/lib/taos"
-    log_dir="/var/local/log/taos"
+    data_dir="/usr/local/var/lib/taos"
+    log_dir="/usr/local/var/log/taos"
 fi
 
 if [ "$osType" != "Darwin" ]; then
@@ -293,18 +293,14 @@ function install_config() {
 }
 
 function install_log() {
-    if [ "$osType" != "Darwin" ]; then
-            ${csudo} rm -rf ${log_dir}  || :
-            ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
-            ${csudo} ln -s ${log_dir} ${install_main_dir}/log
-    fi
+    ${csudo} rm -rf ${log_dir}  || :
+    ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+    ${csudo} ln -s ${log_dir} ${install_main_dir}/log
 }
 
 function install_data() {
-    if [ "$osType" != "Darwin" ]; then
-        ${csudo} mkdir -p ${data_dir}
-        ${csudo} ln -s ${data_dir} ${install_main_dir}/data
-    fi
+    ${csudo} mkdir -p ${data_dir}
+    ${csudo} ln -s ${data_dir} ${install_main_dir}/data
 }
 
 function install_connector() {
@@ -501,10 +497,7 @@ function install_TDengine() {
     
     install_main_path
 
-    if [ "$osType" != "Darwin" ]; then
-        install_data
-    fi
-
+    install_data
     install_log
     install_header
     install_lib
