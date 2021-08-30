@@ -119,7 +119,7 @@ As the data points are a series of data points over time, the data points genera
 9. in addition to storage and query operations, various statistical and real-time calculation operations are also required;
 10. data volume is huge, a system may generate over 10 billion data points in a day.
 
-By utilizing the above characteristics, TDengine designs the storage and computing engine in a special and optimized way for time-series data, resulting in massive improvements in system efficiency.
+In light of the characteristics mentioned above, TDengine designs the storage and computing engine in a special and optimized way for time-series data, resulting in massive improvements in system efficiency.
 
 ### Relational Database Model
 
