@@ -131,23 +131,6 @@ class TDDnode:
         tdLog.debug("dnode:%d is deployed and configured by %s" %
                     (self.id, self.cfgPath))
 
-    def getBuildPath(self):
-        buildPath = ""
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if (("taosd") in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
-
     def start(self):
         buildPath = self.getBuildPath()
 
@@ -321,16 +304,22 @@ class TDDnodes:
         for i in range(numOfDnode):
             self.dnodes.append(TDDnode(i + 1))
 
-        binPath = os.path.dirname(os.path.realpath(__file__))
-        binPath = binPath + "/../../../debug/"
-        binPath = os.path.realpath(binPath)
-        tdLog.debug("binPath path %s" % (binPath))
-
-        # self.path = os.path.expanduser('~')
-        self.path = os.path.abspath(binPath + "../../")
+        currentPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in currentPath):
+            projPath = currentPath[:currentPath.find("community")]
+            if os.path.isfile(projPath + "../debug/build/bin/taosd"):
+                binPath = os.path.abspath(projPath +
+                                          "../debug/build/bin/taosd")
+            else:
+                binPath = projPath + "debug/build/bin/taosd"
+        else:
+            projPath = currentPath[:currentPath.find("tests")]
+            binPath = projPath + "debug/build/bin/taosd"
 
         for i in range(len(self.dnodes)):
-            self.dnodes[i].init(self.path)
+            dnodePath = os.path.abspath(currentPath + "../../../" +
+                                        "/sim/dnode%d" % (i + 1))
+            self.dnodes[i].init(dnodePath, binPath)
 
     def setTestCluster(self, value):
         self.testCluster = value
