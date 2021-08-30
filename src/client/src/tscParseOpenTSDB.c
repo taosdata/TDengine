@@ -12,6 +12,8 @@
 
 #include "tscParseLine.h"
 
+#define MAX_TELNET_FILEDS_NUM 2
+
 /* telnet style API parser */
 static uint64_t HandleId = 0;
 
@@ -72,7 +74,8 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   char *value = NULL;
 
   start = cur = *index;
-  *pTS = tcalloc(1, sizeof(TAOS_SML_KV));
+  //allocate fields for timestamp and value
+  *pTS = tcalloc(MAX_TELNET_FILEDS_NUM, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
     if (*cur == ' ') {
@@ -108,8 +111,8 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
 }
 
 static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const char **index, SSmlLinesInfo* info) {
-  //SKip timestamp
-  TAOS_SML_KV *pVal = *pKVs + sizeof(TAOS_SML_KV);
+  //skip timestamp
+  TAOS_SML_KV *pVal = *pKVs + 1;
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
@@ -117,7 +120,6 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   char *value = NULL;
 
   start = cur = *index;
-  pVal = tcalloc(1, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
     if (*cur == ' ') {
@@ -131,7 +133,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     value = tcalloc(len + 1, 1);
     memcpy(value, start, len);
   } else {
-    tfree(pVal);
+    tfree(*pKVs);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
@@ -139,7 +141,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     tscError("SML:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
     tfree(value);
-    tfree(pVal);
+    tfree(*pKVs);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   tfree(value);
