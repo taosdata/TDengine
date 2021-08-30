@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>Quick Install
 
-TDengine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
+TDengine software consists of 3 components: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
 
 ### <a class="anchor" id="source-install"></a>Install from Source
 
