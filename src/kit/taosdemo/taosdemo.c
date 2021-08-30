@@ -8413,7 +8413,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     int64_t end = taosGetTimestampUs();
     int64_t t = end - start;
-    if (t == 0) t = 1;
+    if (0 == t) t = 1;
 
     double tInMs = (double) t / 1000000.0;
 
