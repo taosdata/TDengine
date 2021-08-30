@@ -4531,6 +4531,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
       return invalidOperationMsg(msgBuf, msg3);
     }
+    regfree(&regex);
   }
 
   return TSDB_CODE_SUCCESS;

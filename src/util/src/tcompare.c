@@ -378,7 +378,7 @@ int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   errCode = regexec(&regex, str, 0, NULL, 0);
   if (errCode != 0 && errCode != REG_NOMATCH) {
     regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
-    uError("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf)
+    uDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf)
   }
   int32_t result = (errCode == 0) ? 0 : 1;
   regfree(&regex);
