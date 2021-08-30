@@ -16,7 +16,7 @@ Please refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/19
 
 **Note 1:** Because the information of FQDN will be written into a file, if FQDN has not been configured or changed before, and TDengine has been started, be sure to clean up the previous data （`rm -rf /var/lib/taos/*`）on the premise of ensuring that the data is useless or backed up;
 
-**Note 2:** The client also needs to be configured to ensure that it can correctly parse the FQDN configuration of each node, whether through DNS service or Host file.
+**Note 2:** The client also needs to be configured to ensure that it can correctly parse the FQDN configuration of each node, whether through DNS service or modify `/etc/hosts` file.
 
 **Step 2:** It is recommended to close the firewall of all physical nodes, and at least ensure that the TCP and UDP ports of ports 6030-6042 are open. It is **strongly recommended** to close the firewall first and configure the ports after the cluster is built;
 
