@@ -577,7 +577,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
     if (key1 < key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
-        if (src1->cols[i].len > 0) {
+        if (src1->cols[i].len > 0 || target->cols[i].len > 0) {
           dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
                            target->maxPoints);
         }
@@ -595,6 +595,8 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
           } else if(!forceSetNull && key1 == key2 && src1->cols[i].len > 0) {
             dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
                              target->maxPoints);
+          } else if(target->cols[i].len > 0) {
+            dataColSetNullAt(&target->cols[i], target->numOfRows);
           }
         }
         target->numOfRows++;
