@@ -866,6 +866,9 @@ bool tscReparseSql(SSqlObj *sql, int32_t code){
     return true;
   }
 
+  tscFreeSubobj(sql);      
+  tfree(sql->pSubs);
+
   sql->res.code = TSDB_CODE_SUCCESS;
   sql->retry++;
   
