@@ -44,6 +44,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
+  pSql->rootObj   = pSql;
 
   registerSqlObj(pSql);
 
@@ -361,15 +362,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       }
 
       if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {  // stmt insert
-        STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-        code = tscGetTableMeta(pSql, pTableMetaInfo);
-        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          taosReleaseRef(tscObjRef, pSql->self);
-          return;
-        } else {
-          assert(code == TSDB_CODE_SUCCESS);
-        }
-
         (*pSql->fp)(pSql->param, pSql, code);
       } else if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_FILE_INSERT)) { // file insert
         tscImportDataFromFile(pSql);

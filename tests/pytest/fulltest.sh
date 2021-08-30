@@ -28,6 +28,7 @@ python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
+python3 ./test.py -f insert/specialSql.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -386,6 +387,7 @@ python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f query/queryGroupTbname.py
 
 #======================p4-end===============
 

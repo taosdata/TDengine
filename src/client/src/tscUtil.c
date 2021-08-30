@@ -60,6 +60,21 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
     case TSDB_DATA_TYPE_TIMESTAMP:
       n = sprintf(str, "%" PRId64, *(int64_t*)buf);
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      n = sprintf(str, "%d", *(uint8_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      n = sprintf(str, "%d", *(uint16_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      n = sprintf(str, "%d", *(uint32_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      n = sprintf(str, "%" PRId64, *(uint64_t*)buf);
+      break;
 
     case TSDB_DATA_TYPE_FLOAT:
       n = sprintf(str, "%f", GET_FLOAT_VAL(buf));
@@ -675,9 +690,13 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
     memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
   }
+
+  if (convertNchar) {
+    pRes->dataConverted = true;
+  }
 }
 
-void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo, bool converted) {
   assert(pRes->numOfCols > 0);
   if (pRes->numOfRows == 0) {
     return;
@@ -690,7 +709,7 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     pRes->length[i] = pInfo->field.bytes;
 
     offset += pInfo->field.bytes;
-    setResRawPtrImpl(pRes, pInfo, i, true);
+    setResRawPtrImpl(pRes, pInfo, i, converted ? false : true);
   }
 }
 
@@ -3409,6 +3428,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 
   pRes->row = 0;
   pRes->numOfRows = 0;
+  pRes->dataConverted = false;
 }
 
 void tscInitResForMerge(SSqlRes* pRes) {
@@ -3438,6 +3458,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
 
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
+  pNew->rootObj = pSql->rootObj;
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
@@ -3518,7 +3539,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
-  pNew->sqlstr    = strdup(pSql->sqlstr);
+  pNew->sqlstr    = strdup(pSql->sqlstr);  
+  pNew->rootObj   = pSql->rootObj;
   tsem_init(&pNew->rspSem, 0, 0);
 
   SSqlCmd* pnCmd  = &pNew->cmd;
@@ -3794,7 +3816,9 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     // todo refactor
     tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
 
-    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry)) {
+    SSqlObj *rootObj = pParentSql->rootObj;
+
+    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && rootObj->retry < rootObj->maxRetry)) {
       pParentSql->res.code = code;
 
       tscAsyncResultOnError(pParentSql);
@@ -3804,31 +3828,44 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     tscFreeSubobj(pParentSql);
     tfree(pParentSql->pSubs);
 
-    pParentSql->res.code = TSDB_CODE_SUCCESS;
-    pParentSql->retry++;
+    tscFreeSubobj(rootObj);
+    tfree(rootObj->pSubs);
 
-    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
-             tstrerror(code), pParentSql->retry);
+    rootObj->res.code = TSDB_CODE_SUCCESS;
+    rootObj->retry++;
+
+    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", rootObj->self,
+             tstrerror(code), rootObj->retry);
 
 
-    tscResetSqlCmd(&pParentSql->cmd, true);
+    tscResetSqlCmd(&rootObj->cmd, true);
 
-    code = tsParseSql(pParentSql, true);
+    code = tsParseSql(rootObj, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       return;
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-      pParentSql->res.code = code;
-      tscAsyncResultOnError(pParentSql);
+      rootObj->res.code = code;
+      tscAsyncResultOnError(rootObj);
       return;
     }
 
-    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(&rootObj->cmd);
 
-    executeQuery(pParentSql, pQueryInfo);
+    executeQuery(rootObj, pQueryInfo);
     return;
   }
+
+  if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    SSqlObj* pParentSql = ps->pParentSql;
+  
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
+    return;
+  }
+
 
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
@@ -3878,7 +3915,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->sqlstr    = strdup(pSql->sqlstr);
       pNew->fp        = tscSubqueryCompleteCallback;
       pNew->fetchFp   = tscSubqueryCompleteCallback;
-      pNew->maxRetry  = pSql->maxRetry;
+      pNew->maxRetry  = pSql->maxRetry;      
+      pNew->rootObj   = pSql->rootObj;
 
       pNew->cmd.resColumnId = TSDB_RES_COL_ID;
 
@@ -4056,6 +4094,31 @@ int32_t tscInvalidOperationMsg(char* msg, const char* additionalInfo, const char
   }
 
   return TSDB_CODE_TSC_INVALID_OPERATION;
+}
+
+int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql) {
+  const char* msgFormat1 = "%s:%s";
+  const char* msgFormat2 = "%s:\'%s\' (%s)";
+  const char* msgFormat3 = "%s:\'%s\'";
+
+  const int32_t BACKWARD_CHAR_STEP = 0;
+
+  if (sql == NULL) {
+    assert(errMsg != NULL);
+    sprintf(dstBuffer, msgFormat1, tstrerror(code), errMsg);
+    return code;
+  }
+
+  char buf[64] = {0};  // only extract part of sql string
+  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
+
+  if (errMsg != NULL) {
+    sprintf(dstBuffer, msgFormat2, tstrerror(code), buf, errMsg);
+  } else {
+    sprintf(dstBuffer, msgFormat3, tstrerror(code), buf);  // no additional information for invalid sql error
+  }
+
+  return code;
 }
 
 bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
@@ -4418,7 +4481,9 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
   STableMeta* pChild = *ppChild;
   STableMeta* pChild1;
 
-  taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
+  if(NULL == taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
+    tfree(p); 
+  }
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
@@ -4777,7 +4842,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   }
 
   if (pQueryAttr->fillType != TSDB_FILL_NONE) {
-    pQueryAttr->fillVal = calloc(pQueryAttr->numOfOutput, sizeof(int64_t));
+    pQueryAttr->fillVal = calloc(pQueryInfo->numOfFillVal, sizeof(int64_t));
     memcpy(pQueryAttr->fillVal, pQueryInfo->fillVal, pQueryInfo->numOfFillVal * sizeof(int64_t));
   }
 

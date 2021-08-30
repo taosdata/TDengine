@@ -860,6 +860,40 @@ static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSq
   return true;
 }
 
+
+bool tscReparseSql(SSqlObj *sql, int32_t code){
+  if (!((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && sql->retry < sql->maxRetry)) {
+    return true;
+  }
+
+  tscFreeSubobj(sql);      
+  tfree(sql->pSubs);
+
+  sql->res.code = TSDB_CODE_SUCCESS;
+  sql->retry++;
+  
+  tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", sql->self,
+      tstrerror(code), sql->retry);
+  
+  tscResetSqlCmd(&sql->cmd, true);
+  code = tsParseSql(sql, true);
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    return false;
+  }
+  
+  if (code != TSDB_CODE_SUCCESS) {
+    sql->res.code = code;
+    tscAsyncResultOnError(sql);
+    return false;
+  }
+  
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&sql->cmd);
+  executeQuery(sql, pQueryInfo);
+
+  return false;
+}
+
+
 static void setTidTagType(SJoinSupporter* p, uint8_t type) {
   for (int32_t i = 0; i < p->num; ++i) {
     STidTags * tag = (STidTags*) varDataVal(p->pIdTagList + i * p->tagSize);
@@ -1102,6 +1136,10 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       return;
     }
 
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
+      return;
+    }
+
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1116,6 +1154,10 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     pParentSql->res.code = numOfRows;
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
 
@@ -1256,6 +1298,10 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       return;
     }
 
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
+      return;
+    }
+
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1269,6 +1315,10 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     pParentSql->res.code = numOfRows;
     if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
 
@@ -1399,6 +1449,10 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" abort query due to other subquery failure. code:%d, global code:%d", pSql->self, numOfRows, pParentSql->res.code);
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
     
@@ -1728,6 +1782,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 //  tscFieldInfoUpdateOffset(pQueryInfo);
 }
 
+
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = (SSqlObj*)tres;
 
@@ -1747,6 +1802,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
       return;
     }
 
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
+      return;
+    }
+    
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1760,6 +1819,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     pParentSql->res.code = code;
 
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+
+    if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       return;
     }
     
@@ -2435,7 +2498,11 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   SSqlObj* pSql = pSchedMsg->ahandle;
   SPair* p = pSchedMsg->msg;
 
-  for(int32_t i = p->first; i < p->second; ++i) {
+  for (int32_t i = p->first; i < p->second; ++i) {
+   if (i >= pSql->subState.numOfSub) {
+      tfree(p);
+      return;
+    }
     SSqlObj* pSub = pSql->pSubs[i];
     SRetrieveSupport* pSupport = pSub->param;
 
@@ -2575,7 +2642,12 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   int32_t numOfTasks = (pState->numOfSub + MAX_REQUEST_PER_TASK - 1)/MAX_REQUEST_PER_TASK;
   assert(numOfTasks >= 1);
 
-  int32_t num = (pState->numOfSub/numOfTasks) + 1;
+  int32_t num;
+  if (pState->numOfSub / numOfTasks == MAX_REQUEST_PER_TASK) {
+    num = MAX_REQUEST_PER_TASK;
+  } else {
+    num = pState->numOfSub / numOfTasks + 1;
+  }
   tscDebug("0x%"PRIx64 " query will be sent by %d threads", pSql->self, numOfTasks);
 
   for(int32_t j = 0; j < numOfTasks; ++j) {
@@ -2758,14 +2830,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
 
     int32_t code = pParentSql->res.code;
-    SSqlObj *userSql = NULL;
-    if (pParentSql->param) {
-      userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
-    }
-
-    if (userSql == NULL) {
-      userSql = pParentSql;
-    }
+    SSqlObj *userSql = pParentSql->rootObj;
 
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
       if (userSql != pParentSql) {
@@ -2978,7 +3043,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     tscDebug("0x%"PRIx64" sub:0x%"PRIx64" retrieve numOfRows:%d totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d",
         pParentSql->self, pSql->self, pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
-    if (num > tsMaxNumOfOrderedResults && /*tscIsProjectionQueryOnSTable(pQueryInfo, 0) &&*/ !(tscGetQueryInfo(&pParentSql->cmd)->distinct)) {
+    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0) && !(tscGetQueryInfo(&pParentSql->cmd)->distinct)) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pParentSql->self, pSql->self, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
@@ -3402,6 +3467,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   }
 
   if (numOfRes == 0) {  // no result any more, free all subquery objects
+    pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
     return;
   }
@@ -3448,6 +3514,8 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     char* pData = getResultBlockPosition(pCmd1, pRes1, pIndex->columnIndex, &bytes);
     memcpy(data, pData, bytes * numOfRes);
 
+    pRes->dataConverted = pRes1->dataConverted;
+
     data += bytes * numOfRes;
   }
 
@@ -3473,7 +3541,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   doArithmeticCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
 
   pRes->data = pFilePage->data;
-  tscSetResRawPtr(pRes, pQueryInfo);
+  tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
 }
 
 void tscBuildResFromSubqueries(SSqlObj *pSql) {

@@ -1214,6 +1214,31 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
         DUPATE_DATA_WITHOUT_TS(pCtx, *(int64_t *)output, v, notNullElems, isMin);
         break;
       }
+
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t v = GET_UINT8_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint8_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t v = GET_UINT16_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint16_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t v = GET_UINT32_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint32_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t v = GET_UINT64_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint64_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
       default:
         break;
     }
@@ -4032,9 +4057,21 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
-    if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
+    if (INT64_MIN == pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
+      continue;
+    }
+
+    if (primaryKey[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = primaryKey[i];
+      
       continue;
     }
     

@@ -231,6 +231,12 @@ static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
 
+static void doSetOperatorCompleted(SOperatorInfo* pOperator) {
+  pOperator->status = OP_EXEC_DONE;
+  if (pOperator->pRuntimeEnv != NULL) {
+    setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+  }
+}
 
 static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo, int32_t orderType, SSDataBlock* pBlock);
 
@@ -5313,7 +5319,7 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
 
       // TSDB_FUNC_TAG_DUMMY function needs to be ignored
       if (index->colId == pExpr->colInfo.colId &&
-          ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && pExpr->functionId == TSDB_FUNC_TAG) ||
+          ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && ((pExpr->functionId == TSDB_FUNC_TAG) || (pExpr->functionId == TSDB_FUNC_TAGPRJ))) ||
            (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && pExpr->functionId == TSDB_FUNC_PRJ))) {
         index->colIndex = j;
         index->colId = pExpr->resColId;
@@ -5493,8 +5499,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
 
     // start to flush data into disk and try do multiway merge sort
     if (pBlock == NULL) {
-      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       break;
     }
 
@@ -5517,8 +5522,10 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   }
 
   __compar_fn_t  comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
-  taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
-
+  if (pInfo->pDataBlock->info.rows) {
+    taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+  }
+  
   tfree(pCols);
   tfree(pSchema);
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
@@ -5605,8 +5612,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
   }
 
-  pOperator->status = OP_EXEC_DONE;
-  setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
+  doSetOperatorCompleted(pOperator);
 
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
@@ -5682,7 +5688,7 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
 
   toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->pRes);
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
-    pOperator->status = OP_EXEC_DONE;
+    doSetOperatorCompleted(pOperator);
   }
 
   return pInfo->pRes;
@@ -5800,8 +5806,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
-      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -5829,8 +5834,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
     pBlock->info.rows = (int32_t)(pInfo->limit - pInfo->total);
     pInfo->total = pInfo->limit;
 
-    setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-    pOperator->status = OP_EXEC_DONE;
+    doSetOperatorCompleted(pOperator);
   } else {
     pInfo->total += pBlock->info.rows;
   }
@@ -5865,8 +5869,7 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
     }
   }
 
-  setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
-  pOperator->status = OP_EXEC_DONE;
+  doSetOperatorCompleted(pOperator);
   return NULL;
 }
 
@@ -5881,9 +5884,8 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   if (pOperator->status == OP_RES_TO_RETURN) {
     toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-
     if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
     }
 
     return pIntervalInfo->pRes;
@@ -5924,7 +5926,7 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
 
   if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
-    pOperator->status = OP_EXEC_DONE;
+    doSetOperatorCompleted(pOperator);
   }
 
   return pIntervalInfo->pRes->info.rows == 0? NULL:pIntervalInfo->pRes;
@@ -5943,7 +5945,7 @@ static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
     toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
 
     if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
     }
 
     return pIntervalInfo->pRes;
@@ -6002,7 +6004,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     copyToSDataBlock(pRuntimeEnv, 3000, pIntervalInfo->pRes, pIntervalInfo->rowCellInfoOffset);
     if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
     }
 
     return pIntervalInfo->pRes;
@@ -7250,13 +7252,11 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
-      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       break;
     }
     if (!initMultiDistinctInfo(pInfo, pOperator, pBlock)) {
-      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       break;
      }
 
