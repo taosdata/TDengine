@@ -273,7 +273,8 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   }
 
   *qId = pQInfo->qId;
-  pQInfo->startExecTs = taosGetTimestampMs();
+  if(pQInfo->startExecTs == 0)
+    pQInfo->startExecTs = taosGetTimestampMs();
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:0x%"PRIx64" it is already killed, abort", pQInfo->qId);
