@@ -138,7 +138,6 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     value = tcalloc(len + 1, 1);
     memcpy(value, start, len);
   } else {
-    tfree(*pKVs);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
@@ -146,7 +145,6 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     tscError("OTD:0x%"PRIx64" Failed to convert metric value string(%s) to any type",
             info->id, value);
     tfree(value);
-    tfree(*pKVs);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   tfree(value);
