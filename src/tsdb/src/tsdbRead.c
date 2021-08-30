@@ -2460,7 +2460,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pQueryHandle->order) && win.skey > pQueryHandle->window.ekey) ||
-        (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
+    (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
       tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, 0x%"PRIx64, pQueryHandle,
                 pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qId);
@@ -3474,19 +3474,19 @@ void filterPrepare(void* expr, void* param) {
 
   if (pInfo->optr == TSDB_RELATION_IN) {
      int dummy = -1;
-     SHashObj *pObj = NULL; 
+     SHashObj *pObj = NULL;
      if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
         pObj = taosHashInit(256, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
         SArray *arr = (SArray *)(pCond->arr);
         for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
           char* p = taosArrayGetP(arr, i);
-          strtolower(varDataVal(p), varDataVal(p));
-          taosHashPut(pObj, varDataVal(p),varDataLen(p), &dummy, sizeof(dummy));
+          strntolower_s(varDataVal(p), varDataVal(p), varDataLen(p));
+          taosHashPut(pObj, varDataVal(p), varDataLen(p), &dummy, sizeof(dummy));
         }
      } else {
        buildFilterSetFromBinary((void **)&pObj, pCond->pz, pCond->nLen);
      }
-     pInfo->q = (char *)pObj;  
+     pInfo->q = (char *)pObj;
   } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {

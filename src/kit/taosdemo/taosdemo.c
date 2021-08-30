@@ -75,6 +75,8 @@ extern char configDir[];
 #define OPT_ABORT          1 /* –abort */
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
 
+#define DEFAULT_START_TIME 1500000000000
+
 #define MAX_PREPARED_RAND  1000000
 #define INT_BUFF_LEN            11
 #define BIGINT_BUFF_LEN         21
@@ -102,6 +104,9 @@ extern char configDir[];
 #define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
 #define DEFAULT_TIMESTAMP_STEP  1
+#define DEFAULT_INTERLACE_ROWS  0
+#define DEFAULT_DATATYPE_NUM    3
+#define DEFAULT_CHILDTABLES     10000
 
 
 enum TEST_MODE {
@@ -201,9 +206,9 @@ enum _describe_table_index {
 static char *g_dupstr = NULL;
 
 typedef struct SArguments_S {
-    char *   metaFile;
+    char     *metaFile;
     uint32_t test_mode;
-    char *   host;
+    char     *host;
     uint16_t port;
     uint16_t iface;
     char *   user;
@@ -222,7 +227,7 @@ typedef struct SArguments_S {
     char *   output_file;
     bool     async_mode;
     char *   datatype[MAX_NUM_COLUMNS + 1];
-    uint32_t len_of_binary;
+    uint32_t binwidth;
     uint32_t num_of_CPR;
     uint32_t num_of_threads;
     uint64_t insert_interval;
@@ -363,7 +368,7 @@ typedef struct SDbs_S {
     bool        asyncMode;
 
     uint32_t    threadCount;
-    uint32_t    threadCountByCreateTbl;
+    uint32_t    threadCountForCreateTbl;
     uint32_t    dbCount;
     SDataBase   db[MAX_DB_COUNT];
 
@@ -582,24 +587,22 @@ char    *g_randdouble_buff = NULL;
 char    *g_aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
-#define DEFAULT_DATATYPE_NUM    3
-
 SArguments g_args = {
-    NULL,            // metaFile
-    0,               // test_mode
-    "127.0.0.1",     // host
-    6030,            // port
-    INTERFACE_BUT,   // iface
-    "root",          // user
+    NULL,           // metaFile
+    0,              // test_mode
+    "localhost",    // host
+    6030,           // port
+    INTERFACE_BUT,  // iface
+    "root",         // user
 #ifdef _TD_POWER_
     "powerdb",      // password
 #elif (_TD_TQ_ == true)
-    "tqueue",      // password
+    "tqueue",       // password
 #else
-    "taosdata",      // password
+    "taosdata",     // password
 #endif
-    "test",          // database
-    1,               // replica
+    "test",         // database
+    1,              // replica
     "d",             // tb_prefix
     NULL,            // sqlFile
     true,            // use_metric
@@ -616,16 +619,16 @@ SArguments g_args = {
         "INT",           // datatype
         "FLOAT",         // datatype. DEFAULT_DATATYPE_NUM is 3
     },
-    64,              // len_of_binary
+    64,              // binwidth
     4,               // num_of_CPR
     10,              // num_of_connections/thread
     0,               // insert_interval
     DEFAULT_TIMESTAMP_STEP, // timestamp_step
     1,               // query_times
-    0,               // interlace_rows;
+    DEFAULT_INTERLACE_ROWS, // interlace_rows;
     30000,           // num_of_RPR
     (1024*1024),     // max_sql_len
-    10000,           // num_of_tables
+    DEFAULT_CHILDTABLES,    // num_of_tables
     10000,           // num_of_DPT
     0,               // abort
     0,               // disorderRatio
@@ -636,10 +639,8 @@ SArguments g_args = {
     true,            // demo_mode;
 };
 
-
-
 static SDbs            g_Dbs;
-static int64_t         g_totalChildTables = 0;
+static int64_t         g_totalChildTables = DEFAULT_CHILDTABLES;
 static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
@@ -719,89 +720,100 @@ static void printVersion() {
 }
 
 static void printHelp() {
-    char indent[10] = "        ";
-    printf("%s%s%s%s\n", indent, "-f", indent,
+    char indent[10] = "  ";
+    printf("%s\n\n", "Usage: taosdemo [OPTION...]");
+    printf("%s%s%s%s\n", indent, "-f, --file=FILE", "\t\t",
             "The meta file to the execution procedure. Default is './meta.json'.");
-    printf("%s%s%s%s\n", indent, "-u", indent,
-            "The TDengine user name to use when connecting to the server. Default is 'root'.");
+    printf("%s%s%s%s\n", indent, "-u, --user=USER", "\t\t",
+            "The user name to use when connecting to the server.");
 #ifdef _TD_POWER_
-    printf("%s%s%s%s\n", indent, "-p", indent,
-            "The password to use when connecting to the server. Default is 'powerdb'.");
-    printf("%s%s%s%s\n", indent, "-c", indent,
+    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
+            "The password to use when connecting to the server. Default is 'powerdb'");
+    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
             "Configuration directory. Default is '/etc/power/'.");
 #elif (_TD_TQ_ == true)
-    printf("%s%s%s%s\n", indent, "-p", indent,
-            "The password to use when connecting to the server. Default is 'tqueue'.");
-    printf("%s%s%s%s\n", indent, "-c", indent,
+    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
+            "The password to use when connecting to the server. Default is 'tqueue'");
+    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
             "Configuration directory. Default is '/etc/tq/'.");
 #else
-    printf("%s%s%s%s\n", indent, "-p", indent,
-            "The password to use when connecting to the server. Default is 'taosdata'.");
-    printf("%s%s%s%s\n", indent, "-c", indent,
-            "Configuration directory. Default is '/etc/taos/'.");
+    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
+            "The password to use when connecting to the server.");
+    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
+            "Configuration directory.");
 #endif
-    printf("%s%s%s%s\n", indent, "-h", indent,
-            "The host to connect to TDengine. Default is localhost.");
-    printf("%s%s%s%s\n", indent, "-P", indent,
-            "The TCP/IP port number to use for the connection. Default is 0.");
-    printf("%s%s%s%s\n", indent, "-I", indent,
+    printf("%s%s%s%s\n", indent, "-h, --host=HOST", "\t\t",
+            "TDengine server FQDN to connect. The default host is localhost.");
+    printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
+            "The TCP/IP port number to use for the connection.");
+    printf("%s%s%s%s\n", indent, "-I, --interface=INTERFACE", "\t",
             "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
-    printf("%s%s%s%s\n", indent, "-d", indent,
+    printf("%s%s%s%s\n", indent, "-d, --database=DATABASE", "\t",
             "Destination database. Default is 'test'.");
-    printf("%s%s%s%s\n", indent, "-a", indent,
+    printf("%s%s%s%s\n", indent, "-a, --replica=REPLICA", "\t\t",
             "Set the replica parameters of the database, Default 1, min: 1, max: 3.");
-    printf("%s%s%s%s\n", indent, "-m", indent,
+    printf("%s%s%s%s\n", indent, "-m, --table-prefix=TABLEPREFIX", "\t",
             "Table prefix name. Default is 'd'.");
-    printf("%s%s%s%s\n", indent, "-s", indent, "The select sql file.");
-    printf("%s%s%s%s\n", indent, "-N", indent, "Use normal table flag.");
-    printf("%s%s%s%s\n", indent, "-o", indent,
+    printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t", "The select sql file.");
+    printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t", "Use normal table flag.");
+    printf("%s%s%s%s\n", indent, "-o, --output=FILE", "\t\t",
             "Direct output to the named file. Default is './output.txt'.");
-    printf("%s%s%s%s\n", indent, "-q", indent,
+    printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
+            "The select sql file.");
+    printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
             "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
-    printf("%s%s%s%s\n", indent, "-b", indent,
+    printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
             "The data_type of columns, default: FLOAT, INT, FLOAT.");
-    printf("%s%s%s%s%d\n", indent, "-w", indent,
-            "The length of data_type 'BINARY' or 'NCHAR'. Default is ",
-            g_args.len_of_binary);
-    printf("%s%s%s%s%d%s%d\n", indent, "-l", indent,
+    printf("%s%s%s%s%d\n", indent, "-w, --binwidth=WIDTH", "\t\t",
+            "The width of data_type 'BINARY' or 'NCHAR'. Default is ",
+            g_args.binwidth);
+    printf("%s%s%s%s%d%s%d\n", indent, "-l, --columns=COLUMNS", "\t\t",
             "The number of columns per record. Demo mode by default is ",
             DEFAULT_DATATYPE_NUM,
             " (float, int, float). Max values is ",
             MAX_NUM_COLUMNS);
     printf("%s%s%s%s\n", indent, indent, indent,
-            "All of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
-    printf("%s%s%s%s\n", indent, "-T", indent,
+            "\t\t\t\tAll of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
+    printf("%s%s%s%s\n", indent, "-T, --threads=NUMBER", "\t\t",
             "The number of threads. Default is 10.");
-    printf("%s%s%s%s\n", indent, "-i", indent,
+    printf("%s%s%s%s\n", indent, "-i, --insert-interval=NUMBER", "\t",
             "The sleep time (ms) between insertion. Default is 0.");
-    printf("%s%s%s%s%d.\n", indent, "-S", indent,
+    printf("%s%s%s%s%d.\n", indent, "-S, --time-step=TIME_STEP", "\t",
             "The timestamp step between insertion. Default is ",
             DEFAULT_TIMESTAMP_STEP);
-    printf("%s%s%s%s\n", indent, "-r", indent,
+    printf("%s%s%s%s%d.\n", indent, "-B, --interlace-rows=NUMBER", "\t",
+            "The interlace rows of insertion. Default is ",
+            DEFAULT_INTERLACE_ROWS);
+    printf("%s%s%s%s\n", indent, "-r, --rec-per-req=NUMBER", "\t",
             "The number of records per request. Default is 30000.");
-    printf("%s%s%s%s\n", indent, "-t", indent,
+    printf("%s%s%s%s\n", indent, "-t, --tables=NUMBER", "\t\t",
             "The number of tables. Default is 10000.");
-    printf("%s%s%s%s\n", indent, "-n", indent,
+    printf("%s%s%s%s\n", indent, "-n, --records=NUMBER", "\t\t",
             "The number of records per table. Default is 10000.");
-    printf("%s%s%s%s\n", indent, "-M", indent,
+    printf("%s%s%s%s\n", indent, "-M, --random", "\t\t\t",
             "The value of records generated are totally random.");
-    printf("%s%s%s%s\n", indent, indent, indent,
-            " The default is to simulate power equipment senario.");
-    printf("%s%s%s%s\n", indent, "-x", indent, "Not insert only flag.");
-    printf("%s%s%s%s\n", indent, "-y", indent, "Default input yes for prompt.");
-    printf("%s%s%s%s\n", indent, "-O", indent,
-            "Insert mode--0: In order, 1 ~ 50: disorder ratio. Default is in order.");
-    printf("%s%s%s%s\n", indent, "-R", indent,
+    printf("%s\n", "\t\t\t\tThe default is to simulate power equipment senario.");
+    printf("%s%s%s%s\n", indent, "-x, --no-insert", "\t\t",
+            "No-insert flag.");
+    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Default input yes for prompt.");
+    printf("%s%s%s%s\n", indent, "-O, --disorder=NUMBER", "\t\t",
+            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. Default is in order.");
+    printf("%s%s%s%s\n", indent, "-R, --disorder-range=NUMBER", "\t",
             "Out of order data's range, ms, default is 1000.");
-    printf("%s%s%s%s\n", indent, "-g", indent,
+    printf("%s%s%s%s\n", indent, "-g, --debug", "\t\t\t",
             "Print debug info.");
-    printf("%s%s%s\n", indent, "-V, --version\t",
-            "Print version info.");
-    printf("%s%s%s%s\n", indent, "--help\t", indent,
-            "Print command line arguments list info.");
+    printf("%s%s%s%s\n", indent, "-?, --help\t", "\t\t",
+            "Give this help list");
+    printf("%s%s%s%s\n", indent, "    --usage\t", "\t\t",
+            "Give a short usage message");
+    printf("%s%s\n", indent, "-V, --version\t\t\tPrint program version.");
     /*    printf("%s%s%s%s\n", indent, "-D", indent,
           "Delete database if exists. 0: no, 1: yes, default is 1");
           */
+    printf("\nMandatory or optional arguments to long options are also mandatory or optional\n\
+for any corresponding short options.\n\
+\n\
+Report bugs to <support@taosdata.com>.\n");
 }
 
 static bool isStringNumber(char *input)
@@ -819,66 +831,229 @@ static bool isStringNumber(char *input)
     return true;
 }
 
+static void errorUnreconized(char *program, char *wrong_arg)
+{
+    fprintf(stderr, "%s: unrecognized options '%s'\n", program, wrong_arg);
+    fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
+static void errorPrintReqArg(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option requires an argument -- '%s'\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
+static void errorPrintReqArg2(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option requires a number argument '-%s'\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
+static void errorPrintReqArg3(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option '%s' requires an argument\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
 static void parse_args(int argc, char *argv[], SArguments *arguments) {
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-f") == 0) {
+        if ((0 == strncmp(argv[i], "-f", strlen("-f")))
+                || (0 == strncmp(argv[i], "--file", strlen("--file")))) {
             arguments->demo_mode = false;
 
-            if (NULL == argv[i+1]) {
-                printHelp();
-                errorPrint("%s", "\n\t-f need a valid json file following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->metaFile = argv[++i];
-        } else if (strcmp(argv[i], "-c") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-c need a valid path following!\n");
-                exit(EXIT_FAILURE);
-            }
-            tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
-        } else if (strcmp(argv[i], "-h") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-h need a valid string following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->host = argv[++i];
-        } else if (strcmp(argv[i], "-P") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-P need a number following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->port = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-I") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-I need a valid string following!\n");
-                exit(EXIT_FAILURE);
-            }
-            ++i;
-            if (0 == strcasecmp(argv[i], "taosc")) {
-                arguments->iface = TAOSC_IFACE;
-            } else if (0 == strcasecmp(argv[i], "rest")) {
-                arguments->iface = REST_IFACE;
-            } else if (0 == strcasecmp(argv[i], "stmt")) {
-                arguments->iface = STMT_IFACE;
+            if (2 == strlen(argv[i])) {
+                if (i+1 == argc) {
+                    errorPrintReqArg(argv[0], "f");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->metaFile = argv[++i];
+            } else if (0 == strncmp(argv[i], "-f", strlen("-f"))) {
+                arguments->metaFile = (char *)(argv[i] + strlen("-f"));
+            } else if (strlen("--file") == strlen(argv[i])) {
+                if (i+1 == argc) {
+                    errorPrintReqArg3(argv[0], "--file");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->metaFile = argv[++i];
+            } else if (0 == strncmp(argv[i], "--file=", strlen("--file="))) {
+                arguments->metaFile = (char *)(argv[i] + strlen("--file="));
             } else {
-                errorPrint("%s", "\n\t-I need a valid string following!\n");
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-        } else if (strcmp(argv[i], "-u") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-u need a valid string following!\n");
+        } else if ((0 == strncmp(argv[i], "-c", strlen("-c")))
+                || (0 == strncmp(argv[i], "--config-dir", strlen("--config-dir")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "c");
+                    exit(EXIT_FAILURE);
+                }
+                tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
+            } else if (0 == strncmp(argv[i], "-c", strlen("-c"))) {
+                tstrncpy(configDir, (char *)(argv[i] + strlen("-")), TSDB_FILENAME_LEN);
+            } else if (strlen("--config-dir") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--config-dir");
+                    exit(EXIT_FAILURE);
+                }
+                tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
+            } else if (0 == strncmp(argv[i], "--config-dir=", strlen("--config-dir="))) {
+                tstrncpy(configDir, (char *)(argv[i] + strlen("--config-dir=")), TSDB_FILENAME_LEN);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->user = argv[++i];
-        } else if (strncmp(argv[i], "-p", 2) == 0) {
-            if (strlen(argv[i]) == 2) {
+        } else if ((0 == strncmp(argv[i], "-h", strlen("-h")))
+                || (0 == strncmp(argv[i], "--host", strlen("--host")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "h");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->host = argv[++i];
+            } else if (0 == strncmp(argv[i], "-h", strlen("-h"))) {
+                arguments->host = (char *)(argv[i] + strlen("-h"));
+            } else if (strlen("--host") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--host");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->host = argv[++i];
+            } else if (0 == strncmp(argv[i], "--host=", strlen("--host="))) {
+                arguments->host = (char *)(argv[i] + strlen("--host="));
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if (strcmp(argv[i], "-PP") == 0) {
+            arguments->performance_print = true;
+        } else if ((0 == strncmp(argv[i], "-P", strlen("-P")))
+                || (0 == strncmp(argv[i], "--port", strlen("--port")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "P");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "P");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->port = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--port=", strlen("--port="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--port=")))) {
+                    arguments->port = atoi((char *)(argv[i]+strlen("--port=")));
+                }
+            } else if (0 == strncmp(argv[i], "-P", strlen("-P"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-P")))) {
+                    arguments->port = atoi((char *)(argv[i]+strlen("-P")));
+                }
+            } else if (strlen("--port") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--port");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->port = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-I", strlen("-I")))
+                || (0 == strncmp(argv[i], "--interface", strlen("--interface")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "I");
+                    exit(EXIT_FAILURE);
+                }
+                if (0 == strcasecmp(argv[i+1], "taosc")) {
+                    arguments->iface = TAOSC_IFACE;
+                } else if (0 == strcasecmp(argv[i+1], "rest")) {
+                    arguments->iface = REST_IFACE;
+                } else if (0 == strcasecmp(argv[i+1], "stmt")) {
+                    arguments->iface = STMT_IFACE;
+                } else {
+                    errorPrintReqArg(argv[0], "I");
+                    exit(EXIT_FAILURE);
+                }
+                i++;
+            } else if (0 == strncmp(argv[i], "--interface=", strlen("--interface="))) {
+                if (0 == strcasecmp((char *)(argv[i] + strlen("--interface=")), "taosc")) {
+                    arguments->iface = TAOSC_IFACE;
+                } else if (0 == strcasecmp((char *)(argv[i] + strlen("--interface=")), "rest")) {
+                    arguments->iface = REST_IFACE;
+                } else if (0 == strcasecmp((char *)(argv[i] + strlen("--interface=")), "stmt")) {
+                    arguments->iface = STMT_IFACE;
+                } else {
+                    errorPrintReqArg3(argv[0], "--interface");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-I", strlen("-I"))) {
+                if (0 == strcasecmp((char *)(argv[i] + strlen("-I")), "taosc")) {
+                    arguments->iface = TAOSC_IFACE;
+                } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")), "rest")) {
+                    arguments->iface = REST_IFACE;
+                } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")), "stmt")) {
+                    arguments->iface = STMT_IFACE;
+                } else {
+                    errorPrintReqArg3(argv[0], "-I");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--interface") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--interface");
+                    exit(EXIT_FAILURE);
+                }
+                if (0 == strcasecmp(argv[i+1], "taosc")) {
+                    arguments->iface = TAOSC_IFACE;
+                } else if (0 == strcasecmp(argv[i+1], "rest")) {
+                    arguments->iface = REST_IFACE;
+                } else if (0 == strcasecmp(argv[i+1], "stmt")) {
+                    arguments->iface = STMT_IFACE;
+                } else {
+                    errorPrintReqArg3(argv[0], "--interface");
+                    exit(EXIT_FAILURE);
+                }
+                i++;
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-u", strlen("-u")))
+                || (0 == strncmp(argv[i], "--user", strlen("--user")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "u");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->user = argv[++i];
+            } else if (0 == strncmp(argv[i], "-u", strlen("-u"))) {
+                arguments->user = (char *)(argv[i++] + strlen("-u"));
+            } else if (0 == strncmp(argv[i], "--user=", strlen("--user="))) {
+                arguments->user = (char *)(argv[i++] + strlen("--user="));
+            } else if (strlen("--user") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--user");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->user = argv[++i];
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-p", strlen("-p")))
+                || (0 == strcmp(argv[i], "--password"))) {
+            if ((strlen(argv[i]) == 2) || (0 == strcmp(argv[i], "--password"))) {
                 printf("Enter password: ");
                 taosSetConsoleEcho(false);
                 if (scanf("%s", arguments->password) > 1) {
@@ -888,52 +1063,202 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
             }
-        } else if (strcmp(argv[i], "-o") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-o need a valid string following!\n");
+        } else if ((0 == strncmp(argv[i], "-o", strlen("-o")))
+                || (0 == strncmp(argv[i], "--output", strlen("--output")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--output");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->output_file = argv[++i];
+            } else if (0 == strncmp(argv[i], "--output=", strlen("--output="))) {
+                arguments->output_file = (char *)(argv[i++] + strlen("--output="));
+            } else if (0 == strncmp(argv[i], "-o", strlen("-o"))) {
+                arguments->output_file = (char *)(argv[i++] + strlen("-o"));
+            } else if (strlen("--output") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--output");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->output_file = argv[++i];
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->output_file = argv[++i];
-        } else if (strcmp(argv[i], "-s") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-s need a valid string following!\n");
+        } else if ((0 == strncmp(argv[i], "-s", strlen("-s")))
+                || (0 == strncmp(argv[i], "--sql-file", strlen("--sql-file")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "s");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->sqlFile = argv[++i];
+            } else if (0 == strncmp(argv[i], "--sql-file=", strlen("--sql-file="))) {
+                arguments->host = (char *)(argv[i++] + strlen("--sql-file="));
+            } else if (0 == strncmp(argv[i], "-s", strlen("-s"))) {
+                arguments->host = (char *)(argv[i++] + strlen("-s"));
+            } else if (strlen("--sql-file") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--sql-file");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->sqlFile = argv[++i];
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->sqlFile = argv[++i];
-        } else if (strcmp(argv[i], "-q") == 0) {
-            if ((argc == i+1)
-                    || (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-q need a number following!\nQuery mode -- 0: SYNC, not-0: ASYNC. Default is SYNC.\n");
+        } else if ((0 == strncmp(argv[i], "-q", strlen("-q")))
+                || (0 == strncmp(argv[i], "--query-mode", strlen("--query-mode")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "q");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "q");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->async_mode = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--query-mode=", strlen("--query-mode="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--query-mode=")))) {
+                    arguments->async_mode = atoi((char *)(argv[i]+strlen("--query-mode=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--query-mode");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-q", strlen("-q"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-q")))) {
+                    arguments->async_mode = atoi((char *)(argv[i]+strlen("-q")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-q");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--query-mode") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--query-mode");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--query-mode");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->async_mode = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->async_mode = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-T") == 0) {
-            if ((argc == i+1)
-                    || (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-T need a number following!\n");
+        } else if ((0 == strncmp(argv[i], "-T", strlen("-T")))
+                || (0 == strncmp(argv[i], "--threads", strlen("--threads")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "T");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "T");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_threads = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--threads=", strlen("--threads="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--threads=")))) {
+                    arguments->num_of_threads = atoi((char *)(argv[i]+strlen("--threads=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--threads");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-T", strlen("-T"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-T")))) {
+                    arguments->num_of_threads = atoi((char *)(argv[i]+strlen("-T")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-T");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--threads") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--threads");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--threads");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_threads = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->num_of_threads = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-i") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-i need a number following!\n");
+        } else if ((0 == strncmp(argv[i], "-i", strlen("-i")))
+                || (0 == strncmp(argv[i], "--insert-interval", strlen("--insert-interval")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "i");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "i");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->insert_interval = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--insert-interval=", strlen("--insert-interval="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--insert-interval=")))) {
+                    arguments->insert_interval = atoi((char *)(argv[i]+strlen("--insert-interval=")));
+                } else {
+                    errorPrintReqArg3(argv[0], "--insert-innterval");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-i", strlen("-i"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-i")))) {
+                    arguments->insert_interval = atoi((char *)(argv[i]+strlen("-i")));
+                } else {
+                    errorPrintReqArg3(argv[0], "-i");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--insert-interval")== strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--insert-interval");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--insert-interval");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->insert_interval = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->insert_interval = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-S") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("\n\t%s%s", argv[i], " need a number following!\n");
+        } else if ((0 == strncmp(argv[i], "-S", strlen("-S")))
+                || (0 == strncmp(argv[i], "--time-step", strlen("--time-step")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "S");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "S");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->async_mode = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--time-step=", strlen("--time-step="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--time-step=")))) {
+                    arguments->async_mode = atoi((char *)(argv[i]+strlen("--time-step=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--time-step");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-S", strlen("-S"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-S")))) {
+                    arguments->async_mode = atoi((char *)(argv[i]+strlen("-S")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-S");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--time-step") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--time-step");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--time-step");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->async_mode = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->timestamp_step = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-qt") == 0) {
             if ((argc == i+1)
                     || (!isStringNumber(argv[i+1]))) {
@@ -942,56 +1267,221 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->query_times = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-B") == 0) {
-            if ((argc == i+1)
-                    || (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-B need a number following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->interlace_rows = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-r") == 0) {
-            if ((argc == i+1)
-                    || (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-r need a number following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->num_of_RPR = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-t") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-t need a number following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->num_of_tables = atoi(argv[++i]);
-            g_totalChildTables = arguments->num_of_tables;
-        } else if (strcmp(argv[i], "-n") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-n need a number following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->num_of_DPT = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-d") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-d need a valid string following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->database = argv[++i];
-        } else if (strcmp(argv[i], "-l") == 0) {
-            arguments->demo_mode = false;
-            if (argc == i+1) {
-                if (!isStringNumber(argv[i+1])) {
-                    printHelp();
-                    errorPrint("%s", "\n\t-l need a number following!\n");
+        } else if ((0 == strncmp(argv[i], "-B", strlen("-B")))
+                || (0 == strncmp(argv[i], "--interlace-rows", strlen("--interlace-rows")))) {
+            if (strlen("-B") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "B");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "B");
                     exit(EXIT_FAILURE);
                 }
+                arguments->interlace_rows = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--interlace-rows=", strlen("--interlace-rows="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--interlace-rows=")))) {
+                    arguments->interlace_rows = atoi((char *)(argv[i]+strlen("--interlace-rows=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--interlace-rows");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-B", strlen("-B"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-B")))) {
+                    arguments->interlace_rows = atoi((char *)(argv[i]+strlen("-B")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-B");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--interlace-rows")== strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--interlace-rows");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--interlace-rows");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->interlace_rows = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
             }
-            arguments->num_of_CPR = atoi(argv[++i]);
+        } else if ((0 == strncmp(argv[i], "-r", strlen("-r")))
+                || (0 == strncmp(argv[i], "--rec-per-req", 13))) {
+            if (strlen("-r") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "r");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "r");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_RPR = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--rec-per-req=", strlen("--rec-per-req="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--rec-per-req=")))) {
+                    arguments->num_of_RPR = atoi((char *)(argv[i]+strlen("--rec-per-req=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--rec-per-req");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-r", strlen("-r"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-r")))) {
+                    arguments->num_of_RPR = atoi((char *)(argv[i]+strlen("-r")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-r");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--rec-per-req")== strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--rec-per-req");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--rec-per-req");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_RPR = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-t", strlen("-t")))
+                || (0 == strncmp(argv[i], "--tables", strlen("--tables")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "t");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "t");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_tables = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--tables=", strlen("--tables="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--tables=")))) {
+                    arguments->num_of_tables = atoi((char *)(argv[i]+strlen("--tables=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--tables");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-t", strlen("-t"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-t")))) {
+                    arguments->num_of_tables = atoi((char *)(argv[i]+strlen("-t")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-t");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--tables") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--tables");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--tables");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_tables = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+
+            g_totalChildTables = arguments->num_of_tables;
+        } else if ((0 == strncmp(argv[i], "-n", strlen("-n")))
+                || (0 == strncmp(argv[i], "--records", strlen("--records")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "n");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "n");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_DPT = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--records=", strlen("--records="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--records=")))) {
+                    arguments->num_of_DPT = atoi((char *)(argv[i]+strlen("--records=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--records");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-n", strlen("-n"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-n")))) {
+                    arguments->num_of_DPT = atoi((char *)(argv[i]+strlen("-n")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-n");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--records") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--records");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--records");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_DPT = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-d", strlen("-d")))
+                || (0 == strncmp(argv[i], "--database", strlen("--database")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "d");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->database = argv[++i];
+            } else if (0 == strncmp(argv[i], "--database=", strlen("--database="))) {
+                arguments->output_file = (char *)(argv[i] + strlen("--database="));
+            } else if (0 == strncmp(argv[i], "-d", strlen("-d"))) {
+                arguments->output_file = (char *)(argv[i] + strlen("-d"));
+            } else if (strlen("--database") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--database");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->database = argv[++i];
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-l", strlen("-l")))
+                || (0 == strncmp(argv[i], "--columns", strlen("--columns")))) {
+            arguments->demo_mode = false;
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "l");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "l");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_CPR = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--columns=", strlen("--columns="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--columns=")))) {
+                    arguments->num_of_CPR = atoi((char *)(argv[i]+strlen("--columns=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--columns");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-l", strlen("-l"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-l")))) {
+                    arguments->num_of_CPR = atoi((char *)(argv[i]+strlen("-l")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-l");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--columns")== strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--columns");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--columns");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->num_of_CPR = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
 
             if (arguments->num_of_CPR > MAX_NUM_COLUMNS) {
                 printf("WARNING: max acceptible columns count is %d\n", MAX_NUM_COLUMNS);
@@ -1005,36 +1495,54 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             for (int col = arguments->num_of_CPR; col < MAX_NUM_COLUMNS; col++) {
                 arguments->datatype[col] = NULL;
             }
-        } else if (strcmp(argv[i], "-b") == 0) {
+        } else if ((0 == strncmp(argv[i], "-b", strlen("-b")))
+                || (0 == strncmp(argv[i], "--data-type", strlen("--data-type")))) {
             arguments->demo_mode = false;
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-b need valid string following!\n");
+
+            char *dataType;
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "b");
+                    exit(EXIT_FAILURE);
+                }
+                dataType = argv[++i];
+            } else if (0 == strncmp(argv[i], "--data-type=", strlen("--data-type="))) {
+                dataType = (char *)(argv[i] + strlen("--data-type="));
+            } else if (0 == strncmp(argv[i], "-b", strlen("-b"))) {
+                dataType = (char *)(argv[i] + strlen("-b"));
+            } else if (strlen("--data-type") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--data-type");
+                    exit(EXIT_FAILURE);
+                }
+                dataType = argv[++i];
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            ++i;
-            if (strstr(argv[i], ",") == NULL) {
+
+            if (strstr(dataType, ",") == NULL) {
                 // only one col
-                if (strcasecmp(argv[i], "INT")
-                        && strcasecmp(argv[i], "FLOAT")
-                        && strcasecmp(argv[i], "TINYINT")
-                        && strcasecmp(argv[i], "BOOL")
-                        && strcasecmp(argv[i], "SMALLINT")
-                        && strcasecmp(argv[i], "BIGINT")
-                        && strcasecmp(argv[i], "DOUBLE")
-                        && strcasecmp(argv[i], "BINARY")
-                        && strcasecmp(argv[i], "TIMESTAMP")
-                        && strcasecmp(argv[i], "NCHAR")) {
+                if (strcasecmp(dataType, "INT")
+                        && strcasecmp(dataType, "FLOAT")
+                        && strcasecmp(dataType, "TINYINT")
+                        && strcasecmp(dataType, "BOOL")
+                        && strcasecmp(dataType, "SMALLINT")
+                        && strcasecmp(dataType, "BIGINT")
+                        && strcasecmp(dataType, "DOUBLE")
+                        && strcasecmp(dataType, "BINARY")
+                        && strcasecmp(dataType, "TIMESTAMP")
+                        && strcasecmp(dataType, "NCHAR")) {
                     printHelp();
                     errorPrint("%s", "-b: Invalid data_type!\n");
                     exit(EXIT_FAILURE);
                 }
-                arguments->datatype[0] = argv[i];
+                arguments->datatype[0] = dataType;
                 arguments->datatype[1] = NULL;
             } else {
                 // more than one col
                 int index = 0;
-                g_dupstr = strdup(argv[i]);
+                g_dupstr = strdup(dataType);
                 char *running = g_dupstr;
                 char *token = strsep(&running, ",");
                 while(token != NULL) {
@@ -1059,75 +1567,227 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->datatype[index] = NULL;
             }
-        } else if (strcmp(argv[i], "-w") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-w need a number following!\n");
+        } else if ((0 == strncmp(argv[i], "-w", strlen("-w")))
+                || (0 == strncmp(argv[i], "--binwidth", strlen("--binwidth")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "w");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "w");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->binwidth = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--binwidth=", strlen("--binwidth="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--binwidth=")))) {
+                    arguments->binwidth = atoi((char *)(argv[i]+strlen("--binwidth=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--binwidth");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-w", strlen("-w"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-w")))) {
+                    arguments->binwidth = atoi((char *)(argv[i]+strlen("-w")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-w");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--binwidth") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--binwidth");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--binwidth");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->binwidth = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->len_of_binary = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "-m") == 0) {
-            if ((argc == i+1) ||
-                    (isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-m need a letter-initial string following!\n");
+        } else if ((0 == strncmp(argv[i], "-m", strlen("-m")))
+                || (0 == strncmp(argv[i], "--table-prefix", strlen("--table-prefix")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "m");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->tb_prefix = argv[++i];
+            } else if (0 == strncmp(argv[i], "--table-prefix=", strlen("--table-prefix="))) {
+                arguments->tb_prefix = (char *)(argv[i] + strlen("--table-prefix="));
+            } else if (0 == strncmp(argv[i], "-m", strlen("-m"))) {
+                arguments->tb_prefix = (char *)(argv[i] + strlen("-m"));
+            } else if (strlen("--table-prefix") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--table-prefix");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->tb_prefix = argv[++i];
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
-            arguments->tb_prefix = argv[++i];
-        } else if (strcmp(argv[i], "-N") == 0) {
+        } else if ((strcmp(argv[i], "-N") == 0)
+                || (0 == strcmp(argv[i], "--normal-table"))) {
             arguments->use_metric = false;
-        } else if (strcmp(argv[i], "-M") == 0) {
+        } else if ((strcmp(argv[i], "-M") == 0)
+                || (0 == strcmp(argv[i], "--random"))) {
             arguments->demo_mode = false;
-        } else if (strcmp(argv[i], "-x") == 0) {
+        } else if ((strcmp(argv[i], "-x") == 0)
+                || (0 == strcmp(argv[i], "--no-insert"))) {
             arguments->insert_only = false;
-        } else if (strcmp(argv[i], "-y") == 0) {
+        } else if ((strcmp(argv[i], "-y") == 0)
+                || (0 == strcmp(argv[i], "--answer-yes"))) {
             arguments->answer_yes = true;
-        } else if (strcmp(argv[i], "-g") == 0) {
+        } else if ((strcmp(argv[i], "-g") == 0)
+                || (0 == strcmp(argv[i], "--debug"))) {
             arguments->debug_print = true;
         } else if (strcmp(argv[i], "-gg") == 0) {
             arguments->verbose_print = true;
-        } else if (strcmp(argv[i], "-PP") == 0) {
-            arguments->performance_print = true;
-        } else if (strcmp(argv[i], "-O") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-O need a number following!\n");
+        } else if ((0 == strncmp(argv[i], "-O", strlen("-O")))
+                || (0 == strncmp(argv[i], "--disorder", strlen("--disorder")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "O");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "O");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->disorderRatio = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--disorder=", strlen("--disorder="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--disorder=")))) {
+                    arguments->disorderRatio = atoi((char *)(argv[i]+strlen("--disorder=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--disorder");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-O", strlen("-O"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-O")))) {
+                    arguments->disorderRatio = atoi((char *)(argv[i]+strlen("-O")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-O");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--disorder") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--disorder");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--disorder");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->disorderRatio = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
-            arguments->disorderRatio = atoi(argv[++i]);
-
             if (arguments->disorderRatio > 50) {
+                errorPrint("Invalid disorder ratio %d, will be set to %d\n",
+                        arguments->disorderRatio, 50);
                 arguments->disorderRatio = 50;
             }
 
             if (arguments->disorderRatio < 0) {
+                errorPrint("Invalid disorder ratio %d, will be set to %d\n",
+                        arguments->disorderRatio, 0);
                 arguments->disorderRatio = 0;
             }
+        } else if ((0 == strncmp(argv[i], "-R", strlen("-R")))
+                || (0 == strncmp(argv[i], "--disorder-range",
+                        strlen("--disorder-range")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "R");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "R");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->disorderRange = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--disorder-range=",
+                        strlen("--disorder-range="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--disorder-range=")))) {
+                    arguments->disorderRange =
+                        atoi((char *)(argv[i]+strlen("--disorder-rnage=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--disorder-range");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-R", strlen("-R"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-R")))) {
+                    arguments->disorderRange =
+                        atoi((char *)(argv[i]+strlen("-R")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-R");
+                    exit(EXIT_FAILURE);
+                }
 
-        } else if (strcmp(argv[i], "-R") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-R need a number following!\n");
+                if (arguments->disorderRange < 0) {
+                    errorPrint("Invalid disorder range %d, will be set to %d\n",
+                            arguments->disorderRange, 1000);
+                    arguments->disorderRange = 1000;
+                }
+            } else if (strlen("--disorder-range") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--disorder-range");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--disorder-range");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->disorderRange = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+        } else if ((0 == strncmp(argv[i], "-a", strlen("-a")))
+                || (0 == strncmp(argv[i], "--replica",
+                        strlen("--replica")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "a");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "a");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->replica = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--replica=",
+                        strlen("--replica="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--replica=")))) {
+                    arguments->replica =
+                        atoi((char *)(argv[i]+strlen("--replica=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--replica");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-a", strlen("-a"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-a")))) {
+                    arguments->replica =
+                        atoi((char *)(argv[i]+strlen("-a")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-a");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strlen("--replica") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--replica");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--replica");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->replica = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
-            arguments->disorderRange = atoi(argv[++i]);
-            if (arguments->disorderRange < 0)
-                arguments->disorderRange = 1000;
-
-        } else if (strcmp(argv[i], "-a") == 0) {
-            if ((argc == i+1) ||
-                    (!isStringNumber(argv[i+1]))) {
-                printHelp();
-                errorPrint("%s", "\n\t-a need a number following!\n");
-                exit(EXIT_FAILURE);
-            }
-            arguments->replica = atoi(argv[++i]);
             if (arguments->replica > 3 || arguments->replica < 1) {
+                errorPrint("Invalid replica value %d, will be set to %d\n",
+                        arguments->replica, 1);
                 arguments->replica = 1;
             }
         } else if (strcmp(argv[i], "-D") == 0) {
@@ -1136,16 +1796,40 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorPrint("%s", "\n\t-D need a valud (0~3) number following!\n");
                 exit(EXIT_FAILURE);
             }
-        } else if ((strcmp(argv[i], "--version") == 0) ||
-                (strcmp(argv[i], "-V") == 0)) {
+        } else if ((strcmp(argv[i], "--version") == 0)
+                || (strcmp(argv[i], "-V") == 0)) {
             printVersion();
             exit(0);
-        } else if (strcmp(argv[i], "--help") == 0) {
+        } else if ((strcmp(argv[i], "--help") == 0)
+                || (strcmp(argv[i], "-?") == 0)) {
             printHelp();
             exit(0);
+        } else if (strcmp(argv[i], "--usage") == 0) {
+            printf("    Usage: taosdemo [-f JSONFILE] [-u USER] [-p PASSWORD] [-c CONFIG_DIR]\n\
+                    [-h HOST] [-P PORT] [-I INTERFACE] [-d DATABASE] [-a REPLICA]\n\
+                    [-m TABLEPREFIX] [-s SQLFILE] [-N] [-o OUTPUTFILE] [-q QUERYMODE]\n\
+                    [-b DATATYPES] [-w WIDTH_OF_BINARY] [-l COLUNNS] [-T THREADNUMBER]\n\
+                    [-i SLEEPTIME] [-S TIME_STEP] [-B INTERLACE_ROWS] [-t TABLES]\n\
+                    [-n RECORDS] [-M] [-x] [-y] [-O ORDERMODE] [-R RANGE] [-a REPLIcA][-g]\n\
+                    [--help] [--usage] [--version]\n");
+            exit(0);
         } else {
-            printHelp();
-            errorPrint("%s", "ERROR: wrong options\n");
+            // to simulate argp_option output
+            if (strlen(argv[i]) > 2) {
+                if (0 == strncmp(argv[i], "--", 2)) {
+                    fprintf(stderr, "%s: unrecognized options '%s'\n", argv[0], argv[i]);
+                } else if (0 == strncmp(argv[i], "-", 1)) {
+                    char tmp[2] = {0};
+                    tstrncpy(tmp, argv[i]+1, 2);
+                    fprintf(stderr, "%s: invalid options -- '%s'\n", argv[0], tmp);
+                } else {
+                    fprintf(stderr, "%s: Too many arguments\n", argv[0]);
+                }
+            } else {
+                fprintf(stderr, "%s invalid options -- '%s'\n", argv[0],
+                        (char *)((char *)argv[i])+1);
+            }
+            fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -1162,7 +1846,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     }
     g_args.num_of_CPR = columnCount;
 
-    if (((arguments->debug_print) && (arguments->metaFile == NULL))
+    if (((arguments->debug_print) && (NULL != arguments->metaFile))
             || arguments->verbose_print) {
         printf("###################################################################\n");
         printf("# meta file:                         %s\n", arguments->metaFile);
@@ -1175,9 +1859,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 arguments->use_metric ? "true" : "false");
         if (*(arguments->datatype)) {
             printf("# Specified data type:               ");
-            for (int i = 0; i < MAX_NUM_COLUMNS; i++)
-                if (arguments->datatype[i])
-                    printf("%s,", arguments->datatype[i]);
+            for (int c = 0; c < MAX_NUM_COLUMNS; c++)
+                if (arguments->datatype[c])
+                    printf("%s,", arguments->datatype[c]);
                 else
                     break;
             printf("\n");
@@ -1188,7 +1872,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 arguments->num_of_RPR);
         printf("# Max SQL length:                    %"PRIu64"\n",
                 arguments->max_sql_len);
-        printf("# Length of Binary:                  %d\n", arguments->len_of_binary);
+        printf("# Length of Binary:                  %d\n", arguments->binwidth);
         printf("# Number of Threads:                 %d\n", arguments->num_of_threads);
         printf("# Number of Tables:                  %"PRId64"\n",
                 arguments->num_of_tables);
@@ -1644,7 +2328,7 @@ static int printfInsertMeta() {
     printf("resultFile:                 \033[33m%s\033[0m\n", g_Dbs.resultFile);
     printf("thread num of insert data:  \033[33m%d\033[0m\n", g_Dbs.threadCount);
     printf("thread num of create table: \033[33m%d\033[0m\n",
-            g_Dbs.threadCountByCreateTbl);
+            g_Dbs.threadCountForCreateTbl);
     printf("top insert interval:        \033[33m%"PRIu64"\033[0m\n",
             g_args.insert_interval);
     printf("number of records per req:  \033[33m%u\033[0m\n",
@@ -1852,7 +2536,7 @@ static void printfInsertMetaToFile(FILE* fp) {
     fprintf(fp, "configDir:                  %s\n", configDir);
     fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
     fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
-    fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
+    fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountForCreateTbl);
     fprintf(fp, "number of records per req:  %u\n", g_args.num_of_RPR);
     fprintf(fp, "max sql length:             %"PRIu64"\n", g_args.max_sql_len);
     fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
@@ -3328,6 +4012,7 @@ static void* createTable(void *sarg)
         }
 
         len = 0;
+
         if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
                     NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
@@ -3451,7 +4136,7 @@ static void createChildTables() {
 
                     startMultiThreadCreateChildTable(
                             g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
-                            g_Dbs.threadCountByCreateTbl,
+                            g_Dbs.threadCountForCreateTbl,
                             startFrom,
                             g_Dbs.db[i].superTbls[j].childTblCount,
                             g_Dbs.db[i].dbName, &(g_Dbs.db[i].superTbls[j]));
@@ -3465,7 +4150,7 @@ static void createChildTables() {
                         || (strncasecmp(g_args.datatype[j],
                                 "NCHAR", strlen("NCHAR")) == 0)) {
                     snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
-                            ",C%d %s(%d)", j, g_args.datatype[j], g_args.len_of_binary);
+                            ",C%d %s(%d)", j, g_args.datatype[j], g_args.binwidth);
                 } else {
                     snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
                             ",C%d %s", j, g_args.datatype[j]);
@@ -3480,7 +4165,7 @@ static void createChildTables() {
                     g_Dbs.db[i].dbName, g_args.num_of_tables, tblColsBuf);
             startMultiThreadCreateChildTable(
                     tblColsBuf,
-                    g_Dbs.threadCountByCreateTbl,
+                    g_Dbs.threadCountForCreateTbl,
                     0,
                     g_args.num_of_tables,
                     g_Dbs.db[i].dbName,
@@ -3837,9 +4522,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
     cJSON* threads2 = cJSON_GetObjectItem(root, "thread_count_create_tbl");
     if (threads2 && threads2->type == cJSON_Number) {
-        g_Dbs.threadCountByCreateTbl = threads2->valueint;
+        g_Dbs.threadCountForCreateTbl = threads2->valueint;
     } else if (!threads2) {
-        g_Dbs.threadCountByCreateTbl = 1;
+        g_Dbs.threadCountForCreateTbl = 1;
     } else {
         errorPrint("%s", "failed to read json, threads2 not found\n");
         goto PARSE_OVER;
@@ -4201,7 +4886,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
             } else if (!batchCreateTbl) {
-                g_Dbs.db[i].superTbls[j].batchCreateTableNum = 1000;
+                g_Dbs.db[i].superTbls[j].batchCreateTableNum = 10;
             } else {
                 errorPrint("%s", "failed to read json, batch_create_tbl_num not found\n");
                 goto PARSE_OVER;
@@ -5292,12 +5977,85 @@ static int64_t generateData(char *recBuf, char **data_type,
     return (int32_t)strlen(recBuf);
 }
 
-static int prepareSampleDataForSTable(SSuperTable *stbInfo) {
-    char* sampleDataBuf = NULL;
+static int generateSampleMemoryFromRand(SSuperTable *stbInfo)
+{
+    char data[MAX_DATA_SIZE];
+    memset(data, 0, MAX_DATA_SIZE);
 
-    sampleDataBuf = calloc(
+    char *buff = malloc(stbInfo->lenOfOneRow);
+    if (NULL == buff) {
+        errorPrint2("%s() LN%d, memory allocation %"PRId64" bytes failed\n",
+                __func__, __LINE__, stbInfo->lenOfOneRow);
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
+        uint64_t pos = 0;
+        memset(buff, 0, stbInfo->lenOfOneRow);
+
+        for (int c = 0; c < stbInfo->columnCount; c++) {
+            char *tmp;
+            if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "BINARY", strlen("BINARY"))) {
+                rand_string(data, stbInfo->columns[c].dataLen);
+                pos += sprintf(buff + pos, "%s,", data);
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "NCHAR", strlen("NCHAR"))) {
+                rand_string(data, stbInfo->columns[c].dataLen);
+                pos += sprintf(buff + pos, "%s,", data);
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "INT", strlen("INT"))) {
+                if ((g_args.demo_mode) && (c == 1)) {
+                    tmp = demo_voltage_int_str();
+                } else {
+                    tmp = rand_int_str();
+                }
+                pos += sprintf(buff + pos, "%s,", tmp);
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "BIGINT", strlen("BIGINT"))) {
+                pos += sprintf(buff + pos, "%s,", rand_bigint_str());
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "FLOAT", strlen("FLOAT"))) {
+                if (g_args.demo_mode) {
+                    if (c == 0) {
+                        tmp = demo_current_float_str();
+                    } else {
+                        tmp = demo_phase_float_str();
+                    }
+                } else {
+                    tmp = rand_float_str();
+                }
+                pos += sprintf(buff + pos, "%s,", tmp);
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "DOUBLE", strlen("DOUBLE"))) {
+                pos += sprintf(buff + pos, "%s,", rand_double_str());
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "SMALLINT", strlen("SMALLINT"))) {
+                pos += sprintf(buff + pos, "%s,", rand_smallint_str());
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "TINYINT", strlen("TINYINT"))) {
+                pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "BOOL", strlen("BOOL"))) {
+                pos += sprintf(buff + pos, "%s,", rand_bool_str());
+            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
+                        "TIMESTAMP", strlen("TIMESTAMP"))) {
+                pos += sprintf(buff + pos, "%s,", rand_bigint_str());
+            }
+        }
+        *(buff + pos - 1) = 0;
+        memcpy(stbInfo->sampleDataBuf + i * stbInfo->lenOfOneRow, buff, pos);
+    }
+
+    free(buff);
+    return 0;
+}
+
+static int prepareSampleDataForSTable(SSuperTable *stbInfo) {
+
+    stbInfo->sampleDataBuf = calloc(
             stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
-    if (sampleDataBuf == NULL) {
+    if (NULL == stbInfo->sampleDataBuf) {
         errorPrint2("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
                 __func__, __LINE__,
                 stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
@@ -5305,13 +6063,16 @@ static int prepareSampleDataForSTable(SSuperTable *stbInfo) {
         return -1;
     }
 
-    stbInfo->sampleDataBuf = sampleDataBuf;
-    int ret = readSampleFromCsvFileToMem(stbInfo);
+    int ret;
+    if (0 == strncasecmp(stbInfo->dataSource, "sample", strlen("sample"))) 
+        ret = readSampleFromCsvFileToMem(stbInfo);
+    else
+        ret = generateSampleMemoryFromRand(stbInfo);
 
     if (0 != ret) {
         errorPrint2("%s() LN%d, read sample from csv file failed.\n",
                 __func__, __LINE__);
-        tmfree(sampleDataBuf);
+        tmfree(stbInfo->sampleDataBuf);
         stbInfo->sampleDataBuf = NULL;
         return -1;
     }
@@ -5429,7 +6190,7 @@ static int32_t generateDataTailWithoutStb(
         int64_t retLen = 0;
 
         char **data_type = g_args.datatype;
-        int lenOfBinary = g_args.len_of_binary;
+        int lenOfBinary = g_args.binwidth;
 
         if (g_args.disorderRatio) {
             retLen = generateData(data, data_type,
@@ -6211,7 +6972,7 @@ static int32_t prepareStmtWithoutStb(
             if ( -1 == prepareStmtBindArrayByType(
                         bind,
                         data_type[i],
-                        g_args.len_of_binary,
+                        g_args.binwidth,
                         pThreadInfo->time_precision,
                         NULL)) {
                 return -1;
@@ -6245,7 +7006,7 @@ static int32_t prepareStbStmtBindTag(
         char *tagsVal,
         int32_t timePrec)
 {
-    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
+    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.binwidth);
     if (bindBuffer == NULL) {
         errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
                 __func__, __LINE__, DOUBLE_BUFF_LEN);
@@ -6277,7 +7038,7 @@ static int32_t prepareStbStmtBindRand(
         int64_t startTime, int32_t recSeq,
         int32_t timePrec)
 {
-    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
+    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.binwidth);
     if (bindBuffer == NULL) {
         errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
                 __func__, __LINE__, DOUBLE_BUFF_LEN);
@@ -7029,11 +7790,14 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             pstr += len;
             remainderBufLen -= len;
 
+            // measure prepare + insert
+            startTs = taosGetTimestampUs();
+
             int32_t generated;
             if (stbInfo) {
                 if (stbInfo->iface == STMT_IFACE) {
                     if (sourceRand) {
-                        generated = prepareStbStmtRand(
+/*                        generated = prepareStbStmtRand(
                                 pThreadInfo,
                                 tableName,
                                 tableSeq,
@@ -7041,6 +7805,14 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                                 insertRows,
                                 i, start_time
                                 );
+				*/
+                        generated = prepareStbStmtWithSample(
+                                pThreadInfo,
+                                tableName,
+                                tableSeq,
+                                g_args.num_of_RPR,
+                                insertRows, i, start_time,
+                                &(pThreadInfo->samplePos));
                     } else {
                         generated = prepareStbStmtWithSample(
                                 pThreadInfo,
@@ -7085,7 +7857,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             start_time +=  generated * timeStampStep;
             pThreadInfo->totalInsertRows += generated;
 
-            startTs = taosGetTimestampUs();
+            // only measure insert
+            // startTs = taosGetTimestampUs();
 
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
@@ -7295,7 +8068,6 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
         return -1;
     }
 
-
     for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
         char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
         if (bindArray == NULL) {
@@ -7303,7 +8075,6 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
                     __func__, __LINE__, (stbInfo->columnCount + 1));
             return -1;
         }
-
 
         TAOS_BIND *bind;
         int cursor = 0;
@@ -7388,16 +8159,13 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             }
         }
     } else {
-        start_time = 1500000000000;
+        start_time = DEFAULT_START_TIME;
     }
     debugPrint("%s() LN%d, start_time= %"PRId64"\n",
             __func__, __LINE__, start_time);
 
-    int64_t start = taosGetTimestampMs();
-
     // read sample data from file first
-    if ((stbInfo) && (0 == strncasecmp(stbInfo->dataSource,
-                    "sample", strlen("sample")))) {
+    if (stbInfo) {
         if (0 != prepareSampleDataForSTable(stbInfo)) {
             errorPrint2("%s() LN%d, prepare sample data for stable failed!\n",
                     __func__, __LINE__);
@@ -7545,8 +8313,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
         debugPrint("%s() LN%d, stmtBuffer: %s", __func__, __LINE__, stmtBuffer);
 
-        if ((stbInfo) && (0 == strncasecmp(stbInfo->dataSource,
-                        "sample", strlen("sample")))) {
+        if (stbInfo) {
             parseSampleFileToStmt(stbInfo, timePrec);
         }
     }
@@ -7631,6 +8398,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     free(stmtBuffer);
 
+    int64_t start = taosGetTimestampUs();
+
     for (int i = 0; i < threads; i++) {
         pthread_join(pids[i], NULL);
     }
@@ -7673,43 +8442,40 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     if (cntDelay == 0)    cntDelay = 1;
     avgDelay = (double)totalDelay / cntDelay;
 
-    int64_t end = taosGetTimestampMs();
+    int64_t end = taosGetTimestampUs();
     int64_t t = end - start;
+    if (0 == t) t = 1;
 
-    double tInMs = t/1000.0;
+    double tInMs = (double) t / 1000000.0;
 
     if (stbInfo) {
-        fprintf(stderr, "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
+        fprintf(stderr, "Spent %.4f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
                 tInMs, stbInfo->totalInsertRows,
                 stbInfo->totalAffectedRows,
                 threads, db_name, stbInfo->sTblName,
-                (tInMs)?
-                (double)(stbInfo->totalInsertRows/tInMs):FLT_MAX);
+                (double)(stbInfo->totalInsertRows/tInMs));
 
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                    "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
+                    "Spent %.4f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
                     tInMs, stbInfo->totalInsertRows,
                     stbInfo->totalAffectedRows,
                     threads, db_name, stbInfo->sTblName,
-                    (tInMs)?
-                    (double)(stbInfo->totalInsertRows/tInMs):FLT_MAX);
+                    (double)(stbInfo->totalInsertRows/tInMs));
         }
     } else {
-        fprintf(stderr, "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
+        fprintf(stderr, "Spent %.4f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
                 tInMs, g_args.totalInsertRows,
                 g_args.totalAffectedRows,
                 threads, db_name,
-                (tInMs)?
-                (double)(g_args.totalInsertRows/tInMs):FLT_MAX);
+                (double)(g_args.totalInsertRows/tInMs));
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                    "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
+                    "Spent %.4f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
                     tInMs, g_args.totalInsertRows,
                     g_args.totalAffectedRows,
                     threads, db_name,
-                    (tInMs)?
-                    (double)(g_args.totalInsertRows/tInMs):FLT_MAX);
+                    (double)(g_args.totalInsertRows/tInMs));
         }
     }
 
@@ -7943,11 +8709,11 @@ static int insertTestProcess() {
     if (g_totalChildTables > 0) {
         fprintf(stderr,
                 "creating %"PRId64" table(s) with %d thread(s)\n\n",
-                g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+                g_totalChildTables, g_Dbs.threadCountForCreateTbl);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
                 "creating %"PRId64" table(s) with %d thread(s)\n\n",
-                g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+                g_totalChildTables, g_Dbs.threadCountForCreateTbl);
         }
 
         // create child tables
@@ -7956,14 +8722,14 @@ static int insertTestProcess() {
         end = taosGetTimestampMs();
 
         fprintf(stderr,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
-                g_Dbs.threadCountByCreateTbl, g_actualChildTables);
+                g_Dbs.threadCountForCreateTbl, g_actualChildTables);
         if (g_fpOfInsertResult) {
             fprintf(g_fpOfInsertResult,
-                "Spent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
                 (end - start)/1000.0, g_totalChildTables,
-                g_Dbs.threadCountByCreateTbl, g_actualChildTables);
+                g_Dbs.threadCountForCreateTbl, g_actualChildTables);
         }
     }
 
@@ -8878,7 +9644,7 @@ static void setParaFromArg() {
     }
 
     g_Dbs.threadCount = g_args.num_of_threads;
-    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+    g_Dbs.threadCountForCreateTbl = g_args.num_of_threads;
 
     g_Dbs.dbCount = 1;
     g_Dbs.db[0].drop = true;
@@ -8910,7 +9676,7 @@ static void setParaFromArg() {
         tstrncpy(g_Dbs.db[0].superTbls[0].sTblName, "meters", TSDB_TABLE_NAME_LEN);
         g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
         g_Dbs.threadCount = g_args.num_of_threads;
-        g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+        g_Dbs.threadCountForCreateTbl = g_args.num_of_threads;
         g_Dbs.asyncMode = g_args.async_mode;
 
         g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
@@ -8941,7 +9707,7 @@ static void setParaFromArg() {
 
             tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                     data_type[i], min(DATATYPE_BUFF_LEN, strlen(data_type[i]) + 1));
-            g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.len_of_binary;
+            g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
             g_Dbs.db[0].superTbls[0].columnCount++;
         }
 
@@ -8963,10 +9729,10 @@ static void setParaFromArg() {
 
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType,
                 "BINARY", min(DATATYPE_BUFF_LEN, strlen("BINARY") + 1));
-        g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.len_of_binary;
+        g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.binwidth;
         g_Dbs.db[0].superTbls[0].tagCount = 2;
     } else {
-        g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+        g_Dbs.threadCountForCreateTbl = g_args.num_of_threads;
         g_Dbs.db[0].superTbls[0].tagCount = 0;
     }
 }
@@ -9088,7 +9854,7 @@ static void queryResult() {
     pthread_t read_id;
     threadInfo *pThreadInfo = calloc(1, sizeof(threadInfo));
     assert(pThreadInfo);
-    pThreadInfo->start_time = 1500000000000;  // 2017-07-14 10:40:00.000
+    pThreadInfo->start_time = DEFAULT_START_TIME;  // 2017-07-14 10:40:00.000
     pThreadInfo->start_table_from = 0;
 
     //pThreadInfo->do_aggreFunc = g_Dbs.do_aggreFunc;
@@ -9154,6 +9920,7 @@ int main(int argc, char *argv[]) {
     debugPrint("meta file: %s\n", g_args.metaFile);
 
     if (g_args.metaFile) {
+        g_totalChildTables = 0;
         initOfInsertMeta();
         initOfQueryMeta();
 

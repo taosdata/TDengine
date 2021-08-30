@@ -46,7 +46,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 </tr>
 </table>
 
-注意：与 JNI 方式不同，RESTful 接口是无状态的。在使用JDBC-RESTful时，需要在sql中指定表、超级表的数据库名称。例如：
+注意：与 JNI 方式不同，RESTful 接口是无状态的。在使用JDBC-RESTful时，需要在sql中指定表、超级表的数据库名称。（从 TDengine 2.1.8.0 版本开始，也可以在 RESTful url 中指定当前 SQL 语句所使用的默认数据库名。）例如：
 ```sql
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
 ```
@@ -84,6 +84,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 ## 安装Java Connector
 
 ### 安装前准备
+
 使用Java Connector连接数据库前，需要具备以下条件：
 1. Linux或Windows操作系统
 2. Java 1.8以上运行时环境
@@ -96,6 +97,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 **注意**：在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](https://www.taosdata.com/cn/getting-started/#快速上手) 连接远程 TDengine Server。
 
 ### 通过maven获取JDBC driver
+
 目前 taos-jdbcdriver 已经发布到 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 仓库，且各大仓库都已同步。
 - [sonatype](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
@@ -118,6 +120,7 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine/src/connector/jdbc
 mvn clean package -Dmaven.test.skip=true
 ```
+
 编译后，在target目录下会产生taos-jdbcdriver-2.0.XX-dist.jar的jar包。
 
 ## Java连接器的使用
@@ -125,6 +128,7 @@ mvn clean package -Dmaven.test.skip=true
 ### 获取连接
 
 #### 指定URL获取连接
+
 通过指定URL获取连接，如下所示：
 
 ```java
@@ -132,6 +136,7 @@ Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
 String jdbcUrl = "jdbc:TAOS-RS://taosdemo.com:6041/test?user=root&password=taosdata";
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
+
 以上示例，使用 **JDBC-RESTful** 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6041，数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
 使用 JDBC-RESTful 接口，不需要依赖本地函数库。与 JDBC-JNI 相比，仅需要：
@@ -145,6 +150,7 @@ Class.forName("com.taosdata.jdbc.TSDBDriver");
 String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata";
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
+
 以上示例，使用了 JDBC-JNI 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
 **注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
@@ -201,6 +207,7 @@ properties 中的配置参数如下：
 #### 使用客户端配置文件建立连接
 
 当使用 JDBC-JNI 连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp参数。如下所示：
+
 1. 在 Java 应用中不指定 hostname 和 port
 
 ```java
@@ -217,6 +224,7 @@ public Connection getConn() throws Exception{
 ```
 
 2. 在配置文件中指定 firstEp 和 secondEp
+
 ```
 # first fully qualified domain name (FQDN) for TDengine system
 firstEp               cluster_node1:6030
@@ -232,6 +240,7 @@ secondEp              cluster_node2:6030
 ```
 
 以上示例，jdbc 会使用客户端的配置文件，建立到 hostname 为 cluster_node1、端口为 6030、数据库名为 test 的连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
+
 TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
 
 > 注意：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
@@ -315,6 +324,7 @@ try (Statement statement = connection.createStatement()) {
 ```
 
 JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（错误码在0x2301到0x2350之间），JNI方法的报错（错误码在0x2351到0x2400之间），TDengine其他功能模块的报错。
+
 具体的错误码请参考：
 * https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 * https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
@@ -395,6 +405,7 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
+
 其中 setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽。
 
 ## <a class="anchor" id="subscribe"></a>订阅
@@ -452,6 +463,7 @@ conn.close();
 ## 与连接池使用
 
 ### HikariCP
+
 使用示例如下：
 
 ```java
@@ -485,6 +497,7 @@ conn.close();
 > 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)。
 
 ### Druid
+
 使用示例如下：
 
 ```java
@@ -539,7 +552,7 @@ Query OK, 1 row(s) in set (0.000141s)
 * Springbootdemo：springboot示例源程序
 * SpringJdbcTemplate：SpringJDBC模板
 
-请参考：![JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
+请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## 常见问题
 
