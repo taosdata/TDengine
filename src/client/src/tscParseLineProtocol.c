@@ -1811,7 +1811,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
   while (*cur != '\0') {
     if (len > TSDB_COL_NAME_LEN) {
       tscError("SML:0x%"PRIx64" Key field cannot exceeds 65 characters", info->id);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     //unescaped '=' identifies a tag key
     if (*cur == '=' && *(cur - 1) != '\\') {
@@ -1871,7 +1871,7 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     free(pKV->key);
     pKV->key = NULL;
     free(value);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
   free(value);
 
@@ -1900,7 +1900,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
       tscError("SML:0x%"PRIx64" Measurement field cannot exceeds 193 characters", info->id);
       free(pSml->stableName);
       pSml->stableName = NULL;
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     }
     //first unescaped comma or space identifies measurement
     //if space detected first, meaning no tag in the input
@@ -2115,14 +2115,14 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
     if (code != TSDB_CODE_SUCCESS) {
       tscError("SML:0x%"PRIx64" data point line parse failed. line %d : %s", info->id, i, lines[i]);
       destroySmlDataPoint(&point);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return code;
     } else {
       tscDebug("SML:0x%"PRIx64" data point line parse success. line %d", info->id, i);
     }
 
     taosArrayPush(points, &point);
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
