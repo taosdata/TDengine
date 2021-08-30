@@ -3458,6 +3458,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
 
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
+  pNew->rootObj = pSql->rootObj;
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;

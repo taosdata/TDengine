@@ -679,6 +679,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 
   pSql->signature = pSql;
   pSql->pTscObj = pObj;
+  pSql->rootObj = pSql;
 
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
