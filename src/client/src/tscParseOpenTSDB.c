@@ -11,8 +11,8 @@
 #include "tscLog.h"
 
 #include "tscParseLine.h"
-//=========================================================================
-// telnet style API parser
+
+/* telnet style API parser */
 static uint64_t HandleId = 0;
 
 uint64_t genUID() {
@@ -221,6 +221,7 @@ static bool parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
   }
   free(value);
 
+  *index = (*cur == '\0') ? cur : cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -266,19 +267,16 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
     }
 
     //reallocate addtional memory for more kvs
-    TAOS_SML_KV *more_kvs = NULL;
-
     if ((*num_kvs + 1) > capacity) {
+      TAOS_SML_KV *more_kvs = NULL;
       capacity *= 3; capacity /= 2;
       more_kvs = realloc(*pKVs, capacity * sizeof(TAOS_SML_KV));
-    } else {
-      more_kvs = *pKVs;
+      if (!more_kvs) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      *pKVs = more_kvs;
     }
 
-    if (!more_kvs) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-    *pKVs = more_kvs;
     //move pKV points to next TAOS_SML_KV block
     pkv = *pKVs + *num_kvs;
   }
@@ -316,7 +314,7 @@ int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData, SSmlL
 
   //Parse tagKVs
   SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
-  ret = parseTelnetTagKvs(&smlData->fields, &smlData->fieldNum, &index, smlData->childTableName, keyHashTable, info);
+  ret = parseTelnetTagKvs(&smlData->tags, &smlData->tagNum, &index, smlData->childTableName, keyHashTable, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse tags", info->id);
     taosHashCleanup(keyHashTable);
@@ -398,6 +396,14 @@ cleanup:
 
   taosArrayDestroy(lpPoints);
 
+  free(info);
+  return code;
+}
+
+int taos_telnet_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
+  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
+  info->id = genUID();
+  int code = tscSmlInsert(taos, points, numPoint, info);
   free(info);
   return code;
 }

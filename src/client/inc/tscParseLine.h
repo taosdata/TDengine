@@ -53,13 +53,11 @@ typedef struct {
 } SSmlLinesInfo;
 
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
-int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint);
 bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
 int32_t isValidChildTableName(const char *pTbName, int16_t len);
 
 bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
                          uint16_t len, SSmlLinesInfo* info);
-
 int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
                             uint16_t len, SSmlLinesInfo* info);
 
