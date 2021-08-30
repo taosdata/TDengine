@@ -75,7 +75,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
-  char key[] = "_ts";
+  char key[] = "ts";
   char *value = NULL;
 
   start = cur = *index;
