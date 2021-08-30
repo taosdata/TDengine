@@ -13,6 +13,8 @@
 #include "tscParseLine.h"
 
 #define MAX_TELNET_FILEDS_NUM 2
+#define OTS_TIMESTAMP_COLUMN_NAME "ts"
+#define OTS_METRIC_VALUE_COLUMN_NAME "value"
 
 /* telnet style API parser */
 static uint64_t HandleId = 0;
@@ -75,7 +77,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
-  char key[] = "ts";
+  char key[] = OTS_TIMESTAMP_COLUMN_NAME;
   char *value = NULL;
 
   start = cur = *index;
@@ -121,7 +123,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
-  char key[] = "value";
+  char key[] = OTS_METRIC_VALUE_COLUMN_NAME;
   char *value = NULL;
 
   start = cur = *index;
