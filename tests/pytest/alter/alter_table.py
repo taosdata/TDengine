@@ -102,6 +102,20 @@ class TDTestCase:
                 print("check2: i=%d colIdx=%d" % (i, colIdx))
                 tdSql.checkData(0, i, self.rowNum * (colIdx - i + 3))
 
+    def alter_table_255_times(self):   # add case for TD-6207
+        for i in range(255):
+            tdLog.info("alter table st add column cb%d int"%i)
+            tdSql.execute("alter table st add column cb%d int"%i)
+            tdSql.execute("insert into t0 (ts,c1) values(now,1)")
+            tdSql.execute("reset query cache")
+            tdSql.query("select * from st")
+        tdSql.execute("create table mt(ts timestamp, i int)")
+        tdSql.execute("insert into mt values(now,11)")
+        tdSql.query("select * from mt")
+        tdDnodes.stop(1)        
+        tdDnodes.start(1) 
+        tdSql.query("describe db.st")
+
     def run(self):
         # Setup params
         db = "db"
@@ -131,12 +145,14 @@ class TDTestCase:
             tdSql.checkData(0, i, self.rowNum * (size - i))
 
 
-        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 float)")
-        tdSql.execute("create table t0 using st tags(null)")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 float,t2 int,t3 double)")
+        tdSql.execute("create table t0 using st tags(null,1,2.3)")
         tdSql.execute("alter table t0 set tag t1=2.1")
 
         tdSql.query("show tables")
         tdSql.checkRows(2)
+        self.alter_table_255_times()
+
         
     def stop(self):
         tdSql.close()

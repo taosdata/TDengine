@@ -152,7 +152,13 @@ class TDTestCase:
         #tdSql.query("select * from tb")
         #tdSql.checkRows(1)
 
-        
+        # For jira: https://jira.taosdata.com:18080/browse/TD-6038
+        tdSql.query('select count(ts) from db.tb where c1 = 0 and c3 in ("nchar0")')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select * from db.tb where c1 = 2 and c3 in ("nchar0")')
+        tdSql.checkRows(0)
 
     def stop(self):
         tdSql.close()
