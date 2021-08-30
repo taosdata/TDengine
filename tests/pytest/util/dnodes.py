@@ -85,7 +85,7 @@ class TDDnode:
     def addExtraCfg(self, option, value):
         self.cfgDict.update({option: value})
 
-    def deploy(self, *updatecfgDict):
+    def deploy(self, updatecfgDict):
         self.logDir = "../../sim/dnode%d/log" % (self.id)
         self.dataDir = "../../sim/dnode%d/data" % (self.id)
         self.cfgDir = "../../sim/dnode%d/cfg" % (self.id)
@@ -338,7 +338,7 @@ class TDDnodes:
     def setValgrind(self, value):
         self.valgrind = value
 
-    def deploy(self, *updatecfgDict):
+    def deploy(self, updatecfgDict):
         for i in range(len(self.dnodes)):
             self.dnodes[i].deploy(updatecfgDict)
 

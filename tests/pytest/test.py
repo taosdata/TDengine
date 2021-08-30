@@ -131,10 +131,9 @@ if __name__ == "__main__":
     # import the test case
     moduleName = fileName.replace(".py", "").replace("/", ".")
     uModule = importlib.import_module(moduleName)
-
+    ucase = uModule.TDTestCase()
     # deploy the dnodes with specific cfg or not
     try:
-        ucase = uModule.TDTestCase()
         tdDnodes.deploy(ucase.updatecfgDict)
     except:
         tdDnodes.deploy({})
