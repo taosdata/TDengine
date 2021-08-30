@@ -26,7 +26,7 @@ Replace the database operating in the current connection with “power”, other
 
 - Any table or STable belongs to a database. Before creating a table, a database must be created first.
 - Tables in two different databases cannot be JOIN.
-- You need to specify a timestamp when creating and inserting records and querying history records.
+- You need to specify a timestamp when creating and inserting records, or querying history records.
 
 ## <a class="anchor" id="create-stable"></a> Create a STable
 
