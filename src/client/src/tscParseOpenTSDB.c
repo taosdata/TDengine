@@ -47,7 +47,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
     if (len > TSDB_TABLE_NAME_LEN) {
       tscError("OTD:0x%"PRIx64" Metric cannot exceeds 193 characters", info->id);
       tfree(pSml->stableName);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     }
 
     if (*cur == ' ') {
@@ -147,7 +147,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     tscError("OTD:0x%"PRIx64" Failed to convert metric value string(%s) to any type",
             info->id, value);
     tfree(value);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
   tfree(value);
 
@@ -172,7 +172,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
   while (*cur != '\0') {
     if (len > TSDB_COL_NAME_LEN) {
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds 65 characters", info->id);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     if (*cur == '=') {
       break;
@@ -188,7 +188,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
   key[len] = '\0';
 
   if (checkDuplicateKey(key, pHash, info)) {
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_DUP_TAG_NAMES;
   }
 
   pKV->key = tcalloc(len + 1, 1);
@@ -231,7 +231,7 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
     //free previous alocated key field
     tfree(pKV->key);
     tfree(value);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
   tfree(value);
 
@@ -348,14 +348,14 @@ int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, SArray*
     if (code != TSDB_CODE_SUCCESS) {
       tscError("OTD:0x%"PRIx64" data point line parse failed. line %d : %s", info->id, i, lines[i]);
       destroySmlDataPoint(&point);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return code;
     } else {
       tscDebug("OTD:0x%"PRIx64" data point line parse success. line %d", info->id, i);
     }
 
     taosArrayPush(points, &point);
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines) {

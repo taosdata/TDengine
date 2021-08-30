@@ -1677,7 +1677,7 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
   if (len >= 2) {
     for (int i = 0; i < len - 2; ++i) {
       if(!isdigit(value[i])) {
-        return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
     }
   }
@@ -1712,7 +1712,7 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
       break;
     }
     default: {
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -1725,7 +1725,7 @@ int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   int64_t tsVal;
 
   if (!isTimeStamp(value, len, &type)) {
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
   }
 
   ret = getTimeStampValue(value, len, type, &tsVal);
