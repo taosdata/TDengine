@@ -116,40 +116,52 @@ if __name__ == "__main__":
 
         tdLog.info('stop All dnodes')
 
-    tdDnodes.init(deployPath)
-    tdDnodes.setTestCluster(testCluster)
-    tdDnodes.setValgrind(valgrind)
-    moduleName = fileName.replace(".py", "").replace("/", ".")
-    uModule = importlib.import_module(moduleName)
-    try:
-        ucase = uModule.TDTestCase()
-        tdDnodes.deploy(numOfDnode, ucase.updatecfgDict)
-    except:
-        tdDnodes.deploy(numOfDnode, {})
-    tdDnodes.start(1)
+    # stop all dnodes for before any test
+    tdDnodes.stopAll()
 
+    # set the host ip if not assign
     if masterIp == "":
         host = '127.0.0.1'
     else:
         host = masterIp
 
-    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+    # init the dnodes with each specific file path
+    tdDnodes.init(numOfDnode)
 
-    tdCases.logSql(logSql)
+    # import the test case
+    moduleName = fileName.replace(".py", "").replace("/", ".")
+    uModule = importlib.import_module(moduleName)
+
+    # deploy the dnodes with specific cfg or not
+    try:
+        ucase = uModule.TDTestCase()
+        tdDnodes.deploy(ucase.updatecfgDict)
+    except:
+        tdDnodes.deploy({})
+
+    # start all dnodes
+    tdDnodes.start()
 
     if testCluster:
-        tdLog.info("Procedures for testing cluster")
+        tdLog.debug("Procedures for testing cluster")
         if fileName == "all":
             tdCases.runAllCluster()
         else:
             tdCases.runOneCluster(fileName)
     else:
-        tdLog.info("Procedures for testing self-deployment")
+        tdLog.debug("Procedures for testing self-deployment")
         conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
         if fileName == "all":
             tdCases.runAllLinux(conn)
         else:
             tdCases.runOneLinux(conn, ucase, fileName)
+
+    tdDnodes.start(1)
+
+    tdLog.debug("Procedures for tdengine deployed in %s" % (host))
+
+    tdCases.logSql(logSql)
+
     if restart:
         if fileName == "all":
             tdLog.info("not need to query ")
