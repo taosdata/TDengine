@@ -3857,6 +3857,16 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     return;
   }
 
+  if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    SSqlObj* pParentSql = ps->pParentSql;
+  
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
+    return;
+  }
+
+
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
 
