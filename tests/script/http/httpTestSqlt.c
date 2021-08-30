@@ -82,7 +82,7 @@ void execute(void *params) {
     char *sql = calloc(1, 1024);
     ThreadObj *pThread = (ThreadObj *)params;
     printf("Thread %d started\n", pThread->threadId);
-    sprintf(unique, "rest/sql/db%d",pThread->threadId);
+    sprintf(unique, "rest/sqlt/db%d",pThread->threadId);
     sprintf(sql, "drop database if exists db%d", pThread->threadId);
     post(ip,port,page, sql);
     sprintf(sql, "create database if not exists db%d", pThread->threadId);
