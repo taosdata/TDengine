@@ -227,7 +227,7 @@ static bool parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
 }
 
 static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **index,  char* childTableName,
+                               const char **index,  char **childTableName,
                                SHashObj *pHash, SSmlLinesInfo* info) {
   const char *cur = *index;
   int32_t ret = TSDB_CODE_SUCCESS;
@@ -254,9 +254,9 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       if (ret) {
         return ret;
       }
-      childTableName = malloc(pkv->length + 1);
-      memcpy(childTableName, pkv->value, pkv->length);
-      childTableName[pkv->length] = '\0';
+      *childTableName = malloc(pkv->length + 1);
+      memcpy(*childTableName, pkv->value, pkv->length);
+      (*childTableName)[pkv->length] = '\0';
       tfree(pkv->key);
       tfree(pkv->value);
     } else {
@@ -315,7 +315,7 @@ int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData, SSmlL
 
   //Parse tagKVs
   SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
-  ret = parseTelnetTagKvs(&smlData->tags, &smlData->tagNum, &index, smlData->childTableName, keyHashTable, info);
+  ret = parseTelnetTagKvs(&smlData->tags, &smlData->tagNum, &index, &smlData->childTableName, keyHashTable, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse tags", info->id);
     taosHashCleanup(keyHashTable);
