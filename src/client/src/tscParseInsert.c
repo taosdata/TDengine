@@ -1777,6 +1777,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
 
 _error:
+  pParentSql->res.code = code;
   tfree(tokenBuf);
   tfree(line);
   taos_free_result(pSql);

@@ -57,15 +57,15 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select interp(pav) from ap1 where ts = '2021-07-25 02:19:54' FILL (LINEAR)")
         tdSql.checkRows(0)
-        tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' INTERVAL(1000a) FILL (LINEAR)")
+        tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (LINEAR)")
         tdSql.checkRows(6)
-        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' INTERVAL(1000a) FILL (NEXT)")
+        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (NEXT)")
         tdSql.checkRows(6)
         tdSql.checkData(0,1,2.90799)
-        tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' INTERVAL(1000a) FILL (PREV)")
+        tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' every(1000a) FILL (PREV)")
         tdSql.checkRows(7)
         tdSql.checkData(1,1,1.47885)
-        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' INTERVAL(1000a) FILL (LINEAR)")
+        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' every(1000a) FILL (LINEAR)")
         tdSql.checkRows(7)
 
         # check desc order
@@ -74,13 +74,13 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select interp(pav) from ap1 where ts = '2021-07-25 02:19:54' FILL (LINEAR) order by ts desc")
         tdSql.checkRows(0)
-        tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' INTERVAL(1000a) FILL (LINEAR) order by ts desc")
+        tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (LINEAR) order by ts desc")
         tdSql.checkRows(6)
-        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' INTERVAL(1000a) FILL (NEXT) order by ts desc")
+        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (NEXT) order by ts desc")
         tdSql.checkRows(6)
         tdSql.checkData(0,1,4.60900)
-        tdSql.error("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' INTERVAL(1000a) FILL (PREV) order by ts desc")
-        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' INTERVAL(1000a) FILL (LINEAR) order by ts desc")
+        tdSql.error("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' every(1000a) FILL (PREV) order by ts desc")
+        tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts <= '2021-07-25 02:20:00' every(1000a) FILL (LINEAR) order by ts desc")
         tdSql.checkRows(7)
 
         # check exception
@@ -88,7 +88,7 @@ class TDTestCase:
         tdSql.error("select interp(*) from ap1 FILL(NEXT)")
         tdSql.error("select interp(*) from ap1 ts >= '2021-07-25 02:19:54' FILL(NEXT)")
         tdSql.error("select interp(*) from ap1 ts <= '2021-07-25 02:19:54' FILL(NEXT)")
-        tdSql.error("select interp(*) from ap1 where ts >'2021-07-25 02:19:59.938' and ts < now interval(1s) fill(next)")
+        tdSql.error("select interp(*) from ap1 where ts >'2021-07-25 02:19:59.938' and ts < now every(1s) fill(next)")
 
     def stop(self):
         tdSql.close()

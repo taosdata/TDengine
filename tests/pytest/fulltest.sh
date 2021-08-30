@@ -172,6 +172,10 @@ python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
+# restful test for python
+python3 test.py -f restful/restful_bind_db1.py
+python3 test.py -f restful/restful_bind_db2.py
+
 # nano support
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
@@ -385,6 +389,7 @@ python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f query/query.py
 
 #======================p4-end===============
 
