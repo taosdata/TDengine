@@ -14,7 +14,6 @@
 import random
 import time
 from copy import deepcopy
-import numpy as np
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -109,7 +108,9 @@ class TDTestCase:
             create 1 stb
         '''
         input_sql = self.getPerfSql(count=count, init=True)
-        self._conn.insertLines([input_sql])
+        print(threading.current_thread().name, "create stb line:", input_sql)
+        self._conn.insert_lines([input_sql])
+        print(threading.current_thread().name, "create stb end")
 
     def batchCreateTable(self, batch_list):
         '''
@@ -118,23 +119,26 @@ class TDTestCase:
         print(threading.current_thread().name, "length=", len(batch_list))
         print(threading.current_thread().name, 'firstline', batch_list[0][0:50], '...', batch_list[0][-50:-1])
         print(threading.current_thread().name, 'lastline:', batch_list[-1][0:50], '...', batch_list[-1][-50:-1])
-        self._conn.insertLines(batch_list)
-        print(threading.current_thread().name, 'end')
+        begin = time.time_ns();
+        self._conn.insert_lines(batch_list)
+        end = time.time_ns();
+        print(threading.current_thread().name, 'end time:', (end-begin)/10**9)
 
-    def splitGenerator(self, table_list, sub_list_len):
+    def splitGenerator(self, table_list, thread_count):
         '''
             split a list to n piece of sub_list
             [a, b, c, d] ---> [[a, b], [c, d]]
             yield type ---> generator
         '''
+        sub_list_len = int(len(table_list)/thread_count)
         for i in range(0, len(table_list), sub_list_len):
             yield table_list[i:i + sub_list_len]
 
-    def genTbListGenerator(self, table_list, sub_list_len):
+    def genTbListGenerator(self, table_list, thread_count):
         '''
-            split table_list, after split, every sub_list len is sub_list_len
+            split table_list, after split
         '''
-        table_list_generator = self.splitGenerator(table_list, sub_list_len)
+        table_list_generator = self.splitGenerator(table_list, thread_count)
         return table_list_generator
 
     def genTableList(self, count=4, table_count=10000):
@@ -190,14 +194,14 @@ class TDTestCase:
         for t in threads:
             t.join()
 
-    def createTables(self, count, table_count=10000, sub_list_len=1000, thread_count=10):
+    def createTables(self, count, table_count=10000, thread_count=10):
         '''
             create stb and tb
         '''
         table_list = self.genTableList(count=count, table_count=table_count)
         create_tables_start_time = time.time()
-        self.createStb()
-        table_list_generator = self.genTbListGenerator(table_list, sub_list_len)
+        self.createStb(count=count)
+        table_list_generator = self.genTbListGenerator(table_list, thread_count)
         create_tables_generator, insert_rows_generator = itertools.tee(table_list_generator, 2)
         self.multiThreadRun(self.threadCreateTables(table_list_generator=create_tables_generator, thread_count=thread_count))
         create_tables_end_time = time.time()
@@ -216,44 +220,45 @@ class TDTestCase:
         return_str = f'insert rows\' time of {count} columns  ---> {insert_rows_time}s'
         return insert_rows_time, return_str
 
-    def schemalessPerfTest(self, count, table_count=10000, sub_list_len=1000, thread_count=10):
+    def schemalessPerfTest(self, count, table_count=10000, thread_count=10, rows_count=1000):
         '''
             get performance
         '''
-        insert_rows_generator = self.createTables(count=count, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
-        return self.insertRows(count=count, rows_generator=insert_rows_generator, rows_count=1000, thread_count=10)
+        insert_rows_generator = self.createTables(count=count, table_count=table_count, thread_count=thread_count)[0]
+        return self.insertRows(count=count, rows_generator=insert_rows_generator, rows_count=rows_count, thread_count=thread_count)
 
-    def getPerfResults(self, test_times=3, table_count=10000, sub_list_len=1000, thread_count=10):
+    def getPerfResults(self, test_times=3, table_count=10000, thread_count=10):
         col4_time = 0
         col1000_time = 0
         col4000_time = 0
 
-        # for i in range(test_times):
-        #     time_used = self.schemalessPerfTest(count=4, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
-        #     col4_time += time_used
-        # col4_time /= test_times
-        # print(col4_time)
+        for i in range(test_times):
+            tdCom.cleanTb()
+            time_used = self.schemalessPerfTest(count=4, table_count=table_count, thread_count=thread_count)[0]
+            col4_time += time_used
+        col4_time /= test_times
+        print(col4_time)
 
-        tdCom.cleanTb()
-        for i in range(test_times):
-            time_used = self.schemalessPerfTest(count=1000, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
-            col1000_time += time_used
-        col1000_time /= test_times    
-        print(col1000_time)
+        # for i in range(test_times):
+        #     tdCom.cleanTb()
+        #     time_used = self.schemalessPerfTest(count=1000, table_count=table_count, thread_count=thread_count)[0]
+        #     col1000_time += time_used
+        # col1000_time /= test_times    
+        # print(col1000_time)
         
-        tdCom.cleanTb()
-        for i in range(test_times):
-            time_used = self.schemalessPerfTest(count=4000, table_count=table_count, sub_list_len=sub_list_len, thread_count=thread_count)[0]
-            col4000_time += time_used
-        col4000_time /= test_times
-        print(col4000_time)
+        # for i in range(test_times):
+        #     tdCom.cleanTb()
+        #     time_used = self.schemalessPerfTest(count=4000, table_count=table_count, thread_count=thread_count)[0]
+        #     col4000_time += time_used
+        # col4000_time /= test_times
+        # print(col4000_time)
 
         return col4_time, col1000_time, col4000_time
 
     def run(self):
         print("running {}".format(__file__))
         tdSql.prepare()
-        result = self.getPerfResults(test_times=1, table_count=1000, sub_list_len=100, thread_count=10)
+        result = self.getPerfResults(test_times=1, table_count=1000, thread_count=10)
         print(result)
 
     def stop(self):
