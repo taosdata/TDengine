@@ -440,23 +440,7 @@ class TDDnodes:
         self.simDeployed = False
 
     def init(self, path):
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while (processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(psCmd,
-                                                shell=True).decode("utf-8")
-
-        psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while (processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(psCmd,
-                                                shell=True).decode("utf-8")
+        self.stopAll()
 
         binPath = os.path.dirname(os.path.realpath(__file__))
         binPath = binPath + "/../../../debug/"

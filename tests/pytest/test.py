@@ -119,7 +119,6 @@ if __name__ == "__main__":
     tdDnodes.init(deployPath)
     tdDnodes.setTestCluster(testCluster)
     tdDnodes.setValgrind(valgrind)
-    tdDnodes.stopAll()
     moduleName = fileName.replace(".py", "").replace("/", ".")
     uModule = importlib.import_module(moduleName)
     try:
