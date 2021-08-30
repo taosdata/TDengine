@@ -4832,7 +4832,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   }
 
   if (pQueryAttr->fillType != TSDB_FILL_NONE) {
-    pQueryAttr->fillVal = calloc(pQueryAttr->numOfOutput, sizeof(int64_t));
+    pQueryAttr->fillVal = calloc(pQueryInfo->numOfFillVal, sizeof(int64_t));
     memcpy(pQueryAttr->fillVal, pQueryInfo->fillVal, pQueryInfo->numOfFillVal * sizeof(int64_t));
   }
 
