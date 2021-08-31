@@ -4,6 +4,9 @@ properties([pipelineTriggers([githubPush()])])
 node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
+
+def skipbuild=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -152,6 +155,7 @@ pipeline {
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''     
+
           script{  
             skipbuild='2'     
             skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
@@ -221,6 +225,26 @@ pipeline {
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                nohup taosd >/dev/null &
+                sleep 10
+              '''
+              sh '''
+              cd ${WKC}/tests/examples/nodejs
+              npm install td2.0-connector > /dev/null 2>&1
+              node nodejsChecker.js host=localhost
+              '''
+              sh '''
+                cd ${WKC}/tests/examples/C#/taosdemo
+                mcs -out:taosdemo *.cs > /dev/null 2>&1
+                echo '' |./taosdemo
+              '''
+              sh '''
+                cd ${WKC}/tests/gotest
+                bash batchtest.sh
+              '''
+              sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
               date'''
@@ -241,12 +265,12 @@ pipeline {
                 }
             }
             timeout(time: 60, unit: 'MINUTES'){
-              sh '''
-              cd ${WKC}/tests/pytest
-              rm -rf /var/lib/taos/*
-              rm -rf /var/log/taos/*
-              ./handle_crash_gen_val_log.sh
-              '''
+              // sh '''
+              // cd ${WKC}/tests/pytest
+              // rm -rf /var/lib/taos/*
+              // rm -rf /var/log/taos/*
+              // ./handle_crash_gen_val_log.sh
+              // '''
               sh '''
               cd ${WKC}/tests/pytest
               rm -rf /var/lib/taos/*

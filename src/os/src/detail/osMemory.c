@@ -504,8 +504,9 @@ void * taosTRealloc(void *ptr, size_t size) {
 
   void * tptr = (void *)((char *)ptr - sizeof(size_t));
   size_t tsize = size + sizeof(size_t);
-  tptr = realloc(tptr, tsize);
-  if (tptr == NULL) return NULL;
+  void* tptr1 = realloc(tptr, tsize);
+  if (tptr1 == NULL) return NULL;
+  tptr = tptr1;
 
   *(size_t *)tptr = size;
 

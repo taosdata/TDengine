@@ -166,7 +166,6 @@ int32_t dnodeInitSystem() {
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
   taosSetCoreDump();
-  taosInitNotes();
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
@@ -188,6 +187,8 @@ int32_t dnodeInitSystem() {
 
   dInfo("start to initialize TDengine");
 
+  taosInitNotes();
+
   if (dnodeInitComponents() != 0) {
     return -1;
   }
@@ -195,6 +196,7 @@ int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
   moduleStart();
 
+  tsDnodeStartTime = taosGetTimestampMs();
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
 

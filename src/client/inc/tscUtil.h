@@ -29,15 +29,16 @@ extern "C" {
 #include "tsched.h"
 #include "tsclient.h"
 
-#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
+#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
+
 #define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
-  
-#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
+
+#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
   (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
-#define UTIL_TABLE_IS_TMP_TABLE(metaInfo)  \
+#define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
 #pragma pack(push,1)
@@ -143,6 +144,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
 bool timeWindowInterpoRequired(SQueryInfo *pQueryInfo);
@@ -189,6 +191,7 @@ void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
 void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArray* pExprList);
 
 static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
+int32_t tscGetFirstInvisibleFieldPos(SQueryInfo* pQueryInfo);
 
 int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize);
 void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t uid);
@@ -213,6 +216,7 @@ SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t function
                            int16_t size);
 
 size_t     tscNumOfExprs(SQueryInfo* pQueryInfo);
+int32_t     tscExprTopBottomIndex(SQueryInfo* pQueryInfo);
 SExprInfo *tscExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t    tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 int32_t    tscExprCopyAll(SArray* dst, const SArray* src, bool deepcopy);
@@ -221,7 +225,7 @@ void       tscExprDestroy(SArray* pExprInfo);
 
 int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num);
 
-void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta, uint64_t id);
 
 SColumn* tscColumnClone(const SColumn* src);
 void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
@@ -320,7 +324,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
-void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeCachedMeta, uint64_t id);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
@@ -359,7 +363,9 @@ bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
-void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
+void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
+
+char* cloneCurrentDBName(SSqlObj* pSql);
 
 #ifdef __cplusplus
 }
