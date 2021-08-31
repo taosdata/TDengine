@@ -30,7 +30,8 @@ class TDTestCase:
 
         tdLog.info("=============== step1")
         tdSql.execute(
-            'create table tb (ts timestamp, speed int, temp float, note binary(5), flag bool)')
+            'create table tb (ts timestamp, speed int, temp float, note binary(5), flag bool)'
+        )
 
         numOfRecords = 0
         randomList = [10, 50, 100, 500, 1000, 5000]
@@ -39,11 +40,11 @@ class TDTestCase:
             tdLog.info("will insert %d records" % num)
             for x in range(0, num):
                 tdLog.info(
-                    'insert into tb values (now + %da, NULL, NULL, NULL, TRUE)' %
-                    x)
+                    'insert into tb values (now + %da, NULL, NULL, NULL, TRUE)'
+                    % x)
                 tdSql.execute(
-                    'insert into tb values (now + %da, NULL, NULL, NULL, TRUE)' %
-                    x)
+                    'insert into tb values (now + %da, NULL, NULL, NULL, TRUE)'
+                    % x)
 
             numOfRecords = numOfRecords + num
 

@@ -64,7 +64,7 @@ class TDCases:
         tdLog.info("total %d Linux test case(s) executed" % (runNum))
 
     def runOneLinux(self, conn, case, fileName):
-        case.init(conn)
+        case.init(conn, False)
         try:
             case.run()
         except Exception as e:

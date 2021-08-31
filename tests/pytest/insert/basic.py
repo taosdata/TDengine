@@ -30,9 +30,8 @@ class TDTestCase:
         insertRows = 10
         tdLog.info("insert %d rows" % (insertRows))
         for i in range(0, insertRows):
-            ret = tdSql.execute(
-                'insert into tb values (now + %dm, %d)' %
-                (i, i))
+            ret = tdSql.execute('insert into tb values (now + %dm, %d)' %
+                                (i, i))
 
         tdLog.info("insert earlier data")
         tdSql.execute('insert into tb values (now - 5m , 10)')

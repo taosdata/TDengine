@@ -208,32 +208,6 @@ class TDDnode:
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.id, cmd))
 
-    def stop(self):
-        if self.valgrind == 0:
-            toBeKilled = "taosd"
-        else:
-            toBeKilled = "valgrind.bin"
-
-        if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
-            processID = subprocess.check_output(psCmd,
-                                                shell=True).decode("utf-8")
-
-            while (processID):
-                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
-                time.sleep(1)
-                processID = subprocess.check_output(psCmd,
-                                                    shell=True).decode("utf-8")
-            for port in range(6030, 6041):
-                fuserCmd = "fuser -k -n tcp %d" % port
-                os.system(fuserCmd)
-            if self.valgrind:
-                time.sleep(2)
-
-            self.running = 0
-            tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
-
     def forcestop(self):
         if self.valgrind == 0:
             toBeKilled = "taosd"
@@ -334,10 +308,6 @@ class TDDnodes:
     def startWithoutSleep(self, index):
         self.check(index)
         self.dnodes[index - 1].startWithoutSleep()
-
-    def stop(self, index):
-        self.check(index)
-        self.dnodes[index - 1].stop()
 
     def getDataSize(self, index):
         self.check(index)

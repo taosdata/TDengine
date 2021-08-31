@@ -31,10 +31,11 @@ class TDTestCase:
         tdSql.prepare()
 
         print("==============step1")
-        tdSql.execute("create database if not exists demo keep 36500;");
+        tdSql.execute("create database if not exists demo keep 36500;")
         print("==============create db demo keep 365000 days")
         tdSql.execute("use demo;")
-        tdSql.execute("CREATE table if not exists test (ts timestamp, f1 int);")
+        tdSql.execute(
+            "CREATE table if not exists test (ts timestamp, f1 int);")
         print("==============create table test")
 
         print("==============step2")
@@ -54,22 +55,19 @@ class TDTestCase:
         # tdSql.checkData(2,0,'2020-10-20 14:02:53.770000')
         print("==============step3")
         tdDnodes.stopAll()
-        tdDnodes.start(1)
+        tdDnodes.start()
         print("==============restart taosd")
-
 
         print("==============step4")
         tdSql.execute("use demo;")
         tdSql.query("select * from test;")
         print(tdSql.queryResult)
         tdSql.checkRows(4)
-        tdSql.checkData(0,0,'1930-12-12 01:19:20.345000')
-        tdSql.checkData(1,0,'1969-12-30 23:59:59.999000')
-        tdSql.checkData(2,0,'1970-01-01 06:59:59.999000')
-        tdSql.checkData(3,0,'2020-10-20 14:02:53.770000')
+        tdSql.checkData(0, 0, '1930-12-12 01:19:20.345000')
+        tdSql.checkData(1, 0, '1969-12-30 23:59:59.999000')
+        tdSql.checkData(2, 0, '1970-01-01 06:59:59.999000')
+        tdSql.checkData(3, 0, '2020-10-20 14:02:53.770000')
         print("==============check data")
-
-
 
     def stop(self):
         tdSql.close()

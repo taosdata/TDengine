@@ -2,28 +2,28 @@
 ulimit -c unlimited
 #======================p1-start===============
 
-python3 ./test.py -f insert/basic.py
-python3 ./test.py -f insert/int.py
-python3 ./test.py -f insert/float.py
-python3 ./test.py -f insert/bigint.py
-python3 ./test.py -f insert/bool.py
-python3 ./test.py -f insert/double.py
-python3 ./test.py -f insert/smallint.py
-python3 ./test.py -f insert/tinyint.py
-python3 ./test.py -f insert/date.py
-python3 ./test.py -f insert/binary.py
-python3 ./test.py -f insert/nchar.py
-#python3 ./test.py -f insert/nchar-boundary.py
-python3 ./test.py -f insert/nchar-unicode.py
-python3 ./test.py -f insert/multi.py
-python3 ./test.py -f insert/randomNullCommit.py
-python3 insert/retentionpolicy.py
-python3 ./test.py -f insert/alterTableAndInsert.py
-python3 ./test.py -f insert/insertIntoTwoTables.py
-python3 ./test.py -f insert/before_1970.py
-python3 ./test.py -f insert/special_character_show.py
-python3 bug2265.py
-python3 ./test.py -f insert/bug3654.py
+# python3 ./test.py -f insert/basic.py
+# python3 ./test.py -f insert/int.py
+# python3 ./test.py -f insert/float.py
+# python3 ./test.py -f insert/bigint.py
+# python3 ./test.py -f insert/bool.py
+# python3 ./test.py -f insert/double.py
+# python3 ./test.py -f insert/smallint.py
+# python3 ./test.py -f insert/tinyint.py
+# python3 ./test.py -f insert/date.py
+# python3 ./test.py -f insert/binary.py
+# python3 ./test.py -f insert/nchar.py
+# # python3 ./test.py -f insert/nchar-boundary.py
+# python3 ./test.py -f insert/nchar-unicode.py
+# python3 ./test.py -f insert/multi.py
+# # python3 ./test.py -f insert/randomNullCommit.py
+# # python3 insert/retentionpolicy.py
+# python3 ./test.py -f insert/alterTableAndInsert.py
+# python3 ./test.py -f insert/insertIntoTwoTables.py
+# python3 ./test.py -f insert/before_1970.py
+# python3 ./test.py -f insert/special_character_show.py
+# # python3 bug2265.py
+# python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
