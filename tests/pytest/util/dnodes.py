@@ -60,8 +60,9 @@ class TDDnode:
             "maxSQLLength": "1048576"
         }
 
-    def init(self, path):
-        self.path = path
+    def init(self, dnodePath, binPath):
+        self.dnodePath = dnodePath
+        self.binPath = binPath
 
     def setTestCluster(self, value):
         self.testCluster = value
@@ -86,10 +87,10 @@ class TDDnode:
         self.cfgDict.update({option: value})
 
     def deploy(self, updatecfgDict):
-        self.logDir = "../../sim/dnode%d/log" % (self.id)
-        self.dataDir = "../../sim/dnode%d/data" % (self.id)
-        self.cfgDir = "../../sim/dnode%d/cfg" % (self.id)
-        self.cfgPath = "../../sim/dnode%d/cfg/taos.cfg" % (self.id)
+        self.logDir = self.dnodePath + "/log"
+        self.dataDir = self.dnodePath + "/data"
+        self.cfgDir = self.dnodePath + "/cfg"
+        self.cfgPath = self.cfgDir + "/taos.cfg"
 
         cmd = "rm -rf " + self.dataDir
         if os.system(cmd) != 0:
@@ -317,7 +318,7 @@ class TDDnodes:
             binPath = projPath + "debug/build/bin/taosd"
 
         for i in range(len(self.dnodes)):
-            dnodePath = os.path.abspath(currentPath + "../../../" +
+            dnodePath = os.path.abspath(currentPath + "/../../.." +
                                         "/sim/dnode%d" % (i + 1))
             self.dnodes[i].init(dnodePath, binPath)
 
