@@ -713,6 +713,7 @@ Query OK, 1 row(s) in set (0.001091s)
 | <=              | smaller than or equal to      | **`timestamp`** and all numeric types     |
 | =               | equal to                      | all types                                 |
 | <>              | not equal to                  | all types                                 |
+| is [not] null   | is null or is not null        | all types                                 |
 | between and     | within a certain range        | **`timestamp`** and all numeric types     |
 | in              | match any value in a set      | all types except first column `timestamp` |
 | like            | match a wildcard string       | **`binary`** **`nchar`**                  |
@@ -722,7 +723,7 @@ Query OK, 1 row(s) in set (0.001091s)
 1. <> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 2. like 算子使用通配符字符串进行匹配检查。
   * 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'\_'（下划线）匹配单个任意字符。
-    * 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.1.8.0 版本开始支持）
+    * 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.2.0.0 版本开始支持）
   * 通配符字符串最长不能超过 20 字节。（从 2.1.6.1 版本开始，通配符字符串的长度放宽到了 100 字节，并可以通过 taos.cfg 中的 maxWildCardsLength 参数来配置这一长度限制。但不建议使用太长的通配符字符串，将有可能严重影响 LIKE 操作的执行性能。）
 3. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
 4. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如： `((value > 20 AND value < 30) OR (value < 12))`。
