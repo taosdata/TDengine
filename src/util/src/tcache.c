@@ -60,6 +60,8 @@ static FORCE_INLINE void __cache_lock_destroy(SCacheObj *pCacheObj) {
  */
 static void doCleanupDataCache(SCacheObj *pCacheObj);
 
+void taosStopCacheRefreshWorker(void);
+
 /**
  * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
  * @param handle   Cache object handle
@@ -537,8 +539,8 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
   pCacheObj->deleting = 1;
 
   // wait for the refresh thread quit before destroying the cache object.
-  // But in the dll, the child thread will be killed before atexit takes effect.So here we only wait for 2 seconds.
-  for (int i = 0; i < 40&&atomic_load_8(&pCacheObj->deleting) != 0; i++) {
+  // But in the dll, the child thread will be killed before atexit takes effect.
+  while(!stopRefreshWorker&&atomic_load_8(&pCacheObj->deleting) != 0) {
     taosMsleep(50);
   }
 
@@ -685,6 +687,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
   const int32_t SLEEP_DURATION = 500; //500 ms
   int64_t count = 0;
+  atexit(taosStopCacheRefreshWorker);
 
   while(1) {
     taosMsleep(SLEEP_DURATION);
@@ -763,6 +766,6 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
   doCacheRefresh(pCacheObj, now, fp);
 }
 
-void taosStopCacheRefreshWorker() {
-  stopRefreshWorker = false;
+void taosStopCacheRefreshWorker(void) {
+  stopRefreshWorker = true;
 }
