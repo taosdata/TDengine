@@ -11,7 +11,7 @@ if $rows != 28 then
   return -1
 endi
 
-sql_error select * from stb1 where c8 > 0
+
 sql_error select * from stb1 where c7 in (0,2,3,1);
 sql_error select * from stb1 where c8 in (true);
 sql_error select * from stb1 where c8 in (1,2);
@@ -33,13 +33,100 @@ sql_error select * from stb1 where c4 != 'null';
 sql_error select * from stb1 where c5 >= 'null';
 sql_error select * from stb1 where c6 <= 'null';
 sql_error select * from stb1 where c7 < 'nuLl';
-sql_error select * from stb1 where c8 < 'nuLl';
-sql_error select * from stb1 where c9 > 'nuLl';
+
 sql_error select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));
 sql_error select * from stb1 where 'c2' is null;
 sql_error select * from stb1 where 'c2' is not null;
+
+sql select * from stb1 where c9 > 'nuLl';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c8 = '22' or c8 >= '62';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 < '11';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 <> '11';
+if $rows != 27 then
+  return -1
+endi
+
+
+sql select * from stb1 where c9 > 'nuLl';
+if $rows != 0 then
+  return -1
+endi
+
+sql  select * from stb1 where c9 > '11' and c9 <= '21';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c9 <= '11' and c9 > '2' and c9 <> 3;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 > 0
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where c8 < 'nuLl';
+if $rows != 28 then
+  return -1
+endi
 
 sql select * from stb1 where c2 > 3.0 or c2 < 60;
 if $rows != 28 then
@@ -2416,7 +2503,15 @@ if $data40 != @21-05-05 18:19:28.000@ then
 endi
 
 print "tbname test"
-sql_error select * from stb1 where tbname like '%3' and tbname like '%4';
+sql select tbname from stb1;
+if $rows != 6 then
+  return -1
+endi
+
+sql select * from stb1 where tbname like '%3' and tbname like '%4';
+if $rows != 0 then
+  return -1
+endi
 
 sql select * from stb1 where tbname like 'tb%';
 if $rows != 29 then
@@ -2440,7 +2535,192 @@ if $data30 != @21-05-05 18:19:11.000@ then
   return -1
 endi
 
+sql select tbname from stb1 where tbname = 'tb1';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != tb1 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname = 'tb1' or tbname = 'tb3';
+if $rows != 2 then
+  return -1
+endi
+if $data00 != tb1 then
+  return -1
+endi
+if $data10 != tb3 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname <> 'tb1';
+if $rows != 5 then
+  return -1
+endi
+if $data00 != tb2 then
+  return -1
+endi
+if $data10 != tb3 then
+  return -1
+endi
+if $data20 != tb4 then
+  return -1
+endi
+if $data30 != tb5 then
+  return -1
+endi
+if $data40 != tb6 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname <> 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+if $rows != 6 then
+  return -1
+endi
+if $data00 != tb1 then
+  return -1
+endi
+if $data10 != tb2 then
+  return -1
+endi
+if $data20 != tb3 then
+  return -1
+endi
+if $data30 != tb4 then
+  return -1
+endi
+if $data40 != tb5 then
+  return -1
+endi
+if $data50 != tb6 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname > 'tba';
+if $rows != 0 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname > 'tb2' and tbname <= 'tb5';
+if $rows != 3 then
+  return -1
+endi
+if $data00 != tb3 then
+  return -1
+endi
+if $data10 != tb4 then
+  return -1
+endi
+if $data20 != tb5 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname >= 'tb5' or tbname <= 'tb2';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != tb1 then
+  return -1
+endi
+if $data10 != tb2 then
+  return -1
+endi
+if $data20 != tb5 then
+  return -1
+endi
+if $data30 != tb6 then
+  return -1
+endi
+
+sql  select tbname from stb1 where tbname is null;
+if $rows != 0 then
+  return -1
+endi
+
+
+sql select tbname from stb1 where tbname is not null;
+if $rows != 6 then
+  return -1
+endi
+if $data00 != tb1 then
+  return -1
+endi
+if $data10 != tb2 then
+  return -1
+endi
+if $data20 != tb3 then
+  return -1
+endi
+if $data30 != tb4 then
+  return -1
+endi
+if $data40 != tb5 then
+  return -1
+endi
+if $data50 != tb6 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname in ('tb2','tb6');
+if $rows != 2 then
+  return -1
+endi
+if $data00 != tb2 then
+  return -1
+endi
+if $data10 != tb6 then
+  return -1
+endi
+
+sql select tbname from stb1 where tbname is not null and (tbname in ('tb2','tb6') or tbname like '%3');
+if $rows != 3 then
+  return -1
+endi
+if $data00 != tb2 then
+  return -1
+endi
+if $data10 != tb3 then
+  return -1
+endi
+if $data20 != tb6 then
+  return -1
+endi
+
+sql select tbname from stb1 where (tbname like '%5' and tbname like 'tb%');
+if $rows != 1 then
+  return -1
+endi
+if $data00 != tb5 then
+  return -1
+endi
+
+sql select * from stb1 where tbname = 'tb5' and tbname <> 'tb5';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where tbname = 'tb5' and tbname <> 'tb4';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+
 print "tag test"
+
+sql_error select * from tb1 where t1 in (1,2) and t1 in (2,3);
+
 sql select * from stb1 where t1 in (1,2) and t1 in (2,3);
 if $rows != 4 then
   return -1
@@ -2457,6 +2737,12 @@ endi
 if $data30 != @21-05-05 18:19:11.000@ then
   return -1
 endi
+
+sql select * from stb1 where t1 in (1,2) or t1 in (2,3);
+if $rows != 16 then
+  return -1
+endi
+
 
 sql select * from stb2 where t1 in (1,2) and t2 in (2) and t3 in ('2021-05-05 18:58:57.000');
 if $rows != 0 then

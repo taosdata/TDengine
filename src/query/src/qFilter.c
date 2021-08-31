@@ -1474,19 +1474,6 @@ _return:
   return code;
 }
 
-#if 0
-int32_t filterInitUnitFunc(SFilterInfo *info) {
-  for (uint16_t i = 0; i < info->unitNum; ++i) {
-    SFilterUnit* unit = &info->units[i];
-    
-    info->cunits[i].func = getComparFunc(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
-
 void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options) {
   if (qDebugFlag & DEBUG_DEBUG) {
     CHK_LRETV(info == NULL, "%s - FilterInfo: EMPTY", msg);
@@ -3116,7 +3103,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDataBlock) {
+int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp) {
   CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "info NULL");
   CHK_LRET(info->fields[FLD_TYPE_COLUMN].num <= 0, TSDB_CODE_QRY_APP_ERROR, "no column fileds");
 
@@ -3127,15 +3114,8 @@ int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDat
   for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema* sch = fi->desc;
-    
-    for (int32_t j = 0; j < numOfCols; ++j) {
-      SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, j);
-      if (sch->colId == pColInfo->info.colId) {
-        fi->data = pColInfo->pData;
-      
-        break;
-      }
-    }
+
+    (*fp)(param, sch->colId, &fi->data);
   }
 
   filterUpdateComUnits(info);
@@ -3144,7 +3124,7 @@ int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDat
 }
 
 
-int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options) {
+int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   int32_t code = TSDB_CODE_SUCCESS;
   SFilterInfo *info = NULL;
   
@@ -3181,8 +3161,6 @@ int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t option
       taosArrayDestroy(group);
       return code;
     }
-
-    //ERR_JRET(filterInitUnitFunc(info));
   }  
 
   info->unitRes = malloc(info->unitNum * sizeof(*info->unitRes));
@@ -3425,7 +3403,28 @@ int32_t filterFreeNcharColumns(SFilterInfo* info) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t filterIsIndexedQuery(SFilterInfo* info, int32_t idxId, bool *res) {
+  CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "null parameter");
 
+  CHK_JMP(info->fields[FLD_TYPE_COLUMN].num > 1 || info->fields[FLD_TYPE_COLUMN].num <= 0);
+
+  CHK_JMP(info->unitNum > 1 || info->unitNum <= 0);
+
+  CHK_JMP(FILTER_GET_COL_FIELD_ID(FILTER_GET_COL_FIELD(info, 0)) != idxId);
+
+  int32_t optr = FILTER_UNIT_OPTR(info->units);
+  
+  CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN);
+
+  *res = true;
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+  *res = false;
+  
+  return TSDB_CODE_SUCCESS;
+}
 
 
 

@@ -811,7 +811,7 @@ typedef struct SDummyInputInfo {
   SSDataBlock     *block;
   STableQueryInfo *pTableQueryInfo;
   SSqlObj         *pSql;  // refactor: remove it
-  SFilterInfo     *pFilterInfo;
+  void            *pFilterInfo;
 } SDummyInputInfo;
 
 typedef struct SJoinStatus {
@@ -827,7 +827,7 @@ typedef struct SJoinOperatorInfo {
   SRspResultInfo resultInfo;  // todo refactor, add this info for each operator
 } SJoinOperatorInfo;
 
-static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SFilterInfo* pFilterInfo) {
+static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterInfo) {
   int32_t offset = 0;
   char* pData = pRes->data;
 
@@ -844,8 +844,9 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SFilterInfo* p
 
   // filter data if needed
   if (pFilterInfo) {
-    //doSetFilterColumnInfo(pFilterInfo, numOfFilterCols, pBlock); 
-    filterSetColFieldData(pFilterInfo, pBlock->info.numOfCols, pBlock->pDataBlock);
+    SColumnDataParam param = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
+    filterSetColFieldData(pFilterInfo, &param, getColumnDataFromId);
+    
     bool gotNchar = false;
     filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
@@ -1108,7 +1109,7 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
-SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols, SFilterInfo* pFilters) {
+SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols, void* pFilters) {
   assert(numOfCols > 0);
   STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
@@ -1250,7 +1251,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     // if it is a join query, create join operator here
     int32_t numOfCol1 = pTableMeta->tableInfo.numOfColumns;
 
-    SFilterInfo     *pFilters = NULL;
+    void *pFilters = NULL;
     STblCond *pCond = NULL;
     if (px->colCond) {
       pCond = tsGetTableFilter(px->colCond, pTableMeta->id.uid, 0);
@@ -1277,7 +1278,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       for(int32_t i = 1; i < px->numOfTables; ++i) {
         STableMeta* pTableMeta1 = tscGetMetaInfo(px, i)->pTableMeta;
         numOfCol1 = pTableMeta1->tableInfo.numOfColumns;
-        SFilterInfo     *pFilters1 = NULL;
+        void *pFilters1 = NULL;
 
         SSchema* pSchema1 = tscGetTableSchema(pTableMeta1);
         int32_t n = pTableMeta1->tableInfo.numOfColumns;
@@ -2902,16 +2903,6 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t 
 int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   memset(dest, 0, sizeof(STagCond));
 
-  if (src->tbnameCond.cond != NULL) {
-    dest->tbnameCond.cond = strdup(src->tbnameCond.cond);
-    if (dest->tbnameCond.cond == NULL) {
-      return -1;
-    }
-  }
-
-  dest->tbnameCond.uid = src->tbnameCond.uid;
-  dest->tbnameCond.len = src->tbnameCond.len;
-
   dest->joinInfo.hasJoin = src->joinInfo.hasJoin;
 
   for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
@@ -2929,9 +2920,6 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
       }
     }
   }
-
-
-  dest->relType = src->relType;
 
   if (src->pCond == NULL) {
     return 0;
@@ -3022,8 +3010,6 @@ void tscColCondRelease(SArray** pCond) {
 
 
 void tscTagCondRelease(STagCond* pTagCond) {
-  free(pTagCond->tbnameCond.cond);
-
   if (pTagCond->pCond != NULL) {
     size_t s = taosArrayGetSize(pTagCond->pCond);
     for (int32_t i = 0; i < s; ++i) {

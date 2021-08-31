@@ -38,12 +38,6 @@ typedef struct SJoinInfo {
 } SJoinInfo;
 
 typedef struct STagCond {
-  // relation between tbname list and query condition, including : TK_AND or TK_OR
-  int16_t relType;
-
-  // tbname query condition, only support tbname query condition on one table
-  SCond tbnameCond;
-
   // join condition, only support two tables join currently
   SJoinInfo joinInfo;
 
@@ -100,7 +94,7 @@ struct   SQueryAttr;     // query object
 
 typedef struct STableFilter {
   uint64_t uid;
-  SFilterInfo info;
+  void    *info;
 } STableFilter;
 
 typedef struct SQueryInfo {
