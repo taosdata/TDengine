@@ -464,7 +464,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     } else if (pRowCol->colId < pDataCol->colId) {
       rcol++;
     } else {
-      if(forceSetNull) {
+      if(forceSetNull || pDataCol->len > 0) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       dcol++;
@@ -499,7 +499,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     } else if (colIdx->colId < pDataCol->colId) {
       ++rcol;
     } else {
-      if (forceSetNull) {
+      if (forceSetNull || pDataCol->len > 0) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       ++dcol;
@@ -533,7 +533,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
     ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
-        if (source->cols[j].len > 0) {
+        if (source->cols[j].len > 0 || target->cols[j].len > 0) {
           dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i + (*pOffset)), target->numOfRows,
                            target->maxPoints);
         }
