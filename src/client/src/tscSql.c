@@ -874,6 +874,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   pSql->pTscObj  = taos;
   pSql->signature = pSql;
+  pSql->rootObj = pSql;
   SSqlCmd *pCmd = &pSql->cmd;
   
   pCmd->resColumnId = TSDB_RES_COL_ID;
@@ -887,7 +888,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tfree(pSql);
@@ -980,6 +983,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   pSql->pTscObj   = taos;
   pSql->signature = pSql;
+  pSql->rootObj = pSql;
 
   int32_t code = (uint8_t) tscTransferTableNameList(pSql, str, length, plist);
   free(str);

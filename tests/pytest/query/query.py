@@ -18,6 +18,7 @@ from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
 
+
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -46,12 +47,12 @@ class TDTestCase:
         tdSql.query("select * from db.st where ts='2020-05-13 10:00:00.000'")
         tdSql.checkRows(1)
 
-        tdSql.query("select tbname, dev from dev_001") 
+        tdSql.query("select tbname, dev from dev_001")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'dev_001')
         tdSql.checkData(0, 1, 'dev_01')
 
-        tdSql.query("select tbname, dev, tagtype from dev_001") 
+        tdSql.query("select tbname, dev, tagtype from dev_001")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 'dev_001')
         tdSql.checkData(0, 1, 'dev_01')
@@ -67,7 +68,7 @@ class TDTestCase:
         tdSql.execute("insert into t1 values('2020-1-1 1:1:1', 1)")
         tdSql.execute("insert into t1 values('2020-1-1 1:10:1', 2)")
         tdSql.execute("insert into t2 values('2020-1-1 1:5:1', 99)")
-        
+
         tdSql.query("select count(*) from m1 where ts = '2020-1-1 1:5:1' ")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
@@ -82,8 +83,9 @@ class TDTestCase:
         ## test case for https://jira.taosdata.com:18080/browse/TD-1930
         tdSql.execute("create table tb(ts timestamp, c1 int, c2 binary(10), c3 nchar(10), c4 float, c5 bool)")
         for i in range(10):
-            tdSql.execute("insert into tb values(%d, %d, 'binary%d', 'nchar%d', %f, %d)" % (self.ts + i, i, i, i, i + 0.1, i % 2))
-        
+            tdSql.execute(
+                "insert into tb values(%d, %d, 'binary%d', 'nchar%d', %f, %d)" % (self.ts + i, i, i, i, i + 0.1, i % 2))
+
         tdSql.error("select * from tb where c2 = binary2")
         tdSql.error("select * from tb where c3 = nchar2")
 
@@ -119,9 +121,14 @@ class TDTestCase:
         tdSql.query("select * from tb")
         tdSql.checkRows(1)
 
+        # For jira:https://jira.taosdata.com:18080/browse/TD-6314
+        tdSql.execute("use db")
+        tdSql.execute("create stable stb_001(ts timestamp,v int) tags(c0 int)")
+        tdSql.query("select _block_dist() from stb_001")
+        tdSql.checkRows(1)
+
         tdSql.query("select * from tb0")
         tdSql.checkRows(1)
-        
 
     def stop(self):
         tdSql.close()

@@ -84,6 +84,10 @@ if $rows != 1 then
   return -1
 endi
 
+print ============== TD-5998
+sql_error select _block_dist() from (select * from $nt)
+sql_error select _block_dist() from (select * from $mt)
+
 print =============== clear
 sql drop database $db
 sql show databases
