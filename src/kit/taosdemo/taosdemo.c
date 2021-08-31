@@ -105,7 +105,7 @@ extern char configDir[];
 
 #define DEFAULT_TIMESTAMP_STEP  1
 #define DEFAULT_INTERLACE_ROWS  0
-#define DEFAULT_DATATYPE_NUM    3
+#define DEFAULT_DATATYPE_NUM    1
 #define DEFAULT_CHILDTABLES     10000
 
 
