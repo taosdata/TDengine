@@ -12,8 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import numpy as np
-
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -26,17 +24,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        # tdSql.query("show variables")
-        # tdSql.checkData(54, 1, 864000)
-        tdSql.execute("show variables")
-        res = tdSql.cursor.fetchall()
-        resList = np.array(res)
-        index = np.where(resList == "offlineThreshold")
-        index_value = np.dstack((index[0])).squeeze()
         tdSql.query("show variables")
-        tdSql.checkData(index_value, 1, 864000)
-        pass
-
+        tdSql.checkData(55, 1, 864000)
 
     def stop(self):
         tdSql.close()
