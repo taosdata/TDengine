@@ -448,6 +448,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   int dcol = 0;
 
   while (dcol < pCols->numOfCols) {
+    bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
       dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
@@ -458,13 +459,14 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     STColumn *pRowCol = schemaColAt(pSchema, rcol);
     if (pRowCol->colId == pDataCol->colId) {
       void *value = tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE);
+      if(!isNull(value, pDataCol->type)) setCol = 1;
       dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
       dcol++;
       rcol++;
     } else if (pRowCol->colId < pDataCol->colId) {
       rcol++;
     } else {
-      if(forceSetNull || pDataCol->len > 0) {
+      if(forceSetNull || setCol) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       dcol++;
@@ -482,6 +484,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
   int nRowCols = kvRowNCols(row);
 
   while (dcol < pCols->numOfCols) {
+    bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
       dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
@@ -493,13 +496,14 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
 
     if (colIdx->colId == pDataCol->colId) {
       void *value = tdGetKvRowDataOfCol(row, colIdx->offset);
+      if(!isNull(value, pDataCol->type)) setCol = 1;
       dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
       ++dcol;
       ++rcol;
     } else if (colIdx->colId < pDataCol->colId) {
       ++rcol;
     } else {
-      if (forceSetNull || pDataCol->len > 0) {
+      if (forceSetNull || setCol) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       ++dcol;
