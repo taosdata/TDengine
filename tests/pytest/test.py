@@ -149,15 +149,11 @@ if __name__ == "__main__":
             tdCases.runOneCluster(fileName)
     else:
         tdLog.debug("Procedures for testing self-deployment")
-        conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
+        conn = taos.connect(host, config=tdDnodes.getCfgPath(1))
         if fileName == "all":
             tdCases.runAllLinux(conn)
         else:
             tdCases.runOneLinux(conn, ucase, fileName)
-
-    tdDnodes.start(1)
-
-    tdLog.debug("Procedures for tdengine deployed in %s" % (host))
 
     tdCases.logSql(logSql)
 

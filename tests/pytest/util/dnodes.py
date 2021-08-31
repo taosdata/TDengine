@@ -133,27 +133,19 @@ class TDDnode:
                     (self.id, self.cfgPath))
 
     def start(self):
-        buildPath = self.getBuildPath()
-
-        if (buildPath == ""):
+        if (self.binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.debug("taosd found in %s" % buildPath)
-
-        binPath = buildPath + "/build/bin/taosd"
-
-        if self.deployed == 0:
-            tdLog.exit("dnode:%d is not deployed" % (self.id))
+            tdLog.debug("taosd found in %s" % self.binPath)
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (binPath, self.cfgDir)
+            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (self.binPath,
+                                                          self.cfgDir)
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
 
-            cmd = "nohup %s %s -c %s 2>&1 & " % (valgrindCmdline, binPath,
+            cmd = "nohup %s %s -c %s 2>&1 & " % (valgrindCmdline, self.binPath,
                                                  self.cfgDir)
-
-            print(cmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -193,27 +185,23 @@ class TDDnode:
         # time.sleep(5)
 
     def startWithoutSleep(self):
-        buildPath = self.getBuildPath()
 
-        if (buildPath == ""):
+        if (self.binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-
-        binPath = buildPath + "/build/bin/taosd"
+            tdLog.info("taosd found in %s" % self.binPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.id))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (binPath, self.cfgDir)
+            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (self.binPath,
+                                                          self.cfgDir)
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
 
-            cmd = "nohup %s %s -c %s 2>&1 & " % (valgrindCmdline, binPath,
+            cmd = "nohup %s %s -c %s 2>&1 & " % (valgrindCmdline, self.binPath,
                                                  self.cfgDir)
-
-            print(cmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -295,6 +283,9 @@ class TDDnode:
     def getDnodesRootDir(self):
         dnodesRootDir = "%s/sim/psim" % (self.path)
         return dnodesRootDir
+
+    def getCfgDir(self):
+        return self.cfgDir
 
 
 class TDDnodes:
@@ -396,8 +387,8 @@ class TDDnodes:
         dnodesRootDir = "%s/sim" % (self.path)
         return dnodesRootDir
 
-    def getSimCfgPath(self, i):
-        return self.sim.getCfgDir()
+    def getCfgPath(self, i):
+        return self.dnodes[i - 1].getCfgDir()
 
     def getSimLogPath(self):
         return self.sim.getLogDir()
