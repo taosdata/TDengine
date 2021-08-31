@@ -1,5 +1,5 @@
-const taos = require('../tdengine');
-var conn = taos.connect({config:"/etc/taos"});
+const taos = require('td2.0-connector');
+var conn = taos.connect({host:"localhost", user:"root", password:"taosdata", config:"/etc/taos",port:6030})
 var c1 = conn.cursor();
 
 
@@ -16,8 +16,8 @@ function checkData(sql,row,col,data){
     }
     else{
         console.log('check failed')
-        console.log(checkdata) 
-        console.log(data)
+        console.log('checked is :',checkdata) 
+        console.log("expected is :",data)
         
 
     }

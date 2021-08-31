@@ -234,11 +234,16 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
+              node ../../connectorTest/nodejsTest/nanosupport/nanosecondTest.js
               '''
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
                 mcs -out:taosdemo *.cs > /dev/null 2>&1
                 echo '' |./taosdemo
+                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
+                mcs -out:nano *.cs > /dev/null 2>&1
+                echo '' |./nano
+
               '''
               sh '''
                 cd ${WKC}/tests/gotest
