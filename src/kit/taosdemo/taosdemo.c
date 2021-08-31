@@ -754,12 +754,11 @@ static void printHelp() {
             "Set the replica parameters of the database, Default 1, min: 1, max: 3.");
     printf("%s%s%s%s\n", indent, "-m, --table-prefix=TABLEPREFIX", "\t",
             "Table prefix name. Default is 'd'.");
-    printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t", "The select sql file.");
+    printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
+            "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t", "Use normal table flag.");
     printf("%s%s%s%s\n", indent, "-o, --output=FILE", "\t\t",
             "Direct output to the named file. Default is './output.txt'.");
-    printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
-            "The select sql file.");
     printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
             "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
     printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
@@ -831,6 +830,12 @@ static bool isStringNumber(char *input)
     return true;
 }
 
+static void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
+{
+    fprintf(stderr, "%s %s: %s is an invalid value\n", program, wrong_arg, wrong_value);
+    fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
 static void errorUnreconized(char *program, char *wrong_arg)
 {
     fprintf(stderr, "%s: unrecognized options '%s'\n", program, wrong_arg);
@@ -900,7 +905,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
             } else if (0 == strncmp(argv[i], "-c", strlen("-c"))) {
-                tstrncpy(configDir, (char *)(argv[i] + strlen("-")), TSDB_FILENAME_LEN);
+                tstrncpy(configDir, (char *)(argv[i] + strlen("-c")), TSDB_FILENAME_LEN);
             } else if (strlen("--config-dir") == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg3(argv[0], "--config-dir");
@@ -983,7 +988,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 } else if (0 == strcasecmp(argv[i+1], "stmt")) {
                     arguments->iface = STMT_IFACE;
                 } else {
-                    errorPrintReqArg(argv[0], "I");
+                    errorWrongValue(argv[0], "-I", argv[i+1]);
                     exit(EXIT_FAILURE);
                 }
                 i++;
@@ -1006,7 +1011,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")), "stmt")) {
                     arguments->iface = STMT_IFACE;
                 } else {
-                    errorPrintReqArg3(argv[0], "-I");
+                    errorWrongValue(argv[0], "-I",
+                            (char *)(argv[i] + strlen("-I")));
                     exit(EXIT_FAILURE);
                 }
             } else if (strlen("--interface") == strlen(argv[i])) {
@@ -1021,7 +1027,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 } else if (0 == strcasecmp(argv[i+1], "stmt")) {
                     arguments->iface = STMT_IFACE;
                 } else {
-                    errorPrintReqArg3(argv[0], "--interface");
+                    errorWrongValue(argv[0], "--interface", argv[i+1]);
                     exit(EXIT_FAILURE);
                 }
                 i++;
@@ -1094,9 +1100,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->sqlFile = argv[++i];
             } else if (0 == strncmp(argv[i], "--sql-file=", strlen("--sql-file="))) {
-                arguments->host = (char *)(argv[i++] + strlen("--sql-file="));
+                arguments->sqlFile = (char *)(argv[i++] + strlen("--sql-file="));
             } else if (0 == strncmp(argv[i], "-s", strlen("-s"))) {
-                arguments->host = (char *)(argv[i++] + strlen("-s"));
+                arguments->sqlFile = (char *)(argv[i++] + strlen("-s"));
             } else if (strlen("--sql-file") == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg3(argv[0], "--sql-file");
@@ -1644,6 +1650,54 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->debug_print = true;
         } else if (strcmp(argv[i], "-gg") == 0) {
             arguments->verbose_print = true;
+        } else if ((0 == strncmp(argv[i], "-R", strlen("-R")))
+                || (0 == strncmp(argv[i], "--disorder-range",
+                        strlen("--disorder-range")))) {
+            if (strlen("-R") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "R");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "R");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->disorderRange = atoi(argv[++i]);
+            } else if (0 == strncmp(argv[i], "--disorder-range=",
+                        strlen("--disorder-range="))) {
+                if (isStringNumber((char *)(argv[i] + strlen("--disorder-range=")))) {
+                    arguments->disorderRange =
+                        atoi((char *)(argv[i]+strlen("--disorder-range=")));
+                } else {
+                    errorPrintReqArg2(argv[0], "--disorder-range");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (0 == strncmp(argv[i], "-R", strlen("-R"))) {
+                if (isStringNumber((char *)(argv[i] + strlen("-R")))) {
+                    arguments->disorderRange =
+                        atoi((char *)(argv[i]+strlen("-R")));
+                } else {
+                    errorPrintReqArg2(argv[0], "-R");
+                    exit(EXIT_FAILURE);
+                }
+
+                if (arguments->disorderRange < 0) {
+                    errorPrint("Invalid disorder range %d, will be set to %d\n",
+                            arguments->disorderRange, 1000);
+                    arguments->disorderRange = 1000;
+                }
+            } else if (strlen("--disorder-range") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--disorder-range");
+                    exit(EXIT_FAILURE);
+                } else if (!isStringNumber(argv[i+1])) {
+                    errorPrintReqArg2(argv[0], "--disorder-range");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->disorderRange = atoi(argv[++i]);
+            } else {
+                errorUnreconized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
         } else if ((0 == strncmp(argv[i], "-O", strlen("-O")))
                 || (0 == strncmp(argv[i], "--disorder", strlen("--disorder")))) {
             if (2 == strlen(argv[i])) {
@@ -1693,54 +1747,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorPrint("Invalid disorder ratio %d, will be set to %d\n",
                         arguments->disorderRatio, 0);
                 arguments->disorderRatio = 0;
-            }
-        } else if ((0 == strncmp(argv[i], "-R", strlen("-R")))
-                || (0 == strncmp(argv[i], "--disorder-range",
-                        strlen("--disorder-range")))) {
-            if (2 == strlen(argv[i])) {
-                if (argc == i+1) {
-                    errorPrintReqArg(argv[0], "R");
-                    exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
-                    errorPrintReqArg2(argv[0], "R");
-                    exit(EXIT_FAILURE);
-                }
-                arguments->disorderRange = atoi(argv[++i]);
-            } else if (0 == strncmp(argv[i], "--disorder-range=",
-                        strlen("--disorder-range="))) {
-                if (isStringNumber((char *)(argv[i] + strlen("--disorder-range=")))) {
-                    arguments->disorderRange =
-                        atoi((char *)(argv[i]+strlen("--disorder-rnage=")));
-                } else {
-                    errorPrintReqArg2(argv[0], "--disorder-range");
-                    exit(EXIT_FAILURE);
-                }
-            } else if (0 == strncmp(argv[i], "-R", strlen("-R"))) {
-                if (isStringNumber((char *)(argv[i] + strlen("-R")))) {
-                    arguments->disorderRange =
-                        atoi((char *)(argv[i]+strlen("-R")));
-                } else {
-                    errorPrintReqArg2(argv[0], "-R");
-                    exit(EXIT_FAILURE);
-                }
-
-                if (arguments->disorderRange < 0) {
-                    errorPrint("Invalid disorder range %d, will be set to %d\n",
-                            arguments->disorderRange, 1000);
-                    arguments->disorderRange = 1000;
-                }
-            } else if (strlen("--disorder-range") == strlen(argv[i])) {
-                if (argc == i+1) {
-                    errorPrintReqArg3(argv[0], "--disorder-range");
-                    exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
-                    errorPrintReqArg2(argv[0], "--disorder-range");
-                    exit(EXIT_FAILURE);
-                }
-                arguments->disorderRange = atoi(argv[++i]);
-            } else {
-                errorUnreconized(argv[0], argv[i]);
-                exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-a", strlen("-a")))
                 || (0 == strncmp(argv[i], "--replica",
