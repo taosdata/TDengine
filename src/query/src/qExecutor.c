@@ -5744,7 +5744,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
-      assert(*newgroup == false);
+      //assert(*newgroup == false);
 
       *newgroup = prevVal;
       setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
