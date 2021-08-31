@@ -256,13 +256,11 @@ pipeline {
           
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                timeout(time: 60, unit: 'MINUTES'){
-                  sh '''
-                  cd ${WKC}/tests/pytest
-                  ./crash_gen.sh -a -p -t 4 -s 2000
-                  '''
-                }
+            timeout(time: 60, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests/pytest
+              ./crash_gen.sh -a -p -t 4 -s 2000
+              '''
             }
             timeout(time: 60, unit: 'MINUTES'){
               // sh '''
