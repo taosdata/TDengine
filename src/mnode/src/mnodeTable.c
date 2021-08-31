@@ -1246,13 +1246,13 @@ static int32_t mnodeAddSuperTableTag(SMnodeMsg *pMsg, SSchema schema[], int32_t 
     if (mnodeFindSuperTableColumnIndex(pStable, schema[i].name) > 0) {
       mError("msg:%p, app:%p stable:%s, add tag, column:%s already exist", pMsg, pMsg->rpcMsg.ahandle,
              pStable->info.tableId, schema[i].name);
-      return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
+      return TSDB_CODE_MND_TAG_ALREAY_EXIST;
     }
 
     if (mnodeFindSuperTableTagIndex(pStable, schema[i].name) > 0) {
       mError("msg:%p, app:%p stable:%s, add tag, tag:%s already exist", pMsg, pMsg->rpcMsg.ahandle,
              pStable->info.tableId, schema[i].name);
-      return TSDB_CODE_MND_TAG_ALREAY_EXIST;
+      return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
     }
   }
 

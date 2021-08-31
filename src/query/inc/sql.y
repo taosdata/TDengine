@@ -496,7 +496,7 @@ union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
 cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 
 // Support for the SQL exprssion without from & where subclauses, e.g.,
-// select current_database()
+// select database()
 // select server_version()
 // select client_version()
 // select server_state()
