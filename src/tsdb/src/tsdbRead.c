@@ -4236,7 +4236,7 @@ void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *re
     param->setupInfoFn(pExpr, param->pExtInfo);
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
-    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE && pQueryInfo->optr == TSDB_RELATION_MATCH
+    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE && pQueryInfo->optr != TSDB_RELATION_MATCH
                                 && pQueryInfo->optr != TSDB_RELATION_IN)) {
       queryIndexedColumn(pSkipList, pQueryInfo, result);
     } else {

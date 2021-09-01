@@ -365,7 +365,7 @@ int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   regex_t regex;
   char    msgbuf[256] = {0};
 
-  int cflags = REG_EXTENDED | REG_ICASE;
+  int cflags = REG_EXTENDED;
   if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
     regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);

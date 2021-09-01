@@ -4525,7 +4525,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     char    regErrBuf[256] = {0};
 
     const char* pattern = pRight->value.pz;
-    int cflags = REG_EXTENDED | REG_ICASE;
+    int cflags = REG_EXTENDED;
     if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
       regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));
       tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
