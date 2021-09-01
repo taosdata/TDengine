@@ -250,16 +250,11 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-    def getDnodeRootDir(self, index):
-        dnodeRootDir = "%s/sim/psim/dnode%d" % (self.path, index)
-        return dnodeRootDir
-
-    def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim/psim" % (self.path)
-        return dnodesRootDir
-
     def getCfgDir(self):
         return self.cfgDir
+
+    def getDnodePath(self):
+        return self.dnodePath
 
 
 class TDDnodes:
@@ -353,9 +348,8 @@ class TDDnodes:
             processID = subprocess.check_output(psCmd,
                                                 shell=True).decode("utf-8")
 
-    def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim" % (self.path)
-        return dnodesRootDir
+    def getDnodesRootDir(self, i):
+        return self.dnodes[i - 1].getDnodePath()
 
     def getCfgPath(self, i):
         return self.dnodes[i - 1].getCfgDir()

@@ -31,11 +31,15 @@ class TDTestCase:
         tdSql.prepare()
 
         print("==============step1")
-        tdSql.execute("create database if not exists demo;");
+        tdSql.execute("create database if not exists demo;")
         tdSql.execute("use demo;")
-        tdSql.execute("create table if not exists meters(ts timestamp, f1 int) tags(t1 int);");
-        for i in range(1,11):
-            tdSql.execute("CREATE table if not exists test{num} using meters tags({num});".format(num=i))
+        tdSql.execute(
+            "create table if not exists meters(ts timestamp, f1 int) tags(t1 int);"
+        )
+        for i in range(1, 11):
+            tdSql.execute(
+                "CREATE table if not exists test{num} using meters tags({num});"
+                .format(num=i))
         print("==============insert 10 tables")
 
         tdSql.query('show tables;')
@@ -43,8 +47,8 @@ class TDTestCase:
 
         print("==============step2")
         tdDnodes.stopAll()
-        path = tdDnodes.getDnodesRootDir()        
-        filename = path + '/dnode1/data/mnode/wal/wal0'
+        path = tdDnodes.getDnodesRootDir(1)
+        filename = path + '/data/mnode/wal/wal0'
 
         with open(filename, 'rb') as f1:
             temp = f1.read()
@@ -52,20 +56,23 @@ class TDTestCase:
         with open(filename, 'wb') as f2:
             f2.write(temp[:-2])
 
-        tdDnodes.start(1)
-        print("==============remove last tow bytes of file 'wal0' and restart taosd")
-        
+        tdDnodes.start()
+        print(
+            "==============remove last tow bytes of file 'wal0' and restart taosd"
+        )
+
         print("==============step3")
         tdSql.execute("use demo;")
         tdSql.query('show tables;')
         tdSql.checkRows(9)
-        for i in range(11,21):
-            tdSql.execute("CREATE table if not exists test{num} using meters tags({num});".format(num=i))
+        for i in range(11, 21):
+            tdSql.execute(
+                "CREATE table if not exists test{num} using meters tags({num});"
+                .format(num=i))
 
         tdSql.query('show tables;')
         tdSql.checkRows(19)
         print("==============check table numbers and create 10 tables")
-
 
     def stop(self):
         tdSql.close()
