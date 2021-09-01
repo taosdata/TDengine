@@ -1214,6 +1214,31 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
         DUPATE_DATA_WITHOUT_TS(pCtx, *(int64_t *)output, v, notNullElems, isMin);
         break;
       }
+
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t v = GET_UINT8_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint8_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t v = GET_UINT16_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint16_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t v = GET_UINT32_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint32_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t v = GET_UINT64_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint64_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
       default:
         break;
     }
@@ -3670,6 +3695,8 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
     return;
   }
 
+  bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
+
   if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
     *(TSKEY *)pCtx->pOutput = pCtx->startTs;
   } else if (type == TSDB_FILL_NULL) {
@@ -3677,7 +3704,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   } else if (type == TSDB_FILL_SET_VALUE) {
     tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
   } else {
-    if (pCtx->start.key != INT64_MIN && pCtx->start.key < pCtx->startTs && pCtx->end.key > pCtx->startTs) {
+    if (pCtx->start.key != INT64_MIN && ((ascQuery && pCtx->start.key <= pCtx->startTs && pCtx->end.key >= pCtx->startTs) || ((!ascQuery) && pCtx->start.key >= pCtx->startTs && pCtx->end.key <= pCtx->startTs))) {
       if (type == TSDB_FILL_PREV) {
         if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
           SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->start.val);
@@ -3716,13 +3743,14 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
       TSKEY skey = GET_TS_DATA(pCtx, 0);
 
       if (type == TSDB_FILL_PREV) {
-        if (skey > pCtx->startTs) {
+        if ((ascQuery && skey > pCtx->startTs) || ((!ascQuery) && skey < pCtx->startTs)) {
           return;
         }
 
         if (pCtx->size > 1) {
           TSKEY ekey = GET_TS_DATA(pCtx, 1);
-          if (ekey > skey && ekey <= pCtx->startTs) {
+          if ((ascQuery &&  ekey > skey && ekey <= pCtx->startTs) ||
+             ((!ascQuery) && ekey < skey && ekey >= pCtx->startTs)){
             skey = ekey;
           }
         }
@@ -3731,10 +3759,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         TSKEY ekey = skey;
         char* val = NULL;
         
-        if (ekey < pCtx->startTs) {
+        if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
           if (pCtx->size > 1) {
             ekey = GET_TS_DATA(pCtx, 1);
-            if (ekey < pCtx->startTs) {
+            if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
               return;
             }
 
@@ -3755,11 +3783,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         TSKEY ekey = GET_TS_DATA(pCtx, 1);
       
         // no data generated yet
-        if (!(skey < pCtx->startTs && ekey > pCtx->startTs)) {
+        if ((ascQuery && !(skey <= pCtx->startTs && ekey >= pCtx->startTs))
+           || ((!ascQuery) && !(skey >= pCtx->startTs && ekey <= pCtx->startTs))) {
           return;
         }
-        
-        assert(pCtx->start.key == INT64_MIN && skey < pCtx->startTs && ekey > pCtx->startTs);
         
         char *start = GET_INPUT_DATA(pCtx, 0);
         char *end = GET_INPUT_DATA(pCtx, 1);
@@ -3788,11 +3815,37 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
-    // impose the timestamp check
-    TSKEY key = GET_TS_DATA(pCtx, 0);
+    bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
+    TSKEY key;
+    char *pData;
+    int32_t typedData = 0;
+    
+    if (ascQuery) {
+      key = GET_TS_DATA(pCtx, 0);
+      pData = GET_INPUT_DATA(pCtx, 0);
+    } else {
+      key = pCtx->start.key;
+      if (key == INT64_MIN) {
+        key = GET_TS_DATA(pCtx, 0);
+        pData = GET_INPUT_DATA(pCtx, 0);
+      } else {        
+        if (!(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL)) {
+          pData = pCtx->start.ptr;
+        } else {
+          typedData = 1;
+          pData = (char *)&pCtx->start.val;
+        }
+      }
+    }
+    
+    //if (key == pCtx->startTs && (ascQuery || !(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL))) {
     if (key == pCtx->startTs) {
-      char *pData = GET_INPUT_DATA(pCtx, 0);
-      assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+      if (typedData) {
+        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)pData);
+      } else {
+        assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+      }
+      
       SET_VAL(pCtx, 1, 1);
     } else {
       interp_function_impl(pCtx);
@@ -4004,9 +4057,21 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
-    if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
+    if (INT64_MIN == pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
+      continue;
+    }
+
+    if (primaryKey[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = primaryKey[i];
+      
       continue;
     }
     
@@ -4061,13 +4126,16 @@ static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockD
   } else {
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
-    
-    int32_t numSteps = tsMaxRowsInFileBlock/TSDB_BLOCK_DIST_STEP_ROWS;
-    pDist->dataBlockInfos = taosArrayInit(numSteps, sizeof(SFileBlockInfo));
-    taosArraySetSize(pDist->dataBlockInfos, numSteps);
+
+    int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
+    if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+      ++maxSteps;
+    }
+    pDist->dataBlockInfos = taosArrayInit(maxSteps, sizeof(SFileBlockInfo));
+    taosArraySetSize(pDist->dataBlockInfos, maxSteps);
   }
 
-  size_t steps = taosArrayGetSize(pDist->dataBlockInfos);
+  size_t steps = taosArrayGetSize(pSrc->dataBlockInfos);
   for (int32_t i = 0; i < steps; ++i) {
     int32_t srcNumBlocks = ((SFileBlockInfo*)taosArrayGet(pSrc->dataBlockInfos, i))->numBlocksOfStep;
     SFileBlockInfo* blockInfo = (SFileBlockInfo*)taosArrayGet(pDist->dataBlockInfos, i);
@@ -4192,7 +4260,7 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
     taosArrayDestroy(pDist->dataBlockInfos);
     pDist->dataBlockInfos = NULL;
   }
-  
+
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
   pResInfo->hasResult = DATA_SET_FLAG;
