@@ -119,7 +119,7 @@ As the data points are a series of data points over time, the data points genera
 9. in addition to storage and query operations, various statistical and real-time calculation operations are also required;
 10. data volume is huge, a system may generate over 10 billion data points in a day.
 
-By utilizing the above characteristics, TDengine designs the storage and computing engine in a special and optimized way for time-series data, resulting in massive improvements in system efficiency.
+In light of the characteristics mentioned above, TDengine designs the storage and computing engine in a special and optimized way for time-series data, resulting in massive improvements in system efficiency.
 
 ### Relational Database Model
 
@@ -139,7 +139,7 @@ TDengine suggests using collection point ID as the table name (like D1001 in the
 
 ### STable: A Collection of Data Points in the Same Type
 
-The method of one table for each point will bring a greatly increasing number of tables, which is difficult to manage. Moreover, applications often need to take aggregation operations between collection points, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the [STable(Super Table)](https://www.taosdata.com/en/documentation/super-table) concept is introduced by TDengine.
+The method of one table for each point will bring a greatly increasing number of tables, which is difficult to manage. Moreover, applications often need to take aggregation operations between collection points, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the STable (Super Table) concept is introduced by TDengine.
 
 STable is an abstract collection for a type of data point. A STable contains a set of points (tables) that have the same schema or data structure, but with different static attributes (tags). To describe a STable (a combination of data collection points of a specific type), in addition to defining the table structure of the collected metrics, it is also necessary to define the schema of its tag. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 

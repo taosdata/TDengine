@@ -6,7 +6,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 * [TDengine Introduction and Features](/evaluation#intro)
 * [TDengine Use Scenes](/evaluation#scenes)
-* [TDengine Performance Metrics and Verification]((/evaluation#))
+* [TDengine Performance Metrics and Verification](/evaluation#)
 
 ## [Getting Started](/getting-started)
 

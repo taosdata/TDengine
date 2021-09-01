@@ -18,7 +18,7 @@ public class RestfulConnection extends AbstractConnection {
     private final String url;
     private final String database;
     private final String token;
-    /******************************************************/
+
     private boolean isClosed;
     private final DatabaseMetaData metadata;
 

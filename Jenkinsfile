@@ -235,6 +235,7 @@ pipeline {
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
               node ../../connectorTest/nodejsTest/nanosupport/nanosecondTest.js
+              node test1970.js
               '''
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
@@ -261,21 +262,19 @@ pipeline {
           
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                timeout(time: 60, unit: 'MINUTES'){
-                  sh '''
-                  cd ${WKC}/tests/pytest
-                  ./crash_gen.sh -a -p -t 4 -s 2000
-                  '''
-                }
-            }
             timeout(time: 60, unit: 'MINUTES'){
               sh '''
               cd ${WKC}/tests/pytest
-              rm -rf /var/lib/taos/*
-              rm -rf /var/log/taos/*
-              ./handle_crash_gen_val_log.sh
+              ./crash_gen.sh -a -p -t 4 -s 2000
               '''
+            }
+            timeout(time: 60, unit: 'MINUTES'){
+              // sh '''
+              // cd ${WKC}/tests/pytest
+              // rm -rf /var/lib/taos/*
+              // rm -rf /var/log/taos/*
+              // ./handle_crash_gen_val_log.sh
+              // '''
               sh '''
               cd ${WKC}/tests/pytest
               rm -rf /var/lib/taos/*

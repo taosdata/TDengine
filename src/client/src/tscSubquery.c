@@ -15,8 +15,9 @@
 #define _GNU_SOURCE
 
 #include "os.h"
-
 #include "texpr.h"
+
+#include "tsched.h"
 #include "qTsbuf.h"
 #include "tcompare.h"
 #include "tscLog.h"
@@ -2443,7 +2444,11 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   SSqlObj* pSql = pSchedMsg->ahandle;
   SPair* p = pSchedMsg->msg;
 
-  for(int32_t i = p->first; i < p->second; ++i) {
+  for (int32_t i = p->first; i < p->second; ++i) {
+   if (i >= pSql->subState.numOfSub) {
+      tfree(p);
+      return;
+    }
     SSqlObj* pSub = pSql->pSubs[i];
     SRetrieveSupport* pSupport = pSub->param;
 
@@ -2583,7 +2588,12 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   int32_t numOfTasks = (pState->numOfSub + MAX_REQUEST_PER_TASK - 1)/MAX_REQUEST_PER_TASK;
   assert(numOfTasks >= 1);
 
-  int32_t num = (pState->numOfSub/numOfTasks) + 1;
+  int32_t num;
+  if (pState->numOfSub / numOfTasks == MAX_REQUEST_PER_TASK) {
+    num = MAX_REQUEST_PER_TASK;
+  } else {
+    num = pState->numOfSub / numOfTasks + 1;
+  }
   tscDebug("0x%"PRIx64 " query will be sent by %d threads", pSql->self, numOfTasks);
 
   for(int32_t j = 0; j < numOfTasks; ++j) {
@@ -2739,7 +2749,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       }
     } else {  // reach the maximum retry count, abort
       atomic_val_compare_exchange_32(&pParentSql->res.code, TSDB_CODE_SUCCESS, numOfRows);
-      tscError("0x%"PRIx64" sub:0x%"PRIx64" retrieve failed,code:%s,orderOfSub:%d failed.no more retry,set global code:%s", pParentSql->self, pSql->self,
+      tscError("0x%"PRIx64" sub:0x%"PRIx64" retrieve failed, code:%s, orderOfSub:%d FAILED. no more retry, set global code:%s", pParentSql->self, pSql->self,
                tstrerror(numOfRows), subqueryIndex, tstrerror(pParentSql->res.code));
     }
   }
@@ -2986,7 +2996,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     tscDebug("0x%"PRIx64" sub:0x%"PRIx64" retrieve numOfRows:%d totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d",
         pParentSql->self, pSql->self, pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
-    if (num > tsMaxNumOfOrderedResults && /*tscIsProjectionQueryOnSTable(pQueryInfo, 0) &&*/ !(tscGetQueryInfo(&pParentSql->cmd)->distinct)) {
+    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0) && !(tscGetQueryInfo(&pParentSql->cmd)->distinct)) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pParentSql->self, pSql->self, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
