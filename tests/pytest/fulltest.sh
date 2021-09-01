@@ -83,7 +83,7 @@ python3 ./test.py -f tag_lite/timestamp.py
 python3 ./test.py -f tag_lite/TestModifyTag.py
 
 #nano support test 
-python3 test.py -f  nanosupport/nanoSecondCheck.py
+python3 test.py -f  nanosupport/nanosupportTestCase.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
 python3 ./test.py -f import_merge/importBlock1HPO.py
