@@ -60,8 +60,6 @@ static FORCE_INLINE void __cache_lock_destroy(SCacheObj *pCacheObj) {
  */
 static void doCleanupDataCache(SCacheObj *pCacheObj);
 
-void taosStopCacheRefreshWorker(void);
-
 /**
  * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
  * @param handle   Cache object handle
@@ -73,6 +71,7 @@ static pthread_once_t cacheThreadInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t guard          = PTHREAD_MUTEX_INITIALIZER;
 static SArray* pCacheArrayList        = NULL;
 static bool    stopRefreshWorker      = false;
+static bool    refreshWorkerStopped   = false;
 
 static void doInitRefreshThread(void) {
   pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
@@ -540,7 +539,8 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
 
   // wait for the refresh thread quit before destroying the cache object.
   // But in the dll, the child thread will be killed before atexit takes effect.
-  while(!stopRefreshWorker&&atomic_load_8(&pCacheObj->deleting) != 0) {
+  while(atomic_load_8(&pCacheObj->deleting) != 0) {
+    if (refreshWorkerStopped) return;    
     taosMsleep(50);
   }
 
@@ -679,6 +679,10 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
   taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
 }
 
+void taosCacheRefreshWorkerStopped(void) {
+  refreshWorkerStopped=true;
+}
+
 void* taosCacheTimedRefresh(void *handle) {
   assert(pCacheArrayList != NULL);
   uDebug("cache refresh thread starts");
@@ -687,7 +691,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
   const int32_t SLEEP_DURATION = 500; //500 ms
   int64_t count = 0;
-  atexit(taosStopCacheRefreshWorker);
+  atexit(taosCacheRefreshWorkerStopped);
 
   while(1) {
     taosMsleep(SLEEP_DURATION);
@@ -767,5 +771,5 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
 }
 
 void taosStopCacheRefreshWorker(void) {
-  stopRefreshWorker = true;
+  stopRefreshWorker = false;
 }
