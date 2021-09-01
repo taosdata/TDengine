@@ -64,12 +64,6 @@ class TDDnode:
         self.dnodePath = dnodePath
         self.binPath = binPath
 
-    def setTestCluster(self, value):
-        self.testCluster = value
-
-    def setValgrind(self, value):
-        self.valgrind = value
-
     def getDataSize(self):
         totalSize = 0
 
@@ -82,9 +76,6 @@ class TDDnode:
                         totalSize = totalSize + os.path.getsize(fp)
 
         return totalSize
-
-    def addExtraCfg(self, option, value):
-        self.cfgDict.update({option: value})
 
     def deploy(self, updatecfgDict):
         self.logDir = self.dnodePath + "/log"
@@ -129,6 +120,8 @@ class TDDnode:
         for key, value in updatecfgDict.items():
             self.cfg(key, value)
 
+        self.deployed = 1
+
         tdLog.debug("dnode:%d is deployed and configured by %s" %
                     (self.id, self.cfgPath))
 
@@ -166,8 +159,6 @@ class TDDnode:
                                      stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE,
                                      shell=True)
-            pid = popen.pid
-            # print('Popen.pid:' + str(pid))
             timeout = time.time() + 60 * 2
             while True:
                 line = popen.stdout.readline().strip()
@@ -181,32 +172,6 @@ class TDDnode:
             tdLog.debug("wait 10 seconds for the dnode:%d to start." %
                         (self.id))
             time.sleep(10)
-
-        # time.sleep(5)
-
-    def startWithoutSleep(self):
-
-        if (self.binPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % self.binPath)
-
-        if self.deployed == 0:
-            tdLog.exit("dnode:%d is not deployed" % (self.id))
-
-        if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (self.binPath,
-                                                          self.cfgDir)
-        else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
-
-            cmd = "nohup %s %s -c %s 2>&1 & " % (valgrindCmdline, self.binPath,
-                                                 self.cfgDir)
-
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-        self.running = 1
-        tdLog.debug("dnode:%d is running with %s " % (self.id, cmd))
 
     def forcestop(self):
         if self.valgrind == 0:
@@ -232,18 +197,7 @@ class TDDnode:
                 time.sleep(2)
 
             self.running = 0
-            tdLog.debug("dnode:%d is stopped by kill -KILL" % (self.index))
-
-    def startIP(self):
-        cmd = "sudo ifconfig lo:%d 192.168.0.%d up" % (self.index, self.index)
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-
-    def stopIP(self):
-        cmd = "sudo ifconfig lo:%d 192.168.0.%d down" % (self.index,
-                                                         self.index)
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+            tdLog.debug("dnode:%d is stopped by kill -KILL" % (self.id))
 
     def cfg(self, option, value):
         cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
@@ -261,10 +215,7 @@ class TDDnodes:
     def __init__(self):
         self.dnodes = []
 
-    def init(self, numOfDnode):
-        for i in range(numOfDnode):
-            self.dnodes.append(TDDnode(i + 1))
-
+    def init(self):
         currentPath = os.path.dirname(os.path.realpath(__file__))
         if ("community" in currentPath):
             projPath = currentPath[:currentPath.find("community")]
@@ -282,67 +233,33 @@ class TDDnodes:
                                         "/sim/dnode%d" % (i + 1))
             self.dnodes[i].init(dnodePath, binPath)
 
-    def setTestCluster(self, value):
-        self.testCluster = value
-
-    def setValgrind(self, value):
-        self.valgrind = value
-
-    def deploy(self, updatecfgDict):
+    def deploy(self, numOfDnode, updatecfgDict):
+        for i in range(numOfDnode):
+            self.dnodes.append(TDDnode(i + 1))
         for i in range(len(self.dnodes)):
             self.dnodes[i].deploy(updatecfgDict)
-
-    def cfg(self, index, option, value):
-        self.check(index)
-        self.dnodes[index - 1].cfg(option, value)
 
     def start(self):
         for i in range(len(self.dnodes)):
             self.dnodes[i].start()
-
-    def startWithoutSleep(self, index):
-        self.check(index)
-        self.dnodes[index - 1].startWithoutSleep()
-
-    def getDataSize(self, index):
-        self.check(index)
-        return self.dnodes[index - 1].getDataSize()
-
-    def forcestop(self, index):
-        self.check(index)
-        self.dnodes[index - 1].forcestop()
-
-    def startIP(self, index):
-        self.check(index)
-
-        if self.testCluster:
-            self.dnodes[index - 1].startIP()
-
-    def stopIP(self, index):
-        self.check(index)
-
-        if self.dnodes[index - 1].testCluster:
-            self.dnodes[index - 1].stopIP()
-
-    def check(self, index):
-        if index < 1 or index > 10:
-            tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
 
     def stopAll(self):
         tdLog.debug("stop all dnodes")
         psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while (processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(psCmd,
                                                 shell=True).decode("utf-8")
 
-        psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
+    def forceStopAll(self):
+        tdLog.debug("force stop all dnodes")
+        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while (processID):
-            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(psCmd,
@@ -353,12 +270,6 @@ class TDDnodes:
 
     def getCfgPath(self, i):
         return self.dnodes[i - 1].getCfgDir()
-
-    def getSimLogPath(self):
-        return self.sim.getLogDir()
-
-    def addSimExtraCfg(self, option, value):
-        self.sim.addExtraCfg(option, value)
 
 
 tdDnodes = TDDnodes()

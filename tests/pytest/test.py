@@ -86,60 +86,8 @@ if __name__ == "__main__":
         if key in ['-s', '--stop']:
             stop = 1
 
-    if (stop != 0):
-        if (valgrind == 0):
-            toBeKilled = "taosd"
-        else:
-            toBeKilled = "valgrind.bin"
-
-        killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
-
-        psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
-        processID = subprocess.check_output(psCmd, shell=True)
-
-        while (processID):
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
-
-        for port in range(6030, 6041):
-            usePortPID = "lsof -i tcp:%d | grep LISTEn | awk '{print $2}'" % port
-            processID = subprocess.check_output(usePortPID, shell=True)
-
-            if processID:
-                killCmd = "kill -TERM %s" % processID
-                os.system(killCmd)
-            fuserCmd = "fuser -k -n tcp %d" % port
-            os.system(fuserCmd)
-        if valgrind:
-            time.sleep(2)
-
-        tdLog.info('stop All dnodes')
-
-    # stop all dnodes for before any test
-    tdDnodes.stopAll()
-
-    # set the host ip if not assign
-    if masterIp == "":
-        host = '127.0.0.1'
-    else:
-        host = masterIp
-
     # init the dnodes with each specific file path
-    tdDnodes.init(numOfDnode)
-
-    # import the test case
-    moduleName = fileName.replace(".py", "").replace("/", ".")
-    uModule = importlib.import_module(moduleName)
-    ucase = uModule.TDTestCase()
-    # deploy the dnodes with specific cfg or not
-    try:
-        tdDnodes.deploy(ucase.updatecfgDict)
-    except:
-        tdDnodes.deploy({})
-
-    # start all dnodes
-    tdDnodes.start()
+    tdDnodes.init()
 
     if testCluster:
         tdLog.debug("Procedures for testing cluster")
@@ -149,11 +97,10 @@ if __name__ == "__main__":
             tdCases.runOneCluster(fileName)
     else:
         tdLog.debug("Procedures for testing self-deployment")
-        conn = taos.connect(host, config=tdDnodes.getCfgPath(1))
         if fileName == "all":
-            tdCases.runAllLinux(conn)
+            tdCases.runAllLinux()
         else:
-            tdCases.runOneLinux(conn, ucase, fileName)
+            tdCases.runOneLinux(fileName)
 
     tdCases.logSql(logSql)
 
@@ -172,4 +119,3 @@ if __name__ == "__main__":
                 tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
             else:
                 tdLog.info("not need to query")
-    conn.close()
