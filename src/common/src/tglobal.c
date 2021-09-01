@@ -1581,7 +1581,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
