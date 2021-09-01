@@ -5624,10 +5624,17 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     size_t s = taosArrayGetSize(pSortOrder);
     if (s == 1) {
       if (orderByTags) {
-        pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+        if (index.columnIndex != TSDB_TBNAME_COLUMN_INDEX) {
+          pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+        } else {
+          pQueryInfo->groupbyExpr.orderIndex = index.columnIndex;
+        }
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
         pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
+        if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+          pQueryInfo->order.orderColId = tGetTbnameColumnSchema()->colId;
+        }
       } else if (orderByGroupbyCol) {
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
 
