@@ -66,12 +66,12 @@ typedef struct {
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;
-  int64_t  sum;
-  int64_t  max;
-  int64_t  min;
-  int16_t  maxIndex;
-  int16_t  minIndex;
-  int16_t  numOfNull;
+  // int64_t  sum;
+  // int64_t  max;
+  // int64_t  min;
+  // int16_t  maxIndex;
+  // int16_t  minIndex;
+  // int16_t  numOfNull;
   uint8_t  offsetH;
   char     padding[1];
 } SBlockCol;

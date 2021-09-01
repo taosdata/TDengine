@@ -415,6 +415,8 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
 
 void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols) {
   if (!tsdbQueryFromSMA) {
+    ASSERT(0);  // remove Statis from .data/.last
+    #if 0
     SBlockData *pBlockData = pReadh->pBlkData;
 
     for (int i = 0, j = 0; i < numOfCols;) {
@@ -440,6 +442,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols) {
         j++;
       }
     }
+    #endif
   } else {
     SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
 
