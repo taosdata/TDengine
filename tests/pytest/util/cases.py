@@ -35,10 +35,6 @@ class TDCases:
         self.windowsCases = []
         self.clusterCases = []
 
-    def __dynamicLoadModule(self, fileName):
-        moduleName = fileName.replace(".py", "").replace("/", ".")
-        return importlib.import_module(moduleName, package='..')
-
     def logSql(self, logSql):
         self._logSql = logSql
 
@@ -87,13 +83,11 @@ class TDCases:
         case.init(conn, False)
         try:
             case.run()
-            case.stop()
-            tdDnodes.clean()
         except Exception as e:
-            case.stop()
-            tdDnodes.clean()
             tdLog.notice(repr(e))
             tdLog.exit("%s failed" % (fileName))
+        case.stop()
+        tdDnodes.clean()
 
 
 tdCases = TDCases()

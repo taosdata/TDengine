@@ -23,21 +23,10 @@ from util.sql import *
 from util.dnodes import *
 
 
-class TDTestRetetion:
-    def init(self):
-        self.queryRows = 0
+class TDTestCase:
+    def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdLog.info("prepare cluster")
-        tdDnodes.init("")
-        tdDnodes.setTestCluster(False)
-        tdDnodes.setValgrind(False)
-        tdDnodes.stopAll()
-
-        tdDnodes.start()
-        print(tdDnodes.getDnodesRootDir())
-        self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
-        tdSql.init(self.conn.cursor())
-        tdSql.execute('reset query cache')
+        tdSql.init(conn.cursor(), logSql)
 
     def checkRows(self, expectRows, sql):
         if self.queryRows == expectRows:
@@ -143,7 +132,5 @@ class TDTestRetetion:
         tdLog.success("%s successfully executed" % __file__)
 
 
-clients = TDTestRetetion()
-clients.init()
-clients.run()
-clients.stop()
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())
