@@ -21,7 +21,7 @@ from util.log import *
 
 
 class TDDnode:
-    def __init__(self, id, dnodePath, binPath):
+    def __init__(self, id, dnodePath, binPath, hostname):
         self.id = id
         self.running = 0
         self.deployed = 0
@@ -29,13 +29,15 @@ class TDDnode:
         self.valgrind = 0
         self.dnodePath = dnodePath
         self.binPath = binPath
+        self.hostname = hostname
+        self.fqdn = ""
         self.cfgDict = {
             "numOfLogLines": "100000000",
             "mnodeEqualVnodeNum": "0",
             "walLevel": "2",
             "fsync": "1000",
             "statusInterval": "1",
-            "numOfMnodes": "3",
+            "numOfMnodes": "1",
             "numOfThreadsPerCore": "2.0",
             "monitor": "0",
             "maxVnodeConnections": "30000",
@@ -115,7 +117,11 @@ class TDDnode:
 
         self.cfgDict["dataDir"] = self.dataDir
         self.cfgDict["logDir"] = self.logDir
-
+        self.cfgDict["firstEp"] = "%s:7100" % (self.hostname)
+        self.cfgDict["secondEp"] = "%s:7200" % (self.hostname)
+        port = 7100 + 100 * (self.id - 1)
+        self.cfgDict["serverPort"] = port
+        self.fqdn = "%s:%d" % (self.hostname, port)
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
 
@@ -182,7 +188,7 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | head -n 1" % toBeKilled
             processID = subprocess.check_output(psCmd,
                                                 shell=True).decode("utf-8")
 
@@ -192,9 +198,7 @@ class TDDnode:
                 time.sleep(1)
                 processID = subprocess.check_output(psCmd,
                                                     shell=True).decode("utf-8")
-            for port in range(6030, 6041):
-                fuserCmd = "fuser -k -n tcp %d" % port
-                os.system(fuserCmd)
+
             if self.valgrind:
                 time.sleep(2)
 
@@ -212,12 +216,16 @@ class TDDnode:
     def getDnodePath(self):
         return self.dnodePath
 
+    def getFQDN(self):
+        return self.fqdn
+
 
 class TDDnodes:
     def __init__(self):
         self.dnodes = []
         self.binPath = ""
         self.currentPath = ""
+        self.hostname = ""
 
     def init(self):
         self.currentPath = os.path.dirname(os.path.realpath(__file__))
@@ -232,11 +240,15 @@ class TDDnodes:
             projPath = self.currentPath[:self.currentPath.find("tests")]
             self.binPath = projPath + "debug/build/bin/taosd"
 
+        self.hostname = str(subprocess.check_output(["hostname", "-f"
+                                                     ]))[2:].rstrip('\\n\'')
+
     def deploy(self, numOfDnode, updatecfgDict):
         for i in range(numOfDnode):
             dnodePath = os.path.abspath(self.currentPath + "/../../.." +
                                         "/sim/dnode%d" % (i + 1))
-            self.dnodes.append(TDDnode(i + 1, dnodePath, self.binPath))
+            self.dnodes.append(
+                TDDnode(i + 1, dnodePath, self.binPath, self.hostname))
         for i in range(len(self.dnodes)):
             self.dnodes[i].deploy(updatecfgDict)
 
@@ -246,7 +258,7 @@ class TDDnodes:
 
     def stopAll(self):
         tdLog.debug("stop all dnodes")
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
+        psCmd = "ps -ef|grep -w taosd | head -n 1 | grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while (processID):
             killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
@@ -257,7 +269,7 @@ class TDDnodes:
 
     def forceStopAll(self):
         tdLog.debug("force stop all dnodes")
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
+        psCmd = "ps -ef|grep -w taosd | head -n 1 | grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while (processID):
             killCmd = "kill -9 %s > /dev/null 2>&1" % processID
@@ -265,12 +277,19 @@ class TDDnodes:
             time.sleep(1)
             processID = subprocess.check_output(psCmd,
                                                 shell=True).decode("utf-8")
+        for i in range(len(self.dnodes)):
+            for port in range(7100 + 100 * i, 7111 + 100 * i):
+                fuserCmd = "fuser -k -n tcp %d" % port
+                os.system(fuserCmd)
 
     def getDnodesRootDir(self, i):
         return self.dnodes[i - 1].getDnodePath()
 
     def getCfgPath(self, i):
         return self.dnodes[i - 1].getCfgDir()
+
+    def getDnodes(self):
+        return self.dnodes
 
     def clean(self):
         self.dnodes = []
