@@ -859,13 +859,25 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
     }
     return r1;
-  } else if (r1 < r2 && ASCENDING_TRAVERSE(order)) {
-    pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
-    return r1;
-  }
-  else {
-    pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
-    return r2;
+  } else {
+    if (ASCENDING_TRAVERSE(order)) {
+      if (r1 < r2) {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
+        return r1;
+      } else {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        return r2;
+      }
+    } else {
+      if (r1 < r2) {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        return r2;
+      } else {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
+        return r1;
+      }
+    }
+    
   }
 }
 
