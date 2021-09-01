@@ -41,9 +41,8 @@ class TDTestCase:
             tdSql.checkEqual(res1[i], res2[i])
 
     def checkStbMemDiskMerge(self):
-        tdCom.cleanTb()
-        stb_name = tdCom.getLongName(8, "letters")
-        tb_name = tdCom.getLongName(7, "letters")
+        stb_name = tdCom.getLongName(7, "letters")
+        tb_name = f'{stb_name}_sub'
         tdSql.execute(
             f'CREATE TABLE {stb_name} (ts timestamp, c1 int, c2 int) tags (t1 int)')
         tdSql.execute(
@@ -65,13 +64,12 @@ class TDTestCase:
             tdSql.checkEqual(res1[i], res2[i])
     
     def checkTbSuperSubBlockMerge(self):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+        tb_name = tdCom.getLongName(6, "letters")
         tdSql.execute(
             f'CREATE TABLE {tb_name} (ts timestamp, c1 int)')
 
         start_ts = 1577808001000
-        for i in range(80):
+        for i in range(10):
             tdSql.execute(
                 f'insert into {tb_name} values ({start_ts}, {i})')
             start_ts += 1
@@ -92,16 +90,15 @@ class TDTestCase:
         tdSql.query(f'select * from {tb_name}')
 
     def checkStbSuperSubBlockMerge(self):
-        tdCom.cleanTb()
-        stb_name = tdCom.getLongName(8, "letters")
-        tb_name = tdCom.getLongName(7, "letters")
+        stb_name = tdCom.getLongName(5, "letters")
+        tb_name = f'{stb_name}_sub'
         tdSql.execute(
             f'CREATE TABLE {stb_name} (ts timestamp, c1 int) tags (t1 int)')
         tdSql.execute(
             f'CREATE TABLE {tb_name} using {stb_name} tags (1)')
 
         start_ts = 1577808001000
-        for i in range(79):
+        for i in range(10):
             tdSql.execute(
                 f'insert into {tb_name} values ({start_ts}, {i})')
             start_ts += 1
@@ -127,10 +124,10 @@ class TDTestCase:
         self.checkStbMemDiskMerge()
         self.checkTbSuperSubBlockMerge()
         self.checkStbSuperSubBlockMerge()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
