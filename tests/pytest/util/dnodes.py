@@ -21,12 +21,14 @@ from util.log import *
 
 
 class TDDnode:
-    def __init__(self, id):
+    def __init__(self, id, dnodePath, binPath):
         self.id = id
         self.running = 0
         self.deployed = 0
         self.testCluster = False
         self.valgrind = 0
+        self.dnodePath = dnodePath
+        self.binPath = binPath
         self.cfgDict = {
             "numOfLogLines": "100000000",
             "mnodeEqualVnodeNum": "0",
@@ -214,28 +216,27 @@ class TDDnode:
 class TDDnodes:
     def __init__(self):
         self.dnodes = []
+        self.binPath = ""
+        self.currentPath = ""
 
     def init(self):
-        currentPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in currentPath):
-            projPath = currentPath[:currentPath.find("community")]
+        self.currentPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in self.currentPath):
+            projPath = self.currentPath[:self.currentPath.find("community")]
             if os.path.isfile(projPath + "../debug/build/bin/taosd"):
-                binPath = os.path.abspath(projPath +
-                                          "../debug/build/bin/taosd")
+                self.binPath = os.path.abspath(projPath +
+                                               "../debug/build/bin/taosd")
             else:
-                binPath = projPath + "debug/build/bin/taosd"
+                self.binPath = projPath + "debug/build/bin/taosd"
         else:
-            projPath = currentPath[:currentPath.find("tests")]
-            binPath = projPath + "debug/build/bin/taosd"
-
-        for i in range(len(self.dnodes)):
-            dnodePath = os.path.abspath(currentPath + "/../../.." +
-                                        "/sim/dnode%d" % (i + 1))
-            self.dnodes[i].init(dnodePath, binPath)
+            projPath = self.currentPath[:self.currentPath.find("tests")]
+            self.binPath = projPath + "debug/build/bin/taosd"
 
     def deploy(self, numOfDnode, updatecfgDict):
         for i in range(numOfDnode):
-            self.dnodes.append(TDDnode(i + 1))
+            dnodePath = os.path.abspath(self.currentPath + "/../../.." +
+                                        "/sim/dnode%d" % (i + 1))
+            self.dnodes.append(TDDnode(i + 1, dnodePath, self.binPath))
         for i in range(len(self.dnodes)):
             self.dnodes[i].deploy(updatecfgDict)
 
@@ -270,6 +271,9 @@ class TDDnodes:
 
     def getCfgPath(self, i):
         return self.dnodes[i - 1].getCfgDir()
+
+    def clean(self):
+        self.dnodes = []
 
 
 tdDnodes = TDDnodes()

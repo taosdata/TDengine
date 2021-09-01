@@ -42,7 +42,6 @@ class TDTestCase:
             return
 
         tdLog.exit("drop built-in user is error.")
-        
 
     def stop(self):
         tdSql.close()

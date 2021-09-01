@@ -51,21 +51,24 @@ class TDCases:
     def addCluster(self, name, case):
         self.clusterCases.append(TDCase(name, case))
 
-    def runAllLinux(self):
+    def runAllTest(self):
         runNum = 0
         currentPath = os.path.dirname(os.path.realpath(__file__))
         pytestPath = os.path.abspath(currentPath + "../../")
         for root, _, files in os.walk(pytestPath):
             for f in files:
-                if f.endswith(".py") and f != "__init__.py":
+                if f.endswith(".py") and f != "__init__.py" and f != "test.py":
                     fullPath = os.path.join(root, f)
+                    tdLog.debug("start to execute file: %s" % (fullPath))
                     fileName = fullPath[(fullPath.find("pytest/") + 7):]
-                    self.runOneLinux(fileName)
-                    runNum += 1
+                    if not fileName.startswith(
+                            "util") and not fileName.startswith("noCI"):
+                        self.runOneTest(fileName)
+                        runNum += 1
 
         tdLog.success("total %d Linux test case(s) executed" % (runNum))
 
-    def runOneLinux(self, fileName):
+    def runOneTest(self, fileName):
         # stop all dnodes before any test
         tdDnodes.forceStopAll()
         # import the test case
@@ -85,70 +88,12 @@ class TDCases:
         try:
             case.run()
             case.stop()
+            tdDnodes.clean()
         except Exception as e:
             case.stop()
+            tdDnodes.clean()
             tdLog.notice(repr(e))
             tdLog.exit("%s failed" % (fileName))
-
-    def runAllWindows(self, conn):
-        # TODO: load all Windows cases here
-        runNum = 0
-        for tmp in self.windowsCases:
-            if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
-                case.init(conn)
-                case.run()
-                case.stop()
-                runNum += 1
-                continue
-
-        tdLog.notice("total %d Windows test case(s) executed" % (runNum))
-
-    def runOneWindows(self, conn, fileName):
-        testModule = self.__dynamicLoadModule(fileName)
-
-        runNum = 0
-        for tmp in self.windowsCases:
-            if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
-                case.init(conn)
-                case.run()
-                case.stop()
-                runNum += 1
-                continue
-        tdLog.notice("total %d Windows case(s) executed" % (runNum))
-
-    def runAllCluster(self):
-        # TODO: load all cluster case module here
-
-        runNum = 0
-        for tmp in self.clusterCases:
-            if tmp.name.find(fileName) != -1:
-                tdLog.notice("run cases like %s" % (fileName))
-                case = testModule.TDTestCase()
-                case.init()
-                case.run()
-                case.stop()
-                runNum += 1
-                continue
-
-        tdLog.notice("total %d Cluster test case(s) executed" % (runNum))
-
-    def runOneCluster(self, fileName):
-        testModule = self.__dynamicLoadModule(fileName)
-
-        runNum = 0
-        for tmp in self.clusterCases:
-            if tmp.name.find(fileName) != -1:
-                tdLog.notice("run cases like %s" % (fileName))
-                case = testModule.TDTestCase()
-                case.init()
-                case.run()
-                case.stop()
-                runNum += 1
-                continue
-
-        tdLog.notice("total %d Cluster test case(s) executed" % (runNum))
 
 
 tdCases = TDCases()

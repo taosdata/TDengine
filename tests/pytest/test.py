@@ -89,18 +89,11 @@ if __name__ == "__main__":
     # init the dnodes with each specific file path
     tdDnodes.init()
 
-    if testCluster:
-        tdLog.debug("Procedures for testing cluster")
-        if fileName == "all":
-            tdCases.runAllCluster()
-        else:
-            tdCases.runOneCluster(fileName)
+    tdLog.debug("Procedures for testing self-deployment")
+    if fileName == "all":
+        tdCases.runAllTest()
     else:
-        tdLog.debug("Procedures for testing self-deployment")
-        if fileName == "all":
-            tdCases.runAllLinux()
-        else:
-            tdCases.runOneLinux(fileName)
+        tdCases.runOneTest(fileName)
 
     tdCases.logSql(logSql)
 
