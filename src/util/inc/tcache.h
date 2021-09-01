@@ -32,7 +32,8 @@ extern "C" {
   #define TSDB_CACHE_PTR_TYPE int64_t
 #endif
 
-typedef void (*__cache_free_fn_t)(void*, void*);
+typedef void (*__cache_free_fn_t)(void*);
+typedef void (*__cache_trav_fn_t)(void*, void*);
 
 typedef struct SCacheStatis {
   int64_t missCount;
@@ -176,7 +177,7 @@ void taosCacheCleanup(SCacheObj *pCacheObj);
  * @param fp
  * @return
  */
-void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp, void* param1);
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void* param1);
 
 /**
  * stop background refresh worker thread

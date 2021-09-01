@@ -46,7 +46,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessConnectMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessUseMsg(SMnodeMsg *mnodeMsg);
 
-static void  mnodeFreeShowObj(void *data, void* param1);
+static void  mnodeFreeShowObj(void *data);
 static bool  mnodeAccquireShowObj(SShowObj *pShow);
 static bool  mnodeCheckShowFinished(SShowObj *pShow);
 static void *mnodePutShowObj(SShowObj *pShow);
@@ -420,7 +420,7 @@ static void* mnodePutShowObj(SShowObj *pShow) {
   return NULL;
 }
 
-static void mnodeFreeShowObj(void *data, void* param1) {
+static void mnodeFreeShowObj(void *data) {
   SShowObj *pShow = *(SShowObj **)data;
   if (tsMnodeShowFreeIterFp[pShow->type] != NULL) {
     if (pShow->pVgIter != NULL) {

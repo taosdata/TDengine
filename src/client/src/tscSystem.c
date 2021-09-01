@@ -59,7 +59,7 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-void tscFreeRpcObj(void *param, void* param1) {
+void tscFreeRpcObj(void *param) {
   assert(param);
   SRpcObj *pRpcObj = (SRpcObj *)(param);
   tscDebug("free rpcObj:%p and free pDnodeConn: %p", pRpcObj, pRpcObj->pDnodeConn);

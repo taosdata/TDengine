@@ -140,7 +140,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
-    pCacheObj->freeFp(pNode->data, NULL);
+    pCacheObj->freeFp(pNode->data);
   }
 
   free(pNode);
@@ -174,7 +174,7 @@ static FORCE_INLINE STrashElem* doRemoveElemInTrashcan(SCacheObj* pCacheObj, STr
 
 static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem *pElem) {
   if (pCacheObj->freeFp) {
-    pCacheObj->freeFp(pElem->pData->data, NULL);
+    pCacheObj->freeFp(pElem->pData->data);
   }
 
   free(pElem->pData);
@@ -249,7 +249,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       if (ret == 0) {
         if (T_REF_VAL_GET(p) == 0) {
           if (pCacheObj->freeFp) {
-            pCacheObj->freeFp(p->data, NULL);
+            pCacheObj->freeFp(p->data);
           }
 
           atomic_sub_fetch_64(&pCacheObj->totalSize, p->size);
@@ -458,7 +458,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
                    pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
             if (pCacheObj->freeFp) {
-              pCacheObj->freeFp(pNode->data, NULL);
+              pCacheObj->freeFp(pNode->data);
             }
 
             free(pNode);
@@ -503,7 +503,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 typedef struct SHashTravSupp {
   SCacheObj* pCacheObj;
   int64_t    time;
-  __cache_free_fn_t fp;
+  __cache_trav_fn_t fp;
   void* param1;
 } SHashTravSupp;
 
@@ -671,7 +671,7 @@ bool travHashTableFn(void* param, void* data) {
   return true;
 }
 
-static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp, void* param1) {
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_trav_fn_t fp, void* param1) {
   assert(pCacheObj != NULL);
 
   SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time, .param1 = param1};
@@ -755,7 +755,7 @@ void* taosCacheTimedRefresh(void *handle) {
   return NULL;
 }
 
-void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp, void* param1) {
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void* param1) {
   if (pCacheObj == NULL) {
     return;
   }

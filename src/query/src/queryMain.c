@@ -40,7 +40,7 @@ static void queryMgmtKillQueryFn(void* handle, void* param1) {
   qKillQuery(*fp);
 }
 
-static void freeqinfoFn(void *qhandle, void* param1) {
+static void freeqinfoFn(void *qhandle) {
   void** handle = qhandle;
   if (handle == NULL || *handle == NULL) {
     return;

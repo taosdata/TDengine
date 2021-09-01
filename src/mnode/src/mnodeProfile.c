@@ -46,7 +46,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 static void    mnodeCancelGetNextConn(void *pIter);
 static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static void    mnodeFreeConn(void *data, void* param1);
+static void    mnodeFreeConn(void *data);
 static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg);
@@ -135,7 +135,7 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
   return pConn;
 }
 
-static void mnodeFreeConn(void *data, void* param1) {
+static void mnodeFreeConn(void *data) {
   SConnObj *pConn = data;
   tfree(pConn->pQueries);
   tfree(pConn->pStreams);

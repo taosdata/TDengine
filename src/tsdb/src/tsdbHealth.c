@@ -48,8 +48,8 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
 }
 
 // switch anther thread to run
-void* cbKillQueryFree(void* param1) {
-  STsdbRepo* pRepo =  (STsdbRepo*)param1;
+void* cbKillQueryFree(void* param) {
+  STsdbRepo* pRepo =  (STsdbRepo*)param;
   // vnode
   if(pRepo->appH.notifyStatus) {
     pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_NOBLOCK, TSDB_CODE_SUCCESS);
