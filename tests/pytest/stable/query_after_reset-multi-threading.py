@@ -26,7 +26,7 @@ last_tb = ""
 written = 0
 
 
-class Test (threading.Thread):
+class Test(threading.Thread):
     def __init__(self, threadId, name, sleepTime, q):
         threading.Thread.__init__(self)
         self.threadId = threadId
@@ -48,9 +48,8 @@ class Test (threading.Thread):
         if (current_tb == last_tb):
             return
         else:
-            tdSql.execute(
-                'create table %s (ts timestamp, speed int)' %
-                current_tb)
+            tdSql.execute('create table %s (ts timestamp, speed int)' %
+                          current_tb)
             last_tb = current_tb
             written = 0
 
@@ -71,9 +70,8 @@ class Test (threading.Thread):
             tdLog.info("insert %d rows to %s" % (insertRows, current_tb))
 
             for j in range(0, insertRows):
-                ret = tdSql.execute(
-                    'insert into %s values (now + %dm, %d)' %
-                    (current_tb, j, j))
+                ret = tdSql.execute('insert into %s values (now + %dm, %d)' %
+                                    (current_tb, j, j))
                 written = written + 1
             self.threadLock.release()
 
@@ -112,11 +110,13 @@ class Test (threading.Thread):
 
         try:
             tdSql.execute(
-                "create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(50))")
+                "create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(50))"
+            )
             tdSql.execute(
                 'CREATE TABLE if not exists dev_001 using st tags("dev_01")')
             tdSql.execute(
-                "INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1)")
+                "INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1)"
+            )
         except Exception as e:
             tdLog.info(repr(e))
             self.q.put(-1)
@@ -128,7 +128,7 @@ class Test (threading.Thread):
 
     def stop_database(self):
         tdLog.info("stop databae")
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
 
     def restart_database(self):
         global current_tb
@@ -136,8 +136,8 @@ class Test (threading.Thread):
         global written
 
         tdLog.info("restart databae")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdLog.sleep(5)
 
     def force_restart(self):
@@ -146,8 +146,8 @@ class Test (threading.Thread):
         global written
 
         tdLog.info("force restart database")
-        tdDnodes.forcestop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdLog.sleep(5)
 
     def drop_table(self):
@@ -184,12 +184,12 @@ class Test (threading.Thread):
         global written
 
         tdLog.info("reset database")
-        tdDnodes.forcestop(1)
-        tdDnodes.deploy(1)
+        tdDnodes.stopAll()
+
         current_tb = ""
         last_tb = ""
         written = 0
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdSql.prepare()
 
     def delete_datafiles(self):
@@ -198,7 +198,7 @@ class Test (threading.Thread):
         global written
 
         tdLog.info("delete data files")
-        dnodesDir = tdDnodes.getDnodesRootDir()
+        dnodesDir = tdDnodes.getDnodesRootDir(1)
         dataDir = dnodesDir + '/dnode1/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
@@ -206,7 +206,7 @@ class Test (threading.Thread):
         current_tb = ""
         last_tb = ""
         written = 0
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdSql.prepare()
 
     def run(self):

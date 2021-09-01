@@ -26,23 +26,24 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         sql = "use db"
-        
+
         try:
             tdSql.execute(sql)
-        except Exception as e:            
+        except Exception as e:
             expectError = 'Unable to establish connection'
-            if expectError in str(e):                
+            if expectError in str(e):
                 pass
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][1])
-                tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
+                tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" %
+                           (caller.filename, caller.lineno, sql))
 
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase()) 
+tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

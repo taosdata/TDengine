@@ -30,10 +30,6 @@ class TDTestCase:
         self.maxrows = 200
         self.rowsPerTable = 20
 
-        tdDnodes.stop(1)
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
-
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db maxrows %d' % self.maxrows)
@@ -42,9 +38,8 @@ class TDTestCase:
         tdLog.info("================= step1")
         tdLog.info("create 1 table")
         tdSql.execute('create table tb1 (ts timestamp, speed int)')
-        tdLog.info(
-            "More than 10 rows less than %d rows will go to data file" %
-            self.maxrows)
+        tdLog.info("More than 10 rows less than %d rows will go to data file" %
+                   self.maxrows)
 
         tdLog.info("================= step2")
         tdLog.info("import %d sequential data" % self.rowsPerTable)
@@ -61,9 +56,9 @@ class TDTestCase:
         tdSql.checkData(0, 0, self.rowsPerTable)
 
         tdLog.info("================= step4")
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         #tdLog.sleep(5)
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdLog.info("================= step5")
         tdLog.info("import 20 data before with partly overlap")

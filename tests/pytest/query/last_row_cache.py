@@ -18,6 +18,7 @@ from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
 
+
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -28,7 +29,7 @@ class TDTestCase:
         self.columns = 100
         self.perfix = 't'
         self.ts = 1601481600000
-    
+
     def insertData(self):
         print("==============step1")
         sql = "create table st(ts timestamp, "
@@ -36,19 +37,22 @@ class TDTestCase:
             sql += "c%d bigint, " % (i + 1)
         sql += "c100 bigint) tags(t1 int)"
         tdSql.execute(sql)
-        
+
         for i in range(self.tables):
-            tdSql.execute("create table %s%d using st tags(%d)" % (self.perfix, i, i))
+            tdSql.execute("create table %s%d using st tags(%d)" %
+                          (self.perfix, i, i))
             for j in range(self.rows):
                 tc = self.ts + j * 60000
-                tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, i, tc, j))    
+                tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %
+                              (self.perfix, i, tc, j))
 
     def executeQueries(self):
         print("==============step2")
         tdSql.query("select last_row(c1) from %s%d" % (self.perfix, 1))
         tdSql.checkData(0, 0, 19)
 
-        tdSql.query("select last_row(c1) from %s%d where ts <= %d" % (self.perfix, 1, self.ts + 4 * 60000))
+        tdSql.query("select last_row(c1) from %s%d where ts <= %d" %
+                    (self.perfix, 1, self.ts + 4 * 60000))
         tdSql.checkData(0, 0, 4)
 
         tdSql.query("select last_row(c1) as b from %s%d" % (self.perfix, 1))
@@ -57,90 +61,106 @@ class TDTestCase:
         tdSql.query("select last_row(c1) from st")
         tdSql.checkData(0, 0, 19)
 
-        tdSql.query("select last_row(c1) as c from st where ts <= %d" % (self.ts + 4 * 60000))
+        tdSql.query("select last_row(c1) as c from st where ts <= %d" %
+                    (self.ts + 4 * 60000))
         tdSql.checkData(0, 0, 4)
 
         tdSql.query("select last_row(c1) as c from st where t1 < 5")
         tdSql.checkData(0, 0, 19)
 
-        tdSql.query("select last_row(c1) as c from st where t1 <= 5 and ts <= %d" % (self.ts + 4 * 60000))
-        tdSql.checkData(0, 0, 4)        
+        tdSql.query(
+            "select last_row(c1) as c from st where t1 <= 5 and ts <= %d" %
+            (self.ts + 4 * 60000))
+        tdSql.checkData(0, 0, 4)
 
         tdSql.query("select last_row(c1) as c from st group by t1")
         tdSql.checkRows(10)
-        tdSql.checkData(0, 0, 19)        
+        tdSql.checkData(0, 0, 19)
 
         tc = self.ts + 1 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, 10))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %
+                      (self.perfix, 1, tc, 10))
 
         tc = self.ts + 3 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %
+                      (self.perfix, 1, tc))
 
         tc = self.ts + 5 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, -1))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %
+                      (self.perfix, 1, tc, -1))
 
         tc = self.ts + 7 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %
+                      (self.perfix, 1, tc))
 
     def insertData2(self):
         tc = self.ts + 1 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, 10))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %
+                      (self.perfix, 1, tc, 10))
 
         tc = self.ts + 3 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %
+                      (self.perfix, 1, tc))
 
         tc = self.ts + 5 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, -1))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %
+                      (self.perfix, 1, tc, -1))
 
         tc = self.ts + 7 * 3600000
-        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %
+                      (self.perfix, 1, tc))
 
-    def executeQueries2(self): 
+    def executeQueries2(self):
         # For stable
         tc = self.ts + 6 * 3600000
-        tdSql.query("select last_row(c1) from st where ts < %d " % tc)        
+        tdSql.query("select last_row(c1) from st where ts < %d " % tc)
         tdSql.checkData(0, 0, -1)
 
         tc = self.ts + 8 * 3600000
-        tdSql.query("select last_row(*) from st where ts < %d " % tc)        
+        tdSql.query("select last_row(*) from st where ts < %d " % tc)
         tdSql.checkData(0, 1, None)
 
-        tdSql.query("select last_row(*) from st")        
+        tdSql.query("select last_row(*) from st")
         tdSql.checkData(0, 1, None)
 
         tc = self.ts + 4 * 3600000
-        tdSql.query("select last_row(*) from st where ts < %d " % tc)        
+        tdSql.query("select last_row(*) from st where ts < %d " % tc)
         tdSql.checkData(0, 1, None)
 
         tc1 = self.ts + 1 * 3600000
         tc2 = self.ts + 4 * 3600000
-        tdSql.query("select last_row(*) from st where ts > %d and ts <= %d" % (tc1, tc2))
+        tdSql.query("select last_row(*) from st where ts > %d and ts <= %d" %
+                    (tc1, tc2))
         tdSql.checkData(0, 1, None)
 
         # For table
         tc = self.ts + 6 * 3600000
-        tdSql.query("select last_row(*) from %s%d where ts <= %d" % (self.perfix, 1, tc))
+        tdSql.query("select last_row(*) from %s%d where ts <= %d" %
+                    (self.perfix, 1, tc))
         tdSql.checkData(0, 1, -1)
 
         tc = self.ts + 8 * 3600000
-        tdSql.query("select last_row(*) from %s%d where ts <= %d" % (self.perfix, 1, tc))
+        tdSql.query("select last_row(*) from %s%d where ts <= %d" %
+                    (self.perfix, 1, tc))
         tdSql.checkData(0, 1, None)
 
         tdSql.query("select last_row(*) from %s%d" % (self.perfix, 1))
         tdSql.checkData(0, 1, None)
 
         tc = self.ts + 4 * 3600000
-        tdSql.query("select last_row(*) from %s%d where ts <= %d" % (self.perfix, 1, tc))
+        tdSql.query("select last_row(*) from %s%d where ts <= %d" %
+                    (self.perfix, 1, tc))
         tdSql.checkData(0, 1, None)
 
         tc1 = self.ts + 1 * 3600000
         tc2 = self.ts + 4 * 3600000
-        tdSql.query("select last_row(*) from st where ts > %d and ts <= %d" % (tc1, tc2))
+        tdSql.query("select last_row(*) from st where ts > %d and ts <= %d" %
+                    (tc1, tc2))
         tdSql.checkData(0, 1, None)
-        
+
     def run(self):
         tdSql.prepare()
-        
+
         print("============== Step1:  last_row_cache_0.sim")
         tdSql.execute("create database test1 cachelast 0")
         tdSql.execute("use test1")
@@ -150,44 +170,51 @@ class TDTestCase:
         self.executeQueries2()
 
         print("============== Step2: alter database test1 cachelast 1")
-        tdSql.execute("alter database test1 cachelast 1")                
+        tdSql.execute("alter database test1 cachelast 1")
         self.executeQueries2()
-        
+
         print("============== Step3: alter database test1 cachelast 2")
-        tdSql.execute("alter database test1 cachelast 2")                
+        tdSql.execute("alter database test1 cachelast 2")
         self.executeQueries2()
 
         print("============== Step4: alter database test1 cachelast 3")
-        tdSql.execute("alter database test1 cachelast 3")                
-        self.executeQueries2()                
-
-        
-        print("============== Step5: alter database test1 cachelast 0 and restart taosd")
-        tdSql.execute("alter database test1 cachelast 0")                
-        self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdSql.execute("alter database test1 cachelast 3")
         self.executeQueries2()
 
-        print("============== Step6: alter database test1 cachelast 1 and restart taosd")
-        tdSql.execute("alter database test1 cachelast 1")        
+        print(
+            "============== Step5: alter database test1 cachelast 0 and restart taosd"
+        )
+        tdSql.execute("alter database test1 cachelast 0")
         self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
-        self.executeQueries2()
-
-        print("============== Step7: alter database test1 cachelast 2 and restart taosd")
-        tdSql.execute("alter database test1 cachelast 2")        
-        self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         self.executeQueries2()
 
-        print("============== Step8: alter database test1 cachelast 3 and restart taosd")
-        tdSql.execute("alter database test1 cachelast 3")        
+        print(
+            "============== Step6: alter database test1 cachelast 1 and restart taosd"
+        )
+        tdSql.execute("alter database test1 cachelast 1")
         self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
+        self.executeQueries2()
+
+        print(
+            "============== Step7: alter database test1 cachelast 2 and restart taosd"
+        )
+        tdSql.execute("alter database test1 cachelast 2")
+        self.executeQueries2()
+        tdDnodes.stopAll()
+        tdDnodes.start()
+        self.executeQueries2()
+
+        print(
+            "============== Step8: alter database test1 cachelast 3 and restart taosd"
+        )
+        tdSql.execute("alter database test1 cachelast 3")
+        self.executeQueries2()
+        tdDnodes.stopAll()
+        tdDnodes.start()
         self.executeQueries2()
 
         print("============== Step9: create database test2 cachelast 1")
@@ -197,57 +224,67 @@ class TDTestCase:
         self.executeQueries()
         self.insertData2()
         self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         self.executeQueries2()
-        
+
         print("============== Step8: alter database test2 cachelast 0")
-        tdSql.execute("alter database test2 cachelast 0")        
-        self.executeQueries2()                
+        tdSql.execute("alter database test2 cachelast 0")
+        self.executeQueries2()
 
         print("============== Step9: alter database test2 cachelast 1")
-        tdSql.execute("alter database test2 cachelast 1")        
+        tdSql.execute("alter database test2 cachelast 1")
         self.executeQueries2()
 
         print("============== Step10: alter database test2 cachelast 2")
-        tdSql.execute("alter database test2 cachelast 2")        
-        self.executeQueries2()                
+        tdSql.execute("alter database test2 cachelast 2")
+        self.executeQueries2()
 
         print("============== Step11: alter database test2 cachelast 3")
-        tdSql.execute("alter database test2 cachelast 3")        
+        tdSql.execute("alter database test2 cachelast 3")
         self.executeQueries2()
 
-        print("============== Step12: alter database test2 cachelast 0 and restart taosd")
-        tdSql.execute("alter database test2 cachelast 0")        
-        self.executeQueries2() 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
-        self.executeQueries2()               
-
-        print("============== Step13: alter database test2 cachelast 1 and restart taosd")
-        tdSql.execute("alter database test2 cachelast 1")        
+        print(
+            "============== Step12: alter database test2 cachelast 0 and restart taosd"
+        )
+        tdSql.execute("alter database test2 cachelast 0")
         self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         self.executeQueries2()
 
-        print("============== Step14: alter database test2 cachelast 2 and restart taosd")
-        tdSql.execute("alter database test2 cachelast 2")        
+        print(
+            "============== Step13: alter database test2 cachelast 1 and restart taosd"
+        )
+        tdSql.execute("alter database test2 cachelast 1")
         self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
-        self.executeQueries2()                
+        tdDnodes.stopAll()
+        tdDnodes.start()
+        self.executeQueries2()
 
-        print("============== Step15: alter database test2 cachelast 3 and restart taosd")
-        tdSql.execute("alter database test2 cachelast 3")        
+        print(
+            "============== Step14: alter database test2 cachelast 2 and restart taosd"
+        )
+        tdSql.execute("alter database test2 cachelast 2")
         self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         self.executeQueries2()
-        
-        print("============== Step16: select last_row(*) from st group by tbname")
+
+        print(
+            "============== Step15: alter database test2 cachelast 3 and restart taosd"
+        )
+        tdSql.execute("alter database test2 cachelast 3")
+        self.executeQueries2()
+        tdDnodes.stopAll()
+        tdDnodes.start()
+        self.executeQueries2()
+
+        print(
+            "============== Step16: select last_row(*) from st group by tbname"
+        )
         tdSql.query("select last_row(*) from st group by tbname")
-        tdSql.checkRows(10)        
+        tdSql.checkRows(10)
 
     def stop(self):
         tdSql.close()

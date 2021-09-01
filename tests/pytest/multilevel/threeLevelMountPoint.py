@@ -29,18 +29,18 @@ class TDTestCase:
         self.rowsPerTable = 10
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         # Test1 1 dataDir
-        cfg={
-            '/mnt/data00 0 1' : 'dataDir',
-            '/mnt/data01 0 0' : 'dataDir',
-            '/mnt/data02 0 0' : 'dataDir',
-            '/mnt/data10 1 0' : 'dataDir',
-            '/mnt/data11 1 0' : 'dataDir',
-            '/mnt/data12 1 0' : 'dataDir',
-            '/mnt/data20 2 0' : 'dataDir',
-            '/mnt/data21 2 0' : 'dataDir',
-            '/mnt/data22 2 0' : 'dataDir'          
+        cfg = {
+            '/mnt/data00 0 1': 'dataDir',
+            '/mnt/data01 0 0': 'dataDir',
+            '/mnt/data02 0 0': 'dataDir',
+            '/mnt/data10 1 0': 'dataDir',
+            '/mnt/data11 1 0': 'dataDir',
+            '/mnt/data12 1 0': 'dataDir',
+            '/mnt/data20 2 0': 'dataDir',
+            '/mnt/data21 2 0': 'dataDir',
+            '/mnt/data22 2 0': 'dataDir'
         }
         tdSql.createDir('/mnt/data00')
         tdSql.createDir('/mnt/data01')
@@ -51,24 +51,25 @@ class TDTestCase:
         tdSql.createDir('/mnt/data20')
         tdSql.createDir('/mnt/data21')
         tdSql.createDir('/mnt/data22')
-        
-        tdDnodes.deploy(1,cfg)
+
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
-        
+
         tdSql.taosdStatus(1)
-        tdSql.haveFile('/mnt/data00',1)
-        tdSql.haveFile('/mnt/data01',1)
-        tdSql.haveFile('/mnt/data02',1)
-        tdSql.haveFile('/mnt/data10',1)
-        tdSql.haveFile('/mnt/data11',1)
-        tdSql.haveFile('/mnt/data12',1)
-        tdSql.haveFile('/mnt/data20',1)
-        tdSql.haveFile('/mnt/data21',1)
-        tdSql.haveFile('/mnt/data22',1)
+        tdSql.haveFile('/mnt/data00', 1)
+        tdSql.haveFile('/mnt/data01', 1)
+        tdSql.haveFile('/mnt/data02', 1)
+        tdSql.haveFile('/mnt/data10', 1)
+        tdSql.haveFile('/mnt/data11', 1)
+        tdSql.haveFile('/mnt/data12', 1)
+        tdSql.haveFile('/mnt/data20', 1)
+        tdSql.haveFile('/mnt/data21', 1)
+        tdSql.haveFile('/mnt/data22', 1)
 
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

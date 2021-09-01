@@ -28,13 +28,7 @@ class TDTestCase:
         self.ntables = 1
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
-        tdSql.execute('reset query cache')
-        tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db cache 128')
-        tdSql.execute('use db')
+        tdSql.prepare()
 
         tdLog.info("================= step1")
         tdLog.info("create 1 table")
@@ -44,13 +38,13 @@ class TDTestCase:
 
         tdLog.info("================= step2")
         tdLog.info('insert data until the first commit')
-        dnodesDir = tdDnodes.getDnodesRootDir()
-        dataDir = dnodesDir + '/dnode1/data/vnode'
+        dnodesDir = tdDnodes.getDnodesRootDir(1)
+        dataDir = dnodesDir + '/data/vnode'
         startTime = self.startTime
         rid0 = 1
         while (True):
-            sqlcmd = 'insert into tb1 values(%ld, %d)' % (
-                startTime + rid0 * 2, rid0)
+            sqlcmd = 'insert into tb1 values(%ld, %d)' % (startTime + rid0 * 2,
+                                                          rid0)
             tdSql.execute(sqlcmd)
             rid0 += 1
             vnodes = os.listdir(dataDir)

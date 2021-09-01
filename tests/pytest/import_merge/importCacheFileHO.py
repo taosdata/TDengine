@@ -28,14 +28,7 @@ class TDTestCase:
         self.ntables = 1
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
-
-        tdSql.execute('reset query cache')
-        tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
+        tdSql.prepare()
 
         tdLog.info("================= step1")
         tdLog.info("create 1 table")
@@ -54,9 +47,8 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         tdLog.info("================= step4")
-        tdDnodes.stop(1)
-        #tdLog.sleep(5)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
 
         tdLog.info("================= step5")
         tdLog.info("import 10 data again")

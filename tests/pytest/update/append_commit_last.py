@@ -25,17 +25,17 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         self.ts = 1604298064000
-    
+
     def restartTaosd(self):
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         tdDnodes.startWithoutSleep(1)
         tdSql.execute("use udb")
 
-    def run(self):            
+    def run(self):
         tdSql.prepare()
 
         print("==============step1")
-        tdSql.execute("create database udb update 1")        
+        tdSql.execute("create database udb update 1")
         tdSql.execute("use udb")
         tdSql.execute("create table t1 (ts timestamp, a int)")
 
@@ -44,7 +44,6 @@ class TDTestCase:
             self.restartTaosd()
             tdSql.query("select * from t1")
             tdSql.checkRows(i + 1)
-
 
         print("==============step2")
         tdSql.execute("create table t2 (ts timestamp, a int)")
@@ -55,11 +54,10 @@ class TDTestCase:
 
         for i in range(1, 151):
             tdSql.execute("insert into t2 values(%d, 1)" % (self.ts + i))
-        
+
         self.restartTaosd()
         tdSql.query("select * from t2")
         tdSql.checkRows(151)
-
 
         print("==============step3")
         tdSql.execute("create table t3 (ts timestamp, a int)")
@@ -70,8 +68,9 @@ class TDTestCase:
 
         for i in range(8):
             for j in range(1, 11):
-                tdSql.execute("insert into t3 values(%d, 1)" % (self.ts + i * 10 + j))
-        
+                tdSql.execute("insert into t3 values(%d, 1)" %
+                              (self.ts + i * 10 + j))
+
         self.restartTaosd()
         tdSql.query("select * from t3")
         tdSql.checkRows(81)

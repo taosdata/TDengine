@@ -24,8 +24,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdLog.info("prepare cluster")
         tdDnodes.stopAll()
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
+
+        tdDnodes.start()
 
         self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
         tdSql.init(self.conn.cursor())
@@ -52,9 +52,8 @@ class TDTestCase:
         startTime = 1520000010000
         for rid in range(1, 11):
             for tid in range(1, 11):
-                tdSql.execute(
-                    'insert into tb%d values(%ld, %d)' %
-                    (tid, startTime, rid))
+                tdSql.execute('insert into tb%d values(%ld, %d)' %
+                              (tid, startTime, rid))
             startTime += 1
         tdSql.query('select * from tb1')
         tdSql.checkRows(10)
@@ -67,9 +66,8 @@ class TDTestCase:
         tdLog.info("================= step3")
         for rid in range(1, 11):
             for tid in range(1, 11):
-                tdSql.execute(
-                    'insert into tb%d values(%ld, %d)' %
-                    (tid, startTime, rid))
+                tdSql.execute('insert into tb%d values(%ld, %d)' %
+                              (tid, startTime, rid))
             startTime += 1
         tdSql.query('select * from tb1')
         tdSql.checkRows(20)
@@ -82,9 +80,8 @@ class TDTestCase:
         tdLog.info("================= step5")
         for rid in range(1, 11):
             for tid in range(1, 11):
-                tdSql.execute(
-                    'insert into tb%d values(%ld, %d)' %
-                    (tid, startTime, rid))
+                tdSql.execute('insert into tb%d values(%ld, %d)' %
+                              (tid, startTime, rid))
             startTime += 1
         tdSql.query('select * from tb1')
         tdSql.checkRows(30)
@@ -97,9 +94,8 @@ class TDTestCase:
         tdLog.info("================= step7")
         for rid in range(1, 11):
             for tid in range(1, 11):
-                tdSql.execute(
-                    'insert into tb%d values(%ld, %d)' %
-                    (tid, startTime, rid))
+                tdSql.execute('insert into tb%d values(%ld, %d)' %
+                              (tid, startTime, rid))
             startTime += 1
         tdSql.query('select * from tb1')
         tdSql.checkRows(40)
@@ -112,9 +108,8 @@ class TDTestCase:
         tdLog.info("================= step9")
         for rid in range(1, 11):
             for tid in range(1, 11):
-                tdSql.execute(
-                    'insert into tb%d values(%ld, %d)' %
-                    (tid, startTime, rid))
+                tdSql.execute('insert into tb%d values(%ld, %d)' %
+                              (tid, startTime, rid))
             startTime += 1
         tdSql.query('select * from tb1')
         tdSql.checkRows(50)

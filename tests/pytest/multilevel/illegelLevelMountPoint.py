@@ -29,31 +29,28 @@ class TDTestCase:
         self.rowsPerTable = 10
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         # Test1 1 dataDir
-        cfg={
-            '/mnt/data1 3 0' : 'dataDir'
-        }
+        cfg = {'/mnt/data1 3 0': 'dataDir'}
         tdSql.createDir('/mnt/data1')
-        
-        tdDnodes.deploy(1,cfg)
+
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         # Test1 1 dataDir
-        cfg={
-            '/mnt/data1 -1 0' : 'dataDir'         
-        }
+        cfg = {'/mnt/data1 -1 0': 'dataDir'}
         tdSql.createDir('/mnt/data1')
-        
-        tdDnodes.deploy(1,cfg)
+
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
-        
+
         tdSql.taosdStatus(0)
 
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

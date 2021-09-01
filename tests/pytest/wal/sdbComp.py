@@ -40,7 +40,7 @@ class TDTestCase:
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
 
@@ -53,8 +53,8 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
 
-        binPath = buildPath+ "/build/bin/"
-        testPath = selfPath+ "/../../../"
+        binPath = buildPath + "/build/bin/"
+        testPath = selfPath + "/../../../"
         walFilePath = testPath + "/sim/dnode1/data/mnode_bak/wal/"
 
         #new db and insert data
@@ -66,34 +66,47 @@ class TDTestCase:
         os.system("%staosdemo -f wal/insertDataDb2.json -y " % binPath)
         tdSql.execute("drop table if exists db2.stb0")
         os.system("%staosdemo -f wal/insertDataDb2Newstab.json -y " % binPath)
-        query_pid1 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
+        query_pid1 = int(
+            subprocess.getstatusoutput(
+                'ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
         print(query_pid1)
         tdSql.execute("use db2")
         tdSql.execute("drop table if exists stb1_0")
         tdSql.execute("drop table if exists stb1_1")
-        tdSql.execute("insert into stb0_0 values(1614218412000,8637,78.861045,'R','bf3')(1614218422000,8637,98.861045,'R','bf3')")
+        tdSql.execute(
+            "insert into stb0_0 values(1614218412000,8637,78.861045,'R','bf3')(1614218422000,8637,98.861045,'R','bf3')"
+        )
         tdSql.execute("alter table db2.stb0 add column c4 int")
         tdSql.execute("alter table db2.stb0 drop column c2")
         tdSql.execute("alter table db2.stb0  add tag t3 int;")
         tdSql.execute("alter table db2.stb0 drop tag t1")
-        tdSql.execute("create table  if not exists stb2_0 (ts timestamp, c0 int, c1 float)  ")
-        tdSql.execute("insert into stb2_0 values(1614218412000,8637,78.861045)")
+        tdSql.execute(
+            "create table  if not exists stb2_0 (ts timestamp, c0 int, c1 float)  "
+        )
+        tdSql.execute(
+            "insert into stb2_0 values(1614218412000,8637,78.861045)")
         tdSql.execute("alter table stb2_0 add column c2 binary(4)")
         tdSql.execute("alter table stb2_0 drop column c1")
         tdSql.execute("insert into stb2_0 values(1614218422000,8638,'R')")
 
         # stop taosd and compact wal file
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         sleep(10)
-        os.system("nohup %s/taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " %(binPath,testPath) )
+        os.system(
+            "nohup %s/taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " %
+            (binPath, testPath))
         sleep(5)
-        assert os.path.exists(walFilePath) , "%s is not generated, compact didn't  take effect " % walFilePath
+        assert os.path.exists(
+            walFilePath
+        ), "%s is not generated, compact didn't  take effect " % walFilePath
 
         # use new wal file to start  taosd
-        tdDnodes.start(1)
+        tdDnodes.start()
         sleep(5)
         tdSql.execute("reset query cache")
-        query_pid2 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
+        query_pid2 = int(
+            subprocess.getstatusoutput(
+                'ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
         print(query_pid2)
 
         # verify that the data is correct
@@ -113,8 +126,6 @@ class TDTestCase:
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf wal/%s.sql" % testcaseFilename)
-
-
 
     def stop(self):
         tdSql.close()

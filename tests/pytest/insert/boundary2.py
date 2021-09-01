@@ -19,6 +19,7 @@ from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
 
+
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -39,13 +40,13 @@ class TDTestCase:
         sql = "create table stb(ts timestamp, "
         for i in range(1022):
             sql += "col%d binary(14), " % (i + 1)
-        sql += "col1023 binary(22))"        
+        sql += "col1023 binary(22))"
         tdSql.execute(sql)
 
         for i in range(4096):
             sql = "insert into stb values(%d, "
             for j in range(1022):
-                str = "'%s', " % self.get_random_string(14)                
+                str = "'%s', " % self.get_random_string(14)
                 sql += str
             sql += "'%s')" % self.get_random_string(22)
             tdSql.execute(sql % (self.ts + i))
@@ -54,8 +55,8 @@ class TDTestCase:
         tdSql.query("select count(*) from stb")
         tdSql.checkData(0, 0, 4096)
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
 
         time.sleep(1)
         tdSql.query("select count(*) from stb")

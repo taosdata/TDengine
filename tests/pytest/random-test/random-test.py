@@ -82,21 +82,17 @@ class Test:
                 self.last_tb)
             self.written = self.written + 1
         else:
-            tdSql.execute(
-                'insert into %s values (now - 5m , 10, " - 5m")' %
-                self.last_tb)
+            tdSql.execute('insert into %s values (now - 5m , 10, " - 5m")' %
+                          self.last_tb)
             self.written = self.written + 1
-            tdSql.execute(
-                'insert into %s values (now - 6m , 10, " - 6m")' %
-                self.last_tb)
+            tdSql.execute('insert into %s values (now - 6m , 10, " - 6m")' %
+                          self.last_tb)
             self.written = self.written + 1
-            tdSql.execute(
-                'insert into %s values (now - 7m , 10, " - 7m")' %
-                self.last_tb)
+            tdSql.execute('insert into %s values (now - 7m , 10, " - 7m")' %
+                          self.last_tb)
             self.written = self.written + 1
-            tdSql.execute(
-                'insert into %s values (now - 8m , 10, " - 8m")' %
-                self.last_tb)
+            tdSql.execute('insert into %s values (now - 8m , 10, " - 8m")' %
+                          self.last_tb)
             self.written = self.written + 1
 
     def query_data(self):
@@ -122,8 +118,8 @@ class Test:
             tdSql.execute("use %s" % (db))
 
             tdSql.execute(
-                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
-                current_stb)
+                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))'
+                % current_stb)
             self.last_stb = current_stb
             self.colAdded = False
 
@@ -145,9 +141,8 @@ class Test:
         tdLog.info("alter_table_to_add_col")
 
         if self.last_stb != "" and not self.colAdded:
-            tdSql.execute(
-                "alter table %s add column col binary(20)" %
-                self.last_stb)
+            tdSql.execute("alter table %s add column col binary(20)" %
+                          self.last_stb)
             self.colAdded = True
 
     def alter_table_to_drop_col(self):
@@ -180,14 +175,14 @@ class Test:
 
     def restart_database(self):
         tdLog.info("restart_database")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdLog.sleep(10)
 
     def force_restart_database(self):
         tdLog.info("force_restart_database")
-        tdDnodes.forcestop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdLog.sleep(10)
         tdSql.prepare()
         self.last_tb = ""
@@ -209,11 +204,11 @@ class Test:
 
     def reset_database(self):
         tdLog.info("reset_database")
-        tdDnodes.forcestop(1)
-        tdDnodes.deploy(1)
+        tdDnodes.stopAll()
+
         self.last_tb = ""
         self.written = 0
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdLog.sleep(10)
         tdSql.prepare()
         self.last_tb = ""
@@ -222,8 +217,8 @@ class Test:
 
     def delete_datafiles(self):
         tdLog.info("delete_datafiles")
-        dnodesDir = tdDnodes.getDnodesRootDir()
-        tdDnodes.forcestop(1)
+        dnodesDir = tdDnodes.getDnodesRootDir(1)
+        tdDnodes.stopAll()
         dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
@@ -231,7 +226,7 @@ class Test:
         self.last_tb = ""
         self.last_stb = ""
         self.written = 0
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdLog.sleep(10)
         tdSql.prepare()
         self.last_tb = ""

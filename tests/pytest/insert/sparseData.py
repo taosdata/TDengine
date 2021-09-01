@@ -29,7 +29,8 @@ class TDTestCase:
 
         tdLog.info("=============== step1")
         tdSql.execute(
-            'create table tb (ts timestamp, speed int, temp float, note binary(4000), flag bool)')
+            'create table tb (ts timestamp, speed int, temp float, note binary(4000), flag bool)'
+        )
 
         numOfRecords = 1000000
         dividend = 1000
@@ -41,13 +42,13 @@ class TDTestCase:
             if (i % dividend):
                 print(".", end="")
                 tdSql.execute(
-                    'insert into tb values (%d + %da, NULL, NULL, NULL, TRUE)' %
-                    (ts, i))
+                    'insert into tb values (%d + %da, NULL, NULL, NULL, TRUE)'
+                    % (ts, i))
             else:
                 print("a", end="")
                 tdSql.execute(
-                    'insert into tb values (%d + %da, NULL, NULL, "a", FALSE)' %
-                    (ts, i))
+                    'insert into tb values (%d + %da, NULL, NULL, "a", FALSE)'
+                    % (ts, i))
 
         tdSql.query("select * from tb")
         tdSql.checkRows(numOfRecords)
@@ -55,7 +56,7 @@ class TDTestCase:
         tdSql.checkData(numOfRecords - dividend - 1, 3, None)
 
         tdLog.info("stop dnode to commit data to disk")
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         tdLog.info("dnodes:%d size is %d" % (1, tdDnodes.getDataSize(1)))
 
     def stop(self):

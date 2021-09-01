@@ -28,10 +28,14 @@ class TDTestCase:
         tdSql.prepare()
 
         print("==============step1")
-        tdSql.execute("create database db_vplu");
+        tdSql.execute("create database db_vplu")
         tdSql.execute("use db_vplu")
-        tdSql.execute("CREATE table if not exists st (ts timestamp, speed int) tags(id int)")
-        tdSql.execute("CREATE table if not exists st_vplu (ts timestamp, speed int) tags(id int)")
+        tdSql.execute(
+            "CREATE table if not exists st (ts timestamp, speed int) tags(id int)"
+        )
+        tdSql.execute(
+            "CREATE table if not exists st_vplu (ts timestamp, speed int) tags(id int)"
+        )
 
         print("==============step2")
 
@@ -42,8 +46,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, "st_vplu")
 
         tdDnodes.stopAll()
-        tdDnodes.start(1)
-        
+        tdDnodes.start()
+
         tdSql.execute("use db_vplu")
         tdSql.query("show stables")
         tdSql.checkRows(1)
@@ -55,7 +59,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "db_vplu")
 
         tdDnodes.stopAll()
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdSql.query("show databases")
         tdSql.checkRows(1)

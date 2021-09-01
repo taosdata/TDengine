@@ -29,30 +29,24 @@ class TDTestCase:
         self.rowsPerTable = 10
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         # Test1 1 dataDir
-        cfg={
-            '/mnt/data1 1 0' : 'dataDir'           
-        }
+        cfg = {'/mnt/data1 1 0': 'dataDir'}
         tdSql.createDir('/mnt/data1')
-        
-        tdDnodes.deploy(1,cfg)
+
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
-        
+
         tdSql.taosdStatus(0)
 
-
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         # Test2 2 dataDir
-        cfg={
-            '/mnt/data1 0 1' : 'dataDir',
-            '/mnt/data1 2 0' : 'dataDir'
-        }
+        cfg = {'/mnt/data1 0 1': 'dataDir', '/mnt/data1 2 0': 'dataDir'}
         tdSql.createDir('/mnt/data1')
-        
-        tdDnodes.deploy(1,cfg)
+
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
-        
+
         tdSql.taosdStatus(0)
 
     def stop(self):

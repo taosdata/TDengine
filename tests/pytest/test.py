@@ -164,7 +164,7 @@ if __name__ == "__main__":
             sp = fileName.rsplit(".", 1)
             if len(sp) == 2 and sp[1] == "py":
                 tdDnodes.stopAll()
-                tdDnodes.start(1)
+                tdDnodes.start()
                 time.sleep(1)
                 conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
                 tdLog.info("Procedures for tdengine deployed in %s" % (host))

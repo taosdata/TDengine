@@ -28,14 +28,7 @@ class TDTestCase:
         self.ntables = 1
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
-
-        tdSql.execute('reset query cache')
-        tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
+        tdSql.prepare()
 
         tdLog.info("================= step1")
         tdLog.info("create 1 table")
@@ -45,9 +38,8 @@ class TDTestCase:
         tdLog.info("import 10 sequential data")
         startTime = self.startTime
         for rid in range(1, 11):
-            tdSql.execute(
-                'import into tb1 values(%ld, %d)' %
-                (startTime + rid, rid))
+            tdSql.execute('import into tb1 values(%ld, %d)' %
+                          (startTime + rid, rid))
 
         tdLog.info("================= step3")
         tdSql.query('select * from tb1')
@@ -59,8 +51,8 @@ class TDTestCase:
         tdSql.execute('import into tb1 values(%ld, %d)' % (startTime, rid))
 
         tdLog.info("================= step5")
-        tdDnodes.forcestop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         #tdLog.sleep(10)
 
         tdLog.info("================= step6")

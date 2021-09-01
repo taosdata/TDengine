@@ -13,13 +13,12 @@ from util.dnodes import *
 
 
 class TDTestCase:
-
     def init(self):
         tdLog.debug("start to execute %s" % __file__)
         tdLog.info("prepare cluster")
         tdDnodes.stopAll()
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
+
+        tdDnodes.start()
 
         self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
         tdSql.init(self.conn.cursor())
@@ -55,16 +54,14 @@ class TDTestCase:
             cursor.execute(sql)
             while i < self.tbNum:
                 if (i % self.threadNum == threadId):
-                    cursor.execute(
-                        "create table tb%d using %s tags(%d)" %
-                        (i + 1, self.stb, i + 1))
+                    cursor.execute("create table tb%d using %s tags(%d)" %
+                                   (i + 1, self.stb, i + 1))
                     with threading.Lock():
                         self.global_counter += 1
                 i += 1
         except Exception as e:
-            tdLog.info(
-                "Failure when creating table tb%d, exception: %s" %
-                (i + 1, str(e)))
+            tdLog.info("Failure when creating table tb%d, exception: %s" %
+                       (i + 1, str(e)))
         finally:
             cursor.close()
             conn.close()
@@ -100,23 +97,19 @@ class TDTestCase:
         try:
             tdSql.execute("drop database if exists %s" % (self.db))
             tdSql.execute(
-                "create database %s replica 2 cache 2048 ablocks 2.0 tblocks 10 tables 2000" %
-                (self.db))
+                "create database %s replica 2 cache 2048 ablocks 2.0 tblocks 10 tables 2000"
+                % (self.db))
             tdLog.sleep(3)
             tdSql.execute("use %s" % (self.db))
             tdSql.execute(
-                "create table %s (ts timestamp, c1 bigint, stime timestamp) tags(tg1 bigint)" %
-                (self.stb))
+                "create table %s (ts timestamp, c1 bigint, stime timestamp) tags(tg1 bigint)"
+                % (self.stb))
             tdLog.info("Start to create tables")
             while threadId < self.threadNum:
                 tdLog.info("Thread-%d starts to create tables" % (threadId))
-                cThread = threading.Thread(
-                    target=self._createTable,
-                    name="thread-%d" %
-                    (threadId),
-                    args=(
-                        threadId,
-                    ))
+                cThread = threading.Thread(target=self._createTable,
+                                           name="thread-%d" % (threadId),
+                                           args=(threadId, ))
                 cThread.start()
                 threads.append(cThread)
                 threadId += 1
@@ -127,14 +120,12 @@ class TDTestCase:
         finally:
             time.sleep(1)
 
-        threading.Thread(
-            target=self._interfereDnodes,
-            name="thread-interfereDnode%d" %
-            (3),
-            args=(
-                1,
-                3,
-            )).start()
+        threading.Thread(target=self._interfereDnodes,
+                         name="thread-interfereDnode%d" % (3),
+                         args=(
+                             1,
+                             3,
+                         )).start()
         for t in range(len(threads)):
             tdLog.info("Join threads")
             # threads[t].start()

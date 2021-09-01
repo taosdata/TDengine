@@ -24,26 +24,27 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-    
-    def createOldDir(self):
-        oldDir = tdDnodes.getDnodesRootDir() + "dnode1/data/vnode/vnode2/wal/old"
-        os.system("sudo mkdir -p %s" % oldDir)
-    
-    def createOldDirAndAddWal(self):
-        oldDir = tdDnodes.getDnodesRootDir() + "dnode1/data/vnode/vnode2/wal/old"        
-        os.system("sudo echo 'test' >> %s/wal" % oldDir)
 
+    def createOldDir(self):
+        oldDir = tdDnodes.getDnodesRootDir(
+        ) + "dnode1/data/vnode/vnode2/wal/old"
+        os.system("sudo mkdir -p %s" % oldDir)
+
+    def createOldDirAndAddWal(self):
+        oldDir = tdDnodes.getDnodesRootDir(
+        ) + "dnode1/data/vnode/vnode2/wal/old"
+        os.system("sudo echo 'test' >> %s/wal" % oldDir)
 
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute("create table t1(ts timestamp, a int)") 
+        tdSql.execute("create table t1(ts timestamp, a int)")
         tdSql.execute("insert into t1 values(now, 1)")
 
         # create old dir only
         self.createOldDir()
         os.system("sudo kill -9 $(pgrep taosd)")
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdSql.execute("use db")
         tdSql.query("select * from t1")
@@ -52,14 +53,13 @@ class TDTestCase:
 
         # create old dir and add wal under old dir
         self.createOldDir()
-        self.createOldDirAndAddWal()        
+        self.createOldDirAndAddWal()
         os.system("sudo kill -9 $(pgrep taosd)")
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdSql.query("select * from t1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
-        
 
     def stop(self):
         tdSql.close()

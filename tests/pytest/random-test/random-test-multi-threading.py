@@ -29,7 +29,7 @@ colAdded = False
 killed = False
 
 
-class Test (threading.Thread):
+class Test(threading.Thread):
     def __init__(self, threadId, name, q):
         threading.Thread.__init__(self)
         self.threadId = threadId
@@ -96,9 +96,8 @@ class Test (threading.Thread):
                     last_timestamp = last_timestamp + 1
                 except Exception as e:
                     if killed:
-                        tdLog.info(
-                            "database killed, expect failed %s" %
-                            e.args[0])
+                        tdLog.info("database killed, expect failed %s" %
+                                   e.args[0])
                         return 0
                     tdLog.info(repr(e))
                     return -1
@@ -127,28 +126,25 @@ class Test (threading.Thread):
         if (current_stb != last_stb):
             tdLog.info("will create stable %s" % current_stb)
             tdLog.info(
-                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
-                current_stb)
+                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))'
+                % current_stb)
             tdSql.execute(
-                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))' %
-                current_stb)
+                'create table %s(ts timestamp, c1 int, c2 nchar(10)) tags (t1 int, t2 nchar(10))'
+                % current_stb)
             last_stb = current_stb
 
             current_tb = "tb%d" % int(round(time.time() * 1000))
-            tdLog.info(
-                "create table %s using %s tags (1, '表1')" %
-                (current_tb, last_stb))
-            tdSql.execute(
-                "create table %s using %s tags (1, '表1')" %
-                (current_tb, last_stb))
+            tdLog.info("create table %s using %s tags (1, '表1')" %
+                       (current_tb, last_stb))
+            tdSql.execute("create table %s using %s tags (1, '表1')" %
+                          (current_tb, last_stb))
             last_tb = current_tb
             written = 0
 
             start_time = 1500000000000
 
-            tdSql.execute(
-                "insert into %s values (%d+%da, 27, '我是nchar字符串')" %
-                (last_tb, start_time, last_timestamp))
+            tdSql.execute("insert into %s values (%d+%da, 27, '我是nchar字符串')" %
+                          (last_tb, start_time, last_timestamp))
             written = written + 1
             last_timestamp = last_timestamp + 1
 
@@ -176,9 +172,8 @@ class Test (threading.Thread):
         global colAdded
 
         if last_stb != "" and not colAdded:
-            tdSql.execute(
-                "alter table %s add column col binary(20)" %
-                last_stb)
+            tdSql.execute("alter table %s add column col binary(20)" %
+                          last_stb)
             colAdded = True
         return 0
 
@@ -198,9 +193,9 @@ class Test (threading.Thread):
         global written
         global killed
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         killed = True
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdLog.sleep(10)
         killed = False
         return 0
@@ -211,12 +206,12 @@ class Test (threading.Thread):
         global written
         global killed
 
-        tdDnodes.forcestop(1)
+        tdDnodes.stopAll()
         last_tb = ""
         written = 0
         killed = True
-        tdDnodes.start(1)
-#        tdLog.sleep(10)
+        tdDnodes.start()
+        #        tdLog.sleep(10)
         killed = False
         return 0
 
@@ -251,7 +246,7 @@ class Test (threading.Thread):
 
         tdLog.info("reset query cache")
         tdSql.execute("reset query cache")
-#        tdLog.sleep(1)
+        #        tdLog.sleep(1)
         return 0
 
     def reset_database(self):
@@ -261,10 +256,10 @@ class Test (threading.Thread):
         global written
         global killed
 
-        tdDnodes.forcestop(1)
+        tdDnodes.stopAll()
         killed = True
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
+
+        tdDnodes.start()
         tdSql.prepare()
         killed = False
         return 0
@@ -276,8 +271,8 @@ class Test (threading.Thread):
         global written
         global killed
 
-        dnodesDir = tdDnodes.getDnodesRootDir()
-        tdDnodes.forcestop(1)
+        dnodesDir = tdDnodes.getDnodesRootDir(1)
+        tdDnodes.stopAll()
         killed = True
         dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
@@ -286,7 +281,7 @@ class Test (threading.Thread):
         last_stb = ""
         written = 0
 
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdSql.prepare()
         killed = False
         return 0

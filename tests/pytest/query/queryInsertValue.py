@@ -24,13 +24,13 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
         self.numOfRecords = 10
-        self.ts = 1537146000000    
-    
+        self.ts = 1537146000000
+
     def restartTaosd(self):
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdSql.execute("use db")
 
     def run(self):
@@ -39,7 +39,8 @@ class TDTestCase:
         print("==============step1")
 
         tdSql.execute(
-            "create table st (ts timestamp, speed int) tags(areaid int, loc nchar(20))")
+            "create table st (ts timestamp, speed int) tags(areaid int, loc nchar(20))"
+        )
         tdSql.execute("create table t1 using st tags(1, 'beijing')")
         tdSql.execute("insert into t1 values(now, 1)")
         tdSql.query("select * from st")
@@ -48,13 +49,12 @@ class TDTestCase:
         tdSql.execute("alter table st add column len int")
         tdSql.execute("insert into t1 values(now, 1, 2)")
         tdSql.query("select last(*) from st")
-        tdSql.checkData(0, 2, 2);
+        tdSql.checkData(0, 2, 2)
 
-        self.restartTaosd();
+        self.restartTaosd()
 
         tdSql.query("select last(*) from st")
-        tdSql.checkData(0, 2, 2);
-
+        tdSql.checkData(0, 2, 2)
 
     def stop(self):
         tdSql.close()

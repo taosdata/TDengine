@@ -38,8 +38,8 @@ class TDTestCase:
         tdLog.info("create 1 table")
         tdSql.execute('create table tb1 (ts timestamp, speed int)')
         tdLog.info(
-            "More than %d rows less than %d rows will go to data and last file" %
-            (self.maxrows, 10 + self.maxrows))
+            "More than %d rows less than %d rows will go to data and last file"
+            % (self.maxrows, 10 + self.maxrows))
 
         tdLog.info("================= step2")
         tdLog.info("import 205 sequential data")
@@ -54,9 +54,9 @@ class TDTestCase:
         tdSql.checkRows(205)
 
         tdLog.info("================= step4")
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         #tdLog.sleep(5)
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdLog.info("================= step5")
         tdLog.info("import 1 data later")

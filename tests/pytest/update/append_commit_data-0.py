@@ -40,26 +40,22 @@ class TDTestCase:
         t0 = 1604298064000
         tdLog.info("insert %d rows" % (insertRows))
         for i in range(0, insertRows):
-          ret = tdSql.execute(
-              'insert into t1 values (%d , 1)' %
-              (t0+i))
+            ret = tdSql.execute('insert into t1 values (%d , 1)' % (t0 + i))
         print("==========step2")
         print("restart to commit ")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdSql.query("select * from db.t1")
         tdSql.checkRows(insertRows)
-        for k in range(0,100):
-          tdLog.info("insert %d rows" % (insertRows))
-          for i in range (0,insertRows):
-            ret = tdSql.execute(
-                'insert into db.t1 values(%d,1)' %
-                (t0+k*200+i)
-            )
-          tdDnodes.stop(1)
-          tdDnodes.start(1)
-          tdSql.query("select * from db.t1")
-          tdSql.checkRows(insertRows+200*k)
+        for k in range(0, 100):
+            tdLog.info("insert %d rows" % (insertRows))
+            for i in range(0, insertRows):
+                ret = tdSql.execute('insert into db.t1 values(%d,1)' %
+                                    (t0 + k * 200 + i))
+            tdDnodes.stopAll()
+            tdDnodes.start()
+            tdSql.query("select * from db.t1")
+            tdSql.checkRows(insertRows + 200 * k)
         print("==========step2")
         print("insert into another table ")
         s = 'use db'
@@ -67,11 +63,9 @@ class TDTestCase:
         ret = tdSql.execute('create table t2 (ts timestamp, a int)')
         insertRows = 20000
         for i in range(0, insertRows):
-          ret = tdSql.execute(
-              'insert into t2 values (%d, 1)' %
-              (t0+i))
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+            ret = tdSql.execute('insert into t2 values (%d, 1)' % (t0 + i))
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdSql.query("select * from t2")
         tdSql.checkRows(insertRows)
 

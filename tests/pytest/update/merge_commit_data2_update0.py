@@ -24,23 +24,22 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-
-    def restart_taosd(self,db):
-        tdDnodes.stop(1)
+    def restart_taosd(self, db):
+        tdDnodes.stopAll()
         tdDnodes.startWithoutSleep(1)
         tdSql.execute("use %s;" % db)
 
     def date_to_timestamp_microseconds(self, date):
         datetime_obj = datetime.strptime(date, "%Y-%m-%d %H:%M:%S.%f")
-        obj_stamp = int(time.mktime(datetime_obj.timetuple()) * 1000.0 + datetime_obj.microsecond / 1000.0)
+        obj_stamp = int(
+            time.mktime(datetime_obj.timetuple()) * 1000.0 +
+            datetime_obj.microsecond / 1000.0)
         return obj_stamp
 
     def timestamp_microseconds_to_date(self, timestamp):
-        d = datetime.datetime.fromtimestamp(timestamp/1000)
+        d = datetime.datetime.fromtimestamp(timestamp / 1000)
         str1 = d.strftime("%Y-%m-%d %H:%M:%S.%f")
         return str1
-
-
 
     def run(self):
         print("==========step1")
@@ -55,13 +54,12 @@ class TDTestCase:
         tdSql.execute(sql)
         tdSql.execute('create table t1 (ts timestamp, a int)')
 
-
         print("==================================1 start")
         insert_rows = 200
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t1 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t1 values (%d , 1)' % (t0 + i))
         print("==========step2")
         print("restart to commit ")
         self.restart_taosd('db')
@@ -74,31 +72,31 @@ class TDTestCase:
         print("==========step3")
         print('insert data')
         for i in range(insert_rows):
-            tdSql.execute('insert into t1 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t1 values (%d , 1)' % (t0 + i + 5000))
         print('check query result before restart')
         tdSql.query('select * from db.t1;')
-        for i in range(insert_rows, insert_rows*2):
+        for i in range(insert_rows, insert_rows * 2):
             tdSql.checkData(i, 1, 1)
 
         self.restart_taosd('db')
         print('check query result after restart')
         tdSql.query('select * from db.t1;')
-        for i in range(insert_rows, insert_rows*2):
+        for i in range(insert_rows, insert_rows * 2):
             tdSql.checkData(i, 1, 1)
 
         print("==========step4")
         print('insert data')
         for i in range(insert_rows):
-            tdSql.execute('insert into t1 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t1 values (%d , 2)' % (t0 + i))
         for i in range(insert_rows):
-            tdSql.execute('insert into t1 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t1 values (%d , 1)' % (t0 + i + 5000))
 
         print('check query result before restart')
         tdSql.query('select * from db.t1;')
         print(tdSql.queryResult)
         for i in range(insert_rows):
             tdSql.checkData(i, 1, 1)
-        for i in range(insert_rows, insert_rows*2):
+        for i in range(insert_rows, insert_rows * 2):
             tdSql.checkData(i, 1, 1)
 
         print('check query result after restart')
@@ -107,7 +105,7 @@ class TDTestCase:
         # print(tdSql.queryResult)
         for i in range(insert_rows):
             tdSql.checkData(i, 1, 1)
-        for i in range(insert_rows, insert_rows*2):
+        for i in range(insert_rows, insert_rows * 2):
             tdSql.checkData(i, 1, 1)
 
         print("==================================2 start")
@@ -118,33 +116,32 @@ class TDTestCase:
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t2 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t2 values (%d , 1)' % (t0 + i))
         print('restart to commit')
         self.restart_taosd('db')
         for i in range(insert_rows):
-            tdSql.execute('insert into t2 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t2 values (%d , 1)' % (t0 + i + 5000))
         print('restart to commit')
         self.restart_taosd('db')
 
         for k in range(10):
             for i in range(10):
-                tdSql.execute('insert into t2 values (%d , 1)' %(t0 + 200 + k * 10 + i))
+                tdSql.execute('insert into t2 values (%d , 1)' %
+                              (t0 + 200 + k * 10 + i))
                 # print('insert into t2 values (%d , 1)' %(t0 + 200 + k * 10 + i))
-
 
         print("==========step2")
         print('check query result before restart')
         tdSql.query('select * from db.t2;')
-        for i in range(insert_rows*2+100):
+        for i in range(insert_rows * 2 + 100):
             tdSql.checkData(i, 1, 1)
         # print(tdSql.queryResult)
         print('restart to commit')
         self.restart_taosd('db')
         print('check query result after restart')
         tdSql.query('select * from db.t2;')
-        for i in range(insert_rows*2+100):
+        for i in range(insert_rows * 2 + 100):
             tdSql.checkData(i, 1, 1)
-
 
         print("==================================3 start")
         print("==========step1")
@@ -154,17 +151,17 @@ class TDTestCase:
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t3 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t3 values (%d , 1)' % (t0 + i))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(insert_rows):
-            tdSql.execute('insert into t3 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t3 values (%d , 1)' % (t0 + i + 5000))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(5200):
-            tdSql.execute('insert into t3 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t3 values (%d , 2)' % (t0 + i))
 
         print("==========step2")
         print('check query result before restart')
@@ -195,23 +192,23 @@ class TDTestCase:
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t4 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t4 values (%d , 1)' % (t0 + i))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(insert_rows):
-            tdSql.execute('insert into t4 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t4 values (%d , 1)' % (t0 + i + 5000))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(100):
-            tdSql.execute('insert into t4 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t4 values (%d , 2)' % (t0 + i))
 
         for i in range(200, 5000):
-            tdSql.execute('insert into t4 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t4 values (%d , 2)' % (t0 + i))
 
         for i in range(100):
-            tdSql.execute('insert into t4 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t4 values (%d , 1)' % (t0 + i + 5000))
 
         print('check query result before restart')
         tdSql.query('select * from db.t4;')
@@ -240,23 +237,23 @@ class TDTestCase:
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t5 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t5 values (%d , 1)' % (t0 + i))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(insert_rows):
-            tdSql.execute('insert into t5 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t5 values (%d , 1)' % (t0 + i + 5000))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(100, 200):
-            tdSql.execute('insert into t5 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t5 values (%d , 2)' % (t0 + i))
 
         for i in range(200, 5000):
-            tdSql.execute('insert into t5 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t5 values (%d , 2)' % (t0 + i))
 
         for i in range(100, 200):
-            tdSql.execute('insert into t5 values (%d , 2)' %(t0+i+5000))
+            tdSql.execute('insert into t5 values (%d , 2)' % (t0 + i + 5000))
 
         print('check query result before restart')
         tdSql.query('select * from db.t5;')
@@ -285,28 +282,28 @@ class TDTestCase:
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t6 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t6 values (%d , 1)' % (t0 + i))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(insert_rows):
-            tdSql.execute('insert into t6 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t6 values (%d , 1)' % (t0 + i + 5000))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(-1000, 10000):
-            tdSql.execute('insert into t6 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t6 values (%d , 2)' % (t0 + i))
 
         print('check query result before restart')
         tdSql.query('select * from db.t6;')
         tdSql.checkRows(11000)
         for i in range(1000):
             tdSql.checkData(i, 1, 2)
-        for i in range(1000,1200):
+        for i in range(1000, 1200):
             tdSql.checkData(i, 1, 1)
-        for i in range(1200,6000):
+        for i in range(1200, 6000):
             tdSql.checkData(i, 1, 2)
-        for i in range(6000,6200):
+        for i in range(6000, 6200):
             tdSql.checkData(i, 1, 1)
         for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
@@ -317,15 +314,14 @@ class TDTestCase:
         tdSql.checkRows(11000)
         for i in range(1000):
             tdSql.checkData(i, 1, 2)
-        for i in range(1000,1200):
+        for i in range(1000, 1200):
             tdSql.checkData(i, 1, 1)
-        for i in range(1200,6000):
+        for i in range(1200, 6000):
             tdSql.checkData(i, 1, 2)
-        for i in range(6000,6200):
+        for i in range(6000, 6200):
             tdSql.checkData(i, 1, 1)
         for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
-
 
         print("==================================7 start")
         print("==========step1")
@@ -335,26 +331,26 @@ class TDTestCase:
         t0 = 1603152000000
         tdLog.info("insert %d rows" % insert_rows)
         for i in range(insert_rows):
-            tdSql.execute('insert into t7 values (%d , 1)' %(t0+i))
+            tdSql.execute('insert into t7 values (%d , 1)' % (t0 + i))
 
         for i in range(insert_rows):
-            tdSql.execute('insert into t7 values (%d , 1)' %(t0+i+5000))
+            tdSql.execute('insert into t7 values (%d , 1)' % (t0 + i + 5000))
         print('restart to commit')
         self.restart_taosd('db')
 
         for i in range(-1000, 10000):
-            tdSql.execute('insert into t7 values (%d , 2)' %(t0+i))
+            tdSql.execute('insert into t7 values (%d , 2)' % (t0 + i))
 
         print('check query result before restart')
         tdSql.query('select * from db.t7;')
         tdSql.checkRows(11000)
         for i in range(1000):
             tdSql.checkData(i, 1, 2)
-        for i in range(1000,1200):
+        for i in range(1000, 1200):
             tdSql.checkData(i, 1, 1)
-        for i in range(1200,6000):
+        for i in range(1200, 6000):
             tdSql.checkData(i, 1, 2)
-        for i in range(6000,6200):
+        for i in range(6000, 6200):
             tdSql.checkData(i, 1, 1)
         for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
@@ -365,15 +361,14 @@ class TDTestCase:
         tdSql.checkRows(11000)
         for i in range(1000):
             tdSql.checkData(i, 1, 2)
-        for i in range(1000,1200):
+        for i in range(1000, 1200):
             tdSql.checkData(i, 1, 1)
-        for i in range(1200,6000):
+        for i in range(1200, 6000):
             tdSql.checkData(i, 1, 2)
-        for i in range(6000,6200):
+        for i in range(6000, 6200):
             tdSql.checkData(i, 1, 1)
         for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
-
 
     def stop(self):
         tdSql.close()

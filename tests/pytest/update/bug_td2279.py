@@ -25,16 +25,16 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         self.ts = 1606700000000
-    
+
     def restartTaosd(self):
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         tdDnodes.startWithoutSleep(1)
         tdSql.execute("use db")
 
-    def run(self):            
+    def run(self):
         tdSql.prepare()
 
-        print("==============step1")        
+        print("==============step1")
         tdSql.execute("create table t (ts timestamp, a int)")
 
         for i in range(3276):
@@ -44,24 +44,25 @@ class TDTestCase:
         for i in range(3275):
             tdSql.execute("insert into t values(%d, 0)" % (self.ts + i))
         tdSql.execute("insert into t values(%d, 0)" % 1606700013280)
-        
+
         self.restartTaosd()
-        
+
         for i in range(1606700003275, 1606700006609):
             tdSql.execute("insert into t values(%d, 0)" % i)
         tdSql.execute("insert into t values(%d, 0)" % 1606700006612)
-        
+
         self.restartTaosd()
 
-        tdSql.execute("insert into t values(%d, 0)" % 1606700006610)        
+        tdSql.execute("insert into t values(%d, 0)" % 1606700006610)
         tdSql.query("select * from t")
         tdSql.checkRows(6612)
 
-        tdDnodes.stop(1)
-        
+        tdDnodes.stopAll()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

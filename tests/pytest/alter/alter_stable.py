@@ -13,19 +13,10 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self.types = [
-            "int",
-            "bigint",
-            "float",
-            "double",
-            "smallint",
-            "tinyint",
-            "int unsigned",
-            "bigint unsigned",
-            "smallint unsigned",
-            "tinyint unsigned",
-            "binary(10)",
-            "nchar(10)",
-            "timestamp"]
+            "int", "bigint", "float", "double", "smallint", "tinyint",
+            "int unsigned", "bigint unsigned", "smallint unsigned",
+            "tinyint unsigned", "binary(10)", "nchar(10)", "timestamp"
+        ]
         self.rowNum = 300
         self.ts = 1537146000000
         self.step = 1000
@@ -34,9 +25,8 @@ class TDTestCase:
 
     def addColumnAndCount(self):
         for colIdx in range(len(self.types)):
-            tdSql.execute(
-                "alter table stb add column c%d %s" %
-                (colIdx + 2, self.types[colIdx]))
+            tdSql.execute("alter table stb add column c%d %s" %
+                          (colIdx + 2, self.types[colIdx]))
             self.sqlHead = self.sqlHead + ",count(c%d) " % (colIdx + 2)
             tdSql.query(self.sqlHead + self.sqlTail)
 
@@ -123,9 +113,9 @@ class TDTestCase:
         # Alter tb and add a column of smallint type, then query tb to see if
         # all added column are NULL
         self.addColumnAndCount()
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         time.sleep(5)
-        tdDnodes.start(1)
+        tdDnodes.start()
         time.sleep(5)
         tdSql.query(self.sqlHead + self.sqlTail)
         for i in range(2, len(self.types) + 2):

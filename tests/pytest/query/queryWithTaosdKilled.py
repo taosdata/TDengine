@@ -30,11 +30,11 @@ class TDTestCase:
         self.rowNum = 10
         self.ts = 1537146000000
 
-    def createOldDir(self):        
+    def createOldDir(self):
         path = tdDnodes.dnodes[1].getDnodeRootDir(1)
         print(path)
         tdLog.info("sudo mkdir -p %s/data/vnode/vnode2/wal/old" % path)
-        os.system("sudo mkdir -p %s/data/vnode/vnode2/wal/old" % path)       
+        os.system("sudo mkdir -p %s/data/vnode/vnode2/wal/old" % path)
 
     def run(self):
         # os.system("rm -rf %s/ " % tdDnodes.getDnodesRootDir())
@@ -45,20 +45,19 @@ class TDTestCase:
         tdSql.query("select count(*) from st")
         tdSql.checkRows(1)
 
-        
         self.createOldDir()
         tdLog.sleep(10)
 
         print("force kill taosd")
         os.system("sudo kill -9 $(pgrep -x taosd)")
         os.system("")
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdSql.init(self.conn.cursor())
         tdSql.execute("use db")
         tdSql.query("select count(*) from st")
         tdSql.checkRows(1)
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

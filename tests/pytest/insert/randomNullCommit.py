@@ -54,8 +54,8 @@ class TDTestCase:
             tdSql.checkData(numOfRecords - 1, 2, None)
 
             tdLog.info("stop dnode to commit data to disk")
-            tdDnodes.stop(1)
-            tdDnodes.start(1)
+            tdDnodes.stopAll()
+            tdDnodes.start()
             tdLog.sleep(5)
 
     def stop(self):

@@ -31,20 +31,18 @@ if __name__ == "__main__":
 
     tdDnodes.stopAll()
     tdDnodes.addSimExtraCfg("maxSQLLength", "1048576")
-    tdDnodes.deploy(1)
-    tdDnodes.start(1)
+
+    tdDnodes.start()
     host = '127.0.0.1'
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
 
     tdCases.logSql(logSql)
     print('1')
-    conn = taos.connect(
-        host,
-        config=tdDnodes.getSimCfgPath())
+    conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
 
     tdSql.init(conn.cursor(), True)
-        
+
     print("==========step1")
     print("create table ")
     tdSql.execute("create database db")
@@ -56,17 +54,17 @@ if __name__ == "__main__":
     data = 'insert into t1 values'
     ts = 1604298064000
     i = 0
-    while ((len(data)<(1024*1024)) & (i < 32767 - 1) ):
-        data += '(%s,%d,%d,%d)'%(ts+i,i%1000,i%1000,i%1000)
-        i+=1
+    while ((len(data) < (1024 * 1024)) & (i < 32767 - 1)):
+        data += '(%s,%d,%d,%d)' % (ts + i, i % 1000, i % 1000, i % 1000)
+        i += 1
     tdSql.execute(data)
-    
+
     print("==========step4")
     print("insert data batch larger than 32767 ")
     i = 0
-    while ((len(data)<(1024*1024)) & (i < 32767) ):
-        data += '(%s,%d,%d,%d)'%(ts+i,i%1000,i%1000,i%1000)
-        i+=1
+    while ((len(data) < (1024 * 1024)) & (i < 32767)):
+        data += '(%s,%d,%d,%d)' % (ts + i, i % 1000, i % 1000, i % 1000)
+        i += 1
     tdSql.error(data)
 
     print("==========step4")
@@ -74,12 +72,9 @@ if __name__ == "__main__":
     tdSql.execute("create table t2 (ts timestamp, c1 binary(50))")
     data = 'insert into t2 values'
     i = 0
-    while ((len(data)<(1024*1024)) & (i < 32767 - 1 ) ):
-        data += '(%s,%s)'%(ts+i,'a'*50)
-        i+=1
-    tdSql.error(data)      
+    while ((len(data) < (1024 * 1024)) & (i < 32767 - 1)):
+        data += '(%s,%s)' % (ts + i, 'a' * 50)
+        i += 1
+    tdSql.error(data)
     tdSql.close()
     tdLog.success("%s successfully executed" % __file__)
-        
-   
-

@@ -25,7 +25,6 @@ from util.sql import *
 
 import taos
 
-
 if __name__ == "__main__":
     fileName = "all"
     deployPath = ""
@@ -33,8 +32,8 @@ if __name__ == "__main__":
     valgrind = 0
     logSql = True
     stop = 0
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'l:sgh', [
-        'logSql', 'stop', 'valgrind', 'help'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'l:sgh',
+                                   ['logSql', 'stop', 'valgrind', 'help'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -70,7 +69,7 @@ if __name__ == "__main__":
         psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
         processID = subprocess.check_output(psCmd, shell=True)
 
-        while(processID):
+        while (processID):
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)
@@ -96,8 +95,8 @@ if __name__ == "__main__":
 
     tdDnodes.stopAll()
     tdDnodes.addSimExtraCfg("minTablesPerVnode", "100")
-    tdDnodes.deploy(1)
-    tdDnodes.start(1)
+
+    tdDnodes.start()
 
     host = '127.0.0.1'
 
@@ -105,9 +104,7 @@ if __name__ == "__main__":
 
     tdCases.logSql(logSql)
 
-    conn = taos.connect(
-        host,
-        config=tdDnodes.getSimCfgPath())
+    conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
 
     tdSql.init(conn.cursor(), True)
 
@@ -117,15 +114,18 @@ if __name__ == "__main__":
 
     for i in range(0, 100):
         tdSql.execute(
-            "CREATE TABLE IF NOT EXISTS tb%d (ts TIMESTAMP, temperature INT, humidity FLOAT)" % i)
+            "CREATE TABLE IF NOT EXISTS tb%d (ts TIMESTAMP, temperature INT, humidity FLOAT)"
+            % i)
 
     for i in range(1, 6):
-        tdSql.execute("INSERT INTO tb99 values (now + %da, %d, %f)" % (i, i, i * 1.0))
+        tdSql.execute("INSERT INTO tb99 values (now + %da, %d, %f)" %
+                      (i, i, i * 1.0))
 
     tdSql.execute("DROP TABLE tb99")
     tdSql.execute(
-            "CREATE TABLE IF NOT EXISTS tb99 (ts TIMESTAMP, temperature INT, humidity FLOAT)")
+        "CREATE TABLE IF NOT EXISTS tb99 (ts TIMESTAMP, temperature INT, humidity FLOAT)"
+    )
     tdSql.query("SELECT * FROM tb99")
     tdSql.checkRows(0)
-    
+
     conn.close()

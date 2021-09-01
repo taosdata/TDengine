@@ -27,21 +27,21 @@ class TDTestCase:
 
     def run(self):
         self.ntables = 10
-        self.rowsPerTable = 10        
+        self.rowsPerTable = 10
         self.startTime = 1520000010000
 
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         # Test1 1 dataDir
-        cfg={
-            '/mnt/data00 0 1' : 'dataDir',
-            '/mnt/data01 0 0' : 'dataDir',
-            '/mnt/data02 0 0' : 'dataDir',
-            '/mnt/data10 1 0' : 'dataDir',
-            '/mnt/data11 1 0' : 'dataDir',
-            '/mnt/data12 1 0' : 'dataDir',
-            '/mnt/data20 2 0' : 'dataDir',
-            '/mnt/data21 2 0' : 'dataDir',
-            '/mnt/data22 2 0' : 'dataDir'          
+        cfg = {
+            '/mnt/data00 0 1': 'dataDir',
+            '/mnt/data01 0 0': 'dataDir',
+            '/mnt/data02 0 0': 'dataDir',
+            '/mnt/data10 1 0': 'dataDir',
+            '/mnt/data11 1 0': 'dataDir',
+            '/mnt/data12 1 0': 'dataDir',
+            '/mnt/data20 2 0': 'dataDir',
+            '/mnt/data21 2 0': 'dataDir',
+            '/mnt/data22 2 0': 'dataDir'
         }
         tdSql.createDir('/mnt/data00')
         tdSql.createDir('/mnt/data01')
@@ -52,10 +52,10 @@ class TDTestCase:
         tdSql.createDir('/mnt/data20')
         tdSql.createDir('/mnt/data21')
         tdSql.createDir('/mnt/data22')
-        
-        tdDnodes.deploy(1,cfg)
+
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
-        
+
         tdSql.execute("create database test days 1 keep 15,5,10")
         tdSql.execute("use test")
 
@@ -69,14 +69,15 @@ class TDTestCase:
             count += 1
             tdSql.query("select * from tb")
             tdSql.checkRows(count)
-            tdDnodes.stop(1)
+            tdDnodes.stopAll()
             os.system("sudo date -s $(date -d \"${DATE} 1 day\" \"+%Y%m%d\")")
-            tdDnodes.start(1)
+            tdDnodes.start()
 
     def stop(self):
         os.system("sudo timedatectl set-ntp true")
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

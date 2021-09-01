@@ -33,9 +33,8 @@ class Test:
         if (self.current_tb == self.last_tb):
             return
         else:
-            tdSql.execute(
-                'create table %s (ts timestamp, speed int)' %
-                self.current_tb)
+            tdSql.execute('create table %s (ts timestamp, speed int)' %
+                          self.current_tb)
             self.last_tb = self.current_tb
             self.written = 0
 
@@ -49,9 +48,8 @@ class Test:
         insertRows = 10
         tdLog.info("insert %d rows to %s" % (insertRows, self.last_tb))
         for i in range(0, insertRows):
-            ret = tdSql.execute(
-                'insert into %s values (now + %dm, %d)' %
-                (self.last_tb, i, i))
+            ret = tdSql.execute('insert into %s values (now + %dm, %d)' %
+                                (self.last_tb, i, i))
             self.written = self.written + 1
 
         tdLog.info("insert earlier data")
@@ -82,26 +80,28 @@ class Test:
     def create_stable(self):
         tdLog.info("create a super table and sub-table and insert data")
         tdSql.execute(
-            "create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(50))")
+            "create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(50))"
+        )
         tdSql.execute(
             'CREATE TABLE if not exists dev_001 using st tags("dev_01")')
         tdSql.execute(
-            "INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1)")
+            "INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1)"
+        )
 
     def stop_database(self):
         tdLog.info("stop databae")
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
 
     def restart_database(self):
         tdLog.info("restart databae")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdLog.sleep(5)
 
     def force_restart(self):
         tdLog.info("force restart database")
-        tdDnodes.forcestop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdLog.sleep(5)
 
     def drop_table(self):
@@ -119,17 +119,17 @@ class Test:
 
     def reset_database(self):
         tdLog.info("reset database")
-        tdDnodes.forcestop(1)
-        tdDnodes.deploy(1)
+        tdDnodes.stopAll()
+
         self.current_tb = ""
         self.last_tb = ""
         self.written = 0
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdSql.prepare()
 
     def delete_datafiles(self):
         tdLog.info("delete data files")
-        dnodesDir = tdDnodes.getDnodesRootDir()
+        dnodesDir = tdDnodes.getDnodesRootDir(1)
         dataDir = dnodesDir + '/dnode1/data/*'
         deleteCmd = 'rm -rf %s' % dataDir
         os.system(deleteCmd)
@@ -137,7 +137,7 @@ class Test:
         self.current_tb = ""
         self.last_tb = ""
         self.written = 0
-        tdDnodes.start(1)
+        tdDnodes.start()
         tdSql.prepare()
 
 

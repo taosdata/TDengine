@@ -21,7 +21,7 @@ from util.dnodes import *
 
 
 class QueryCountMultiThread:
-    def initConnection(self):        
+    def initConnection(self):
         self.records = 10000000
         self.numOfTherads = 50
         self.ts = 1537146000000
@@ -29,21 +29,19 @@ class QueryCountMultiThread:
         self.user = "root"
         self.password = "taosdata"
         self.config = "/home/xp/git/TDengine/sim/dnode1/cfg"
-        self.conn = taos.connect(
-            self.host,
-            self.user,
-            self.password,
-            self.config)
+        self.conn = taos.connect(self.host, self.user, self.password,
+                                 self.config)
 
     def insertData(self, threadID):
         cursor = self.conn.cursor()
         print("Thread %d: starting" % threadID)
         base = 200000 * threadID
-        for i in range(200):                        
+        for i in range(200):
             query = "insert into tb values"
             for j in range(1000):
-                query += "(%d, %d, 'test')" % (self.ts + base + i * 1000 + j, base + i * 1000 + j)                        
-            cursor.execute(query)            
+                query += "(%d, %d, 'test')" % (self.ts + base + i * 1000 + j,
+                                               base + i * 1000 + j)
+            cursor.execute(query)
         cursor.close()
         print("Thread %d: finishing" % threadID)
 
@@ -53,22 +51,23 @@ class QueryCountMultiThread:
         tdDnodes.setValgrind(False)
 
         tdDnodes.stopAll()
-        tdDnodes.deploy(1)
-        tdDnodes.start(1)
-        
+
+        tdDnodes.start()
+
         cursor = self.conn.cursor()
         cursor.execute("drop database if exists db")
         cursor.execute("create database db")
         cursor.execute("use db")
-        cursor.execute("create table tb (ts timestamp, id int, name nchar(30))")
+        cursor.execute(
+            "create table tb (ts timestamp, id int, name nchar(30))")
         cursor.close()
 
         threads = []
         for i in range(50):
-            thread = threading.Thread(target=self.insertData, args=(i,))
+            thread = threading.Thread(target=self.insertData, args=(i, ))
             threads.append(thread)
-            thread.start()            
-        
+            thread.start()
+
         for i in range(50):
             threads[i].join()
 
@@ -78,13 +77,17 @@ class QueryCountMultiThread:
         cursor.execute(sql)
         data = cursor.fetchall()
 
-        if(data[0][0] == 10000000):
-            tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%d" % (sql, 0, 0, data[0][0], 10000000))
-        else:            
-            tdLog.exit("queryCount.py failed: sql:%s failed, row:%d col:%d data:%d != expect:%d" % (sql, 0, 0, data[0][0], 10000000))        
+        if (data[0][0] == 10000000):
+            tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%d" %
+                       (sql, 0, 0, data[0][0], 10000000))
+        else:
+            tdLog.exit(
+                "queryCount.py failed: sql:%s failed, row:%d col:%d data:%d != expect:%d"
+                % (sql, 0, 0, data[0][0], 10000000))
 
         cursor.close()
         self.conn.close()
+
 
 q = QueryCountMultiThread()
 q.initConnection()

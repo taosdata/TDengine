@@ -24,27 +24,31 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1593548685000                  
+        self.ts = 1593548685000
 
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute("create table st (ts timestamp, voltage int) tags (loc nchar(30))")
-        tdSql.execute("insert into t0 using st tags('beijing') values(%d, 220) (%d, 221) (%d, 225) (%d, 228) (%d, 222)" 
-                        % (self.ts, self.ts + 1000000000, self.ts + 2000000000, self.ts + 3000000000, self.ts + 6000000000))
-        tdSql.execute("insert into t1 using st tags('shanghai') values(%d, 220) (%d, 221) (%d, 225) (%d, 228) (%d, 222)" 
-                        % (self.ts, self.ts + 2000000000, self.ts + 4000000000, self.ts + 5000000000, self.ts + 7000000000))             
-                
+        tdSql.execute(
+            "create table st (ts timestamp, voltage int) tags (loc nchar(30))")
+        tdSql.execute(
+            "insert into t0 using st tags('beijing') values(%d, 220) (%d, 221) (%d, 225) (%d, 228) (%d, 222)"
+            % (self.ts, self.ts + 1000000000, self.ts + 2000000000,
+               self.ts + 3000000000, self.ts + 6000000000))
+        tdSql.execute(
+            "insert into t1 using st tags('shanghai') values(%d, 220) (%d, 221) (%d, 225) (%d, 228) (%d, 222)"
+            % (self.ts, self.ts + 2000000000, self.ts + 4000000000,
+               self.ts + 5000000000, self.ts + 7000000000))
 
         tdSql.query("select avg(voltage) from st interval(1n)")
-        tdSql.checkRows(3)        
+        tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2020-07-01 00:00:00")
-        tdSql.checkData(0, 1, 221.4)        
+        tdSql.checkData(0, 1, 221.4)
         tdSql.checkData(1, 0, "2020-08-01 00:00:00")
-        tdSql.checkData(1, 1, 227.0)        
+        tdSql.checkData(1, 1, 227.0)
         tdSql.checkData(2, 0, "2020-09-01 00:00:00")
         tdSql.checkData(2, 1, 222.0)
-        
+
         tdSql.query("select avg(voltage) from st interval(1n, 15d)")
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2020-06-16 00:00:00")
@@ -56,7 +60,8 @@ class TDTestCase:
         tdSql.checkData(3, 0, "2020-09-16 00:00:00")
         tdSql.checkData(3, 1, 222.0)
 
-        tdSql.query("select avg(voltage) from st interval(1n, 15d) group by loc")
+        tdSql.query(
+            "select avg(voltage) from st interval(1n, 15d) group by loc")
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, "2020-06-16 00:00:00")
         tdSql.checkData(0, 1, 220.5)
@@ -113,11 +118,10 @@ class TDTestCase:
         tdSql.checkData(2, 2, 225)
         tdSql.checkData(3, 0, "2020-08-04 21:44:00.000")
         tdSql.checkData(2, 1, "beijing")
-        tdSql.checkData(3, 2, 228)       
+        tdSql.checkData(3, 2, 228)
         tdSql.checkData(4, 0, "2020-09-08 15:04:00.000")
         tdSql.checkData(4, 1, "beijing")
         tdSql.checkData(4, 2, 222)
-    
 
         # test case for https://jira.taosdata.com:18080/browse/TD-2298
         tdSql.execute("create database test keep 36500")
@@ -125,9 +129,9 @@ class TDTestCase:
         tdSql.execute("create table t (ts timestamp, voltage int)")
         for i in range(10000):
             tdSql.execute("insert into t values(%d, 0)" % (1000000 + i * 6000))
-        
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+
+        tdDnodes.stopAll()
+        tdDnodes.start()
         tdSql.query("select last(*) from t interval(1s)")
         tdSql.checkRows(10000)
 
@@ -138,15 +142,18 @@ class TDTestCase:
         tdSql.execute("use test2")
         tdSql.execute("create table t (ts timestamp, voltage int)")
         for i in range(100):
-            tdSql.execute("insert into t values(%d, %d)" % (newTs + i * 10000000, i))
-        
-        tdSql.query("select sum(voltage) from t where ts >='2020-10-01 00:00:00' and ts <='2020-12-01 00:00:00' interval(1n) fill(NULL)")
+            tdSql.execute("insert into t values(%d, %d)" %
+                          (newTs + i * 10000000, i))
+
+        tdSql.query(
+            "select sum(voltage) from t where ts >='2020-10-01 00:00:00' and ts <='2020-12-01 00:00:00' interval(1n) fill(NULL)"
+        )
         tdSql.checkRows(3)
         tdSql.checkData(0, 1, 4950)
         tdSql.checkData(1, 1, None)
         tdSql.checkData(2, 1, None)
 
-         # test case for https://jira.taosdata.com:18080/browse/TD-2659， https://jira.taosdata.com:18080/browse/TD-2660
+        # test case for https://jira.taosdata.com:18080/browse/TD-2659， https://jira.taosdata.com:18080/browse/TD-2660
         tdSql.execute("create database test3")
         tdSql.execute("use test3")
         tdSql.execute("create table tb(ts timestamp, c int)")
@@ -161,7 +168,6 @@ class TDTestCase:
         tdSql.checkRows(6)
 
         tdSql.error("select twa(c) from tb group by c")
-
 
     def stop(self):
         tdSql.close()

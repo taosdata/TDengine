@@ -25,23 +25,22 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        cfg={}
+        cfg = {}
         for i in range(17):
-            if i == 0 :
-                datadir = '/mnt/data%d 0 1' % (i+1)
+            if i == 0:
+                datadir = '/mnt/data%d 0 1' % (i + 1)
             else:
-                datadir = '/mnt/data%d 0 0' % (i+1)
-            cfg.update({ datadir : 'dataDir' })
-            tdSql.createDir('/mnt/data%d' % (i+1))
-        
+                datadir = '/mnt/data%d 0 0' % (i + 1)
+            cfg.update({datadir: 'dataDir'})
+            tdSql.createDir('/mnt/data%d' % (i + 1))
 
         tdLog.info("================= step1")
-        tdDnodes.stop(1)
-        tdDnodes.deploy(1,cfg)
+        tdDnodes.stopAll()
+        tdDnodes.deploy(1, cfg)
         tdDnodes.startWithoutSleep(1)
-        
+
         tdLog.info("================= step2")
-        
+
         tdSql.taosdStatus(0)
 
     def stop(self):

@@ -38,13 +38,11 @@ class TDTestCase:
         tdLog.info("import 8 sequential data with gap")
         startTime = self.startTime
         for rid in range(1, 4):
-            tdSql.execute(
-                'import into tb1 values(%ld, %d)' %
-                (startTime + rid, rid))
+            tdSql.execute('import into tb1 values(%ld, %d)' %
+                          (startTime + rid, rid))
         for rid in range(6, 11):
-            tdSql.execute(
-                'import into tb1 values(%ld, %d)' %
-                (startTime + rid, rid))
+            tdSql.execute('import into tb1 values(%ld, %d)' %
+                          (startTime + rid, rid))
             startTime += 1
 
         tdLog.info("================= step3")
@@ -55,13 +53,12 @@ class TDTestCase:
         tdLog.info("import 8 data before with partly overlap")
         startTime = self.startTime - 2
         for rid in range(1, 9):
-            tdSql.execute(
-                'import into tb1 values(%ld, %d)' %
-                (startTime + rid, rid))
+            tdSql.execute('import into tb1 values(%ld, %d)' %
+                          (startTime + rid, rid))
 
         tdLog.info("================= step5")
-        tdDnodes.forcestop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         #tdLog.sleep(10)
 
         tdLog.info("================= step6")

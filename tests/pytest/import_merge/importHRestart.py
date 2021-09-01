@@ -38,9 +38,8 @@ class TDTestCase:
         tdLog.info("import 10 sequential data")
         startTime = self.startTime
         for rid in range(1, 11):
-            tdSql.execute(
-                'import into tb1 values(%ld, %d)' %
-                (startTime + rid, rid))
+            tdSql.execute('import into tb1 values(%ld, %d)' %
+                          (startTime + rid, rid))
 
         tdLog.info("================= step3")
         tdSql.query('select * from tb1')
@@ -52,8 +51,8 @@ class TDTestCase:
         tdSql.execute('import into tb1 values(%ld, %d)' % (startTime, rid))
 
         tdLog.info("================= step5")
-        tdDnodes.forcestop(1)
-        tdDnodes.start(1)
+        tdDnodes.stopAll()
+        tdDnodes.start()
         #tdLog.sleep(10)
 
         tdLog.info("================= step6")

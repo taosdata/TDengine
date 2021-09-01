@@ -52,9 +52,9 @@ class TDTestCase:
         tdSql.checkRows(5)
 
         tdLog.info("================= step4")
-        tdDnodes.stop(1)
+        tdDnodes.stopAll()
         #tdLog.sleep(5)
-        tdDnodes.start(1)
+        tdDnodes.start()
 
         tdLog.info("================= step5")
         tdLog.info("import 3 data totally repetitive")
