@@ -771,5 +771,5 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
 }
 
 void taosStopCacheRefreshWorker(void) {
-  stopRefreshWorker = false;
+  stopRefreshWorker = true;
 }
