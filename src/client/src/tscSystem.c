@@ -478,11 +478,11 @@ static setConfRet taos_set_config_imp(const char *config){
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
       ret.retCode = -1;
       if (strlen(ret.retMsg) == 0){
-        snprintf(ret.retMsg, 1000, "part error|%s", item->string);
+        snprintf(ret.retMsg, 1024, "part error|%s", item->string);
       }else{
-        char tmp[1024] = {0};
-        strcpy(tmp, ret.retMsg);
-        snprintf(ret.retMsg, 1000, "%s|%s", tmp, item->string);
+        char tmp[1000] = {0};
+        strncpy(tmp, ret.retMsg, 1000);
+        snprintf(ret.retMsg, 1024, "%s|%s", tmp, item->string);
       }
     }
   }

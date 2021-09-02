@@ -14,7 +14,7 @@ TEST(testCase, set_config_test1) {
 
   const char *config2 = "{\"debugFlag\":\"199\"}";
   ret = taos_set_config(config2);  // not take effect
-  ASSERT_EQ(ret.retCode, -5)
+  ASSERT_EQ(ret.retCode, -5);
   printf("msg:%d->%s", ret.retCode, ret.retMsg);
 
   bool readResult = taosReadGlobalCfg();  // load file config, debugFlag not take effect
@@ -57,7 +57,7 @@ TEST(testCase, set_config_test4) {
 }
 
 TEST(testCase, set_config_test5) {
-  const char *config = "ddd";
+  const char *config = "\"ddd\"";
   setConfRet ret = taos_set_config(config);
   ASSERT_EQ(ret.retCode, -3);
   printf("msg:%d->%s", ret.retCode, ret.retMsg);
