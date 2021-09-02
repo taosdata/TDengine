@@ -17,9 +17,9 @@
 #include "os.h"
 #include "walInt.h"
 
-int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId) {
-  int64_t curFileId = *nextFileId;
-  int64_t minFileId = INT64_MAX;
+int32_t walGetNextFile(SWal *pWal, int32_t *nextFileId) {
+  int32_t curFileId = *nextFileId;
+  int32_t minFileId = INT32_MAX;
 
   DIR *dir = opendir(pWal->path);
   if (dir == NULL) {
@@ -32,7 +32,7 @@ int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId) {
     char *name = ent->d_name;
 
     if (strncmp(name, WAL_PREFIX, WAL_PREFIX_LEN) == 0) {
-      int64_t id = atoll(name + WAL_PREFIX_LEN);
+      int32_t id = (int32_t)atol(name + WAL_PREFIX_LEN);
       if (id <= curFileId) continue;
 
       if (id < minFileId) {
@@ -42,16 +42,16 @@ int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId) {
   }
   closedir(dir);
 
-  if (minFileId == INT64_MAX) return -1;
+  if (minFileId == INT32_MAX) return -1;
 
   *nextFileId = minFileId;
-  wTrace("vgId:%d, path:%s, curFileId:%" PRId64 " nextFileId:%" PRId64, pWal->vgId, pWal->path, curFileId, *nextFileId);
+  wTrace("vgId:%d, path:%s, curFileId:%" PRId32 " nextFileId:%" PRId32, pWal->vgId, pWal->path, curFileId, *nextFileId);
 
   return 0;
 }
 
-int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId) {
-  int64_t minFileId = INT64_MAX;
+int32_t walGetOldFile(SWal *pWal, int32_t curFileId, int32_t minDiff, int32_t *oldFileId) {
+  int32_t minFileId = INT32_MAX;
 
   DIR *dir = opendir(pWal->path);
   if (dir == NULL) {
@@ -64,7 +64,7 @@ int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *o
     char *name = ent->d_name;
 
     if (strncmp(name, WAL_PREFIX, WAL_PREFIX_LEN) == 0) {
-      int64_t id = atoll(name + WAL_PREFIX_LEN);
+      int32_t id = (int32_t)atol(name + WAL_PREFIX_LEN);
       if (id >= curFileId) continue;
 
       minDiff--;
@@ -75,17 +75,17 @@ int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *o
   }
   closedir(dir);
 
-  if (minFileId == INT64_MAX) return -1;
+  if (minFileId == INT32_MAX) return -1;
   if (minDiff > 0) return -1;
 
   *oldFileId = minFileId;
-  wTrace("vgId:%d, path:%s, curFileId:%" PRId64 " oldFildId:%" PRId64, pWal->vgId, pWal->path, curFileId, *oldFileId);
+  wTrace("vgId:%d, path:%s, curFileId:%" PRId32 " oldFildId:%" PRId32, pWal->vgId, pWal->path, curFileId, *oldFileId);
 
   return 0;
 }
 
-int32_t walGetNewFile(SWal *pWal, int64_t *newFileId) {
-  int64_t maxFileId = INT64_MIN;
+int32_t walGetNewFile(SWal *pWal, int32_t *newFileId) {
+  int32_t maxFileId = INT32_MIN;
 
   DIR *dir = opendir(pWal->path);
   if (dir == NULL) {
@@ -98,7 +98,7 @@ int32_t walGetNewFile(SWal *pWal, int64_t *newFileId) {
     char *name = ent->d_name;
 
     if (strncmp(name, WAL_PREFIX, WAL_PREFIX_LEN) == 0) {
-      int64_t id = atoll(name + WAL_PREFIX_LEN);
+      int32_t id = (int32_t)atol(name + WAL_PREFIX_LEN);
       if (id > maxFileId) {
         maxFileId = id;
       }
@@ -106,13 +106,13 @@ int32_t walGetNewFile(SWal *pWal, int64_t *newFileId) {
   }
   closedir(dir);
 
-  if (maxFileId == INT64_MIN) {
+  if (maxFileId == INT32_MIN) {
     *newFileId = 0;
   } else {
     *newFileId = maxFileId;
   }
 
-  wTrace("vgId:%d, path:%s, newFileId:%" PRId64, pWal->vgId, pWal->path, *newFileId);
+  wTrace("vgId:%d, path:%s, newFileId:%" PRId32, pWal->vgId, pWal->path, *newFileId);
 
   return 0;
 }

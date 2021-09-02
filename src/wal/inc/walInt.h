@@ -44,9 +44,11 @@ typedef struct {
   uint64_t version;
   uint64_t offset;
   uint64_t fOffset;
-  int64_t  fileId;
   int64_t  rid;
   int64_t  tfd;
+  int32_t  startFileId;
+  int32_t  restoreFileId;
+  int32_t  writeFileId;
   int32_t  vgId;
   int32_t  keep;
   int32_t  level;
@@ -59,9 +61,9 @@ typedef struct {
   pthread_mutex_t mutex;
 } SWal;
 
-int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
-int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
-int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
+int32_t walGetNextFile(SWal *pWal, int32_t *nextFileId);
+int32_t walGetOldFile(SWal *pWal, int32_t curFileId, int32_t minDiff, int32_t *oldFileId);
+int32_t walGetNewFile(SWal *pWal, int32_t *newFileId);
 
 #ifdef __cplusplus
 }

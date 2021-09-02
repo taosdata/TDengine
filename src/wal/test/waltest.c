@@ -42,7 +42,6 @@ int main(int argc, char *argv[]) {
   int  total = 5;
   int  rows = 10000;
   int  size = 128;
-  int  keep = 0;
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
@@ -51,8 +50,6 @@ int main(int argc, char *argv[]) {
       level = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r")==0 && i < argc-1) {
       rows = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-k")==0 && i < argc-1) {
-      keep = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       total = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-s")==0 && i < argc-1) {
@@ -67,7 +64,6 @@ int main(int argc, char *argv[]) {
       printf("  [-l level]: log level, default is:%d\n", level);
       printf("  [-t total]: total wal files, default is:%d\n", total);
       printf("  [-r rows]: rows of records per wal file, default is:%d\n", rows);
-      printf("  [-k keep]: keep the wal after closing, default is:%d\n", keep);
       printf("  [-v version]: initial version, default is:%" PRId64 "\n", ver);
       printf("  [-d debugFlag]: debug flag, default:%d\n", dDebugFlag);
       printf("  [-h help]: print out this help\n\n");
@@ -81,7 +77,6 @@ int main(int argc, char *argv[]) {
 
   SWalCfg walCfg = {0};
   walCfg.walLevel = level;
-  walCfg.keep = keep;
 
   pWal = walOpen(path, &walCfg);
   if (pWal == NULL) {
@@ -113,17 +108,17 @@ int main(int argc, char *argv[]) {
 
   printf("%d wal files are written\n", total);
 
-  int64_t index = 0;
+  int32_t index = 0;
   char    name[256];
 
   while (1) {
     int code = walGetWalFile(pWal, name, &index);
     if (code == -1) {
-      printf("failed to get wal file, index:%" PRId64 "\n", index);
+      printf("failed to get wal file, index:%" PRId32 "\n", index);
       break;
     }
 
-    printf("index:%" PRId64 " wal:%s\n", index, name);
+    printf("index:%" PRId32 " wal:%s\n", index, name);
     if (code == 0) break;
   }
 

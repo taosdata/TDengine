@@ -25,11 +25,10 @@ typedef enum {
   TAOS_WAL_FSYNC = 2
 } EWalType;
 
-//TODO; remove this config
 typedef enum {
-  TAOS_WAL_NOT_KEEP = 0,
-  TAOS_WAL_KEEP = 1
-} EWalKeep;
+  TAOS_WAL_CHECK_RENEW = 0,
+  TAOS_WAL_CHECK_PRUNE = 1
+} EWalAction;
 
 typedef struct {
   int8_t   msgType;
@@ -46,7 +45,6 @@ typedef struct {
   int32_t  vgId;
   int32_t  fsyncPeriod;  // millisecond
   EWalType walLevel;     // wal level
-  EWalKeep keep;         // keep the wal file when closed
 } SWalCfg;
 
 typedef void *  twalh;  // WAL HANDLE
@@ -62,13 +60,17 @@ int32_t  walRenew(twalh);
 //replace by a notification
 //void     walRemoveOneOldFile(twalh);
 void     walRemoveAllOldFiles(twalh);
-int32_t  walSetFOffset(twalh, uint64_t fOffset);
+int32_t  walSetRestore(twalh, uint64_t fOffset, int32_t restoreFileId);
 int32_t  walWrite(twalh, SWalHead *);
 void     walFsync(twalh, bool forceFsync);
 int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
-int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
+int32_t  walGetWalFile(twalh, char *fileName, int32_t *fileId);
 uint64_t walGetVersion(twalh, uint64_t *offset);
+int32_t  walGetRestoreInfo(twalh, int32_t *fileId, uint64_t *fOffset);
+int32_t  walGetWriteInfo(twalh, int32_t *fileId, uint64_t *offset);
 void     walResetVersion(twalh, uint64_t newVer, uint64_t newOff);
+
+int32_t walLifeCycleCheck(void *handle, int8_t action);
 
 #ifdef __cplusplus
 }

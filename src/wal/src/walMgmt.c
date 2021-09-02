@@ -71,9 +71,10 @@ void *walOpen(char *path, SWalCfg *pCfg) {
 
   pWal->vgId = pCfg->vgId;
   pWal->tfd = -1;
-  pWal->fileId = -1;
+  pWal->startFileId = 0;
+  pWal->restoreFileId = 0;
+  pWal->writeFileId = 0;
   pWal->level = pCfg->walLevel;
-  pWal->keep = pCfg->keep;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);

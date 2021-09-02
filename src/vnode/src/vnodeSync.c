@@ -36,7 +36,7 @@ uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t ei
   return ret;
 }
 
-int32_t vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
+int32_t vnodeGetWalInfo(int32_t vgId, char *fileName, int32_t *fileId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while get wal info", vgId);

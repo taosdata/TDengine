@@ -55,7 +55,7 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
 
   cJSON *ver = cJSON_GetObjectItem(root, "version");
   if (!ver || ver->type != cJSON_Number) {
-    vError("vgId:%d, failed to read %s, version not found", pVnode->vgId, file);
+    vError("vgId:%d, failed to read %s, version invalid type", pVnode->vgId, file);
     goto PARSE_VER_ERROR;
   }
   pVnode->version = (uint64_t)ver->valueint;
@@ -63,7 +63,7 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   cJSON *off = cJSON_GetObjectItem(root, "offset");
   if (off) {
     if (off->type != cJSON_Number) {
-      vError("vgId:%d, failed to read %s, offset not found", pVnode->vgId, file);
+      vError("vgId:%d, failed to read %s, offset invalid type", pVnode->vgId, file);
       goto PARSE_VER_ERROR;
     }
     pVnode->fOffset = (uint64_t)off->valueint;
@@ -71,6 +71,30 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   } else {
     pVnode->fOffset = 0;
     pVnode->offset = 0;
+  }
+
+  cJSON *startFileId = cJSON_GetObjectItem(root, "startFileId");
+  if (startFileId && startFileId->type == cJSON_Number) {
+    pVnode->startFileId = (int32_t)startFileId->valueint;
+  } else {
+    vError("vgId:%d, failed to read %s, invalid field startFileId", pVnode->vgId, file);
+    pVnode->startFileId = -1;
+  }
+
+  cJSON *restoreFileId = cJSON_GetObjectItem(root, "restoreFileId");
+  if (restoreFileId && restoreFileId->type == cJSON_Number) {
+    pVnode->restoreFileId = (int32_t)restoreFileId->valueint;
+  } else {
+    vError("vgId:%d, failed to read %s, invalid field restoreFileId", pVnode->vgId, file);
+    pVnode->restoreFileId = -1;
+  }
+
+  cJSON *writeFileId = cJSON_GetObjectItem(root, "writeFileId");
+  if (writeFileId && writeFileId->type == cJSON_Number) {
+    pVnode->writeFileId = (int32_t)writeFileId->valueint;
+  } else {
+    vError("vgId:%d, failed to read %s, invalid field writeFileId", pVnode->vgId, file);
+    pVnode->writeFileId = -1;
   }
 
   terrno = TSDB_CODE_SUCCESS;
@@ -100,7 +124,10 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"version\": %" PRIu64 ",\n", pVnode->fversion);
-  len += snprintf(content + len, maxLen - len, "  \"offset\": %" PRIu64 "\n", pVnode->fOffset);
+  len += snprintf(content + len, maxLen - len, "  \"offset\": %" PRIu64 ",\n", pVnode->fOffset);
+  len += snprintf(content + len, maxLen - len, "  \"startFileId\": %" PRId32 ",\n", pVnode->startFileId);
+  len += snprintf(content + len, maxLen - len, "  \"restoreFileId\": %" PRId32 ",\n", pVnode->restoreFileId);
+  len += snprintf(content + len, maxLen - len, "  \"writeFileId\": %" PRId32 "\n", pVnode->writeFileId);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);

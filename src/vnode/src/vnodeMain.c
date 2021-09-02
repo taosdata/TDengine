@@ -373,7 +373,7 @@ int32_t vnodeOpen(int32_t vgId) {
   }
 
   if(fileIntact) {
-    walSetFOffset(pVnode->wal, pVnode->fOffset);
+    walSetRestore(pVnode->wal, pVnode->fOffset, pVnode->restoreFileId);
     walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
     if (pVnode->version == 0) {
       pVnode->fversion = 0;
@@ -564,7 +564,11 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     pVnode->cversion = pVnode->version;
     pVnode->cOffset  = pVnode->offset;
     vInfo("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    //do not create new wal file here any more
+    if (!vnodeInInitStatus(pVnode)) {
+      if(walLifeCycleCheck(pVnode->wal, TAOS_WAL_CHECK_RENEW) == 0) {
+        walGetWriteInfo(pVnode->wal, &pVnode->writeFileId, &pVnode->offset);
+      }
+    }
     return 0;
   }
 
@@ -574,7 +578,10 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     pVnode->fversion = pVnode->cversion;
     pVnode->fOffset  = pVnode->cOffset;
     vInfo("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    //do not remove old file here any more
+    if (!vnodeInInitStatus(pVnode)) {
+      walLifeCycleCheck(pVnode->wal, TAOS_WAL_CHECK_PRUNE);
+      walGetRestoreInfo(pVnode->wal, &pVnode->restoreFileId, &pVnode->fOffset);
+    }
     return vnodeSaveVersion(pVnode);
   }
 

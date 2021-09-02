@@ -59,6 +59,9 @@ typedef struct {
   uint64_t offset;    // offset to version of current wal file
   uint64_t cOffset;   // offset to cversion
   uint64_t fOffset;   // offset to fversion
+  int32_t  startFileId;
+  int32_t  restoreFileId;
+  int32_t  writeFileId;
   void *   wqueue;    // write queue
   void *   qqueue;    // read query queue
   void *   fqueue;    // read fetch/cancel queue

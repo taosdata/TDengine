@@ -298,7 +298,7 @@ static int64_t syncRetrieveWal(SSyncPeer *pPeer) {
   char        wname[TSDB_FILENAME_LEN * 2];
   int32_t     size;
   int64_t     code = -1;
-  int64_t     index = 0;
+  int32_t     index = 0;
 
   while (1) {
     // retrieve wal info

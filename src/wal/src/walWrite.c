@@ -44,15 +44,21 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is closed while renew", pWal->vgId, pWal->name);
   }
 
+#if 0
   if (pWal->keep == TAOS_WAL_KEEP) {
     pWal->fileId = 0;
   } else {
-    if (walGetNewFile(pWal, &pWal->fileId) != 0) pWal->fileId = 0;
-    pWal->fileId++;
+#endif
+    if (walGetNewFile(pWal, &pWal->writeFileId) != 0)
+      pWal->writeFileId = 0;
+    if(pWal->writeFileId < 0) pWal->writeFileId = 0;
+    pWal->writeFileId++;
     pWal->offset = 0;
+#if 0
   }
+#endif
 
-  snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
+  snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, pWal->writeFileId);
   pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (!tfValid(pWal->tfd)) {
@@ -70,16 +76,16 @@ int32_t walRenew(void *handle) {
 void walRemoveOneOldFile(void *handle) {
   SWal *pWal = handle;
   if (pWal == NULL) return;
-  if (pWal->keep == TAOS_WAL_KEEP) return;
   if (!tfValid(pWal->tfd)) return;
 
   pthread_mutex_lock(&pWal->mutex);
+  pWal->restoreFileId++;
 
   // remove the oldest wal file
-  int64_t oldFileId = -1;
-  if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
+  int32_t oldFileId = -1;
+  while (walGetOldFile(pWal, pWal->restoreFileId, WAL_FILE_NUM, &oldFileId) == 0) {
     char walName[WAL_FILE_LEN] = {0};
-    snprintf(walName, sizeof(walName), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, oldFileId);
+    snprintf(walName, sizeof(walName), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, oldFileId);
 
     if (remove(walName) < 0) {
       wError("vgId:%d, file:%s, failed to remove since %s", pWal->vgId, walName, strerror(errno));
@@ -95,7 +101,7 @@ void walRemoveAllOldFiles(void *handle) {
   if (handle == NULL) return;
 
   SWal *  pWal = handle;
-  int64_t fileId = -1;
+  int32_t fileId = -1;
 
   pthread_mutex_lock(&pWal->mutex);
   
@@ -103,7 +109,8 @@ void walRemoveAllOldFiles(void *handle) {
   wDebug("vgId:%d, file:%s, it is closed before remove all wals", pWal->vgId, pWal->name);
 
   while (walGetNextFile(pWal, &fileId) >= 0) {
-    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
+    if(fileId >= pWal->restoreFileId) continue;
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, fileId);
 
     if (remove(pWal->name) < 0) {
       wError("vgId:%d, wal:%p file:%s, failed to remove since %s", pWal->vgId, pWal, pWal->name, strerror(errno));
@@ -111,7 +118,25 @@ void walRemoveAllOldFiles(void *handle) {
       wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
     }
   }
+  pWal->startFileId = pWal->restoreFileId;
   pthread_mutex_unlock(&pWal->mutex);
+}
+
+int32_t walLifeCycleCheck(void *handle, int8_t action) {
+  SWal *pWal = handle;
+  if (pWal == NULL) return 0;
+  if (action == TAOS_WAL_CHECK_RENEW) {
+    //start commit
+    if (/*no reader */ 1) return walRenew(handle);
+  } else if(action == TAOS_WAL_CHECK_PRUNE) {
+    //end commit
+    if (/* no reader */ 1){
+      pWal->restoreFileId++;
+      pWal->fOffset = 0;
+      walRemoveAllOldFiles(handle);
+    }
+  }
+  return 0;
 }
 
 #if defined(WAL_CHECKSUM_WHOLE)
@@ -136,10 +161,11 @@ static int walValidateChecksum(SWalHead *pHead) {
 
 #endif
 
-int32_t walSetFOffset(void *handle, uint64_t fOffset) {
+int32_t walSetRestore(void *handle, uint64_t fOffset, int32_t restoreFileId) {
   if (handle == NULL) return -1;
   SWal *  pWal = handle;
   pWal->fOffset = fOffset;
+  pWal->restoreFileId = restoreFileId;
   return 0;
 }
 
@@ -174,8 +200,8 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
     code = contLen;
-    wTrace("vgId:%d, write wal, fileId:%" PRId64 " tfd:%" PRId64 " hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,
-           pWal->fileId, pWal->tfd, pHead->version, pWal->version, pHead->len);
+    wTrace("vgId:%d, write wal, fileId:%" PRId32 " tfd:%" PRId64 " hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+           pWal->writeFileId, pWal->tfd, pHead->version, pWal->version, pHead->len);
     pWal->version = pHead->version;
     pWal->offset += contLen;
   }
@@ -192,9 +218,9 @@ void walFsync(void *handle, bool forceFsync) {
   if (pWal == NULL || !tfValid(pWal->tfd)) return;
 
   if (forceFsync || (pWal->level == TAOS_WAL_FSYNC && pWal->fsyncPeriod == 0)) {
-    wTrace("vgId:%d, fileId:%" PRId64 ", do fsync", pWal->vgId, pWal->fileId);
+    wTrace("vgId:%d, fileId:%" PRId32 ", do fsync", pWal->vgId, pWal->writeFileId);
     if (tfFsync(pWal->tfd) < 0) {
-      wError("vgId:%d, fileId:%" PRId64 ", fsync failed since %s", pWal->vgId, pWal->fileId, strerror(errno));
+      wError("vgId:%d, fileId:%" PRId32 ", fsync failed since %s", pWal->vgId, pWal->writeFileId, strerror(errno));
     }
   }
 }
@@ -203,15 +229,14 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
   if (handle == NULL) return -1;
 
   SWal *  pWal = handle;
-  int32_t count = 0;
   int32_t code = 0;
-  int64_t fileId = -1;
+  int32_t fileId = pWal->restoreFileId - 1;
 
   while ((code = walGetNextFile(pWal, &fileId)) >= 0) {
-    if (fileId == pWal->fileId) continue;
+    /*if (fileId == pWal->fileId) continue;*/
 
     char walName[WAL_FILE_LEN];
-    snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
+    snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, fileId);
 
     wInfo("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
     code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
@@ -222,30 +247,32 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
 
     wInfo("vgId:%d, file:%s, restore success, wver:%" PRIu64, pWal->vgId, walName, pWal->version);
 
-    count++;
   }
 
+#if 0
   if (pWal->keep != TAOS_WAL_KEEP) return TSDB_CODE_SUCCESS;
+#endif
 
-  if (count == 0) {
-    wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
-    return walRenew(pWal);
-  } else {
+  /*if (fileId < 0) {*/
+    /*printf("jc renew %s\n", pWal->name);*/
+    /*wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);*/
+    /*return walRenew(pWal);*/
+  /*} else {*/
     // open the existing WAL file in append mode
-    pWal->fileId = 0;
-    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
+    /*pWal->writeFileId = 0;*/
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, pWal->writeFileId);
     pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
     if (!tfValid(pWal->tfd)) {
       wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
       return TAOS_SYSTEM_ERROR(errno);
     }
     wDebug("vgId:%d, file:%s, it is created and open while restore", pWal->vgId, pWal->name);
-  }
+  /*}*/
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
+int32_t walGetWalFile(void *handle, char *fileName, int32_t *fileId) {
   if (handle == NULL) return -1;
   SWal *pWal = handle;
 
@@ -255,11 +282,11 @@ int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
 
   int32_t code = walGetNextFile(pWal, fileId);
   if (code >= 0) {
-    sprintf(fileName, "wal/%s%" PRId64, WAL_PREFIX, *fileId);
-    code = (*fileId == pWal->fileId) ? 0 : 1;
+    sprintf(fileName, "wal/%s%" PRId32, WAL_PREFIX, *fileId);
+    code = (*fileId == pWal->writeFileId) ? 0 : 1;
   }
 
-  wDebug("vgId:%d, get wal file, code:%d curId:%" PRId64 " outId:%" PRId64, pWal->vgId, code, pWal->fileId, *fileId);
+  wDebug("vgId:%d, get wal file, code:%d curId:%" PRId32 " outId:%" PRId32, pWal->vgId, code, pWal->writeFileId, *fileId);
   pthread_mutex_unlock(&(pWal->mutex));
 
   return code;
@@ -595,6 +622,22 @@ uint64_t walGetVersion(twalh param, uint64_t* offset) {
 
   *offset = pWal->offset;
   return pWal->version;
+}
+
+int32_t walGetRestoreInfo(twalh param, int32_t* fileId, uint64_t *fOffset) {
+  SWal *pWal = param;
+  if (pWal == NULL) return -1;
+  *fileId = pWal->restoreFileId;
+  *fOffset = pWal->fOffset;
+  return 0;
+}
+
+int32_t walGetWriteInfo(twalh param, int32_t* fileId, uint64_t *offset) {
+  SWal *pWal = param;
+  if (pWal == NULL) return -1;
+  *fileId = pWal->writeFileId;
+  *offset = pWal->offset;
+  return 0;
 }
 
 // Wal version in slave (dnode1) must be reset. 

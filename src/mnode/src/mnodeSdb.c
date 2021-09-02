@@ -175,7 +175,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .fsyncPeriod = 0};
   char    temp[TSDB_FILENAME_LEN] = {0};
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbMgmt.wal = walOpen(temp, &walCfg);
@@ -185,7 +185,7 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("vgId:1, open sdb wal for restore");
-  walSetFOffset(tsSdbMgmt.wal, 0);
+  walSetRestore(tsSdbMgmt.wal, 0, 0);
   int32_t code = walRestore(tsSdbMgmt.wal, NULL, sdbProcessWrite);
   if (code != TSDB_CODE_SUCCESS) {
     sdbError("vgId:1, failed to open wal for restore since %s", tstrerror(code));
@@ -245,7 +245,7 @@ void sdbUpdateMnodeRoles() {
   mnodeUpdateMnodeEpSet(NULL);
 }
 
-static int32_t sdbGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
+static int32_t sdbGetWalInfo(int32_t vgId, char *fileName, int32_t *fileId) {
   return walGetWalFile(tsSdbMgmt.wal, fileName, fileId);
 }
 
@@ -1176,7 +1176,7 @@ int32_t mnodeCompactWal() {
   tsSdbMgmt.version = 0;
 
   // change wal to wal_tmp dir
-  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .fsyncPeriod = 0};
   char    temp[TSDB_FILENAME_LEN] = {0};
   sprintf(temp, "%s/wal", tsMnodeTmpDir);
   tsSdbMgmt.wal = walOpen(temp, &walCfg);

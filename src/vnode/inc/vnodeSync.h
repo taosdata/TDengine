@@ -22,7 +22,7 @@ extern "C" {
 #include "vnodeInt.h"
 
 uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fver);
-int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
+int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int32_t *fileId);
 void     vnodeNotifyRole(int32_t vgId, int8_t role);
 void     vnodeCtrlFlow(int32_t vgId, int32_t level);
 void     vnodeStartSyncFile(int32_t vgId);

@@ -38,7 +38,6 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.cacheLastRow = vnodeMsg->cfg.cacheLastRow;
   pVnode->walCfg.walLevel = vnodeMsg->cfg.walLevel;
   pVnode->walCfg.fsyncPeriod = vnodeMsg->cfg.fsyncPeriod;
-  pVnode->walCfg.keep = TAOS_WAL_KEEP;
   pVnode->syncCfg.replica = vnodeMsg->cfg.vgReplica;
   pVnode->syncCfg.quorum = vnodeMsg->cfg.quorum;
   pVnode->dbReplica = vnodeMsg->cfg.dbReplica;

@@ -58,7 +58,7 @@ typedef struct {
 
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
-typedef int32_t  (*FGetWalInfo)(int32_t vgId, char *fileName, int64_t *fileId); 
+typedef int32_t  (*FGetWalInfo)(int32_t vgId, char *fileName, int32_t *fileId); 
  
 // when a forward pkt is received, call this to handle data
 typedef int32_t  (*FWriteToCache)(int32_t vgId, void *pHead, int32_t qtype, void *pMsg);
