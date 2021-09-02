@@ -234,7 +234,9 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
-              node ../../connectorTest/nodejsTest/nanosupport/nanosecondTest.js
+	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+	      npm install td2.0-connector > /dev/null 2>&1
+              node nanosecondTest.js
               node test1970.js
               '''
               sh '''
