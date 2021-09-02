@@ -1,11 +1,14 @@
 // sample code to verify all TDengine API
 // to compile: gcc -o apitest apitest.c -ltaos
 
+#include "taoserror.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>
 #include <unistd.h>
+
 
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
@@ -1027,7 +1030,6 @@ void verify_telnet_insert(TAOS* taos) {
   (void)taos_select_db(taos, "db");
   int32_t code = 0;
 
-  printf("%s\n", "**** test metirc ****");
   /* metric */
   char* lines0[] = {
       "stb0_0 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
@@ -1040,7 +1042,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   /* timestamp */
-  printf("%s\n", "**** test timestamp ****");
   char* lines1[] = {
       "stb1 1626006833s 1i8 host=\"host0\"",
       "stb1 1626006833639000000ns 2i8 host=\"host0\"",
@@ -1055,9 +1056,7 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   /* metric value */
-  printf("%s\n", "**** test metric value ****");
   //tinyin
-  printf("%s\n", "----tinyint----");
   char* lines2_0[] = {
       "stb2_0 1626006833651ms -127i8 host=\"host0\"",
       "stb2_0 1626006833652ms 127i8 host=\"host0\""
@@ -1068,7 +1067,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //smallint
-  printf("%s\n", "----smallint----");
   char* lines2_1[] = {
       "stb2_1 1626006833651ms -32767i16 host=\"host0\"",
       "stb2_1 1626006833652ms 32767i16 host=\"host0\""
@@ -1079,7 +1077,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //int
-  printf("%s\n", "----int----");
   char* lines2_2[] = {
       "stb2_2 1626006833651ms -2147483647i32 host=\"host0\"",
       "stb2_2 1626006833652ms 2147483647i32 host=\"host0\""
@@ -1090,7 +1087,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //bigint
-  printf("%s\n", "----bigint----");
   char* lines2_3[] = {
       "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
       "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
@@ -1101,7 +1097,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //float
-  printf("%s\n", "----float----");
   char* lines2_4[] = {
       "stb2_4 1626006833610ms 3f32 host=\"host0\"",
       "stb2_4 1626006833620ms -3f32 host=\"host0\"",
@@ -1121,7 +1116,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //double
-  printf("%s\n", "----double----");
   char* lines2_5[] = {
       "stb2_5 1626006833610ms 3f64 host=\"host0\"",
       "stb2_5 1626006833620ms -3f64 host=\"host0\"",
@@ -1140,7 +1134,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //bool
-  printf("%s\n", "----bool----");
   char* lines2_6[] = {
       "stb2_6 1626006833610ms t host=\"host0\"",
       "stb2_6 1626006833620ms T host=\"host0\"",
@@ -1159,7 +1152,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //binary
-  printf("%s\n", "----binary----");
   char* lines2_7[] = {
       "stb2_7 1626006833610ms \"binary_val.!@#$%^&*\" host=\"host0\"",
       "stb2_7 1626006833620ms \"binary_val.:;,./?|+-=\" host=\"host0\"",
@@ -1171,7 +1163,6 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   //nchar
-  printf("%s\n", "----nchar----");
   char* lines2_8[] = {
       "stb2_8 1626006833610ms L\"nchar_val数值一\" host=\"host0\"",
       "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\"",
@@ -1183,7 +1174,6 @@ void verify_telnet_insert(TAOS* taos) {
 
   /* tags */
   //tag value types
-  printf("%s\n", "**** test tags ****");
   char* lines3_0[] = {
       "stb3_0 1626006833610ms 1 t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=3.4E38f32,t6=1.7E308f64,t7=true,t8=\"binary_val_1\",t9=L\"标签值1\"",
       "stb3_0 1626006833610ms 2 t1=-127i8,t2=-32767i16,t3=-2147483647i32,t4=-9223372036854775807i64,t5=-3.4E38f32,t6=-1.7E308f64,t7=false,t8=\"binary_val_2\",t9=L\"标签值2\""
@@ -1204,9 +1194,7 @@ void verify_telnet_insert(TAOS* taos) {
     printf("code: %d, %s.\n", code, tstrerror(code));
   }
 
-
-
-  return 0;
+  return;
 }
 
 int main(int argc, char *argv[]) {
@@ -1248,7 +1236,7 @@ int main(int argc, char *argv[]) {
   verify_prepare2(taos);
   printf("************ verify prepare3 *************\n");
   verify_prepare3(taos);
-  
+
   printf("************ verify stream  *************\n");
   verify_stream(taos);
   printf("done\n");
