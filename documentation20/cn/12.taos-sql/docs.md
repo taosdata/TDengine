@@ -713,21 +713,48 @@ Query OK, 1 row(s) in set (0.001091s)
 | <=              | smaller than or equal to      | **`timestamp`** and all numeric types     |
 | =               | equal to                      | all types                                 |
 | <>              | not equal to                  | all types                                 |
+| is [not] null   | is null or is not null        | all types                                 |
 | between and     | within a certain range        | **`timestamp`** and all numeric types     |
 | in              | match any value in a set      | all types except first column `timestamp` |
 | like            | match a wildcard string       | **`binary`** **`nchar`**                  |
-| %               | match with any char sequences | **`binary`** **`nchar`**                  |
-| _               | match with a single char      | **`binary`** **`nchar`**                  |
 
 1. <> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 2. like 算子使用通配符字符串进行匹配检查。
   * 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'\_'（下划线）匹配单个任意字符。
-    * 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.1.8.0 版本开始支持）
+    * 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.2.0.0 版本开始支持）
   * 通配符字符串最长不能超过 20 字节。（从 2.1.6.1 版本开始，通配符字符串的长度放宽到了 100 字节，并可以通过 taos.cfg 中的 maxWildCardsLength 参数来配置这一长度限制。但不建议使用太长的通配符字符串，将有可能严重影响 LIKE 操作的执行性能。）
 3. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
+  * 从 2.3.0.0 版本开始，已支持完整的同一列和/或不同列间的 AND/OR 运算。
 4. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如： `((value > 20 AND value < 30) OR (value < 12))`。
+  * 从 2.3.0.0 版本开始，允许使用多个时间过滤条件，但首列时间戳的过滤运算结果只能包含一个区间。
 5. 从 2.0.17.0 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
 6. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
+
+<a class="anchor" id="nested"></a>
+### 嵌套查询
+
+“嵌套查询”又称为“子查询”，也即在一条 SQL 语句中，“内层查询”的计算结果可以作为“外层查询”的计算对象来使用。
+
+从 2.2.0.0 版本开始，TDengine 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
+
+```mysql
+SELECT ... FROM (SELECT ... FROM ...) ...;
+```
+
+说明：
+1. 目前仅支持一层嵌套，也即不能在子查询中再嵌入子查询。
+2. 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表可以使用 AS 语法做重命名，以便于外层查询中方便引用。
+3. 目前不能在“连续查询”功能中使用子查询。
+4. 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
+5. 目前内层查询、外层查询均不支持 UNION 操作。
+6. 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
+  * 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
+7. 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
+  * 计算函数部分：
+    1. 如果内层查询的结果数据未提供时间戳，那么计算过程依赖时间戳的函数在外层会无法正常工作。例如：TOP, BOTTOM, FIRST, LAST, DIFF。
+    2. 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：STDDEV, PERCENTILE。
+  * 外层查询中不支持 IN 算子，但在内层中可以使用。
+  * 外层查询不支持 GROUP BY。
 
 <a class="anchor" id="union"></a>
 ### UNION ALL 操作符
@@ -1433,17 +1460,19 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 - SELECT 语句的查询结果，最多允许返回 1024 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错。
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制。
 
-##  TAOS SQL其他约定
+## TAOS SQL 其他约定
 
 **GROUP BY的限制**
 
-TAOS  SQL支持对标签、TBNAME进行GROUP BY操作，也支持普通列进行GROUP BY，前提是：仅限一列且该列的唯一值小于10万个。
+TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。
 
-**JOIN操作的限制**
+**JOIN 操作的限制**
 
-TAOS SQL支持表之间按主键时间戳来join两张表的列，暂不支持两个表之间聚合后的四则运算。
+TAOS SQL 支持表之间按主键时间戳来 join 两张表的列，暂不支持两个表之间聚合后的四则运算。
 
-**IS NOT NULL与不为空的表达式适用范围**
+JOIN 查询的不同表的过滤条件之间不能为 OR。
 
-IS NOT NULL支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
+**IS NOT NULL 与不为空的表达式适用范围**
+
+IS NOT NULL 支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
 

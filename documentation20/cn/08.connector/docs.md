@@ -654,7 +654,7 @@ conn.close()
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
-注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.1.8.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
+注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
 
 ### 安装
 
@@ -695,7 +695,7 @@ http://<fqdn>:<port>/rest/sql/[db_name]
 
 - fqnd: 集群中的任一台主机 FQDN 或 IP 地址
 - port: 配置文件中 httpPort 配置项，缺省为 6041
-- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.1.8.0 版本开始支持）
+- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.2.0.0 版本开始支持）
 
 例如：http://h1.taos.com:6041/rest/sql/test 是指向地址为 h1.taos.com:6041 的 url，并将默认使用的数据库库名设置为 test。
 
