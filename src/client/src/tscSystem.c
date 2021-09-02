@@ -446,7 +446,7 @@ static int taos_set_config_imp(const char *config){
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
-  if (root == NULL) {
+  if (root == NULL || !cJSON_IsObject(root) || cJSON_GetArraySize(root) == 0) {
     return -1;
   }
 
