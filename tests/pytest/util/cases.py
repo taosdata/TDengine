@@ -87,7 +87,6 @@ class TDCases:
                 if i != 0:
                     command = "create dnode '%s'" % (
                         tdDnodes.getDnodes()[i].getFQDN())
-                    print(command)
                     conn.execute(command)
         case.init(conn, False)
         try:

@@ -25,9 +25,12 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
+        sleep(5)
+        conn.cursor().execute('drop database if exists db')
+        conn.cursor().execute('create database db replica 3')
+        conn.cursor().execute('use db')
 
     def run(self):
-        tdSql.prepare()
         tdSql.execute('create table tb (ts timestamp, speed int)')
 
         insertRows = 10
@@ -43,8 +46,6 @@ class TDTestCase:
 
         tdSql.query("select * from tb")
         tdSql.checkRows(insertRows + 4)
-
-        # test case for https://jira.taosdata.com:18080/browse/TD-3716:
         tdSql.error("insert into tb(now, 1)")
 
     def stop(self):
