@@ -2,7 +2,7 @@
 
 # TDengine数据建模
 
-TDengine采用关系型数据模型，需要建库、建表。因此对于一个具体的应用场景，需要考虑库的设计，超级表和普通表的设计。本节不讨论细致的语法规则，只介绍概念。
+TDengine采用关系型数据模型，需要建库、建表。因此对于一个具体的应用场景，需要考虑库、超级表和普通表的设计。本节不讨论细致的语法规则，只介绍概念。
 
 关于数据建模请参考[视频教程](https://www.taosdata.com/blog/2020/11/11/1945.html)。
 
@@ -13,7 +13,7 @@ TDengine采用关系型数据模型，需要建库、建表。因此对于一个
 ```mysql
 CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 6 UPDATE 1;
 ```
-上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，内存块数为4，允许更新数据。详细的语法及参数请见 [TAOS SQL 的数据管理](https://www.taosdata.com/cn/documentation/taos-sql#management) 章节。
+上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，内存块数为6，允许更新数据。详细的语法及参数请见 [TAOS SQL 的数据管理](https://www.taosdata.com/cn/documentation/taos-sql#management) 章节。
 
 创建库之后，需要使用SQL命令USE将当前库切换过来，例如：
 

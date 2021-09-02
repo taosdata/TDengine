@@ -41,13 +41,13 @@ public class TSDBError {
 
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED, "failed to create subscription");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING, "Unsupported encoding");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database, please see taoslog for more details");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, "JNI connection is NULL");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL, "JNI result set is NULL");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0, "invalid num of fields");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_SQL_NULL, "empty sql string");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_FETCH_END, "fetch to the end of resultSet");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY, "JNI alloc memory failed");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY, "JNI alloc memory failed, please see taoslog for more details");
     }
 
     public static SQLException createSQLException(int errorCode) {
