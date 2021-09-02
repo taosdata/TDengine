@@ -2772,7 +2772,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   pRes->data = NULL;
 
   tscResetForNextRetrieve(pRes);
-  pSql->rspReceived = 1;
+  pSql->rootObj->rspReceived = 1;
   tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
   return 0;
 }

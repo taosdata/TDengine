@@ -1716,7 +1716,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     
     if (pRes1->row >= pRes1->numOfRows) {
-      assert(pSql1->rspReceived == 1);
+      assert(pSql1->rootObj->rspReceived == 1);
       tscDebug("0x%"PRIx64" subquery:0x%"PRIx64" retrieve data from vnode, subquery:%d, vgroupIndex:%d", pSql->self, pSql1->self,
                pSupporter->subqueryIndex, pTableMetaInfo->vgroupIndex);
 
