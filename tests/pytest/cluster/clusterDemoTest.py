@@ -25,13 +25,9 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        for i in range(len(tdDnodes.getDnodes())):
-            if 1 != 0:
-                tdSql.execute("create dnode %s" %
-                              (tdDnodes.getDnodes()[i].getFQDN()))
 
     def run(self):
-
+        tdSql.prepare()
         tdSql.execute('create table tb (ts timestamp, speed int)')
 
         insertRows = 10

@@ -72,14 +72,23 @@ class TDCases:
         uModule = importlib.import_module(moduleName)
         case = uModule.TDTestCase()
         # deploy the dnodes with specific cfg or not
+        numOfDnode = 1
         try:
             tdDnodes.deploy(case.numOfDnode, case.updatecfgDict)
+            numOfDnode = case.numOfDnode
         except:
             tdDnodes.deploy(1, {})
         # start all dnodes
         tdDnodes.start()
         # connect to taosd
         conn = taos.connect('127.0.0.1', config=tdDnodes.getCfgPath(1))
+        if numOfDnode != 1:
+            for i in range(len(tdDnodes.getDnodes())):
+                if i != 0:
+                    command = "create dnode '%s'" % (
+                        tdDnodes.getDnodes()[i].getFQDN())
+                    print(command)
+                    conn.execute(command)
         case.init(conn, False)
         try:
             case.run()

@@ -49,19 +49,20 @@ class TDDnode:
             "asyncLog": "0",
             "anyIp": "0",
             "tsEnableTelemetryReporting": "0",
-            "dDebugFlag": "135",
-            "tsdbDebugFlag": "135",
-            "mDebugFlag": "135",
-            "sdbDebugFlag": "135",
-            "rpcDebugFlag": "135",
+            "dDebugFlag": "131",
+            "tsdbDebugFlag": "131",
+            "mDebugFlag": "131",
+            "sdbDebugFlag": "131",
+            "rpcDebugFlag": "131",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "httpDebugFlag": "135",
-            "monitorDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
-            "maxSQLLength": "1048576"
+            "cDebugFlag": "131",
+            "httpDebugFlag": "131",
+            "monitorDebugFlag": "131",
+            "udebugFlag": "131",
+            "jnidebugFlag": "131",
+            "qdebugFlag": "131",
+            "maxSQLLength": "1048576",
+            "vnodeBak": "0"
         }
 
     def init(self, dnodePath, binPath):
@@ -117,9 +118,9 @@ class TDDnode:
 
         self.cfgDict["dataDir"] = self.dataDir
         self.cfgDict["logDir"] = self.logDir
-        self.cfgDict["firstEp"] = "%s:7100" % (self.hostname)
-        self.cfgDict["secondEp"] = "%s:7200" % (self.hostname)
-        port = 7100 + 100 * (self.id - 1)
+        self.cfgDict["firstEp"] = "%s:6030" % (self.hostname)
+        self.cfgDict["secondEp"] = "%s:6130" % (self.hostname)
+        port = 6030 + 100 * (self.id - 1)
         self.cfgDict["serverPort"] = port
         self.fqdn = "%s:%d" % (self.hostname, port)
         for key, value in self.cfgDict.items():
@@ -155,7 +156,9 @@ class TDDnode:
         if self.valgrind == 0:
             time.sleep(0.1)
             key = 'from offline to online'
+            clusterKey = 'DNode does not exist'
             bkey = bytes(key, encoding="utf8")
+            b_clusterKey = bytes(clusterKey, encoding="utf8")
             logFile = self.logDir + "/taosdlog.0"
             i = 0
             while not os.path.exists(logFile):
@@ -170,7 +173,7 @@ class TDDnode:
             timeout = time.time() + 60 * 2
             while True:
                 line = popen.stdout.readline().strip()
-                if bkey in line:
+                if bkey in line or b_clusterKey in line:
                     popen.kill()
                     break
                 if time.time() > timeout:
@@ -278,7 +281,7 @@ class TDDnodes:
             processID = subprocess.check_output(psCmd,
                                                 shell=True).decode("utf-8")
         for i in range(len(self.dnodes)):
-            for port in range(7100 + 100 * i, 7111 + 100 * i):
+            for port in range(6030 + 100 * i, 6041 + 100 * i):
                 fuserCmd = "fuser -k -n tcp %d" % port
                 os.system(fuserCmd)
 
