@@ -2355,6 +2355,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
 
   parQueryInfo->pUdfInfo = pQueryInfo->pUdfInfo;   // assigned to parent sql obj.
   pQueryInfo->pUdfInfo = NULL;
+  taosReleaseRef(tscObjRef, parent->self);
   return TSDB_CODE_SUCCESS;
 }
 
