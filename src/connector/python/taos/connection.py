@@ -145,6 +145,15 @@ class TaosConnection(object):
         """
         return taos_insert_lines(self._conn, lines)
 
+    def insert_telnet_lines(self, lines):
+        """OpenTSDB telnet style API format support
+
+        ## Example
+        cpu_load 1626056811855516532ns 2.0f32 id="tb1",host="host0",interface="eth0"
+
+        """
+        return taos_insert_telnet_lines(self._conn, lines)
+
     def cursor(self):
         # type: () -> TaosCursor
         """Return a new Cursor object using the connection."""
