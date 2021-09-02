@@ -180,8 +180,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfigImp(JNIE
   if (!cfg) {
     return -1;
   }
-
-  return taos_set_config(cfg);
+  return 0;
+  //return taos_set_config(cfg);
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv *env, jobject jobj, jint optionIndex,

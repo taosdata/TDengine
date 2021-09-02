@@ -454,13 +454,20 @@ static setConfRet taos_set_config_imp(const char *config){
     strcpy(ret.retMsg, "parse json error");
     return ret;
   }
-  if(!cJSON_IsObject(root) || cJSON_GetArraySize(root) == 0) {
+
+  int size = cJSON_GetArraySize(root);
+  if(!cJSON_IsObject(root) || size == 0) {
     ret.retCode = -3;
     strcpy(ret.retMsg, "json content is invalid, must be not empty object");
     return ret;
   }
 
-  int size = cJSON_GetArraySize(root);
+  if(size >= 1000) {
+    ret.retCode = -6;
+    strcpy(ret.retMsg, "json object size is too long");
+    return ret;
+  }
+
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if(!item) {
@@ -471,9 +478,11 @@ static setConfRet taos_set_config_imp(const char *config){
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
       ret.retCode = -1;
       if (strlen(ret.retMsg) == 0){
-        sprintf(ret.retMsg, "part error|%s", item->string);
+        snprintf(ret.retMsg, 1000, "part error|%s", item->string);
       }else{
-        sprintf(ret.retMsg, "%s|%s", ret.retMsg, item->string);
+        char tmp[1024] = {0};
+        strcpy(tmp, ret.retMsg);
+        snprintf(ret.retMsg, 1000, "%s|%s", tmp, item->string);
       }
     }
   }
