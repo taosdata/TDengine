@@ -391,7 +391,6 @@ typedef struct SSqlObj {
   int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
-  int32_t          rspReceived;
 } SSqlObj;
 
 typedef struct SSqlStream {
