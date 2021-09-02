@@ -439,30 +439,49 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 
 #include "cJSON.h"
-static int taos_set_config_imp(const char *config){
+static setConfRet taos_set_config_imp(const char *config){
+  setConfRet ret = {0};
   static bool setConfFlag = false;
   if (setConfFlag) {
-    return 0;
+    ret.retCode = -5;
+    strcpy(ret.retMsg, "configuration can only set once");
+    return ret;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
-  if (root == NULL || !cJSON_IsObject(root) || cJSON_GetArraySize(root) == 0) {
-    return -1;
+  if (root == NULL){
+    ret.retCode = -4;
+    strcpy(ret.retMsg, "parse json error");
+    return ret;
+  }
+  if(!cJSON_IsObject(root) || cJSON_GetArraySize(root) == 0) {
+    ret.retCode = -3;
+    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    return ret;
   }
 
-  int ret = 0;
   int size = cJSON_GetArraySize(root);
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
-    if(item && !taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
-      ret = -2;
+    if(!item) {
+      ret.retCode = -2;
+      strcpy(ret.retMsg, "inner error");
+      return ret;
+    }
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
+      ret.retCode = -1;
+      if (strlen(ret.retMsg) == 0){
+        sprintf(ret.retMsg, "part error|%s", item->string);
+      }else{
+        sprintf(ret.retMsg, "%s|%s", ret.retMsg, item->string);
+      }
     }
   }
   setConfFlag = true;
   return ret;
 }
 
-int taos_set_config(const char *config){
+setConfRet taos_set_config(const char *config){
   static int32_t lock = 0;
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
@@ -471,7 +490,7 @@ int taos_set_config(const char *config){
       sched_yield();
     }
   }
-  int ret = taos_set_config_imp(config);
+  setConfRet ret = taos_set_config_imp(config);
   atomic_store_32(&lock, 0);
   return ret;
 }
