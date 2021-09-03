@@ -22,9 +22,20 @@ sql create table $ct1_name using $st_name tags('taosdata1')
 sql create table $ct2_name using $st_name tags('taosdata2')
 sql create table not_match using $st_name tags('NOTMATCH')
 
+sql select tbname from $st_name where tbname match '.*'
+if $rows != 3 then
+  return -1
+endi
+
+
 sql select tbname from $st_name where tbname match '^ct[[:digit:]]'
 
 if $rows != 2 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname match '.*'
+if $rows !=3 then
   return -1
 endi
 
