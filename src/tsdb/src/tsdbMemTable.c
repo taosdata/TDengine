@@ -793,8 +793,11 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
     pRepo->mem = pMemTable;
   }
 
-  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
+  ASSERT(pBlock->tid < pMeta->maxTables);
 
+  pTable = pMeta->tables[pBlock->tid];
+
+  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
 
   if (TABLE_TID(pTable) >= pMemTable->maxTables) {
     if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) {
