@@ -779,7 +779,7 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   int32_t          points = 0;
   STable          *pTable = NULL;
   SSubmitBlkIter   blkIter = {0};
-  SMemTable       *pMemTable = NULL;
+  SMemTable       *pMemTable = pRepo->mem;
   STableData      *pTableData = NULL;
   STsdbCfg        *pCfg = &(pRepo->config);
 
@@ -787,13 +787,11 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   if(blkIter.row == NULL) return 0;
   TSKEY firstRowKey = memRowKey(blkIter.row);
 
-  tsdbAllocBytes(pRepo, 0);
-  pMemTable = pRepo->mem;
-
-  ASSERT(pMemTable != NULL);
-  ASSERT(pBlock->tid < pMeta->maxTables);
-
-  pTable = pMeta->tables[pBlock->tid];
+  if (pMemTable == NULL) {
+    pMemTable = tsdbNewMemTable(pRepo);
+    if (pMemTable == NULL) return -1;
+    pRepo->mem = pMemTable;
+  }
 
   ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
 
