@@ -236,7 +236,7 @@ int main(int argc, char* argv[]) {
   }
   int64_t end = taosGetTimestampUs();
 
-  uint64_t linesNum = numSuperTables*numChildTables*numRowsPerChildTable;
+  size_t linesNum = numSuperTables*numChildTables*numRowsPerChildTable;
   printf("TOTAL LINES: %zu\n", linesNum);
   printf("THREADS: %d\n", numThreads);
   printf("TIME: %d(ms)\n", (int)(end-begin)/1000);
