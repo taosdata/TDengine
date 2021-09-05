@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
   int maxLinesPerBatch = 16384;
 
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:h")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
