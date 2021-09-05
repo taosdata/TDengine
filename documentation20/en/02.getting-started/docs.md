@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>Quick Install
 
-TDengine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
+TDengine software consists of 3 components: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
 
 ### <a class="anchor" id="source-install"></a>Install from Source
 
@@ -10,7 +10,9 @@ Please visit our [TDengine github page](https://github.com/taosdata/TDengine) fo
 
 ### Install from Docker Container
 
-Please visit our [TDengine Official Docker Image: Distribution, Downloading, and Usage](https://www.taosdata.com/blog/2020/05/13/1509.html).
+For the time being, it is not recommended to use Docker to deploy the client or server side of TDengine in production environments, but it is convenient to use Docker to deploy in development environments or when trying it for the first time. In particular, with Docker, it is easy to try TDengine in Mac OS X and Windows environments.
+
+Please refer to the detailed operation in [Quickly experience TDengine through Docker](https://www.taosdata.com/en/documentation/getting-started/docker).
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 

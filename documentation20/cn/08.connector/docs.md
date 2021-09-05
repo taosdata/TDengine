@@ -17,7 +17,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
-其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+其中 ● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 注意：
 
@@ -654,7 +654,7 @@ conn.close()
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
-注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.1.8.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
+注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
 
 ### 安装
 
@@ -695,7 +695,7 @@ http://<fqdn>:<port>/rest/sql/[db_name]
 
 - fqnd: 集群中的任一台主机 FQDN 或 IP 地址
 - port: 配置文件中 httpPort 配置项，缺省为 6041
-- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.1.8.0 版本开始支持）
+- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.2.0.0 版本开始支持）
 
 例如：http://h1.taos.com:6041/rest/sql/test 是指向地址为 h1.taos.com:6041 的 url，并将默认使用的数据库库名设置为 test。
 
@@ -984,14 +984,17 @@ go build
 
 ### Go连接器的使用
 
-TDengine提供了GO驱动程序包`taosSql`.`taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine。
+TDengine提供了GO驱动程序包`taosSql`。`taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine。
 ```go
 import (
   "database/sql"
-  _ "github.com/taosdata/driver-go/taosSql"
+  _ "github.com/taosdata/driver-go/v2/taosSql"
 )
 ```
+
 **提示**：下划线与双引号之间必须有一个空格。
+
+`taosSql` 的 v2 版本进行了重构，分离出内置数据库操作接口 `database/sql/driver` 到目录 `taosSql`；订阅、stmt等其他功能放到目录 `af`。
 
 ### 常用API
 

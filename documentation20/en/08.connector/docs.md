@@ -179,7 +179,7 @@ Clean up the running environment and call this API before the application exits.
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
 
-Set client options, currently only time zone setting (_TSDB_OPTIONTIMEZONE) and encoding setting (_TSDB_OPTIONLOCALE) are supported. The time zone and encoding default to the current operating system settings.
+Set client options, currently only time zone setting (`_TSDB_OPTIONTIMEZONE`) and encoding setting (`_TSDB_OPTIONLOCALE`) are supported. The time zone and encoding default to the current operating system settings.
 
 - `char *taos_get_client_info()`
 
@@ -296,9 +296,7 @@ Asynchronous APIs have relatively high requirements for users, who can selective
 The asynchronous APIs of TDengine all use non-blocking calling mode. Applications can use multithreading to open multiple tables at the same time, and can query or insert to each open table at the same time. It should be pointed out that the **application client must ensure that the operation on the same table is completely serialized**, that is, when the insertion or query operation on the same table is not completed (when no result returned), the second insertion or query operation cannot be performed.
 
 
-
 <a class="anchor" id="stmt"></a>
-
 ### Parameter binding API
 
 In addition to calling `taos_query` directly for queries, TDengine also provides a Prepare API that supports parameter binding. Like MySQL, these APIs currently only support using question mark `?` to represent the parameters to be bound, as follows:
@@ -823,12 +821,12 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 The TDengine provides the GO driver taosSql. taosSql implements the GO language's built-in interface database/sql/driver. Users can access TDengine in the application by simply importing the package as follows, see https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go for details.
 
-Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/tests/examples/go and the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1951.html).
+Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/tests/examples/go .
 
 ```Go
 import (
     "database/sql"
-    _ "github.com/taosdata/driver-go/taosSql"
+    _ "github.com/taosdata/driver-go/v2/taosSql"
 )
 ```
 
@@ -838,6 +836,8 @@ import (
 go env -w GO111MODULE=on  
 go env -w GOPROXY=https://goproxy.io,direct  
 ```
+
+`taosSql` v2 completed refactoring of the v1 version and separated the built-in database operation interface `database/sql/driver` to the directory `taosSql`, and put other advanced functions such as subscription and stmt into the directory `af`.
 
 ### Common APIs
 
@@ -937,7 +937,7 @@ After installing the TDengine client, the nodejsChecker.js program can verify wh
 
 Steps:
 
-1. Create a new installation verification directory, for example: ~/tdengine-test, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）.
+1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）.
 
 2. Execute the following command:
 
