@@ -8,15 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_THREAD_LINE_BATCHES 256
-
-int numThreads = 8;
-
-int numSuperTables = 1;
-int numChildTables = 16;
-int numRowsPerChildTable = 8192;
-
-int maxLinesPerBatch = 16384;
+#define MAX_THREAD_LINE_BATCHES 1024
 
 void printThreadId(pthread_t id, char* buf)
 {
@@ -59,7 +51,83 @@ static void* insertLines(void* args) {
   return NULL;
 }
 
+int32_t getLineTemplate(char* lineTemplate, int templateLen, int numFields) {
+  if (numFields <= 4) {
+    char* sample = "sta%d,t3=%di32 c3=2147483647i32,c4=9223372036854775807i64,c9=11.12345f32,c10=22.123456789f64 %lldms";
+    snprintf(lineTemplate, templateLen, "%s", sample);
+    return 0;
+  }
+
+  if (numFields <= 13) {
+     char* sample = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %lldms";
+     snprintf(lineTemplate, templateLen, "%s", sample);
+     return 0;
+  }
+
+  char* lineFormatTable = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32 ";
+  snprintf(lineTemplate+strlen(lineTemplate), templateLen-strlen(lineTemplate), "%s", lineFormatTable);
+
+  int offset[] = {numFields*2/5, numFields*4/5, numFields};
+
+  for (int i = 0; i < offset[0]; ++i) {
+    snprintf(lineTemplate+strlen(lineTemplate), templateLen-strlen(lineTemplate), "c%d=%di32,", i, i);
+  }
+
+  for (int i=offset[0]+1; i < offset[1]; ++i) {
+    snprintf(lineTemplate+strlen(lineTemplate), templateLen-strlen(lineTemplate), "c%d=%d.43f64,", i, i);
+  }
+
+  for (int i = offset[1]+1; i < offset[2]; ++i) {
+    snprintf(lineTemplate+strlen(lineTemplate), templateLen-strlen(lineTemplate), "c%d=\"%d\",", i, i);
+  }
+  char* lineFormatTs = " %lldms";
+  snprintf(lineTemplate+strlen(lineTemplate)-1, templateLen-strlen(lineTemplate)+1, "%s", lineFormatTs);
+
+  return 0;
+}
+
 int main(int argc, char* argv[]) {
+  int numThreads = 8;
+
+  int numSuperTables = 1;
+  int numChildTables = 256;
+  int numRowsPerChildTable = 8192;
+  int numFields = 13;
+
+  int maxLinesPerBatch = 16384;
+
+  int opt;
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:")) != -1) {
+    switch (opt) {
+      case 's':
+        numSuperTables = atoi(optarg);
+        break;
+      case 'c':
+        numChildTables = atoi(optarg);
+        break;
+      case 'r':
+        numRowsPerChildTable = atoi(optarg);
+        break;
+      case 'f':
+        numFields = atoi(optarg);
+        break;
+      case 't':
+        numThreads = atoi(optarg);
+        break;
+      case 'm':
+        maxLinesPerBatch = atoi(optarg);
+        break;
+      case 'h':
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
+                argv[0]);
+        exit(0);
+      default: /* '?' */
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
+                argv[0]);
+        exit(-1);
+    }
+  }
+
   TAOS_RES*   result;
   const char* host = "127.0.0.1";
   const char* user = "root";
@@ -73,7 +141,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (numThreads * MAX_THREAD_LINE_BATCHES* maxLinesPerBatch < numSuperTables*numChildTables*numRowsPerChildTable) {
-    printf("too many rows to be handle by threads");
+    printf("too many rows to be handle by threads with %d batches", MAX_THREAD_LINE_BATCHES);
     exit(2);
   }
 
@@ -93,21 +161,10 @@ int main(int argc, char* argv[]) {
   time_t  ct = time(0);
   int64_t ts = ct * 1000;
 
-  //char* sample = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %lldms";
-
   char* lineTemplate = calloc(65536, sizeof(char));
-  char* lineFormatTable = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32 ";
-  snprintf(lineTemplate+strlen(lineTemplate), 65535-strlen(lineTemplate), "%s", lineFormatTable);
+  getLineTemplate(lineTemplate, 65535, numFields);
 
-  for (int i=0; i<800; i++) {
-    snprintf(lineTemplate+strlen(lineTemplate), 65535-strlen(lineTemplate), "c%d=%df64,", i, i);
-  }
-  for (int i = 800; i < 1000; ++i) {
-    snprintf(lineTemplate+strlen(lineTemplate), 65535-strlen(lineTemplate), "c%d=\"%d\",", i, i);
-  }
-  char* lineFormatTs = " %lldms";
-  snprintf(lineTemplate+strlen(lineTemplate)-1, 65535-strlen(lineTemplate)+1, "%s", lineFormatTs);
-
+  printf("setup supertables...");
   {
     char** linesStb = calloc(numSuperTables, sizeof(char*));
     for (int i = 0; i < numSuperTables; i++) {
@@ -158,7 +215,7 @@ int main(int argc, char* argv[]) {
         int stIdx = i;
         int ctIdx = numSuperTables*numChildTables + j;
         char* line = calloc(strlen(lineTemplate)+128, 1);
-        snprintf(line, strlen(lineTemplate)+128, lineTemplate, stIdx, ctIdx, ts + 10 * l);
+        snprintf(line, strlen(lineTemplate)+128, lineTemplate, stIdx, ctIdx, ts + l);
         int batchNo = l / maxLinesPerBatch;
         int lineNo = l % maxLinesPerBatch;
         allBatches[batchNo][lineNo] =  line;
@@ -194,6 +251,7 @@ int main(int argc, char* argv[]) {
   free(argsThread);
   free(tids);
 
+  free(lineTemplate);
   taos_close(taos);
   return 0;
 }
