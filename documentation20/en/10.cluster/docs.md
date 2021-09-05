@@ -1,8 +1,8 @@
 # TDengine Cluster Management
 
-Multiple TDengine servers, that is, multiple running instances of taosd, can form a cluster to ensure the highly reliable operation of TDengine and provide scale-out features. To understand cluster management in TDengine 2.0, it is necessary to understand the basic concepts of clustering. Please refer to the chapter "Overall Architecture of TDengine 2.0". And before installing the cluster, please follow the chapter ["Getting started"](https://www.taosdata.com/en/documentation/getting-started/) to install and experience the single node function.
+Multiple TDengine servers, that is, multiple running instances of taosd, can form a cluster to ensure the highly reliable operation of TDengine and provide scale-out features. To understand cluster management in TDengine 2.0, it is necessary to understand the basic concepts of clustering. Please refer to the chapter "Overall Architecture of TDengine 2.0". And before installing the cluster, please follow the chapter ["Getting started"](https://www.taosdata.com/en/documentation/getting-started/) to install and experience the single node TDengine.
 
-Each data node of the cluster is uniquely identified by End Point, which is composed of FQDN (Fully Qualified Domain Name) plus Port, such as [h1.taosdata.com](http://h1.taosdata.com/):6030. The general FQDN is the hostname of the server, which can be obtained through the Linux command `hostname -f` (how to configure FQDN, please refer to: [All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)). Port is the external service port number of this data node. The default is 6030, but it can be modified by configuring the parameter serverPort in taos.cfg. A physical node may be configured with multiple hostnames, and TDengine will automatically get the first one, but it can also be specified through the configuration parameter fqdn in taos.cfg. If you are accustomed to direct IP address access, you can set the parameter fqdn to the IP address of this node.
+Each data node of the cluster is uniquely identified by End Point, which is composed of FQDN (Fully Qualified Domain Name) plus Port, such as [h1.taosdata.com](http://h1.taosdata.com/):6030. The general FQDN is the hostname of the server, which can be obtained through the Linux command `hostname -f` (how to configure FQDN, please refer to: [All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)). Port is the external service port number of this data node. The default is 6030, but it can be modified by configuring the parameter serverPort in taos.cfg. A physical node may be configured with multiple hostnames, and TDengine will automatically get the first one, but it can also be specified through the configuration parameter `fqdn` in taos.cfg. If you want to access via direct IP address, you can set the parameter `fqdn` to the IP address of this node.
 
 The cluster management of TDengine is extremely simple. Except for manual intervention in adding and deleting nodes, all other tasks are completed automatically, thus minimizing the workload of operation. This chapter describes the operations of cluster management in detail.
 
@@ -12,11 +12,11 @@ Please refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/19
 
 **Step 0:** Plan FQDN of all physical nodes in the cluster, and add the planned FQDN to /etc/hostname of each physical node respectively; modify the /etc/hosts of each physical node, and add the corresponding IP and FQDN of all cluster physical nodes. [If DNS is deployed, contact your network administrator to configure it on DNS]
 
-**Step 1:** If the physical nodes have previous test data, installed with version 1. x, or installed with other versions of TDengine, please delete it first and drop all data. For specific steps, please refer to the blog "[Installation and Uninstallation of Various Packages of TDengine](https://www.taosdata.com/blog/2019/08/09/566.html)"
+**Step 1:** If the physical nodes have previous test data, installed with version 1. x, or installed with other versions of TDengine, please backup all data, then delete it and drop all data. For specific steps, please refer to the blog "[Installation and Uninstallation of Various Packages of TDengine](https://www.taosdata.com/blog/2019/08/09/566.html)"
 
 **Note 1:** Because the information of FQDN will be written into a file, if FQDN has not been configured or changed before, and TDengine has been started, be sure to clean up the previous data （`rm -rf /var/lib/taos/*`）on the premise of ensuring that the data is useless or backed up;
 
-**Note 2:** The client also needs to be configured to ensure that it can correctly parse the FQDN configuration of each node, whether through DNS service or modify hosts file.
+**Note 2:** The client also needs to be configured to ensure that it can correctly parse the FQDN configuration of each node, whether through DNS service or Host file.
 
 **Step 2:** It is recommended to close the firewall of all physical nodes, and at least ensure that the TCP and UDP ports of ports 6030-6042 are open. It is **strongly recommended** to close the firewall first and configure the ports after the cluster is built;
 
@@ -136,7 +136,7 @@ Execute the CLI program taos, log in to the TDengine system using the root accou
 DROP DNODE "fqdn:port";
 ```
 
-Where fqdn is the FQDN of the deleted node, and port is the port number of its external server.
+Where fqdn is the FQDN of the deleted node, and port is the port number.
 
 <font color=green>**【Note】**</font>
 
@@ -185,7 +185,7 @@ Because of the introduction of vnode, it is impossible to simply draw a conclusi
 
 TDengine cluster is managed by mnode (a module of taosd, management node). In order to ensure the high-availability of mnode, multiple mnode replicas can be configured. The number of replicas is determined by system configuration parameter numOfMnodes, and the effective range is 1-3. In order to ensure the strong consistency of metadata, mnode replicas are duplicated synchronously.
 
-A cluster has multiple data node dnodes, but a dnode runs at most one mnode instance. In the case of multiple dnodes, which dnode can be used as an mnode? This is automatically specified by the system according to the resource situation on the whole. User can execute the following command in the console of TDengine through the CLI program taos:
+A cluster has multiple data node dnodes, but a dnode runs at most one mnode instance. In the case of multiple dnodes, which dnode can be used as an mnode? This is automatically selected by the system based on the resource on the whole. User can execute the following command in the console of TDengine through the CLI program taos:
 
 ```
 SHOW MNODES;
@@ -213,7 +213,7 @@ When the above three situations occur, the system will start a load computing of
 
 If a data node is offline, the TDengine cluster will automatically detect it. There are two detailed situations:
 
-- If the data node is offline for more than a certain period of time (configuration parameter offlineThreshold in taos.cfg controls the duration), the system will automatically delete the data node, generate system alarm information and trigger the load balancing process. If the deleted data node is online again, it will not be able to join the cluster, and the system administrator will need to add it to the cluster again.
+- If the data node is offline for more than a certain period of time (configuration parameter `offlineThreshold` in taos.cfg controls the duration), the system will automatically delete the data node, generate system alarm information and trigger the load balancing process. If the deleted data node is online again, it will not be able to join the cluster, and the system administrator will need to add it to the cluster again.
 - After offline, the system will automatically start the data recovery process if it goes online again within the duration of offlineThreshold. After the data is fully recovered, the node will start to work normally.
 
 **Note:** If each data node belonging to a virtual node group (including mnode group) is in offline or unsynced state, Master can only be elected after all data nodes in the virtual node group are online and can exchange status information, and the virtual node group can serve externally. For example, the whole cluster has 3 data nodes with 3 replicas. If all 3 data nodes go down and then 2 data nodes restart, it will not work. Only when all 3 data nodes restart successfully can serve externally again.
@@ -229,7 +229,7 @@ The name of the executable for Arbitrator is tarbitrator. The executable has alm
 
 
 1. Click [Package Download](https://www.taosdata.com/cn/all-downloads/), and in the TDengine Arbitrator Linux section, select the appropriate version to download and install.
-2. The command line parameter  -p of this application can specify the port number of its external service, and the default is 6042.
+2. The command line parameter  -p of this application can specify the port number of its service, and the default is 6042.
 3. Modify the configuration file of each taosd instance, and set parameter arbitrator to the End Point corresponding to the tarbitrator in taos.cfg. (If this parameter is configured, when the number of replicas is even, the system will automatically connect the configured Arbitrator. If the number of replicas is odd, even if the Arbitrator is configured, the system will not establish a connection.)
 4. The Arbitrator configured in the configuration file will appear in the return result of instruction `SHOW DNODES`; the value of the corresponding role column will be "arb".
 
