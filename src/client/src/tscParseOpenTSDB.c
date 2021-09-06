@@ -13,7 +13,7 @@
 
 #include "tscParseLine.h"
 
-#define MAX_FILEDS_NUM 2
+#define MAX_FIELDS_NUM 2
 #define JSON_FIELDS_NUM 4
 
 #define OTS_TIMESTAMP_COLUMN_NAME "ts"
@@ -85,7 +85,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
 
   start = cur = *index;
   //allocate fields for timestamp and value
-  *pTS = tcalloc(MAX_FILEDS_NUM, sizeof(TAOS_SML_KV));
+  *pTS = tcalloc(MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
     if (*cur == ' ') {
@@ -451,7 +451,7 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  tstrncpy(pSml->stableName, metric->valuestring, stableLen);
+  tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
 
   return TSDB_CODE_SUCCESS;
 
@@ -470,7 +470,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
   }
 
   //allocate fields for timestamp and value
-  *pTS = tcalloc(MAX_FILEDS_NUM, sizeof(TAOS_SML_KV));
+  *pTS = tcalloc(MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
 
   tsVal = convertTimePrecision(timestamp->valueint, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
 
