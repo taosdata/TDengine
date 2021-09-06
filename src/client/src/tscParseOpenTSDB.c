@@ -421,3 +421,54 @@ int taos_telnet_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
   tfree(info);
   return code;
 }
+
+
+/* telnet style API parser */
+int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  cJSON *metric = cJSON_GetObjectItem(root, "metric");
+  if (metric == NULL || metric->type != cJSON_String) {
+    tscError("OTD:0x%"PRIx64" failed to parse metric from JSON Payload %s", info->id);
+    return  TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  int32_t stableLen = strlen(metric->valuestring);
+  if (stableLen > TSDB_TABLE_NAME_LEN) {
+      tscError("OTD:0x%"PRIx64" Metric cannot exceeds 193 characters", info->id);
+      return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
+
+  pSml->stableName = tcalloc(stableLen + 1, sizeof(char));
+  if (pSml->stableName == NULL){
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  if (isdigit(metric->valuestring[0])) {
+    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit", info->id);
+    tfree(pSml->stableName);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  tstrncpy(pSml->stableName, metric->valuestring, stableLen);
+
+  return TSDB_CODE_SUCCESS;
+
+}
+
+int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  if (payload == NULL) {
+    tscError("OTD:0x%"PRIx64" empty JSON Payload %s", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  cJSON *root = cJSON_Parse(payload);
+  if (root == NULL) {
+    tscError("OTD:0x%"PRIx64" parsing JSON Payload error%s", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  return ret;
+}
