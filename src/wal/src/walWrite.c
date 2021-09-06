@@ -25,7 +25,6 @@
 
 static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
 
-//TODO: call back vnode to reset offset
 int32_t walRenew(void *handle) {
   if (handle == NULL) return 0;
 
@@ -44,19 +43,10 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is closed while renew", pWal->vgId, pWal->name);
   }
 
-#if 0
-  if (pWal->keep == TAOS_WAL_KEEP) {
-    pWal->fileId = 0;
-  } else {
-#endif
-    if (walGetNewFile(pWal, &pWal->writeFileId) != 0)
-      pWal->writeFileId = 0;
-    if(pWal->writeFileId < 0) pWal->writeFileId = 0;
-    pWal->writeFileId++;
-    pWal->offset = 0;
-#if 0
-  }
-#endif
+  if (walGetNewFile(pWal, &pWal->writeFileId) != 0 || pWal->writeFileId < 0)
+    pWal->writeFileId = 0;
+  pWal->writeFileId++;
+  pWal->offset = 0;
 
   snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, pWal->writeFileId);
   pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -118,7 +108,6 @@ void walRemoveAllOldFiles(void *handle) {
       wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
     }
   }
-  pWal->startFileId = pWal->restoreFileId;
   pthread_mutex_unlock(&pWal->mutex);
 }
 
@@ -233,8 +222,6 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
   int32_t fileId = pWal->restoreFileId - 1;
 
   while ((code = walGetNextFile(pWal, &fileId)) >= 0) {
-    /*if (fileId == pWal->fileId) continue;*/
-
     char walName[WAL_FILE_LEN];
     snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, fileId);
 
@@ -246,28 +233,15 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
     }
 
     wInfo("vgId:%d, file:%s, restore success, wver:%" PRIu64, pWal->vgId, walName, pWal->version);
-
   }
 
-#if 0
-  if (pWal->keep != TAOS_WAL_KEEP) return TSDB_CODE_SUCCESS;
-#endif
-
-  /*if (fileId < 0) {*/
-    /*printf("jc renew %s\n", pWal->name);*/
-    /*wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);*/
-    /*return walRenew(pWal);*/
-  /*} else {*/
-    // open the existing WAL file in append mode
-    /*pWal->writeFileId = 0;*/
-    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, pWal->writeFileId);
-    pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
-    if (!tfValid(pWal->tfd)) {
-      wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-    wDebug("vgId:%d, file:%s, it is created and open while restore", pWal->vgId, pWal->name);
-  /*}*/
+  snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId32, pWal->path, WAL_PREFIX, pWal->writeFileId);
+  pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (!tfValid(pWal->tfd)) {
+    wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+  wDebug("vgId:%d, file:%s, it is created and open while restore", pWal->vgId, pWal->name);
 
   return TSDB_CODE_SUCCESS;
 }

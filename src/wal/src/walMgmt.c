@@ -71,7 +71,6 @@ void *walOpen(char *path, SWalCfg *pCfg) {
 
   pWal->vgId = pCfg->vgId;
   pWal->tfd = -1;
-  pWal->startFileId = 0;
   pWal->restoreFileId = 0;
   pWal->writeFileId = 0;
   pWal->level = pCfg->walLevel;

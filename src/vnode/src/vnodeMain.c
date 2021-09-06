@@ -567,7 +567,9 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     if (!vnodeInInitStatus(pVnode)) {
       if(walLifeCycleCheck(pVnode->wal, TAOS_WAL_CHECK_RENEW) == 0) {
         walGetWriteInfo(pVnode->wal, &pVnode->writeFileId, &pVnode->offset);
+        return 0;
       }
+      return -1;
     }
     return 0;
   }

@@ -73,14 +73,6 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
     pVnode->offset = 0;
   }
 
-  cJSON *startFileId = cJSON_GetObjectItem(root, "startFileId");
-  if (startFileId && startFileId->type == cJSON_Number) {
-    pVnode->startFileId = (int32_t)startFileId->valueint;
-  } else {
-    vError("vgId:%d, failed to read %s, invalid field startFileId", pVnode->vgId, file);
-    pVnode->startFileId = -1;
-  }
-
   cJSON *restoreFileId = cJSON_GetObjectItem(root, "restoreFileId");
   if (restoreFileId && restoreFileId->type == cJSON_Number) {
     pVnode->restoreFileId = (int32_t)restoreFileId->valueint;
@@ -125,7 +117,6 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"version\": %" PRIu64 ",\n", pVnode->fversion);
   len += snprintf(content + len, maxLen - len, "  \"offset\": %" PRIu64 ",\n", pVnode->fOffset);
-  len += snprintf(content + len, maxLen - len, "  \"startFileId\": %" PRId32 ",\n", pVnode->startFileId);
   len += snprintf(content + len, maxLen - len, "  \"restoreFileId\": %" PRId32 ",\n", pVnode->restoreFileId);
   len += snprintf(content + len, maxLen - len, "  \"writeFileId\": %" PRId32 "\n", pVnode->writeFileId);
   len += snprintf(content + len, maxLen - len, "}\n");

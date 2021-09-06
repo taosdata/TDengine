@@ -46,7 +46,6 @@ typedef struct {
   uint64_t fOffset;
   int64_t  rid;
   int64_t  tfd;
-  int32_t  startFileId;
   int32_t  restoreFileId;
   int32_t  writeFileId;
   int32_t  vgId;
