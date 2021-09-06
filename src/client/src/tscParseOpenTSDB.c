@@ -567,6 +567,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
   }
 
 
+  //only pick up the first ID value as child table name
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
     int32_t idLen = strlen(id->valuestring);
@@ -576,8 +577,11 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
     }
     *childTableName = tcalloc(idLen + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
-    //remove ID from tags list no case sensitive
-    cJSON_DeleteItemFromObject(tags, "ID");
+    //remove all ID fields from tags list no case sensitive
+    while (id != NULL) {
+      cJSON_DeleteItemFromObject(tags, "ID");
+      id = cJSON_GetObjectItem(tags, "ID");
+    }
   }
 
   int32_t tagNum = cJSON_GetArraySize(tags);
