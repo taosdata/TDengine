@@ -844,7 +844,7 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
   memset(pCommith, 0, sizeof(*pCommith));
   tsdbGetRtnSnap(pRepo, &(pCommith->rtn));
 
-  TSDB_FSET_SET_CLOSED(TSDB_COMMIT_WRITE_FSET(pCommith));
+  TSDB_FSET_SET_INIT(TSDB_COMMIT_WRITE_FSET(pCommith));
 
   // Init read handle
   if (tsdbInitReadH(&(pCommith->readh), pRepo) < 0) {
@@ -1571,7 +1571,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
     pCommith->isDFileSame = false;
     pCommith->isLFileSame = false;
-
+    pCommith->isSmaFileSame = false;
     tsdbDebug("vgId:%d FSET %d at level %d disk id %d is created to commit", REPO_ID(pRepo), TSDB_FSET_FID(pWSet),
               TSDB_FSET_LEVEL(pWSet), TSDB_FSET_ID(pWSet));
   } else {
@@ -1580,11 +1580,12 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
     pCommith->wSet.fid = fid;
     pCommith->wSet.state = 0;
-
+    pCommith->wSet.nFiles = TSDB_FILE_MAX;
+  
     // TSDB_FILE_HEAD
     SDFile *pWHeadf = TSDB_COMMIT_HEAD_FILE(pCommith);
     tsdbInitDFile(pWHeadf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
-    if (tsdbCreateDFile(pWHeadf, true) < 0) {
+    if (tsdbCreateDFile(pWHeadf, true, TSDB_FILE_HEAD) < 0) {
       tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWHeadf),
                 tstrerror(terrno));
 
@@ -1598,7 +1599,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     SDFile *pRDataf = TSDB_READ_DATA_FILE(&(pCommith->readh));
     SDFile *pWDataf = TSDB_COMMIT_DATA_FILE(pCommith);
     tsdbInitDFileEx(pWDataf, pRDataf);
-    if (tsdbOpenDFile(pWDataf, O_WRONLY) < 0) {
+    if (tsdbOpenDFile(pWDataf, O_RDWR) < 0) {
       tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWDataf),
                 tstrerror(terrno));
 
@@ -1618,7 +1619,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       tsdbInitDFileEx(pWLastf, pRLastf);
       pCommith->isLFileSame = true;
 
-      if (tsdbOpenDFile(pWLastf, O_WRONLY) < 0) {
+      if (tsdbOpenDFile(pWLastf, O_RDWR) < 0) {
         tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
                   tstrerror(terrno));
 
@@ -1633,7 +1634,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       tsdbInitDFile(pWLastf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_LAST);
       pCommith->isLFileSame = false;
 
-      if (tsdbCreateDFile(pWLastf, true) < 0) {
+      if (tsdbCreateDFile(pWLastf, true, TSDB_FILE_LAST) < 0) {
         tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
                   tstrerror(terrno));
 
@@ -1647,21 +1648,41 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     }
 
     // TSDB_FILE_SMA
+    ASSERT(pWSet->nFiles >= TSDB_FILE_SMA);
     SDFile *pRSmaf = TSDB_READ_AGGR_FILE(&(pCommith->readh));
     SDFile *pWSmaf = TSDB_COMMIT_AGGR_FILE(pCommith);
-    tsdbInitDFileEx(pWSmaf, pRSmaf);
-    if (tsdbOpenDFile(pWSmaf, O_WRONLY) < 0) {
-      tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmaf),
-                tstrerror(terrno));
 
-      tsdbCloseDFileSet(pWSet);
-      tsdbRemoveDFile(pWHeadf);
-      if (pCommith->isRFileSet) {
-        tsdbCloseAndUnsetFSet(&(pCommith->readh));
-        return -1;
+    if (access(TSDB_FILE_FULL_NAME(pRSmaf), F_OK) != 0) {
+      tsdbDebug("vgId:%d create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmaf));
+      tsdbInitDFile(pWSmaf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_SMA);
+      pCommith->isLFileSame = false;
+
+      if (tsdbCreateDFile(pWSmaf, true, TSDB_FILE_SMA) < 0) {
+        tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmaf),
+                  tstrerror(terrno));
+
+        tsdbCloseDFileSet(pWSet);
+        (void)tsdbRemoveDFile(pWHeadf);
+        if (pCommith->isRFileSet) {
+          tsdbCloseAndUnsetFSet(&(pCommith->readh));
+          return -1;
+        }
       }
+    } else {
+      tsdbInitDFileEx(pWSmaf, pRSmaf);
+      pCommith->isSmaFileSame = true;
+      if (tsdbOpenDFile(pWSmaf, O_RDWR) < 0) {
+        tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmaf),
+                  tstrerror(terrno));
+
+        tsdbCloseDFileSet(pWSet);
+        tsdbRemoveDFile(pWHeadf);
+        if (pCommith->isRFileSet) {
+          tsdbCloseAndUnsetFSet(&(pCommith->readh));
+          return -1;
+        }
+      } 
     }
-    pCommith->isSmaFileSame = true;
   }
 
   return 0;

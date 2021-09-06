@@ -33,8 +33,7 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
 
   memset((void *)pReadh, 0, sizeof(*pReadh));
   pReadh->pRepo = pRepo;
-
-  TSDB_FSET_SET_CLOSED(TSDB_READ_FSET(pReadh));
+  TSDB_FSET_SET_INIT(TSDB_READ_FSET(pReadh));
 
   pReadh->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
   if (pReadh->aBlkIdx == NULL) {
@@ -65,7 +64,7 @@ void tsdbDestroyReadH(SReadH *pReadh) {
   pReadh->pExBuf = taosTZfree(pReadh->pExBuf);
 #endif
   pReadh->pCBuf = taosTZfree(pReadh->pCBuf);
-  pReadh->pRBuf = taosTZfree(pReadh->pRBuf);
+  pReadh->pBuf = taosTZfree(pReadh->pBuf);
   pReadh->pDCols[0] = tdFreeDataCols(pReadh->pDCols[0]);
   pReadh->pDCols[1] = tdFreeDataCols(pReadh->pDCols[1]);
   pReadh->pBlkData = taosTZfree(pReadh->pBlkData);
@@ -728,7 +727,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
     return -1;
   }
 
-  if (tsdbCheckAndDecodeColumnData(pDataCol, pReadh->pRBuf, pBlockCol->len, pBlock->algorithm, pBlock->numOfRows,
+  if (tsdbCheckAndDecodeColumnData(pDataCol, pReadh->pBuf, pBlockCol->len, pBlock->algorithm, pBlock->numOfRows,
                                    pCfg->maxRowsPerFileBlock, pReadh->pCBuf, (int32_t)taosTSizeof(pReadh->pCBuf)) < 0) {
     tsdbError("vgId:%d file %s is broken at column %d offset %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
               pBlockCol->colId, offset);

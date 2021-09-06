@@ -84,8 +84,6 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-  // uint8_t type;
-  // char    reserved[15];  // Adjust the size of reserved array whenever adding new field of SAggrBlkCol.
 } SAggrBlkCol;
 
 // Code here just for back-ward compatibility
@@ -122,11 +120,9 @@ struct SReadH {
   int         cidx;
   SBlockInfo *pBlkInfo;
   SBlockData *pBlkData;  // Block info
-#ifdef __TD_6117__
-  SAggrBlkData *pAggrBlkData;  // Block info
-#endif
+  SAggrBlkData *pAggrBlkData;  // Aggregate Block info
   SDataCols * pDCols[2];
-  void *      pRBuf;  // buffer
+  void *      pBuf;   // buffer
   void *      pCBuf;  // compression buffer
   void *      pExBuf;  // extra buffer
 };
@@ -139,7 +135,7 @@ struct SReadH {
 #define TSDB_READ_DATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_DATA)
 #define TSDB_READ_LAST_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_LAST)
 #define TSDB_READ_AGGR_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_SMA)
-#define TSDB_READ_BUF(rh) ((rh)->pRBuf)
+#define TSDB_READ_BUF(rh) ((rh)->pBuf)
 #define TSDB_READ_COMP_BUF(rh) ((rh)->pCBuf)
 #define TSDB_READ_EXBUF(rh) ((rh)->pExBuf)
 

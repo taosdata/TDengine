@@ -36,6 +36,7 @@ static int  tsdbComparTFILE(const void *arg1, const void *arg2);
 static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired);
 static int  tsdbProcessExpiredFS(STsdbRepo *pRepo);
 static int  tsdbCreateMeta(STsdbRepo *pRepo);
+static int  tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray);
 
 // For backward compatibility
 // ================== CURRENT file header info
@@ -89,15 +90,16 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
   return tlen;
 }
 
-static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
+static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray, bool containNFiles) {
   uint64_t  nset;
   SDFileSet dset;
+  dset.nFiles = TSDB_FILE_MIN;  // default value: .head/.data/.last
 
   taosArrayClear(pArray);
 
   buf = taosDecodeFixedU64(buf, &nset);
   for (size_t i = 0; i < nset; i++) {
-    buf = tsdbDecodeDFileSet(buf, &dset);
+    buf = tsdbDecodeDFileSet(buf, &dset, containNFiles);
     taosArrayPush(pArray, (void *)(&dset));
   }
   return buf;
@@ -114,13 +116,12 @@ static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   return tlen;
 }
 
-static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus) {
+static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus, bool containNFiles) {
   tsdbResetFSStatus(pStatus);
-
   pStatus->pmf = &(pStatus->mf);
 
   buf = tsdbDecodeSMFile(buf, pStatus->pmf);
-  buf = tsdbDecodeDFileSetArray(buf, pStatus->df);
+  buf = tsdbDecodeDFileSetArray(buf, pStatus->df, containNFiles);
 
   return buf;
 }
@@ -414,7 +415,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
     return -1;
   }
 
-  fsheader.version = TSDB_FS_VERSION;
+  fsheader.version = tsdbGetSFSVersion();
   if (pStatus->pmf == NULL) {
     ASSERT(taosArrayGetSize(pStatus->df) == 0);
     fsheader.len = 0;
@@ -689,7 +690,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
   ptr = tsdbDecodeFSHeader(ptr, &fsheader);
   ptr = tsdbDecodeFSMeta(ptr, &(pStatus->meta));
 
-  if (fsheader.version != TSDB_FS_VERSION) {
+  if (fsheader.version != TSDB_FS_VERSION_0) {
     // TODO: handle file version change
   }
 
@@ -718,7 +719,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     }
 
     ptr = buffer;
-    ptr = tsdbDecodeFSStatus(ptr, pStatus);
+    ptr = tsdbDecodeFSStatus(ptr, pStatus, fsheader.version == TSDB_FS_VERSION_0 ? false : true);
   } else {
     tsdbResetFSStatus(pStatus);
   }
@@ -752,7 +753,7 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pStatus->df, i);
 
     if (tsdbScanAndTryFixDFileSet(pRepo, pSet) < 0) {
-      tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
+      tsdbError("vgId:%d failed to fix DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
   }
@@ -1098,25 +1099,23 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
+static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
   char         dataDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   TDIR *       tdir = NULL;
   const TFILE *pf = NULL;
-  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last)(-ver[0-9]+)?$";
-  SArray *     fArray = NULL;
+  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last|sma)(-ver[0-9]+)?$";
   regex_t      regex;
-  STsdbFS *    pfs = REPO_FS(pRepo);
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
 
   // Resource allocation and init
   regcomp(&regex, pattern, REG_EXTENDED);
 
-  fArray = taosArrayInit(1024, sizeof(TFILE));
-  if (fArray == NULL) {
+  *fArray = taosArrayInit(1024, sizeof(TFILE));
+  if (*fArray == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
+    tsdbError("vgId:%d failed to fetch TFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
     regfree(&regex);
     return -1;
@@ -1124,9 +1123,9 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
   tdir = tfsOpendir(dataDir);
   if (tdir == NULL) {
-    tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
+    tsdbError("vgId:%d failed to fetch TFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
-    taosArrayDestroy(fArray);
+    taosArrayDestroy(*fArray);
     regfree(&regex);
     return -1;
   }
@@ -1136,10 +1135,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     int code = regexec(&regex, bname, 0, NULL, 0);
     if (code == 0) {
-      if (taosArrayPush(fArray, (void *)pf) == NULL) {
+      if (taosArrayPush(*fArray, (void *)pf) == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tfsClosedir(tdir);
-        taosArrayDestroy(fArray);
+        taosArrayDestroy(*fArray);
         regfree(&regex);
         return -1;
       }
@@ -1150,10 +1149,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       continue;
     } else {
       // Has other error
-      tsdbError("vgId:%d failed to restore DFileSet Array while run regexec since %s", REPO_ID(pRepo), strerror(code));
+      tsdbError("vgId:%d failed to fetch TFileSet Array while run regexec since %s", REPO_ID(pRepo), strerror(code));
       terrno = TAOS_SYSTEM_ERROR(code);
       tfsClosedir(tdir);
-      taosArrayDestroy(fArray);
+      taosArrayDestroy(*fArray);
       regfree(&regex);
       return -1;
     }
@@ -1163,7 +1162,19 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   regfree(&regex);
 
   // Sort the array according to file name
-  taosArraySort(fArray, tsdbComparTFILE);
+  taosArraySort(*fArray, tsdbComparTFILE);
+  return 0;
+}
+
+static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
+  const TFILE *pf = NULL;
+  SArray *     fArray = NULL;
+  STsdbFS *    pfs = REPO_FS(pRepo);
+
+  if (tsdbFetchTFileSet(pRepo, &fArray) < 0) {
+    tsdbError("vgId:%d failed to fetch TFileSet to restore since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
 
   size_t index = 0;
   // Loop to recover each file set
@@ -1174,7 +1185,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     SDFileSet fset = {0};
 
-    TSDB_FSET_SET_CLOSED(&fset);
+    TSDB_FSET_SET_INIT(&fset);
 
     // Loop to recover ONE fset
     for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
@@ -1335,7 +1346,7 @@ static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired) {
       continue;
     }
 
-    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    for (TSDB_FILE_T ftype = 0; ftype < fset.nFiles; ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
 
       if ((tsdbLoadDFileHeader(pDFile, &info) < 0) || pDFile->info.size != info.size ||

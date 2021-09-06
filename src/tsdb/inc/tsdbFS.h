@@ -17,12 +17,25 @@
 #define _TD_TSDB_FS_H_
 
 /**
- * The fileset .head/.data/.last/.sma use the same TSDB_FS_VERSION.
- * 0 - original format before 2021.08.25 // TODO update date 2021.08.25 to release version.
- * 1 - extract aggregate block data from .data file and save to separate .sma file since 2021.08.25 // TODO update
- * date to release version.
+ * 1. The fileset .head/.data/.last/.sma use the same fver 0 before 2021.09.05.
+ * 2. .head fver is 1 when extract aggregate block data from .data file and save to separate .sma file since 2021.09.05
+ * // TODO update date and add release version.
  */
-#define TSDB_FS_VERSION 1
+typedef enum {
+  TSDB_FS_VERSION_0,
+  TSDB_FS_VERSION_1,
+} ETsdbFsVersion;
+
+static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T ftype) {  // for DFile
+  switch (ftype) {
+    case TSDB_FILE_HEAD:
+      return TSDB_FS_VERSION_1;
+    default:
+      return TSDB_FS_VERSION_0;
+  }
+}
+
+static FORCE_INLINE uint32_t tsdbGetSFSVersion() { return TSDB_FS_VERSION_1; }  // for current
 
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;
