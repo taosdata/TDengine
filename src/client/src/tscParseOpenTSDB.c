@@ -521,7 +521,8 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal) {
     case cJSON_String: {
       //convert default JSON String type to nchar
       pVal->type = TSDB_DATA_TYPE_NCHAR;
-      pVal->length = wcslen((wchar_t *)root->valuestring) * TSDB_NCHAR_SIZE;
+      //pVal->length = wcslen((wchar_t *)root->valuestring) * TSDB_NCHAR_SIZE;
+      pVal->length = strlen(root->valuestring);
       pVal->value = tcalloc(pVal->length + 1, 1);
       memcpy(pVal->value, root->valuestring, pVal->length);
       break;
