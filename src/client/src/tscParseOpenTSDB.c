@@ -464,7 +464,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
   cJSON *timestamp = cJSON_GetObjectItem(root, "timestamp");
   if (timestamp == NULL || timestamp->type != cJSON_Number) {
     tscError("OTD:0x%"PRIx64" failed to parse timestamp from JSON Payload", info->id);
-    return  TSDB_CODE_TSC_INVALID_JSON;
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   //allocate fields for timestamp and value
@@ -473,7 +473,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
   tsVal = convertTimePrecision(timestamp->valueint, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
 
   (*pTS)->key = tcalloc(sizeof(key), 1);
-  if ((*pTS)->key == NULL){
+  if ((*pTS)->key == NULL) {
     tfree(*pTS);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -483,12 +483,60 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
   (*pTS)->length = (int16_t)tDataTypes[(*pTS)->type].bytes;
 
   (*pTS)->value = tcalloc((*pTS)->length, 1);
-  if ((*pTS)->value == NULL){
+  if ((*pTS)->value == NULL) {
     tfree((*pTS)->key);
     tfree(*pTS);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   memcpy((*pTS)->value, &tsVal, (*pTS)->length);
+
+  *num_kvs += 1;
+  return TSDB_CODE_SUCCESS;
+
+}
+
+int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, SSmlLinesInfo* info) {
+  //skip timestamp
+  TAOS_SML_KV *pVal = *pKVs + 1;
+  char key[] = OTS_METRIC_VALUE_COLUMN_NAME;
+
+  cJSON *metricVal = cJSON_GetObjectItem(root, "value");
+  if (metricVal == NULL) {
+    tscError("OTD:0x%"PRIx64" failed to parse metric value from JSON Payload", info->id);
+    return  TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  switch (metricVal->type) {
+    case cJSON_True:
+    case cJSON_False: {
+      pVal->type = TSDB_DATA_TYPE_BOOL;
+      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      pVal->value = tcalloc(pVal->length, 1);
+      *(bool *)(pVal->value) = metricVal->type ? true : false;
+      break;
+    }
+    case cJSON_Number: {
+      //convert default JSON Number type to float
+      pVal->type = TSDB_DATA_TYPE_FLOAT;
+      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      pVal->value = tcalloc(pVal->length, 1);
+      *(float *)(pVal->value) = (float)(metricVal->valuedouble);
+      break;
+    }
+    case cJSON_String: {
+      //convert default JSON String type to nchar
+      pVal->type = TSDB_DATA_TYPE_NCHAR;
+      pVal->length = wcslen((wchar_t *)metricVal->string) * TSDB_NCHAR_SIZE;
+      pVal->value = tcalloc(pVal->length + 1, 1);
+      memcpy(pVal->value, metricVal->string, pVal->length);
+      break;
+    }
+    default:
+      return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  pVal->key = tcalloc(sizeof(key), 1);
+  memcpy(pVal->key, key, sizeof(key));
 
   *num_kvs += 1;
   return TSDB_CODE_SUCCESS;
