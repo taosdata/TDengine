@@ -521,7 +521,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
       tsVal = convertTimePrecision(timestamp->valueint, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
     }
   } else if (cJSON_IsObject(timestamp)) {
-    int32_t ret = parseTimestampFromJSONObj(root, &tsVal, info);
+    int32_t ret = parseTimestampFromJSONObj(timestamp, &tsVal, info);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("OTD:0x%"PRIx64" Failed to parse timestamp from JSON Obj", info->id);
       return ret;
