@@ -569,7 +569,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
 
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
-    int32_t idLen = strlen(id->string);
+    int32_t idLen = strlen(id->valuestring);
     ret = isValidChildTableName(id->valuestring, idLen);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
