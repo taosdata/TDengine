@@ -13,7 +13,7 @@
 
 #include "tscParseLine.h"
 
-#define MAX_TELNET_FILEDS_NUM 2
+#define MAX_FILEDS_NUM 2
 #define OTS_TIMESTAMP_COLUMN_NAME "ts"
 #define OTS_METRIC_VALUE_COLUMN_NAME "value"
 
@@ -83,7 +83,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
 
   start = cur = *index;
   //allocate fields for timestamp and value
-  *pTS = tcalloc(MAX_TELNET_FILEDS_NUM, sizeof(TAOS_SML_KV));
+  *pTS = tcalloc(MAX_FILEDS_NUM, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
     if (*cur == ' ') {
@@ -434,7 +434,7 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
 
   int32_t stableLen = strlen(metric->valuestring);
   if (stableLen > TSDB_TABLE_NAME_LEN) {
-      tscError("OTD:0x%"PRIx64" Metric cannot exceeds 193 characters", info->id);
+      tscError("OTD:0x%"PRIx64" Metric cannot exceeds 193 characters in JSON", info->id);
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
@@ -444,13 +444,53 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
   }
 
   if (isdigit(metric->valuestring[0])) {
-    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit", info->id);
+    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit in JSON", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen);
 
+  return TSDB_CODE_SUCCESS;
+
+}
+
+int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSmlLinesInfo* info) {
+  //Timestamp must be the first KV to parse
+  assert(*num_kvs == 0);
+  int64_t tsVal;
+  char key[] = OTS_TIMESTAMP_COLUMN_NAME;
+
+  cJSON *timestamp = cJSON_GetObjectItem(root, "timestamp");
+  if (timestamp == NULL || timestamp->type != cJSON_Number) {
+    tscError("OTD:0x%"PRIx64" failed to parse timestamp from JSON Payload", info->id);
+    return  TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  //allocate fields for timestamp and value
+  *pTS = tcalloc(MAX_FILEDS_NUM, sizeof(TAOS_SML_KV));
+
+  tsVal = convertTimePrecision(timestamp->valueint, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
+
+  (*pTS)->key = tcalloc(sizeof(key), 1);
+  if ((*pTS)->key == NULL){
+    tfree(*pTS);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy((*pTS)->key, key, sizeof(key));
+
+  (*pTS)->type = TSDB_DATA_TYPE_TIMESTAMP;
+  (*pTS)->length = (int16_t)tDataTypes[(*pTS)->type].bytes;
+
+  (*pTS)->value = tcalloc((*pTS)->length, 1);
+  if ((*pTS)->value == NULL){
+    tfree((*pTS)->key);
+    tfree(*pTS);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy((*pTS)->value, &tsVal, (*pTS)->length);
+
+  *num_kvs += 1;
   return TSDB_CODE_SUCCESS;
 
 }
