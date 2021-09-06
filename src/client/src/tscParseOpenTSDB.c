@@ -616,7 +616,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
 int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  if (cJSON_IsObject(root)) {
+  if (!cJSON_IsObject(root)) {
     tscError("OTD:0x%"PRIx64" data point needs to be JSON object", info->id);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
