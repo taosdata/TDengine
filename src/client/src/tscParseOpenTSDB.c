@@ -408,7 +408,7 @@ cleanup:
   tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines finish inserting %d lines. code: %d", info->id, numLines, code);
   points = TARRAY_GET_START(lpPoints);
   numPoints = taosArrayGetSize(lpPoints);
-  for (int i=0; i<numPoints; ++i) {
+  for (int i = 0; i < numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
 
@@ -884,6 +884,7 @@ int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
 
 int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* info) {
   int32_t payloadNum, ret;
+  ret = TSDB_CODE_SUCCESS;
 
   if (payload == NULL) {
     tscError("OTD:0x%"PRIx64" empty JSON Payload", info->id);
@@ -898,7 +899,8 @@ int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* i
     payloadNum = cJSON_GetArraySize(root);
   } else {
     tscError("OTD:0x%"PRIx64" Invalid JSON Payload", info->id);
-    return TSDB_CODE_TSC_INVALID_JSON;
+    ret = TSDB_CODE_TSC_INVALID_JSON;
+    goto PARSE_JSON_OVER;
   }
 
   for (int32_t i = 0; i < payloadNum; ++i) {
@@ -909,14 +911,16 @@ int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* i
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("OTD:0x%"PRIx64" JSON data point parse failed", info->id);
       destroySmlDataPoint(&point);
-      return ret;
+      goto PARSE_JSON_OVER;
     } else {
       tscDebug("OTD:0x%"PRIx64" JSON data point parse success", info->id);
     }
     taosArrayPush(points, &point);
   }
 
-  return TSDB_CODE_SUCCESS;
+PARSE_JSON_OVER:
+  cJSON_Delete(root);
+  return ret;
 }
 
 int taos_insert_json_payload(TAOS* taos, char* payload) {
@@ -957,7 +961,7 @@ cleanup:
   tscDebug("OTD:0x%"PRIx64" taos_insert_json_payload finish inserting 1 Point. code: %d", info->id, code);
   points = TARRAY_GET_START(lpPoints);
   numPoints = taosArrayGetSize(lpPoints);
-  for (int i=0; i<numPoints; ++i) {
+  for (int i = 0; i < numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
 
