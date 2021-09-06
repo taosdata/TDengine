@@ -107,7 +107,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021E)  //"Invalid tag length")
 #define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid column length")
 #define TSDB_CODE_TSC_DUP_TAG_NAMES             TAOS_DEF_ERROR_CODE(0, 0x0220)  //"duplicated tag names")
-#define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid json format")
+#define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid JSON format")
+#define TSDB_CODE_TSC_INVALID_JSON_TYPE         TAOS_DEF_ERROR_CODE(0, 0x0222)  //"Invalid JSON data type")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
