@@ -663,3 +663,66 @@ int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* pSml, SSml
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* info) {
+  TAOS_SML_DATA_POINT point = {0};
+  int32_t code = tscParseJSONPayload(payload, &point, info);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("OTD:0x%"PRIx64" data point line parse failed", info->id);
+    destroySmlDataPoint(&point);
+    return code;
+  } else {
+    tscDebug("OTD:0x%"PRIx64" data point line parse success", info->id);
+  }
+
+  taosArrayPush(points, &point);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int taos_insert_json_payload(TAOS* taos, char* payload) {
+  int32_t code = 0;
+
+  SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
+  info->id = genUID();
+
+  if (payload == NULL) {
+    tscError("OTD:0x%"PRIx64" taos_insert_json_payload payload is NULL", info->id);
+    code = TSDB_CODE_TSC_APP_ERROR;
+    return code;
+  }
+
+  SArray* lpPoints = taosArrayInit(1, sizeof(TAOS_SML_DATA_POINT));
+  if (lpPoints == NULL) {
+    tscError("OTD:0x%"PRIx64" taos_insert_json_payload failed to allocate memory", info->id);
+    tfree(info);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines begin inserting %d points", info->id, 1);
+  code = tscParseMultiJSONPayload(payload, lpPoints, info);
+  size_t numPoints = taosArrayGetSize(lpPoints);
+
+  if (code != 0) {
+    goto cleanup;
+  }
+
+  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
+  code = tscSmlInsert(taos, points, (int)numPoints, info);
+  if (code != 0) {
+    tscError("OTD:0x%"PRIx64" taos_insert_json_payload error: %s", info->id, tstrerror((code)));
+  }
+
+cleanup:
+  tscDebug("OTD:0x%"PRIx64" taos_insert_json_payload finish inserting 1 Point. code: %d", info->id, code);
+  points = TARRAY_GET_START(lpPoints);
+  numPoints = taosArrayGetSize(lpPoints);
+  for (int i=0; i<numPoints; ++i) {
+    destroySmlDataPoint(points+i);
+  }
+
+  taosArrayDestroy(lpPoints);
+
+  tfree(info);
+  return code;
+}
