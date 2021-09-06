@@ -631,8 +631,23 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   }
 
   //if reach here means type is unsupported
-  tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON number", info->id, typeStr);
+  tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON Number", info->id, typeStr);
   return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+}
+
+int32_t convertJSONString(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
+  if (strcasecmp(typeStr, "binary") == 0) {
+    pVal->type = TSDB_DATA_TYPE_BINARY;
+  } else if (strcasecmp(typeStr, "nchar") == 0) {
+    pVal->type = TSDB_DATA_TYPE_NCHAR;
+  } else {
+    tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON String", info->id, typeStr);
+    return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+  }
+  pVal->length = strlen(value->valuestring);
+  pVal->value = tcalloc(pVal->length + 1, 1);
+  memcpy(pVal->value, value->valuestring, pVal->length);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) {
@@ -670,22 +685,14 @@ int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* inf
       break;
     }
     case cJSON_String: {
-      if (strcasecmp(type->valuestring, "binary") == 0) {
-        pVal->type = TSDB_DATA_TYPE_BINARY;
-      } else if (strcasecmp(type->valuestring, "nchar") == 0) {
-        pVal->type = TSDB_DATA_TYPE_NCHAR;
-      } else {
-        tscError("OTD:0x%"PRIx64" invalid type(%s) in JSON payload", info->id, type->valuestring);
-        return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+      ret = convertJSONString(pVal, type->valuestring, value, info);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
       }
-      pVal->length = strlen(root->valuestring);
-      pVal->value = tcalloc(pVal->length + 1, 1);
-      memcpy(pVal->value, root->valuestring, pVal->length);
-      return TSDB_CODE_SUCCESS;
+      break;
     }
-
     default:
-      return TSDB_CODE_TSC_INVALID_JSON;
+      return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
 
   return TSDB_CODE_SUCCESS;
