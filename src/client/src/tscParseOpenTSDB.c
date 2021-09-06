@@ -13,12 +13,12 @@
 
 #include "tscParseLine.h"
 
-#define MAX_FIELDS_NUM 2
-#define JSON_SUB_FIELDS_NUM 2
-#define JSON_FIELDS_NUM 4
+#define OTD_MAX_FIELDS_NUM 2
+#define OTD_JSON_SUB_FIELDS_NUM 2
+#define OTD_JSON_FIELDS_NUM 4
 
-#define OTS_TIMESTAMP_COLUMN_NAME "ts"
-#define OTS_METRIC_VALUE_COLUMN_NAME "value"
+#define OTD_TIMESTAMP_COLUMN_NAME "ts"
+#define OTD_METRIC_VALUE_COLUMN_NAME "value"
 
 /* telnet style API parser */
 static uint64_t HandleId = 0;
@@ -81,12 +81,12 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
-  char key[] = OTS_TIMESTAMP_COLUMN_NAME;
+  char key[] = OTD_TIMESTAMP_COLUMN_NAME;
   char *value = NULL;
 
   start = cur = *index;
   //allocate fields for timestamp and value
-  *pTS = tcalloc(MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
+  *pTS = tcalloc(OTD_MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
     if (*cur == ' ') {
@@ -127,7 +127,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
-  char key[] = OTS_METRIC_VALUE_COLUMN_NAME;
+  char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
   char *value = NULL;
 
   start = cur = *index;
@@ -459,7 +459,7 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
 
 int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* info) {
   int32_t size = cJSON_GetArraySize(root);
-  if (size != JSON_SUB_FIELDS_NUM) {
+  if (size != OTD_JSON_SUB_FIELDS_NUM) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -510,7 +510,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
   //Timestamp must be the first KV to parse
   assert(*num_kvs == 0);
   int64_t tsVal;
-  char key[] = OTS_TIMESTAMP_COLUMN_NAME;
+  char key[] = OTD_TIMESTAMP_COLUMN_NAME;
 
   cJSON *timestamp = cJSON_GetObjectItem(root, "timestamp");
   if (cJSON_IsNumber(timestamp)) {
@@ -531,7 +531,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
   }
 
   //allocate fields for timestamp and value
-  *pTS = tcalloc(MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
+  *pTS = tcalloc(OTD_MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
 
 
   (*pTS)->key = tcalloc(sizeof(key), 1);
@@ -664,7 +664,7 @@ int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* inf
   int32_t ret = TSDB_CODE_SUCCESS;
   int32_t size = cJSON_GetArraySize(root);
 
-  if (size != JSON_SUB_FIELDS_NUM) {
+  if (size != OTD_JSON_SUB_FIELDS_NUM) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -755,7 +755,7 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
 int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, SSmlLinesInfo* info) {
   //skip timestamp
   TAOS_SML_KV *pVal = *pKVs + 1;
-  char key[] = OTS_METRIC_VALUE_COLUMN_NAME;
+  char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
 
   cJSON *metricVal = cJSON_GetObjectItem(root, "value");
   if (metricVal == NULL) {
@@ -842,7 +842,7 @@ int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
 
   int32_t size = cJSON_GetArraySize(root);
   //outmost json fields has to be exactly 4
-  if (size != JSON_FIELDS_NUM) {
+  if (size != OTD_JSON_FIELDS_NUM) {
     tscError("OTD:0x%"PRIx64" Invalid number of JSON fields in data point %d", info->id, size);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
