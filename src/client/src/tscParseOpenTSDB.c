@@ -526,9 +526,9 @@ int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     case cJSON_String: {
       //convert default JSON String type to nchar
       pVal->type = TSDB_DATA_TYPE_NCHAR;
-      pVal->length = wcslen((wchar_t *)metricVal->string) * TSDB_NCHAR_SIZE;
+      pVal->length = wcslen((wchar_t *)metricVal->valuestring) * TSDB_NCHAR_SIZE;
       pVal->value = tcalloc(pVal->length + 1, 1);
-      memcpy(pVal->value, metricVal->string, pVal->length);
+      memcpy(pVal->value, metricVal->valuestring, pVal->length);
       break;
     }
     default:
