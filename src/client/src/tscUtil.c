@@ -4322,7 +4322,9 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   }
 
   tfree(pSql->pSubs);
+  tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+  pthread_mutex_destroy(&pSql->subState.mutex);
 
   pSql->fp = fp;
 
