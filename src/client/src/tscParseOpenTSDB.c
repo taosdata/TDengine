@@ -434,7 +434,7 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
     return  TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  int32_t stableLen = strlen(metric->valuestring);
+  uint64_t stableLen = strlen(metric->valuestring);
   if (stableLen > TSDB_TABLE_NAME_LEN) {
       tscError("OTD:0x%"PRIx64" Metric cannot exceeds 193 characters in JSON", info->id);
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
@@ -480,10 +480,10 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t typeLen = strlen(type->valuestring);
+  uint64_t typeLen = strlen(type->valuestring);
   if (typeLen == 1 && type->valuestring[0] == 's') {
     //seconds
-    *tsVal = *tsVal * 1e9;
+    *tsVal = (int64_t)(*tsVal * 1e9);
   } else if (typeLen == 2 && type->valuestring[1] == 's') {
     switch (type->valuestring[0]) {
       case 'm':
@@ -565,7 +565,7 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   if (strcasecmp(typeStr, "i8") == 0 ||
       strcasecmp(typeStr, "tinyint") == 0) {
     if (!IS_VALID_TINYINT(value->valueint)) {
-      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(tinyint)", info->id, value->valueint);
+      tscError("OTD:0x%"PRIx64" JSON value(%"PRId64") cannot fit in type(tinyint)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_TINYINT;
@@ -578,7 +578,7 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   if (strcasecmp(typeStr, "i16") == 0 ||
       strcasecmp(typeStr, "smallint") == 0) {
     if (!IS_VALID_SMALLINT(value->valueint)) {
-      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(smallint)", info->id, value->valueint);
+      tscError("OTD:0x%"PRIx64" JSON value(%"PRId64") cannot fit in type(smallint)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_SMALLINT;
@@ -591,7 +591,7 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   if (strcasecmp(typeStr, "i32") == 0 ||
       strcasecmp(typeStr, "int") == 0) {
     if (!IS_VALID_INT(value->valueint)) {
-      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(int)", info->id, value->valueint);
+      tscError("OTD:0x%"PRIx64" JSON value(%"PRId64") cannot fit in type(int)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_INT;
@@ -604,7 +604,7 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   if (strcasecmp(typeStr, "i64") == 0 ||
       strcasecmp(typeStr, "bigint") == 0) {
     if (!IS_VALID_BIGINT(value->valueint)) {
-      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(bigint)", info->id, value->valueint);
+      tscError("OTD:0x%"PRIx64" JSON value(%"PRId64") cannot fit in type(bigint)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_BIGINT;
@@ -654,7 +654,7 @@ int32_t convertJSONString(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
     tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON String", info->id, typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
-  pVal->length = strlen(value->valuestring);
+  pVal->length = (int16_t)strlen(value->valuestring);
   pVal->value = tcalloc(pVal->length + 1, 1);
   memcpy(pVal->value, value->valuestring, pVal->length);
   return TSDB_CODE_SUCCESS;
@@ -732,7 +732,7 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
       //convert default JSON String type to nchar
       pVal->type = TSDB_DATA_TYPE_NCHAR;
       //pVal->length = wcslen((wchar_t *)root->valuestring) * TSDB_NCHAR_SIZE;
-      pVal->length = strlen(root->valuestring);
+      pVal->length = (int16_t)strlen(root->valuestring);
       pVal->value = tcalloc(pVal->length + 1, 1);
       memcpy(pVal->value, root->valuestring, pVal->length);
       break;
@@ -786,7 +786,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
   //only pick up the first ID value as child table name
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
-    int32_t idLen = strlen(id->valuestring);
+    uint64_t idLen = strlen(id->valuestring);
     ret = isValidChildTableName(id->valuestring, idLen);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
@@ -816,7 +816,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
       return TSDB_CODE_TSC_INVALID_JSON;
     }
     //key
-    int32_t keyLen = strlen(tag->string);
+    uint64_t keyLen = strlen(tag->string);
     pkv->key = tcalloc(keyLen + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
     //value
