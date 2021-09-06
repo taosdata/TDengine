@@ -893,11 +893,11 @@ int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* i
 
     ret = tscParseJSONPayload(dataPoint, &point, info);
     if (ret != TSDB_CODE_SUCCESS) {
-      tscError("OTD:0x%"PRIx64" data point line parse failed", info->id);
+      tscError("OTD:0x%"PRIx64" JSON data point parse failed", info->id);
       destroySmlDataPoint(&point);
       return ret;
     } else {
-      tscDebug("OTD:0x%"PRIx64" data point line parse success", info->id);
+      tscDebug("OTD:0x%"PRIx64" JSON data point parse success", info->id);
     }
     taosArrayPush(points, &point);
   }
@@ -913,6 +913,7 @@ int taos_insert_json_payload(TAOS* taos, char* payload) {
 
   if (payload == NULL) {
     tscError("OTD:0x%"PRIx64" taos_insert_json_payload payload is NULL", info->id);
+    tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
