@@ -430,7 +430,7 @@ int taos_telnet_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
 /* telnet style API parser */
 int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
   cJSON *metric = cJSON_GetObjectItem(root, "metric");
-  if (cJSON_IsString(metric)) {
+  if (!cJSON_IsString(metric)) {
     return  TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -521,7 +521,11 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
       tsVal = convertTimePrecision(timestamp->valueint, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
     }
   } else if (cJSON_IsObject(timestamp)) {
-    parseTimestampFromJSONObj(root, &tsVal, info);
+    int32_t ret = parseTimestampFromJSONObj(root, &tsVal, info);
+    if (ret != TSDB_CODE_SUCCESS) {
+      tscError("OTD:0x%"PRIx64" Failed to parse timestamp from JSON Obj", info->id);
+      return ret;
+    }
   } else {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
@@ -728,7 +732,11 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
       break;
     }
     case cJSON_Object: {
-      parseValueFromJSONObj(root, pVal, info);
+      int32_t ret = parseValueFromJSONObj(root, pVal, info);
+      if (ret != TSDB_CODE_SUCCESS) {
+        tscError("OTD:0x%"PRIx64" Failed to parse timestamp from JSON Obj", info->id);
+        return ret;
+      }
       break;
     }
     default:
@@ -883,7 +891,7 @@ int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* i
   } else if (cJSON_IsArray(root)) {
     payloadNum = cJSON_GetArraySize(root);
   } else {
-    tscError("OTD:0x%"PRIx64" invalid JSON Payload", info->id);
+    tscError("OTD:0x%"PRIx64" Invalid JSON Payload", info->id);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
