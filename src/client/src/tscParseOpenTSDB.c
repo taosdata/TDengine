@@ -14,6 +14,8 @@
 #include "tscParseLine.h"
 
 #define MAX_FILEDS_NUM 2
+#define JSON_FIELDS_NUM 4
+
 #define OTS_TIMESTAMP_COLUMN_NAME "ts"
 #define OTS_METRIC_VALUE_COLUMN_NAME "value"
 
@@ -606,7 +608,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
 
 }
 
-int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
+int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   if (payload == NULL) {
@@ -620,5 +622,44 @@ int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* smlData, S
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  return ret;
+  int32_t size = cJSON_GetArraySize(root);
+  //outmost json fields has to be exactly 4
+  if (size != JSON_FIELDS_NUM) {
+    tscError("OTD:0x%"PRIx64" Invalid num of JSON fields in payload %d", info->id, size);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  //Parse metric
+  ret = parseMetricFromJSON(root, pSml, info);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tscError("OTD:0x%"PRIx64" Unable to parse metric from JSON payload", info->id);
+    return ret;
+  }
+  tscDebug("OTD:0x%"PRIx64" Parse metric from JSON payload finished", info->id);
+
+  //Parse timestamp
+  ret = parseTimestampFromJSON(root, &pSml->fields, &pSml->fieldNum, info);
+  if (ret) {
+    tscError("OTD:0x%"PRIx64" Unable to parse timestamp from JSON payload", info->id);
+    return ret;
+  }
+  tscDebug("OTD:0x%"PRIx64" Parse timestamp from JSON payload finished", info->id);
+
+  //Parse metric value
+  ret = parseMetricValueFromJSON(root, &pSml->fields, &pSml->fieldNum, info);
+  if (ret) {
+    tscError("OTD:0x%"PRIx64" Unable to parse metric value from JSON payload", info->id);
+    return ret;
+  }
+  tscDebug("OTD:0x%"PRIx64" Parse metric value from JSON payload finished", info->id);
+
+  //Parse tags
+  ret = parseTagsFromJSON(root, &pSml->tags, &pSml->tagNum, &pSml->childTableName, info);
+  if (ret) {
+    tscError("OTD:0x%"PRIx64" Unable to parse tags from JSON payload", info->id);
+    return ret;
+  }
+  tscDebug("OTD:0x%"PRIx64" Parse tags from JSON payload finished", info->id);
+
+  return TSDB_CODE_SUCCESS;
 }
