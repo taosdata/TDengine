@@ -543,6 +543,79 @@ int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
 
 }
 
+int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **childTableName, SSmlLinesInfo* info) {
+
+  cJSON *tags = cJSON_GetObjectItem(root, "tags");
+  if (tags == NULL || tags->type != cJSON_Object) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+
+  cJSON *id = cJSON_GetObjectItem(root, "ID");
+  if (id != NULL) {
+    int32_t idLen = strlen(id->string);
+    int32_t ret = isValidChildTableName(id->string, idLen);
+    if (ret) {
+      return ret;
+    }
+    *childTableName = tcalloc(idLen + 1, sizeof(char));
+    memcpy(*childTableName, id->string, idLen);
+    //remove ID from tags list no case sensitive
+    cJSON_DeleteItemFromObject(tags, "ID");
+  }
+
+  int32_t tagNum = cJSON_GetArraySize(tags);
+  //at least one tag pair required
+  if (tagNum <= 0) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  //allocate memory for tags
+  *pKVs = tcalloc(tagNum, sizeof(TAOS_SML_KV));
+  TAOS_SML_KV *pkv = *pKVs;
+
+  for (int32_t i = 0; i < tagNum; ++i) {
+    cJSON *tag = cJSON_GetArrayItem(tags, i);
+    //key
+    pkv->key = tcalloc(strlen(tag->string) + 1, sizeof(char));
+    strncpy(pkv->key, tag->string, strlen(tag->string));
+    //value
+    switch (tag->type) {
+      case cJSON_True:
+      case cJSON_False: {
+        pkv->type = TSDB_DATA_TYPE_BOOL;
+        pkv->length = (int16_t)tDataTypes[pkv->type].bytes;
+        pkv->value = tcalloc(pkv->length, 1);
+        *(bool *)(pkv->value) = tag->type ? true : false;
+        break;
+      }
+      case cJSON_Number: {
+        //convert default JSON Number type to float
+        pkv->type = TSDB_DATA_TYPE_FLOAT;
+        pkv->length = (int16_t)tDataTypes[pkv->type].bytes;
+        pkv->value = tcalloc(pkv->length, 1);
+        *(float *)(pkv->value) = (float)(tag->valuedouble);
+        break;
+      }
+      case cJSON_String: {
+        //convert default JSON String type to nchar
+        pkv->type = TSDB_DATA_TYPE_NCHAR;
+        pkv->length = wcslen((wchar_t *)tag->valuestring) * TSDB_NCHAR_SIZE;
+        pkv->value = tcalloc(pkv->length + 1, 1);
+        memcpy(pkv->value, tag->valuestring, pkv->length);
+        break;
+      }
+      default:
+        tfree(pkv->key);
+        return TSDB_CODE_TSC_INVALID_JSON;
+    }
+    *num_kvs += 1;
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+}
+
 int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
