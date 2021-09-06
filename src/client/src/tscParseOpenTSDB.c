@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "hash.h"
 #include "taos.h"
 
@@ -425,11 +426,9 @@ int taos_telnet_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
 
 /* telnet style API parser */
 int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
-  int32_t ret = TSDB_CODE_SUCCESS;
-
   cJSON *metric = cJSON_GetObjectItem(root, "metric");
   if (metric == NULL || metric->type != cJSON_String) {
-    tscError("OTD:0x%"PRIx64" failed to parse metric from JSON Payload %s", info->id);
+    tscError("OTD:0x%"PRIx64" failed to parse metric from JSON Payload", info->id);
     return  TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -460,13 +459,13 @@ int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* smlData, S
   int32_t ret = TSDB_CODE_SUCCESS;
 
   if (payload == NULL) {
-    tscError("OTD:0x%"PRIx64" empty JSON Payload %s", info->id);
+    tscError("OTD:0x%"PRIx64" empty JSON Payload", info->id);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   cJSON *root = cJSON_Parse(payload);
   if (root == NULL) {
-    tscError("OTD:0x%"PRIx64" parsing JSON Payload error%s", info->id);
+    tscError("OTD:0x%"PRIx64" parsing JSON Payload error", info->id);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
