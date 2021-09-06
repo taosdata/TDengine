@@ -378,6 +378,7 @@ typedef struct SSqlObj {
   SSqlCmd          cmd;
   SSqlRes          res;
   bool             isBind;
+  bool             updateTableMeta;
 
   SSubqueryState   subState;
   struct SSqlObj **pSubs;

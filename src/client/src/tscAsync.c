@@ -346,6 +346,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     } 
     goto _error;
   }
+  if (pCmd->command == TSDB_SQL_ALTER_TABLE && pSql->updateTableMeta) {
+    (*pSql->fp)(pSql->param, pSql, code);
+    taosReleaseRef(tscObjRef, pSql->self);
+    return;
+  }
 
   tscDebug("0x%"PRIx64" get %s successfully", pSql->self, msg);
   if (pSql->pStream == NULL) {

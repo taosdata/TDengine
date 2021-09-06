@@ -2611,14 +2611,16 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
-  tscDebug("0x%"PRIx64" remove tableMeta in hashMap after alter-table: %s", pSql->self, name);
 
   bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   tfree(pTableMetaInfo->pTableMeta);
-
-  if (isSuperTable) {  // if it is a super table, iterate the hashTable and remove all the childTableMeta
-    taosHashClear(tscTableMetaMap);
+  tscDebug("0x%"PRIx64" remove tableMeta in hashMap after alter-table: %s", pSql->self, name);
+  if (isSuperTable) {
+    // after alter super table, retrieve newest table meta
+    int32_t code = tscGetTableMeta(pSql, pTableMetaInfo);
+    pSql->updateTableMeta = true;
+    return code;
   }
 
   return 0;
