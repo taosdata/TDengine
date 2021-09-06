@@ -613,24 +613,18 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
 
 }
 
-int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
+int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  if (payload == NULL) {
-    tscError("OTD:0x%"PRIx64" empty JSON Payload", info->id);
-    return TSDB_CODE_TSC_INVALID_JSON;
-  }
-
-  cJSON *root = cJSON_Parse(payload);
-  if (root == NULL) {
-    tscError("OTD:0x%"PRIx64" parsing JSON Payload error", info->id);
+  if (cJSON_IsObject(root)) {
+    tscError("OTD:0x%"PRIx64" data point needs to be JSON object", info->id);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   int32_t size = cJSON_GetArraySize(root);
   //outmost json fields has to be exactly 4
   if (size != JSON_FIELDS_NUM) {
-    tscError("OTD:0x%"PRIx64" Invalid num of JSON fields in payload %d", info->id, size);
+    tscError("OTD:0x%"PRIx64" Invalid number of JSON fields in data point %d", info->id, size);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
@@ -670,17 +664,38 @@ int32_t tscParseJSONPayload(const char* payload, TAOS_SML_DATA_POINT* pSml, SSml
 }
 
 int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* info) {
-  TAOS_SML_DATA_POINT point = {0};
-  int32_t code = tscParseJSONPayload(payload, &point, info);
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("OTD:0x%"PRIx64" data point line parse failed", info->id);
-    destroySmlDataPoint(&point);
-    return code;
-  } else {
-    tscDebug("OTD:0x%"PRIx64" data point line parse success", info->id);
+  int32_t payloadNum, ret;
+
+  if (payload == NULL) {
+    tscError("OTD:0x%"PRIx64" empty JSON Payload", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  taosArrayPush(points, &point);
+  cJSON *root = cJSON_Parse(payload);
+  //multiple data points must be sent in JSON array
+  if (cJSON_IsObject(root)) {
+    payloadNum = 1;
+  } else if (cJSON_IsArray(root)) {
+    payloadNum = cJSON_GetArraySize(root);
+  } else {
+    tscError("OTD:0x%"PRIx64" invalid JSON Payload", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  for (int32_t i = 0; i < payloadNum; ++i) {
+    TAOS_SML_DATA_POINT point = {0};
+    cJSON *dataPoint = (payloadNum == 1) ? root : cJSON_GetArrayItem(root, i);
+
+    ret = tscParseJSONPayload(dataPoint, &point, info);
+    if (ret != TSDB_CODE_SUCCESS) {
+      tscError("OTD:0x%"PRIx64" data point line parse failed", info->id);
+      destroySmlDataPoint(&point);
+      return ret;
+    } else {
+      tscDebug("OTD:0x%"PRIx64" data point line parse success", info->id);
+    }
+    taosArrayPush(points, &point);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
