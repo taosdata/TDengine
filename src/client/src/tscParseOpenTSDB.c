@@ -562,7 +562,8 @@ int32_t convertJSONBool(TAOS_SML_KV *pVal, char* typeStr, int64_t valueInt, SSml
 
 int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
   //tinyint
-  if (strcasecmp(typeStr, "i8") == 0) {
+  if (strcasecmp(typeStr, "i8") == 0 ||
+      strcasecmp(typeStr, "tinyint") == 0) {
     if (!IS_VALID_TINYINT(value->valueint)) {
       tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(tinyint)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -574,7 +575,8 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
     return TSDB_CODE_SUCCESS;
   }
   //smallint
-  if (strcasecmp(typeStr, "i16") == 0) {
+  if (strcasecmp(typeStr, "i16") == 0 ||
+      strcasecmp(typeStr, "smallint") == 0) {
     if (!IS_VALID_SMALLINT(value->valueint)) {
       tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(smallint)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -586,7 +588,8 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
     return TSDB_CODE_SUCCESS;
   }
   //int
-  if (strcasecmp(typeStr, "i32") == 0) {
+  if (strcasecmp(typeStr, "i32") == 0 ||
+      strcasecmp(typeStr, "int") == 0) {
     if (!IS_VALID_INT(value->valueint)) {
       tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(int)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -598,7 +601,8 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
     return TSDB_CODE_SUCCESS;
   }
   //bigint
-  if (strcasecmp(typeStr, "i64") == 0) {
+  if (strcasecmp(typeStr, "i64") == 0 ||
+      strcasecmp(typeStr, "bigint") == 0) {
     if (!IS_VALID_BIGINT(value->valueint)) {
       tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(bigint)", info->id, value->valueint);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -610,7 +614,8 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
     return TSDB_CODE_SUCCESS;
   }
   //float
-  if (strcasecmp(typeStr, "f32") == 0) {
+  if (strcasecmp(typeStr, "f32") == 0 ||
+      strcasecmp(typeStr, "float") == 0) {
     if (!IS_VALID_FLOAT(value->valuedouble)) {
       tscError("OTD:0x%"PRIx64" JSON value(%f) cannot fit in type(float)", info->id, value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -622,7 +627,8 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
     return TSDB_CODE_SUCCESS;
   }
   //double
-  if (strcasecmp(typeStr, "f64") == 0) {
+  if (strcasecmp(typeStr, "f64") == 0 ||
+      strcasecmp(typeStr, "double") == 0) {
     if (!IS_VALID_DOUBLE(value->valuedouble)) {
       tscError("OTD:0x%"PRIx64" JSON value(%f) cannot fit in type(double)", info->id, value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
