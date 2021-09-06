@@ -112,7 +112,7 @@ void taosArrayRemoveBatch(SArray *pArray, const int32_t* pData, int32_t numOfEle
     i += 1;
   }
 
-  assert(i == pData[numOfElems - 1] + 1 && i < size);
+  assert(i == pData[numOfElems - 1] + 1 && i <= size);
 
   int32_t srcIndex = pData[numOfElems - 1] + 1;
   int32_t dstIndex = pData[numOfElems - 1] - numOfElems + 1;
