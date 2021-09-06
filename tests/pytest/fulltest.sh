@@ -13,6 +13,7 @@ python3 ./test.py -f insert/tinyint.py
 python3 ./test.py -f insert/date.py
 python3 ./test.py -f insert/binary.py
 python3 ./test.py -f insert/nchar.py
+
 #python3 ./test.py -f insert/nchar-boundary.py
 python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
