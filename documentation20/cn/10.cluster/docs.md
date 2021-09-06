@@ -121,7 +121,7 @@ taos>
 
 ### 添加数据节点
 
-执行CLI程序taos，使用root账号登录进系统，执行：
+执行CLI程序taos，执行：
 
 ```
 CREATE DNODE "fqdn:port"; 
@@ -131,7 +131,7 @@ CREATE DNODE "fqdn:port";
 
 ### 删除数据节点
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 
 ```mysql
 DROP DNODE "fqdn:port | dnodeID";
@@ -153,7 +153,7 @@ DROP DNODE "fqdn:port | dnodeID";
 
 手动将某个vnode迁移到指定的dnode。
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 
 ```mysql
 ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
@@ -169,7 +169,7 @@ ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
 
 ### 查看数据节点
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 ```mysql
 SHOW DNODES;
 ```
@@ -180,8 +180,9 @@ SHOW DNODES;
 
 为充分利用多核技术，并提供scalability，数据需要分片处理。因此TDengine会将一个DB的数据切分成多份，存放在多个vnode里。这些vnode可能分布在多个数据节点dnode里，这样就实现了水平扩展。一个vnode仅仅属于一个DB，但一个DB可以有多个vnode。vnode的是mnode根据当前系统资源的情况，自动进行分配的，无需任何人工干预。
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 ```mysql
+USE SOME_DATABASE;
 SHOW VGROUPS;
 ```
 
