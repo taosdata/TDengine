@@ -559,7 +559,7 @@ int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
 }
 
 int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **childTableName, SSmlLinesInfo* info) {
-  int32_t ret;
+  int32_t ret = TSDB_CODE_SUCCESS;
 
   cJSON *tags = cJSON_GetObjectItem(root, "tags");
   if (tags == NULL || tags->type != cJSON_Object) {
@@ -567,15 +567,15 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
   }
 
 
-  cJSON *id = cJSON_GetObjectItem(root, "ID");
+  cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
     int32_t idLen = strlen(id->string);
-    ret = isValidChildTableName(id->string, idLen);
+    ret = isValidChildTableName(id->valuestring, idLen);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
     *childTableName = tcalloc(idLen + 1, sizeof(char));
-    memcpy(*childTableName, id->string, idLen);
+    memcpy(*childTableName, id->valuestring, idLen);
     //remove ID from tags list no case sensitive
     cJSON_DeleteItemFromObject(tags, "ID");
   }
@@ -605,7 +605,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
     pkv++;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return ret;
 
 }
 
