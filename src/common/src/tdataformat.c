@@ -448,6 +448,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   int dcol = 0;
 
   while (dcol < pCols->numOfCols) {
+    bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
       dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
@@ -458,13 +459,14 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     STColumn *pRowCol = schemaColAt(pSchema, rcol);
     if (pRowCol->colId == pDataCol->colId) {
       void *value = tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE);
+      if(!isNull(value, pDataCol->type)) setCol = 1;
       dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
       dcol++;
       rcol++;
     } else if (pRowCol->colId < pDataCol->colId) {
       rcol++;
     } else {
-      if(forceSetNull) {
+      if(forceSetNull || setCol) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       dcol++;
@@ -482,6 +484,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
   int nRowCols = kvRowNCols(row);
 
   while (dcol < pCols->numOfCols) {
+    bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
       dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
@@ -493,13 +496,14 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
 
     if (colIdx->colId == pDataCol->colId) {
       void *value = tdGetKvRowDataOfCol(row, colIdx->offset);
+      if(!isNull(value, pDataCol->type)) setCol = 1;
       dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
       ++dcol;
       ++rcol;
     } else if (colIdx->colId < pDataCol->colId) {
       ++rcol;
     } else {
-      if (forceSetNull) {
+      if(forceSetNull || setCol) {
         dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       ++dcol;
@@ -518,7 +522,6 @@ void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, b
   }
 }
 
-//TODO: refactor this function to eliminate additional memory copy
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset, bool forceSetNull) {
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
   ASSERT(target->numOfCols == source->numOfCols);
@@ -534,7 +537,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
     ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
-        if (source->cols[j].len > 0) {
+        if (source->cols[j].len > 0 || target->cols[j].len > 0) {
           dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i + (*pOffset)), target->numOfRows,
                            target->maxPoints);
         }
@@ -578,7 +581,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
     if (key1 < key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
-        if (src1->cols[i].len > 0) {
+        if (src1->cols[i].len > 0 || target->cols[i].len > 0) {
           dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
                            target->maxPoints);
         }
@@ -596,6 +599,8 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
           } else if(!forceSetNull && key1 == key2 && src1->cols[i].len > 0) {
             dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
                              target->maxPoints);
+          } else if(target->cols[i].len > 0) {
+            dataColSetNullAt(&target->cols[i], target->numOfRows);
           }
         }
         target->numOfRows++;
