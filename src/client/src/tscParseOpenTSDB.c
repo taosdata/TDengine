@@ -692,7 +692,7 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
       pVal->type = TSDB_DATA_TYPE_BOOL;
       pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
       pVal->value = tcalloc(pVal->length, 1);
-      *(bool *)(pVal->value) = type ? true : false;
+      *(bool *)(pVal->value) = root->valueint ? true : false;
       break;
     }
     case cJSON_Number: {
