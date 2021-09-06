@@ -235,7 +235,6 @@ pipeline {
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
 	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-        echo "timezone              Asia/Shanghai (CST, +0800)">>/etc/taos/taos.cfg
 	      npm install td2.0-connector > /dev/null 2>&1
               node nanosecondTest.js
               node test1970.js
