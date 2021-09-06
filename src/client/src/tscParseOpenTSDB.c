@@ -543,17 +543,96 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
 
 }
 
-int32_t convertJSONBoolValue(TAOS_SML_KV *pVal, char* typeStr, int64_t valueInt, SSmlLinesInfo* info) {
-   if (strcasecmp(typeStr, "bool") != 0) {
-     tscError("OTD:0x%"PRIx64" invalid type(%s) in JSON payload", info->id, typeStr);
-     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
-   }
-   pVal->type = TSDB_DATA_TYPE_BOOL;
-   pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-   pVal->value = tcalloc(pVal->length, 1);
-   *(bool *)(pVal->value) = valueInt ? true : false;
+int32_t convertJSONBool(TAOS_SML_KV *pVal, char* typeStr, int64_t valueInt, SSmlLinesInfo* info) {
+  if (strcasecmp(typeStr, "bool") != 0) {
+    tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON Bool", info->id, typeStr);
+    return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+  }
+  pVal->type = TSDB_DATA_TYPE_BOOL;
+  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+  pVal->value = tcalloc(pVal->length, 1);
+  *(bool *)(pVal->value) = valueInt ? true : false;
 
-   return TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
+  //tinyint
+  if (strcasecmp(typeStr, "i8") == 0) {
+    if (!IS_VALID_TINYINT(value->valueint)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(tinyint)", info->id, value->valueint);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_TINYINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = tcalloc(pVal->length, 1);
+    *(int8_t *)(pVal->value) = (int8_t)(value->valueint);
+    return TSDB_CODE_SUCCESS;
+  }
+  //smallint
+  if (strcasecmp(typeStr, "i16") == 0) {
+    if (!IS_VALID_SMALLINT(value->valueint)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(smallint)", info->id, value->valueint);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_SMALLINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = tcalloc(pVal->length, 1);
+    *(int16_t *)(pVal->value) = (int16_t)(value->valueint);
+    return TSDB_CODE_SUCCESS;
+  }
+  //int
+  if (strcasecmp(typeStr, "i32") == 0) {
+    if (!IS_VALID_INT(value->valueint)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(int)", info->id, value->valueint);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_INT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = tcalloc(pVal->length, 1);
+    *(int32_t *)(pVal->value) = (int32_t)(value->valueint);
+    return TSDB_CODE_SUCCESS;
+  }
+  //bigint
+  if (strcasecmp(typeStr, "i64") == 0) {
+    if (!IS_VALID_BIGINT(value->valueint)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(bigint)", info->id, value->valueint);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_BIGINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = tcalloc(pVal->length, 1);
+    *(int64_t *)(pVal->value) = (int64_t)(value->valueint);
+    return TSDB_CODE_SUCCESS;
+  }
+  //float
+  if (strcasecmp(typeStr, "f32") == 0) {
+    if (!IS_VALID_FLOAT(value->valuedouble)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%f) cannot fit in type(float)", info->id, value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_FLOAT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = tcalloc(pVal->length, 1);
+    *(float *)(pVal->value) = (float)(value->valuedouble);
+    return TSDB_CODE_SUCCESS;
+  }
+  //double
+  if (strcasecmp(typeStr, "f64") == 0) {
+    if (!IS_VALID_DOUBLE(value->valuedouble)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%f) cannot fit in type(double)", info->id, value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_DOUBLE;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = tcalloc(pVal->length, 1);
+    *(double *)(pVal->value) = (double)(value->valuedouble);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  //if reach here means type is unsupported
+  tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON number", info->id, typeStr);
+  return TSDB_CODE_TSC_INVALID_JSON_TYPE;
 }
 
 int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) {
@@ -577,89 +656,18 @@ int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* inf
   switch (value->type) {
     case cJSON_True:
     case cJSON_False: {
-      ret = convertJSONBoolValue(pVal, type->valuestring, value->valueint, info);
+      ret = convertJSONBool(pVal, type->valuestring, value->valueint, info);
       if (ret != TSDB_CODE_SUCCESS) {
         return ret;
       }
       break;
     }
     case cJSON_Number: {
-      //tinyint
-      if (strcasecmp(type->valuestring, "i8") == 0) {
-        if (!IS_VALID_TINYINT(value->valueint)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(tinyint)", info->id, value->valueint);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        pVal->type = TSDB_DATA_TYPE_TINYINT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        *(int8_t *)(pVal->value) = (int8_t)(value->valueint);
-        return TSDB_CODE_SUCCESS;
+      ret = convertJSONNumber(pVal, type->valuestring, value, info);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
       }
-      //smallint
-      if (strcasecmp(type->valuestring, "i16") == 0) {
-        if (!IS_VALID_SMALLINT(value->valueint)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(smallint)", info->id, value->valueint);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        pVal->type = TSDB_DATA_TYPE_SMALLINT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        *(int16_t *)(pVal->value) = (int16_t)(value->valueint);
-        return TSDB_CODE_SUCCESS;
-      }
-      //int
-      if (strcasecmp(type->valuestring, "i32") == 0) {
-        if (!IS_VALID_INT(value->valueint)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(int)", info->id, value->valueint);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        pVal->type = TSDB_DATA_TYPE_INT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        *(int32_t *)(pVal->value) = (int32_t)(value->valueint);
-        return TSDB_CODE_SUCCESS;
-      }
-      //bigint
-      if (strcasecmp(type->valuestring, "i64") == 0) {
-        if (!IS_VALID_BIGINT(value->valueint)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%ld) cannot fit in type(bigint)", info->id, value->valueint);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        pVal->type = TSDB_DATA_TYPE_BIGINT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        *(int64_t *)(pVal->value) = (int64_t)(value->valueint);
-        return TSDB_CODE_SUCCESS;
-      }
-      //float
-      if (strcasecmp(type->valuestring, "f32") == 0) {
-        if (!IS_VALID_FLOAT(value->valuedouble)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%f) cannot fit in type(float)", info->id, value->valuedouble);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        pVal->type = TSDB_DATA_TYPE_FLOAT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        *(float *)(pVal->value) = (float)(value->valuedouble);
-        return TSDB_CODE_SUCCESS;
-      }
-      //double
-      if (strcasecmp(type->valuestring, "f64") == 0) {
-        if (!IS_VALID_DOUBLE(value->valuedouble)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%f) cannot fit in type(double)", info->id, value->valuedouble);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        pVal->type = TSDB_DATA_TYPE_DOUBLE;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        *(double *)(pVal->value) = (double)(value->valuedouble);
-        return TSDB_CODE_SUCCESS;
-      }
-
-      //if reach here means type string is not supported
-      tscError("OTD:0x%"PRIx64" invalid type(%s) in JSON payload", info->id, type->valuestring);
-      return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+      break;
     }
     case cJSON_String: {
       if (strcasecmp(type->valuestring, "binary") == 0) {
