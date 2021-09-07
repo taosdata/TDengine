@@ -748,7 +748,6 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
       for (int32_t m = 0; m < pvg->numOfVgroups; ++m) {
         if (tt->vgId == pvg->vgroups[m].vgId) {
           memcpy(&info.vgInfo, &pvg->vgroups[m], sizeof(info.vgInfo));
-//          tscSVgroupInfoCopy(&info.vgInfo, &pvg->vgroups[m]);
           break;
         }
       }
@@ -2579,9 +2578,6 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     
     tscDebug("0x%"PRIx64" sub:0x%"PRIx64" create subquery success. orderOfSub:%d", pSql->self, pNew->self,
         trs->subqueryIndex);
-
-    tfree(trs->localBuffer);
-    tfree(trs);
   }
   
   if (i < pState->numOfSub) {
@@ -2599,8 +2595,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return pRes->code;
   }
 
-  pSql->fp(pSql->param, pSql, 0);
-//  doConcurrentlySendSubQueries(pSql);
+  doConcurrentlySendSubQueries(pSql);
   return TSDB_CODE_SUCCESS;
 }
 

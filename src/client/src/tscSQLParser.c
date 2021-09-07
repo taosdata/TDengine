@@ -8701,13 +8701,10 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
 
         assert(existVgroupInfo.inUse >= 0);
         SVgroupMsg *pVgroup = &pTableMetaInfo->vgroupList->vgroups[j];
-        memcpy(pVgroup, &existVgroupInfo, sizeof(SVgroupMsg));
-//        pVgroup->numOfEps = existVgroupInfo.numOfEps;
-//        pVgroup->vgId = existVgroupInfo.vgId;
-//        for (int32_t k = 0; k < existVgroupInfo.numOfEps; ++k) {
-//          pVgroup->epAddr[k].port = existVgroupInfo.ep[k].port;
-//          pVgroup->epAddr[k].fqdn = strndup(existVgroupInfo.ep[k].fqdn, TSDB_FQDN_LEN);
-//        }
+
+        pVgroup->numOfEps = existVgroupInfo.numOfEps;
+        pVgroup->vgId = existVgroupInfo.vgId;
+        memcpy(&pVgroup->epAddr, &existVgroupInfo.ep, sizeof(pVgroup->epAddr));
       }
     }
   }
