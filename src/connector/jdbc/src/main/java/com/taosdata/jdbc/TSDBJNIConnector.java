@@ -77,7 +77,7 @@ public class TSDBJNIConnector {
 
     private static native String getTsCharset();
 
-    private static native int setConfigImp(String config);
+    private static native TSDBException setConfigImp(String config);
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {

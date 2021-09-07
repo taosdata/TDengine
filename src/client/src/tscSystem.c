@@ -440,7 +440,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
 #include "cJSON.h"
 static setConfRet taos_set_config_imp(const char *config){
-  setConfRet ret = {0};
+  setConfRet ret;
   static bool setConfFlag = false;
   if (setConfFlag) {
     ret.retCode = -5;
