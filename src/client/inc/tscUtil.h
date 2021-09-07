@@ -41,6 +41,15 @@ extern "C" {
 #define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
+#define UTIL_GET_VGROUPMAP(pSql) \
+  (pSql->pTscObj->pClusterInfo->vgroupMap)
+
+#define UTIL_GET_TABLEMETA(pSql) \
+  (pSql->pTscObj->pClusterInfo->tableMetaMap)
+
+#define UTIL_GET_VGROUPLIST(pSql) \
+  (pSql->pTscObj->pClusterInfo->vgroupListBuf)
+
 #pragma pack(push,1)
 // this struct is transfered as binary, padding two bytes to avoid
 // an 'uid' whose low bytes is 0xff being recoginized as NULL,
@@ -105,6 +114,7 @@ typedef struct SBlockKeyInfo {
   int32_t         maxBytesAlloc;
   SBlockKeyTuple* pKeyTuple;
 } SBlockKeyInfo;
+
 
 int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 
@@ -346,7 +356,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta **ppStable);
+int32_t tscCreateTableMetaFromSTableMeta(SSqlObj *pSql, STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta **ppStable);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 
@@ -366,6 +376,7 @@ STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
 char* cloneCurrentDBName(SSqlObj* pSql);
+
 
 #ifdef __cplusplus
 }

@@ -48,6 +48,7 @@ struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
+
 typedef struct SNewVgroupInfo {
   int32_t    vgId;
   int8_t     inUse;
@@ -138,6 +139,13 @@ typedef enum {
   ROW_COMPARE_NO_NEED = 0,
   ROW_COMPARE_NEED = 1,
 } ERowCompareStat;
+
+typedef struct {
+  void *vgroupMap;  
+  void *tableMetaMap;
+  void *vgroupListBuf; 
+  int64_t ref;
+} SClusterInfo;
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);
 
@@ -334,6 +342,7 @@ typedef struct STscObj {
   char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
+  char               clusterId[TSDB_CLUSTER_ID_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
   uint32_t           connId;
@@ -342,9 +351,11 @@ typedef struct STscObj {
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
   SRpcObj           *pRpcObj;
+  SClusterInfo       *pClusterInfo;
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
+      
   SReqOrigin         from;
 } STscObj;
 
@@ -427,6 +438,9 @@ void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 int  tscAcquireRpc(const char *key, const char *user, const char *secret,void **pRpcObj);
 void tscReleaseRpc(void *param);
 void tscInitMsgsFp();
+
+void *tscAcquireClusterInfo(const char *clusterId);
+void tscReleaseClusterInfo(const char *clusterId);
 
 int tsParseSql(SSqlObj *pSql, bool initial);
 
