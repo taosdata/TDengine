@@ -23,8 +23,8 @@ namespace TDengineDriver
     class TDengineNanoTest
     {
         //connect parameters
-        private string host="u195";
-        private string configDir="C:/TDengine/cfg";
+        private string host="localhost";
+        private string configDir="/etc/taos";
         private string user="root";
         private string password="taosdata";
         private short port = 0;
