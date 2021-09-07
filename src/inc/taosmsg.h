@@ -775,12 +775,7 @@ typedef struct {
 typedef struct {
   int32_t numOfVgroups;
   SVgroupMsg vgroups[];
-} SVgroupsInfo;
-
-typedef struct {
-  int32_t numOfVgroups;
-  SVgroupMsg vgroups[];
-} SVgroupsMsg;
+} SVgroupsMsg, SVgroupsInfo;
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
