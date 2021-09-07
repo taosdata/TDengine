@@ -66,7 +66,11 @@ Run install_client.sh to install.
 
 Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to End Point of the TDengine server, for example: [h1.taos.com](http://h1.taos.com/):6030.
 
-**Tip: If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+**Tip: **
+
+**1. If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+
+**2. To prevent “unable to resolve FQDN” error when connecting to the server, ensure that the hosts file of the client has the correct FQDN value.**
 
 **Windows x64/x86**
 
