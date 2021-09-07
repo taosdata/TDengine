@@ -302,7 +302,6 @@ void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, 
 
   memset(&(pDFile->info), 0, sizeof(pDFile->info));
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
-  pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
   tsdbGetFilename(vid, fid, ver, ftype, fname);
   tfsInitFile(&(pDFile->f), did.level, did.id, fname);
@@ -468,7 +467,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  // pBuf = taosDecodeFixedU32(pBuf, &_version);
+  pBuf = taosDecodeFixedU32(pBuf, &(pDFile->fver));
   pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
   return 0;
 }
@@ -528,7 +527,6 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
 static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
   int tlen = 0;
 
-  tlen += taosEncodeFixedU32(buf, pInfo->fver);
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
   tlen += taosEncodeFixedU32(buf, pInfo->len);
   tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
@@ -541,7 +539,6 @@ static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
 }
 
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
-  buf = taosDecodeFixedU32(buf, &(pInfo->fver));
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
   buf = taosDecodeFixedU32(buf, &(pInfo->len));
   buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));

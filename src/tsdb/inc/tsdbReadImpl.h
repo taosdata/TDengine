@@ -42,16 +42,16 @@ typedef struct {
   int32_t numOfRows : 24;
   int32_t len;
   int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+  int16_t numOfSubBlocks;
+  int16_t numOfCols;  // not including timestamp column
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
 #ifdef __TD_6117__
   int64_t hasAggr : 1;
   int64_t blkVer : 7;
   int64_t aggrOffset : 56;
   int32_t aggrLen;
 #endif
-  int16_t numOfSubBlocks;
-  int16_t numOfCols;  // not including timestamp column
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
 } SBlock;
 
 typedef struct {
