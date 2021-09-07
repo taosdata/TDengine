@@ -2459,11 +2459,11 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   tfree(p);
 }
 
-static UNUSED_FUNC void doConcurrentlySendSubQueries(SSqlObj* pSql) {
+static void doConcurrentlySendSubQueries(SSqlObj* pSql) {
   SSubqueryState *pState = &pSql->subState;
 
   // concurrently sent the query requests.
-  const int32_t MAX_REQUEST_PER_TASK = 8;
+  const int32_t MAX_REQUEST_PER_TASK = 4;
 
   int32_t numOfTasks = (pState->numOfSub + MAX_REQUEST_PER_TASK - 1)/MAX_REQUEST_PER_TASK;
   assert(numOfTasks >= 1);
