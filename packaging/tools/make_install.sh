@@ -20,41 +20,33 @@ fi
 
 # Dynamic directory
 
-data_dir="/var/lib/taos"
-
 if [ "$osType" != "Darwin" ]; then
+    data_dir="/var/lib/taos"
     log_dir="/var/log/taos"
-else
-    log_dir=~/TDengine/log
-fi
 
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
-if [ "$osType" != "Darwin" ]; then
     cfg_install_dir="/etc/taos"
-else
-    cfg_install_dir="/usr/local/Cellar/tdengine/${verNumber}/taos"
-fi
 
-if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
     lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
-fi
 
-#install main path
-if [ "$osType" != "Darwin" ]; then
     install_main_dir="/usr/local/taos"
-else
-    install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
-fi
 
-# old bin dir
-if [ "$osType" != "Darwin" ]; then
-     bin_dir="/usr/local/taos/bin"
+    bin_dir="/usr/local/taos/bin"
 else
-     bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
+    data_dir="/usr/local/var/lib/taos"
+    log_dir="/usr/local/var/log/taos"
+
+    cfg_install_dir="/usr/local/etc/taos"
+
+    bin_link_dir="/usr/local/bin"
+    lib_link_dir="/usr/local/lib"
+    inc_link_dir="/usr/local/include"
+
+    install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
+
+    bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
 fi
 
 service_config_dir="/etc/systemd/system"
@@ -144,12 +136,13 @@ function install_main_path() {
 
 function install_bin() {
     # Remove links
+    ${csudo} rm -f ${bin_link_dir}/taos     || :
+    ${csudo} rm -f ${bin_link_dir}/taosd    || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
+    ${csudo} rm -f ${bin_link_dir}/taosdump || :
+
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} rm -f ${bin_link_dir}/taos     || :
-        ${csudo} rm -f ${bin_link_dir}/taosd    || :
-        ${csudo} rm -f ${bin_link_dir}/taosdemo || :
         ${csudo} rm -f ${bin_link_dir}/perfMonitor || :
-        ${csudo} rm -f ${bin_link_dir}/taosdump || :
         ${csudo} rm -f ${bin_link_dir}/set_core || :
         ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
     fi
@@ -167,11 +160,12 @@ function install_bin() {
     ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
+    [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
+    [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
+    [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+
     if [ "$osType" != "Darwin" ]; then
-        [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
-        [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
-        [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-        [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
     fi
@@ -249,7 +243,10 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
     
     install_jemalloc
@@ -288,18 +285,14 @@ function install_config() {
 }
 
 function install_log() {
-    if [ "$osType" != "Darwin" ]; then
-            ${csudo} rm -rf ${log_dir}  || :
-            ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
-            ${csudo} ln -s ${log_dir} ${install_main_dir}/log
-    fi
+    ${csudo} rm -rf ${log_dir}  || :
+    ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+    ${csudo} ln -s ${log_dir} ${install_main_dir}/log
 }
 
 function install_data() {
-    if [ "$osType" != "Darwin" ]; then
-        ${csudo} mkdir -p ${data_dir}
-        ${csudo} ln -s ${data_dir} ${install_main_dir}/data
-    fi
+    ${csudo} mkdir -p ${data_dir}
+    ${csudo} ln -s ${data_dir} ${install_main_dir}/data
 }
 
 function install_connector() {
@@ -496,10 +489,7 @@ function install_TDengine() {
     
     install_main_path
 
-    if [ "$osType" != "Darwin" ]; then
-        install_data
-    fi
-
+    install_data
     install_log
     install_header
     install_lib

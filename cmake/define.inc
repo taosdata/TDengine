@@ -133,8 +133,10 @@ IF (TD_LINUX)
 
   IF (TD_MEMORY_SANITIZER)
     SET(DEBUG_FLAGS "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment -static-libasan -O0 -g3 -DDEBUG")
+    MESSAGE(STATUS "memory sanitizer detected as true")
   ELSE ()
     SET(DEBUG_FLAGS "-O0 -g3 -DDEBUG")
+    MESSAGE(STATUS "memory sanitizer detected as false")
   ENDIF ()
   SET(RELEASE_FLAGS "-O3 -Wno-error")
 
