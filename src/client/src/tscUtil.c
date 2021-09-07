@@ -3618,6 +3618,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
+  pNew->sqlstr    = strdup(pSql->sqlstr);
   tsem_init(&pNew->rspSem, 0, 0);
 
   SSqlCmd* pnCmd  = &pNew->cmd;
