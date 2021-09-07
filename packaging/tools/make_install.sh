@@ -20,44 +20,33 @@ fi
 
 # Dynamic directory
 
-
 if [ "$osType" != "Darwin" ]; then
     data_dir="/var/lib/taos"
     log_dir="/var/log/taos"
-else
-    data_dir="/usr/local/var/lib/taos"
-    log_dir="/usr/local/var/log/taos"
-fi
 
-if [ "$osType" != "Darwin" ]; then
     cfg_install_dir="/etc/taos"
-else
-    cfg_install_dir="/usr/local/etc/taos"
-fi
 
-if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
     lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
+
+    install_main_dir="/usr/local/taos"
+
+    bin_dir="/usr/local/taos/bin"
 else
+    data_dir="/usr/local/var/lib/taos"
+    log_dir="/usr/local/var/log/taos"
+
+    cfg_install_dir="/usr/local/etc/taos"
+
     bin_link_dir="/usr/local/bin"
     lib_link_dir="/usr/local/lib"
     inc_link_dir="/usr/local/include"
-fi
 
-#install main path
-if [ "$osType" != "Darwin" ]; then
-    install_main_dir="/usr/local/taos"
-else
     install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
-fi
 
-# old bin dir
-if [ "$osType" != "Darwin" ]; then
-     bin_dir="/usr/local/taos/bin"
-else
-     bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
+    bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
 fi
 
 service_config_dir="/etc/systemd/system"
@@ -254,7 +243,10 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
     
     install_jemalloc
