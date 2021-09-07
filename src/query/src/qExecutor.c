@@ -757,6 +757,16 @@ static void setResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
   }
 }
 
+static void unsetResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
+  assert(pResult != NULL && (type == RESULT_ROW_START_INTERP || type == RESULT_ROW_END_INTERP));
+  if (type == RESULT_ROW_START_INTERP) {
+    pResult->startInterp = false;
+  } else {
+    pResult->endInterp   = false;
+  }
+}
+
+
 static bool resultRowInterpolated(SResultRow* pResult, SResultTsInterpType type) {
   assert(pResult != NULL && (type == RESULT_ROW_START_INTERP || type == RESULT_ROW_END_INTERP));
   if (type == RESULT_ROW_START_INTERP) {
@@ -1625,6 +1635,7 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
     forwardStep = getNumOfRowsInTimeWindow(pRuntimeEnv, &pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, true);
 
     // window start(end) key interpolation
+    unsetResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
     doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->pCtx, pResult, &win, startPos, forwardStep);
     doApplyFunctions(pRuntimeEnv, pInfo->pCtx, ascQuery ? &win : &preWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
     preWin = win;
@@ -1642,6 +1653,7 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
         startPos = pSDataBlock->info.rows - 1;
 
         // window start(end) key interpolation
+        unsetResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
         doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->pCtx, pResult, &win, startPos, forwardStep);
         doApplyFunctions(pRuntimeEnv, pInfo->pCtx, ascQuery ? &win : &preWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
       }
