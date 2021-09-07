@@ -1516,6 +1516,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
     return;
   }
 
+  int64_t sid = pSql->self;
+
   tscDebug("0x%"PRIx64" start to free sqlObj", pSql->self);
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
@@ -1546,6 +1548,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   tfree(pCmd->payload);
   pCmd->allocSize = 0;
+
+  tscDebug("0x%"PRIx64" addr:%p free completed", sid, pSql);
 
   tsem_destroy(&pSql->rspSem);
   memset(pSql, 0, sizeof(*pSql));
