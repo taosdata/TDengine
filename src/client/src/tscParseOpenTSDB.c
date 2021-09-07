@@ -58,7 +58,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
     cur++;
     len++;
   }
-  if (len == 0) {
+  if (len == 0 || *cur == '\0') {
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
@@ -92,7 +92,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
     len++;
   }
 
-  if (len > 0) {
+  if (len > 0 && *cur != '\0') {
     value = tcalloc(len + 1, 1);
     memcpy(value, start, len);
   } else {
@@ -136,7 +136,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     len++;
   }
 
-  if (len > 0) {
+  if (len > 0 && *cur != '\0') {
     value = tcalloc(len + 1, 1);
     memcpy(value, start, len);
   } else {
@@ -182,7 +182,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
     cur++;
     len++;
   }
-  if (len == 0) {
+  if (len == 0 || *cur == '\0') {
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   key[len] = '\0';
@@ -366,6 +366,7 @@ int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines) {
 
   if (numLines <= 0 || numLines > 65536) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
+    tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
