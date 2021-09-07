@@ -2451,7 +2451,7 @@ static bool tdigest_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo *pResultInfo)
   
   // new TDigest
   SAPercentileInfo *pAPerc = getAPerctInfo(pCtx);
-  int compression = 5;
+  int compression = 500;
   if(pAPerc) {
     if(pAPerc->pTDigest == NULL) {
       pAPerc->pTDigest = tdigestNew(compression);
@@ -2486,7 +2486,7 @@ static void tdigest_do(SQLFunctionCtx *pCtx) {
     tdigestAdd(pAPerc->pTDigest, v, w);
   }
 
-  tdigestCompress(pAPerc->pTDigest);
+  //tdigestCompress(pAPerc->pTDigest);
 
   if (!pCtx->hasNull) {
     assert(pCtx->size == notNullElems);
@@ -2519,7 +2519,7 @@ static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
 
   if (pCtx->currentStage == MERGE_STAGE) {
     if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
-      double res = tdigestQuantile(pAPerc->pTDigest, q);
+      double res = tdigestQuantile(pAPerc->pTDigest, q/100);
       memcpy(pCtx->pOutput, &res, sizeof(double));
     } else {
       setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
@@ -2527,7 +2527,7 @@ static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
     }
   } else {
     if (pAPerc->pTDigest->size > 0) {
-      double res = tdigestQuantile(pAPerc->pTDigest, q);
+      double res = tdigestQuantile(pAPerc->pTDigest, q/100);
       memcpy(pCtx->pOutput, &res, sizeof(double));
     } else {  // no need to free
       setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
@@ -2542,10 +2542,18 @@ static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////
+int32_t getAlgo(SQLFunctionCtx * pCtx) {
+  if(pCtx->numOfParams != 2){
+    return ALGO_DEFAULT;
+  }
+  if(pCtx->param[1].nType != TSDB_DATA_TYPE_INT) {
+    return ALGO_DEFAULT;
+  }
+  return (int32_t)pCtx->param[1].i64;
+}
 
-int         algo = 1;
 static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo *pResultInfo) {
-  if (algo == 1) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
     return tdigest_setup(pCtx, pResultInfo);
   }
 
@@ -2561,7 +2569,7 @@ static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo 
 }
 
 static void apercentile_function(SQLFunctionCtx *pCtx) {
-  if (algo == 1) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
     tdigest_do(pCtx);
     return;
   }
@@ -2598,7 +2606,7 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
 }
 
 static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
-  if (algo == 1) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
     tdigest_merge(pCtx);
     return;
   }
@@ -2632,8 +2640,9 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
 }
 
+
 static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
-  if (algo == 1) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
     tdigest_finalizer(pCtx);
     return;
   }

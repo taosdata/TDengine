@@ -2457,6 +2457,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg10 = "derivative duration should be greater than 1 Second";
   const char* msg11 = "third parameter in derivative should be 0 or 1";
   const char* msg12 = "parameter is out of range [1, 100]";
+  const char* msg13 = "third parameter should be 0 or 1";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2790,8 +2791,16 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_PERCT:
     case TSDB_FUNC_APERCT: {
       // 1. valid the number of parameters
-      if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) {
-        /* no parameters or more than one parameter for function */
+      bool valid = true;
+      if(pItem->pNode->Expr.paramList == NULL) {
+        valid = false;
+      } else if(functionId == TSDB_FUNC_APERCT) {
+        size_t cnt = taosArrayGetSize(pItem->pNode->Expr.paramList);
+        if(cnt != 2 && cnt !=3) valid = false;
+      } else {
+        if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) valid = false;
+      }
+      if(!valid) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -2837,16 +2846,14 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       SExprInfo* pExpr = NULL;
       if (functionId == TSDB_FUNC_PERCT || functionId == TSDB_FUNC_APERCT) {
+        // param1 double 
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
-
         double dp = GET_DOUBLE_VAL(val);
         if (dp < 0 || dp > TOP_BOTTOM_QUERY_LIMIT) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
         }
-
         getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize, &interResult, 0, false,
             pUdfInfo);
-
         /*
          * sql function transformation
          * for dp = 0, it is actually min,
@@ -2854,9 +2861,22 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
          */
         tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
         colIndex += 1;  // the first column is ts
-
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
+
+        // param2 int32
+        if (taosArrayGetSize(pItem->pNode->Expr.paramList) == 3) {
+          if (pParamElem[2].pNode != NULL) {
+            pVariant = &pParamElem[2].pNode->value;
+            tVariantDump(pVariant, val, TSDB_DATA_TYPE_INT, true);
+            int32_t algo = GET_INT32_VAL(val);
+            if(algo < 0 || algo >1 ) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);
+            }
+            tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+          }
+        }
+
       } else {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
