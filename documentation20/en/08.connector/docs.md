@@ -179,7 +179,7 @@ Clean up the running environment and call this API before the application exits.
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
 
-Set client options, currently only time zone setting (`_TSDB_OPTIONTIMEZONE`) and encoding setting (`_TSDB_OPTIONLOCALE`) are supported. The time zone and encoding default to the current operating system settings.
+Set client options, currently only time zone setting (_TSDB_OPTIONTIMEZONE) and encoding setting (_TSDB_OPTIONLOCALE) are supported. The time zone and encoding default to the current operating system settings.
 
 - `char *taos_get_client_info()`
 

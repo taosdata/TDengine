@@ -74,6 +74,7 @@ extern int8_t   tsKeepOriginalColumnName;
 // client
 extern int32_t tsMaxSQLStringLen;
 extern int32_t tsMaxWildCardsLen;
+extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;

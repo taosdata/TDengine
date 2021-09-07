@@ -1,0 +1,62 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+
+$db = testdb
+sql drop database if exists $db
+sql create database $db
+sql use $db
+
+print ======================== regular expression match test
+$st_name = st
+$ct1_name = ct1
+$ct2_name = ct2
+
+sql create table $st_name (ts timestamp, c1b binary(20)) tags(t1b binary(20));
+sql create table $ct1_name using $st_name tags('taosdata1')
+sql create table $ct2_name using $st_name tags('taosdata2')
+sql create table not_match using $st_name tags('NOTMATCH')
+
+sql select tbname from $st_name where tbname match '.*'
+if $rows != 3 then
+  return -1
+endi
+
+
+sql select tbname from $st_name where tbname match '^ct[[:digit:]]'
+
+if $rows != 2 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname match '.*'
+if $rows !=3 then
+  return -1
+endi
+
+sql select tbname from $st_name where t1b match '[[:lower:]]+'
+if $rows != 2 then
+  return -1
+endi
+
+sql insert into $ct1_name values(now, 'this is engine')
+sql insert into $ct2_name values(now, 'this is app egnine')
+
+sql select c1b from $st_name where c1b match 'engine'
+if $data00 != @this is engine@ then
+  return -1
+endi
+
+if $rows != 1 then
+  return -1
+endi  
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+
