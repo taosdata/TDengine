@@ -239,7 +239,7 @@ pipeline {
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
                 mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo
+                echo '' |./taosdemo -c /etc/taos
               '''
               sh '''
                 cd ${WKC}/tests/gotest

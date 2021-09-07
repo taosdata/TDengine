@@ -17,7 +17,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
-其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+其中 ● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 注意：
 
@@ -984,14 +984,17 @@ go build
 
 ### Go连接器的使用
 
-TDengine提供了GO驱动程序包`taosSql`.`taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine。
+TDengine提供了GO驱动程序包`taosSql`。`taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine。
 ```go
 import (
   "database/sql"
-  _ "github.com/taosdata/driver-go/taosSql"
+  _ "github.com/taosdata/driver-go/v2/taosSql"
 )
 ```
+
 **提示**：下划线与双引号之间必须有一个空格。
+
+`taosSql` 的 v2 版本进行了重构，分离出内置数据库操作接口 `database/sql/driver` 到目录 `taosSql`；订阅、stmt等其他功能放到目录 `af`。
 
 ### 常用API
 
