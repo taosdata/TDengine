@@ -243,7 +243,7 @@ The meda data of each table (including schema, tags, etc.) is also stored in vno
 
 ### Data Partitioning
 
-In addition to vnode sharding, TDengine partitions the time-series data by time range. Each data file contains only one time range of time-series data, and the length of the time range is determined by DB's configuration parameter “`days`”. This method of partitioning by time rang is also convenient to efficiently implement the data retention policy. As long as the data file exceeds the specified number of days (system configuration parameter "`keep`"), it will be automatically deleted. Moreover, different time ranges can be stored in different paths and storage media, so as to facilitate the tiered-storage. Cold/hot data can be stored in different storage meida to reduce the storage cost.
+In addition to vnode sharding, TDengine partitions the time-series data by time range. Each data file contains only one time range of time-series data, and the length of the time range is determined by DB's configuration parameter `days`. This method of partitioning by time rang is also convenient to efficiently implement the data retention policy. As long as the data file exceeds the specified number of days (system configuration parameter `keep`), it will be automatically deleted. Moreover, different time ranges can be stored in different paths and storage media, so as to facilitate the tiered-storage. Cold/hot data can be stored in different storage meida to reduce the storage cost.
 
 In general, **TDengine splits big data by vnode and time range in two dimensions** to manage the data efficiently with horizontal scalability.
 
@@ -251,7 +251,7 @@ In general, **TDengine splits big data by vnode and time range in two dimensions
 
 Each dnode regularly reports its status (including hard disk space, memory size, CPU, network, number of virtual nodes, etc.) to the mnode (virtual management node), so mnode knows the status of the entire cluster. Based on the overall status, when the mnode finds a dnode is overloaded, it will migrate one or more vnodes to other dnodes. During the process, TDengine services keep running and the data insertion, query and computing operations are not affected.
 
-If the mnode has not received the dnode status for a period of time, the dnode will be treated as offline. When offline lasts a certain period of time (configured by parameter ‘`offlineThreshold`’), the dnode will be forcibly removed from the cluster by mnode. If the number of replicas of vnodes on this dnode is greater than one, the system will automatically create new replicas on other dnodes to ensure the replica number. If there are other mnodes on this dnode and the number of mnodes replicas is greater than one, the system will automatically create new mnodes on other dnodes to ensure the replica number.
+If the mnode has not received the dnode status for a period of time, the dnode will be treated as offline. When offline lasts a certain period of time (configured by parameter `offlineThreshold`), the dnode will be forcibly removed from the cluster by mnode. If the number of replicas of vnodes on this dnode is greater than one, the system will automatically create new replicas on other dnodes to ensure the replica number. If there are other mnodes on this dnode and the number of mnodes replicas is greater than one, the system will automatically create new mnodes on other dnodes to ensure the replica number.
 
 When new data nodes are added to the cluster, with new computing and storage resources are added, the system will automatically start the load balancing process.
 
@@ -268,7 +268,7 @@ Master Vnode uses a writing process as follows:
 Figure 3: TDengine Master writing process
 
 1. Master vnode receives the application data insertion request, verifies, and moves to next step;
-2. If the system configuration parameter “`walLevel`” is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
+2. If the system configuration parameter `walLevel` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
 3.  If there are multiple replicas, vnode will forward data packet to slave vnodes in the same virtual node group, and the forwarded packet has a version number with data;
 4. Write into memory and add the record to “skip list”;
 5. Master vnode returns a confirmation message to the application, indicating a successful writing.
@@ -282,7 +282,7 @@ For a slave vnode, the write process as follows:
 <center> Picture 3 TDengine Slave Writing Process  </center>
 
 1. Slave vnode receives a data insertion request forwarded by Master vnode.
-2. If the system configuration parameter “walLevel” is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
+2. If the system configuration parameter `walLevel` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
 3. Write into memory and add the record to “skip list”;
 
 Compared with Master vnode, slave vnode has no forwarding or reply confirmation step, means two steps less. But writing into memory and WAL is exactly the same.
@@ -336,17 +336,17 @@ Each vnode has its own independent memory, and it is composed of multiple memory
 
 TDengine uses a data-driven method to write the data from buffer into hard disk for persistent storage. When the cached data in vnode reaches a certain volume, TDengine will also pull up the disk-writing thread to write the cached data into persistent storage in order not to block subsequent data writing. TDengine will open a new database log file when the data is written, and delete the old database log file after written successfully to avoid unlimited log growth.
 
-To make full use of the characteristics of time-series data, TDengine splits the data stored in persistent storage by a vnode into multiple files, each file only saves data for a fixed number of days, which is determined by the system configuration parameter “`days`”. By so, for the given start and end date of a query, you can locate the data files to open immediately without any index, thus greatly speeding up reading operations.
+To make full use of the characteristics of time-series data, TDengine splits the data stored in persistent storage by a vnode into multiple files, each file only saves data for a fixed number of days, which is determined by the system configuration parameter `days`. By so, for the given start and end date of a query, you can locate the data files to open immediately without any index, thus greatly speeding up reading operations.
 
-For time-series data, there is generally a retention policy, which is determined by the system configuration parameter “`keep`”. Data files exceeding this set number of days will be automatically deleted by the system to free up storage space.
+For time-series data, there is generally a retention policy, which is determined by the system configuration parameter `keep`. Data files exceeding this set number of days will be automatically deleted by the system to free up storage space.
 
 Given “days” and “keep” parameters, the total number of data files in a vnode is: keep/days. The total number of data files should not be too large or too small. 10 to 100 is appropriate. Based on this principle, reasonable days can be set. In the current version, parameter “keep” can be modified, but parameter “days” cannot be modified once it is set.
 
-In each data file, the data of a table is stored by blocks. A table can have one or more data file blocks. In a file block, data is stored in columns, occupying a continuous storage space, thus greatly improving the reading speed. The size of file block is determined by the system parameter “`maxRows`” (the maximum number of records per block), and the default value is 4096. This value should not be too large or too small. If it is too large, the data locating in search will cost longer; if too small, the index of data block is too large, and the compression efficiency will be low with slower reading speed.
+In each data file, the data of a table is stored by blocks. A table can have one or more data file blocks. In a file block, data is stored in columns, occupying a continuous storage space, thus greatly improving the reading speed. The size of file block is determined by the system parameter `maxRows` (the maximum number of records per block), and the default value is 4096. This value should not be too large or too small. If it is too large, the data locating in search will cost longer; if too small, the index of data block is too large, and the compression efficiency will be low with slower reading speed.
 
-Each data file (with a .data postfix) has a corresponding index file (with a .head postfix). The index file has summary information of a data block for each table, recording the offset of each data block in the data file, start and end time of data and other information, so as to lead system quickly locate the data to be found. Each data file also has a corresponding last file (with a .last postfix), which is designed to prevent data block fragmentation when written in disk. If the number of written records from a table does not reach the system configuration parameter “`minRows`” (minimum number of records per block), it will be stored in the last file first. When write to disk next time, the newly written records will be merged with the records in last file and then written into data file.
+Each data file (with a .data postfix) has a corresponding index file (with a .head postfix). The index file has summary information of a data block for each table, recording the offset of each data block in the data file, start and end time of data and other information, so as to lead system quickly locate the data to be found. Each data file also has a corresponding last file (with a .last postfix), which is designed to prevent data block fragmentation when written in disk. If the number of written records from a table does not reach the system configuration parameter `minRows` (minimum number of records per block), it will be stored in the last file first. When write to disk next time, the newly written records will be merged with the records in last file and then written into data file.
 
-When data is written to disk, it is decided whether to compress the data according to system configuration parameter “`comp`”. TDengine provides three compression options: no compression, one-stage compression and two-stage compression, corresponding to comp values of 0, 1 and 2 respectively. One-stage compression is carried out according to the type of data. Compression algorithms include delta-delta coding, simple 8B method, zig-zag coding, LZ4 and other algorithms. Two-stage compression is based on one-stage compression and compressed by general compression algorithm, which has higher compression ratio.
+When data is written to disk, it is decided whether to compress the data according to system configuration parameter `comp`. TDengine provides three compression options: no compression, one-stage compression and two-stage compression, corresponding to comp values of 0, 1 and 2 respectively. One-stage compression is carried out according to the type of data. Compression algorithms include delta-delta coding, simple 8B method, zig-zag coding, LZ4 and other algorithms. Two-stage compression is based on one-stage compression and compressed by general compression algorithm, which has higher compression ratio.
 
 ### Tiered Storage
 
@@ -395,7 +395,7 @@ When client obtains query result, the worker thread in query execution queue of 
 
 The remarkable feature that time-series data is different from ordinary data is that each record has a timestamp, so aggregating data with timestamps on the time axis is an important and distinct feature from common databases. From this point of view, it is similar to the window query of stream computing engine.
 
-The keyword “`interval`” is introduced into TDengine to split fixed length time windows on time axis, and the data are aggregated based on time windows, and the data within window range are aggregated as needed. For example:
+The keyword `interval` is introduced into TDengine to split fixed length time windows on time axis, and the data are aggregated based on time windows, and the data within window range are aggregated as needed. For example:
 
 ```mysql
 select count(*) from d1001 interval(1h);

@@ -78,7 +78,7 @@ When the nodes in TDengine cluster are deployed on different physical machines a
 
 ## <a class="anchor" id="config"></a> Server-side Configuration
 
-The background service of TDengine system is provided by taosd, and the configuration parameters can be modified in the configuration file taos.cfg to meet the requirements of different scenarios. The default location of the configuration file is the /etc/taos directory, which can be specified by executing the parameter `-c` from the taosd command line. Such as `taosd -c /home/user,` to specify that the configuration file is located in the /home/user directory.
+The background service of TDengine system is provided by taosd, and the configuration parameters can be modified in the configuration file taos.cfg to meet the requirements of different scenarios. The default location of the configuration file is the /etc/taos directory, which can be specified by executing the parameter `-c` from the taosd command line. Such as `taosd -c /home/user`, to specify that the configuration file is located in the /home/user directory.
 
 You can also use “-C” to show the current server configuration parameters:
 

@@ -1173,7 +1173,7 @@ TDengine supports aggregations over data, they are listed below:
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
-TDengine supports aggregating by intervals(time range). Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
+TDengine supports aggregating by intervals (time range). Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
 
 ```mysql
 SELECT function_list FROM tb_name

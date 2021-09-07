@@ -6,7 +6,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 * [TDengine Introduction and Features](/evaluation#intro)
 * [TDengine Use Scenes](/evaluation#scenes)
-* [TDengine Performance Metrics and Verification]((/evaluation#))
+* [TDengine Performance Metrics and Verification](/evaluation#)
 
 ## [Getting Started](/getting-started)
 
@@ -20,9 +20,9 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Overall Architecture](/architecture)
 
 - [Data Model](/architecture#model): relational database model, but one table for one data collection point with static tags
-- [Cluster and Primary Logical Unit](/architecture#cluster): Take advantage of NoSQ architecture, highly available and horizontal scalable
+- [Cluster and Primary Logical Unit](/architecture#cluster): Take advantage of NoSQL architecture, high availability and horizontal scalability
 - [Storage Model and Data Partitioning/Sharding](/architecture#sharding): tag data is separated from time-series data, sharded by vnodes and partitioned by time 
-- [Data Writing and Replication Process](/architecture#replication): records received are written to WAL, cached, with acknowledgement sent back to client, while supporting data replications.
+- [Data Writing and Replication Process](/architecture#replication): records received are written to WAL, cached, with acknowledgement sent back to client, while supporting data replications
 - [Caching and Persistence](/architecture#persistence): latest records are cached in memory, but are written in columnar format with an ultra-high compression ratio
 - [Data Query](/architecture#query): support various SQL functions, downsampling, interpolation, and multi-table aggregation
 
@@ -70,7 +70,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Connector](/connector)
 
 - [C/C++ Connector](/connector#c-cpp): primary method to connect to TDengine server through libtaos client library
-- [Java Connector(JDBC)](https://www.taosdata.com/en/documentation20/connector/java): driver for connecting to the server from Java applications using the JDBC API
+- [Java Connector(JDBC)](/connector/java): driver for connecting to the server from Java applications using the JDBC API
 - [Python Connector](/connector#python): driver for connecting to TDengine server from Python applications
 - [RESTful Connector](/connector#restful): a simple way to interact with TDengine via HTTP
 - [Go Connector](/connector#go): driver for connecting to TDengine server from Go applications
