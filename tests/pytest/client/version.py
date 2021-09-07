@@ -28,20 +28,20 @@ class TDTestCase:
 
         sql = "select server_version()"
         ret = tdSql.query(sql)
-        version = tdSql.getData(0, 0)[0:3]        
-        expectedVersion_dev = "2.0"
-        expectedVersion_master = "2.1"
-        if(version == expectedVersion_dev or version == expectedVersion_master):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect" % (sql, 0, 0, version))
+        version = floor(float(tdSql.getData(0, 0)[0:3]))        
+        expectedVersion = 2
+        if(version == expectedVersion):
+            tdLog.info("sql:%s, row:%d col:%d data:%d == expect" % (sql, 0, 0, version))
         else:
-            tdLog.exit("sql:%s, row:%d col:%d data:%s != expect:%s or %s " % (sql, 0, 0, version, expectedVersion_dev, expectedVersion_master))
+            tdLog.exit("sql:%s, row:%d col:%d data:%d != expect:%d " % (sql, 0, 0, version, expectedVersion))
 
+            
         sql = "select client_version()"
         ret = tdSql.query(sql)
         version = floor(float(tdSql.getData(0, 0)[0:3]))        
         expectedVersion = 2
         if(version == expectedVersion):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect" % (sql, 0, 0, version))
+            tdLog.info("sql:%s, row:%d col:%d data:%d == expect" % (sql, 0, 0, version))
         else:
             tdLog.exit("sql:%s, row:%d col:%d data:%d != expect:%d " % (sql, 0, 0, version, expectedVersion))
       
