@@ -238,7 +238,7 @@ pipeline {
 	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
 	      npm install td2.0-connector > /dev/null 2>&1
               node nanosecondTest.js
-              
+
               '''
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
@@ -247,7 +247,6 @@ pipeline {
                 cd ${WKC}/tests/connectorTest/C#Test/nanosupport
                 mcs -out:nano *.cs > /dev/null 2>&1
                 echo '' |./nano
-
               '''
               sh '''
                 cd ${WKC}/tests/gotest

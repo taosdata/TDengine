@@ -4,7 +4,7 @@ TDengine supports multiple interfaces to write data, including SQL, Prometheus, 
 
 ## <a class="anchor" id="sql"></a> SQL Writing
 
-Applications insert data by executing SQL insert statements through C/C++, JDBC, GO, or Python Connector, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
+Applications insert data by executing SQL insert statements through C/C++, JDBC, GO, C#, or Python Connector, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
