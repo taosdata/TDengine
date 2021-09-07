@@ -33,9 +33,11 @@ struct SSchema;
 
 #define QUERY_COND_REL_PREFIX_IN "IN|"
 #define QUERY_COND_REL_PREFIX_LIKE "LIKE|"
+#define QUERY_COND_REL_PREFIX_MATCH "MATCH|"
 
 #define QUERY_COND_REL_PREFIX_IN_LEN   3
 #define QUERY_COND_REL_PREFIX_LIKE_LEN 5
+#define QUERY_COND_REL_PREFIX_MATCH_LEN 6
 
 typedef bool (*__result_filter_fn_t)(const void *, void *);
 typedef void (*__do_filter_suppl_fn_t)(void *, void *);
