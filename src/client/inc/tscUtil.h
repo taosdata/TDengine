@@ -92,7 +92,7 @@ typedef struct SMergeTsCtx {
 }SMergeTsCtx;
 
 typedef struct SVgroupTableInfo {
-  SVgroupInfo vgInfo;
+  SVgroupMsg  vgInfo;
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
@@ -288,7 +288,11 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
+
+#if 0
 void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
+#endif
+
 /**
  * The create object function must be successful expect for the out of memory issue.
  *

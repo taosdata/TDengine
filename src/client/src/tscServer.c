@@ -73,7 +73,7 @@ static int32_t removeDupVgid(int32_t *src, int32_t sz) {
   return ret;
 }
 
-static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupInfo* pVgroupInfo) {
+static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupMsg* pVgroupInfo) {
   assert(pEpSet != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
 
   // Issue the query to one of the vnode among a vgroup randomly.
@@ -93,6 +93,7 @@ static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupInfo* pVgroupInfo) {
       existed = true;
     }
   }
+
   assert(existed);
 }
 
@@ -723,7 +724,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
 
-      SVgroupInfo* pVgroupInfo = NULL;
+      SVgroupMsg* pVgroupInfo = NULL;
       if (pTableMetaInfo->vgroupList && pTableMetaInfo->vgroupList->numOfVgroups > 0) {
         assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
         pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
@@ -880,6 +881,10 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
 int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
+  SQueryInfo     *pQueryInfo = NULL;
+  STableMeta     *pTableMeta = NULL;
+  STableMetaInfo *pTableMetaInfo = NULL;
+
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = tscEstimateQueryMsgSize(pSql);
 
@@ -888,9 +893,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_INVALID_OPERATION;  // todo add test for this
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
+  pQueryInfo = tscGetQueryInfo(pCmd);
+  pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  pTableMeta = pTableMetaInfo->pTableMeta;
 
   SQueryAttr query = {{0}};
   tscCreateQueryFromQueryInfo(pQueryInfo, &query, pSql);
@@ -2146,7 +2151,7 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
 
   *size = (int32_t)(sizeof(SVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg));
 
-  size_t        vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+  size_t        vgroupsz = sizeof(SVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
   SVgroupsInfo *pVgroupInfo = calloc(1, vgroupsz);
   assert(pVgroupInfo != NULL);
 
@@ -2156,7 +2161,7 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
   } else {
     for (int32_t j = 0; j < pVgroupInfo->numOfVgroups; ++j) {
       // just init, no need to lock
-      SVgroupInfo *pVgroup = &pVgroupInfo->vgroups[j];
+      SVgroupMsg *pVgroup = &pVgroupInfo->vgroups[j];
 
       SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
       vmsg->vgId = htonl(vmsg->vgId);
@@ -2168,7 +2173,8 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
       pVgroup->vgId = vmsg->vgId;
       for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
         pVgroup->epAddr[k].port = vmsg->epAddr[k].port;
-        pVgroup->epAddr[k].fqdn = strndup(vmsg->epAddr[k].fqdn, TSDB_FQDN_LEN);
+        tstrncpy(pVgroup->epAddr[k].fqdn, vmsg->epAddr[k].fqdn, TSDB_FQDN_LEN);
+//        pVgroup->epAddr[k].fqdn = strndup(vmsg->epAddr[k].fqdn, TSDB_FQDN_LEN);
       }
 
       doUpdateVgroupInfo(pVgroup->vgId, vmsg);

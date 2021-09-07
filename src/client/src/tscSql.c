@@ -588,8 +588,8 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     tscDebug("0x%"PRIx64" send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql->self, sqlCmd[pCmd->command]);
 
-    tscBuildAndSendRequest(pSql, NULL);
-    return false;
+//    tscBuildAndSendRequest(pSql, NULL);
+//    return false;
   }
 
   return true;

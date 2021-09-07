@@ -623,13 +623,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-#ifndef _TD_NINGSI_60
-      pExpr->base.param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
-#else
-      pExpr->base.param[0].i64 = colId;
-      pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
-      pExpr->base.param[0].nLen = sizeof(int64_t);
-#endif
+      tVariant* pVariant = &pExpr->base.param[0];
+
+      pVariant->i64   = colId;
+      pVariant->nType = TSDB_DATA_TYPE_BIGINT;
+      pVariant->nLen  = sizeof(int64_t);
+
       pExpr->base.numOfParams = 1;
     }
 
@@ -748,10 +747,12 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
       SVgroupTableInfo info = {{0}};
       for (int32_t m = 0; m < pvg->numOfVgroups; ++m) {
         if (tt->vgId == pvg->vgroups[m].vgId) {
-          tscSVgroupInfoCopy(&info.vgInfo, &pvg->vgroups[m]);
+          memcpy(&info.vgInfo, &pvg->vgroups[m], sizeof(info.vgInfo));
+//          tscSVgroupInfoCopy(&info.vgInfo, &pvg->vgroups[m]);
           break;
         }
       }
+
       assert(info.vgInfo.numOfEps != 0);
 
       vgTables = taosArrayInit(4, sizeof(STableIdInfo));
@@ -2459,7 +2460,7 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   tfree(p);
 }
 
-static void doConcurrentlySendSubQueries(SSqlObj* pSql) {
+static UNUSED_FUNC void doConcurrentlySendSubQueries(SSqlObj* pSql) {
   SSubqueryState *pState = &pSql->subState;
 
   // concurrently sent the query requests.
@@ -2550,13 +2551,14 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->pExtMemBuffer = pMemoryBuf;
     trs->pOrderDescriptor = pDesc;
 
-    trs->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
+    trs->localBuffer = (tFilePage *)malloc(nBufferSize + sizeof(tFilePage));
     if (trs->localBuffer == NULL) {
       tscError("0x%"PRIx64" failed to malloc buffer for local buffer, orderOfSub:%d, reason:%s", pSql->self, i, strerror(errno));
       tfree(trs);
       break;
     }
-    
+
+    trs->localBuffer->num = 0;
     trs->subqueryIndex = i;
     trs->pParentSql    = pSql;
 
@@ -2577,6 +2579,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     
     tscDebug("0x%"PRIx64" sub:0x%"PRIx64" create subquery success. orderOfSub:%d", pSql->self, pNew->self,
         trs->subqueryIndex);
+
+    tfree(trs->localBuffer);
+    tfree(trs);
   }
   
   if (i < pState->numOfSub) {
@@ -2594,7 +2599,8 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return pRes->code;
   }
 
-  doConcurrentlySendSubQueries(pSql);
+  pSql->fp(pSql->param, pSql, 0);
+//  doConcurrentlySendSubQueries(pSql);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2651,7 +2657,7 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
   int32_t  subqueryIndex = trsupport->subqueryIndex;
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  SVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
+  SVgroupMsg* pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
 
   tExtMemBufferClear(trsupport->pExtMemBuffer[subqueryIndex]);
 
@@ -2929,7 +2935,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SSubqueryState* pState = &pParentSql->subState;
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  SVgroupInfo  *pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
+  SVgroupMsg  *pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -3057,7 +3063,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   assert(pQueryInfo->numOfTables == 1);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  SVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[trsupport->subqueryIndex];
+  SVgroupMsg* pVgroup = &pTableMetaInfo->vgroupList->vgroups[trsupport->subqueryIndex];
 
   // stable query killed or other subquery failed, all query stopped
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -3403,7 +3409,6 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     return;
   }
 
-//  tscRestoreFuncForSTableQuery(pQueryInfo);
   int32_t rowSize = tscGetResRowLength(pQueryInfo->exprList);
 
   assert(numOfRes * rowSize > 0);
