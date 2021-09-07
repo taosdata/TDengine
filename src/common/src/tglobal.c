@@ -165,6 +165,7 @@ int32_t  tsHttpMaxThreads = 2;
 int8_t   tsHttpEnableCompress = 1;
 int8_t   tsHttpEnableRecordSql = 0;
 int8_t   tsTelegrafUseFieldNum = 0;
+int8_t   tsHttpDbNameMandatory = 0;
 
 // mqtt
 int8_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
@@ -1267,6 +1268,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "httpDbNameMandatory";
+  cfg.ptr = &tsHttpDbNameMandatory;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   // debug flag
   cfg.option = "numOfLogLines";
   cfg.ptr = &tsNumOfLogLines;
@@ -1570,7 +1581,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
@@ -1591,8 +1601,6 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = MAX_FLOAT;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-
-  
   taosInitConfigOption(cfg);
 
   cfg.option = "dPrecision";
@@ -1624,6 +1632,9 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
+#else
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
 
 }

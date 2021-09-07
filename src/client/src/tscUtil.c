@@ -29,6 +29,7 @@
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
+#include "httpInt.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 
@@ -3857,6 +3858,16 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     return;
   }
 
+  if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    SSqlObj* pParentSql = ps->pParentSql;
+  
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
+    return;
+  }
+
+
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
 
@@ -5029,4 +5040,32 @@ void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id) {
 
   taosHashRemove(tscTableMetaMap, fname, len);
   tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
+}
+
+char* cloneCurrentDBName(SSqlObj* pSql) {
+  char        *p = NULL;
+  HttpContext *pCtx = NULL;
+
+  pthread_mutex_lock(&pSql->pTscObj->mutex);
+  STscObj *pTscObj = pSql->pTscObj;
+  switch (pTscObj->from) {
+  case TAOS_REQ_FROM_HTTP:
+    pCtx = pSql->param;
+    if (pCtx && pCtx->db[0] != '\0') {
+      char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
+      int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
+      assert(len <= sizeof(db));
+
+      p = strdup(db);
+    }
+    break;
+  default:
+    break;
+  }
+  if (p == NULL) {
+    p = strdup(pSql->pTscObj->db);
+  }
+  pthread_mutex_unlock(&pSql->pTscObj->mutex);
+
+  return p;
 }

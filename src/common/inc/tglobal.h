@@ -125,6 +125,7 @@ extern int32_t  tsHttpMaxThreads;
 extern int8_t   tsHttpEnableCompress;
 extern int8_t   tsHttpEnableRecordSql;
 extern int8_t   tsTelegrafUseFieldNum;
+extern int8_t   tsHttpDbNameMandatory;
 
 // mqtt
 extern int8_t tsEnableMqttModule;

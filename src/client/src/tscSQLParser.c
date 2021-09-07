@@ -70,7 +70,6 @@ static int  convertTimestampStrToInt64(tVariant *pVar, int32_t precision);
 static bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, uint8_t precision);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
-static char* cloneCurrentDBName(SSqlObj* pSql);
 static int32_t getDelimiterIndex(SStrToken* pTableName);
 static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
@@ -431,6 +430,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
   const char *msg4 = "invalid script";
+  const char *msg5 = "invalid dyn lib";
   SSqlCmd *pCmd = &pSql->cmd;
 
   switch (pInfo->type) {
@@ -444,6 +444,10 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       createInfo->name.z[createInfo->name.n] = 0;
+      // funcname's naming rule is same to column 
+      if (validateColumnName(createInfo->name.z) != TSDB_CODE_SUCCESS) {
+        return  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
 
       strdequote(createInfo->name.z);
 
@@ -463,10 +467,16 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (ret) {
         return ret;
       }
-      //distinguish  *.lua and *.so
+      //validate *.lua or .so
       int32_t pathLen = (int32_t)strlen(createInfo->path.z);
-      if ((pathLen > 3) && (0 == strncmp(createInfo->path.z + pathLen - 3, "lua", 3)) && !isValidScript(buf, len)) {
+      if ((pathLen > 4) && (0 == strncmp(createInfo->path.z + pathLen - 4, ".lua", 4)) && !isValidScript(buf, len)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+      } else if (pathLen > 3 && (0 == strncmp(createInfo->path.z + pathLen - 3, ".so", 3))) {
+        void *handle = taosLoadDll(createInfo->path.z);
+        taosCloseDll(handle);
+        if (handle == NULL) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+        }
       }
 
       //TODO CHECK CODE
@@ -1674,14 +1684,6 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
 }
 
 static char* getAccountId(SSqlObj* pSql) { return pSql->pTscObj->acctId; }
-
-static char* cloneCurrentDBName(SSqlObj* pSql) {
-  pthread_mutex_lock(&pSql->pTscObj->mutex);
-  char *p = strdup(pSql->pTscObj->db);  
-  pthread_mutex_unlock(&pSql->pTscObj->mutex);
-
-  return p;
-}
 
 /* length limitation, strstr cannot be applied */
 static int32_t getDelimiterIndex(SStrToken* pTableName) {

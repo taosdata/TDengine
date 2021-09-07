@@ -419,6 +419,11 @@ void httpProcessRequest(HttpContext *pContext) {
                    &(pContext->taos));
     httpDebug("context:%p, fd:%d, user:%s, try connect tdengine, taos:%p", pContext, pContext->fd, pContext->user,
               pContext->taos);
+
+    if (pContext->taos != NULL) {
+      STscObj *pObj = pContext->taos;
+      pObj->from = TAOS_REQ_FROM_HTTP;
+    }
   } else {
     httpExecCmd(pContext);
   }

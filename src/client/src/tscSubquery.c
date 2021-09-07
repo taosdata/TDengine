@@ -2593,6 +2593,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->pOrderDescriptor = pDesc;
 
     trs->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
+    trs->localBufferSize = nBufferSize + sizeof(tFilePage);
     if (trs->localBuffer == NULL) {
       tscError("0x%"PRIx64" failed to malloc buffer for local buffer, orderOfSub:%d, reason:%s", pSql->self, i, strerror(errno));
       tfree(trs);
@@ -2713,8 +2714,10 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
 
   memcpy(trsupport, oriTrs, sizeof(*trsupport));
 
-  const uint32_t nBufferSize = (1u << 16u);  // 64KB
-  trsupport->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
+  // the buffer size should be the same as tscHandleMasterSTableQuery, which was used to initialize the SColumnModel
+  // the capacity member of SColumnModel will be used to save the trsupport->localBuffer in tscRetrieveFromDnodeCallBack
+  trsupport->localBuffer = (tFilePage *)calloc(1, oriTrs->localBufferSize);
+  
   if (trsupport->localBuffer == NULL) {
     tscError("0x%"PRIx64" failed to malloc buffer for local buffer, reason:%s", pSql->self, strerror(errno));
     tfree(trsupport);

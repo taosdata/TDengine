@@ -3525,7 +3525,7 @@ void copyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, int32_t threshold, SSDataBl
 
 }
 
-static void updateTableQueryInfoForReverseScan(STableQueryInfo *pTableQueryInfo) {
+static void updateTableQueryInfoForReverseScan(STableQueryInfo *pTableQueryInfo, int64_t qId) {
   if (pTableQueryInfo == NULL) {
     return;
   }
@@ -3535,6 +3535,9 @@ static void updateTableQueryInfoForReverseScan(STableQueryInfo *pTableQueryInfo)
 
   SWITCH_ORDER(pTableQueryInfo->cur.order);
   pTableQueryInfo->cur.vgroupIndex = -1;
+
+  qDebug("0x%"PRIx64" update query window for reverse scan, %"PRId64" - %"PRId64", lastKey:%"PRId64, qId, pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey,
+    pTableQueryInfo->lastKey);
 
   // set the index to be the end slot of result rows array
   SResultRowInfo* pResultRowInfo = &pTableQueryInfo->resInfo;
@@ -3556,7 +3559,7 @@ static void setupQueryRangeForReverseScan(SQueryRuntimeEnv* pRuntimeEnv) {
     size_t t = taosArrayGetSize(group);
     for (int32_t j = 0; j < t; ++j) {
       STableQueryInfo *pCheckInfo = taosArrayGetP(group, j);
-      updateTableQueryInfoForReverseScan(pCheckInfo);
+      updateTableQueryInfoForReverseScan(pCheckInfo, GET_QID(pRuntimeEnv));
 
       // update the last key in tableKeyInfo list, the tableKeyInfo is used to build the tsdbQueryHandle and decide
       // the start check timestamp of tsdbQueryHandle
@@ -4096,7 +4099,7 @@ void setParamForStableStddevByColData(SQueryRuntimeEnv* pRuntimeEnv, SQLFunction
  *    merged during merge stage. In this case, we need the pTableQueryInfo->lastResRows to decide if there
  *    is a previous result generated or not.
  */
-void setIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key) {
+void setIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow* winx, int32_t tid) {
   SQueryAttr           *pQueryAttr = pRuntimeEnv->pQueryAttr;
   STableQueryInfo  *pTableQueryInfo = pRuntimeEnv->current;
   SResultRowInfo   *pResultRowInfo = &pTableQueryInfo->resInfo;
@@ -4105,9 +4108,14 @@ void setIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key) {
     return;
   }
 
+  TSKEY key = QUERY_IS_ASC_QUERY(pQueryAttr)? winx->skey:winx->ekey;
+  
+  qDebug("0x%"PRIx64" update query window, tid:%d, %"PRId64" - %"PRId64", old:%"PRId64" - %"PRId64, GET_QID(pRuntimeEnv), tid, key, pTableQueryInfo->win.ekey,
+  pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey);
+
   pTableQueryInfo->win.skey = key;
   STimeWindow win = {.skey = key, .ekey = pQueryAttr->window.ekey};
-
+    
   /**
    * In handling the both ascending and descending order super table query, we need to find the first qualified
    * timestamp of this table, and then set the first qualified start timestamp.
@@ -5522,8 +5530,10 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   }
 
   __compar_fn_t  comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
-  taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
-
+  if (pInfo->pDataBlock->info.rows) {
+    taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+  }
+  
   tfree(pCols);
   tfree(pSchema);
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
@@ -5742,7 +5752,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
-      assert(*newgroup == false);
+      //assert(*newgroup == false);
 
       *newgroup = prevVal;
       setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
@@ -6027,7 +6037,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
 
     setTagValue(pOperator, pTableQueryInfo->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
     setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
-    setIntervalQueryRange(pRuntimeEnv, pBlock->info.window.skey);
+    setIntervalQueryRange(pRuntimeEnv, &pBlock->info.window, pBlock->info.tid);
 
     hashIntervalAgg(pOperator, &pTableQueryInfo->resInfo, pBlock, pTableQueryInfo->groupIndex);
   }
@@ -6082,7 +6092,8 @@ static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
 
     setTagValue(pOperator, pTableQueryInfo->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
     setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
-    setIntervalQueryRange(pRuntimeEnv, pBlock->info.window.skey);
+
+    setIntervalQueryRange(pRuntimeEnv, &pBlock->info.window, pBlock->info.tid);
 
     hashAllIntervalAgg(pOperator, &pTableQueryInfo->resInfo, pBlock, pTableQueryInfo->groupIndex);
   }
@@ -6099,9 +6110,6 @@ static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
 
   return pIntervalInfo->pRes;
 }
-
-
-
 
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
@@ -6357,6 +6365,19 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
   return pInfo->binfo.pRes;
 }
 
+static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo *pInfo, SQueryRuntimeEnv* pRuntimeEnv, bool* newgroup) {
+  pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
+  int64_t ekey = Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED)?pRuntimeEnv->pQueryAttr->window.ekey:pInfo->existNewGroupBlock->info.window.ekey;
+  taosResetFillInfo(pInfo->pFillInfo, pInfo->pFillInfo->start);
+
+  taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
+  taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
+
+  doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity, pInfo->p);
+  pInfo->existNewGroupBlock = NULL;
+  *newgroup = true;
+}
+
 static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo *pInfo, SQueryRuntimeEnv  *pRuntimeEnv, bool *newgroup) {
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     *newgroup = false;
@@ -6368,16 +6389,7 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo *pInfo, SQueryRunt
 
   // handle the cached new group data block
   if (pInfo->existNewGroupBlock) {
-    pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
-    int64_t ekey = Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED)?pRuntimeEnv->pQueryAttr->window.ekey:pInfo->existNewGroupBlock->info.window.ekey;
-    taosResetFillInfo(pInfo->pFillInfo, pInfo->pFillInfo->start);
-
-    taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
-    taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
-
-    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity, pInfo->p);
-    pInfo->existNewGroupBlock = NULL;
-    *newgroup = true;
+    doHandleRemainBlockForNewGroupImpl(pInfo, pRuntimeEnv, newgroup);
   }
 }
 
@@ -6396,26 +6408,6 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
   if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || (!pInfo->multigroupResult && pInfo->pRes->info.rows > 0)) {
     return pInfo->pRes;
   }
-//  if (taosFillHasMoreResults(pInfo->pFillInfo)) {
-//    *newgroup = false;
-//    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, (int32_t)pRuntimeEnv->resultInfo.capacity);
-//    return pInfo->pRes;
-//  }
-//
-//  // handle the cached new group data block
-//  if (pInfo->existNewGroupBlock) {
-//    pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
-//    int64_t ekey = Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED)?pRuntimeEnv->pQueryAttr->window.ekey:pInfo->existNewGroupBlock->info.window.ekey;
-//    taosResetFillInfo(pInfo->pFillInfo, pInfo->pFillInfo->start);
-//
-//    taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
-//    taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
-//
-//    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity);
-//    pInfo->existNewGroupBlock = NULL;
-//    *newgroup = true;
-//    return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
-//  }
 
   while(1) {
     publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
@@ -6463,45 +6455,13 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
         return pInfo->pRes;
       }
 
-//      if (taosFillHasMoreResults(pInfo->pFillInfo)) {
-//        *newgroup = false;
-//        doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, (int32_t)pRuntimeEnv->resultInfo.capacity);
-//        return pInfo->pRes;
-//      }
-//
-//      // handle the cached new group data block
-//      if (pInfo->existNewGroupBlock) {
-//        pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
-//        int64_t ekey = Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED)?pRuntimeEnv->pQueryAttr->window.ekey:pInfo->existNewGroupBlock->info.window.ekey;
-//        taosResetFillInfo(pInfo->pFillInfo, pInfo->pFillInfo->start);
-//
-//        taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
-//        taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
-//
-//        doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity);
-//        pInfo->existNewGroupBlock = NULL;
-//        *newgroup = true;
-//
-//        if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold) {
-//          return pInfo->pRes;
-//        }
-//
-////        return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
-//      }
-
     } else if (pInfo->existNewGroupBlock) {  // try next group
-      pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
-      int64_t ekey = pInfo->existNewGroupBlock->info.window.ekey;
-      taosResetFillInfo(pInfo->pFillInfo, pInfo->pFillInfo->start);
+      assert(pBlock != NULL);
+      doHandleRemainBlockForNewGroupImpl(pInfo, pRuntimeEnv, newgroup);
 
-      taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
-      taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
-
-      doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity, pInfo->p);
-      pInfo->existNewGroupBlock = NULL;
-      *newgroup = true;
-
-      return (pInfo->pRes->info.rows > 0) ? pInfo->pRes : NULL;
+      if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold) {
+        return pInfo->pRes;
+      }
     } else {
       return NULL;
     }

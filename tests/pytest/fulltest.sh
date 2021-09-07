@@ -169,6 +169,10 @@ python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
+# restful test for python
+python3 test.py -f restful/restful_bind_db1.py
+python3 test.py -f restful/restful_bind_db2.py
+
 # nano support
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
@@ -258,6 +262,7 @@ python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
+python3 ./test.py -f query/nestedQuery/nestedQuery.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
@@ -298,6 +303,7 @@ python3 testMinTablesPerVnode.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
+python3 ./test.py -f query/query.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 
@@ -388,6 +394,7 @@ python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/queryGroupTbname.py
+python3 ./test.py -f insert/verifyMemToDiskCrash.py
 
 #======================p4-end===============
 
