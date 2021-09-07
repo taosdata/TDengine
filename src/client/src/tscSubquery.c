@@ -1119,7 +1119,9 @@ bool emptyTagList(SArray* resList, int32_t size) {
 static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRows) {
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
 
-  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSupporter->pObj);
+  int64_t handle = pSupporter->pObj;
+
+  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pParentSql == NULL) return;
 
   SSqlObj* pSql = (SSqlObj*)tres;
@@ -1280,13 +1282,15 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   taosArrayDestroy(resList);
 
 _return:
-  taosReleaseRef(tscObjRef, (int64_t)pSupporter->pObj);
+  taosReleaseRef(tscObjRef, handle);
 }
 
 static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRows) {
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
 
-  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSupporter->pObj);
+  int64_t handle = pSupporter->pObj;
+
+  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pParentSql == NULL) return;
 
   SSqlObj* pSql = (SSqlObj*)tres;
@@ -1439,13 +1443,14 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   tscLaunchRealSubqueries(pParentSql);
 
 _return:
-  taosReleaseRef(tscObjRef, (int64_t)pSupporter->pObj);  
+  taosReleaseRef(tscObjRef, handle);  
 }
 
 static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfRows) {
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
+  int64_t handle = pSupporter->pObj;
 
-  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSupporter->pObj);
+  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pParentSql == NULL) return;
 
   SSqlObj* pSql = (SSqlObj*)tres;
@@ -1550,7 +1555,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   tscBuildResFromSubqueries(pParentSql);
 
 _return:  
-  taosReleaseRef(tscObjRef, (int64_t)pSupporter->pObj);
+  taosReleaseRef(tscObjRef, handle);
 }
 
 void tscFetchDatablockForSubquery(SSqlObj* pSql) {
@@ -1798,7 +1803,9 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = (SSqlObj*)tres;
 
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
-  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSupporter->pObj);
+  int64_t handle = pSupporter->pObj;
+
+  SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pParentSql == NULL) return;
   
   // There is only one subquery and table for each subquery.
@@ -1888,7 +1895,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
 
 _return:  
-  taosReleaseRef(tscObjRef, (int64_t)pSupporter->pObj);
+  taosReleaseRef(tscObjRef, handle);
   
 }
 
@@ -1988,9 +1995,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
   
       tscDebug(
-          "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to tid_tag query to retrieve (tableId, tags), "
+          "0x%"PRIX64" subquery:0x%"PRIx64" tableIndex:%d, vgroupIndex:%d, type:%d, transfer to tid_tag query to retrieve (tableId, tags), "
           "exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, tagIndex:%d, name:%s",
-          pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscNumOfExprs(pNewQueryInfo),
+          pSql->self, pNew->self, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, colIndex.columnIndex, tNameGetTableName(&pNewQueryInfo->pTableMetaInfo[0]->name));
     } else {
       SSchema      colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = 1};
@@ -2023,9 +2030,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
 
       tscDebug(
-          "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%u, transfer to ts_comp query to retrieve timestamps, "
+          "0x%"PRIX64" subquery:0x%"PRIx64" tableIndex:%d, vgroupIndex:%d, type:%u, transfer to ts_comp query to retrieve timestamps, "
           "exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
-          pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscNumOfExprs(pNewQueryInfo),
+          pSql->self, pNew->self, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pNewQueryInfo->pTableMetaInfo[0]->name));
     }
   } else {
