@@ -1,13 +1,41 @@
+# C# Taosdemo
+
+## For Mono
+
 install build environment
-===
+
+```sh
 yum/apt install mono-complete
+```
 
-build C# version taosdemo
-===
+build C# version taosdemo.
+
+```sh
 mcs -out:taosdemo *.cs
+./taosdemo --help
+```
 
-run C# version taosdemo
-===
+## For DotNet
+
+install dotnet environment.
+
+```sh
+wget https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
+  && dpkg -i packages-microsoft-prod.deb \
+  && rm packages-microsoft-prod.deb \
+  && apt-get update && apt-get install -y dotnet-sdk-5.0
+```
+
+Build DotNet version taosdemo.
+
+```sh
+dotnet build -c Release
+./bin/Release/net5.0/taosdemo --help
+```
+
+## Usage
+
+```
 Usage: mono taosdemo.exe [OPTION...]
 
         --help                   Show usage.
@@ -34,3 +62,4 @@ Usage: mono taosdemo.exe [OPTION...]
         -v                       Print verbose output
         -g                       Print debug output
         -y                       Skip read key for continous test, default is not skip
+```

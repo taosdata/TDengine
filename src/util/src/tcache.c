@@ -645,7 +645,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
   // todo memory leak if there are object with refcount greater than 0 in hash table?
   taosHashCleanup(pCacheObj->pHashTable);
-  taosTrashcanEmpty(pCacheObj, false);
+  taosTrashcanEmpty(pCacheObj, true);
 
   __cache_lock_destroy(pCacheObj);
   
