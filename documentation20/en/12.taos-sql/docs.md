@@ -1,8 +1,8 @@
 # TAOS SQL
 
-TDengine provides a SQL-style language, TAOS SQL, to insert or query data. To read through this document, you should have some basic understanding about SQL.
+TDengine provides a SQL-style language, TAOS SQL, to insert or query data, and the document supports other common tips. To finish this document, readers should have basic understanding about SQL.
 
-TAOS SQL is the main way for users to write and query data to TDengine. TAOS SQL is similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion function for time-series data, the relevant function of data deletion is non-existent in TAO SQL.
+TAOS SQL is the main tool for users to write and query data into TDengine. TAOS SQL provides a syntax style similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion functionality for temporal structured data, the data relevant functionalities of data deletion is non-existent in TAO SQL.
 
 Let’s take a look at the conventions used for syntax descriptions.
 
