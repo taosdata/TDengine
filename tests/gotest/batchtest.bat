@@ -1,3 +1,4 @@
+
 @echo off
 echo ==== start Go connector test cases test ====
 cd /d %~dp0
