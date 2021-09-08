@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "==== start run cases002.go"
+echo "==== start run nanosupport.go "
 
 set +e
 #set -x
@@ -15,8 +15,7 @@ script_dir="$(dirname $(readlink -f $0))"
 ###### step 3: start build
 cd $script_dir
 rm -f go.*
-go mod init demotest > /dev/null 2>&1
-go mod tidy > /dev/null 2>&1
-go build  > /dev/null 2>&1
+go mod init nano
+go build 
 sleep 1s
-./demotest -h $1 -p $2
+./nano -h $1 -p $2

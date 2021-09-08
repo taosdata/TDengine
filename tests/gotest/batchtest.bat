@@ -18,3 +18,9 @@ rem case002.bat
 
 :: cd case002
 :: case002.bat
+
+rem nanosupport
+rem nanoCase.bat
+
+:: nanosupport
+:: nanoCase.bat

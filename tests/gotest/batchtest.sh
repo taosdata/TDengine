@@ -1,5 +1,8 @@
 #!/bin/bash
 
+
+
+
 echo "==== start Go connector test cases test ===="
 
 severIp=$1
@@ -19,6 +22,4 @@ go env -w GOPROXY=https://goproxy.io,direct
 bash ./case001/case001.sh $severIp $serverPort
 bash ./case002/case002.sh $severIp $serverPort
 #bash ./case003/case003.sh $severIp $serverPort
-
-cd nanosupport
-go run main.go
+bash ./nanosupport/nanoCase.sh $severIp $serverPort
