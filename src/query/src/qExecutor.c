@@ -7547,8 +7547,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pMsg += sizeof(SSqlExpr);
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
-      pExprMsg->param[j].nType = htons(pExprMsg->param[j].nType);
-      pExprMsg->param[j].nLen = htons(pExprMsg->param[j].nLen);
+      pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
+      pExprMsg->param[j].nLen  = htonl(pExprMsg->param[j].nLen);
 
       if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
         pExprMsg->param[j].pz = pMsg;
@@ -7595,8 +7595,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       pMsg += sizeof(SSqlExpr);
 
       for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
-        pExprMsg->param[j].nType = htons(pExprMsg->param[j].nType);
-        pExprMsg->param[j].nLen = htons(pExprMsg->param[j].nLen);
+        pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
+        pExprMsg->param[j].nLen = htonl(pExprMsg->param[j].nLen);
 
         if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
           pExprMsg->param[j].pz = pMsg;

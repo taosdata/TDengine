@@ -1000,8 +1000,8 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
 
   (*pMsg) += sizeof(SSqlExpr);
   for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
-    pSqlExpr->param[j].nType = htons((uint16_t)pExpr->param[j].nType);
-    pSqlExpr->param[j].nLen = htons(pExpr->param[j].nLen);
+    pSqlExpr->param[j].nType = htonl(pExpr->param[j].nType);
+    pSqlExpr->param[j].nLen  = htonl(pExpr->param[j].nLen);
 
     if (pExpr->param[j].nType == TSDB_DATA_TYPE_BINARY) {
       memcpy((*pMsg), pExpr->param[j].pz, pExpr->param[j].nLen);
@@ -1188,6 +1188,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       pMsg += pCond->len;
     }
+  } else {
+    pQueryMsg->tagCondLen = 0;
   }
 
   if (pQueryInfo->bufLen > 0) {
