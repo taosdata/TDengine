@@ -3889,7 +3889,7 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
 
 #if 0
 
-static void queryIndexedColumn(SSkipList* pSkipList, void* filterInfo, SArray* result) {
+static void queryIndexedColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
   SSkipListIterator* iter = NULL;
 
   SQueryCond cond = {0};
@@ -4080,7 +4080,6 @@ static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 
 

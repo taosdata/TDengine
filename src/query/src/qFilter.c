@@ -28,6 +28,7 @@ OptrStr gOptrStr[] = {
   {TSDB_RELATION_GREATER_EQUAL,            ">="},
   {TSDB_RELATION_NOT_EQUAL,                "!="},
   {TSDB_RELATION_LIKE,                     "like"},
+  {TSDB_RELATION_MATCH,                    "match"},
   {TSDB_RELATION_ISNULL,                   "is null"},
   {TSDB_RELATION_NOTNULL,                  "not null"},
   {TSDB_RELATION_IN,                       "in"},
@@ -156,7 +157,7 @@ int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
 __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val, compareInt64Val, compareFloatVal,
   compareDoubleVal, compareLenPrefixedStr, compareStrPatternComp, compareFindItemInSet, compareWStrPatternComp, 
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
-  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8
+  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8, compareStrRegexComp,
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -195,7 +196,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
     case TSDB_DATA_TYPE_BINARY: {
-      if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = 19;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = 7;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = 8;
@@ -207,7 +210,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   
     case TSDB_DATA_TYPE_NCHAR: {
-      if (optr == TSDB_RELATION_LIKE) {
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = 19;
+      } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = 9;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = 8;
@@ -1858,6 +1863,9 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
     case TSDB_RELATION_LIKE: {
       return ret == 0;
     }
+    case TSDB_RELATION_MATCH: {
+      return ret == 0;
+    }
     case TSDB_RELATION_IN: {
       return ret == 1;
     }
@@ -2628,7 +2636,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
     }
 
     if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL 
-     || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE
+     || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE || cunit->optr == TSDB_RELATION_MATCH
      || cunit->optr == TSDB_RELATION_NOT_EQUAL) {
       continue;
     }
