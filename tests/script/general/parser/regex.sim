@@ -29,18 +29,32 @@ endi
 
 
 sql select tbname from $st_name where tbname match '^ct[[:digit:]]'
-
 if $rows != 2 then
   return -1
 endi
 
+sql select tbname from $st_name where tbname nmatch '^ct[[:digit:]]'
+if $rows != 1 then
+  return -1
+endi
+
 sql select tbname from $st_name where tbname match '.*'
-if $rows !=3 then
+if $rows != 3 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname nmatch '.*'
+if $rows != 0 then
   return -1
 endi
 
 sql select tbname from $st_name where t1b match '[[:lower:]]+'
 if $rows != 2 then
+  return -1
+endi
+
+sql select tbname from $st_name where t1b nmatch '[[:lower:]]+'
+if $rows != 1 then
   return -1
 endi
 
@@ -56,6 +70,14 @@ if $rows != 1 then
   return -1
 endi  
 
+sql select c1b from $st_name where c1b nmatch 'engine'
+if $data00 != @this is app egnine@ then
+  return -1
+endi
+
+if $rows != 1 then
+  return -1
+endi  
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 

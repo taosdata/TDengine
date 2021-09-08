@@ -3712,6 +3712,9 @@ static bool tableFilterFp(const void* pNode, void* param) {
     case TSDB_RELATION_MATCH: {
       return ret == 0;
     }
+    case TSDB_RELATION_NMATCH: {
+      return ret == 0;
+    }
     case TSDB_RELATION_IN: {
       return ret == 1;
     }
@@ -4047,6 +4050,8 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
     assert(0);
   } else if (optr == TSDB_RELATION_MATCH) {
     assert(0);
+  } else if (optr == TSDB_RELATION_NMATCH) {
+    assert(0);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4204,7 +4209,9 @@ static void queryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, S
     if (pQueryInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
         addToResult = pQueryInfo->compare(name, pQueryInfo->q);
-      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE || pQueryInfo->optr == TSDB_RELATION_MATCH) {
+      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE ||
+                 pQueryInfo->optr == TSDB_RELATION_MATCH ||
+                 pQueryInfo->optr == TSDB_RELATION_NMATCH) {
         addToResult = !pQueryInfo->compare(name, pQueryInfo->q);
       }
     } else {
@@ -4236,7 +4243,8 @@ void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *re
     param->setupInfoFn(pExpr, param->pExtInfo);
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
-    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE && pQueryInfo->optr != TSDB_RELATION_MATCH
+    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE
+                                && pQueryInfo->optr != TSDB_RELATION_MATCH && pQueryInfo->optr != TSDB_RELATION_NMATCH
                                 && pQueryInfo->optr != TSDB_RELATION_IN)) {
       queryIndexedColumn(pSkipList, pQueryInfo, result);
     } else {
