@@ -286,7 +286,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
     if (c == matchAll) { /* Match "%" */
 
       while ((c = patterStr[i++]) == matchAll || c == matchOne) {
-        if (c == matchOne && (j > size || str[j++] == 0)) {
+        if (c == matchOne && (j >= size || str[j++] == 0)) {
           return TSDB_PATTERN_NOWILDCARDMATCH;
         }
       }

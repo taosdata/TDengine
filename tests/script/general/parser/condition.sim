@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 6
 system sh/cfg.sh -n dnode1 -c cache -v 1
 system sh/exec.sh -n dnode1 -s start
 
@@ -143,6 +143,8 @@ sql create table tb5_3 using stb5 tags('2021-05-05 18:19:03',3,3.0,3,3,3,3.0,fal
 sql create table tb5_4 using stb5 tags('2021-05-05 18:19:04',4,4.0,4,4,4,4.0,false,'444444444','4')
 sql create table tb5_5 using stb5 tags('2021-05-05 18:19:05',5,5.0,5,5,5,5.0,true,'555555555','5')
 sql create table tb5_6 using stb5 tags('2021-05-05 18:19:06',6,6.0,6,6,6,6.0,true,'666666666','6')
+sql create table tb5_7 using stb5 tags(NULL,7,NULL,7,NULL,7,NULL,false,NULL,'7')
+sql create table tb5_8 using stb5 tags('2021-05-05 18:19:08',NULL,8.0,NULL,8,NULL,8.0,NULL,'888888888',NULL)
 
 sql insert into tb5_1 values ('2021-05-05 18:19:00',1,1.0,1,1,1,1.0,true ,'1','1')
 sql insert into tb5_1 values ('2021-05-05 18:19:01',2,2.0,2,2,2,2.0,true ,'2','2')
@@ -173,13 +175,23 @@ sql insert into tb5_6 values ('2021-05-05 18:19:25',62,62.0,62,62,62,62.0,true ,
 sql insert into tb5_6 values ('2021-05-05 18:19:26',63,63.0,63,63,63,63.0,false,'63','63')
 sql insert into tb5_6 values ('2021-05-05 18:19:27',64,64.0,64,64,64,64.0,false,'64','64')
 sql insert into tb5_6 values ('2021-05-05 18:19:28',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)
-
+sql insert into tb5_7 values ('2021-05-05 18:19:29',71,71.0,71,71,71,71.0,true ,'71','71')
+sql insert into tb5_7 values ('2021-05-05 18:19:30',72,72.0,72,72,72,72.0,true ,'72','72')
+sql insert into tb5_7 values ('2021-05-05 18:19:31',73,73.0,73,73,73,73.0,false,'73','73')
+sql insert into tb5_7 values ('2021-05-05 18:19:32',74,74.0,74,74,74,74.0,false,'74','74')
+sql insert into tb5_7 values ('2021-05-05 18:19:33',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)
+sql insert into tb5_8 values ('2021-05-05 18:19:34',81,81.0,81,81,81,81.0,true ,'81','81')
+sql insert into tb5_8 values ('2021-05-05 18:19:35',82,82.0,82,82,82,82.0,true ,'82','82')
+sql insert into tb5_8 values ('2021-05-05 18:19:36',83,83.0,83,83,83,83.0,false,'83','83')
+sql insert into tb5_8 values ('2021-05-05 18:19:37',84,84.0,84,84,84,84.0,false,'84','84')
+sql insert into tb5_8 values ('2021-05-05 18:19:38',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)
 
 sleep 100
 
 sql connect
 
 run general/parser/condition_query.sim
+run general/parser/condition_query2.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -190,4 +202,4 @@ sql connect
 sleep 100
 
 run general/parser/condition_query.sim
-
+run general/parser/condition_query2.sim

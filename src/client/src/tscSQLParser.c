@@ -8865,12 +8865,16 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
 
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
-      if (pCols != NULL && taosArrayGetSize(pCols) > 0) {
-        SColIndex* idx = taosArrayGet(pCols, 0);
-        SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
-        // convert time by precision
-        if (pSchema != NULL && TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && TSDB_DATA_TYPE_BINARY == (*pExpr)->pVal->nType) {
-          ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
+      if (pCols != NULL) {
+        size_t colSize = taosArrayGetSize(pCols);
+
+        if (colSize > 0) {
+          SColIndex* idx = taosArrayGet(pCols, colSize - 1);
+          SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
+          // convert time by precision
+          if (pSchema != NULL && TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && TSDB_DATA_TYPE_BINARY == (*pExpr)->pVal->nType) {
+            ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
+          }
         }
       }
       return ret;
