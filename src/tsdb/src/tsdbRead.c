@@ -2216,7 +2216,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     SBlock* pBlock = pTableCheck->pCompInfo->blocks;
     sup.numOfBlocksPerTable[numOfQualTables] = pTableCheck->numOfBlocks;
 
-    char* buf = calloc(1, sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
+    char* buf = malloc(sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
     if (buf == NULL) {
       cleanBlockOrderSupporter(&sup, numOfQualTables);
       return TSDB_CODE_TDB_OUT_OF_MEMORY;
