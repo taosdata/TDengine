@@ -262,6 +262,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
     c1 = str[j++];
 
     if (j <= size) {
+      if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }

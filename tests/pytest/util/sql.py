@@ -21,7 +21,15 @@ import shutil
 import pandas as pd
 from util.log import *
 
-
+def _parse_datetime(timestr):
+    try:
+        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
+    except ValueError:
+        pass
+    try:
+        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        pass
 
 class TDSql:
     def __init__(self):
@@ -181,7 +189,7 @@ class TDSql:
                         tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 else:
-                    if self.queryResult[row][col] == datetime.datetime.fromisoformat(data):
+                    if self.queryResult[row][col] == _parse_datetime(data):
                         tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return

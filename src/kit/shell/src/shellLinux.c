@@ -50,6 +50,8 @@ static struct argp_option options[] = {
   {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
   {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speen|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
+  {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
+  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -106,7 +108,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->is_raw_time = true;
       break;
     case 'f':
-      if (wordexp(arg, &full_path, 0) != 0) {
+      if ((0 == strlen(arg)) || (wordexp(arg, &full_path, 0) != 0)) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
@@ -146,6 +148,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         return -1;
       }
       break;
+    case 'N':
+      if (arg) {
+        arguments->pktNum = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid packet number\n");
+        return -1;
+      }
+      break;
+    case 'S':
+      arguments->pktType = arg;
+      break;
     case OPT_ABORT:
       arguments->abort = 1;
       break;
@@ -177,7 +190,9 @@ static void parse_args(
                     fprintf(stderr, "password reading error\n");
                 }
                 taosSetConsoleEcho(true);
-                getchar();
+                if (EOF == getchar()) {
+                    fprintf(stderr, "getchar() return EOF\n");
+                }
             } else {
                 tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
                 strcpy(argv[i], "-p");
