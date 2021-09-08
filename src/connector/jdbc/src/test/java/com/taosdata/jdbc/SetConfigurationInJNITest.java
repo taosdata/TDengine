@@ -246,25 +246,4 @@ public class SetConfigurationInJNITest {
             e.printStackTrace();
         }
     }
-    @Test
-    //test case 8:use url to set with wrong type(debugFlag=abc,rpcTimer=abc)
-    //expect:default value
-    //result:pass
-    public void setConfigInUrlwithwrongtype() {
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata&debugFlag=abc&rpcTimer=abc");
-            Statement stmt = conn.createStatement();
-
-            stmt.execute("drop database if exists " + dbname);
-            stmt.execute("create database if not exists " + dbname);
-            stmt.execute("use " + dbname);
-            stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
-            stmt.execute("drop database if exists " + dbname);
-
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
 }
