@@ -216,7 +216,7 @@ SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t function
                            int16_t size);
 
 size_t     tscNumOfExprs(SQueryInfo* pQueryInfo);
-int32_t     tscExprTopBottomIndex(SQueryInfo* pQueryInfo);
+int32_t    tscExprTopBottomIndex(SQueryInfo* pQueryInfo);
 SExprInfo *tscExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t    tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 int32_t    tscExprCopyAll(SArray* dst, const SArray* src, bool deepcopy);
@@ -280,6 +280,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool createIfNotExists, bool onlyLocal);
+int32_t tscGetTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool autocreate);
 int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);

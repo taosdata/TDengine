@@ -682,7 +682,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
 
   int32_t tableSerialize = 0;
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;  
+  STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   if (pTableMetaInfo->pVgroupTables != NULL) {
     size_t numOfGroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
 
@@ -2767,7 +2767,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
-static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool autocreate) {
+int32_t tscGetTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool autocreate) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("0x%"PRIx64" malloc failed for new sqlobj to get table meta", pSql->self);
@@ -2936,9 +2936,16 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
     // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
       int32_t code = tscCreateTableMetaFromSTableMeta(&pTableMetaInfo->pTableMeta, name, &pTableMetaInfo->tableMetaCapacity, (STableMeta **)(&pSTMeta));
-      pSql->pBuf   = (void *)(pSTMeta); 
+      pSql->pBuf   = (void *)(pSTMeta);
       if (code != TSDB_CODE_SUCCESS) {
-        return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
+        if (pSql->delayFetchMeta == false) {
+          return tscGetTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
+        } else {
+          tscDebug("0x%"PRIx64" delay to fetch meta from mnode after failure", pSql->self);
+          pSql->pTableMetaInfo = pTableMetaInfo;
+          pSql->metaAutoCreate = autocreate;
+          return TSDB_CODE_TSC_NEED_TO_FETCH_META;
+        }
       }
     }
 
@@ -2949,8 +2956,16 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   if (onlyLocal) {
     return TSDB_CODE_TSC_NO_META_CACHED;
   }
-  
-  return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
+
+  if (pSql->delayFetchMeta == false) {
+    return tscGetTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
+  }
+
+  tscDebug("0x%"PRIx64" delay to fetch meta from mnode", pSql->self);
+  pSql->pTableMetaInfo = pTableMetaInfo;
+  pSql->metaAutoCreate = autocreate;
+
+  return TSDB_CODE_TSC_NEED_TO_FETCH_META;
 }
 
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {

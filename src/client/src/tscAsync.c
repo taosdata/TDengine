@@ -62,7 +62,13 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
-  
+
+  if (code == TSDB_CODE_TSC_NEED_TO_FETCH_META) {
+    pSql->delayFetchMeta = false;
+    tscGetTableMetaFromMnode(pSql, (STableMetaInfo *) pSql->pTableMetaInfo, pSql->metaAutoCreate);
+    return;
+  }
+
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
     tscAsyncResultOnError(pSql);
@@ -103,7 +109,9 @@ TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, v
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return NULL;
   }
-  
+
+  pSql->delayFetchMeta = true;
+
   doAsyncQuery(pObj, pSql, fp, param, sqlstr, sqlLen);
 
   return pSql;
