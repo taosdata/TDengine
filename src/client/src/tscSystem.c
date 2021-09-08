@@ -133,7 +133,7 @@ void tscClusterInfoDestroy(SClusterInfo *pObj) {
 void *tscAcquireClusterInfo(const char *clusterId) {
   pthread_mutex_lock(&clusterMutex);
   
-  int32_t len = strlen(clusterId);
+  size_t len = strlen(clusterId);
   SClusterInfo *pObj   = NULL;
   SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
   if (ppObj == NULL || *ppObj == NULL) {
