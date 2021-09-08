@@ -19,7 +19,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	_ "github.com/taosdata/driver-go/taosSql"
+	_ "github.com/taosdata/driver-go/v2/taosSql"
 	"log"
 	"strconv"
 	"time"
@@ -63,6 +63,7 @@ func main() {
 
 	url = "root:taosdata@/tcp(" + configPara.hostName + ":" + strconv.Itoa(configPara.serverPort) + ")/"
 	// open connect to taos server
+	fmt.Printf("url:%s",url)
 	db, err := sql.Open(taosDriverName, url)
 	if err != nil {
 		log.Fatalf("Open database error: %s\n", err)
@@ -168,17 +169,18 @@ func insert_data(db *sql.DB, demot string) {
 
 func select_data(db *sql.DB, demot string) {
 	st := time.Now().Nanosecond()
-
+	fmt.Println(demot)
 	rows, err := db.Query("select * from ? ", demot) // go text mode
+	fmt.Println("end query",err)
 	checkErr(err, "select db.Query")
 
 	fmt.Printf("%10s%s%8s %5s %9s%s %s %8s%s %7s%s %8s%s %4s%s %5s%s\n", " ", "ts", " ", "id", " ", "name", " ", "len", " ", "flag", " ", "notes", " ", "fv", " ", " ", "dv")
 	var affectd int
 
 	//decoder := mahonia.NewDecoder("gbk") // 把原来ANSI格式的文本文件里的字符，用gbk进行解码。
-
+	fmt.Println("start next")
 	for rows.Next() {
-		var ts string
+		var ts time.Time
 		var name string
 		var id int
 		var len int8
@@ -188,6 +190,7 @@ func select_data(db *sql.DB, demot string) {
 		var dv float64
 
 		err = rows.Scan(&ts, &id, &name, &len, &flag, &notes, &fv, &dv)
+		fmt.Println("rows:",err)
 		checkErr(err, "select rows.Scan")
 
 		fmt.Printf("%s|\t", ts)

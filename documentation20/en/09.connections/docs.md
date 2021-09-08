@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="grafana"></a> Grafana
 
-TDengine can quickly integrate with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
+TDengine can be quickly integrated with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
 
 ### Install Grafana
 

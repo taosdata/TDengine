@@ -172,6 +172,8 @@ DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 DLL_EXPORT int taos_insert_lines(TAOS* taos, char* lines[], int numLines);
 
+DLL_EXPORT int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines);
+
 #ifdef __cplusplus
 }
 #endif

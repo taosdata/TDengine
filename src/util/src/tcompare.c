@@ -12,11 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+#define _XOPEN_SOURCE
+#define _DEFAULT_SOURCE
 
+#include "tcompare.h"
+#include "tulog.h"
+#include "hash.h"
+#include "regex.h"
 #include "os.h"
 #include "ttype.h"
-#include "tcompare.h"
-#include "hash.h"
 
 int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -139,8 +145,8 @@ int32_t compareFloatVal(const void *pLeft, const void *pRight) {
   }
   if (FLT_EQUAL(p1, p2)) {
     return 0;
-  } 
-  return FLT_GREATER(p1, p2) ? 1: -1; 
+  }
+  return FLT_GREATER(p1, p2) ? 1: -1;
 }
 
 int32_t compareFloatValDesc(const void* pLeft, const void* pRight) {
@@ -164,8 +170,8 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   }
   if (FLT_EQUAL(p1, p2)) {
     return 0;
-  } 
-  return FLT_GREATER(p1, p2) ? 1: -1; 
+  }
+  return FLT_GREATER(p1, p2) ? 1: -1;
 }
 
 int32_t compareDoubleValDesc(const void* pLeft, const void* pRight) {
@@ -175,7 +181,7 @@ int32_t compareDoubleValDesc(const void* pLeft, const void* pRight) {
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
-  
+
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
@@ -199,16 +205,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
-    char *pLeftTerm = (char *)tcalloc(len1 + 1, sizeof(char));
-    char *pRightTerm = (char *)tcalloc(len1 + 1, sizeof(char));
-    memcpy(pLeftTerm, varDataVal(pLeft), len1);
-    memcpy(pRightTerm, varDataVal(pRight), len2);
-
-    int32_t ret = wcsncmp((wchar_t*) pLeftTerm, (wchar_t*) pRightTerm, len1/TSDB_NCHAR_SIZE);
-
-    tfree(pLeftTerm);
-    tfree(pRightTerm);
-
+    int32_t ret = memcmp((wchar_t*) pLeft, (wchar_t*) pRight, len1);
     if (ret == 0) {
       return 0;
     } else {
@@ -233,33 +230,33 @@ int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
  */
 int patternMatch(const char *patterStr, const char *str, size_t size, const SPatternCompareInfo *pInfo) {
   char c, c1;
-  
+
   int32_t i = 0;
   int32_t j = 0;
-  
+
   while ((c = patterStr[i++]) != 0) {
     if (c == pInfo->matchAll) { /* Match "*" */
-      
+
       while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
         if (c == pInfo->matchOne && (j > size || str[j++] == 0)) {
           // empty string, return not match
           return TSDB_PATTERN_NOWILDCARDMATCH;
         }
       }
-      
+
       if (c == 0) {
         return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
       }
-      
+
       char next[3] = {toupper(c), tolower(c), 0};
       while (1) {
         size_t n = strcspn(str, next);
         str += n;
-        
+
         if (str[0] == 0 || (n >= size)) {
           break;
         }
-        
+
         int32_t ret = patternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
@@ -267,18 +264,19 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
       }
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
-    
+
     c1 = str[j++];
-    
+
     if (j <= size) {
+      if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
     }
-    
+
     return TSDB_PATTERN_NOMATCH;
   }
-  
+
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
@@ -286,13 +284,13 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
   wchar_t c, c1;
   wchar_t matchOne = L'_';  // "_"
   wchar_t matchAll = L'%';  // "%"
-  
+
   int32_t i = 0;
   int32_t j = 0;
-  
+
   while ((c = patterStr[i++]) != 0) {
     if (c == matchAll) { /* Match "%" */
-      
+
       while ((c = patterStr[i++]) == matchAll || c == matchOne) {
         if (c == matchOne && (j > size || str[j++] == 0)) {
           return TSDB_PATTERN_NOWILDCARDMATCH;
@@ -301,33 +299,33 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
       if (c == 0) {
         return TSDB_PATTERN_MATCH;
       }
-      
+
       wchar_t accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
         size_t n = wcscspn(str, accept);
-        
+
         str += n;
         if (str[0] == 0 || (n >= size)) {
           break;
         }
-        
+
         int32_t ret = WCSPatternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
       }
-      
+
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
-    
+
     c1 = str[j++];
-    
+
     if (j <= size) {
       if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
         continue;
       }
     }
-    
+
     return TSDB_PATTERN_NOMATCH;
   }
   
@@ -352,6 +350,43 @@ int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
+  size_t sz = varDataLen(pRight);
+  char *pattern = malloc(sz + 1);
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  pattern[sz] = 0;
+
+  sz = varDataLen(pLeft);
+  char *str = malloc(sz + 1);
+  memcpy(str, varDataVal(pLeft), sz);
+  str[sz] = 0;
+
+  int errCode = 0;
+  regex_t regex;
+  char    msgbuf[256] = {0};
+
+  int cflags = REG_EXTENDED;
+  if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
+    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
+    uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
+    regfree(&regex);
+    free(str);
+    free(pattern);
+    return 1;
+  }
+
+  errCode = regexec(&regex, str, 0, NULL, 0);
+  if (errCode != 0 && errCode != REG_NOMATCH) {
+    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
+    uDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf)
+  }
+  int32_t result = (errCode == 0) ? 0 : 1;
+  regfree(&regex);
+  free(str);
+  free(pattern);
+  return result;
+}
+
 int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* x = *(const char**)a;
   const char* y = *(const char**)b;
@@ -367,12 +402,13 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
 
+  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
   int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
   free(pattern);
+
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
@@ -412,19 +448,23 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_FLOAT:     comparFn = compareFloatVal;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
     case TSDB_DATA_TYPE_BINARY: {
-      if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexComp;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;
       } else { /* normal relational comparFn */
         comparFn = compareLenPrefixedStr;
       }
-    
+
       break;
     }
-  
+
     case TSDB_DATA_TYPE_NCHAR: {
-      if (optr == TSDB_RELATION_LIKE) {
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexComp;
+      } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;
@@ -443,13 +483,13 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       comparFn = compareInt32Val;
       break;
   }
-  
+
   return comparFn;
 }
 
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
   __compar_fn_t comparFn = NULL;
-  
+
   switch (keyType) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_BOOL:
@@ -493,7 +533,7 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       comparFn = (order == TSDB_ORDER_ASC)? compareInt32Val:compareInt32ValDesc;
       break;
   }
-  
+
   return comparFn;
 }
 
@@ -517,17 +557,7 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
       if (t1->len != t2->len) {
         return t1->len > t2->len? 1:-1;
       }
-
-      char *t1_term = (char *)tcalloc(t1->len + 1, sizeof(char));
-      char *t2_term = (char *)tcalloc(t2->len + 1, sizeof(char));
-      memcpy(t1_term, t1->data, t1->len);
-      memcpy(t2_term, t2->data, t2->len);
-
-      int32_t ret = wcsncmp((wchar_t*) t1_term, (wchar_t*) t2_term, t2->len/TSDB_NCHAR_SIZE);
-
-      tfree(t1_term);
-      tfree(t2_term);
-
+      int32_t ret = memcmp((wchar_t*) t1, (wchar_t*) t2, t2->len);
       if (ret == 0) {
         return ret;
       }
@@ -536,7 +566,7 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     default: {  // todo refactor
       tstr* t1 = (tstr*) f1;
       tstr* t2 = (tstr*) f2;
-      
+
       if (t1->len != t2->len) {
         return t1->len > t2->len? 1:-1;
       } else {

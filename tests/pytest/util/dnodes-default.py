@@ -60,7 +60,7 @@ class TDSimClient:
         self.cfgDict.update({option: value})
 
     def cfg(self, option, value):
-        cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
@@ -320,7 +320,7 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def cfg(self, option, value):
-        cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 

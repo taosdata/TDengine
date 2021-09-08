@@ -164,6 +164,8 @@ do { \
 #define TSDB_RELATION_OR          12
 #define TSDB_RELATION_NOT         13
 
+#define TSDB_RELATION_MATCH       14
+
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
 #define TSDB_BINARY_OP_MULTIPLY   32
@@ -277,6 +279,7 @@ do { \
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
 #define TSDB_TABLES_STEP                1000
+#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
