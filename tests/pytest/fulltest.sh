@@ -13,7 +13,6 @@ python3 ./test.py -f insert/tinyint.py
 python3 ./test.py -f insert/date.py
 python3 ./test.py -f insert/binary.py
 python3 ./test.py -f insert/nchar.py
-
 #python3 ./test.py -f insert/nchar-boundary.py
 python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
@@ -83,9 +82,8 @@ python3 ./test.py -f tag_lite/tinyint.py
 python3 ./test.py -f tag_lite/timestamp.py
 python3 ./test.py -f tag_lite/TestModifyTag.py
 
-
-#nano support test 
-python3 test.py -f  nanosupport/nanosupportTestCase.py
+#python3 ./test.py -f dbmgmt/database-name-boundary.py
+python3 test.py -f dbmgmt/nanoSecondCheck.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
 python3 ./test.py -f import_merge/importBlock1HPO.py
