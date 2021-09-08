@@ -153,9 +153,8 @@ void *tscAcquireClusterInfo(const char *clusterId) {
     pObj = *ppObj;
   }
 
-  if (pObj) {
-    pObj->ref += 1;
-  }
+  if (pObj) { pObj->ref += 1; }
+  
   pthread_mutex_unlock(&clusterMutex);
   return pObj;
 }
