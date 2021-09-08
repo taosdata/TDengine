@@ -17,5 +17,5 @@ cd $script_dir
 rm -f go.*
 go mod init nano
 go build 
-sleep 1s
+sleep 10s
 ./nano -h $1 -p $2
