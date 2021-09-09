@@ -436,13 +436,13 @@ static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *
   }
 
   STableQueryInfo** pList = supporter->pTableQueryInfo;
-
-  SResultRowInfo *pWindowResInfo1 = &(pList[left]->resInfo);
-  SResultRow * pWindowRes1 = getResultRow(pWindowResInfo1, leftPos);
+  SResultRow* pWindowRes1 = pList[left]->resInfo.pResult[leftPos];
+//  SResultRow * pWindowRes1 = getResultRow(&(pList[left]->resInfo), leftPos);
   TSKEY leftTimestamp = pWindowRes1->win.skey;
 
-  SResultRowInfo *pWindowResInfo2 = &(pList[right]->resInfo);
-  SResultRow * pWindowRes2 = getResultRow(pWindowResInfo2, rightPos);
+//  SResultRowInfo *pWindowResInfo2 = &(pList[right]->resInfo);
+//  SResultRow * pWindowRes2 = getResultRow(pWindowResInfo2, rightPos);
+  SResultRow* pWindowRes2 = pList[right]->resInfo.pResult[rightPos];
   TSKEY rightTimestamp = pWindowRes2->win.skey;
 
   if (leftTimestamp == rightTimestamp) {
