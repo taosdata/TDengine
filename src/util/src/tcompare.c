@@ -361,18 +361,18 @@ int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight) {
 
 int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   size_t szPattern = varDataLen(pRight);
-  char *pattern = malloc(szPattern+1);
+  char *pattern = malloc(szPattern);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  pattern[szPattern] = '\0';
+  assert(pattern[szPattern-1] == '\0');
 
   size_t szSubject = varDataLen(pLeft);
-  char *subject = malloc(szSubject);
+  char *subject = malloc(szSubject+1);
   memcpy(subject, varDataVal(pLeft), szSubject);
   subject[szSubject] = '\0';
 
   int errornumber;
   PCRE2_SIZE erroroffset;
-  pcre2_code *re = pcre2_compile((PCRE2_SPTR)pattern, szPattern, 0, &errornumber, &erroroffset, NULL);
+  pcre2_code *re = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, NULL);
 
   if (re == NULL)
   {

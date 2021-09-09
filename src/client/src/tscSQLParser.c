@@ -4531,6 +4531,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     if ((!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
       return invalidOperationMsg(msgBuf, msg2);
     }
+
     const char* pattern = pRight->value.pz;
     int errornumber;
     PCRE2_SIZE erroroffset;
@@ -4543,6 +4544,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       tscError("Failed to compile regex pattern %s. reason %s, offset %d", pattern, buffer, (int)erroroffset);
       return invalidOperationMsg(msgBuf, msg3);
     }
+    pcre2_code_free(re);
   }
 
   return TSDB_CODE_SUCCESS;
