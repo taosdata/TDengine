@@ -66,7 +66,11 @@ Run install_client.sh to install.
 
 Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to End Point of the TDengine server, for example: [h1.taos.com](http://h1.taos.com/):6030.
 
-**Tip: If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+**Tip: **
+
+**1. If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+
+**2. To prevent “unable to resolve FQDN” error when connecting to the server, ensure that the hosts file of the client has the correct FQDN value.**
 
 **Windows x64/x86**
 
@@ -128,7 +132,7 @@ taos>
 
 **Windows (x64/x86) environment:**
 
-Under cmd, enter the c:\ tdengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
+Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
 
 ```mysql
   C:\TDengine>taos     
@@ -179,7 +183,7 @@ Clean up the running environment and call this API before the application exits.
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
 
-Set client options, currently only time zone setting (`_TSDB_OPTIONTIMEZONE`) and encoding setting (`_TSDB_OPTIONLOCALE`) are supported. The time zone and encoding default to the current operating system settings.
+Set client options, currently only time zone setting (_TSDB_OPTIONTIMEZONE) and encoding setting (_TSDB_OPTIONLOCALE) are supported. The time zone and encoding default to the current operating system settings.
 
 - `char *taos_get_client_info()`
 

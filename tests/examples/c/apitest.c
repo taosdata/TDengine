@@ -1,11 +1,14 @@
 // sample code to verify all TDengine API
 // to compile: gcc -o apitest apitest.c -ltaos
 
+#include "taoserror.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>
 #include <unistd.h>
+
 
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
@@ -1014,6 +1017,186 @@ int32_t verify_schema_less(TAOS* taos) {
   return (code);
 }
 
+void verify_telnet_insert(TAOS* taos) {
+  TAOS_RES *result;
+
+  result = taos_query(taos, "drop database if exists test;");
+  taos_free_result(result);
+  usleep(100000);
+  result = taos_query(taos, "create database db precision 'ms';");
+  taos_free_result(result);
+  usleep(100000);
+
+  (void)taos_select_db(taos, "db");
+  int32_t code = 0;
+
+  /* metric */
+  char* lines0[] = {
+      "stb0_0 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
+      "stb0_1 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
+      "stb0_2 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
+  };
+  code = taos_insert_telnet_lines(taos, lines0, 3);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  /* timestamp */
+  char* lines1[] = {
+      "stb1 1626006833s 1i8 host=\"host0\"",
+      "stb1 1626006833639000000ns 2i8 host=\"host0\"",
+      "stb1 1626006833640000us 3i8 host=\"host0\"",
+      "stb1 1626006833641123 4i8 host=\"host0\"",
+      "stb1 1626006833651ms 5i8 host=\"host0\"",
+      "stb1 0 6i8 host=\"host0\"",
+  };
+  code = taos_insert_telnet_lines(taos, lines1, 6);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  /* metric value */
+  //tinyin
+  char* lines2_0[] = {
+      "stb2_0 1626006833651ms -127i8 host=\"host0\"",
+      "stb2_0 1626006833652ms 127i8 host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_0, 2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //smallint
+  char* lines2_1[] = {
+      "stb2_1 1626006833651ms -32767i16 host=\"host0\"",
+      "stb2_1 1626006833652ms 32767i16 host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_1, 2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //int
+  char* lines2_2[] = {
+      "stb2_2 1626006833651ms -2147483647i32 host=\"host0\"",
+      "stb2_2 1626006833652ms 2147483647i32 host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_2, 2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //bigint
+  char* lines2_3[] = {
+      "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
+      "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_3, 2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //float
+  char* lines2_4[] = {
+      "stb2_4 1626006833610ms 3f32 host=\"host0\"",
+      "stb2_4 1626006833620ms -3f32 host=\"host0\"",
+      "stb2_4 1626006833630ms 3.4f32 host=\"host0\"",
+      "stb2_4 1626006833640ms -3.4f32 host=\"host0\"",
+      "stb2_4 1626006833650ms 3.4E10f32 host=\"host0\"",
+      "stb2_4 1626006833660ms -3.4e10f32 host=\"host0\"",
+      "stb2_4 1626006833670ms 3.4E+2f32 host=\"host0\"",
+      "stb2_4 1626006833680ms -3.4e-2f32 host=\"host0\"",
+      "stb2_4 1626006833690ms 3.15 host=\"host0\"",
+      "stb2_4 1626006833700ms 3.4E38f32 host=\"host0\"",
+      "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_4, 11);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //double
+  char* lines2_5[] = {
+      "stb2_5 1626006833610ms 3f64 host=\"host0\"",
+      "stb2_5 1626006833620ms -3f64 host=\"host0\"",
+      "stb2_5 1626006833630ms 3.4f64 host=\"host0\"",
+      "stb2_5 1626006833640ms -3.4f64 host=\"host0\"",
+      "stb2_5 1626006833650ms 3.4E10f64 host=\"host0\"",
+      "stb2_5 1626006833660ms -3.4e10f64 host=\"host0\"",
+      "stb2_5 1626006833670ms 3.4E+2f64 host=\"host0\"",
+      "stb2_5 1626006833680ms -3.4e-2f64 host=\"host0\"",
+      "stb2_5 1626006833690ms 1.7E308f64 host=\"host0\"",
+      "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_5, 10);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //bool
+  char* lines2_6[] = {
+      "stb2_6 1626006833610ms t host=\"host0\"",
+      "stb2_6 1626006833620ms T host=\"host0\"",
+      "stb2_6 1626006833630ms true host=\"host0\"",
+      "stb2_6 1626006833640ms True host=\"host0\"",
+      "stb2_6 1626006833650ms TRUE host=\"host0\"",
+      "stb2_6 1626006833660ms f host=\"host0\"",
+      "stb2_6 1626006833670ms F host=\"host0\"",
+      "stb2_6 1626006833680ms false host=\"host0\"",
+      "stb2_6 1626006833690ms False host=\"host0\"",
+      "stb2_6 1626006833700ms FALSE host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_6, 10);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //binary
+  char* lines2_7[] = {
+      "stb2_7 1626006833610ms \"binary_val.!@#$%^&*\" host=\"host0\"",
+      "stb2_7 1626006833620ms \"binary_val.:;,./?|+-=\" host=\"host0\"",
+      "stb2_7 1626006833630ms \"binary_val.()[]{}<>\" host=\"host0\""
+  };
+  code = taos_insert_telnet_lines(taos, lines2_7, 3);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //nchar
+  char* lines2_8[] = {
+      "stb2_8 1626006833610ms L\"nchar_val数值一\" host=\"host0\"",
+      "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\"",
+  };
+  code = taos_insert_telnet_lines(taos, lines2_8, 2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  /* tags */
+  //tag value types
+  char* lines3_0[] = {
+      "stb3_0 1626006833610ms 1 t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=3.4E38f32,t6=1.7E308f64,t7=true,t8=\"binary_val_1\",t9=L\"标签值1\"",
+      "stb3_0 1626006833610ms 2 t1=-127i8,t2=-32767i16,t3=-2147483647i32,t4=-9223372036854775807i64,t5=-3.4E38f32,t6=-1.7E308f64,t7=false,t8=\"binary_val_2\",t9=L\"标签值2\""
+  };
+  code = taos_insert_telnet_lines(taos, lines3_0, 2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  //tag ID as child table name
+  char* lines3_1[] = {
+      "stb3_1 1626006833610ms 1 id=\"child_table1\",host=\"host1\"",
+      "stb3_1 1626006833610ms 2 host=\"host2\",iD=\"child_table2\"",
+      "stb3_1 1626006833610ms 3 ID=\"child_table3\",host=\"host3\""
+  };
+  code = taos_insert_telnet_lines(taos, lines3_1, 3);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  return;
+}
+
 int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
@@ -1034,6 +1217,8 @@ int main(int argc, char *argv[]) {
   printf("************  verify schema-less  *************\n");
   verify_schema_less(taos);
 
+  printf("************  verify telnet-insert  *************\n");
+  verify_telnet_insert(taos);
 
   printf("************  verify query  *************\n");
   verify_query(taos);
@@ -1051,7 +1236,7 @@ int main(int argc, char *argv[]) {
   verify_prepare2(taos);
   printf("************ verify prepare3 *************\n");
   verify_prepare3(taos);
-  
+
   printf("************ verify stream  *************\n");
   verify_stream(taos);
   printf("done\n");

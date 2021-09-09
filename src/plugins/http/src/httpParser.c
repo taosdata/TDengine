@@ -663,7 +663,7 @@ static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, c
   HttpContext *pContext = parser->pContext;
   int32_t      ok = 0;
   do {
-    if (!isspace(c) && c != '\r' && c != '\n') {
+    if (!isspace(c)) {
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
@@ -1155,6 +1155,10 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
     ok = -1;
     httpError("context:%p, fd:%d, failed to parse, invalid state", pContext, pContext->fd);
     httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_PARSE_ERROR_STATE);
+  }
+
+  if (ok != 0) {
+    pContext->error = true;
   }
 
   return ok;

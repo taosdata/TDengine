@@ -1,4 +1,3 @@
-
 # #################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
@@ -21,7 +20,7 @@ from util.sql import *
 import time
 from datetime import datetime
 import os
-import datetime
+
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -208,43 +207,6 @@ class TDTestCase:
         tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456789000\', 2);')
         tdSql.query('select * from tb3 where ts = \'2021-06-10 0:00:00.123456789\';')
         tdSql.checkRows(1)
-
-        # check timezone support 
-        tdSql.execute('drop database if exists nsdb;')
-        tdSql.execute('create database nsdb precision "ns";')
-        tdSql.execute('use nsdb;')
-        tdSql.execute('create stable st (ts timestamp ,speed float ) tags(time timestamp ,id int);')
-        tdSql.execute('insert into tb1 using st tags("2021-06-10 0:00:00.123456789" , 1 ) values("2021-06-10T0:00:00.123456789+07:00" , 1.0);' )
-        tdSql.query("select first(*) from tb1;")
-        res = tdSql.getResult("select first(*) from tb1;")
-        tdSql.checkData(0,0,1623258000123456789)
-        tdSql.execute('insert into tb1 using st tags("2021-06-10 0:00:00.123456789" , 1 ) values("2021-06-10T0:00:00.123456789+06:00" , 2.0);' )
-        tdSql.query("select last(*) from tb1;")
-      
-        
-
-        tdSql.execute('create database usdb precision "us";')
-        tdSql.execute('use usdb;')
-        tdSql.execute('create stable st (ts timestamp ,speed float ) tags(time timestamp ,id int);')
-        tdSql.execute('insert into tb1 using st tags("2021-06-10 0:00:00.123456" , 1 ) values("2021-06-10T0:00:00.123456+07:00" , 1.0);' )
-        res = tdSql.getResult("select first(*) from tb1;")
-        print(res)
-        if res == [(datetime.datetime(2021, 6, 10, 1, 0, 0, 123456), 1.0)]:
-            tdLog.info('check timezone pass about us database')
-
-        tdSql.execute('drop database if exists msdb;')
-        tdSql.execute('create database msdb precision "ms";')
-        tdSql.execute('use msdb;')
-        tdSql.execute('create stable st (ts timestamp ,speed float ) tags(time timestamp ,id int);')
-        tdSql.execute('insert into tb1 using st tags("2021-06-10 0:00:00.123" , 1 ) values("2021-06-10T0:00:00.123+07:00" , 1.0);' )
-        res = tdSql.getResult("select first(*) from tb1;")
-        print(res)
-        if res ==[(datetime.datetime(2021, 6, 10, 1, 0, 0, 123000), 1.0)]:
-            tdLog.info('check timezone pass about ms database')
-
-        
-        os.system('rm -rf ./*.py.sql')
-
 
         os.system('sudo timedatectl set-ntp on')
 
