@@ -2,6 +2,7 @@
 // to compile: gcc -o apitest apitest.c -ltaos
 
 #include "taoserror.h"
+#include "cJSON.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1020,7 +1021,7 @@ int32_t verify_schema_less(TAOS* taos) {
 void verify_telnet_insert(TAOS* taos) {
   TAOS_RES *result;
 
-  result = taos_query(taos, "drop database if exists test;");
+  result = taos_query(taos, "drop database if exists db;");
   taos_free_result(result);
   usleep(100000);
   result = taos_query(taos, "create database db precision 'ms';");
@@ -1197,6 +1198,739 @@ void verify_telnet_insert(TAOS* taos) {
   return;
 }
 
+void verify_json_insert(TAOS* taos) {
+  TAOS_RES *result;
+
+  result = taos_query(taos, "drop database if exists db;");
+  taos_free_result(result);
+  usleep(100000);
+  result = taos_query(taos, "create database db precision 'ms';");
+  taos_free_result(result);
+  usleep(100000);
+
+  (void)taos_select_db(taos, "db");
+  int32_t code = 0;
+
+  char *message =
+  "{                                      \
+      \"metric\":\"cpu_load_0\",          \
+      \"timestamp\": 1626006833610123,    \
+      \"value\": 55.5,                    \
+      \"tags\":                           \
+          {                               \
+              \"host\": \"ubuntu\",       \
+              \"interface1\": \"eth0\",   \
+              \"Id\": \"tb0\"             \
+          }                               \
+  }";
+
+  code = taos_insert_json_payload(taos, message);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  char *message1 =
+  "[                                       \
+    {                                      \
+       \"metric\":\"cpu_load_1\",          \
+       \"timestamp\": 1626006833610123,    \
+       \"value\": 55.5,                    \
+       \"tags\":                           \
+           {                               \
+               \"host\": \"ubuntu\",       \
+               \"interface\": \"eth1\",    \
+               \"Id\": \"tb1\"             \
+           }                               \
+    },                                     \
+    {                                      \
+       \"metric\":\"cpu_load_2\",          \
+       \"timestamp\": 1626006833610123,    \
+       \"value\": 55.5,                    \
+       \"tags\":                           \
+           {                               \
+               \"host\": \"ubuntu\",       \
+               \"interface\": \"eth2\",    \
+               \"Id\": \"tb2\"             \
+           }                               \
+    }                                      \
+   ]";
+
+  code = taos_insert_json_payload(taos, message1);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+  char *message2 =
+  "[                                       \
+    {                                      \
+       \"metric\":\"cpu_load_3\",          \
+       \"timestamp\":                      \
+           {                               \
+             \"value\": 1626006833610123,  \
+             \"type\": \"us\"              \
+           },                              \
+       \"value\":                          \
+           {                               \
+             \"value\": 55,                \
+             \"type\": \"int\"             \
+           },                              \
+       \"tags\":                           \
+           {                               \
+               \"host\":                   \
+                  {                        \
+                    \"value\": \"ubuntu\", \
+                    \"type\": \"binary\"   \
+                  },                       \
+               \"interface\":              \
+                  {                        \
+                    \"value\": \"eth3\",   \
+                    \"type\": \"nchar\"    \
+                  },                       \
+               \"ID\": \"tb3\",            \
+               \"port\":                   \
+                  {                        \
+                    \"value\": 4040,       \
+                    \"type\": \"int\"      \
+                  }                        \
+           }                               \
+    },                                     \
+    {                                      \
+       \"metric\":\"cpu_load_4\",          \
+       \"timestamp\": 1626006833610123,    \
+       \"value\": 66.6,                    \
+       \"tags\":                           \
+           {                               \
+               \"host\": \"ubuntu\",       \
+               \"interface\": \"eth4\",    \
+               \"Id\": \"tb4\"             \
+           }                               \
+    }                                      \
+   ]";
+  code = taos_insert_json_payload(taos, message2);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+
+
+  cJSON *payload, *tags;
+  char *payload_str;
+
+  /* Default format */
+  //number
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb0_0");
+  cJSON_AddNumberToObject(payload, "timestamp", 1626006833610123);
+  cJSON_AddNumberToObject(payload, "value", 10);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //true
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb0_1");
+  cJSON_AddNumberToObject(payload, "timestamp", 1626006833610123);
+  cJSON_AddTrueToObject(payload, "value");
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //false
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb0_2");
+  cJSON_AddNumberToObject(payload, "timestamp", 1626006833610123);
+  cJSON_AddFalseToObject(payload, "value");
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //string
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb0_3");
+  cJSON_AddNumberToObject(payload, "timestamp", 1626006833610123);
+  cJSON_AddStringToObject(payload, "value", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //timestamp 0 -> current time
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb0_4");
+  cJSON_AddNumberToObject(payload, "timestamp", 0);
+  cJSON_AddNumberToObject(payload, "value", 123);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //ID
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb0_5");
+  cJSON_AddNumberToObject(payload, "timestamp", 0);
+  cJSON_AddNumberToObject(payload, "value", 123);
+  tags = cJSON_CreateObject();
+  cJSON_AddStringToObject(tags, "ID", "tb0_5");
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddStringToObject(tags, "iD", "tb000");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddStringToObject(tags, "id", "tb555");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  /* Nested format */
+  //timestamp
+  cJSON *timestamp;
+  //seconds
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb1_0");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  cJSON_AddNumberToObject(payload, "value", 10);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //milleseconds
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb1_1");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833610);
+  cJSON_AddStringToObject(timestamp, "type", "ms");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  cJSON_AddNumberToObject(payload, "value", 10);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //microseconds
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb1_2");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833610123);
+  cJSON_AddStringToObject(timestamp, "type", "us");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  cJSON_AddNumberToObject(payload, "value", 10);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //nanoseconds
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb1_3");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833610123321);
+  cJSON_AddStringToObject(timestamp, "type", "ns");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  cJSON_AddNumberToObject(payload, "value", 10);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //now
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb1_4");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 0);
+  cJSON_AddStringToObject(timestamp, "type", "ns");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  cJSON_AddNumberToObject(payload, "value", 10);
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //metric value
+  cJSON *metric_val;
+  //bool
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_0");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddTrueToObject(metric_val, "value");
+  cJSON_AddStringToObject(metric_val, "type", "bool");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //tinyint
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_1");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddNumberToObject(metric_val, "value", 127);
+  cJSON_AddStringToObject(metric_val, "type", "tinyint");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //smallint
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_2");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddNumberToObject(metric_val, "value", 32767);
+  cJSON_AddStringToObject(metric_val, "type", "smallint");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //int
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_3");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddNumberToObject(metric_val, "value", 2147483647);
+  cJSON_AddStringToObject(metric_val, "type", "int");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //bigint
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_4");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddNumberToObject(metric_val, "value", 9223372036854775807);
+  cJSON_AddStringToObject(metric_val, "type", "bigint");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //float
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_5");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddNumberToObject(metric_val, "value", 11.12345);
+  cJSON_AddStringToObject(metric_val, "type", "float");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //double
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_6");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddNumberToObject(metric_val, "value", 22.123456789);
+  cJSON_AddStringToObject(metric_val, "type", "double");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //binary
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_7");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddStringToObject(metric_val, "value", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddStringToObject(metric_val, "type", "binary");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //nchar
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb2_8");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddStringToObject(metric_val, "value", "你好");
+  cJSON_AddStringToObject(metric_val, "type", "nchar");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tags, "t1");
+  cJSON_AddFalseToObject(tags, "t2");
+  cJSON_AddNumberToObject(tags, "t3", 10);
+  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
+  cJSON_AddItemToObject(payload, "tags", tags);
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+
+  //tag value
+  cJSON *tag;
+
+  payload = cJSON_CreateObject();
+  cJSON_AddStringToObject(payload, "metric", "stb3_0");
+
+  timestamp = cJSON_CreateObject();
+  cJSON_AddNumberToObject(timestamp, "value", 1626006833);
+  cJSON_AddStringToObject(timestamp, "type", "s");
+  cJSON_AddItemToObject(payload, "timestamp", timestamp);
+
+  metric_val = cJSON_CreateObject();
+  cJSON_AddStringToObject(metric_val, "value", "hello");
+  cJSON_AddStringToObject(metric_val, "type", "nchar");
+  cJSON_AddItemToObject(payload, "value", metric_val);
+
+  tags = cJSON_CreateObject();
+
+  tag = cJSON_CreateObject();
+  cJSON_AddTrueToObject(tag, "value");
+  cJSON_AddStringToObject(tag, "type", "bool");
+  cJSON_AddItemToObject(tags, "t1", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddFalseToObject(tag, "value");
+  cJSON_AddStringToObject(tag, "type", "bool");
+  cJSON_AddItemToObject(tags, "t2", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddNumberToObject(tag, "value", 127);
+  cJSON_AddStringToObject(tag, "type", "tinyint");
+  cJSON_AddItemToObject(tags, "t3", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddNumberToObject(tag, "value", 32767);
+  cJSON_AddStringToObject(tag, "type", "smallint");
+  cJSON_AddItemToObject(tags, "t4", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddNumberToObject(tag, "value", 2147483647);
+  cJSON_AddStringToObject(tag, "type", "int");
+  cJSON_AddItemToObject(tags, "t5", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddNumberToObject(tag, "value", 9223372036854775807);
+  cJSON_AddStringToObject(tag, "type", "bigint");
+  cJSON_AddItemToObject(tags, "t6", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddNumberToObject(tag, "value", 11.12345);
+  cJSON_AddStringToObject(tag, "type", "float");
+  cJSON_AddItemToObject(tags, "t7", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddNumberToObject(tag, "value", 22.1234567890);
+  cJSON_AddStringToObject(tag, "type", "double");
+  cJSON_AddItemToObject(tags, "t8", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddStringToObject(tag, "value", "binary_val");
+  cJSON_AddStringToObject(tag, "type", "binary");
+  cJSON_AddItemToObject(tags, "t9", tag);
+
+  tag = cJSON_CreateObject();
+  cJSON_AddStringToObject(tag, "value", "你好");
+  cJSON_AddStringToObject(tag, "type", "nchar");
+  cJSON_AddItemToObject(tags, "t10", tag);
+
+  cJSON_AddItemToObject(payload, "tags", tags);
+
+  payload_str = cJSON_Print(payload);
+  //printf("%s\n", payload_str);
+
+  code = taos_insert_json_payload(taos, payload_str);
+  if (code) {
+    printf("code: %d, %s.\n", code, tstrerror(code));
+  }
+  free(payload_str);
+  cJSON_Delete(payload);
+}
+
 int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
@@ -1219,6 +1953,9 @@ int main(int argc, char *argv[]) {
 
   printf("************  verify telnet-insert  *************\n");
   verify_telnet_insert(taos);
+
+  printf("************  verify json-insert  *************\n");
+  verify_json_insert(taos);
 
   printf("************  verify query  *************\n");
   verify_query(taos);
