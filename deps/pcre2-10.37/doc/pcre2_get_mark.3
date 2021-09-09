@@ -1,0 +1,34 @@
+.TH PCRE2_GET_MARK 3 "13 October 2017" "PCRE2 10.31"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B PCRE2_SPTR pcre2_get_mark(pcre2_match_data *\fImatch_data\fP);
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+After a call of \fBpcre2_match()\fP that was passed the match block that is
+this function's argument, this function returns a pointer to the last (*MARK),
+(*PRUNE), or (*THEN) name that was encountered during the matching process. The
+name is zero-terminated, and is within the compiled pattern. The length of the
+name is in the preceding code unit. If no name is available, NULL is returned.
+.P
+After a successful match, the name that is returned is the last one on the
+matching path. After a failed match or a partial match, the last encountered
+name is returned.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

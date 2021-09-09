@@ -1,0 +1,26 @@
+.TH PCRE2_CONVERTED_PATTERN_FREE 3 "28 June 2018" "PCRE2 10.32"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B void pcre2_converted_pattern_free(PCRE2_UCHAR *\fIconverted_pattern\fP);
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function is part of an experimental set of pattern conversion functions.
+It frees the memory occupied by a converted pattern that was obtained by
+calling \fBpcre2_pattern_convert()\fP with arguments that caused it to place
+the converted pattern into newly obtained heap memory. If the argument is NULL,
+the function returns immediately without doing anything.
+.P
+The pattern conversion functions are described in the
+.\" HREF
+\fBpcre2convert\fP
+.\"
+documentation.

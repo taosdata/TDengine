@@ -1,0 +1,224 @@
+# This set of tests is run only with the 8-bit library. It tests the POSIX
+# interface, which is supported only with the 8-bit library. This test should
+# not be run with JIT (which is not available for the POSIX interface).
+    
+#forbid_utf
+#pattern posix
+
+# Test some invalid options
+
+/abc/auto_callout
+** Ignored with POSIX interface: auto_callout
+
+/abc/
+   abc\=find_limits
+** Ignored with POSIX interface: find_limits
+ 0: abc
+
+/abc/
+  abc\=partial_hard
+** Ignored with POSIX interface: partial_hard
+ 0: abc
+  
+/a(())bc/parens_nest_limit=1
+** Ignored with POSIX interface: parens_nest_limit
+
+/abc/allow_surrogate_escapes,max_pattern_length=2
+** Ignored with POSIX interface: allow_surrogate_escapes max_pattern_length
+
+# Real tests
+
+/abc/
+    abc
+ 0: abc
+
+/^abc|def/
+    abcdef
+ 0: abc
+    abcdef\=notbol
+ 0: def
+
+/.*((abc)$|(def))/
+    defabc
+ 0: defabc
+ 1: abc
+ 2: abc
+    defabc\=noteol
+ 0: def
+ 1: def
+ 2: <unset>
+ 3: def
+
+/the quick brown fox/
+    the quick brown fox
+ 0: the quick brown fox
+\= Expect no match
+    The Quick Brown Fox
+No match: POSIX code 17: match failed
+
+/the quick brown fox/i
+    the quick brown fox
+ 0: the quick brown fox
+    The Quick Brown Fox
+ 0: The Quick Brown Fox
+
+/(*LF)abc.def/
+\= Expect no match
+    abc\ndef
+No match: POSIX code 17: match failed
+
+/(*LF)abc$/
+    abc
+ 0: abc
+    abc\n
+ 0: abc
+
+/(abc)\2/
+Failed: POSIX code 15: bad back reference at offset 6     
+
+/(abc\1)/
+\= Expect no match
+    abc
+No match: POSIX code 17: match failed
+
+/a*(b+)(z)(z)/
+    aaaabbbbzzzz
+ 0: aaaabbbbzz
+ 1: bbbb
+ 2: z
+ 3: z
+    aaaabbbbzzzz\=ovector=0
+Matched without capture
+    aaaabbbbzzzz\=ovector=1
+ 0: aaaabbbbzz
+    aaaabbbbzzzz\=ovector=2
+ 0: aaaabbbbzz
+ 1: bbbb
+
+/(*ANY)ab.cd/
+    ab-cd
+ 0: ab-cd
+    ab=cd
+ 0: ab=cd
+\= Expect no match
+    ab\ncd
+No match: POSIX code 17: match failed
+
+/ab.cd/s
+    ab-cd
+ 0: ab-cd
+    ab=cd
+ 0: ab=cd
+    ab\ncd
+ 0: ab\x0acd
+
+/a(b)c/posix_nosub
+    abc
+Matched with REG_NOSUB
+
+/a(?P<name>b)c/posix_nosub
+    abc
+Matched with REG_NOSUB
+
+/(a)\1/posix_nosub
+    zaay
+Matched with REG_NOSUB
+
+/a?|b?/
+    abc
+ 0: a
+\= Expect no match
+    ddd\=notempty
+No match: POSIX code 17: match failed
+
+/\w+A/
+   CDAAAAB
+ 0: CDAAAA
+
+/\w+A/ungreedy
+   CDAAAAB
+ 0: CDA
+   
+/\Biss\B/I,aftertext
+** Ignored with POSIX interface: info
+    Mississippi
+ 0: iss
+ 0+ issippi
+
+/abc/\
+Failed: POSIX code 9: bad escape sequence at offset 4     
+
+"(?(?C)"
+Failed: POSIX code 11: unbalanced () at offset 6     
+
+"(?(?C))"
+Failed: POSIX code 3: pattern error at offset 6     
+
+/abcd/substitute_extended
+** Ignored with POSIX interface: substitute_extended
+
+/\[A]{1000000}**/expand,regerror_buffsize=31
+Failed: POSIX code 4: ? * + invalid at offset 100000
+** regerror() message truncated
+
+/\[A]{1000000}**/expand,regerror_buffsize=32
+Failed: POSIX code 4: ? * + invalid at offset 1000001
+
+//posix_nosub
+    \=offset=70000
+** Ignored with POSIX interface: offset
+Matched with REG_NOSUB
+
+/(?=(a\K))/
+    a
+Start of matched string is beyond its end - displaying from end to start.
+ 0: a
+ 1: a
+     
+/^d(e)$/posix
+    acdef\=posix_startend=2:4
+ 0: de
+ 1: e
+    acde\=posix_startend=2 
+ 0: de
+ 1: e
+\= Expect no match     
+    acdef
+No match: POSIX code 17: match failed
+    acdef\=posix_startend=2 
+No match: POSIX code 17: match failed
+
+/^a\x{00}b$/posix
+    a\x{00}b\=posix_startend=0:3
+ 0: a\x00b
+
+/"A" 00 "B"/hex
+    A\x{00}B\=posix_startend=0:3
+ 0: A\x00B
+    
+/ABC/use_length 
+    ABC
+ 0: ABC
+
+/a\b(c/literal,posix
+    a\\b(c
+ 0: a\b(c
+
+/a\b(c/literal,posix,dotall
+Failed: POSIX code 16: bad argument at offset 0     
+
+/((a)(b)?(c))/posix
+    123ace
+ 0: ac
+ 1: ac
+ 2: a
+ 3: <unset>
+ 4: c
+    123ace\=posix_startend=2:6
+ 0: ac
+ 1: ac
+ 2: a
+ 3: <unset>
+ 4: c
+
+# End of testdata/testinput18

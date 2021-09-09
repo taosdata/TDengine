@@ -1,0 +1,55 @@
+.TH PCRE2_PATTERN_CONVERT 3 "11 July 2017" "PCRE2 10.30"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_pattern_convert(PCRE2_SPTR \fIpattern\fP, PCRE2_SIZE \fIlength\fP,
+.B "  uint32_t \fIoptions\fP, PCRE2_UCHAR **\fIbuffer\fP,"
+.B "  PCRE2_SIZE *\fIblength\fP, pcre2_convert_context *\fIcvcontext\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function is part of an experimental set of pattern conversion functions.
+It converts a foreign pattern (for example, a glob) into a PCRE2 regular
+expression pattern. Its arguments are:
+.sp
+  \fIpattern\fP     The foreign pattern
+  \fIlength\fP      The length of the input pattern or PCRE2_ZERO_TERMINATED
+  \fIoptions\fP     Option bits
+  \fIbuffer\fP      Pointer to pointer to output buffer, or NULL
+  \fIblength\fP     Pointer to output length field
+  \fIcvcontext\fP   Pointer to a convert context or NULL
+.sp
+The length of the converted pattern (excluding the terminating zero) is
+returned via \fIblength\fP. If \fIbuffer\fP is NULL, the function just returns
+the output length. If \fIbuffer\fP points to a NULL pointer, heap memory is
+obtained for the converted pattern, using the allocator in the context if
+present (or else \fBmalloc()\fP), and the field pointed to by \fIbuffer\fP is
+updated. If \fIbuffer\fP points to a non-NULL field, that must point to a
+buffer whose size is in the variable pointed to by \fIblength\fP. This value is
+updated.
+.P
+The option bits are:
+.sp
+  PCRE2_CONVERT_UTF                     Input is UTF
+  PCRE2_CONVERT_NO_UTF_CHECK            Do not check UTF validity
+  PCRE2_CONVERT_POSIX_BASIC             Convert POSIX basic pattern
+  PCRE2_CONVERT_POSIX_EXTENDED          Convert POSIX extended pattern
+  PCRE2_CONVERT_GLOB                    ) Convert
+  PCRE2_CONVERT_GLOB_NO_WILD_SEPARATOR  )   various types
+  PCRE2_CONVERT_GLOB_NO_STARSTAR        )     of glob
+.sp
+The return value from \fBpcre2_pattern_convert()\fP is zero on success or a
+non-zero PCRE2 error code.
+.P
+The pattern conversion functions are described in the
+.\" HREF
+\fBpcre2convert\fP
+.\"
+documentation.

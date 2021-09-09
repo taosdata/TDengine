@@ -1,0 +1,100 @@
+.TH PCRE2_SUBSTITUTE 3 "22 January 2020" "PCRE2 10.35"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_substitute(const pcre2_code *\fIcode\fP, PCRE2_SPTR \fIsubject\fP,
+.B "  PCRE2_SIZE \fIlength\fP, PCRE2_SIZE \fIstartoffset\fP,"
+.B "  uint32_t \fIoptions\fP, pcre2_match_data *\fImatch_data\fP,"
+.B "  pcre2_match_context *\fImcontext\fP, PCRE2_SPTR \fIreplacement\fP,"
+.B "  PCRE2_SIZE \fIrlength\fP, PCRE2_UCHAR *\fIoutputbuffer\fP,"
+.B "  PCRE2_SIZE *\fIoutlengthptr\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function matches a compiled regular expression against a given subject
+string, using a matching algorithm that is similar to Perl's. It then makes a
+copy of the subject, substituting a replacement string for what was matched.
+Its arguments are:
+.sp
+  \fIcode\fP          Points to the compiled pattern
+  \fIsubject\fP       Points to the subject string
+  \fIlength\fP        Length of the subject string
+  \fIstartoffset\fP   Offset in the subject at which to start matching
+  \fIoptions\fP       Option bits
+  \fImatch_data\fP    Points to a match data block, or is NULL
+  \fImcontext\fP      Points to a match context, or is NULL
+  \fIreplacement\fP   Points to the replacement string
+  \fIrlength\fP       Length of the replacement string
+  \fIoutputbuffer\fP  Points to the output buffer
+  \fIoutlengthptr\fP  Points to the length of the output buffer
+.sp
+A match data block is needed only if you want to inspect the data from the
+final match that is returned in that block or if PCRE2_SUBSTITUTE_MATCHED is
+set. A match context is needed only if you want to:
+.sp
+  Set up a callout function
+  Set a matching offset limit
+  Change the backtracking match limit
+  Change the backtracking depth limit
+  Set custom memory management in the match context
+.sp
+The \fIlength\fP, \fIstartoffset\fP and \fIrlength\fP values are code units,
+not characters, as is the contents of the variable pointed at by
+\fIoutlengthptr\fP. This variable must contain the length of the output buffer
+when the function is called. If the function is successful, the value is
+changed to the length of the new string, excluding the trailing zero that is
+automatically added.
+.P
+The subject and replacement lengths can be given as PCRE2_ZERO_TERMINATED for
+zero-terminated strings. The options are:
+.sp
+  PCRE2_ANCHORED             Match only at the first position
+  PCRE2_ENDANCHORED          Pattern can match only at end of subject
+  PCRE2_NOTBOL               Subject is not the beginning of a line
+  PCRE2_NOTEOL               Subject is not the end of a line
+  PCRE2_NOTEMPTY             An empty string is not a valid match
+.\" JOIN
+  PCRE2_NOTEMPTY_ATSTART     An empty string at the start of the
+                              subject is not a valid match
+  PCRE2_NO_JIT               Do not use JIT matching
+.\" JOIN
+  PCRE2_NO_UTF_CHECK         Do not check the subject or replacement
+                              for UTF validity (only relevant if
+                              PCRE2_UTF was set at compile time)
+  PCRE2_SUBSTITUTE_EXTENDED  Do extended replacement processing
+  PCRE2_SUBSTITUTE_GLOBAL    Replace all occurrences in the subject
+  PCRE2_SUBSTITUTE_LITERAL   The replacement string is literal
+  PCRE2_SUBSTITUTE_MATCHED   Use pre-existing match data for 1st match
+  PCRE2_SUBSTITUTE_OVERFLOW_LENGTH  If overflow, compute needed length
+  PCRE2_SUBSTITUTE_REPLACEMENT_ONLY  Return only replacement string(s)
+  PCRE2_SUBSTITUTE_UNKNOWN_UNSET  Treat unknown group as unset
+  PCRE2_SUBSTITUTE_UNSET_EMPTY  Simple unset insert = empty string
+.sp
+If PCRE2_SUBSTITUTE_LITERAL is set, PCRE2_SUBSTITUTE_EXTENDED,
+PCRE2_SUBSTITUTE_UNKNOWN_UNSET, and PCRE2_SUBSTITUTE_UNSET_EMPTY are ignored.
+.P
+If PCRE2_SUBSTITUTE_MATCHED is set, \fImatch_data\fP must be non-zero; its
+contents must be the result of a call to \fBpcre2_match()\fP using the same
+pattern and subject.
+.P
+The function returns the number of substitutions, which may be zero if there
+are no matches. The result may be greater than one only when
+PCRE2_SUBSTITUTE_GLOBAL is set. In the event of an error, a negative error code
+is returned.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

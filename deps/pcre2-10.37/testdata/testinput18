@@ -1,0 +1,141 @@
+# This set of tests is run only with the 8-bit library. It tests the POSIX
+# interface, which is supported only with the 8-bit library. This test should
+# not be run with JIT (which is not available for the POSIX interface).
+    
+#forbid_utf
+#pattern posix
+
+# Test some invalid options
+
+/abc/auto_callout
+
+/abc/
+   abc\=find_limits
+
+/abc/
+  abc\=partial_hard
+  
+/a(())bc/parens_nest_limit=1
+
+/abc/allow_surrogate_escapes,max_pattern_length=2
+
+# Real tests
+
+/abc/
+    abc
+
+/^abc|def/
+    abcdef
+    abcdef\=notbol
+
+/.*((abc)$|(def))/
+    defabc
+    defabc\=noteol
+
+/the quick brown fox/
+    the quick brown fox
+\= Expect no match
+    The Quick Brown Fox
+
+/the quick brown fox/i
+    the quick brown fox
+    The Quick Brown Fox
+
+/(*LF)abc.def/
+\= Expect no match
+    abc\ndef
+
+/(*LF)abc$/
+    abc
+    abc\n
+
+/(abc)\2/
+
+/(abc\1)/
+\= Expect no match
+    abc
+
+/a*(b+)(z)(z)/
+    aaaabbbbzzzz
+    aaaabbbbzzzz\=ovector=0
+    aaaabbbbzzzz\=ovector=1
+    aaaabbbbzzzz\=ovector=2
+
+/(*ANY)ab.cd/
+    ab-cd
+    ab=cd
+\= Expect no match
+    ab\ncd
+
+/ab.cd/s
+    ab-cd
+    ab=cd
+    ab\ncd
+
+/a(b)c/posix_nosub
+    abc
+
+/a(?P<name>b)c/posix_nosub
+    abc
+
+/(a)\1/posix_nosub
+    zaay
+
+/a?|b?/
+    abc
+\= Expect no match
+    ddd\=notempty
+
+/\w+A/
+   CDAAAAB
+
+/\w+A/ungreedy
+   CDAAAAB
+   
+/\Biss\B/I,aftertext
+    Mississippi
+
+/abc/\
+
+"(?(?C)"
+
+"(?(?C))"
+
+/abcd/substitute_extended
+
+/\[A]{1000000}**/expand,regerror_buffsize=31
+
+/\[A]{1000000}**/expand,regerror_buffsize=32
+
+//posix_nosub
+    \=offset=70000
+
+/(?=(a\K))/
+    a
+     
+/^d(e)$/posix
+    acdef\=posix_startend=2:4
+    acde\=posix_startend=2 
+\= Expect no match     
+    acdef
+    acdef\=posix_startend=2 
+
+/^a\x{00}b$/posix
+    a\x{00}b\=posix_startend=0:3
+
+/"A" 00 "B"/hex
+    A\x{00}B\=posix_startend=0:3
+    
+/ABC/use_length 
+    ABC
+
+/a\b(c/literal,posix
+    a\\b(c
+
+/a\b(c/literal,posix,dotall
+
+/((a)(b)?(c))/posix
+    123ace
+    123ace\=posix_startend=2:6
+
+# End of testdata/testinput18

@@ -1,0 +1,27 @@
+.TH PCRE2_GET_MATCH_DATA_SIZE 3 "16 July 2019" "PCRE2 10.34"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B PCRE2_SIZE pcre2_get_match_data_size(pcre2_match_data *\fImatch_data\fP);
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function returns the size, in bytes, of the match data block that is its
+argument.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

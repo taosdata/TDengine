@@ -1,0 +1,32 @@
+.TH PCRE2_CODE_COPY 3 "22 November 2016" "PCRE2 10.23"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B pcre2_code *pcre2_code_copy_with_tables(const pcre2_code *\fIcode\fP);
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function makes a copy of the memory used for a compiled pattern, excluding
+any memory used by the JIT compiler. Without a subsequent call to
+\fBpcre2_jit_compile()\fP, the copy can be used only for non-JIT matching.
+Unlike \fBpcre2_code_copy()\fP, a separate copy of the character tables is also
+made, with the new code pointing to it. This memory will be automatically freed
+when \fBpcre2_code_free()\fP is called. The yield of the function is NULL if
+\fIcode\fP is NULL or if sufficient memory cannot be obtained.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

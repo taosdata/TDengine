@@ -1,0 +1,29 @@
+.TH PCRE2_SET_GLOB_ESCAPE 3 "11 July 2017" "PCRE2 10.30"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_glob_escape(pcre2_convert_context *\fIcvcontext\fP,
+.B "  uint32_t \fIescape_char\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function is part of an experimental set of pattern conversion functions.
+It sets the escape character that is used when converting globs. The second
+argument must either be zero (meaning there is no escape character) or a
+punctuation character whose code point is less than 256. The default is grave
+accent if running under Windows, otherwise backslash. The result of the
+function is zero for success or PCRE2_ERROR_BADDATA if the second argument is
+invalid.
+.P
+The pattern conversion functions are described in the
+.\" HREF
+\fBpcre2convert\fP
+.\"
+documentation.

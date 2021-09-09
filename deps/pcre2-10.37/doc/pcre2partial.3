@@ -1,0 +1,373 @@
+.TH PCRE2PARTIAL 3 "04 September 2019" "PCRE2 10.34"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions
+.SH "PARTIAL MATCHING IN PCRE2"
+.rs
+.sp
+In normal use of PCRE2, if there is a match up to the end of a subject string,
+but more characters are needed to match the entire pattern, PCRE2_ERROR_NOMATCH
+is returned, just like any other failing match. There are circumstances where
+it might be helpful to distinguish this "partial match" case.
+.P
+One example is an application where the subject string is very long, and not
+all available at once. The requirement here is to be able to do the matching
+segment by segment, but special action is needed when a matched substring spans
+the boundary between two segments.
+.P
+Another example is checking a user input string as it is typed, to ensure that
+it conforms to a required format. Invalid characters can be immediately
+diagnosed and rejected, giving instant feedback.
+.P
+Partial matching is a PCRE2-specific feature; it is not Perl-compatible. It is
+requested by setting one of the PCRE2_PARTIAL_HARD or PCRE2_PARTIAL_SOFT
+options when calling a matching function. The difference between the two
+options is whether or not a partial match is preferred to an alternative
+complete match, though the details differ between the two types of matching
+function. If both options are set, PCRE2_PARTIAL_HARD takes precedence.
+.P
+If you want to use partial matching with just-in-time optimized code, as well
+as setting a partial match option for the matching function, you must also call
+\fBpcre2_jit_compile()\fP with one or both of these options:
+.sp
+  PCRE2_JIT_PARTIAL_HARD
+  PCRE2_JIT_PARTIAL_SOFT
+.sp
+PCRE2_JIT_COMPLETE should also be set if you are going to run non-partial
+matches on the same pattern. Separate code is compiled for each mode. If the
+appropriate JIT mode has not been compiled, interpretive matching code is used.
+.P
+Setting a partial matching option disables two of PCRE2's standard
+optimization hints. PCRE2 remembers the last literal code unit in a pattern,
+and abandons matching immediately if it is not present in the subject string.
+This optimization cannot be used for a subject string that might match only
+partially. PCRE2 also remembers a minimum length of a matching string, and does
+not bother to run the matching function on shorter strings. This optimization
+is also disabled for partial matching.
+.
+.
+.SH "REQUIREMENTS FOR A PARTIAL MATCH"
+.rs
+.sp
+A possible partial match occurs during matching when the end of the subject
+string is reached successfully, but either more characters are needed to
+complete the match, or the addition of more characters might change what is
+matched.
+.P
+Example 1: if the pattern is /abc/ and the subject is "ab", more characters are
+definitely needed to complete a match. In this case both hard and soft matching
+options yield a partial match.
+.P
+Example 2: if the pattern is /ab+/ and the subject is "ab", a complete match
+can be found, but the addition of more characters might change what is
+matched. In this case, only PCRE2_PARTIAL_HARD returns a partial match;
+PCRE2_PARTIAL_SOFT returns the complete match.
+.P
+On reaching the end of the subject, when PCRE2_PARTIAL_HARD is set, if the next
+pattern item is \ez, \eZ, \eb, \eB, or $ there is always a partial match.
+Otherwise, for both options, the next pattern item must be one that inspects a
+character, and at least one of the following must be true:
+.P
+(1) At least one character has already been inspected. An inspected character
+need not form part of the final matched string; lookbehind assertions and the
+\eK escape sequence provide ways of inspecting characters before the start of a
+matched string.
+.P
+(2) The pattern contains one or more lookbehind assertions. This condition
+exists in case there is a lookbehind that inspects characters before the start
+of the match.
+.P
+(3) There is a special case when the whole pattern can match an empty string.
+When the starting point is at the end of the subject, the empty string match is
+a possibility, and if PCRE2_PARTIAL_SOFT is set and neither of the above
+conditions is true, it is returned. However, because adding more characters
+might result in a non-empty match, PCRE2_PARTIAL_HARD returns a partial match,
+which in this case means "there is going to be a match at this point, but until
+some more characters are added, we do not know if it will be an empty string or
+something longer".
+.
+.
+.
+.SH "PARTIAL MATCHING USING pcre2_match()"
+.rs
+.sp
+When a partial matching option is set, the result of calling
+\fBpcre2_match()\fP can be one of the following:
+.TP 2
+\fBA successful match\fP
+A complete match has been found, starting and ending within this subject.
+.TP
+\fBPCRE2_ERROR_NOMATCH\fP
+No match can start anywhere in this subject.
+.TP
+\fBPCRE2_ERROR_PARTIAL\fP
+Adding more characters may result in a complete match that uses one or more
+characters from the end of this subject.
+.P
+When a partial match is returned, the first two elements in the ovector point
+to the portion of the subject that was matched, but the values in the rest of
+the ovector are undefined. The appearance of \eK in the pattern has no effect
+for a partial match. Consider this pattern:
+.sp
+  /abc\eK123/
+.sp
+If it is matched against "456abc123xyz" the result is a complete match, and the
+ovector defines the matched string as "123", because \eK resets the "start of
+match" point. However, if a partial match is requested and the subject string
+is "456abc12", a partial match is found for the string "abc12", because all
+these characters are needed for a subsequent re-match with additional
+characters.
+.P
+If there is more than one partial match, the first one that was found provides
+the data that is returned. Consider this pattern:
+.sp
+  /123\ew+X|dogY/
+.sp
+If this is matched against the subject string "abc123dog", both alternatives
+fail to match, but the end of the subject is reached during matching, so
+PCRE2_ERROR_PARTIAL is returned. The offsets are set to 3 and 9, identifying
+"123dog" as the first partial match. (In this example, there are two partial
+matches, because "dog" on its own partially matches the second alternative.)
+.
+.
+.SS "How a partial match is processed by pcre2_match()"
+.rs
+.sp
+What happens when a partial match is identified depends on which of the two
+partial matching options is set.
+.P
+If PCRE2_PARTIAL_HARD is set, PCRE2_ERROR_PARTIAL is returned as soon as a
+partial match is found, without continuing to search for possible complete
+matches. This option is "hard" because it prefers an earlier partial match over
+a later complete match. For this reason, the assumption is made that the end of
+the supplied subject string is not the true end of the available data, which is
+why \ez, \eZ, \eb, \eB, and $ always give a partial match.
+.P
+If PCRE2_PARTIAL_SOFT is set, the partial match is remembered, but matching
+continues as normal, and other alternatives in the pattern are tried. If no
+complete match can be found, PCRE2_ERROR_PARTIAL is returned instead of
+PCRE2_ERROR_NOMATCH. This option is "soft" because it prefers a complete match
+over a partial match. All the various matching items in a pattern behave as if
+the subject string is potentially complete; \ez, \eZ, and $ match at the end of
+the subject, as normal, and for \eb and \eB the end of the subject is treated
+as a non-alphanumeric.
+.P
+The difference between the two partial matching options can be illustrated by a
+pattern such as:
+.sp
+  /dog(sbody)?/
+.sp
+This matches either "dog" or "dogsbody", greedily (that is, it prefers the
+longer string if possible). If it is matched against the string "dog" with
+PCRE2_PARTIAL_SOFT, it yields a complete match for "dog". However, if
+PCRE2_PARTIAL_HARD is set, the result is PCRE2_ERROR_PARTIAL. On the other
+hand, if the pattern is made ungreedy the result is different:
+.sp
+  /dog(sbody)??/
+.sp
+In this case the result is always a complete match because that is found first,
+and matching never continues after finding a complete match. It might be easier
+to follow this explanation by thinking of the two patterns like this:
+.sp
+  /dog(sbody)?/    is the same as  /dogsbody|dog/
+  /dog(sbody)??/   is the same as  /dog|dogsbody/
+.sp
+The second pattern will never match "dogsbody", because it will always find the
+shorter match first.
+.
+.
+.SS "Example of partial matching using pcre2test"
+.rs
+.sp
+The \fBpcre2test\fP data modifiers \fBpartial_hard\fP (or \fBph\fP) and
+\fBpartial_soft\fP (or \fBps\fP) set PCRE2_PARTIAL_HARD and PCRE2_PARTIAL_SOFT,
+respectively, when calling \fBpcre2_match()\fP. Here is a run of
+\fBpcre2test\fP using a pattern that matches the whole subject in the form of a
+date:
+.sp
+    re> /^\ed?\ed(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\ed\ed$/
+  data> 25dec3\e=ph
+  Partial match: 23dec3
+  data> 3ju\e=ph
+  Partial match: 3ju
+  data> 3juj\e=ph
+  No match
+.sp
+This example gives the same results for both hard and soft partial matching
+options. Here is an example where there is a difference:
+.sp
+    re> /^\ed?\ed(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\ed\ed$/
+  data> 25jun04\e=ps
+   0: 25jun04
+   1: jun
+  data> 25jun04\e=ph
+  Partial match: 25jun04
+.sp
+With PCRE2_PARTIAL_SOFT, the subject is matched completely. For
+PCRE2_PARTIAL_HARD, however, the subject is assumed not to be complete, so
+there is only a partial match.
+.
+.
+.
+.SH "MULTI-SEGMENT MATCHING WITH pcre2_match()"
+.rs
+.sp
+PCRE was not originally designed with multi-segment matching in mind. However,
+over time, features (including partial matching) that make multi-segment
+matching possible have been added. A very long string can be searched segment
+by segment by calling \fBpcre2_match()\fP repeatedly, with the aim of achieving
+the same results that would happen if the entire string was available for
+searching all the time. Normally, the strings that are being sought are much
+shorter than each individual segment, and are in the middle of very long
+strings, so the pattern is normally not anchored.
+.P
+Special logic must be implemented to handle a matched substring that spans a
+segment boundary. PCRE2_PARTIAL_HARD should be used, because it returns a
+partial match at the end of a segment whenever there is the possibility of
+changing the match by adding more characters. The PCRE2_NOTBOL option should
+also be set for all but the first segment.
+.P
+When a partial match occurs, the next segment must be added to the current
+subject and the match re-run, using the \fIstartoffset\fP argument of
+\fBpcre2_match()\fP to begin at the point where the partial match started.
+For example:
+.sp
+    re> /\ed?\ed(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\ed\ed/
+  data> ...the date is 23ja\e=ph
+  Partial match: 23ja
+  data> ...the date is 23jan19 and on that day...\e=offset=15
+   0: 23jan19
+   1: jan
+.sp
+Note the use of the \fBoffset\fP modifier to start the new match where the
+partial match was found. In this example, the next segment was added to the one
+in which the partial match was found. This is the most straightforward
+approach, typically using a memory buffer that is twice the size of each
+segment. After a partial match, the first half of the buffer is discarded, the
+second half is moved to the start of the buffer, and a new segment is added
+before repeating the match as in the example above. After a no match, the
+entire buffer can be discarded.
+.P
+If there are memory constraints, you may want to discard text that precedes a
+partial match before adding the next segment. Unfortunately, this is not at
+present straightforward. In cases such as the above, where the pattern does not
+contain any lookbehinds, it is sufficient to retain only the partially matched
+substring. However, if the pattern contains a lookbehind assertion, characters
+that precede the start of the partial match may have been inspected during the
+matching process. When \fBpcre2test\fP displays a partial match, it indicates
+these characters with '<' if the \fBallusedtext\fP modifier is set:
+.sp
+    re> "(?<=123)abc"
+  data> xx123ab\e=ph,allusedtext
+  Partial match: 123ab
+                 <<<
+.sp
+However, the \fBallusedtext\fP modifier is not available for JIT matching,
+because JIT matching does not record the first (or last) consulted characters.
+For this reason, this information is not available via the API. It is therefore
+not possible in general to obtain the exact number of characters that must be
+retained in order to get the right match result. If you cannot retain the
+entire segment, you must find some heuristic way of choosing.
+.P
+If you know the approximate length of the matching substrings, you can use that
+to decide how much text to retain. The only lookbehind information that is
+currently available via the API is the length of the longest individual
+lookbehind in a pattern, but this can be misleading if there are nested
+lookbehinds. The value returned by calling \fBpcre2_pattern_info()\fP with the
+PCRE2_INFO_MAXLOOKBEHIND option is the maximum number of characters (not code
+units) that any individual lookbehind moves back when it is processed. A
+pattern such as "(?<=(?<!b)a)" has a maximum lookbehind value of one, but
+inspects two characters before its starting point.
+.P
+In a non-UTF or a 32-bit case, moving back is just a subtraction, but in
+UTF-8 or UTF-16 you have to count characters while moving back through the code
+units.
+.
+.
+.SH "PARTIAL MATCHING USING pcre2_dfa_match()"
+.rs
+.sp
+The DFA function moves along the subject string character by character, without
+backtracking, searching for all possible matches simultaneously. If the end of
+the subject is reached before the end of the pattern, there is the possibility
+of a partial match.
+.P
+When PCRE2_PARTIAL_SOFT is set, PCRE2_ERROR_PARTIAL is returned only if there
+have been no complete matches. Otherwise, the complete matches are returned.
+If PCRE2_PARTIAL_HARD is set, a partial match takes precedence over any
+complete matches. The portion of the string that was matched when the longest
+partial match was found is set as the first matching string.
+.P
+Because the DFA function always searches for all possible matches, and there is
+no difference between greedy and ungreedy repetition, its behaviour is
+different from the \fBpcre2_match()\fP. Consider the string "dog" matched
+against this ungreedy pattern:
+.sp
+  /dog(sbody)??/
+.sp
+Whereas the standard function stops as soon as it finds the complete match for
+"dog", the DFA function also finds the partial match for "dogsbody", and so
+returns that when PCRE2_PARTIAL_HARD is set.
+.
+.
+.SH "MULTI-SEGMENT MATCHING WITH pcre2_dfa_match()"
+.rs
+.sp
+When a partial match has been found using the DFA matching function, it is
+possible to continue the match by providing additional subject data and calling
+the function again with the same compiled regular expression, this time setting
+the PCRE2_DFA_RESTART option. You must pass the same working space as before,
+because this is where details of the previous partial match are stored. You can
+set the PCRE2_PARTIAL_SOFT or PCRE2_PARTIAL_HARD options with PCRE2_DFA_RESTART
+to continue partial matching over multiple segments. Here is an example using
+\fBpcre2test\fP:
+.sp
+    re> /^\ed?\ed(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\ed\ed$/
+  data> 23ja\e=dfa,ps
+  Partial match: 23ja
+  data> n05\e=dfa,dfa_restart
+   0: n05
+.sp
+The first call has "23ja" as the subject, and requests partial matching; the
+second call has "n05" as the subject for the continued (restarted) match.
+Notice that when the match is complete, only the last part is shown; PCRE2 does
+not retain the previously partially-matched string. It is up to the calling
+program to do that if it needs to. This means that, for an unanchored pattern,
+if a continued match fails, it is not possible to try again at a new starting
+point. All this facility is capable of doing is continuing with the previous
+match attempt. For example, consider this pattern:
+.sp
+  1234|3789
+.sp
+If the first part of the subject is "ABC123", a partial match of the first
+alternative is found at offset 3. There is no partial match for the second
+alternative, because such a match does not start at the same point in the
+subject string. Attempting to continue with the string "7890" does not yield a
+match because only those alternatives that match at one point in the subject
+are remembered. Depending on the application, this may or may not be what you
+want.
+.P
+If you do want to allow for starting again at the next character, one way of
+doing it is to retain some or all of the segment and try a new complete match,
+as described for \fBpcre2_match()\fP above. Another possibility is to work with
+two buffers. If a partial match at offset \fIn\fP in the first buffer is
+followed by "no match" when PCRE2_DFA_RESTART is used on the second buffer, you
+can then try a new match starting at offset \fIn+1\fP in the first buffer.
+.
+.
+.SH AUTHOR
+.rs
+.sp
+.nf
+Philip Hazel
+University Computing Service
+Cambridge, England.
+.fi
+.
+.
+.SH REVISION
+.rs
+.sp
+.nf
+Last updated: 04 September 2019
+Copyright (c) 1997-2019 University of Cambridge.
+.fi

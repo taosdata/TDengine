@@ -1,0 +1,32 @@
+The quick brown
+This time it jumps and jumps and jumps.
+This line contains \E and (regex) *meta* [characters].
+The word is cat in this line
+The caterpillar sat on the mat
+The snowcat is not an animal
+The quick brown
+This time it jumps and jumps and jumps.
+This line contains \E and (regex) *meta* [characters].
+The word is cat in this line
+The caterpillar sat on the mat
+The snowcat is not an animal
+0:T
+The quick brown
+0:T
+This time it jumps and jumps and jumps.
+0:T
+This line contains \E and (regex) *meta* [characters].
+0:T
+The word is cat in this line
+0:T
+The caterpillar sat on the mat
+0:T
+The snowcat is not an animal
+T
+T
+T
+T
+T
+T
+0:T:AA
+The quick brown

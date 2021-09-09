@@ -1,0 +1,81 @@
+# These test special UTF and UCP features of DFA matching. The output is
+# different for the different widths.
+
+#subject dfa
+
+# ---------------------------------------------------- 
+# These are a selection of the more comprehensive tests that are run for
+# non-DFA matching.
+
+/X/utf
+    XX\x{d800}
+    XX\x{d800}\=offset=3
+    XX\x{d800}\=no_utf_check
+    XX\x{da00}
+    XX\x{da00}\=no_utf_check
+    XX\x{dc00}
+    XX\x{dc00}\=no_utf_check
+    XX\x{de00}
+    XX\x{de00}\=no_utf_check
+    XX\x{dfff}
+    XX\x{dfff}\=no_utf_check
+    XX\x{110000}
+    XX\x{d800}\x{1234}
+          
+/badutf/utf
+    X\xdf
+    XX\xef
+    XXX\xef\x80
+    X\xf7
+    XX\xf7\x80
+    XXX\xf7\x80\x80
+
+/shortutf/utf
+    XX\xdf\=ph
+    XX\xef\=ph
+    XX\xef\x80\=ph
+    \xf7\=ph
+    \xf7\x80\=ph
+    
+# ---------------------------------------------------- 
+# UCP and casing tests - except for the first two, these will all fail in 8-bit
+# mode because they are testing UCP without UTF and use characters > 255.
+
+/\x{c1}/i,no_start_optimize
+\= Expect no match
+    \x{e1}
+
+/\x{c1}+\x{e1}/iB,ucp
+    \x{c1}\x{c1}\x{c1}
+    \x{e1}\x{e1}\x{e1} 
+
+/\x{120}\x{c1}/i,ucp,no_start_optimize
+    \x{121}\x{e1}
+
+/\x{120}\x{c1}/i,ucp
+    \x{121}\x{e1}
+
+/[^\x{120}]/i,no_start_optimize
+    \x{121}
+
+/[^\x{120}]/i,ucp,no_start_optimize
+\= Expect no match
+    \x{121}
+
+/[^\x{120}]/i
+    \x{121}
+
+/[^\x{120}]/i,ucp
+\= Expect no match
+    \x{121}
+    
+/\x{120}{2}/i,ucp
+    \x{121}\x{121}
+
+/[^\x{120}]{2}/i,ucp
+\= Expect no match
+    \x{121}\x{121}
+
+# ---------------------------------------------------- 
+
+# End of testinput14

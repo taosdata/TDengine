@@ -1,0 +1,396 @@
+# This file tests the auxiliary pattern conversion features of the PCRE2
+# library, in non-UTF mode.
+
+#forbid_utf
+#newline_default lf any anycrlf
+
+# -------- Tests of glob conversion --------
+
+# Set the glob separator explicitly so that different OS defaults are not a
+# problem. Then test various errors.
+
+#pattern convert=glob,convert_glob_escape=\,convert_glob_separator=/
+
+/abc/posix
+
+# Separator must be / \ or .
+
+/a*b/convert_glob_separator=%
+
+# Can't have separator in a class
+
+"[ab/cd]"
+
+"[,-/]"
+
+/[ab/
+
+# Length check
+
+/abc/convert_length=11
+
+/abc/convert_length=12
+
+# Now some actual tests
+
+/a?b[]xy]*c/
+    azb]1234c
+
+# Tests from the gitwildmatch list, with some additions
+
+/foo/
+    foo
+/= Expect no match
+    bar
+
+//
+    \
+
+/???/
+    foo
+\= Expect no match
+    foobar
+
+/*/
+    foo
+    \
+
+/f*/
+    foo
+    f
+
+/*f/
+    oof
+\= Expect no match
+    foo
+
+/*foo*/
+    foo
+    food
+    aprilfool
+
+/*ob*a*r*/
+    foobar
+
+/*ab/
+    aaaaaaabababab
+
+/foo\*/
+    foo*
+
+/foo\*bar/
+\= Expect no match
+    foobar
+
+/f\\oo/
+    f\\oo
+
+/*[al]?/
+    ball
+
+/[ten]/
+\= Expect no match
+    ten
+
+/t[a-g]n/
+    ten
+
+/a[]]b/
+    a]b
+
+/a[]a-]b/
+
+/a[]-]b/
+    a-b
+    a]b
+\= Expect no match
+    aab
+
+/a[]a-z]b/
+    aab
+
+/]/
+    ]
+
+/t[!a-g]n/
+    ton
+\= Expect no match
+    ten
+
+'[[:alpha:]][[:digit:]][[:upper:]]'
+    a1B
+
+'[[:digit:][:upper:][:space:]]'
+    A
+    1
+    \ \=
+\= Expect no match
+    a
+    .
+
+'[a-c[:digit:]x-z]'
+    5
+    b
+    y
+\= Expect no match
+    q
+
+# End of gitwildmatch tests
+
+/*.j?g/
+    pic01.jpg
+    .jpg
+    pic02.jxg
+\= Expect no match
+    pic03.j/g
+
+/A[+-0]B/
+    A+B
+    A.B
+    A0B
+\= Expect no match
+    A/B
+
+/*x?z/
+    abc.xyz
+\= Expect no match
+    .xyz
+
+/?x?z/
+    axyz
+\= Expect no match
+    .xyz
+
+"[,-0]x?z"
+    ,xyz
+\= Expect no match
+    /xyz
+    .xyz
+
+".x*"
+    .xabc
+
+/a[--0]z/
+    a-z
+    a.z
+    a0z
+\= Expect no match
+    a/z
+    a1z
+
+/<[a-c-d]>/
+    <a>
+    <b>
+    <c>
+    <d>
+    <->
+
+/a[[:digit:].]z/
+    a1z
+    a.z
+\= Expect no match
+    a:z
+
+/a[[:digit].]z/
+    a[.]z
+    a:.]z
+    ad.]z
+
+/<[[:a[:digit:]b]>/
+    <[>
+    <:>
+    <a>
+    <9>
+    <b>
+\= Expect no match
+    <d>
+
+/a*b/convert_glob_separator=\
+
+/a*b/convert_glob_separator=.
+
+/a*b/convert_glob_separator=/
+
+# Non control character checking
+
+/A\B\\C\D/
+
+/\\{}\?\*+\[\]()|.^$/
+
+/*a*\/*b*/
+
+/?a?\/?b?/
+
+/[a\\b\c][]][-][\]\-]/
+
+/[^a\\b\c][!]][!-][^\]\-]/
+
+/[[:alnum:][:alpha:][:blank:][:cntrl:][:digit:][:graph:][:lower:][:print:][:punct:][:space:][:upper:][:word:][:xdigit:]]/
+
+"[/-/]"
+
+/[-----]/
+
+/[------]/
+
+/[!------]/
+
+/[[:alpha:]-a]/
+
+/[[:alpha:]][[:punct:]][[:ascii:]]/
+
+/[a-[:alpha:]]/
+
+/[[:alpha:/
+
+/[[:alpha:]/
+
+/[[:alphaa:]]/
+
+/[[:xdigi:]]/
+
+/[[:xdigit::]]/
+
+/****/
+
+/**\/abc/
+  abc
+  x/abc
+  xabc
+
+/abc\/**/
+
+/abc\/**\/abc/
+
+/**\/*a*b*g*n*t/
+  abcd/abcdefg/abcdefghijk/abcdefghijklmnop.txt
+
+/**\/*a*\/**/
+  xx/xx/xx/xax/xx/xb
+
+/**\/*a*/
+  xx/xx/xx/xax
+  xx/xx/xx/xax/xx
+
+/**\/*a*\/**\/*b*/
+  xx/xx/xx/xax/xx/xb
+  xx/xx/xx/xax/xx/x
+
+"**a"convert=glob
+  a
+  c/b/a
+  c/b/aaa
+
+"a**/b"convert=glob
+  a/b
+  ab
+
+"a/**b"convert=glob
+  a/b
+  ab
+
+#pattern convert=glob:glob_no_starstar
+
+/***/
+
+/**a**/
+
+#pattern convert=unset
+#pattern convert=glob:glob_no_wild_separator
+
+/*/
+
+/*a*/
+
+/**a**/
+
+/a*b/
+
+/*a*b*/
+
+/??a??/
+
+#pattern convert=unset
+#pattern convert=glob,convert_glob_escape=0
+
+/a\b\cd/
+
+/**\/a/
+
+/a`*b/convert_glob_escape=`
+
+/a`*b/convert_glob_escape=0
+
+/a`*b/convert_glob_escape=x
+
+# -------- Tests of extended POSIX conversion --------
+
+#pattern convert=unset:posix_extended
+
+/<[[:a[:digit:]b]>/
+    <[>
+    <:>
+    <a>
+    <9>
+    <b>
+\= Expect no match
+    <d>
+
+/a+\1b\\c|d[ab\c]/
+
+/<[]bc]>/
+    <]>
+    <b>
+    <c>
+
+/<[^]bc]>/
+    <.>
+\= Expect no match
+    <]>
+    <b>
+
+/(a)\1b/
+    a1b
+\= Expect no match
+    aab
+
+/(ab)c)d]/
+    Xabc)d]Y
+
+/a***b/
+
+# -------- Tests of basic POSIX conversion --------
+
+#pattern convert=unset:posix_basic
+
+/a*b+c\+[def](ab)\(cd\)/
+
+/\(a\)\1b/
+    aab
+\= Expect no match
+    a1b
+
+/how.to how\.to/
+    how\nto how.to
+\= Expect no match     
+    how\x{0}to how.to
+
+/^how to \^how to/
+
+/^*abc/
+
+/*abc/
+    X*abcY
+
+/**abc/
+    XabcY
+    X*abcY
+    X**abcY
+    
+/*ab\(*cd\)/ 
+
+/^b\(c^d\)\(^e^f\)/
+
+/a***b/
+
+# End of testinput24

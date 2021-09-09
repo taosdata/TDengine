@@ -5,11 +5,12 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/rpc/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/sync/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/rmonotonic/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/TSZ/sz/include)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/pcre2-10.37/)
 
 AUX_SOURCE_DIRECTORY(src SRC)
 ADD_LIBRARY(tutil ${SRC})
 
-TARGET_LINK_LIBRARIES(tutil pthread os lz4 z rmonotonic ${VAR_TSZ} )
+TARGET_LINK_LIBRARIES(tutil pthread os lz4 z rmonotonic ${VAR_TSZ} pcre2-8)
 
 
 

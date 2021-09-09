@@ -1,0 +1,51 @@
+.TH PCRE2_JIT_COMPILE 3 "29 July 2019" "PCRE2 10.34"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_jit_compile(pcre2_code *\fIcode\fP, uint32_t \fIoptions\fP);
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function requests JIT compilation, which, if the just-in-time compiler is
+available, further processes a compiled pattern into machine code that executes
+much faster than the \fBpcre2_match()\fP interpretive matching function. Full
+details are given in the
+.\" HREF
+\fBpcre2jit\fP
+.\"
+documentation.
+.P
+The first argument is a pointer that was returned by a successful call to
+\fBpcre2_compile()\fP, and the second must contain one or more of the following
+bits:
+.sp
+  PCRE2_JIT_COMPLETE      compile code for full matching
+  PCRE2_JIT_PARTIAL_SOFT  compile code for soft partial matching
+  PCRE2_JIT_PARTIAL_HARD  compile code for hard partial matching
+.sp
+There is also an obsolete option called PCRE2_JIT_INVALID_UTF, which has been
+superseded by the \fBpcre2_compile()\fP option PCRE2_MATCH_INVALID_UTF. The old
+option is deprecated and may be removed in the future.
+.P
+The yield of the function is 0 for success, or a negative error code otherwise.
+In particular, PCRE2_ERROR_JIT_BADOPTION is returned if JIT is not supported or
+if an unknown bit is set in \fIoptions\fP. The function can also return
+PCRE2_ERROR_NOMEMORY if JIT is unable to allocate executable memory for the
+compiler, even if it was because of a system security restriction.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

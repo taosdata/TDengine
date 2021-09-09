@@ -1,0 +1,108 @@
+# This set of tests exercises the serialization/deserialization and code copy
+# functions in the library. It does not use UTF or JIT.
+
+#forbid_utf
+
+# Compile several patterns, push them onto the stack, and then write them
+# all to a file.
+
+#pattern push
+
+/(?<NAME>(?&NAME_PAT))\s+(?<ADDR>(?&ADDRESS_PAT))
+  (?(DEFINE)
+  (?<NAME_PAT>[a-z]+)
+  (?<ADDRESS_PAT>\d+)
+  )/x
+/^(?:((.)(?1)\2|)|((.)(?3)\4|.))$/i
+
+#save testsaved1
+
+# Do it again for some more patterns.
+
+/(*MARK:A)(*SKIP:B)(C|X)/mark
+/(?:(?<n>foo)|(?<n>bar))\k<n>/dupnames
+
+#save testsaved2
+#pattern -push
+
+# Reload the patterns, then pop them one by one and check them.
+
+#load testsaved1
+#load testsaved2
+
+#pop info
+    foofoo
+    barbar
+
+#pop mark
+    C
+\= Expect no match
+    D
+
+#pop
+    AmanaplanacanalPanama
+
+#pop info
+    metcalfe 33
+
+# Check for an error when different tables are used.
+
+/abc/push,tables=1
+/xyz/push,tables=2
+#save testsaved1
+
+#pop
+    xyz
+
+#pop
+    abc
+
+#pop should give an error
+    pqr
+
+/abcd/pushcopy
+    abcd
+
+#pop
+    abcd
+
+#pop should give an error
+
+/abcd/push
+#popcopy
+    abcd
+
+#pop
+    abcd
+
+/abcd/push
+#save testsaved1
+#pop should give an error
+
+#load testsaved1
+#popcopy
+    abcd
+
+#pop
+    abcd
+
+#pop should give an error
+
+/abcd/pushtablescopy
+    abcd
+
+#popcopy
+    abcd
+
+#pop
+    abcd
+
+# Must only specify one of these
+
+//push,pushcopy
+
+//push,pushtablescopy
+
+//pushcopy,pushtablescopy
+
+# End of testinput20

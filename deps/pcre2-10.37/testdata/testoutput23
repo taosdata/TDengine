@@ -1,0 +1,8 @@
+# This test is run when PCRE2 has been built with --enable-never-backslash-C,
+# which disables the use of \C. All we can do is check that it gives the 
+# correct error message.
+
+/a\Cb/
+Failed: error 185 at offset 3: using \C is disabled in this PCRE2 library
+
+# End of testinput23

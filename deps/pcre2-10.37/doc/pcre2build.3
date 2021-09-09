@@ -1,0 +1,637 @@
+.TH PCRE2BUILD 3 "20 March 2020" "PCRE2 10.35"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.
+.
+.SH "BUILDING PCRE2"
+.rs
+.sp
+PCRE2 is distributed with a \fBconfigure\fP script that can be used to build
+the library in Unix-like environments using the applications known as
+Autotools. Also in the distribution are files to support building using
+\fBCMake\fP instead of \fBconfigure\fP. The text file
+.\" HTML <a href="README.txt">
+.\" </a>
+\fBREADME\fP
+.\"
+contains general information about building with Autotools (some of which is
+repeated below), and also has some comments about building on various operating
+systems. There is a lot more information about building PCRE2 without using
+Autotools (including information about using \fBCMake\fP and building "by
+hand") in the text file called
+.\" HTML <a href="NON-AUTOTOOLS-BUILD.txt">
+.\" </a>
+\fBNON-AUTOTOOLS-BUILD\fP.
+.\"
+You should consult this file as well as the
+.\" HTML <a href="README.txt">
+.\" </a>
+\fBREADME\fP
+.\"
+file if you are building in a non-Unix-like environment.
+.
+.
+.SH "PCRE2 BUILD-TIME OPTIONS"
+.rs
+.sp
+The rest of this document describes the optional features of PCRE2 that can be
+selected when the library is compiled. It assumes use of the \fBconfigure\fP
+script, where the optional features are selected or deselected by providing
+options to \fBconfigure\fP before running the \fBmake\fP command. However, the
+same options can be selected in both Unix-like and non-Unix-like environments
+if you are using \fBCMake\fP instead of \fBconfigure\fP to build PCRE2.
+.P
+If you are not using Autotools or \fBCMake\fP, option selection can be done by
+editing the \fBconfig.h\fP file, or by passing parameter settings to the
+compiler, as described in
+.\" HTML <a href="NON-AUTOTOOLS-BUILD.txt">
+.\" </a>
+\fBNON-AUTOTOOLS-BUILD\fP.
+.\"
+.P
+The complete list of options for \fBconfigure\fP (which includes the standard
+ones such as the selection of the installation directory) can be obtained by
+running
+.sp
+  ./configure --help
+.sp
+The following sections include descriptions of "on/off" options whose names
+begin with --enable or --disable. Because of the way that \fBconfigure\fP
+works, --enable and --disable always come in pairs, so the complementary option
+always exists as well, but as it specifies the default, it is not described.
+Options that specify values have names that start with --with. At the end of a
+\fBconfigure\fP run, a summary of the configuration is output.
+.
+.
+.SH "BUILDING 8-BIT, 16-BIT AND 32-BIT LIBRARIES"
+.rs
+.sp
+By default, a library called \fBlibpcre2-8\fP is built, containing functions
+that take string arguments contained in arrays of bytes, interpreted either as
+single-byte characters, or UTF-8 strings. You can also build two other
+libraries, called \fBlibpcre2-16\fP and \fBlibpcre2-32\fP, which process
+strings that are contained in arrays of 16-bit and 32-bit code units,
+respectively. These can be interpreted either as single-unit characters or
+UTF-16/UTF-32 strings. To build these additional libraries, add one or both of
+the following to the \fBconfigure\fP command:
+.sp
+  --enable-pcre2-16
+  --enable-pcre2-32
+.sp
+If you do not want the 8-bit library, add
+.sp
+  --disable-pcre2-8
+.sp
+as well. At least one of the three libraries must be built. Note that the POSIX
+wrapper is for the 8-bit library only, and that \fBpcre2grep\fP is an 8-bit
+program. Neither of these are built if you select only the 16-bit or 32-bit
+libraries.
+.
+.
+.SH "BUILDING SHARED AND STATIC LIBRARIES"
+.rs
+.sp
+The Autotools PCRE2 building process uses \fBlibtool\fP to build both shared
+and static libraries by default. You can suppress an unwanted library by adding
+one of
+.sp
+  --disable-shared
+  --disable-static
+.sp
+to the \fBconfigure\fP command.
+.
+.
+.SH "UNICODE AND UTF SUPPORT"
+.rs
+.sp
+By default, PCRE2 is built with support for Unicode and UTF character strings.
+To build it without Unicode support, add
+.sp
+  --disable-unicode
+.sp
+to the \fBconfigure\fP command. This setting applies to all three libraries. It
+is not possible to build one library with Unicode support and another without
+in the same configuration.
+.P
+Of itself, Unicode support does not make PCRE2 treat strings as UTF-8, UTF-16
+or UTF-32. To do that, applications that use the library can set the PCRE2_UTF
+option when they call \fBpcre2_compile()\fP to compile a pattern.
+Alternatively, patterns may be started with (*UTF) unless the application has
+locked this out by setting PCRE2_NEVER_UTF.
+.P
+UTF support allows the libraries to process character code points up to
+0x10ffff in the strings that they handle. Unicode support also gives access to
+the Unicode properties of characters, using pattern escapes such as \eP, \ep,
+and \eX. Only the general category properties such as \fILu\fP and \fINd\fP are
+supported. Details are given in the
+.\" HREF
+\fBpcre2pattern\fP
+.\"
+documentation.
+.P
+Pattern escapes such as \ed and \ew do not by default make use of Unicode
+properties. The application can request that they do by setting the PCRE2_UCP
+option. Unless the application has set PCRE2_NEVER_UCP, a pattern may also
+request this by starting with (*UCP).
+.
+.
+.SH "DISABLING THE USE OF \eC"
+.rs
+.sp
+The \eC escape sequence, which matches a single code unit, even in a UTF mode,
+can cause unpredictable behaviour because it may leave the current matching
+point in the middle of a multi-code-unit character. The application can lock it
+out by setting the PCRE2_NEVER_BACKSLASH_C option when calling
+\fBpcre2_compile()\fP. There is also a build-time option
+.sp
+  --enable-never-backslash-C
+.sp
+(note the upper case C) which locks out the use of \eC entirely.
+.
+.
+.SH "JUST-IN-TIME COMPILER SUPPORT"
+.rs
+.sp
+Just-in-time (JIT) compiler support is included in the build by specifying
+.sp
+  --enable-jit
+.sp
+This support is available only for certain hardware architectures. If this
+option is set for an unsupported architecture, a building error occurs.
+If in doubt, use
+.sp
+  --enable-jit=auto
+.sp
+which enables JIT only if the current hardware is supported. You can check
+if JIT is enabled in the configuration summary that is output at the end of a
+\fBconfigure\fP run. If you are enabling JIT under SELinux you may also want to
+add
+.sp
+  --enable-jit-sealloc
+.sp
+which enables the use of an execmem allocator in JIT that is compatible with
+SELinux. This has no effect if JIT is not enabled. See the
+.\" HREF
+\fBpcre2jit\fP
+.\"
+documentation for a discussion of JIT usage. When JIT support is enabled,
+\fBpcre2grep\fP automatically makes use of it, unless you add
+.sp
+  --disable-pcre2grep-jit
+.sp
+to the \fBconfigure\fP command.
+.
+.
+.SH "NEWLINE RECOGNITION"
+.rs
+.sp
+By default, PCRE2 interprets the linefeed (LF) character as indicating the end
+of a line. This is the normal newline character on Unix-like systems. You can
+compile PCRE2 to use carriage return (CR) instead, by adding
+.sp
+  --enable-newline-is-cr
+.sp
+to the \fBconfigure\fP command. There is also an --enable-newline-is-lf option,
+which explicitly specifies linefeed as the newline character.
+.P
+Alternatively, you can specify that line endings are to be indicated by the
+two-character sequence CRLF (CR immediately followed by LF). If you want this,
+add
+.sp
+  --enable-newline-is-crlf
+.sp
+to the \fBconfigure\fP command. There is a fourth option, specified by
+.sp
+  --enable-newline-is-anycrlf
+.sp
+which causes PCRE2 to recognize any of the three sequences CR, LF, or CRLF as
+indicating a line ending. A fifth option, specified by
+.sp
+  --enable-newline-is-any
+.sp
+causes PCRE2 to recognize any Unicode newline sequence. The Unicode newline
+sequences are the three just mentioned, plus the single characters VT (vertical
+tab, U+000B), FF (form feed, U+000C), NEL (next line, U+0085), LS (line
+separator, U+2028), and PS (paragraph separator, U+2029). The final option is
+.sp
+  --enable-newline-is-nul
+.sp
+which causes NUL (binary zero) to be set as the default line-ending character.
+.P
+Whatever default line ending convention is selected when PCRE2 is built can be
+overridden by applications that use the library. At build time it is
+recommended to use the standard for your operating system.
+.
+.
+.SH "WHAT \eR MATCHES"
+.rs
+.sp
+By default, the sequence \eR in a pattern matches any Unicode newline sequence,
+independently of what has been selected as the line ending sequence. If you
+specify
+.sp
+  --enable-bsr-anycrlf
+.sp
+the default is changed so that \eR matches only CR, LF, or CRLF. Whatever is
+selected when PCRE2 is built can be overridden by applications that use the
+library.
+.
+.
+.SH "HANDLING VERY LARGE PATTERNS"
+.rs
+.sp
+Within a compiled pattern, offset values are used to point from one part to
+another (for example, from an opening parenthesis to an alternation
+metacharacter). By default, in the 8-bit and 16-bit libraries, two-byte values
+are used for these offsets, leading to a maximum size for a compiled pattern of
+around 64 thousand code units. This is sufficient to handle all but the most
+gigantic patterns. Nevertheless, some people do want to process truly enormous
+patterns, so it is possible to compile PCRE2 to use three-byte or four-byte
+offsets by adding a setting such as
+.sp
+  --with-link-size=3
+.sp
+to the \fBconfigure\fP command. The value given must be 2, 3, or 4. For the
+16-bit library, a value of 3 is rounded up to 4. In these libraries, using
+longer offsets slows down the operation of PCRE2 because it has to load
+additional data when handling them. For the 32-bit library the value is always
+4 and cannot be overridden; the value of --with-link-size is ignored.
+.
+.
+.SH "LIMITING PCRE2 RESOURCE USAGE"
+.rs
+.sp
+The \fBpcre2_match()\fP function increments a counter each time it goes round
+its main loop. Putting a limit on this counter controls the amount of computing
+resource used by a single call to \fBpcre2_match()\fP. The limit can be changed
+at run time, as described in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+documentation. The default is 10 million, but this can be changed by adding a
+setting such as
+.sp
+  --with-match-limit=500000
+.sp
+to the \fBconfigure\fP command. This setting also applies to the
+\fBpcre2_dfa_match()\fP matching function, and to JIT matching (though the
+counting is done differently).
+.P
+The \fBpcre2_match()\fP function starts out using a 20KiB vector on the system
+stack to record backtracking points. The more nested backtracking points there
+are (that is, the deeper the search tree), the more memory is needed. If the
+initial vector is not large enough, heap memory is used, up to a certain limit,
+which is specified in kibibytes (units of 1024 bytes). The limit can be changed
+at run time, as described in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+documentation. The default limit (in effect unlimited) is 20 million. You can
+change this by a setting such as
+.sp
+  --with-heap-limit=500
+.sp
+which limits the amount of heap to 500 KiB. This limit applies only to
+interpretive matching in \fBpcre2_match()\fP and \fBpcre2_dfa_match()\fP, which
+may also use the heap for internal workspace when processing complicated
+patterns. This limit does not apply when JIT (which has its own memory
+arrangements) is used.
+.P
+You can also explicitly limit the depth of nested backtracking in the
+\fBpcre2_match()\fP interpreter. This limit defaults to the value that is set
+for --with-match-limit. You can set a lower default limit by adding, for
+example,
+.sp
+  --with-match-limit_depth=10000
+.sp
+to the \fBconfigure\fP command. This value can be overridden at run time. This
+depth limit indirectly limits the amount of heap memory that is used, but
+because the size of each backtracking "frame" depends on the number of
+capturing parentheses in a pattern, the amount of heap that is used before the
+limit is reached varies from pattern to pattern. This limit was more useful in
+versions before 10.30, where function recursion was used for backtracking.
+.P
+As well as applying to \fBpcre2_match()\fP, the depth limit also controls
+the depth of recursive function calls in \fBpcre2_dfa_match()\fP. These are
+used for lookaround assertions, atomic groups, and recursion within patterns.
+The limit does not apply to JIT matching.
+.
+.
+.\" HTML <a name="createtables"></a>
+.SH "CREATING CHARACTER TABLES AT BUILD TIME"
+.rs
+.sp
+PCRE2 uses fixed tables for processing characters whose code points are less
+than 256. By default, PCRE2 is built with a set of tables that are distributed
+in the file \fIsrc/pcre2_chartables.c.dist\fP. These tables are for ASCII codes
+only. If you add
+.sp
+  --enable-rebuild-chartables
+.sp
+to the \fBconfigure\fP command, the distributed tables are no longer used.
+Instead, a program called \fBpcre2_dftables\fP is compiled and run. This
+outputs the source for new set of tables, created in the default locale of your
+C run-time system. This method of replacing the tables does not work if you are
+cross compiling, because \fBpcre2_dftables\fP needs to be run on the local
+host and therefore not compiled with the cross compiler.
+.P
+If you need to create alternative tables when cross compiling, you will have to
+do so "by hand". There may also be other reasons for creating tables manually.
+To cause \fBpcre2_dftables\fP to be built on the local host, run a normal
+compiling command, and then run the program with the output file as its
+argument, for example:
+.sp
+  cc src/pcre2_dftables.c -o pcre2_dftables
+  ./pcre2_dftables src/pcre2_chartables.c
+.sp
+This builds the tables in the default locale of the local host. If you want to
+specify a locale, you must use the -L option:
+.sp
+  LC_ALL=fr_FR ./pcre2_dftables -L src/pcre2_chartables.c
+.sp
+You can also specify -b (with or without -L). This causes the tables to be
+written in binary instead of as source code. A set of binary tables can be
+loaded into memory by an application and passed to \fBpcre2_compile()\fP in the
+same way as tables created by calling \fBpcre2_maketables()\fP. The tables are
+just a string of bytes, independent of hardware characteristics such as
+endianness. This means they can be bundled with an application that runs in
+different environments, to ensure consistent behaviour.
+.
+.
+.SH "USING EBCDIC CODE"
+.rs
+.sp
+PCRE2 assumes by default that it will run in an environment where the character
+code is ASCII or Unicode, which is a superset of ASCII. This is the case for
+most computer operating systems. PCRE2 can, however, be compiled to run in an
+8-bit EBCDIC environment by adding
+.sp
+  --enable-ebcdic --disable-unicode
+.sp
+to the \fBconfigure\fP command. This setting implies
+--enable-rebuild-chartables. You should only use it if you know that you are in
+an EBCDIC environment (for example, an IBM mainframe operating system).
+.P
+It is not possible to support both EBCDIC and UTF-8 codes in the same version
+of the library. Consequently, --enable-unicode and --enable-ebcdic are mutually
+exclusive.
+.P
+The EBCDIC character that corresponds to an ASCII LF is assumed to have the
+value 0x15 by default. However, in some EBCDIC environments, 0x25 is used. In
+such an environment you should use
+.sp
+  --enable-ebcdic-nl25
+.sp
+as well as, or instead of, --enable-ebcdic. The EBCDIC character for CR has the
+same value as in ASCII, namely, 0x0d. Whichever of 0x15 and 0x25 is \fInot\fP
+chosen as LF is made to correspond to the Unicode NEL character (which, in
+Unicode, is 0x85).
+.P
+The options that select newline behaviour, such as --enable-newline-is-cr,
+and equivalent run-time options, refer to these character values in an EBCDIC
+environment.
+.
+.
+.SH "PCRE2GREP SUPPORT FOR EXTERNAL SCRIPTS"
+.rs
+.sp
+By default \fBpcre2grep\fP supports the use of callouts with string arguments
+within the patterns it is matching. There are two kinds: one that generates
+output using local code, and another that calls an external program or script.
+If --disable-pcre2grep-callout-fork is added to the \fBconfigure\fP command,
+only the first kind of callout is supported; if --disable-pcre2grep-callout is
+used, all callouts are completely ignored. For more details of \fBpcre2grep\fP
+callouts, see the
+.\" HREF
+\fBpcre2grep\fP
+.\"
+documentation.
+.
+.
+.SH "PCRE2GREP OPTIONS FOR COMPRESSED FILE SUPPORT"
+.rs
+.sp
+By default, \fBpcre2grep\fP reads all files as plain text. You can build it so
+that it recognizes files whose names end in \fB.gz\fP or \fB.bz2\fP, and reads
+them with \fBlibz\fP or \fBlibbz2\fP, respectively, by adding one or both of
+.sp
+  --enable-pcre2grep-libz
+  --enable-pcre2grep-libbz2
+.sp
+to the \fBconfigure\fP command. These options naturally require that the
+relevant libraries are installed on your system. Configuration will fail if
+they are not.
+.
+.
+.SH "PCRE2GREP BUFFER SIZE"
+.rs
+.sp
+\fBpcre2grep\fP uses an internal buffer to hold a "window" on the file it is
+scanning, in order to be able to output "before" and "after" lines when it
+finds a match. The default starting size of the buffer is 20KiB. The buffer
+itself is three times this size, but because of the way it is used for holding
+"before" lines, the longest line that is guaranteed to be processable is the
+notional buffer size. If a longer line is encountered, \fBpcre2grep\fP
+automatically expands the buffer, up to a specified maximum size, whose default
+is 1MiB or the starting size, whichever is the larger. You can change the
+default parameter values by adding, for example,
+.sp
+  --with-pcre2grep-bufsize=51200
+  --with-pcre2grep-max-bufsize=2097152
+.sp
+to the \fBconfigure\fP command. The caller of \fBpcre2grep\fP can override
+these values by using --buffer-size and --max-buffer-size on the command line.
+.
+.
+.SH "PCRE2TEST OPTION FOR LIBREADLINE SUPPORT"
+.rs
+.sp
+If you add one of
+.sp
+  --enable-pcre2test-libreadline
+  --enable-pcre2test-libedit
+.sp
+to the \fBconfigure\fP command, \fBpcre2test\fP is linked with the
+\fBlibreadline\fP or\fBlibedit\fP library, respectively, and when its input is
+from a terminal, it reads it using the \fBreadline()\fP function. This provides
+line-editing and history facilities. Note that \fBlibreadline\fP is
+GPL-licensed, so if you distribute a binary of \fBpcre2test\fP linked in this
+way, there may be licensing issues. These can be avoided by linking instead
+with \fBlibedit\fP, which has a BSD licence.
+.P
+Setting --enable-pcre2test-libreadline causes the \fB-lreadline\fP option to be
+added to the \fBpcre2test\fP build. In many operating environments with a
+sytem-installed readline library this is sufficient. However, in some
+environments (e.g. if an unmodified distribution version of readline is in
+use), some extra configuration may be necessary. The INSTALL file for
+\fBlibreadline\fP says this:
+.sp
+  "Readline uses the termcap functions, but does not link with
+  the termcap or curses library itself, allowing applications
+  which link with readline the to choose an appropriate library."
+.sp
+If your environment has not been set up so that an appropriate library is
+automatically included, you may need to add something like
+.sp
+  LIBS="-ncurses"
+.sp
+immediately before the \fBconfigure\fP command.
+.
+.
+.SH "INCLUDING DEBUGGING CODE"
+.rs
+.sp
+If you add
+.sp
+  --enable-debug
+.sp
+to the \fBconfigure\fP command, additional debugging code is included in the
+build. This feature is intended for use by the PCRE2 maintainers.
+.
+.
+.SH "DEBUGGING WITH VALGRIND SUPPORT"
+.rs
+.sp
+If you add
+.sp
+  --enable-valgrind
+.sp
+to the \fBconfigure\fP command, PCRE2 will use valgrind annotations to mark
+certain memory regions as unaddressable. This allows it to detect invalid
+memory accesses, and is mostly useful for debugging PCRE2 itself.
+.
+.
+.SH "CODE COVERAGE REPORTING"
+.rs
+.sp
+If your C compiler is gcc, you can build a version of PCRE2 that can generate a
+code coverage report for its test suite. To enable this, you must install
+\fBlcov\fP version 1.6 or above. Then specify
+.sp
+  --enable-coverage
+.sp
+to the \fBconfigure\fP command and build PCRE2 in the usual way.
+.P
+Note that using \fBccache\fP (a caching C compiler) is incompatible with code
+coverage reporting. If you have configured \fBccache\fP to run automatically
+on your system, you must set the environment variable
+.sp
+  CCACHE_DISABLE=1
+.sp
+before running \fBmake\fP to build PCRE2, so that \fBccache\fP is not used.
+.P
+When --enable-coverage is used, the following addition targets are added to the
+\fIMakefile\fP:
+.sp
+  make coverage
+.sp
+This creates a fresh coverage report for the PCRE2 test suite. It is equivalent
+to running "make coverage-reset", "make coverage-baseline", "make check", and
+then "make coverage-report".
+.sp
+  make coverage-reset
+.sp
+This zeroes the coverage counters, but does nothing else.
+.sp
+  make coverage-baseline
+.sp
+This captures baseline coverage information.
+.sp
+  make coverage-report
+.sp
+This creates the coverage report.
+.sp
+  make coverage-clean-report
+.sp
+This removes the generated coverage report without cleaning the coverage data
+itself.
+.sp
+  make coverage-clean-data
+.sp
+This removes the captured coverage data without removing the coverage files
+created at compile time (*.gcno).
+.sp
+  make coverage-clean
+.sp
+This cleans all coverage data including the generated coverage report. For more
+information about code coverage, see the \fBgcov\fP and \fBlcov\fP
+documentation.
+.
+.
+.SH "DISABLING THE Z AND T FORMATTING MODIFIERS"
+.rs
+.sp
+The C99 standard defines formatting modifiers z and t for size_t and
+ptrdiff_t values, respectively. By default, PCRE2 uses these modifiers in
+environments other than Microsoft Visual Studio when __STDC_VERSION__ is
+defined and has a value greater than or equal to 199901L (indicating C99).
+However, there is at least one environment that claims to be C99 but does not
+support these modifiers. If
+.sp
+  --disable-percent-zt
+.sp
+is specified, no use is made of the z or t modifiers. Instead of %td or %zu,
+%lu is used, with a cast for size_t values.
+.
+.
+.SH "SUPPORT FOR FUZZERS"
+.rs
+.sp
+There is a special option for use by people who want to run fuzzing tests on
+PCRE2:
+.sp
+  --enable-fuzz-support
+.sp
+At present this applies only to the 8-bit library. If set, it causes an extra
+library called libpcre2-fuzzsupport.a to be built, but not installed. This
+contains a single function called LLVMFuzzerTestOneInput() whose arguments are
+a pointer to a string and the length of the string. When called, this function
+tries to compile the string as a pattern, and if that succeeds, to match it.
+This is done both with no options and with some random options bits that are
+generated from the string.
+.P
+Setting --enable-fuzz-support also causes a binary called \fBpcre2fuzzcheck\fP
+to be created. This is normally run under valgrind or used when PCRE2 is
+compiled with address sanitizing enabled. It calls the fuzzing function and
+outputs information about what it is doing. The input strings are specified by
+arguments: if an argument starts with "=" the rest of it is a literal input
+string. Otherwise, it is assumed to be a file name, and the contents of the
+file are the test string.
+.
+.
+.SH "OBSOLETE OPTION"
+.rs
+.sp
+In versions of PCRE2 prior to 10.30, there were two ways of handling
+backtracking in the \fBpcre2_match()\fP function. The default was to use the
+system stack, but if
+.sp
+  --disable-stack-for-recursion
+.sp
+was set, memory on the heap was used. From release 10.30 onwards this has
+changed (the stack is no longer used) and this option now does nothing except
+give a warning.
+.
+.SH "SEE ALSO"
+.rs
+.sp
+\fBpcre2api\fP(3), \fBpcre2-config\fP(3).
+.
+.
+.SH AUTHOR
+.rs
+.sp
+.nf
+Philip Hazel
+University Computing Service
+Cambridge, England.
+.fi
+.
+.
+.SH REVISION
+.rs
+.sp
+.nf
+Last updated: 20 March 2020
+Copyright (c) 1997-2020 University of Cambridge.
+.fi

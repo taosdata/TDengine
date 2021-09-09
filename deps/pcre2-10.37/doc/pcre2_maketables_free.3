@@ -1,0 +1,31 @@
+.TH PCRE2_MAKETABLES_FREE 3 "02 September 2019" "PCRE2 10.34"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B void pcre2_maketables_free(pcre2_general_context *\fIgcontext\fP,
+.B "  const uint8_t *\fItables\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function discards a set of character tables that were created by a call
+to
+.\" HREF
+\fBpcre2_maketables()\fP.
+.\"
+.P
+The \fIgcontext\fP parameter should match what was used in that call to
+account for any custom allocators that might be in use; if it is NULL
+the system \fBfree()\fP is used.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page.

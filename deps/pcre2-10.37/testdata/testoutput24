@@ -1,0 +1,624 @@
+# This file tests the auxiliary pattern conversion features of the PCRE2
+# library, in non-UTF mode.
+
+#forbid_utf
+#newline_default lf any anycrlf
+
+# -------- Tests of glob conversion --------
+
+# Set the glob separator explicitly so that different OS defaults are not a
+# problem. Then test various errors.
+
+#pattern convert=glob,convert_glob_escape=\,convert_glob_separator=/
+
+/abc/posix
+** The convert and posix modifiers are mutually exclusive
+
+# Separator must be / \ or .
+
+/a*b/convert_glob_separator=%
+** Invalid glob separator '%'
+
+# Can't have separator in a class
+
+"[ab/cd]"
+(?s)\A[ab/cd](?<!/)\z
+
+"[,-/]"
+(?s)\A[,-/](?<!/)\z
+
+/[ab/
+** Pattern conversion error at offset 3: missing terminating ] for character class
+
+# Length check
+
+/abc/convert_length=11
+** Pattern conversion error at offset 3: no more memory
+
+/abc/convert_length=12
+(?s)\Aabc\z
+
+# Now some actual tests
+
+/a?b[]xy]*c/
+(?s)\Aa[^/]b[\]xy](*COMMIT)[^/]*?c\z
+    azb]1234c
+ 0: azb]1234c
+
+# Tests from the gitwildmatch list, with some additions
+
+/foo/
+(?s)\Afoo\z
+    foo
+ 0: foo
+/= Expect no match
+No match
+    bar
+No match
+
+//
+(?s)\A\z
+    \
+ 0: 
+
+/???/
+(?s)\A[^/][^/][^/]\z
+    foo
+ 0: foo
+\= Expect no match
+    foobar
+No match
+
+/*/
+(?s)\A[^/]*+\z
+    foo
+ 0: foo
+    \
+ 0: 
+
+/f*/
+(?s)\Af(*COMMIT)[^/]*+\z
+    foo
+ 0: foo
+    f
+ 0: f
+
+/*f/
+(?s)\A[^/]*?f\z
+    oof
+ 0: oof
+\= Expect no match
+    foo
+No match
+
+/*foo*/
+(?s)\A[^/]*?foo(*COMMIT)[^/]*+\z
+    foo
+ 0: foo
+    food
+ 0: food
+    aprilfool
+ 0: aprilfool
+
+/*ob*a*r*/
+(?s)\A[^/]*?ob(*COMMIT)[^/]*?a(*COMMIT)[^/]*?r(*COMMIT)[^/]*+\z
+    foobar
+ 0: foobar
+
+/*ab/
+(?s)\A[^/]*?ab\z
+    aaaaaaabababab
+ 0: aaaaaaabababab
+
+/foo\*/
+(?s)\Afoo\*\z
+    foo*
+ 0: foo*
+
+/foo\*bar/
+(?s)\Afoo\*bar\z
+\= Expect no match
+    foobar
+No match
+
+/f\\oo/
+(?s)\Af\\oo\z
+    f\\oo
+ 0: f\oo
+
+/*[al]?/
+(?s)\A[^/]*?[al][^/]\z
+    ball
+ 0: ball
+
+/[ten]/
+(?s)\A[ten]\z
+\= Expect no match
+    ten
+No match
+
+/t[a-g]n/
+(?s)\At[a-g]n\z
+    ten
+ 0: ten
+
+/a[]]b/
+(?s)\Aa[\]]b\z
+    a]b
+ 0: a]b
+
+/a[]a-]b/
+(?s)\Aa[\]a\-]b\z
+
+/a[]-]b/
+(?s)\Aa[\]\-]b\z
+    a-b
+ 0: a-b
+    a]b
+ 0: a]b
+\= Expect no match
+    aab
+No match
+
+/a[]a-z]b/
+(?s)\Aa[\]a-z]b\z
+    aab
+ 0: aab
+
+/]/
+(?s)\A\]\z
+    ]
+ 0: ]
+
+/t[!a-g]n/
+(?s)\At[^/a-g]n\z
+    ton
+ 0: ton
+\= Expect no match
+    ten
+No match
+
+'[[:alpha:]][[:digit:]][[:upper:]]'
+(?s)\A[[:alpha:]][[:digit:]][[:upper:]]\z
+    a1B
+ 0: a1B
+
+'[[:digit:][:upper:][:space:]]'
+(?s)\A[[:digit:][:upper:][:space:]]\z
+    A
+ 0: A
+    1
+ 0: 1
+    \ \=
+ 0:  
+\= Expect no match
+    a
+No match
+    .
+No match
+
+'[a-c[:digit:]x-z]'
+(?s)\A[a-c[:digit:]x-z]\z
+    5
+ 0: 5
+    b
+ 0: b
+    y
+ 0: y
+\= Expect no match
+    q
+No match
+
+# End of gitwildmatch tests
+
+/*.j?g/
+(?s)\A[^/]*?\.j[^/]g\z
+    pic01.jpg
+ 0: pic01.jpg
+    .jpg
+ 0: .jpg
+    pic02.jxg
+ 0: pic02.jxg
+\= Expect no match
+    pic03.j/g
+No match
+
+/A[+-0]B/
+(?s)\AA[+-0](?<!/)B\z
+    A+B
+ 0: A+B
+    A.B
+ 0: A.B
+    A0B
+ 0: A0B
+\= Expect no match
+    A/B
+No match
+
+/*x?z/
+(?s)\A[^/]*?x[^/]z\z
+    abc.xyz
+ 0: abc.xyz
+\= Expect no match
+    .xyz
+ 0: .xyz
+
+/?x?z/
+(?s)\A[^/]x[^/]z\z
+    axyz
+ 0: axyz
+\= Expect no match
+    .xyz
+ 0: .xyz
+
+"[,-0]x?z"
+(?s)\A[,-0](?<!/)x[^/]z\z
+    ,xyz
+ 0: ,xyz
+\= Expect no match
+    /xyz
+No match
+    .xyz
+ 0: .xyz
+
+".x*"
+(?s)\A\.x(*COMMIT)[^/]*+\z
+    .xabc
+ 0: .xabc
+
+/a[--0]z/
+(?s)\Aa[\--0](?<!/)z\z
+    a-z
+ 0: a-z
+    a.z
+ 0: a.z
+    a0z
+ 0: a0z
+\= Expect no match
+    a/z
+No match
+    a1z
+No match
+
+/<[a-c-d]>/
+(?s)\A<[a-c\-d]>\z
+    <a>
+ 0: <a>
+    <b>
+ 0: <b>
+    <c>
+ 0: <c>
+    <d>
+ 0: <d>
+    <->
+ 0: <->
+
+/a[[:digit:].]z/
+(?s)\Aa[[:digit:].]z\z
+    a1z
+ 0: a1z
+    a.z
+ 0: a.z
+\= Expect no match
+    a:z
+No match
+
+/a[[:digit].]z/
+(?s)\Aa[\[:digit]\.\]z\z
+    a[.]z
+ 0: a[.]z
+    a:.]z
+ 0: a:.]z
+    ad.]z
+ 0: ad.]z
+
+/<[[:a[:digit:]b]>/
+(?s)\A<[\[:a[:digit:]b]>\z
+    <[>
+ 0: <[>
+    <:>
+ 0: <:>
+    <a>
+ 0: <a>
+    <9>
+ 0: <9>
+    <b>
+ 0: <b>
+\= Expect no match
+    <d>
+No match
+
+/a*b/convert_glob_separator=\
+(?s)\Aa(*COMMIT)[^\\]*?b\z
+
+/a*b/convert_glob_separator=.
+(?s)\Aa(*COMMIT)[^\.]*?b\z
+
+/a*b/convert_glob_separator=/
+(?s)\Aa(*COMMIT)[^/]*?b\z
+
+# Non control character checking
+
+/A\B\\C\D/
+(?s)\AAB\\CD\z
+
+/\\{}\?\*+\[\]()|.^$/
+(?s)\A\\\{\}\?\*\+\[\]\(\)\|\.\^\$\z
+
+/*a*\/*b*/
+(?s)\A[^/]*?a(*COMMIT)[^/]*?/(*COMMIT)[^/]*?b(*COMMIT)[^/]*+\z
+
+/?a?\/?b?/
+(?s)\A[^/]a[^/]/[^/]b[^/]\z
+
+/[a\\b\c][]][-][\]\-]/
+(?s)\A[a\\bc][\]][\-][\]\-]\z
+
+/[^a\\b\c][!]][!-][^\]\-]/
+(?s)\A[^/a\\bc][^/\]][^/\-][^/\]\-]\z
+
+/[[:alnum:][:alpha:][:blank:][:cntrl:][:digit:][:graph:][:lower:][:print:][:punct:][:space:][:upper:][:word:][:xdigit:]]/
+(?s)\A[[:alnum:][:alpha:][:blank:][:cntrl:][:digit:][:graph:][:lower:][:print:][:punct:][:space:][:upper:][:word:][:xdigit:]](?<!/)\z
+
+"[/-/]"
+(?s)\A[/-/](?<!/)\z
+
+/[-----]/
+(?s)\A[\--\-\-\-]\z
+
+/[------]/
+(?s)\A[\--\-\--\-]\z
+
+/[!------]/
+(?s)\A[^/\--\-\--\-]\z
+
+/[[:alpha:]-a]/
+(?s)\A[[:alpha:]\-a]\z
+
+/[[:alpha:]][[:punct:]][[:ascii:]]/
+(?s)\A[[:alpha:]][[:punct:]](?<!/)[[:ascii:]](?<!/)\z
+
+/[a-[:alpha:]]/
+** Pattern conversion error at offset 4: invalid syntax
+
+/[[:alpha:/
+** Pattern conversion error at offset 9: missing terminating ] for character class
+
+/[[:alpha:]/
+** Pattern conversion error at offset 10: missing terminating ] for character class
+
+/[[:alphaa:]]/
+(?s)\A[\[:alphaa:]\]\z
+
+/[[:xdigi:]]/
+(?s)\A[\[:xdigi:]\]\z
+
+/[[:xdigit::]]/
+(?s)\A[\[:xdigit::]\]\z
+
+/****/
+(?s)
+
+/**\/abc/
+(?s)(?:\A|/)abc\z
+  abc
+ 0: abc
+  x/abc
+ 0: /abc
+  xabc
+No match
+
+/abc\/**/
+(?s)\Aabc/
+
+/abc\/**\/abc/
+(?s)\Aabc/(*COMMIT)(?:.*?/)??abc\z
+
+/**\/*a*b*g*n*t/
+(?s)(?:\A|/)(?>[^/]*?a)(?>[^/]*?b)(?>[^/]*?g)(?>[^/]*?n)(?>[^/]*?t\z)
+  abcd/abcdefg/abcdefghijk/abcdefghijklmnop.txt
+ 0: /abcdefghijklmnop.txt
+
+/**\/*a*\/**/
+(?s)(?:\A|/)(?>[^/]*?a)(?>[^/]*?/)
+  xx/xx/xx/xax/xx/xb
+ 0: /xax/
+
+/**\/*a*/
+(?s)(?:\A|/)(?>[^/]*?a)(?>[^/]*+\z)
+  xx/xx/xx/xax
+ 0: /xax
+  xx/xx/xx/xax/xx
+No match
+
+/**\/*a*\/**\/*b*/
+(?s)(?:\A|/)(?>[^/]*?a)(?>[^/]*?/)(*COMMIT)(?:.*?/)??(?>[^/]*?b)(?>[^/]*+\z)
+  xx/xx/xx/xax/xx/xb
+ 0: /xax/xx/xb
+  xx/xx/xx/xax/xx/x
+No match
+
+"**a"convert=glob
+(?s)a\z
+  a
+ 0: a
+  c/b/a
+ 0: a
+  c/b/aaa
+ 0: a
+
+"a**/b"convert=glob
+(?s)\Aa(*COMMIT).*?/b\z
+  a/b
+ 0: a/b
+  ab
+No match
+
+"a/**b"convert=glob
+(?s)\Aa/(*COMMIT).*?b\z
+  a/b
+ 0: a/b
+  ab
+No match
+
+#pattern convert=glob:glob_no_starstar
+
+/***/
+(?s)\A[^/]*+\z
+
+/**a**/
+(?s)\A[^/]*?a(*COMMIT)[^/]*+\z
+
+#pattern convert=unset
+#pattern convert=glob:glob_no_wild_separator
+
+/*/
+(?s)
+
+/*a*/
+(?s)a
+
+/**a**/
+(?s)a
+
+/a*b/
+(?s)\Aa(*COMMIT).*?b\z
+
+/*a*b*/
+(?s)a(*COMMIT).*?b
+
+/??a??/
+(?s)\A..a..\z
+
+#pattern convert=unset
+#pattern convert=glob,convert_glob_escape=0
+
+/a\b\cd/
+(?s)\Aa\\b\\cd\z
+
+/**\/a/
+(?s)\\/a\z
+
+/a`*b/convert_glob_escape=`
+(?s)\Aa\*b\z
+
+/a`*b/convert_glob_escape=0
+(?s)\Aa`(*COMMIT)[^/]*?b\z
+
+/a`*b/convert_glob_escape=x
+** Invalid glob escape 'x'
+
+# -------- Tests of extended POSIX conversion --------
+
+#pattern convert=unset:posix_extended
+
+/<[[:a[:digit:]b]>/
+(*NUL)<[[:a[:digit:]b]>
+    <[>
+ 0: <[>
+    <:>
+ 0: <:>
+    <a>
+ 0: <a>
+    <9>
+ 0: <9>
+    <b>
+ 0: <b>
+\= Expect no match
+    <d>
+No match
+
+/a+\1b\\c|d[ab\c]/
+(*NUL)a+1b\\c|d[ab\\c]
+
+/<[]bc]>/
+(*NUL)<[]bc]>
+    <]>
+ 0: <]>
+    <b>
+ 0: <b>
+    <c>
+ 0: <c>
+
+/<[^]bc]>/
+(*NUL)<[^]bc]>
+    <.>
+ 0: <.>
+\= Expect no match
+    <]>
+No match
+    <b>
+No match
+
+/(a)\1b/
+(*NUL)(a)1b
+    a1b
+ 0: a1b
+ 1: a
+\= Expect no match
+    aab
+No match
+
+/(ab)c)d]/
+(*NUL)(ab)c\)d\]
+    Xabc)d]Y
+ 0: abc)d]
+ 1: ab
+
+/a***b/
+(*NUL)a*b
+
+# -------- Tests of basic POSIX conversion --------
+
+#pattern convert=unset:posix_basic
+
+/a*b+c\+[def](ab)\(cd\)/
+(*NUL)a*b\+c\+[def]\(ab\)(cd)
+
+/\(a\)\1b/
+(*NUL)(a)\1b
+    aab
+ 0: aab
+ 1: a
+\= Expect no match
+    a1b
+No match
+
+/how.to how\.to/
+(*NUL)how.to how\.to
+    how\nto how.to
+ 0: how\x0ato how.to
+\= Expect no match     
+    how\x{0}to how.to
+No match
+
+/^how to \^how to/
+(*NUL)^how to \^how to
+
+/^*abc/
+(*NUL)^\*abc
+
+/*abc/
+(*NUL)\*abc
+    X*abcY
+ 0: *abc
+
+/**abc/
+(*NUL)\**abc
+    XabcY
+ 0: abc
+    X*abcY
+ 0: *abc
+    X**abcY
+ 0: **abc
+    
+/*ab\(*cd\)/ 
+(*NUL)\*ab(\*cd)
+
+/^b\(c^d\)\(^e^f\)/
+(*NUL)^b(c\^d)(^e\^f)
+
+/a***b/
+(*NUL)a*b
+
+# End of testinput24

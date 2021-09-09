@@ -1,0 +1,31 @@
+.TH PCRE2_SET_MAX_PATTERN_LENGTH 3 "05 October 2016" "PCRE2 10.23"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_max_pattern_length(pcre2_compile_context *\fIccontext\fP,
+.B "  PCRE2_SIZE \fIvalue\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function sets, in a compile context, the maximum text length (in code
+units) of the pattern that can be compiled. The result is always zero. If a
+longer pattern is passed to \fBpcre2_compile()\fP there is an immediate error
+return. The default is effectively unlimited, being the largest value a
+PCRE2_SIZE variable can hold.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

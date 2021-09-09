@@ -1,0 +1,42 @@
+.TH PCRE2_SET_COMPILE_EXTRA_OPTIONS 3 "11 February 2019" "PCRE2 10.33"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_compile_extra_options(pcre2_compile_context *\fIccontext\fP,
+.B "  uint32_t \fIextra_options\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function sets additional option bits for \fBpcre2_compile()\fP that are
+housed in a compile context. It completely replaces all the bits. The extra
+options are:
+.sp
+.\" JOIN
+  PCRE2_EXTRA_ALLOW_SURROGATE_ESCAPES  Allow \ex{df800} to \ex{dfff}
+                                         in UTF-8 and UTF-32 modes
+.\" JOIN
+  PCRE2_EXTRA_ALT_BSUX                 Extended alternate \eu, \eU, and \ex
+                                         handling
+.\" JOIN
+  PCRE2_EXTRA_BAD_ESCAPE_IS_LITERAL    Treat all invalid escapes as
+                                         a literal following character
+  PCRE2_EXTRA_ESCAPED_CR_IS_LF         Interpret \er as \en
+  PCRE2_EXTRA_MATCH_LINE               Pattern matches whole lines
+  PCRE2_EXTRA_MATCH_WORD               Pattern matches "words"
+.sp
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

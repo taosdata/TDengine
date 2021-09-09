@@ -1,0 +1,19 @@
+# This file tests the auxiliary pattern conversion features of the PCRE2 
+# library, in UTF mode.
+
+#newline_default lf any anycrlf
+
+# -------- Tests of glob conversion --------
+
+# Set the glob separator explicitly so that different OS defaults are not a
+# problem. Then test various errors.
+
+#pattern convert=glob,convert_glob_escape=\,convert_glob_separator=/
+
+# The fact that this one works in 13 bytes in the 8-bit library shows that the
+# output is in UTF-8, though pcre2test shows the character as an escape.
+
+/'>' c4 a3 '<'/hex,utf,convert_length=13
+(?s)\A>\x{123}<\z
+
+# End of testinput25

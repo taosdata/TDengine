@@ -1,0 +1,125 @@
+# These test special UTF and UCP features of DFA matching. The output is
+# different for the different widths.
+
+#subject dfa
+
+# ---------------------------------------------------- 
+# These are a selection of the more comprehensive tests that are run for
+# non-DFA matching.
+
+/X/utf
+    XX\x{d800}
+Failed: error -27: UTF-32 error: code points 0xd800-0xdfff are not defined at offset 2
+    XX\x{d800}\=offset=3
+No match
+    XX\x{d800}\=no_utf_check
+ 0: X
+    XX\x{da00}
+Failed: error -27: UTF-32 error: code points 0xd800-0xdfff are not defined at offset 2
+    XX\x{da00}\=no_utf_check
+ 0: X
+    XX\x{dc00}
+Failed: error -27: UTF-32 error: code points 0xd800-0xdfff are not defined at offset 2
+    XX\x{dc00}\=no_utf_check
+ 0: X
+    XX\x{de00}
+Failed: error -27: UTF-32 error: code points 0xd800-0xdfff are not defined at offset 2
+    XX\x{de00}\=no_utf_check
+ 0: X
+    XX\x{dfff}
+Failed: error -27: UTF-32 error: code points 0xd800-0xdfff are not defined at offset 2
+    XX\x{dfff}\=no_utf_check
+ 0: X
+    XX\x{110000}
+Failed: error -28: UTF-32 error: code points greater than 0x10ffff are not defined at offset 2
+    XX\x{d800}\x{1234}
+Failed: error -27: UTF-32 error: code points 0xd800-0xdfff are not defined at offset 2
+          
+/badutf/utf
+    X\xdf
+No match
+    XX\xef
+No match
+    XXX\xef\x80
+No match
+    X\xf7
+No match
+    XX\xf7\x80
+No match
+    XXX\xf7\x80\x80
+No match
+
+/shortutf/utf
+    XX\xdf\=ph
+No match
+    XX\xef\=ph
+No match
+    XX\xef\x80\=ph
+No match
+    \xf7\=ph
+No match
+    \xf7\x80\=ph
+No match
+    
+# ---------------------------------------------------- 
+# UCP and casing tests - except for the first two, these will all fail in 8-bit
+# mode because they are testing UCP without UTF and use characters > 255.
+
+/\x{c1}/i,no_start_optimize
+\= Expect no match
+    \x{e1}
+No match
+
+/\x{c1}+\x{e1}/iB,ucp
+------------------------------------------------------------------
+        Bra
+     /i \x{c1}+
+     /i \x{e1}
+        Ket
+        End
+------------------------------------------------------------------
+    \x{c1}\x{c1}\x{c1}
+ 0: \xc1\xc1\xc1
+ 1: \xc1\xc1
+    \x{e1}\x{e1}\x{e1} 
+ 0: \xe1\xe1\xe1
+ 1: \xe1\xe1
+
+/\x{120}\x{c1}/i,ucp,no_start_optimize
+    \x{121}\x{e1}
+ 0: \x{121}\xe1
+
+/\x{120}\x{c1}/i,ucp
+    \x{121}\x{e1}
+ 0: \x{121}\xe1
+
+/[^\x{120}]/i,no_start_optimize
+    \x{121}
+ 0: \x{121}
+
+/[^\x{120}]/i,ucp,no_start_optimize
+\= Expect no match
+    \x{121}
+No match
+
+/[^\x{120}]/i
+    \x{121}
+ 0: \x{121}
+
+/[^\x{120}]/i,ucp
+\= Expect no match
+    \x{121}
+No match
+    
+/\x{120}{2}/i,ucp
+    \x{121}\x{121}
+ 0: \x{121}\x{121}
+
+/[^\x{120}]{2}/i,ucp
+\= Expect no match
+    \x{121}\x{121}
+No match
+
+# ---------------------------------------------------- 
+
+# End of testinput14

@@ -1,0 +1,17 @@
+Data file for multiline tests of multiple matches.
+
+start end in between start
+end and following
+Other stuff
+
+start end in between start
+end and following start
+end other stuff
+
+start end in between start
+
+end
+
+** These two lines must be last.
+start end in between start
+end

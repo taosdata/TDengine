@@ -1,0 +1,960 @@
+.TH PCRE2GREP 1 "04 October 2020" "PCRE2 10.36"
+.SH NAME
+pcre2grep - a grep with Perl-compatible regular expressions.
+.SH SYNOPSIS
+.B pcre2grep [options] [long options] [pattern] [path1 path2 ...]
+.
+.SH DESCRIPTION
+.rs
+.sp
+\fBpcre2grep\fP searches files for character patterns, in the same way as other
+grep commands do, but it uses the PCRE2 regular expression library to support
+patterns that are compatible with the regular expressions of Perl 5. See
+.\" HREF
+\fBpcre2syntax\fP(3)
+.\"
+for a quick-reference summary of pattern syntax, or
+.\" HREF
+\fBpcre2pattern\fP(3)
+.\"
+for a full description of the syntax and semantics of the regular expressions
+that PCRE2 supports.
+.P
+Patterns, whether supplied on the command line or in a separate file, are given
+without delimiters. For example:
+.sp
+  pcre2grep Thursday /etc/motd
+.sp
+If you attempt to use delimiters (for example, by surrounding a pattern with
+slashes, as is common in Perl scripts), they are interpreted as part of the
+pattern. Quotes can of course be used to delimit patterns on the command line
+because they are interpreted by the shell, and indeed quotes are required if a
+pattern contains white space or shell metacharacters.
+.P
+The first argument that follows any option settings is treated as the single
+pattern to be matched when neither \fB-e\fP nor \fB-f\fP is present.
+Conversely, when one or both of these options are used to specify patterns, all
+arguments are treated as path names. At least one of \fB-e\fP, \fB-f\fP, or an
+argument pattern must be provided.
+.P
+If no files are specified, \fBpcre2grep\fP reads the standard input. The
+standard input can also be referenced by a name consisting of a single hyphen.
+For example:
+.sp
+  pcre2grep some-pattern file1 - file3
+.sp
+Input files are searched line by line. By default, each line that matches a
+pattern is copied to the standard output, and if there is more than one file,
+the file name is output at the start of each line, followed by a colon.
+However, there are options that can change how \fBpcre2grep\fP behaves. In
+particular, the \fB-M\fP option makes it possible to search for strings that
+span line boundaries. What defines a line boundary is controlled by the
+\fB-N\fP (\fB--newline\fP) option.
+.P
+The amount of memory used for buffering files that are being scanned is
+controlled by parameters that can be set by the \fB--buffer-size\fP and
+\fB--max-buffer-size\fP options. The first of these sets the size of buffer
+that is obtained at the start of processing. If an input file contains very
+long lines, a larger buffer may be needed; this is handled by automatically
+extending the buffer, up to the limit specified by \fB--max-buffer-size\fP. The
+default values for these parameters can be set when \fBpcre2grep\fP is
+built; if nothing is specified, the defaults are set to 20KiB and 1MiB
+respectively. An error occurs if a line is too long and the buffer can no
+longer be expanded.
+.P
+The block of memory that is actually used is three times the "buffer size", to
+allow for buffering "before" and "after" lines. If the buffer size is too
+small, fewer than requested "before" and "after" lines may be output.
+.P
+Patterns can be no longer than 8KiB or BUFSIZ bytes, whichever is the greater.
+BUFSIZ is defined in \fB<stdio.h>\fP. When there is more than one pattern
+(specified by the use of \fB-e\fP and/or \fB-f\fP), each pattern is applied to
+each line in the order in which they are defined, except that all the \fB-e\fP
+patterns are tried before the \fB-f\fP patterns.
+.P
+By default, as soon as one pattern matches a line, no further patterns are
+considered. However, if \fB--colour\fP (or \fB--color\fP) is used to colour the
+matching substrings, or if \fB--only-matching\fP, \fB--file-offsets\fP, or
+\fB--line-offsets\fP is used to output only the part of the line that matched
+(either shown literally, or as an offset), scanning resumes immediately
+following the match, so that further matches on the same line can be found. If
+there are multiple patterns, they are all tried on the remainder of the line,
+but patterns that follow the one that matched are not tried on the earlier
+matched part of the line.
+.P
+This behaviour means that the order in which multiple patterns are specified
+can affect the output when one of the above options is used. This is no longer
+the same behaviour as GNU grep, which now manages to display earlier matches
+for later patterns (as long as there is no overlap).
+.P
+Patterns that can match an empty string are accepted, but empty string
+matches are never recognized. An example is the pattern "(super)?(man)?", in
+which all components are optional. This pattern finds all occurrences of both
+"super" and "man"; the output differs from matching with "super|man" when only
+the matching substrings are being shown.
+.P
+If the \fBLC_ALL\fP or \fBLC_CTYPE\fP environment variable is set,
+\fBpcre2grep\fP uses the value to set a locale when calling the PCRE2 library.
+The \fB--locale\fP option can be used to override this.
+.
+.
+.SH "SUPPORT FOR COMPRESSED FILES"
+.rs
+.sp
+It is possible to compile \fBpcre2grep\fP so that it uses \fBlibz\fP or
+\fBlibbz2\fP to read compressed files whose names end in \fB.gz\fP or
+\fB.bz2\fP, respectively. You can find out whether your \fBpcre2grep\fP binary
+has support for one or both of these file types by running it with the
+\fB--help\fP option. If the appropriate support is not present, all files are
+treated as plain text. The standard input is always so treated. When input is
+from a compressed .gz or .bz2 file, the \fB--line-buffered\fP option is
+ignored.
+.
+.
+.SH "BINARY FILES"
+.rs
+.sp
+By default, a file that contains a binary zero byte within the first 1024 bytes
+is identified as a binary file, and is processed specially. However, if the
+newline type is specified as NUL, that is, the line terminator is a binary
+zero, the test for a binary file is not applied. See the \fB--binary-files\fP
+option for a means of changing the way binary files are handled.
+.
+.
+.SH "BINARY ZEROS IN PATTERNS"
+.rs
+.sp
+Patterns passed from the command line are strings that are terminated by a
+binary zero, so cannot contain internal zeros. However, patterns that are read
+from a file via the \fB-f\fP option may contain binary zeros.
+.
+.
+.SH OPTIONS
+.rs
+.sp
+The order in which some of the options appear can affect the output. For
+example, both the \fB-H\fP and \fB-l\fP options affect the printing of file
+names. Whichever comes later in the command line will be the one that takes
+effect. Similarly, except where noted below, if an option is given twice, the
+later setting is used. Numerical values for options may be followed by K or M,
+to signify multiplication by 1024 or 1024*1024 respectively.
+.TP 10
+\fB--\fP
+This terminates the list of options. It is useful if the next item on the
+command line starts with a hyphen but is not an option. This allows for the
+processing of patterns and file names that start with hyphens.
+.TP
+\fB-A\fP \fInumber\fP, \fB--after-context=\fP\fInumber\fP
+Output up to \fInumber\fP lines of context after each matching line. Fewer
+lines are output if the next match or the end of the file is reached, or if the
+processing buffer size has been set too small. If file names and/or line
+numbers are being output, a hyphen separator is used instead of a colon for the
+context lines. A line containing "--" is output between each group of lines,
+unless they are in fact contiguous in the input file. The value of \fInumber\fP
+is expected to be relatively small. When \fB-c\fP is used, \fB-A\fP is ignored.
+.TP
+\fB-a\fP, \fB--text\fP
+Treat binary files as text. This is equivalent to
+\fB--binary-files\fP=\fItext\fP.
+.TP
+\fB-B\fP \fInumber\fP, \fB--before-context=\fP\fInumber\fP
+Output up to \fInumber\fP lines of context before each matching line. Fewer
+lines are output if the previous match or the start of the file is within
+\fInumber\fP lines, or if the processing buffer size has been set too small. If
+file names and/or line numbers are being output, a hyphen separator is used
+instead of a colon for the context lines. A line containing "--" is output
+between each group of lines, unless they are in fact contiguous in the input
+file. The value of \fInumber\fP is expected to be relatively small. When
+\fB-c\fP is used, \fB-B\fP is ignored.
+.TP
+\fB--binary-files=\fP\fIword\fP
+Specify how binary files are to be processed. If the word is "binary" (the
+default), pattern matching is performed on binary files, but the only output is
+"Binary file <name> matches" when a match succeeds. If the word is "text",
+which is equivalent to the \fB-a\fP or \fB--text\fP option, binary files are
+processed in the same way as any other file. In this case, when a match
+succeeds, the output may be binary garbage, which can have nasty effects if
+sent to a terminal. If the word is "without-match", which is equivalent to the
+\fB-I\fP option, binary files are not processed at all; they are assumed not to
+be of interest and are skipped without causing any output or affecting the
+return code.
+.TP
+\fB--buffer-size=\fP\fInumber\fP
+Set the parameter that controls how much memory is obtained at the start of
+processing for buffering files that are being scanned. See also
+\fB--max-buffer-size\fP below.
+.TP
+\fB-C\fP \fInumber\fP, \fB--context=\fP\fInumber\fP
+Output \fInumber\fP lines of context both before and after each matching line.
+This is equivalent to setting both \fB-A\fP and \fB-B\fP to the same value.
+.TP
+\fB-c\fP, \fB--count\fP
+Do not output lines from the files that are being scanned; instead output the
+number of lines that would have been shown, either because they matched, or, if
+\fB-v\fP is set, because they failed to match. By default, this count is
+exactly the same as the number of lines that would have been output, but if the
+\fB-M\fP (multiline) option is used (without \fB-v\fP), there may be more
+suppressed lines than the count (that is, the number of matches).
+.sp
+If no lines are selected, the number zero is output. If several files are are
+being scanned, a count is output for each of them and the \fB-t\fP option can
+be used to cause a total to be output at the end. However, if the
+\fB--files-with-matches\fP option is also used, only those files whose counts
+are greater than zero are listed. When \fB-c\fP is used, the \fB-A\fP,
+\fB-B\fP, and \fB-C\fP options are ignored.
+.TP
+\fB--colour\fP, \fB--color\fP
+If this option is given without any data, it is equivalent to "--colour=auto".
+If data is required, it must be given in the same shell item, separated by an
+equals sign.
+.TP
+\fB--colour=\fP\fIvalue\fP, \fB--color=\fP\fIvalue\fP
+This option specifies under what circumstances the parts of a line that matched
+a pattern should be coloured in the output. By default, the output is not
+coloured. The value (which is optional, see above) may be "never", "always", or
+"auto". In the latter case, colouring happens only if the standard output is
+connected to a terminal. More resources are used when colouring is enabled,
+because \fBpcre2grep\fP has to search for all possible matches in a line, not
+just one, in order to colour them all.
+.sp
+The colour that is used can be specified by setting one of the environment
+variables PCRE2GREP_COLOUR, PCRE2GREP_COLOR, PCREGREP_COLOUR, or
+PCREGREP_COLOR, which are checked in that order. If none of these are set,
+\fBpcre2grep\fP looks for GREP_COLORS or GREP_COLOR (in that order). The value
+of the variable should be a string of two numbers, separated by a semicolon,
+except in the case of GREP_COLORS, which must start with "ms=" or "mt="
+followed by two semicolon-separated colours, terminated by the end of the
+string or by a colon. If GREP_COLORS does not start with "ms=" or "mt=" it is
+ignored, and GREP_COLOR is checked.
+.sp
+If the string obtained from one of the above variables contains any characters
+other than semicolon or digits, the setting is ignored and the default colour
+is used. The string is copied directly into the control string for setting
+colour on a terminal, so it is your responsibility to ensure that the values
+make sense. If no relevant environment variable is set, the default is "1;31",
+which gives red.
+.TP
+\fB-D\fP \fIaction\fP, \fB--devices=\fP\fIaction\fP
+If an input path is not a regular file or a directory, "action" specifies how
+it is to be processed. Valid values are "read" (the default) or "skip"
+(silently skip the path).
+.TP
+\fB-d\fP \fIaction\fP, \fB--directories=\fP\fIaction\fP
+If an input path is a directory, "action" specifies how it is to be processed.
+Valid values are "read" (the default in non-Windows environments, for
+compatibility with GNU grep), "recurse" (equivalent to the \fB-r\fP option), or
+"skip" (silently skip the path, the default in Windows environments). In the
+"read" case, directories are read as if they were ordinary files. In some
+operating systems the effect of reading a directory like this is an immediate
+end-of-file; in others it may provoke an error.
+.TP
+\fB--depth-limit\fP=\fInumber\fP
+See \fB--match-limit\fP below.
+.TP
+\fB-e\fP \fIpattern\fP, \fB--regex=\fP\fIpattern\fP, \fB--regexp=\fP\fIpattern\fP
+Specify a pattern to be matched. This option can be used multiple times in
+order to specify several patterns. It can also be used as a way of specifying a
+single pattern that starts with a hyphen. When \fB-e\fP is used, no argument
+pattern is taken from the command line; all arguments are treated as file
+names. There is no limit to the number of patterns. They are applied to each
+line in the order in which they are defined until one matches.
+.sp
+If \fB-f\fP is used with \fB-e\fP, the command line patterns are matched first,
+followed by the patterns from the file(s), independent of the order in which
+these options are specified. Note that multiple use of \fB-e\fP is not the same
+as a single pattern with alternatives. For example, X|Y finds the first
+character in a line that is X or Y, whereas if the two patterns are given
+separately, with X first, \fBpcre2grep\fP finds X if it is present, even if it
+follows Y in the line. It finds Y only if there is no X in the line. This
+matters only if you are using \fB-o\fP or \fB--colo(u)r\fP to show the part(s)
+of the line that matched.
+.TP
+\fB--exclude\fP=\fIpattern\fP
+Files (but not directories) whose names match the pattern are skipped without
+being processed. This applies to all files, whether listed on the command line,
+obtained from \fB--file-list\fP, or by scanning a directory. The pattern is a
+PCRE2 regular expression, and is matched against the final component of the
+file name, not the entire path. The \fB-F\fP, \fB-w\fP, and \fB-x\fP options do
+not apply to this pattern. The option may be given any number of times in order
+to specify multiple patterns. If a file name matches both an \fB--include\fP
+and an \fB--exclude\fP pattern, it is excluded. There is no short form for this
+option.
+.TP
+\fB--exclude-from=\fP\fIfilename\fP
+Treat each non-empty line of the file as the data for an \fB--exclude\fP
+option. What constitutes a newline when reading the file is the operating
+system's default. The \fB--newline\fP option has no effect on this option. This
+option may be given more than once in order to specify a number of files to
+read.
+.TP
+\fB--exclude-dir\fP=\fIpattern\fP
+Directories whose names match the pattern are skipped without being processed,
+whatever the setting of the \fB--recursive\fP option. This applies to all
+directories, whether listed on the command line, obtained from
+\fB--file-list\fP, or by scanning a parent directory. The pattern is a PCRE2
+regular expression, and is matched against the final component of the directory
+name, not the entire path. The \fB-F\fP, \fB-w\fP, and \fB-x\fP options do not
+apply to this pattern. The option may be given any number of times in order to
+specify more than one pattern. If a directory matches both \fB--include-dir\fP
+and \fB--exclude-dir\fP, it is excluded. There is no short form for this
+option.
+.TP
+\fB-F\fP, \fB--fixed-strings\fP
+Interpret each data-matching pattern as a list of fixed strings, separated by
+newlines, instead of as a regular expression. What constitutes a newline for
+this purpose is controlled by the \fB--newline\fP option. The \fB-w\fP (match
+as a word) and \fB-x\fP (match whole line) options can be used with \fB-F\fP.
+They apply to each of the fixed strings. A line is selected if any of the fixed
+strings are found in it (subject to \fB-w\fP or \fB-x\fP, if present). This
+option applies only to the patterns that are matched against the contents of
+files; it does not apply to patterns specified by any of the \fB--include\fP or
+\fB--exclude\fP options.
+.TP
+\fB-f\fP \fIfilename\fP, \fB--file=\fP\fIfilename\fP
+Read patterns from the file, one per line, and match them against each line of
+input. As is the case with patterns on the command line, no delimiters should
+be used. What constitutes a newline when reading the file is the operating
+system's default interpretation of \en. The \fB--newline\fP option has no
+effect on this option. Trailing white space is removed from each line, and
+blank lines are ignored. An empty file contains no patterns and therefore
+matches nothing. Patterns read from a file in this way may contain binary
+zeros, which are treated as ordinary data characters. See also the comments
+about multiple patterns versus a single pattern with alternatives in the
+description of \fB-e\fP above.
+.sp
+If this option is given more than once, all the specified files are read. A
+data line is output if any of the patterns match it. A file name can be given
+as "-" to refer to the standard input. When \fB-f\fP is used, patterns
+specified on the command line using \fB-e\fP may also be present; they are
+tested before the file's patterns. However, no other pattern is taken from the
+command line; all arguments are treated as the names of paths to be searched.
+.TP
+\fB--file-list\fP=\fIfilename\fP
+Read a list of files and/or directories that are to be scanned from the given
+file, one per line. What constitutes a newline when reading the file is the
+operating system's default. Trailing white space is removed from each line, and
+blank lines are ignored. These paths are processed before any that are listed
+on the command line. The file name can be given as "-" to refer to the standard
+input. If \fB--file\fP and \fB--file-list\fP are both specified as "-",
+patterns are read first. This is useful only when the standard input is a
+terminal, from which further lines (the list of files) can be read after an
+end-of-file indication. If this option is given more than once, all the
+specified files are read.
+.TP
+\fB--file-offsets\fP
+Instead of showing lines or parts of lines that match, show each match as an
+offset from the start of the file and a length, separated by a comma. In this
+mode, no context is shown. That is, the \fB-A\fP, \fB-B\fP, and \fB-C\fP
+options are ignored. If there is more than one match in a line, each of them is
+shown separately. This option is mutually exclusive with \fB--output\fP,
+\fB--line-offsets\fP, and \fB--only-matching\fP.
+.TP
+\fB-H\fP, \fB--with-filename\fP
+Force the inclusion of the file name at the start of output lines when
+searching a single file. By default, the file name is not shown in this case.
+For matching lines, the file name is followed by a colon; for context lines, a
+hyphen separator is used. If a line number is also being output, it follows the
+file name. When the \fB-M\fP option causes a pattern to match more than one
+line, only the first is preceded by the file name. This option overrides any
+previous \fB-h\fP, \fB-l\fP, or \fB-L\fP options.
+.TP
+\fB-h\fP, \fB--no-filename\fP
+Suppress the output file names when searching multiple files. By default,
+file names are shown when multiple files are searched. For matching lines, the
+file name is followed by a colon; for context lines, a hyphen separator is used.
+If a line number is also being output, it follows the file name. This option
+overrides any previous \fB-H\fP, \fB-L\fP, or \fB-l\fP options.
+.TP
+\fB--heap-limit\fP=\fInumber\fP
+See \fB--match-limit\fP below.
+.TP
+\fB--help\fP
+Output a help message, giving brief details of the command options and file
+type support, and then exit. Anything else on the command line is
+ignored.
+.TP
+\fB-I\fP
+Ignore binary files. This is equivalent to
+\fB--binary-files\fP=\fIwithout-match\fP.
+.TP
+\fB-i\fP, \fB--ignore-case\fP
+Ignore upper/lower case distinctions during comparisons.
+.TP
+\fB--include\fP=\fIpattern\fP
+If any \fB--include\fP patterns are specified, the only files that are
+processed are those whose names match one of the patterns and do not match an
+\fB--exclude\fP pattern. This option does not affect directories, but it
+applies to all files, whether listed on the command line, obtained from
+\fB--file-list\fP, or by scanning a directory. The pattern is a PCRE2 regular
+expression, and is matched against the final component of the file name, not
+the entire path. The \fB-F\fP, \fB-w\fP, and \fB-x\fP options do not apply to
+this pattern. The option may be given any number of times. If a file name
+matches both an \fB--include\fP and an \fB--exclude\fP pattern, it is excluded.
+There is no short form for this option.
+.TP
+\fB--include-from=\fP\fIfilename\fP
+Treat each non-empty line of the file as the data for an \fB--include\fP
+option. What constitutes a newline for this purpose is the operating system's
+default. The \fB--newline\fP option has no effect on this option. This option
+may be given any number of times; all the files are read.
+.TP
+\fB--include-dir\fP=\fIpattern\fP
+If any \fB--include-dir\fP patterns are specified, the only directories that
+are processed are those whose names match one of the patterns and do not match
+an \fB--exclude-dir\fP pattern. This applies to all directories, whether listed
+on the command line, obtained from \fB--file-list\fP, or by scanning a parent
+directory. The pattern is a PCRE2 regular expression, and is matched against
+the final component of the directory name, not the entire path. The \fB-F\fP,
+\fB-w\fP, and \fB-x\fP options do not apply to this pattern. The option may be
+given any number of times. If a directory matches both \fB--include-dir\fP and
+\fB--exclude-dir\fP, it is excluded. There is no short form for this option.
+.TP
+\fB-L\fP, \fB--files-without-match\fP
+Instead of outputting lines from the files, just output the names of the files
+that do not contain any lines that would have been output. Each file name is
+output once, on a separate line. This option overrides any previous \fB-H\fP,
+\fB-h\fP, or \fB-l\fP options.
+.TP
+\fB-l\fP, \fB--files-with-matches\fP
+Instead of outputting lines from the files, just output the names of the files
+containing lines that would have been output. Each file name is output once, on
+a separate line. Searching normally stops as soon as a matching line is found
+in a file. However, if the \fB-c\fP (count) option is also used, matching
+continues in order to obtain the correct count, and those files that have at
+least one match are listed along with their counts. Using this option with
+\fB-c\fP is a way of suppressing the listing of files with no matches that
+occurs with \fB-c\fP on its own. This option overrides any previous \fB-H\fP,
+\fB-h\fP, or \fB-L\fP options.
+.TP
+\fB--label\fP=\fIname\fP
+This option supplies a name to be used for the standard input when file names
+are being output. If not supplied, "(standard input)" is used. There is no
+short form for this option.
+.TP
+\fB--line-buffered\fP
+When this option is given, non-compressed input is read and processed line by
+line, and the output is flushed after each write. By default, input is read in
+large chunks, unless \fBpcre2grep\fP can determine that it is reading from a
+terminal, which is currently possible only in Unix-like environments or
+Windows. Output to terminal is normally automatically flushed by the operating
+system. This option can be useful when the input or output is attached to a
+pipe and you do not want \fBpcre2grep\fP to buffer up large amounts of data.
+However, its use will affect performance, and the \fB-M\fP (multiline) option
+ceases to work. When input is from a compressed .gz or .bz2 file,
+\fB--line-buffered\fP is ignored.
+.TP
+\fB--line-offsets\fP
+Instead of showing lines or parts of lines that match, show each match as a
+line number, the offset from the start of the line, and a length. The line
+number is terminated by a colon (as usual; see the \fB-n\fP option), and the
+offset and length are separated by a comma. In this mode, no context is shown.
+That is, the \fB-A\fP, \fB-B\fP, and \fB-C\fP options are ignored. If there is
+more than one match in a line, each of them is shown separately. This option is
+mutually exclusive with \fB--output\fP, \fB--file-offsets\fP, and
+\fB--only-matching\fP.
+.TP
+\fB--locale\fP=\fIlocale-name\fP
+This option specifies a locale to be used for pattern matching. It overrides
+the value in the \fBLC_ALL\fP or \fBLC_CTYPE\fP environment variables. If no
+locale is specified, the PCRE2 library's default (usually the "C" locale) is
+used. There is no short form for this option.
+.TP
+\fB-M\fP, \fB--multiline\fP
+Allow patterns to match more than one line. When this option is set, the PCRE2
+library is called in "multiline" mode. This allows a matched string to extend
+past the end of a line and continue on one or more subsequent lines. Patterns
+used with \fB-M\fP may usefully contain literal newline characters and internal
+occurrences of ^ and $ characters. The output for a successful match may
+consist of more than one line. The first line is the line in which the match
+started, and the last line is the line in which the match ended. If the matched
+string ends with a newline sequence, the output ends at the end of that line.
+If \fB-v\fP is set, none of the lines in a multi-line match are output. Once a
+match has been handled, scanning restarts at the beginning of the line after
+the one in which the match ended.
+.sp
+The newline sequence that separates multiple lines must be matched as part of
+the pattern. For example, to find the phrase "regular expression" in a file
+where "regular" might be at the end of a line and "expression" at the start of
+the next line, you could use this command:
+.sp
+  pcre2grep -M 'regular\es+expression' <file>
+.sp
+The \es escape sequence matches any white space character, including newlines,
+and is followed by + so as to match trailing white space on the first line as
+well as possibly handling a two-character newline sequence.
+.sp
+There is a limit to the number of lines that can be matched, imposed by the way
+that \fBpcre2grep\fP buffers the input file as it scans it. With a sufficiently
+large processing buffer, this should not be a problem, but the \fB-M\fP option
+does not work when input is read line by line (see \fB--line-buffered\fP.)
+.TP
+\fB-m\fP \fInumber\fP, \fB--max-count\fP=\fInumber\fP
+Stop processing after finding \fInumber\fP matching lines, or non-matching
+lines if \fB-v\fP is also set. Any trailing context lines are output after the
+final match. In multiline mode, each multiline match counts as just one line
+for this purpose. If this limit is reached when reading the standard input from
+a regular file, the file is left positioned just after the last matching line.
+If \fB-c\fP is also set, the count that is output is never greater than
+\fInumber\fP. This option has no effect if used with \fB-L\fP, \fB-l\fP, or
+\fB-q\fP, or when just checking for a match in a binary file.
+.TP
+\fB--match-limit\fP=\fInumber\fP
+Processing some regular expression patterns may take a very long time to search
+for all possible matching strings. Others may require a very large amount of
+memory. There are three options that set resource limits for matching.
+.sp
+The \fB--match-limit\fP option provides a means of limiting computing resource
+usage when processing patterns that are not going to match, but which have a
+very large number of possibilities in their search trees. The classic example
+is a pattern that uses nested unlimited repeats. Internally, PCRE2 has a
+counter that is incremented each time around its main processing loop. If the
+value set by \fB--match-limit\fP is reached, an error occurs.
+.sp
+The \fB--heap-limit\fP option specifies, as a number of kibibytes (units of
+1024 bytes), the amount of heap memory that may be used for matching. Heap
+memory is needed only if matching the pattern requires a significant number of
+nested backtracking points to be remembered. This parameter can be set to zero
+to forbid the use of heap memory altogether.
+.sp
+The \fB--depth-limit\fP option limits the depth of nested backtracking points,
+which indirectly limits the amount of memory that is used. The amount of memory
+needed for each backtracking point depends on the number of capturing
+parentheses in the pattern, so the amount of memory that is used before this
+limit acts varies from pattern to pattern. This limit is of use only if it is
+set smaller than \fB--match-limit\fP.
+.sp
+There are no short forms for these options. The default limits can be set
+when the PCRE2 library is compiled; if they are not specified, the defaults
+are very large and so effectively unlimited.
+.TP
+\fB--max-buffer-size\fP=\fInumber\fP
+This limits the expansion of the processing buffer, whose initial size can be
+set by \fB--buffer-size\fP. The maximum buffer size is silently forced to be no
+smaller than the starting buffer size.
+.TP
+\fB-N\fP \fInewline-type\fP, \fB--newline\fP=\fInewline-type\fP
+Six different conventions for indicating the ends of lines in scanned files are
+supported. For example:
+.sp
+  pcre2grep -N CRLF 'some pattern' <file>
+.sp
+The newline type may be specified in upper, lower, or mixed case. If the
+newline type is NUL, lines are separated by binary zero characters. The other
+types are the single-character sequences CR (carriage return) and LF
+(linefeed), the two-character sequence CRLF, an "anycrlf" type, which
+recognizes any of the preceding three types, and an "any" type, for which any
+Unicode line ending sequence is assumed to end a line. The Unicode sequences
+are the three just mentioned, plus VT (vertical tab, U+000B), FF (form feed,
+U+000C), NEL (next line, U+0085), LS (line separator, U+2028), and PS
+(paragraph separator, U+2029).
+.sp
+When the PCRE2 library is built, a default line-ending sequence is specified.
+This is normally the standard sequence for the operating system. Unless
+otherwise specified by this option, \fBpcre2grep\fP uses the library's default.
+.sp
+This option makes it possible to use \fBpcre2grep\fP to scan files that have
+come from other environments without having to modify their line endings. If
+the data that is being scanned does not agree with the convention set by this
+option, \fBpcre2grep\fP may behave in strange ways. Note that this option does
+not apply to files specified by the \fB-f\fP, \fB--exclude-from\fP, or
+\fB--include-from\fP options, which are expected to use the operating system's
+standard newline sequence.
+.TP
+\fB-n\fP, \fB--line-number\fP
+Precede each output line by its line number in the file, followed by a colon
+for matching lines or a hyphen for context lines. If the file name is also
+being output, it precedes the line number. When the \fB-M\fP option causes a
+pattern to match more than one line, only the first is preceded by its line
+number. This option is forced if \fB--line-offsets\fP is used.
+.TP
+\fB--no-jit\fP
+If the PCRE2 library is built with support for just-in-time compiling (which
+speeds up matching), \fBpcre2grep\fP automatically makes use of this, unless it
+was explicitly disabled at build time. This option can be used to disable the
+use of JIT at run time. It is provided for testing and working round problems.
+It should never be needed in normal use.
+.TP
+\fB-O\fP \fItext\fP, \fB--output\fP=\fItext\fP
+When there is a match, instead of outputting the line that matched, output just
+the text specified in this option, followed by an operating-system standard
+newline. In this mode, no context is shown. That is, the \fB-A\fP, \fB-B\fP,
+and \fB-C\fP options are ignored. The \fB--newline\fP option has no effect on
+this option, which is mutually exclusive with \fB--only-matching\fP,
+\fB--file-offsets\fP, and \fB--line-offsets\fP. However, like
+\fB--only-matching\fP, if there is more than one match in a line, each of them
+causes a line of output.
+.sp
+Escape sequences starting with a dollar character may be used to insert the
+contents of the matched part of the line and/or captured substrings into the
+text.
+.sp
+$<digits> or ${<digits>} is replaced by the captured substring of the given
+decimal number; zero substitutes the whole match. If the number is greater than
+the number of capturing substrings, or if the capture is unset, the replacement
+is empty.
+.sp
+$a is replaced by bell; $b by backspace; $e by escape; $f by form feed; $n by
+newline; $r by carriage return; $t by tab; $v by vertical tab.
+.sp
+$o<digits> or $o{<digits>} is replaced by the character whose code point is the
+given octal number. In the first form, up to three octal digits are processed.
+When more digits are needed in Unicode mode to specify a wide character, the
+second form must be used.
+.sp
+$x<digits> or $x{<digits>} is replaced by the character represented by the
+given hexadecimal number. In the first form, up to two hexadecimal digits are
+processed. When more digits are needed in Unicode mode to specify a wide
+character, the second form must be used.
+.sp
+Any other character is substituted by itself. In particular, $$ is replaced by
+a single dollar.
+.TP
+\fB-o\fP, \fB--only-matching\fP
+Show only the part of the line that matched a pattern instead of the whole
+line. In this mode, no context is shown. That is, the \fB-A\fP, \fB-B\fP, and
+\fB-C\fP options are ignored. If there is more than one match in a line, each
+of them is shown separately, on a separate line of output. If \fB-o\fP is
+combined with \fB-v\fP (invert the sense of the match to find non-matching
+lines), no output is generated, but the return code is set appropriately. If
+the matched portion of the line is empty, nothing is output unless the file
+name or line number are being printed, in which case they are shown on an
+otherwise empty line. This option is mutually exclusive with \fB--output\fP,
+\fB--file-offsets\fP and \fB--line-offsets\fP.
+.TP
+\fB-o\fP\fInumber\fP, \fB--only-matching\fP=\fInumber\fP
+Show only the part of the line that matched the capturing parentheses of the
+given number. Up to 50 capturing parentheses are supported by default. This
+limit can be changed via the \fB--om-capture\fP option. A pattern may contain
+any number of capturing parentheses, but only those whose number is within the
+limit can be accessed by \fB-o\fP. An error occurs if the number specified by
+\fB-o\fP is greater than the limit.
+.sp
+-o0 is the same as \fB-o\fP without a number. Because these options can be
+given without an argument (see above), if an argument is present, it must be
+given in the same shell item, for example, -o3 or --only-matching=2. The
+comments given for the non-argument case above also apply to this option. If
+the specified capturing parentheses do not exist in the pattern, or were not
+set in the match, nothing is output unless the file name or line number are
+being output.
+.sp
+If this option is given multiple times, multiple substrings are output for each
+match, in the order the options are given, and all on one line. For example,
+-o3 -o1 -o3 causes the substrings matched by capturing parentheses 3 and 1 and
+then 3 again to be output. By default, there is no separator (but see the next
+but one option).
+.TP
+\fB--om-capture\fP=\fInumber\fP
+Set the number of capturing parentheses that can be accessed by \fB-o\fP. The
+default is 50.
+.TP
+\fB--om-separator\fP=\fItext\fP
+Specify a separating string for multiple occurrences of \fB-o\fP. The default
+is an empty string. Separating strings are never coloured.
+.TP
+\fB-q\fP, \fB--quiet\fP
+Work quietly, that is, display nothing except error messages. The exit
+status indicates whether or not any matches were found.
+.TP
+\fB-r\fP, \fB--recursive\fP
+If any given path is a directory, recursively scan the files it contains,
+taking note of any \fB--include\fP and \fB--exclude\fP settings. By default, a
+directory is read as a normal file; in some operating systems this gives an
+immediate end-of-file. This option is a shorthand for setting the \fB-d\fP
+option to "recurse".
+.TP
+\fB--recursion-limit\fP=\fInumber\fP
+This is an obsolete synonym for \fB--depth-limit\fP. See \fB--match-limit\fP
+above for details.
+.TP
+\fB-s\fP, \fB--no-messages\fP
+Suppress error messages about non-existent or unreadable files. Such files are
+quietly skipped. However, the return code is still 2, even if matches were
+found in other files.
+.TP
+\fB-t\fP, \fB--total-count\fP
+This option is useful when scanning more than one file. If used on its own,
+\fB-t\fP suppresses all output except for a grand total number of matching
+lines (or non-matching lines if \fB-v\fP is used) in all the files. If \fB-t\fP
+is used with \fB-c\fP, a grand total is output except when the previous output
+is just one line. In other words, it is not output when just one file's count
+is listed. If file names are being output, the grand total is preceded by
+"TOTAL:". Otherwise, it appears as just another number. The \fB-t\fP option is
+ignored when used with \fB-L\fP (list files without matches), because the grand
+total would always be zero.
+.TP
+\fB-u\fP, \fB--utf\fP
+Operate in UTF-8 mode. This option is available only if PCRE2 has been compiled
+with UTF-8 support. All patterns (including those for any \fB--exclude\fP and
+\fB--include\fP options) and all lines that are scanned must be valid strings
+of UTF-8 characters. If an invalid UTF-8 string is encountered, an error
+occurs.
+.TP
+\fB-U\fP, \fB--utf-allow-invalid\fP
+As \fB--utf\fP, but in addition subject lines may contain invalid UTF-8 code
+unit sequences. These can never form part of any pattern match. Patterns
+themselves, however, must still be valid UTF-8 strings. This facility allows
+valid UTF-8 strings to be sought within arbitrary byte sequences in executable
+or other binary files. For more details about matching in non-valid UTF-8
+strings, see the
+.\" HREF
+\fBpcre2unicode\fP(3)
+.\"
+documentation.
+.TP
+\fB-V\fP, \fB--version\fP
+Write the version numbers of \fBpcre2grep\fP and the PCRE2 library to the
+standard output and then exit. Anything else on the command line is
+ignored.
+.TP
+\fB-v\fP, \fB--invert-match\fP
+Invert the sense of the match, so that lines which do \fInot\fP match any of
+the patterns are the ones that are found. When this option is set, options such
+as \fB--only-matching\fP and \fB--output\fP, which specify parts of a match
+that are to be output, are ignored.
+.TP
+\fB-w\fP, \fB--word-regex\fP, \fB--word-regexp\fP
+Force the patterns only to match "words". That is, there must be a word
+boundary at the start and end of each matched string. This is equivalent to
+having "\eb(?:" at the start of each pattern, and ")\eb" at the end. This
+option applies only to the patterns that are matched against the contents of
+files; it does not apply to patterns specified by any of the \fB--include\fP or
+\fB--exclude\fP options.
+.TP
+\fB-x\fP, \fB--line-regex\fP, \fB--line-regexp\fP
+Force the patterns to start matching only at the beginnings of lines, and in
+addition, require them to match entire lines. In multiline mode the match may
+be more than one line. This is equivalent to having "^(?:" at the start of each
+pattern and ")$" at the end. This option applies only to the patterns that are
+matched against the contents of files; it does not apply to patterns specified
+by any of the \fB--include\fP or \fB--exclude\fP options.
+.
+.
+.SH "ENVIRONMENT VARIABLES"
+.rs
+.sp
+The environment variables \fBLC_ALL\fP and \fBLC_CTYPE\fP are examined, in that
+order, for a locale. The first one that is set is used. This can be overridden
+by the \fB--locale\fP option. If no locale is set, the PCRE2 library's default
+(usually the "C" locale) is used.
+.
+.
+.SH "NEWLINES"
+.rs
+.sp
+The \fB-N\fP (\fB--newline\fP) option allows \fBpcre2grep\fP to scan files with
+newline conventions that differ from the default. This option affects only the
+way scanned files are processed. It does not affect the interpretation of files
+specified by the \fB-f\fP, \fB--file-list\fP, \fB--exclude-from\fP, or
+\fB--include-from\fP options.
+.P
+Any parts of the scanned input files that are written to the standard output
+are copied with whatever newline sequences they have in the input. However, if
+the final line of a file is output, and it does not end with a newline
+sequence, a newline sequence is added. If the newline setting is CR, LF, CRLF
+or NUL, that line ending is output; for the other settings (ANYCRLF or ANY) a
+single NL is used.
+.P
+The newline setting does not affect the way in which \fBpcre2grep\fP writes
+newlines in informational messages to the standard output and error streams.
+Under Windows, the standard output is set to be binary, so that "\er\en" at the
+ends of output lines that are copied from the input is not converted to
+"\er\er\en" by the C I/O library. This means that any messages written to the
+standard output must end with "\er\en". For all other operating systems, and
+for all messages to the standard error stream, "\en" is used.
+.
+.
+.SH "OPTIONS COMPATIBILITY"
+.rs
+.sp
+Many of the short and long forms of \fBpcre2grep\fP's options are the same
+as in the GNU \fBgrep\fP program. Any long option of the form
+\fB--xxx-regexp\fP (GNU terminology) is also available as \fB--xxx-regex\fP
+(PCRE2 terminology). However, the \fB--depth-limit\fP, \fB--file-list\fP,
+\fB--file-offsets\fP, \fB--heap-limit\fP, \fB--include-dir\fP,
+\fB--line-offsets\fP, \fB--locale\fP, \fB--match-limit\fP, \fB-M\fP,
+\fB--multiline\fP, \fB-N\fP, \fB--newline\fP, \fB--om-separator\fP,
+\fB--output\fP, \fB-u\fP, \fB--utf\fP, \fB-U\fP, and \fB--utf-allow-invalid\fP
+options are specific to \fBpcre2grep\fP, as is the use of the
+\fB--only-matching\fP option with a capturing parentheses number.
+.P
+Although most of the common options work the same way, a few are different in
+\fBpcre2grep\fP. For example, the \fB--include\fP option's argument is a glob
+for GNU \fBgrep\fP, but a regular expression for \fBpcre2grep\fP. If both the
+\fB-c\fP and \fB-l\fP options are given, GNU grep lists only file names,
+without counts, but \fBpcre2grep\fP gives the counts as well.
+.
+.
+.SH "OPTIONS WITH DATA"
+.rs
+.sp
+There are four different ways in which an option with data can be specified.
+If a short form option is used, the data may follow immediately, or (with one
+exception) in the next command line item. For example:
+.sp
+  -f/some/file
+  -f /some/file
+.sp
+The exception is the \fB-o\fP option, which may appear with or without data.
+Because of this, if data is present, it must follow immediately in the same
+item, for example -o3.
+.P
+If a long form option is used, the data may appear in the same command line
+item, separated by an equals character, or (with two exceptions) it may appear
+in the next command line item. For example:
+.sp
+  --file=/some/file
+  --file /some/file
+.sp
+Note, however, that if you want to supply a file name beginning with ~ as data
+in a shell command, and have the shell expand ~ to a home directory, you must
+separate the file name from the option, because the shell does not treat ~
+specially unless it is at the start of an item.
+.P
+The exceptions to the above are the \fB--colour\fP (or \fB--color\fP) and
+\fB--only-matching\fP options, for which the data is optional. If one of these
+options does have data, it must be given in the first form, using an equals
+character. Otherwise \fBpcre2grep\fP will assume that it has no data.
+.
+.
+.SH "USING PCRE2'S CALLOUT FACILITY"
+.rs
+.sp
+\fBpcre2grep\fP has, by default, support for calling external programs or
+scripts or echoing specific strings during matching by making use of PCRE2's
+callout facility. However, this support can be completely or partially disabled
+when \fBpcre2grep\fP is built. You can find out whether your binary has support
+for callouts by running it with the \fB--help\fP option. If callout support is
+completely disabled, all callouts in patterns are ignored by \fBpcre2grep\fP.
+If the facility is partially disabled, calling external programs is not
+supported, and callouts that request it are ignored.
+.P
+A callout in a PCRE2 pattern is of the form (?C<arg>) where the argument is
+either a number or a quoted string (see the
+.\" HREF
+\fBpcre2callout\fP
+.\"
+documentation for details). Numbered callouts are ignored by \fBpcre2grep\fP;
+only callouts with string arguments are useful.
+.
+.
+.SS "Echoing a specific string"
+.rs
+.sp
+Starting the callout string with a pipe character invokes an echoing facility
+that avoids calling an external program or script. This facility is always
+available, provided that callouts were not completely disabled when
+\fBpcre2grep\fP was built. The rest of the callout string is processed as a
+zero-terminated string, which means it should not contain any internal binary
+zeros. It is written to the output, having first been passed through the same
+escape processing as text from the \fB--output\fP (\fB-O\fP) option (see
+above). However, $0 cannot be used to insert a matched substring because the
+match is still in progress. Instead, the single character '0' is inserted. Any
+syntax errors in the string (for example, a dollar not followed by another
+character) causes the callout to be ignored. No terminator is added to the
+output string, so if you want a newline, you must include it explicitly using
+the escape $n. For example:
+.sp
+  pcre2grep '(.)(..(.))(?C"|[$1] [$2] [$3]$n")' <some file>
+.sp
+Matching continues normally after the string is output. If you want to see only
+the callout output but not any output from an actual match, you should end the
+pattern with (*FAIL).
+.
+.
+.SS "Calling external programs or scripts"
+.rs
+.sp
+This facility can be independently disabled when \fBpcre2grep\fP is built. It
+is supported for Windows, where a call to \fB_spawnvp()\fP is used, for VMS,
+where \fBlib$spawn()\fP is used, and for any Unix-like environment where
+\fBfork()\fP and \fBexecv()\fP are available.
+.P
+If the callout string does not start with a pipe (vertical bar) character, it
+is parsed into a list of substrings separated by pipe characters. The first
+substring must be an executable name, with the following substrings specifying
+arguments:
+.sp
+  executable_name|arg1|arg2|...
+.sp
+Any substring (including the executable name) may contain escape sequences
+started by a dollar character. These are the same as for the \fB--output\fP
+(\fB-O\fP) option documented above, except that $0 cannot insert the matched
+string because the match is still in progress. Instead, the character '0'
+is inserted. If you need a literal dollar or pipe character in any
+substring, use $$ or $| respectively. Here is an example:
+.sp
+  echo -e "abcde\en12345" | pcre2grep \e
+    '(?x)(.)(..(.))
+    (?C"/bin/echo|Arg1: [$1] [$2] [$3]|Arg2: $|${1}$| ($4)")()' -
+.sp
+  Output:
+.sp
+    Arg1: [a] [bcd] [d] Arg2: |a| ()
+    abcde
+    Arg1: [1] [234] [4] Arg2: |1| ()
+    12345
+.sp
+The parameters for the system call that is used to run the program or script
+are zero-terminated strings. This means that binary zero characters in the
+callout argument will cause premature termination of their substrings, and
+therefore should not be present. Any syntax errors in the string (for example,
+a dollar not followed by another character) causes the callout to be ignored.
+If running the program fails for any reason (including the non-existence of the
+executable), a local matching failure occurs and the matcher backtracks in the
+normal way.
+.
+.
+.SH "MATCHING ERRORS"
+.rs
+.sp
+It is possible to supply a regular expression that takes a very long time to
+fail to match certain lines. Such patterns normally involve nested indefinite
+repeats, for example: (a+)*\ed when matched against a line of a's with no final
+digit. The PCRE2 matching function has a resource limit that causes it to abort
+in these circumstances. If this happens, \fBpcre2grep\fP outputs an error
+message and the line that caused the problem to the standard error stream. If
+there are more than 20 such errors, \fBpcre2grep\fP gives up.
+.P
+The \fB--match-limit\fP option of \fBpcre2grep\fP can be used to set the
+overall resource limit. There are also other limits that affect the amount of
+memory used during matching; see the discussion of \fB--heap-limit\fP and
+\fB--depth-limit\fP above.
+.
+.
+.SH DIAGNOSTICS
+.rs
+.sp
+Exit status is 0 if any matches were found, 1 if no matches were found, and 2
+for syntax errors, overlong lines, non-existent or inaccessible files (even if
+matches were found in other files) or too many matching errors. Using the
+\fB-s\fP option to suppress error messages about inaccessible files does not
+affect the return code.
+.P
+When run under VMS, the return code is placed in the symbol PCRE2GREP_RC
+because VMS does not distinguish between exit(0) and exit(1).
+.
+.
+.SH "SEE ALSO"
+.rs
+.sp
+\fBpcre2pattern\fP(3), \fBpcre2syntax\fP(3), \fBpcre2callout\fP(3),
+\fBpcre2unicode\fP(3).
+.
+.
+.SH AUTHOR
+.rs
+.sp
+.nf
+Philip Hazel
+University Computing Service
+Cambridge, England.
+.fi
+.
+.
+.SH REVISION
+.rs
+.sp
+.nf
+Last updated: 04 October 2020
+Copyright (c) 1997-2020 University of Cambridge.
+.fi

@@ -1,0 +1,84 @@
+.TH PCRE2_MATCH 3 "16 October 2018" "PCRE2 10.33"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_match(const pcre2_code *\fIcode\fP, PCRE2_SPTR \fIsubject\fP,
+.B "  PCRE2_SIZE \fIlength\fP, PCRE2_SIZE \fIstartoffset\fP,"
+.B "  uint32_t \fIoptions\fP, pcre2_match_data *\fImatch_data\fP,"
+.B "  pcre2_match_context *\fImcontext\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function matches a compiled regular expression against a given subject
+string, using a matching algorithm that is similar to Perl's. It returns
+offsets to what it has matched and to captured substrings via the
+\fBmatch_data\fP block, which can be processed by functions with names that
+start with \fBpcre2_get_ovector_...()\fP or \fBpcre2_substring_...()\fP. The
+return from \fBpcre2_match()\fP is one more than the highest numbered capturing
+pair that has been set (for example, 1 if there are no captures), zero if the
+vector of offsets is too small, or a negative error code for no match and other
+errors. The function arguments are:
+.sp
+  \fIcode\fP         Points to the compiled pattern
+  \fIsubject\fP      Points to the subject string
+  \fIlength\fP       Length of the subject string
+  \fIstartoffset\fP  Offset in the subject at which to start matching
+  \fIoptions\fP      Option bits
+  \fImatch_data\fP   Points to a match data block, for results
+  \fImcontext\fP     Points to a match context, or is NULL
+.sp
+A match context is needed only if you want to:
+.sp
+  Set up a callout function
+  Set a matching offset limit
+  Change the heap memory limit
+  Change the backtracking match limit
+  Change the backtracking depth limit
+  Set custom memory management specifically for the match
+.sp
+The \fIlength\fP and \fIstartoffset\fP values are code units, not characters.
+The length may be given as PCRE2_ZERO_TERMINATED for a subject that is
+terminated by a binary zero code unit. The options are:
+.sp
+  PCRE2_ANCHORED          Match only at the first position
+  PCRE2_COPY_MATCHED_SUBJECT
+                          On success, make a private subject copy
+  PCRE2_ENDANCHORED       Pattern can match only at end of subject
+  PCRE2_NOTBOL            Subject string is not the beginning of a line
+  PCRE2_NOTEOL            Subject string is not the end of a line
+  PCRE2_NOTEMPTY          An empty string is not a valid match
+.\" JOIN
+  PCRE2_NOTEMPTY_ATSTART  An empty string at the start of the subject
+                           is not a valid match
+  PCRE2_NO_JIT            Do not use JIT matching
+.\" JOIN
+  PCRE2_NO_UTF_CHECK      Do not check the subject for UTF
+                           validity (only relevant if PCRE2_UTF
+                           was set at compile time)
+.\" JOIN
+  PCRE2_PARTIAL_HARD      Return PCRE2_ERROR_PARTIAL for a partial
+                           match even if there is a full match
+.\" JOIN
+  PCRE2_PARTIAL_SOFT      Return PCRE2_ERROR_PARTIAL for a partial
+                           match if no full matches are found
+.sp
+For details of partial matching, see the
+.\" HREF
+\fBpcre2partial\fP
+.\"
+page. There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

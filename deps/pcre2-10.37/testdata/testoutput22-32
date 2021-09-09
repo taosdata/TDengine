@@ -1,0 +1,180 @@
+# Tests of \C when Unicode support is available. Note that \C is not supported
+# for DFA matching in UTF mode, so this test is not run with -dfa. The output
+# of this test is different in 8-, 16-, and 32-bit modes. Some tests may match
+# in some widths and not in others.
+
+/ab\Cde/utf,info
+Capture group count = 0
+Contains \C
+Options: utf
+First code unit = 'a'
+Last code unit = 'e'
+Subject length lower bound = 5
+    abXde
+ 0: abXde
+
+# This should produce an error diagnostic (\C in UTF lookbehind) in 8-bit and
+# 16-bit modes, but not in 32-bit mode.
+
+/(?<=ab\Cde)X/utf
+    ab!deXYZ
+ 0: X
+
+# Autopossessification tests
+
+/\C+\X \X+\C/Bx
+------------------------------------------------------------------
+        Bra
+        AllAny+
+        extuni
+        extuni+
+        AllAny
+        Ket
+        End
+------------------------------------------------------------------
+
+/\C+\X \X+\C/Bx,utf
+------------------------------------------------------------------
+        Bra
+        AllAny+
+        extuni
+        extuni+
+        AllAny
+        Ket
+        End
+------------------------------------------------------------------
+
+/\C\X*TӅ;
+{0,6}\v+F
+/utf
+\= Expect no match
+    Ӆ\x0a
+No match
+
+/\C(\W?ſ)'?{{/utf
+\= Expect no match
+    \\C(\\W?ſ)'?{{
+No match
+
+/X(\C{3})/utf
+    X\x{1234}
+No match
+    X\x{11234}Y
+No match
+    X\x{11234}YZ
+ 0: X\x{11234}YZ
+ 1: \x{11234}YZ
+
+/X(\C{4})/utf
+    X\x{1234}YZ
+No match
+    X\x{11234}YZ
+No match
+    X\x{11234}YZW
+ 0: X\x{11234}YZW
+ 1: \x{11234}YZW
+
+/X\C*/utf
+    XYZabcdce
+ 0: XYZabcdce
+
+/X\C*?/utf
+    XYZabcde
+ 0: X
+
+/X\C{3,5}/utf
+    Xabcdefg
+ 0: Xabcde
+    X\x{1234}
+No match
+    X\x{1234}YZ
+ 0: X\x{1234}YZ
+    X\x{1234}\x{512}
+No match
+    X\x{1234}\x{512}YZ
+ 0: X\x{1234}\x{512}YZ
+    X\x{11234}Y
+No match
+    X\x{11234}YZ
+ 0: X\x{11234}YZ
+    X\x{11234}\x{512}
+No match
+    X\x{11234}\x{512}YZ
+ 0: X\x{11234}\x{512}YZ
+    X\x{11234}\x{512}\x{11234}Z
+ 0: X\x{11234}\x{512}\x{11234}Z
+
+/X\C{3,5}?/utf
+    Xabcdefg
+ 0: Xabc
+    X\x{1234}
+No match
+    X\x{1234}YZ
+ 0: X\x{1234}YZ
+    X\x{1234}\x{512}
+No match
+    X\x{11234}Y
+No match
+    X\x{11234}YZ
+ 0: X\x{11234}YZ
+    X\x{11234}\x{512}YZ
+ 0: X\x{11234}\x{512}Y
+    X\x{11234}
+No match
+
+/a\Cb/utf
+    aXb
+ 0: aXb
+    a\nb
+ 0: a\x{0a}b
+    a\x{100}b
+ 0: a\x{100}b
+
+/a\C\Cb/utf
+    a\x{100}b
+No match
+    a\x{12257}b
+No match
+    a\x{12257}\x{11234}b
+ 0: a\x{12257}\x{11234}b
+
+/ab\Cde/utf
+    abXde
+ 0: abXde
+
+# This one is here not because it's different to Perl, but because the way
+# the captured single code unit is displayed. (In Perl it becomes a character,
+# and you can't tell the difference.)
+
+/X(\C)(.*)/utf
+    X\x{1234}
+ 0: X\x{1234}
+ 1: \x{1234}
+ 2: 
+    X\nabc
+ 0: X\x{0a}abc
+ 1: \x{0a}
+ 2: abc
+
+# This one is here because Perl gives out a grumbly error message (quite
+# correctly, but that messes up comparisons).
+
+/a\Cb/utf
+\= Expect no match in 8-bit mode
+    a\x{100}b
+ 0: a\x{100}b
+
+/^ab\C/utf,no_start_optimize
+\= Expect no match - tests \C at end of subject
+    ab
+No match
+
+/\C[^\v]+\x80/utf
+    [AΏBŀC]
+No match
+
+/\C[^\d]+\x80/utf
+    [AΏBŀC]
+No match
+
+# End of testinput22

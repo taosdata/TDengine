@@ -1,0 +1,94 @@
+# These are tests of \C that do not involve UTF. They are not run when \C is
+# disabled by compiling with --enable-never-backslash-C.
+
+/\C+\D \C+\d \C+\S \C+\s \C+\W \C+\w \C+. \C+\R \C+\H \C+\h \C+\V \C+\v \C+\Z \C+\z \C+$/Bx
+------------------------------------------------------------------
+        Bra
+        AllAny+
+        \D
+        AllAny+
+        \d
+        AllAny+
+        \S
+        AllAny+
+        \s
+        AllAny+
+        \W
+        AllAny+
+        \w
+        AllAny+
+        Any
+        AllAny+
+        \R
+        AllAny+
+        \H
+        AllAny+
+        \h
+        AllAny+
+        \V
+        AllAny+
+        \v
+        AllAny+
+        \Z
+        AllAny++
+        \z
+        AllAny+
+        $
+        Ket
+        End
+------------------------------------------------------------------
+
+/\D+\C \d+\C \S+\C \s+\C \W+\C \w+\C .+\C \R+\C \H+\C \h+\C \V+\C \v+\C a+\C \n+\C \C+\C/Bx
+------------------------------------------------------------------
+        Bra
+        \D+
+        AllAny
+        \d+
+        AllAny
+        \S+
+        AllAny
+        \s+
+        AllAny
+        \W+
+        AllAny
+        \w+
+        AllAny
+        Any+
+        AllAny
+        \R+
+        AllAny
+        \H+
+        AllAny
+        \h+
+        AllAny
+        \V+
+        AllAny
+        \v+
+        AllAny
+        a+
+        AllAny
+        \x0a+
+        AllAny
+        AllAny+
+        AllAny
+        Ket
+        End
+------------------------------------------------------------------
+
+/ab\Cde/never_backslash_c
+Failed: error 183 at offset 4: using \C is disabled by the application
+
+/ab\Cde/info
+Capture group count = 0
+Contains \C
+First code unit = 'a'
+Last code unit = 'e'
+Subject length lower bound = 5
+    abXde
+ 0: abXde
+    
+/(?<=ab\Cde)X/
+    abZdeX
+ 0: X
+
+# End of testinput21

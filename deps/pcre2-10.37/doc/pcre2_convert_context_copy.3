@@ -1,0 +1,26 @@
+.TH PCRE2_CONVERT_CONTEXT_COPY 3 "10 July 2017" "PCRE2 10.30"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B pcre2_convert_context *pcre2_convert_context_copy(
+.B "  pcre2_convert_context *\fIcvcontext\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function is part of an experimental set of pattern conversion functions.
+It makes a new copy of a convert context, using the memory allocation function
+that was used for the original context. The result is NULL if the memory cannot
+be obtained.
+.P
+The pattern conversion functions are described in the
+.\" HREF
+\fBpcre2convert\fP
+.\"
+documentation.

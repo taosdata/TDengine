@@ -1,0 +1,238 @@
+# These are:
+#
+# (1) Tests of the match-limiting features. The results are different for
+# interpretive or JIT matching, so this test should not be run with JIT. The
+# same tests are run using JIT in test 17.
+
+# (2) Other tests that must not be run with JIT.
+
+/(a+)*zz/I
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaazzbbbbbb\=find_limits
+  aaaaaaaaaaaaaz\=find_limits
+
+!((?:\s|//.*\\n|/[*](?:\\n|.)*?[*]/)*)!I
+   /* this is a C style comment */\=find_limits
+
+/^(?>a)++/
+    aa\=find_limits
+    aaaaaaaaa\=find_limits
+
+/(a)(?1)++/
+    aa\=find_limits
+    aaaaaaaaa\=find_limits
+
+/a(?:.)*?a/ims
+    abbbbbbbbbbbbbbbbbbbbba\=find_limits
+
+/a(?:.(*THEN))*?a/ims
+    abbbbbbbbbbbbbbbbbbbbba\=find_limits
+
+/a(?:.(*THEN:ABC))*?a/ims
+    abbbbbbbbbbbbbbbbbbbbba\=find_limits
+
+/^(?>a+)(?>b+)(?>c+)(?>d+)(?>e+)/
+     aabbccddee\=find_limits
+
+/^(?>(a+))(?>(b+))(?>(c+))(?>(d+))(?>(e+))/
+     aabbccddee\=find_limits
+
+/^(?>(a+))(?>b+)(?>(c+))(?>d+)(?>(e+))/
+     aabbccddee\=find_limits
+
+/(*LIMIT_MATCH=12bc)abc/
+
+/(*LIMIT_MATCH=4294967290)abc/
+
+/(*LIMIT_DEPTH=4294967280)abc/I
+
+/(a+)*zz/
+\= Expect no match
+    aaaaaaaaaaaaaz
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz\=match_limit=3000
+
+/(a+)*zz/
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz\=depth_limit=10
+
+/(*LIMIT_MATCH=3000)(a+)*zz/I
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz\=match_limit=60000
+
+/(*LIMIT_MATCH=60000)(*LIMIT_MATCH=3000)(a+)*zz/I
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz
+
+/(*LIMIT_MATCH=60000)(a+)*zz/I
+\= Expect no match
+    aaaaaaaaaaaaaz
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz\=match_limit=3000
+
+/(*LIMIT_DEPTH=10)(a+)*zz/I
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz\=depth_limit=1000
+
+/(*LIMIT_DEPTH=10)(*LIMIT_DEPTH=1000)(a+)*zz/I
+\= Expect no match
+    aaaaaaaaaaaaaz
+
+/(*LIMIT_DEPTH=1000)(a+)*zz/I
+\= Expect no match
+    aaaaaaaaaaaaaz
+\= Expect limit exceeded
+    aaaaaaaaaaaaaz\=depth_limit=10
+
+# These three have infinitely nested recursions.
+
+/((?2))((?1))/
+    abc
+
+/((?(R2)a+|(?1)b))()/
+    aaaabcde
+
+/(?(R)a*(?1)|((?R))b)/
+    aaaabcde
+
+# The allusedtext modifier does not work with JIT, which does not maintain
+# the leftchar/rightchar data.
+
+/abc(?=xyz)/allusedtext
+    abcxyzpqr
+    abcxyzpqr\=aftertext
+
+/(?<=pqr)abc(?=xyz)/allusedtext
+    xyzpqrabcxyzpqr
+    xyzpqrabcxyzpqr\=aftertext
+
+/a\b/
+    a.\=allusedtext
+    a\=allusedtext
+
+/abc\Kxyz/
+    abcxyz\=allusedtext
+
+/abc(?=xyz(*ACCEPT))/
+    abcxyz\=allusedtext
+
+/abc(?=abcde)(?=ab)/allusedtext
+    abcabcdefg
+
+#subject allusedtext
+
+/(?<=abc)123/
+    xyzabc123pqr
+    xyzabc12\=ps
+    xyzabc12\=ph
+
+/\babc\b/
+    +++abc+++
+    +++ab\=ps
+    +++ab\=ph
+
+/(?<=abc)def/
+    abc\=ph
+
+/(?<=123)(*MARK:xx)abc/mark
+    xxxx123a\=ph
+    xxxx123a\=ps
+
+/(?<=(?<=a)b)c.*/I
+    abc\=ph
+\= Expect no match
+    xbc\=ph
+
+/(?<=ab)c.*/I
+    abc\=ph
+\= Expect no match
+    xbc\=ph
+
+/abc(?<=bc)def/
+    xxxabcd\=ph
+
+/(?<=ab)cdef/
+    xxabcd\=ph
+
+/(?<=(?<=(?<=a)b)c)./I
+    123abcXYZ
+
+/(?<=ab(cd(?<=...)))./I
+    abcdX
+
+/(?<=ab((?<=...)cd))./I
+    ZabcdX
+
+/(?<=((?<=(?<=ab).))(?1)(?1))./I
+    abxZ
+
+#subject
+# -------------------------------------------------------------------
+
+# These tests provoke recursion loops, which give a different error message
+# when JIT is used.
+
+/(?R)/I
+    abcd
+
+/(a|(?R))/I
+    abcd
+    defg
+
+/(ab|(bc|(de|(?R))))/I
+    abcd
+    fghi
+
+/(ab|(bc|(de|(?1))))/I
+    abcd
+    fghi
+
+/x(ab|(bc|(de|(?1)x)x)x)/I
+    xab123
+    xfghi
+
+/(?!\w)(?R)/
+    abcd
+    =abc
+
+/(?=\w)(?R)/
+    =abc
+    abcd
+
+/(?<!\w)(?R)/
+    abcd
+
+/(?<=\w)(?R)/
+    abcd
+
+/(a+|(?R)b)/
+    aaa
+    bbb
+
+/[^\xff]((?1))/BI
+    abcd
+
+# These tests don't behave the same with JIT
+
+/\w+(?C1)/BI,no_auto_possess
+    abc\=callout_fail=1
+
+/(*NO_AUTO_POSSESS)\w+(?C1)/BI
+    abc\=callout_fail=1
+
+# This test breaks the JIT stack limit
+
+/(|]+){2,2452}/
+    (|]+){2,2452}
+
+/(*LIMIT_HEAP=21)\[(a)]{60}/expand
+    \[a]{60}
+
+/b(?<!ax)(?!cx)/allusedtext
+    abc
+    abcz
+
+# End of testinput15

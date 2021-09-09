@@ -1,0 +1,549 @@
+# This set of tests is for UTF-16 and UTF-32 support, including Unicode
+# properties. It is relevant only to the 16-bit and 32-bit libraries. The
+# output is different for each library, so there are separate output files.
+
+/√√√xxx/IB,utf,no_utf_check
+
+/abc/utf
+    √]
+
+# Check maximum character size 
+
+/\x{ffff}/IB,utf
+
+/\x{10000}/IB,utf
+
+/\x{100}/IB,utf
+
+/\x{1000}/IB,utf
+
+/\x{10000}/IB,utf
+
+/\x{100000}/IB,utf
+
+/\x{10ffff}/IB,utf
+
+/[\x{ff}]/IB,utf
+
+/[\x{100}]/IB,utf
+
+/\x80/IB,utf
+
+/\xff/IB,utf
+
+/\x{D55c}\x{ad6d}\x{C5B4}/IB,utf
+    \x{D55c}\x{ad6d}\x{C5B4}
+
+/\x{65e5}\x{672c}\x{8a9e}/IB,utf
+    \x{65e5}\x{672c}\x{8a9e}
+
+/\x{80}/IB,utf
+
+/\x{084}/IB,utf
+
+/\x{104}/IB,utf
+
+/\x{861}/IB,utf
+
+/\x{212ab}/IB,utf
+
+/[^ab\xC0-\xF0]/IB,utf
+    \x{f1}
+    \x{bf}
+    \x{100}
+    \x{1000}
+\= Expect no match
+    \x{c0}
+    \x{f0}
+
+/ƒÄ{3,4}/IB,utf
+  \x{100}\x{100}\x{100}\x{100\x{100}
+
+/(\x{100}+|x)/IB,utf
+
+/(\x{100}*a|x)/IB,utf
+
+/(\x{100}{0,2}a|x)/IB,utf
+
+/(\x{100}{1,2}a|x)/IB,utf
+
+/\x{100}/IB,utf
+
+/a\x{100}\x{101}*/IB,utf
+
+/a\x{100}\x{101}+/IB,utf
+
+/[^\x{c4}]/IB
+
+/[\x{100}]/IB,utf
+    \x{100}
+    Z\x{100}
+    \x{100}Z
+
+/[\xff]/IB,utf
+    >\x{ff}<
+
+/[^\xff]/IB,utf
+
+/\x{100}abc(xyz(?1))/IB,utf
+
+/\777/I,utf
+  \x{1ff}
+  \777
+
+/\x{100}+\x{200}/IB,utf
+
+/\x{100}+X/IB,utf
+
+/^[\QƒÄ\E-\Q≈ê\E/B,utf
+
+/X/utf
+    XX\x{d800}\=no_utf_check
+    XX\x{da00}\=no_utf_check
+    XX\x{dc00}\=no_utf_check
+    XX\x{de00}\=no_utf_check
+    XX\x{dfff}\=no_utf_check
+\= Expect UTF error
+    XX\x{d800}
+    XX\x{da00}
+    XX\x{dc00}
+    XX\x{de00}
+    XX\x{dfff}
+    XX\x{110000}
+    XX\x{d800}\x{1234}
+\= Expect no match
+    XX\x{d800}\=offset=3
+    
+/(?<=.)X/utf
+    XX\x{d800}\=offset=3
+
+/(*UTF16)\x{11234}/
+  abcd\x{11234}pqr
+
+/(*UTF)\x{11234}/I
+  abcd\x{11234}pqr
+
+/(*UTF-32)\x{11234}/
+  abcd\x{11234}pqr
+
+/(*UTF-32)\x{112}/
+  abcd\x{11234}pqr
+
+/(*CRLF)(*UTF16)(*BSR_UNICODE)a\Rb/I
+
+/(*CRLF)(*UTF32)(*BSR_UNICODE)a\Rb/I
+
+/\h/I,utf
+    ABC\x{09}
+    ABC\x{20}
+    ABC\x{a0}
+    ABC\x{1680}
+    ABC\x{180e}
+    ABC\x{2000}
+    ABC\x{202f}
+    ABC\x{205f}
+    ABC\x{3000}
+
+/\v/I,utf
+    ABC\x{0a}
+    ABC\x{0b}
+    ABC\x{0c}
+    ABC\x{0d}
+    ABC\x{85}
+    ABC\x{2028}
+
+/\h*A/I,utf
+    CDBABC
+    \x{2000}ABC
+
+/\R*A/I,bsr=unicode,utf
+    CDBABC
+    \x{2028}A
+
+/\v+A/I,utf
+
+/\s?xxx\s/I,utf
+
+/\sxxx\s/I,utf,tables=2
+    AB\x{85}xxx\x{a0}XYZ
+    AB\x{a0}xxx\x{85}XYZ
+
+/\S \S/I,utf,tables=2
+    \x{a2} \x{84}
+    A Z
+
+/a+/utf
+    a\x{123}aa\=offset=1
+    a\x{123}aa\=offset=2
+    a\x{123}aa\=offset=3
+\= Expect no match
+    a\x{123}aa\=offset=4
+\= Expect bad offset error     
+    a\x{123}aa\=offset=5
+    a\x{123}aa\=offset=6
+
+/\x{1234}+/Ii,utf
+
+/\x{1234}+?/Ii,utf
+
+/\x{1234}++/Ii,utf
+
+/\x{1234}{2}/Ii,utf
+
+/[^\x{c4}]/IB,utf
+
+/X+\x{200}/IB,utf
+
+/\R/I,utf
+
+# Check bad offset 
+
+/a/utf
+\= Expect bad UTF-16 offset, or no match in 32-bit
+    \x{10000}\=offset=1
+    \x{10000}ab\=offset=1
+\= Expect 16-bit match, 32-bit no match
+    \x{10000}ab\=offset=2
+\= Expect no match     
+    \x{10000}ab\=offset=3
+\= Expect no match in 16-bit, bad offset in 32-bit    
+    \x{10000}ab\=offset=4
+\= Expect bad offset     
+    \x{10000}ab\=offset=5
+
+/ÌºÄ/utf
+
+/\w+\x{C4}/B,utf
+    a\x{C4}\x{C4}
+
+/\w+\x{C4}/B,utf,tables=2
+    a\x{C4}\x{C4}
+    
+/\W+\x{C4}/B,utf
+    !\x{C4}
+ 
+/\W+\x{C4}/B,utf,tables=2
+    !\x{C4}
+
+/\W+\x{A1}/B,utf
+    !\x{A1}
+ 
+/\W+\x{A1}/B,utf,tables=2
+    !\x{A1}
+
+/X\s+\x{A0}/B,utf
+    X\x20\x{A0}\x{A0}
+
+/X\s+\x{A0}/B,utf,tables=2
+    X\x20\x{A0}\x{A0}
+
+/\S+\x{A0}/B,utf
+    X\x{A0}\x{A0}
+
+/\S+\x{A0}/B,utf,tables=2
+    X\x{A0}\x{A0}
+
+/\x{a0}+\s!/B,utf
+    \x{a0}\x20!
+
+/\x{a0}+\s!/B,utf,tables=2
+    \x{a0}\x20!
+
+/(*UTF)abc/never_utf
+
+/abc/utf,never_utf
+
+/A\x{391}\x{10427}\x{ff3a}\x{1fb0}/IBi,utf
+
+/A\x{391}\x{10427}\x{ff3a}\x{1fb0}/IB,utf
+
+/AB\x{1fb0}/IB,utf
+
+/AB\x{1fb0}/IBi,utf
+
+/\x{401}\x{420}\x{421}\x{422}\x{423}\x{424}\x{425}\x{426}\x{427}\x{428}\x{429}\x{42a}\x{42b}\x{42c}\x{42d}\x{42e}\x{42f}/Ii,utf
+    \x{401}\x{420}\x{421}\x{422}\x{423}\x{424}\x{425}\x{426}\x{427}\x{428}\x{429}\x{42a}\x{42b}\x{42c}\x{42d}\x{42e}\x{42f}
+    \x{451}\x{440}\x{441}\x{442}\x{443}\x{444}\x{445}\x{446}\x{447}\x{448}\x{449}\x{44a}\x{44b}\x{44c}\x{44d}\x{44e}\x{44f}
+
+/[‚±•]/Bi,utf
+
+/[^‚±•]/Bi,utf
+
+/[[:blank:]]/B,ucp
+
+/\x{212a}+/Ii,utf
+    KKkk\x{212a}
+
+/s+/Ii,utf
+    SSss\x{17f}
+
+# Non-UTF characters should give errors in both 16-bit and 32-bit modes.
+
+/\x{110000}/utf
+
+/\o{4200000}/utf
+
+/\x{100}*A/IB,utf
+    A
+
+/\x{100}*\d(?R)/IB,utf
+
+/[Z\x{100}]/IB,utf
+    Z\x{100}
+    \x{100}
+    \x{100}Z
+
+/[z-\x{100}]/IB,utf
+
+/[z\Qa-d]ƒÄ\E]/IB,utf
+    \x{100}
+    ƒÄ 
+
+/[ab\x{100}]abc(xyz(?1))/IB,utf
+
+/\x{100}*\s/IB,utf
+
+/\x{100}*\d/IB,utf
+
+/\x{100}*\w/IB,utf
+
+/\x{100}*\D/IB,utf
+
+/\x{100}*\S/IB,utf
+
+/\x{100}*\W/IB,utf
+
+/[\x{105}-\x{109}]/IBi,utf
+    \x{104}
+    \x{105}
+    \x{109}  
+\= Expect no match
+    \x{100}
+    \x{10a} 
+    
+/[z-\x{100}]/IBi,utf
+    Z
+    z
+    \x{39c}
+    \x{178}
+    |
+    \x{80}
+    \x{ff}
+    \x{100}
+    \x{101} 
+\= Expect no match
+    \x{102}
+    Y
+    y           
+
+/[z-\x{100}]/IBi,utf
+
+/\x{3a3}B/IBi,utf
+
+/./utf
+    \x{110000}
+
+/(*UTF)ab˝øøøøøz/B
+
+/ab˝øøøøøz/utf
+
+/[\W\p{Any}]/B
+    abc
+    123 
+
+/[\W\pL]/B
+    abc
+    \x{100}
+    \x{308}  
+\= Expect no match
+    123     
+
+/[\s[:^ascii:]]/B,ucp
+
+/\pP/ucp
+    \x{7fffffff}
+
+# A special extra option allows excaped surrogate code points in 32-bit mode,
+# but subjects containing them must not be UTF-checked. These patterns give
+# errors in 16-bit mode.
+
+/\x{d800}/I,utf,allow_surrogate_escapes
+    \x{d800}\=no_utf_check
+
+/\udfff\o{157401}/utf,alt_bsux,allow_surrogate_escapes
+    \x{dfff}\x{df01}\=no_utf_check
+
+# This has different starting code units in 8-bit mode. 
+
+/^[^ab]/IB,utf
+    c
+    \x{ff}
+    \x{100}
+\= Expect no match
+    aaa
+    
+# Offsets are different in 8-bit mode. 
+
+/(?<=abc)(|def)/g,utf,replace=<$0>,substitute_callout
+    123abc√°yzabcdef789abc·à¥qr
+    
+# A few script run tests in non-UTF mode (but they need Unicode support)
+
+/^(*script_run:.{4})/
+    \x{3041}\x{30a1}\x{3007}\x{3007}   Hiragana Katakana Han Han
+    \x{30a1}\x{3041}\x{3007}\x{3007}   Katakana Hiragana Han Han
+    \x{1100}\x{2e80}\x{2e80}\x{1101}   Hangul Han Han Hangul
+ 
+/^(*sr:.*)/utf,allow_surrogate_escapes
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+    \x{d800}\x{dfff}                   Surrogates (Unknown) \=no_utf_check
+
+/(?(n/utf
+
+/(?(√°/utf
+
+# Invalid UTF-16/32 tests.
+
+/.../g,match_invalid_utf
+    abcd\x{df00}wxzy\x{df00}pqrs
+    abcd\x{80}wxzy\x{df00}pqrs
+
+/abc/match_invalid_utf
+    ab\x{df00}ab\=ph
+\= Expect no match
+    ab\x{df00}cdef\=ph
+
+/ab$/match_invalid_utf
+    ab\x{df00}cdeab
+\= Expect no match
+    ab\x{df00}cde
+
+/.../g,match_invalid_utf
+    abcd\x{80}wxzy\x{df00}pqrs
+
+/(?<=x)../g,match_invalid_utf
+    abcd\x{80}wxzy\x{df00}pqrs
+    abcd\x{80}wxzy\x{df00}xpqrs
+
+/X$/match_invalid_utf
+\= Expect no match
+    X\x{df00}
+    
+/(?<=..)X/match_invalid_utf,aftertext
+    AB\x{df00}AQXYZ
+    AB\x{df00}AQXYZ\=offset=5
+    AB\x{df00}\x{df00}AXYZXC\=offset=5
+\= Expect no match
+    AB\x{df00}XYZ
+    AB\x{df00}XYZ\=offset=3 
+    AB\x{df00}AXYZ
+    AB\x{df00}AXYZ\=offset=4
+    AB\x{df00}\x{df00}AXYZ\=offset=5
+
+/.../match_invalid_utf
+\= Expect no match
+    A\x{d800}B
+    A\x{110000}B 
+    
+/aa/utf,ucp,match_invalid_utf,global
+    aa\x{d800}aa
+
+/aa/utf,ucp,match_invalid_utf,global
+    \x{d800}aa
+
+# ---------------------------------------------------- 
+
+/(*UTF)(?=\x{123})/I
+
+/[\x{c1}\x{e1}]X[\x{145}\x{146}]/I,utf
+
+/[\xff\x{ffff}]/I,utf
+
+/[\xff\x{ff}]/I,utf
+
+/[\xff\x{ff}]/I
+
+/[Ss]/I
+
+/[Ss]/I,utf
+
+/(?:\x{ff}|\x{3000})/I,utf
+
+# ---------------------------------------------------- 
+# UCP and casing tests
+
+/\x{120}/i,I
+
+/\x{c1}/i,I,ucp
+
+/[\x{120}\x{121}]/iB,ucp
+
+/[ab\x{120}]+/iB,ucp
+    aABb\x{121}\x{120}
+
+/\x{c1}/i,no_start_optimize
+\= Expect no match
+    \x{e1}
+
+/\x{120}\x{c1}/i,ucp,no_start_optimize
+    \x{121}\x{e1}
+
+/\x{120}\x{c1}/i,ucp
+    \x{121}\x{e1}
+
+/[^\x{120}]/i,no_start_optimize
+    \x{121}
+
+/[^\x{120}]/i,ucp,no_start_optimize
+\= Expect no match
+    \x{121}
+
+/[^\x{120}]/i
+    \x{121}
+
+/[^\x{120}]/i,ucp
+\= Expect no match
+    \x{121}
+    
+/\x{120}{2}/i,ucp
+    \x{121}\x{121}
+
+/[^\x{120}]{2}/i,ucp
+\= Expect no match
+    \x{121}\x{121}
+
+/\x{c1}+\x{e1}/iB,ucp
+    \x{c1}\x{c1}\x{c1}
+
+/\x{c1}+\x{e1}/iIB,ucp
+    \x{c1}\x{c1}\x{c1}
+    \x{e1}\x{e1}\x{e1} 
+
+/a|\x{c1}/iI,ucp
+    \x{e1}xxx
+
+/\x{c1}|\x{e1}/iI,ucp
+
+/X(\x{e1})Y/ucp,replace=>\U$1<,substitute_extended
+    X\x{e1}Y
+
+/X(\x{121})Y/ucp,replace=>\U$1<,substitute_extended
+    X\x{121}Y
+
+/s/i,ucp
+    \x{17f} 
+
+/s/i,utf
+    \x{17f} 
+
+/[^s]/i,ucp
+\= Expect no match
+    \x{17f} 
+
+/[^s]/i,utf
+\= Expect no match
+    \x{17f} 
+
+# ---------------------------------------------------- 
+
+# End of testinput12

@@ -22,7 +22,8 @@
 
 #include <qSqlparser.h>
 #include "os.h"
-#include "regex.h"
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include "pcre2.h"
 #include "qPlan.h"
 #include "qSqlparser.h"
 #include "qTableMeta.h"
@@ -4530,19 +4531,18 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     if ((!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
       return invalidOperationMsg(msgBuf, msg2);
     }
-
-    int errCode = 0;
-    regex_t regex;
-    char    regErrBuf[256] = {0};
-
     const char* pattern = pRight->value.pz;
-    int cflags = REG_EXTENDED;
-    if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
-      regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));
-      tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
+    int errornumber;
+    PCRE2_SIZE erroroffset;
+    pcre2_code *re = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, NULL);
+
+    if (re == NULL)
+    {
+      PCRE2_UCHAR buffer[256];
+      pcre2_get_error_message(errornumber, buffer, sizeof(buffer));
+      tscError("Failed to compile regex pattern %s. reason %s, offset %d", pattern, buffer, (int)erroroffset);
       return invalidOperationMsg(msgBuf, msg3);
     }
-    regfree(&regex);
   }
 
   return TSDB_CODE_SUCCESS;

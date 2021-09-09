@@ -20,7 +20,8 @@
 #include "tcompare.h"
 #include "tulog.h"
 #include "hash.h"
-#include "regex.h"
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include "pcre2.h"
 #include "os.h"
 #include "ttype.h"
 
@@ -359,39 +360,49 @@ int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight) {
 }
 
 int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
-  size_t sz = varDataLen(pRight);
-  char *pattern = malloc(sz + 1);
+  size_t szPattern = varDataLen(pRight);
+  char *pattern = malloc(szPattern+1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  pattern[sz] = 0;
+  pattern[szPattern] = '\0';
 
-  sz = varDataLen(pLeft);
-  char *str = malloc(sz + 1);
-  memcpy(str, varDataVal(pLeft), sz);
-  str[sz] = 0;
+  size_t szSubject = varDataLen(pLeft);
+  char *subject = malloc(szSubject);
+  memcpy(subject, varDataVal(pLeft), szSubject);
+  subject[szSubject] = '\0';
 
-  int errCode = 0;
-  regex_t regex;
-  char    msgbuf[256] = {0};
+  int errornumber;
+  PCRE2_SIZE erroroffset;
+  pcre2_code *re = pcre2_compile((PCRE2_SPTR)pattern, szPattern, 0, &errornumber, &erroroffset, NULL);
 
-  int cflags = REG_EXTENDED;
-  if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
-    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
-    uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
-    regfree(&regex);
-    free(str);
+  if (re == NULL)
+  {
+    PCRE2_UCHAR buffer[256];
+    pcre2_get_error_message(errornumber, buffer, sizeof(buffer));
+    uError("PCRE2 compilation failed at offset %d: %s\n", (int)erroroffset, buffer);
+    free(subject);
     free(pattern);
     return 1;
   }
 
-  errCode = regexec(&regex, str, 0, NULL, 0);
-  if (errCode != 0 && errCode != REG_NOMATCH) {
-    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
-    uDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf)
+  pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+  int rc = pcre2_match(re, (PCRE2_SPTR)subject, szSubject, 0, 0, match_data, NULL);
+
+  if (rc < 0) {
+    switch(rc) {
+      case PCRE2_ERROR_NOMATCH:
+        uDebug("No match between pattern %s and subject %s", pattern, subject);
+        break;
+      default:
+        uError("Matching error %d. pattern %s, subject %s", rc, pattern, subject);
+        break;
+    }
   }
-  int32_t result = (errCode == 0) ? 0 : 1;
-  regfree(&regex);
-  free(str);
+
+  int32_t result = (rc < 0) ? 1 : 0;
+  free(subject);
   free(pattern);
+  pcre2_match_data_free(match_data);
+  pcre2_code_free(re);
   return result;
 }
 

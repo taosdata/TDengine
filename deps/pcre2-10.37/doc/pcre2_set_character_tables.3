@@ -1,0 +1,35 @@
+.TH PCRE2_SET_CHARACTER_TABLES 3 "20 March 2020" "PCRE2 10.35"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_character_tables(pcre2_compile_context *\fIccontext\fP,
+.B "  const uint8_t *\fItables\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function sets a pointer to custom character tables within a compile
+context. The second argument must point to a set of PCRE2 character tables or
+be NULL to request the default tables. The result is always zero. Character
+tables can be created by calling \fBpcre2_maketables()\fP or by running the
+\fBpcre2_dftables\fP maintenance command in binary mode (see the
+.\" HREF
+\fBpcre2build\fP
+.\"
+documentation).
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

@@ -1,0 +1,28 @@
+.TH PCRE2_SET_OFFSET_LIMIT 3 "22 September 2015" "PCRE2 10.21"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_offset_limit(pcre2_match_context *\fImcontext\fP,
+.B "  PCRE2_SIZE \fIvalue\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function sets the offset limit field in a match context. The result is
+always zero.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

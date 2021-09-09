@@ -1,0 +1,27 @@
+.TH PCRE2_CONVERT_CONTEXT_CREATE 3 "10 July 2017" "PCRE2 10.30"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B pcre2_convert_context *pcre2_convert_context_create(
+.B "  pcre2_general_context *\fIgcontext\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function is part of an experimental set of pattern conversion functions.
+It creates and initializes a new convert context. If its argument is
+NULL, \fBmalloc()\fP is used to get the necessary memory; otherwise the memory
+allocation function within the general context is used. The result is NULL if
+the memory could not be obtained.
+.P
+The pattern conversion functions are described in the
+.\" HREF
+\fBpcre2convert\fP
+.\"
+documentation.

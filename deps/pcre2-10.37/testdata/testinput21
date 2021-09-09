@@ -1,0 +1,16 @@
+# These are tests of \C that do not involve UTF. They are not run when \C is
+# disabled by compiling with --enable-never-backslash-C.
+
+/\C+\D \C+\d \C+\S \C+\s \C+\W \C+\w \C+. \C+\R \C+\H \C+\h \C+\V \C+\v \C+\Z \C+\z \C+$/Bx
+
+/\D+\C \d+\C \S+\C \s+\C \W+\C \w+\C .+\C \R+\C \H+\C \h+\C \V+\C \v+\C a+\C \n+\C \C+\C/Bx
+
+/ab\Cde/never_backslash_c
+
+/ab\Cde/info
+    abXde
+    
+/(?<=ab\Cde)X/
+    abZdeX
+
+# End of testinput21

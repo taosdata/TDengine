@@ -6,6 +6,7 @@ ELSE ()
   CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 ENDIF ()
 
+ADD_SUBDIRECTORY(pcre2-10.37)
 ADD_SUBDIRECTORY(zlib-1.2.11)
 ADD_SUBDIRECTORY(pthread)
 ADD_SUBDIRECTORY(regex)
@@ -28,7 +29,6 @@ ENDIF ()
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   MESSAGE("setup deps/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
   MESSAGE("binary dir:" ${CMAKE_BINARY_DIR})
-  include(ExternalProject)
   ExternalProject_Add(jemalloc
     PREFIX        "jemalloc"
     SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc

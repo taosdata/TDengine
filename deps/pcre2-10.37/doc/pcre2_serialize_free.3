@@ -1,0 +1,29 @@
+.TH PCRE2_SERIALIZE_FREE 3 "27 June 2018" "PCRE2 10.32"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B void pcre2_serialize_free(uint8_t *\fIbytes\fP);
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function frees the memory that was obtained by
+\fBpcre2_serialize_encode()\fP to hold a serialized byte stream. The argument
+must point to such a byte stream or be NULL, in which case the function returns
+without doing anything.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the serialization functions in the
+.\" HREF
+\fBpcre2serialize\fP
+.\"
+page.

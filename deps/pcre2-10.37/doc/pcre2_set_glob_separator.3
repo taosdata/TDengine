@@ -1,0 +1,28 @@
+.TH PCRE2_SET_GLOB_SEPARATOR 3 "11 July 2017" "PCRE2 10.30"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_glob_separator(pcre2_convert_context *\fIcvcontext\fP,
+.B "  uint32_t \fIseparator_char\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This function is part of an experimental set of pattern conversion functions.
+It sets the component separator character that is used when converting globs.
+The second argument must be one of the characters forward slash, backslash, or
+dot. The default is backslash when running under Windows, otherwise forward
+slash. The result of the function is zero for success or PCRE2_ERROR_BADDATA if
+the second argument is invalid.
+.P
+The pattern conversion functions are described in the
+.\" HREF
+\fBpcre2convert\fP
+.\"
+documentation.

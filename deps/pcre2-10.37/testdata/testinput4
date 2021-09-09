@@ -1,0 +1,2498 @@
+# This set of tests is for UTF support, including Unicode properties. The 
+# Unicode tests are all compatible with all versions of Perl >= 5.10, but
+# some of the property tests may differ because of different versions of
+# Unicode in use by PCRE2 and Perl.
+
+# WARNING: Use only / as the pattern delimiter. Although pcre2test supports
+# a number of delimiters, all those other than / give problems with the
+# perltest.sh script.
+    
+#newline_default lf anycrlf any
+#perltest
+
+/a.b/utf
+    acb
+    a\x7fb
+    a\x{100}b
+\= Expect no match
+    a\nb
+
+/a(.{3})b/utf
+    a\x{4000}xyb
+    a\x{4000}\x7fyb
+    a\x{4000}\x{100}yb
+\= Expect no match
+    a\x{4000}b
+    ac\ncb
+
+/a(.*?)(.)/
+    a\xc0\x88b
+
+/a(.*?)(.)/utf
+    a\x{100}b
+
+/a(.*)(.)/
+    a\xc0\x88b
+
+/a(.*)(.)/utf
+    a\x{100}b
+
+/a(.)(.)/
+    a\xc0\x92bcd
+
+/a(.)(.)/utf
+    a\x{240}bcd
+
+/a(.?)(.)/
+    a\xc0\x92bcd
+
+/a(.?)(.)/utf
+    a\x{240}bcd
+
+/a(.??)(.)/
+    a\xc0\x92bcd
+
+/a(.??)(.)/utf
+    a\x{240}bcd
+
+/a(.{3})b/utf
+    a\x{1234}xyb
+    a\x{1234}\x{4321}yb
+    a\x{1234}\x{4321}\x{3412}b
+\= Expect no match
+    a\x{1234}b
+    ac\ncb
+
+/a(.{3,})b/utf
+    a\x{1234}xyb
+    a\x{1234}\x{4321}yb
+    a\x{1234}\x{4321}\x{3412}b
+    axxxxbcdefghijb
+    a\x{1234}\x{4321}\x{3412}\x{3421}b
+\= Expect no match
+    a\x{1234}b
+
+/a(.{3,}?)b/utf
+    a\x{1234}xyb
+    a\x{1234}\x{4321}yb
+    a\x{1234}\x{4321}\x{3412}b
+    axxxxbcdefghijb
+    a\x{1234}\x{4321}\x{3412}\x{3421}b
+\= Expect no match
+    a\x{1234}b
+
+/a(.{3,5})b/utf
+    a\x{1234}xyb
+    a\x{1234}\x{4321}yb
+    a\x{1234}\x{4321}\x{3412}b
+    axxxxbcdefghijb
+    a\x{1234}\x{4321}\x{3412}\x{3421}b
+    axbxxbcdefghijb
+    axxxxxbcdefghijb
+\= Expect no match
+    a\x{1234}b
+    axxxxxxbcdefghijb
+
+/a(.{3,5}?)b/utf
+    a\x{1234}xyb
+    a\x{1234}\x{4321}yb
+    a\x{1234}\x{4321}\x{3412}b
+    axxxxbcdefghijb
+    a\x{1234}\x{4321}\x{3412}\x{3421}b
+    axbxxbcdefghijb
+    axxxxxbcdefghijb
+\= Expect no match
+    a\x{1234}b
+    axxxxxxbcdefghijb
+
+/^[a\x{c0}]/utf
+\= Expect no match
+    \x{100}
+
+/(?<=aXb)cd/utf
+    aXbcd
+
+/(?<=a\x{100}b)cd/utf
+    a\x{100}bcd
+
+/(?<=a\x{100000}b)cd/utf
+    a\x{100000}bcd
+
+/(?:\x{100}){3}b/utf
+    \x{100}\x{100}\x{100}b
+\= Expect no match
+    \x{100}\x{100}b
+
+/\x{ab}/utf
+    \x{ab}
+    \xc2\xab
+\= Expect no match
+    \x00{ab}
+
+/(?<=(.))X/utf
+    WXYZ
+    \x{256}XYZ
+\= Expect no match
+    XYZ
+
+/[^a]+/g,utf
+    bcd
+    \x{100}aY\x{256}Z
+
+/^[^a]{2}/utf
+    \x{100}bc
+
+/^[^a]{2,}/utf
+    \x{100}bcAa
+
+/^[^a]{2,}?/utf
+    \x{100}bca
+
+/[^a]+/gi,utf
+    bcd
+    \x{100}aY\x{256}Z
+
+/^[^a]{2}/i,utf
+    \x{100}bc
+
+/^[^a]{2,}/i,utf
+    \x{100}bcAa
+
+/^[^a]{2,}?/i,utf
+    \x{100}bca
+
+/\x{100}{0,0}/utf
+    abcd
+
+/\x{100}?/utf
+    abcd
+    \x{100}\x{100}
+
+/\x{100}{0,3}/utf
+    \x{100}\x{100}
+    \x{100}\x{100}\x{100}\x{100}
+
+/\x{100}*/utf
+    abce
+    \x{100}\x{100}\x{100}\x{100}
+
+/\x{100}{1,1}/utf
+    abcd\x{100}\x{100}\x{100}\x{100}
+
+/\x{100}{1,3}/utf
+    abcd\x{100}\x{100}\x{100}\x{100}
+
+/\x{100}+/utf
+    abcd\x{100}\x{100}\x{100}\x{100}
+
+/\x{100}{3}/utf
+    abcd\x{100}\x{100}\x{100}XX
+
+/\x{100}{3,5}/utf
+    abcd\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}XX
+
+/\x{100}{3,}/utf
+    abcd\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}XX
+
+/(?<=a\x{100}{2}b)X/utf,aftertext
+    Xyyya\x{100}\x{100}bXzzz
+
+/\D*/utf
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+/\D*/utf
+  \x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}\x{100}
+
+/\D/utf
+    1X2
+    1\x{100}2
+
+/>\S/utf
+    > >X Y
+    > >\x{100} Y
+
+/\d/utf
+    \x{100}3
+
+/\s/utf
+    \x{100} X
+
+/\D+/utf
+    12abcd34
+\= Expect no match
+    1234
+
+/\D{2,3}/utf
+    12abcd34
+    12ab34
+\= Expect no match
+    1234
+    12a34
+
+/\D{2,3}?/utf
+    12abcd34
+    12ab34
+\= Expect no match
+    1234
+    12a34
+
+/\d+/utf
+    12abcd34
+
+/\d{2,3}/utf
+    12abcd34
+    1234abcd
+\= Expect no match
+    1.4
+
+/\d{2,3}?/utf
+    12abcd34
+    1234abcd
+\= Expect no match
+    1.4
+
+/\S+/utf
+    12abcd34
+\= Expect no match
+    \    \
+
+/\S{2,3}/utf
+    12abcd34
+    1234abcd
+\= Expect no match
+    \     \
+
+/\S{2,3}?/utf
+    12abcd34
+    1234abcd
+\= Expect no match
+    \     \
+
+/>\s+</utf,aftertext
+    12>      <34
+
+/>\s{2,3}</utf,aftertext
+    ab>  <cd
+    ab>   <ce
+\= Expect no match
+    ab>    <cd
+
+/>\s{2,3}?</utf,aftertext
+    ab>  <cd
+    ab>   <ce
+\= Expect no match
+    ab>    <cd
+
+/\w+/utf
+    12      34
+\= Expect no match
+    +++=*!
+
+/\w{2,3}/utf
+    ab  cd
+    abcd ce
+\= Expect no match
+    a.b.c
+
+/\w{2,3}?/utf
+    ab  cd
+    abcd ce
+\= Expect no match
+    a.b.c
+
+/\W+/utf
+    12====34
+\= Expect no match
+    abcd
+
+/\W{2,3}/utf
+    ab====cd
+    ab==cd
+\= Expect no match
+    a.b.c
+
+/\W{2,3}?/utf
+    ab====cd
+    ab==cd
+\= Expect no match
+    a.b.c
+
+/[\x{100}]/utf
+    \x{100}
+    Z\x{100}
+    \x{100}Z
+
+/[Z\x{100}]/utf
+    Z\x{100}
+    \x{100}
+    \x{100}Z
+
+/[\x{100}\x{200}]/utf
+    ab\x{100}cd
+    ab\x{200}cd
+
+/[\x{100}-\x{200}]/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{111}cd
+
+/[z-\x{200}]/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{111}cd
+    abzcd
+    ab|cd
+
+/[Q\x{100}\x{200}]/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    Q?
+
+/[Q\x{100}-\x{200}]/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{111}cd
+    Q?
+
+/[Qz-\x{200}]/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{111}cd
+    abzcd
+    ab|cd
+    Q?
+
+/[\x{100}\x{200}]{1,3}/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{200}\x{100}\x{200}\x{100}cd
+
+/[\x{100}\x{200}]{1,3}?/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{200}\x{100}\x{200}\x{100}cd
+
+/[Q\x{100}\x{200}]{1,3}/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{200}\x{100}\x{200}\x{100}cd
+
+/[Q\x{100}\x{200}]{1,3}?/utf
+    ab\x{100}cd
+    ab\x{200}cd
+    ab\x{200}\x{100}\x{200}\x{100}cd
+
+/(?<=[\x{100}\x{200}])X/utf
+    abc\x{200}X
+    abc\x{100}X
+\= Expect no match
+    X
+
+/(?<=[Q\x{100}\x{200}])X/utf
+    abc\x{200}X
+    abc\x{100}X
+    abQX
+\= Expect no match
+    X
+
+/(?<=[\x{100}\x{200}]{3})X/utf
+    abc\x{100}\x{200}\x{100}X
+\= Expect no match
+    abc\x{200}X
+    X
+
+/[^\x{100}\x{200}]X/utf
+    AX
+    \x{150}X
+    \x{500}X
+\= Expect no match
+    \x{100}X
+    \x{200}X
+
+/[^Q\x{100}\x{200}]X/utf
+    AX
+    \x{150}X
+    \x{500}X
+\= Expect no match
+    \x{100}X
+    \x{200}X
+    QX
+
+/[^\x{100}-\x{200}]X/utf
+    AX
+    \x{500}X
+\= Expect no match
+    \x{100}X
+    \x{150}X
+    \x{200}X
+
+/[z-\x{100}]/i,utf
+    z
+    Z
+    \x{100}
+\= Expect no match
+    \x{102}
+    y
+
+/[\xFF]/
+    >\xff<
+
+/[\xff]/utf
+    >\x{ff}<
+
+/[^\xFF]/
+    XYZ
+
+/[^\xff]/utf
+    XYZ
+    \x{123}
+
+/^[ac]*b/utf
+\= Expect no match
+  xb
+
+/^[ac\x{100}]*b/utf
+\= Expect no match
+  xb
+
+/^[^x]*b/i,utf
+\= Expect no match
+  xb
+
+/^[^x]*b/utf
+\= Expect no match
+  xb
+
+/^\d*b/utf
+\= Expect no match
+  xb
+
+/(|a)/g,utf
+    catac
+    a\x{256}a
+
+/^\x{85}$/i,utf
+    \x{85}
+
+/^ሴ/utf
+    ሴ
+
+/^\ሴ/utf
+    ሴ
+
+/(?s)(.{1,5})/utf
+    abcdefg
+    ab
+
+/a*\x{100}*\w/utf
+    a
+
+/\S\S/g,utf
+    A\x{a3}BC
+
+/\S{2}/g,utf
+    A\x{a3}BC
+
+/\W\W/g,utf
+    +\x{a3}==
+
+/\W{2}/g,utf
+    +\x{a3}==
+
+/\S/g,utf
+    \x{442}\x{435}\x{441}\x{442}
+
+/[\S]/g,utf
+    \x{442}\x{435}\x{441}\x{442}
+
+/\D/g,utf
+    \x{442}\x{435}\x{441}\x{442}
+
+/[\D]/g,utf
+    \x{442}\x{435}\x{441}\x{442}
+
+/\W/g,utf
+    \x{2442}\x{2435}\x{2441}\x{2442}
+
+/[\W]/g,utf
+    \x{2442}\x{2435}\x{2441}\x{2442}
+
+/[\S\s]*/utf
+    abc\n\r\x{442}\x{435}\x{441}\x{442}xyz
+
+/[\x{41f}\S]/g,utf
+    \x{442}\x{435}\x{441}\x{442}
+
+/.[^\S]./g,utf
+    abc def\x{442}\x{443}xyz\npqr
+
+/.[^\S\n]./g,utf
+    abc def\x{442}\x{443}xyz\npqr
+
+/[[:^alnum:]]/g,utf
+    +\x{2442}
+
+/[[:^alpha:]]/g,utf
+    +\x{2442}
+
+/[[:^ascii:]]/g,utf
+    A\x{442}
+
+/[[:^blank:]]/g,utf
+    A\x{442}
+
+/[[:^cntrl:]]/g,utf
+    A\x{442}
+
+/[[:^digit:]]/g,utf
+    A\x{442}
+
+/[[:^graph:]]/g,utf
+    \x19\x{e01ff}
+
+/[[:^lower:]]/g,utf
+    A\x{422}
+
+/[[:^print:]]/g,utf
+    \x{19}\x{e01ff}
+
+/[[:^punct:]]/g,utf
+    A\x{442}
+
+/[[:^space:]]/g,utf
+    A\x{442}
+
+/[[:^upper:]]/g,utf
+    a\x{442}
+
+/[[:^word:]]/g,utf
+    +\x{2442}
+
+/[[:^xdigit:]]/g,utf
+    M\x{442}
+
+/[^ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞĀĂĄĆĈĊČĎĐĒĔĖĘĚĜĞĠĢĤĦĨĪĬĮİĲĴĶĹĻĽĿŁŃŅŇŊŌŎŐŒŔŖŘŚŜŞŠŢŤŦŨŪŬŮŰŲŴŶŸŹŻŽƁƂƄƆƇƉƊƋƎƏƐƑƓƔƖƗƘƜƝƟƠƢƤƦƧƩƬƮƯƱƲƳƵƷƸƼǄǇǊǍǏǑǓǕǗǙǛǞǠǢǤǦǨǪǬǮǱǴǶǷǸǺǼǾȀȂȄȆȈȊȌȎȐȒȔȖȘȚȜȞȠȢȤȦȨȪȬȮȰȲȺȻȽȾɁΆΈΉΊΌΎΏΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫϒϓϔϘϚϜϞϠϢϤϦϨϪϬϮϴϷϹϺϽϾϿЀЁЂЃЄЅІЇЈЉЊЋЌЍЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯѠѢѤѦѨѪѬѮѰѲѴѶѸѺѼѾҀҊҌҎҐҒҔҖҘҚҜҞҠҢҤҦҨҪҬҮҰҲҴҶҸҺҼҾӀӁӃӅӇӉӋӍӐӒӔӖӘӚӜӞӠӢӤӦӨӪӬӮӰӲӴӶӸԀԂԄԆԈԊԌԎԱԲԳԴԵԶԷԸԹԺԻԼԽԾԿՀՁՂՃՄՅՆՇՈՉՊՋՌՍՎՏՐՑՒՓՔՕՖႠႡႢႣႤႥႦႧႨႩႪႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅḀḂḄḆḈḊḌḎḐḒḔḖḘḚḜḞḠḢḤḦḨḪḬḮḰḲḴḶḸḺḼḾṀṂṄṆṈṊṌṎṐṒṔṖṘṚṜṞṠṢṤṦṨṪṬṮṰṲṴṶṸṺṼṾẀẂẄẆẈẊẌẎẐẒẔẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼẾỀỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴỶỸἈἉἊἋἌἍἎἏἘἙἚἛἜἝἨἩἪἫἬἭἮἯἸἹἺἻἼἽἾἿὈὉὊὋὌὍὙὛὝὟὨὩὪὫὬὭὮὯᾸᾹᾺΆῈΈῊΉῘῙῚΊῨῩῪΎῬῸΌῺΏabcdefghijklmnopqrstuvwxyzªµºßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿāăąćĉċčďđēĕėęěĝğġģĥħĩīĭįıĳĵķĸĺļľŀłńņňŉŋōŏőœŕŗřśŝşšţťŧũūŭůűųŵŷźżžſƀƃƅƈƌƍƒƕƙƚƛƞơƣƥƨƪƫƭưƴƶƹƺƽƾƿǆǉǌǎǐǒǔǖǘǚǜǝǟǡǣǥǧǩǫǭǯǰǳǵǹǻǽǿȁȃȅȇȉȋȍȏȑȓȕȗșțȝȟȡȣȥȧȩȫȭȯȱȳȴȵȶȷȸȹȼȿɀɐɑɒɓɔɕɖɗɘəɚɛɜɝɞɟɠɡɢɣɤɥɦɧɨɩɪɫɬɭɮɯɰɱɲɳɴɵɶɷɸɹɺɻɼɽɾɿʀʁʂʃʄʅʆʇʈʉʊʋʌʍʎʏʐʑʒʓʔʕʖʗʘʙʚʛʜʝʞʟʠʡʢʣʤʥʦʧʨʩʪʫʬʭʮʯΐάέήίΰαβγδεζηθικλμνξοπρςστυφχψωϊϋόύώϐϑϕϖϗϙϛϝϟϡϣϥϧϩϫϭϯϰϱϲϳϵϸϻϼабвгдежзийклмнопрстуфхцчшщъыьэюяѐёђѓєѕіїјљњћќѝўџѡѣѥѧѩѫѭѯѱѳѵѷѹѻѽѿҁҋҍҏґғҕҗҙқҝҟҡңҥҧҩҫҭүұҳҵҷҹһҽҿӂӄӆӈӊӌӎӑӓӕӗәӛӝӟӡӣӥӧөӫӭӯӱӳӵӷӹԁԃԅԇԉԋԍԏաբգդեզէըթժիլխծկհձղճմյնշոչպջռսվտրցւփքօֆևᴀᴁᴂᴃᴄᴅᴆᴇᴈᴉᴊᴋᴌᴍᴎᴏᴐᴑᴒᴓᴔᴕᴖᴗᴘᴙᴚᴛᴜᴝᴞᴟᴠᴡᴢᴣᴤᴥᴦᴧᴨᴩᴪᴫᵢᵣᵤᵥᵦᵧᵨᵩᵪᵫᵬᵭᵮᵯᵰᵱᵲᵳᵴᵵᵶᵷᵹᵺᵻᵼᵽᵾᵿᶀᶁᶂᶃᶄᶅᶆᶇᶈᶉᶊᶋᶌᶍᶎᶏᶐᶑᶒᶓᶔᶕᶖᶗᶘᶙᶚḁḃḅḇḉḋḍḏḑḓḕḗḙḛḝḟḡḣḥḧḩḫḭḯḱḳḵḷḹḻḽḿṁṃṅṇṉṋṍṏṑṓṕṗṙṛṝṟṡṣṥṧṩṫṭṯṱṳṵṷṹṻṽṿẁẃẅẇẉẋẍẏẑẓẕẖẗẘẙẚẛạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹἀἁἂἃἄἅἆἇἐἑἒἓἔἕἠἡἢἣἤἥἦἧἰἱἲἳἴἵἶἷὀὁὂὃὄὅὐὑὒὓὔὕὖὗὠὡὢὣὤὥὦὧὰάὲέὴήὶίὸόὺύὼώᾀᾁᾂᾃᾄᾅᾆᾇᾐᾑᾒᾓᾔᾕᾖᾗᾠᾡᾢᾣᾤᾥᾦᾧᾰᾱᾲᾳᾴᾶᾷιῂῃῄῆῇῐῑῒΐῖῗῠῡῢΰῤῥῦῧῲῳῴῶῷⲁⲃⲅⲇⲉⲋⲍⲏⲑⲓⲕⲗⲙⲛⲝⲟⲡⲣⲥⲧⲩⲫⲭⲯⲱⲳⲵⲷⲹⲻⲽⲿⳁⳃⳅⳇⳉⳋⳍⳏⳑⳓⳕⳗⳙⳛⳝⳟⳡⳣⳤⴀⴁⴂⴃⴄⴅⴆⴇⴈⴉⴊⴋⴌⴍⴎⴏⴐⴑⴒⴓⴔⴕⴖⴗⴘⴙⴚⴛⴜⴝⴞⴟⴠⴡⴢⴣⴤⴥﬀﬁﬂﬃﬄﬅﬆﬓﬔﬕﬖﬗ\d_^]/utf
+
+/^[^d]*?$/
+    abc
+
+/^[^d]*?$/utf
+    abc
+
+/^[^d]*?$/i
+    abc
+
+/^[^d]*?$/i,utf
+    abc
+
+/(?i)[\xc3\xa9\xc3\xbd]|[\xc3\xa9\xc3\xbdA]/utf
+
+/^[a\x{c0}]b/utf
+    \x{c0}b
+
+/^([a\x{c0}]*?)aa/utf
+    a\x{c0}aaaa/
+
+/^([a\x{c0}]*?)aa/utf
+    a\x{c0}aaaa/
+    a\x{c0}a\x{c0}aaa/
+
+/^([a\x{c0}]*)aa/utf
+    a\x{c0}aaaa/
+    a\x{c0}a\x{c0}aaa/
+
+/^([a\x{c0}]*)a\x{c0}/utf
+    a\x{c0}aaaa/
+    a\x{c0}a\x{c0}aaa/
+
+/A*/g,utf
+    AAB\x{123}BAA
+
+/(abc)\1/i,utf
+\= Expect no match
+   abc
+
+/(abc)\1/utf
+\= Expect no match
+   abc
+
+/a(*:a\x{1234}b)/utf,mark
+    abc
+
+/a(*:a£b)/utf,mark
+    abc
+
+# Noncharacters
+
+/./utf
+    \x{fffe}
+    \x{ffff}
+    \x{1fffe}
+    \x{1ffff}
+    \x{2fffe}
+    \x{2ffff}
+    \x{3fffe}
+    \x{3ffff}
+    \x{4fffe}
+    \x{4ffff}
+    \x{5fffe}
+    \x{5ffff}
+    \x{6fffe}
+    \x{6ffff}
+    \x{7fffe}
+    \x{7ffff}
+    \x{8fffe}
+    \x{8ffff}
+    \x{9fffe}
+    \x{9ffff}
+    \x{afffe}
+    \x{affff}
+    \x{bfffe}
+    \x{bffff}
+    \x{cfffe}
+    \x{cffff}
+    \x{dfffe}
+    \x{dffff}
+    \x{efffe}
+    \x{effff}
+    \x{ffffe}
+    \x{fffff}
+    \x{10fffe}
+    \x{10ffff}
+    \x{fdd0}
+    \x{fdd1}
+    \x{fdd2}
+    \x{fdd3}
+    \x{fdd4}
+    \x{fdd5}
+    \x{fdd6}
+    \x{fdd7}
+    \x{fdd8}
+    \x{fdd9}
+    \x{fdda}
+    \x{fddb}
+    \x{fddc}
+    \x{fddd}
+    \x{fdde}
+    \x{fddf}
+    \x{fde0}
+    \x{fde1}
+    \x{fde2}
+    \x{fde3}
+    \x{fde4}
+    \x{fde5}
+    \x{fde6}
+    \x{fde7}
+    \x{fde8}
+    \x{fde9}
+    \x{fdea}
+    \x{fdeb}
+    \x{fdec}
+    \x{fded}
+    \x{fdee}
+    \x{fdef}
+
+/^\d*\w{4}/utf
+    1234
+\= Expect no match     
+    123
+
+/^[^b]*\w{4}/utf
+    aaaa
+\= Expect no match     
+    aaa
+
+/^[^b]*\w{4}/i,utf
+    aaaa
+\= Expect no match     
+    aaa
+
+/^\x{100}*.{4}/utf
+    \x{100}\x{100}\x{100}\x{100}
+\= Expect no match     
+    \x{100}\x{100}\x{100}
+
+/^\x{100}*.{4}/i,utf
+    \x{100}\x{100}\x{100}\x{100}
+\= Expect no match     
+    \x{100}\x{100}\x{100}
+
+/^a+[a\x{200}]/utf
+    aa
+
+/^.\B.\B./utf
+    \x{10123}\x{10124}\x{10125}
+
+/^#[^\x{ffff}]#[^\x{ffff}]#[^\x{ffff}]#/utf
+    #\x{10000}#\x{100}#\x{10ffff}#
+    
+# Unicode property support tests 
+
+/^\pC\pL\pM\pN\pP\pS\pZ</utf
+    \x7f\x{c0}\x{30f}\x{660}\x{66c}\x{f01}\x{1680}<
+    \np\x{300}9!\$ < 
+\= Expect no match     
+    ap\x{300}9!\$ < 
+  
+/^\PC/utf
+    X
+\= Expect no match     
+    \x7f
+  
+/^\PL/utf
+    9
+\= Expect no match     
+    \x{c0}
+  
+/^\PM/utf
+    X
+\= Expect no match     
+    \x{30f}
+  
+/^\PN/utf
+    X
+\= Expect no match     
+    \x{660}
+  
+/^\PP/utf
+    X
+\= Expect no match 
+    \x{66c}
+  
+/^\PS/utf
+    X
+\= Expect no match 
+    \x{f01}
+  
+/^\PZ/utf
+    X
+\= Expect no match 
+    \x{1680}
+    
+/^\p{Cc}/utf
+    \x{017}
+    \x{09f} 
+\= Expect no match
+    \x{0600} 
+  
+/^\p{Cf}/utf
+    \x{601}
+\= Expect no match
+    \x{09f} 
+  
+/^\p{Cn}/utf
+    \x{e0000}
+\= Expect no match
+    \x{09f} 
+  
+/^\p{Co}/utf
+    \x{f8ff}
+\= Expect no match
+    \x{09f} 
+  
+/^\p{Ll}/utf
+    a
+\= Expect no match 
+    Z
+    \x{e000}  
+  
+/^\p{Lm}/utf
+    \x{2b0}
+\= Expect no match
+    a 
+  
+/^\p{Lo}/utf
+    \x{1bb}
+    \x{3400}
+    \x{3401}
+    \x{4d00}
+    \x{4db4}
+    \x{4db5}     
+    \x{4db6} 
+\= Expect no match
+    a 
+    \x{2b0}
+  
+/^\p{Lt}/utf
+    \x{1c5}
+\= Expect no match
+    a 
+    \x{2b0}
+  
+/^\p{Lu}/utf
+    A
+\= Expect no match
+    \x{2b0}
+  
+/^\p{Mc}/utf
+    \x{903}
+\= Expect no match
+    X
+    \x{300}
+       
+/^\p{Me}/utf
+    \x{488}
+\= Expect no match
+    X
+    \x{903}
+    \x{300}
+  
+/^\p{Mn}/utf
+    \x{300}
+\= Expect no match
+    X
+    \x{903}
+  
+/^\p{Nd}+/utf
+    0123456789\x{660}\x{661}\x{662}\x{663}\x{664}\x{665}\x{666}\x{667}\x{668}\x{669}\x{66a}
+    \x{6f0}\x{6f1}\x{6f2}\x{6f3}\x{6f4}\x{6f5}\x{6f6}\x{6f7}\x{6f8}\x{6f9}\x{6fa}
+    \x{966}\x{967}\x{968}\x{969}\x{96a}\x{96b}\x{96c}\x{96d}\x{96e}\x{96f}\x{970}
+\= Expect no match
+    X
+  
+/^\p{Nl}/utf
+    \x{16ee}
+\= Expect no match
+    X
+    \x{966}
+  
+/^\p{No}/utf
+    \x{b2}
+    \x{b3}
+\= Expect no match
+    X
+    \x{16ee}
+  
+/^\p{Pc}/utf
+    \x5f
+    \x{203f}
+\= Expect no match
+    X
+    -
+    \x{58a}
+  
+/^\p{Pd}/utf
+    -
+    \x{58a}
+\= Expect no match
+    X
+    \x{203f}
+  
+/^\p{Pe}/utf
+    )
+    ]
+    }
+    \x{f3b}
+\= Expect no match
+    X
+    \x{203f}
+    (
+    [
+    {
+    \x{f3c}
+  
+/^\p{Pf}/utf
+    \x{bb}
+    \x{2019}
+\= Expect no match
+    X
+    \x{203f}
+  
+/^\p{Pi}/utf
+    \x{ab}
+    \x{2018}
+\= Expect no match
+    X
+    \x{203f}
+  
+/^\p{Po}/utf
+    !
+    \x{37e}
+\= Expect no match
+    X
+    \x{203f}
+  
+/^\p{Ps}/utf
+    (
+    [
+    {
+    \x{f3c}
+\= Expect no match
+    X
+    )
+    ]
+    }
+    \x{f3b}
+  
+/^\p{Sk}/utf
+    \x{2c2}
+\= Expect no match
+    X
+    \x{9f2}
+  
+/^\p{Sm}+/utf
+    +<|~\x{ac}\x{2044}
+\= Expect no match
+    X
+    \x{9f2}
+  
+/^\p{So}/utf
+    \x{a6}
+    \x{482} 
+\= Expect no match
+    X
+    \x{9f2}
+  
+/^\p{Zl}/utf
+    \x{2028}
+\= Expect no match
+    X
+    \x{2029}
+  
+/^\p{Zp}/utf
+    \x{2029}
+\= Expect no match
+    X
+    \x{2028}
+  
+/\p{Nd}+(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}+?(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}{2,}(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}{2,}?(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}*(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}*?(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}{2}(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}{2,3}(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}{2,3}?(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}?(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}??(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}*+(..)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}*+(...)/utf
+    \x{660}\x{661}\x{662}ABC
+  
+/\p{Nd}*+(....)/utf
+\= Expect no match
+    \x{660}\x{661}\x{662}ABC
+  
+/(?<=A\p{Nd})XYZ/utf
+    A2XYZ
+    123A5XYZPQR
+    ABA\x{660}XYZpqr
+\= Expect no match
+    AXYZ
+    XYZ     
+    
+/(?<!\pL)XYZ/utf
+    1XYZ
+    AB=XYZ.. 
+    XYZ 
+\= Expect no match
+    WXYZ 
+
+/[\P{Nd}]+/utf
+    abcd
+\= Expect no match
+    1234
+
+/\D+/utf
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+\= Expect no match
+    11111111111111111111111111111111111111111111111111111111111111111111111
+     
+/\P{Nd}+/utf
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+\= Expect no match
+    11111111111111111111111111111111111111111111111111111111111111111111111
+
+/[\D]+/utf
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+\= Expect no match
+    11111111111111111111111111111111111111111111111111111111111111111111111
+
+/[\P{Nd}]+/utf
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+\= Expect no match
+    11111111111111111111111111111111111111111111111111111111111111111111111
+
+/[\D\P{Nd}]+/utf
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+\= Expect no match
+    11111111111111111111111111111111111111111111111111111111111111111111111
+
+/\pL/utf
+    a
+    A 
+
+/\pL/i,utf
+    a
+    A 
+    
+/\p{Lu}/utf
+    A
+    aZ
+\= Expect no match
+    abc   
+
+/\p{Ll}/utf
+    a
+    Az
+\= Expect no match
+    ABC   
+
+/A\x{391}\x{10427}\x{ff3a}\x{1fb0}/utf
+    A\x{391}\x{10427}\x{ff3a}\x{1fb0}
+\= Expect no match
+    a\x{391}\x{10427}\x{ff3a}\x{1fb0}   
+    A\x{3b1}\x{10427}\x{ff3a}\x{1fb0}
+    A\x{391}\x{1044F}\x{ff3a}\x{1fb0}
+    A\x{391}\x{10427}\x{ff5a}\x{1fb0}
+    A\x{391}\x{10427}\x{ff3a}\x{1fb8}
+
+/A\x{391}\x{10427}\x{ff3a}\x{1fb0}/i,utf
+    A\x{391}\x{10427}\x{ff3a}\x{1fb0}
+    a\x{391}\x{10427}\x{ff3a}\x{1fb0}   
+    A\x{3b1}\x{10427}\x{ff3a}\x{1fb0}
+    A\x{391}\x{1044F}\x{ff3a}\x{1fb0}
+    A\x{391}\x{10427}\x{ff5a}\x{1fb0}
+    A\x{391}\x{10427}\x{ff3a}\x{1fb8}
+
+/\x{391}+/i,utf
+    \x{391}\x{3b1}\x{3b1}\x{3b1}\x{391}
+
+/\x{391}{3,5}(.)/i,utf
+    \x{391}\x{3b1}\x{3b1}\x{3b1}\x{391}X
+
+/\x{391}{3,5}?(.)/i,utf
+    \x{391}\x{3b1}\x{3b1}\x{3b1}\x{391}X
+
+/[\x{391}\x{ff3a}]/i,utf
+    \x{391}
+    \x{ff3a}
+    \x{3b1}
+    \x{ff5a}   
+    
+/^(\X*)C/utf
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301} 
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301}C 
+
+/^(\X*?)C/utf
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301} 
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301}C 
+
+/^(\X*)(.)/utf
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301} 
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301}C 
+
+/^(\X*?)(.)/utf
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301} 
+    A\x{300}\x{301}\x{302}BCA\x{300}\x{301}C 
+
+/^\X(.)/utf
+\= Expect no match
+    A\x{300}\x{301}\x{302}
+
+/^\X{2,3}(.)/utf
+    A\x{300}\x{301}B\x{300}X
+    A\x{300}\x{301}B\x{300}C\x{300}\x{301}
+    A\x{300}\x{301}B\x{300}C\x{300}\x{301}X
+    A\x{300}\x{301}B\x{300}C\x{300}\x{301}DA\x{300}X
+    
+/^\X{2,3}?(.)/utf
+    A\x{300}\x{301}B\x{300}X
+    A\x{300}\x{301}B\x{300}C\x{300}\x{301}
+    A\x{300}\x{301}B\x{300}C\x{300}\x{301}X
+    A\x{300}\x{301}B\x{300}C\x{300}\x{301}DA\x{300}X
+
+/^\X/utf
+    A
+    A\x{300}BC 
+    A\x{300}\x{301}\x{302}BC 
+    \x{300}  
+
+/^\p{Han}+/utf
+    \x{2e81}\x{3007}\x{2f804}\x{31a0}
+\= Expect no match
+    \x{2e7f}  
+
+/^\P{Katakana}+/utf
+    \x{3105}
+\= Expect no match
+    \x{30ff}  
+
+/^[\p{Arabic}]/utf
+    \x{06e9}
+    \x{060b}
+\= Expect no match
+    X\x{06e9}   
+
+/^[\P{Yi}]/utf
+    \x{2f800}
+\= Expect no match
+    \x{a014}
+    \x{a4c6}   
+    
+/^\p{Any}X/utf
+    AXYZ
+    \x{1234}XYZ 
+\= Expect no match
+    X  
+    
+/^\P{Any}X/utf
+\= Expect no match
+    AX
+    
+/^\p{Any}?X/utf
+    XYZ
+    AXYZ
+    \x{1234}XYZ 
+\= Expect no match
+    ABXYZ   
+
+/^\P{Any}?X/utf
+    XYZ
+\= Expect no match
+    AXYZ
+    \x{1234}XYZ 
+    ABXYZ   
+
+/^\p{Any}+X/utf
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+\= Expect no match
+    XYZ
+
+/^\P{Any}+X/utf
+\= Expect no match
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+    XYZ
+
+/^\p{Any}*X/utf
+    XYZ
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+
+/^\P{Any}*X/utf
+    XYZ
+\= Expect no match
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+
+/^[\p{Any}]X/utf
+    AXYZ
+    \x{1234}XYZ 
+\= Expect no match
+    X  
+    
+/^[\P{Any}]X/utf
+\= Expect no match
+    AX
+    
+/^[\p{Any}]?X/utf
+    XYZ
+    AXYZ
+    \x{1234}XYZ 
+\= Expect no match
+    ABXYZ   
+
+/^[\P{Any}]?X/utf
+    XYZ
+\= Expect no match
+    AXYZ
+    \x{1234}XYZ 
+    ABXYZ   
+
+/^[\p{Any}]+X/utf
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+\= Expect no match
+    XYZ
+
+/^[\P{Any}]+X/utf
+\= Expect no match
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+    XYZ
+
+/^[\p{Any}]*X/utf
+    XYZ
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+
+/^[\P{Any}]*X/utf
+    XYZ
+\= Expect no match
+    AXYZ
+    \x{1234}XYZ
+    A\x{1234}XYZ
+
+/^\p{Any}{3,5}?/utf
+    abcdefgh
+    \x{1234}\n\r\x{3456}xyz 
+
+/^\p{Any}{3,5}/utf
+    abcdefgh
+    \x{1234}\n\r\x{3456}xyz 
+
+/^\P{Any}{3,5}?/utf
+\= Expect no match
+    abcdefgh
+    \x{1234}\n\r\x{3456}xyz 
+
+/^\p{L&}X/utf
+     AXY
+     aXY
+     \x{1c5}XY
+\= Expect no match
+    \x{1bb}XY
+    \x{2b0}XY
+    !XY      
+
+/^[\p{L&}]X/utf
+    AXY
+    aXY
+     \x{1c5}XY
+\= Expect no match
+    \x{1bb}XY
+    \x{2b0}XY
+    !XY      
+
+/^\p{L&}+X/utf
+    AXY
+    aXY
+    AbcdeXyz 
+    \x{1c5}AbXY
+    abcDEXypqreXlmn 
+\= Expect no match
+    \x{1bb}XY
+    \x{2b0}XY
+    !XY      
+
+/^[\p{L&}]+X/utf
+    AXY
+    aXY
+    AbcdeXyz 
+    \x{1c5}AbXY
+    abcDEXypqreXlmn 
+\= Expect no match
+    \x{1bb}XY
+    \x{2b0}XY
+    !XY      
+
+/^\p{L&}+?X/utf
+    AXY
+    aXY
+    AbcdeXyz 
+    \x{1c5}AbXY
+    abcDEXypqreXlmn 
+\= Expect no match
+    \x{1bb}XY
+    \x{2b0}XY
+    !XY      
+
+/^[\p{L&}]+?X/utf
+    AXY
+    aXY
+    AbcdeXyz 
+    \x{1c5}AbXY
+    abcDEXypqreXlmn 
+\= Expect no match
+    \x{1bb}XY
+    \x{2b0}XY
+    !XY      
+
+/^\P{L&}X/utf
+    !XY
+    \x{1bb}XY
+    \x{2b0}XY
+\= Expect no match
+    \x{1c5}XY
+    AXY      
+
+/^[\P{L&}]X/utf
+    !XY
+    \x{1bb}XY
+    \x{2b0}XY
+\= Expect no match
+    \x{1c5}XY
+    AXY      
+
+/^(\p{Z}[^\p{C}\p{Z}]+)*$/
+    \xa0!
+
+/^[\pL](abc)(?1)/
+    AabcabcYZ    
+
+/([\pL]=(abc))*X/
+    L=abcX
+
+/^\p{Balinese}\p{Cuneiform}\p{Nko}\p{Phags_Pa}\p{Phoenician}/utf
+    \x{1b00}\x{12000}\x{7c0}\x{a840}\x{10900}
+
+# Check property support in non-UTF mode
+ 
+/\p{L}{4}/
+    123abcdefg
+    123abc\xc4\xc5zz
+
+/\X{1,3}\d/
+\= Expect no match
+    \x8aBCD
+  
+/\X?\d/
+\= Expect no match
+    \x8aBCD 
+
+/\P{L}?\d/
+\= Expect no match
+    \x8aBCD 
+
+/[\PPP\x8a]{1,}\x80/
+    A\x80
+
+/^[\p{Arabic}]/utf
+    \x{604}
+    \x{60e} 
+    \x{656} 
+    \x{657} 
+    \x{658} 
+    \x{659} 
+    \x{65a} 
+    \x{65b} 
+    \x{65c} 
+    \x{65d} 
+    \x{65e} 
+    \x{65f}
+    \x{66a} 
+    \x{6e9} 
+    \x{6ef}
+    \x{6fa}  
+
+/^\p{Cyrillic}/utf
+    \x{1d2b} 
+    
+/^\p{Common}/utf
+    \x{2116}
+    \x{1D183}  
+
+/^\p{Inherited}/utf
+    \x{200c} 
+\= Expect no match
+    \x{64a}
+    \x{656}     
+
+/^\p{Shavian}/utf
+    \x{10450}
+    \x{1047f}
+    
+/^\p{Deseret}/utf
+    \x{10400}
+    \x{1044f}
+    
+/^\p{Osmanya}/utf
+    \x{10480}
+    \x{1049d}
+    \x{104a0}
+    \x{104a9}
+\= Expect no match
+    \x{1049e}
+    \x{1049f}
+    \x{104aa}           
+
+/\p{Carian}\p{Cham}\p{Kayah_Li}\p{Lepcha}\p{Lycian}\p{Lydian}\p{Ol_Chiki}\p{Rejang}\p{Saurashtra}\p{Sundanese}\p{Vai}/utf
+    \x{102A4}\x{AA52}\x{A91D}\x{1C46}\x{10283}\x{1092E}\x{1C6B}\x{A93B}\x{A8BF}\x{1BA0}\x{A50A}====
+
+/\x{a77d}\x{1d79}/i,utf
+    \x{a77d}\x{1d79}
+    \x{1d79}\x{a77d} 
+
+/\x{a77d}\x{1d79}/utf
+    \x{a77d}\x{1d79}
+\= Expect no match 
+    \x{1d79}\x{a77d} 
+
+/(A)\1/i,utf
+    AA
+    Aa
+    aa
+    aA
+
+/(\x{10a})\1/i,utf
+    \x{10a}\x{10a}
+    \x{10a}\x{10b}
+    \x{10b}\x{10b}
+    \x{10b}\x{10a}
+    
+# The next two tests are for property support in non-UTF mode
+
+/(?:\p{Lu}|\x20)+/
+    \x41\x20\x50\xC2\x54\xC9\x20\x54\x4F\x44\x41\x59
+
+/[\p{Lu}\x20]+/
+    \x41\x20\x50\xC2\x54\xC9\x20\x54\x4F\x44\x41\x59
+
+/\p{Avestan}\p{Bamum}\p{Egyptian_Hieroglyphs}\p{Imperial_Aramaic}\p{Inscriptional_Pahlavi}\p{Inscriptional_Parthian}\p{Javanese}\p{Kaithi}\p{Lisu}\p{Meetei_Mayek}\p{Old_South_Arabian}\p{Old_Turkic}\p{Samaritan}\p{Tai_Tham}\p{Tai_Viet}/utf
+    \x{10b00}\x{a6ef}\x{13007}\x{10857}\x{10b78}\x{10b58}\x{a980}\x{110c1}\x{a4ff}\x{abc0}\x{10a7d}\x{10c48}\x{0800}\x{1aad}\x{aac0}
+
+/^\w+/utf,ucp
+    Az_\x{aa}\x{c0}\x{1c5}\x{2b0}\x{3b6}\x{1d7c9}\x{2fa1d}1\x{660}\x{bef}\x{16ee}
+
+/^[[:xdigit:]]*/utf,ucp
+    1a\x{660}\x{bef}\x{16ee}
+  
+/^\d+/utf,ucp
+    1\x{660}\x{bef}\x{16ee}
+  
+/^[[:digit:]]+/utf,ucp
+    1\x{660}\x{bef}\x{16ee}
+
+/^>\s+/utf,ucp
+    >\x{20}\x{a0}\x{1680}\x{2028}\x{2029}\x{202f}\x{9}\x{b} 
+  
+/^>\pZ+/utf,ucp
+    >\x{20}\x{a0}\x{1680}\x{2028}\x{2029}\x{202f}\x{9}\x{b} 
+  
+/^>[[:space:]]*/utf,ucp
+    >\x{20}\x{a0}\x{1680}\x{2028}\x{2029}\x{202f}\x{9}\x{b} 
+
+/^>[[:blank:]]*/utf,ucp
+    >\x{20}\x{a0}\x{1680}\x{2000}\x{202f}\x{9}\x{b}\x{2028} 
+
+/^[[:alpha:]]*/utf,ucp
+    Az\x{aa}\x{c0}\x{1c5}\x{2b0}\x{3b6}\x{1d7c9}\x{2fa1d}
+
+/^[[:alnum:]]*/utf,ucp
+    Az\x{aa}\x{c0}\x{1c5}\x{2b0}\x{3b6}\x{1d7c9}\x{2fa1d}1\x{660}\x{bef}\x{16ee}
+
+/^[[:cntrl:]]*/utf,ucp
+    \x{0}\x{09}\x{1f}\x{7f}\x{9f} 
+
+/^[[:graph:]]*/utf,ucp
+    A\x{a1}\x{a0}
+
+/^[[:print:]]*/utf,ucp
+    A z\x{a0}\x{a1}
+
+/^[[:punct:]]*/utf,ucp
+    .+\x{a1}\x{a0}
+
+/\p{Zs}*?\R/
+\= Expect no match
+    a\xFCb   
+
+/\p{Zs}*\R/
+\= Expect no match 
+    a\xFCb   
+
+/ⱥ/i,utf
+    ⱥ
+    Ⱥx 
+    Ⱥ 
+
+/[ⱥ]/i,utf
+    ⱥ
+    Ⱥx 
+    Ⱥ 
+
+/Ⱥ/i,utf
+    Ⱥ
+    ⱥ
+    
+# These are tests for extended grapheme clusters  
+
+/^\X/utf,aftertext
+    G\x{34e}\x{34e}X
+    \x{34e}\x{34e}X
+    \x04X
+    \x{1100}X
+    \x{1100}\x{34e}X
+    \x{1b04}\x{1b04}X 
+    *These match up to the roman letters
+    \x{1111}\x{1111}L,L
+    \x{1111}\x{1111}\x{1169}L,L,V
+    \x{1111}\x{ae4c}L, LV
+    \x{1111}\x{ad89}L, LVT
+    \x{1111}\x{ae4c}\x{1169}L, LV, V
+    \x{1111}\x{ae4c}\x{1169}\x{1169}L, LV, V, V
+    \x{1111}\x{ae4c}\x{1169}\x{11fe}L, LV, V, T
+    \x{1111}\x{ad89}\x{11fe}L, LVT, T
+    \x{1111}\x{ad89}\x{11fe}\x{11fe}L, LVT, T, T
+    \x{ad89}\x{11fe}\x{11fe}LVT, T, T
+    *These match just the first codepoint (invalid sequence)
+    \x{1111}\x{11fe}L, T
+    \x{ae4c}\x{1111}LV, L
+    \x{ae4c}\x{ae4c}LV, LV
+    \x{ae4c}\x{ad89}LV, LVT
+    \x{1169}\x{1111}V, L
+    \x{1169}\x{ae4c}V, LV
+    \x{1169}\x{ad89}V, LVT
+    \x{ad89}\x{1111}LVT, L
+    \x{ad89}\x{1169}LVT, V
+    \x{ad89}\x{ae4c}LVT, LV
+    \x{ad89}\x{ad89}LVT, LVT
+    \x{11fe}\x{1111}T, L
+    \x{11fe}\x{1169}T, V
+    \x{11fe}\x{ae4c}T, LV
+    \x{11fe}\x{ad89}T, LVT
+    *Test extend and spacing mark
+    \x{1111}\x{ae4c}\x{0711}L, LV, extend
+    \x{1111}\x{ae4c}\x{1b04}L, LV, spacing mark
+    \x{1111}\x{ae4c}\x{1b04}\x{0711}\x{1b04}L, LV, spacing mark, extend, spacing mark
+    *Test CR, LF, and control
+    \x0d\x{0711}CR, extend
+    \x0d\x{1b04}CR, spacingmark
+    \x0a\x{0711}LF, extend
+    \x0a\x{1b04}LF, spacingmark
+    \x0b\x{0711}Control, extend
+    \x09\x{1b04}Control, spacingmark
+    *There are no Prepend characters, so we can't test Prepend, CR
+    
+/^(?>\X{2})X/utf,aftertext
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+    
+/^\X{2,4}X/utf,aftertext
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}\x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+
+/^\X{2,4}?X/utf,aftertext
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+    \x{1111}\x{ae4c}\x{1111}\x{ae4c}\x{1111}\x{ae4c}\x{1111}\x{ae4c}X
+
+/\X*Z/utf,no_start_optimize
+\= Expect no match
+    A\x{300}
+
+/\X*(.)/utf,no_start_optimize
+    A\x{1111}\x{ae4c}\x{1169}
+
+# --------------------------------------------
+
+/\x{1e9e}+/i,utf
+    \x{1e9e}\x{00df}
+
+/[z\x{1e9e}]+/i,utf
+    \x{1e9e}\x{00df}
+
+/\x{00df}+/i,utf
+    \x{1e9e}\x{00df}
+
+/[z\x{00df}]+/i,utf
+    \x{1e9e}\x{00df}
+
+/\x{1f88}+/i,utf
+    \x{1f88}\x{1f80} 
+
+/[z\x{1f88}]+/i,utf
+    \x{1f88}\x{1f80} 
+    
+# Check a reference with more than one other case
+
+/^(\x{00b5})\1{2}$/i,utf        
+    \x{00b5}\x{039c}\x{03bc} 
+    
+# Characters with more than one other case; test in classes 
+
+/[z\x{00b5}]+/i,utf
+    \x{00b5}\x{039c}\x{03bc}
+
+/[z\x{039c}]+/i,utf
+    \x{00b5}\x{039c}\x{03bc}
+
+/[z\x{03bc}]+/i,utf
+    \x{00b5}\x{039c}\x{03bc}
+
+/[z\x{00c5}]+/i,utf
+    \x{00c5}\x{00e5}\x{212b}
+
+/[z\x{00e5}]+/i,utf
+    \x{00c5}\x{00e5}\x{212b}
+
+/[z\x{212b}]+/i,utf
+    \x{00c5}\x{00e5}\x{212b}
+
+/[z\x{01c4}]+/i,utf
+    \x{01c4}\x{01c5}\x{01c6}
+
+/[z\x{01c5}]+/i,utf
+    \x{01c4}\x{01c5}\x{01c6}
+
+/[z\x{01c6}]+/i,utf
+    \x{01c4}\x{01c5}\x{01c6}
+
+/[z\x{01c7}]+/i,utf
+    \x{01c7}\x{01c8}\x{01c9}
+
+/[z\x{01c8}]+/i,utf
+    \x{01c7}\x{01c8}\x{01c9}
+
+/[z\x{01c9}]+/i,utf
+    \x{01c7}\x{01c8}\x{01c9}
+
+/[z\x{01ca}]+/i,utf
+    \x{01ca}\x{01cb}\x{01cc}
+
+/[z\x{01cb}]+/i,utf
+    \x{01ca}\x{01cb}\x{01cc}
+
+/[z\x{01cc}]+/i,utf
+    \x{01ca}\x{01cb}\x{01cc}
+
+/[z\x{01f1}]+/i,utf
+    \x{01f1}\x{01f2}\x{01f3}
+
+/[z\x{01f2}]+/i,utf
+    \x{01f1}\x{01f2}\x{01f3}
+
+/[z\x{01f3}]+/i,utf
+    \x{01f1}\x{01f2}\x{01f3}
+
+/[z\x{0345}]+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/[z\x{0399}]+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/[z\x{03b9}]+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/[z\x{1fbe}]+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/[z\x{0392}]+/i,utf
+    \x{0392}\x{03b2}\x{03d0}
+
+/[z\x{03b2}]+/i,utf
+    \x{0392}\x{03b2}\x{03d0}
+
+/[z\x{03d0}]+/i,utf
+    \x{0392}\x{03b2}\x{03d0}
+
+/[z\x{0395}]+/i,utf
+    \x{0395}\x{03b5}\x{03f5}
+
+/[z\x{03b5}]+/i,utf
+    \x{0395}\x{03b5}\x{03f5}
+
+/[z\x{03f5}]+/i,utf
+    \x{0395}\x{03b5}\x{03f5}
+
+/[z\x{0398}]+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/[z\x{03b8}]+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/[z\x{03d1}]+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/[z\x{03f4}]+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/[z\x{039a}]+/i,utf
+    \x{039a}\x{03ba}\x{03f0}
+
+/[z\x{03ba}]+/i,utf
+    \x{039a}\x{03ba}\x{03f0}
+
+/[z\x{03f0}]+/i,utf
+    \x{039a}\x{03ba}\x{03f0}
+
+/[z\x{03a0}]+/i,utf
+    \x{03a0}\x{03c0}\x{03d6} 
+
+/[z\x{03c0}]+/i,utf
+    \x{03a0}\x{03c0}\x{03d6} 
+
+/[z\x{03d6}]+/i,utf
+    \x{03a0}\x{03c0}\x{03d6} 
+
+/[z\x{03a1}]+/i,utf
+    \x{03a1}\x{03c1}\x{03f1}
+
+/[z\x{03c1}]+/i,utf
+    \x{03a1}\x{03c1}\x{03f1}
+
+/[z\x{03f1}]+/i,utf
+    \x{03a1}\x{03c1}\x{03f1}
+
+/[z\x{03a3}]+/i,utf
+    \x{03A3}\x{03C2}\x{03C3}
+
+/[z\x{03c2}]+/i,utf
+    \x{03A3}\x{03C2}\x{03C3}
+
+/[z\x{03c3}]+/i,utf
+    \x{03A3}\x{03C2}\x{03C3}
+
+/[z\x{03a6}]+/i,utf
+    \x{03a6}\x{03c6}\x{03d5} 
+
+/[z\x{03c6}]+/i,utf
+    \x{03a6}\x{03c6}\x{03d5} 
+
+/[z\x{03d5}]+/i,utf
+    \x{03a6}\x{03c6}\x{03d5} 
+
+/[z\x{03c9}]+/i,utf
+    \x{03c9}\x{03a9}\x{2126}
+
+/[z\x{03a9}]+/i,utf
+    \x{03c9}\x{03a9}\x{2126}
+
+/[z\x{2126}]+/i,utf
+    \x{03c9}\x{03a9}\x{2126}
+
+/[z\x{1e60}]+/i,utf
+    \x{1e60}\x{1e61}\x{1e9b}
+
+/[z\x{1e61}]+/i,utf
+    \x{1e60}\x{1e61}\x{1e9b}
+
+/[z\x{1e9b}]+/i,utf
+    \x{1e60}\x{1e61}\x{1e9b}
+
+# Perl 5.12.4 gets these wrong, but 5.15.3 is OK 
+
+/[z\x{004b}]+/i,utf
+    \x{004b}\x{006b}\x{212a}
+
+/[z\x{006b}]+/i,utf
+    \x{004b}\x{006b}\x{212a}
+
+/[z\x{212a}]+/i,utf
+    \x{004b}\x{006b}\x{212a}
+
+/[z\x{0053}]+/i,utf
+    \x{0053}\x{0073}\x{017f}
+
+/[z\x{0073}]+/i,utf
+    \x{0053}\x{0073}\x{017f}
+
+/[z\x{017f}]+/i,utf
+    \x{0053}\x{0073}\x{017f}
+    
+# --------------------------------------  
+
+/(ΣΆΜΟΣ) \1/i,utf
+    ΣΆΜΟΣ ΣΆΜΟΣ
+    ΣΆΜΟΣ σάμος
+    σάμος σάμος
+    σάμος σάμοσ
+    σάμος ΣΆΜΟΣ  
+
+/(σάμος) \1/i,utf
+    ΣΆΜΟΣ ΣΆΜΟΣ
+    ΣΆΜΟΣ σάμος
+    σάμος σάμος
+    σάμος σάμοσ
+    σάμος ΣΆΜΟΣ  
+
+/(ΣΆΜΟΣ) \1*/i,utf
+    ΣΆΜΟΣ\x20
+    ΣΆΜΟΣ ΣΆΜΟΣσάμοςσάμος
+
+# Perl matches these 
+
+/\x{00b5}+/i,utf
+    \x{00b5}\x{039c}\x{03bc}
+
+/\x{039c}+/i,utf
+    \x{00b5}\x{039c}\x{03bc}
+
+/\x{03bc}+/i,utf
+    \x{00b5}\x{039c}\x{03bc}
+
+
+/\x{00c5}+/i,utf
+    \x{00c5}\x{00e5}\x{212b}
+
+/\x{00e5}+/i,utf
+    \x{00c5}\x{00e5}\x{212b}
+
+/\x{212b}+/i,utf
+    \x{00c5}\x{00e5}\x{212b}
+
+
+/\x{01c4}+/i,utf
+    \x{01c4}\x{01c5}\x{01c6}
+
+/\x{01c5}+/i,utf
+    \x{01c4}\x{01c5}\x{01c6}
+
+/\x{01c6}+/i,utf
+    \x{01c4}\x{01c5}\x{01c6}
+
+
+/\x{01c7}+/i,utf
+    \x{01c7}\x{01c8}\x{01c9}
+
+/\x{01c8}+/i,utf
+    \x{01c7}\x{01c8}\x{01c9}
+
+/\x{01c9}+/i,utf
+    \x{01c7}\x{01c8}\x{01c9}
+
+
+/\x{01ca}+/i,utf
+    \x{01ca}\x{01cb}\x{01cc}
+
+/\x{01cb}+/i,utf
+    \x{01ca}\x{01cb}\x{01cc}
+
+/\x{01cc}+/i,utf
+    \x{01ca}\x{01cb}\x{01cc}
+
+
+/\x{01f1}+/i,utf
+    \x{01f1}\x{01f2}\x{01f3}
+
+/\x{01f2}+/i,utf
+    \x{01f1}\x{01f2}\x{01f3}
+
+/\x{01f3}+/i,utf
+    \x{01f1}\x{01f2}\x{01f3}
+
+
+/\x{0345}+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/\x{0399}+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/\x{03b9}+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+/\x{1fbe}+/i,utf
+    \x{0345}\x{0399}\x{03b9}\x{1fbe}
+
+
+/\x{0392}+/i,utf
+    \x{0392}\x{03b2}\x{03d0}
+
+/\x{03b2}+/i,utf
+    \x{0392}\x{03b2}\x{03d0}
+
+/\x{03d0}+/i,utf
+    \x{0392}\x{03b2}\x{03d0}
+    
+
+/\x{0395}+/i,utf
+    \x{0395}\x{03b5}\x{03f5}
+
+/\x{03b5}+/i,utf
+    \x{0395}\x{03b5}\x{03f5}
+
+/\x{03f5}+/i,utf
+    \x{0395}\x{03b5}\x{03f5}
+
+
+/\x{0398}+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/\x{03b8}+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/\x{03d1}+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+
+/\x{03f4}+/i,utf
+    \x{0398}\x{03b8}\x{03d1}\x{03f4}
+    
+
+/\x{039a}+/i,utf
+    \x{039a}\x{03ba}\x{03f0}
+
+/\x{03ba}+/i,utf
+    \x{039a}\x{03ba}\x{03f0}
+
+/\x{03f0}+/i,utf
+    \x{039a}\x{03ba}\x{03f0}
+    
+
+/\x{03a0}+/i,utf
+    \x{03a0}\x{03c0}\x{03d6} 
+
+/\x{03c0}+/i,utf
+    \x{03a0}\x{03c0}\x{03d6} 
+
+/\x{03d6}+/i,utf
+    \x{03a0}\x{03c0}\x{03d6} 
+
+
+/\x{03a1}+/i,utf
+    \x{03a1}\x{03c1}\x{03f1}
+
+/\x{03c1}+/i,utf
+    \x{03a1}\x{03c1}\x{03f1}
+
+/\x{03f1}+/i,utf
+    \x{03a1}\x{03c1}\x{03f1}
+
+
+/\x{03a3}+/i,utf
+    \x{03A3}\x{03C2}\x{03C3}
+
+/\x{03c2}+/i,utf
+    \x{03A3}\x{03C2}\x{03C3}
+
+/\x{03c3}+/i,utf
+    \x{03A3}\x{03C2}\x{03C3}
+    
+
+/\x{03a6}+/i,utf
+    \x{03a6}\x{03c6}\x{03d5} 
+
+/\x{03c6}+/i,utf
+    \x{03a6}\x{03c6}\x{03d5} 
+
+/\x{03d5}+/i,utf
+    \x{03a6}\x{03c6}\x{03d5} 
+
+
+/\x{03c9}+/i,utf
+    \x{03c9}\x{03a9}\x{2126}
+
+/\x{03a9}+/i,utf
+    \x{03c9}\x{03a9}\x{2126}
+
+/\x{2126}+/i,utf
+    \x{03c9}\x{03a9}\x{2126}
+    
+
+/\x{1e60}+/i,utf
+    \x{1e60}\x{1e61}\x{1e9b}
+
+/\x{1e61}+/i,utf
+    \x{1e60}\x{1e61}\x{1e9b}
+
+/\x{1e9b}+/i,utf
+    \x{1e60}\x{1e61}\x{1e9b}
+    
+
+/\x{1e9e}+/i,utf
+    \x{1e9e}\x{00df}
+
+/\x{00df}+/i,utf
+    \x{1e9e}\x{00df}
+    
+
+/\x{1f88}+/i,utf
+    \x{1f88}\x{1f80} 
+
+/\x{1f80}+/i,utf
+    \x{1f88}\x{1f80} 
+
+# Perl 5.12.4 gets these wrong, but 5.15.3 is OK 
+
+/\x{004b}+/i,utf
+    \x{004b}\x{006b}\x{212a}
+
+/\x{006b}+/i,utf
+    \x{004b}\x{006b}\x{212a}
+
+/\x{212a}+/i,utf
+    \x{004b}\x{006b}\x{212a}
+
+
+/\x{0053}+/i,utf
+    \x{0053}\x{0073}\x{017f}
+
+/\x{0073}+/i,utf
+    \x{0053}\x{0073}\x{017f}
+
+/\x{017f}+/i,utf
+    \x{0053}\x{0073}\x{017f}
+
+/^\p{Any}*\d{4}/utf
+    1234
+\= Expect no match
+    123 
+
+/^\X*\w{4}/utf
+    1234
+\= Expect no match
+    123  
+
+/^A\s+Z/utf,ucp
+    A\x{2005}Z
+    A\x{85}\x{2005}Z
+
+/^A[\s]+Z/utf,ucp
+    A\x{2005}Z
+    A\x{85}\x{2005}Z
+
+/^[[:graph:]]+$/utf,ucp
+    Letter:ABC
+    Mark:\x{300}\x{1d172}\x{1d17b}
+    Number:9\x{660}
+    Punctuation:\x{66a},;
+    Symbol:\x{6de}<>\x{fffc}
+    Cf-property:\x{ad}\x{600}\x{601}\x{602}\x{603}\x{604}\x{6dd}\x{70f}
+    \x{200b}\x{200c}\x{200d}\x{200e}\x{200f}
+    \x{202a}\x{202b}\x{202c}\x{202d}\x{202e}
+    \x{2060}\x{2061}\x{2062}\x{2063}\x{2064}
+    \x{206a}\x{206b}\x{206c}\x{206d}\x{206e}\x{206f}
+    \x{feff}
+    \x{fff9}\x{fffa}\x{fffb}
+    \x{110bd}
+    \x{1d173}\x{1d174}\x{1d175}\x{1d176}\x{1d177}\x{1d178}\x{1d179}\x{1d17a}
+    \x{e0001}
+    \x{e0020}\x{e0030}\x{e0040}\x{e0050}\x{e0060}\x{e0070}\x{e007f}
+\= Expect no match
+    \x{09}
+    \x{0a}
+    \x{1D}
+    \x{20}
+    \x{85}
+    \x{a0}
+    \x{1680}
+    \x{2028}
+    \x{2029}
+    \x{202f}
+    \x{2065}
+    \x{3000}
+    \x{e0002}
+    \x{e001f}
+    \x{e0080} 
+
+/^[[:print:]]+$/utf,ucp
+    Space: \x{a0}
+    \x{1680}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}
+    \x{2006}\x{2007}\x{2008}\x{2009}\x{200a} 
+    \x{202f}\x{205f} 
+    \x{3000}
+    Letter:ABC
+    Mark:\x{300}\x{1d172}\x{1d17b}
+    Number:9\x{660}
+    Punctuation:\x{66a},;
+    Symbol:\x{6de}<>\x{fffc}
+    Cf-property:\x{ad}\x{600}\x{601}\x{602}\x{603}\x{604}\x{6dd}\x{70f}
+    \x{200b}\x{200c}\x{200d}\x{200e}\x{200f}
+    \x{202a}\x{202b}\x{202c}\x{202d}\x{202e}
+    \x{202f}
+    \x{2060}\x{2061}\x{2062}\x{2063}\x{2064}
+    \x{206a}\x{206b}\x{206c}\x{206d}\x{206e}\x{206f}
+    \x{feff}
+    \x{fff9}\x{fffa}\x{fffb}
+    \x{110bd}
+    \x{1d173}\x{1d174}\x{1d175}\x{1d176}\x{1d177}\x{1d178}\x{1d179}\x{1d17a}
+    \x{e0001}
+    \x{e0020}\x{e0030}\x{e0040}\x{e0050}\x{e0060}\x{e0070}\x{e007f}
+\= Expect no match
+    \x{09}
+    \x{1D}
+    \x{85}
+    \x{2028}
+    \x{2029}
+    \x{2065}
+    \x{e0002}
+    \x{e001f}
+    \x{e0080} 
+
+/^[[:punct:]]+$/utf,ucp
+    \$+<=>^`|~
+    !\"#%&'()*,-./:;?@[\\]_{}
+    \x{a1}\x{a7}  
+    \x{37e} 
+\= Expect no match
+    abcde  
+
+/^[[:^graph:]]+$/utf,ucp
+    \x{09}\x{0a}\x{1D}\x{20}\x{85}\x{a0}\x{1680}
+    \x{2028}\x{2029}\x{202f}\x{2065}
+    \x{3000}\x{e0002}\x{e001f}\x{e0080}
+\= Expect no match
+    Letter:ABC
+    Mark:\x{300}\x{1d172}\x{1d17b}
+    Number:9\x{660}
+    Punctuation:\x{66a},;
+    Symbol:\x{6de}<>\x{fffc}
+    Cf-property:\x{ad}\x{600}\x{601}\x{602}\x{603}\x{604}\x{6dd}\x{70f}
+    \x{200b}\x{200c}\x{200d}\x{200e}\x{200f}
+    \x{202a}\x{202b}\x{202c}\x{202d}\x{202e}
+    \x{2060}\x{2061}\x{2062}\x{2063}\x{2064}
+    \x{206a}\x{206b}\x{206c}\x{206d}\x{206e}\x{206f}
+    \x{feff}
+    \x{fff9}\x{fffa}\x{fffb}
+    \x{110bd}
+    \x{1d173}\x{1d174}\x{1d175}\x{1d176}\x{1d177}\x{1d178}\x{1d179}\x{1d17a}
+    \x{e0001}
+    \x{e0020}\x{e0030}\x{e0040}\x{e0050}\x{e0060}\x{e0070}\x{e007f}
+
+/^[[:^print:]]+$/utf,ucp
+    \x{09}\x{1D}\x{85}\x{2028}\x{2029}\x{2065}
+    \x{e0002}\x{e001f}\x{e0080}
+\= Expect no match
+    Space: \x{a0}
+    \x{1680}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}
+    \x{2006}\x{2007}\x{2008}\x{2009}\x{200a} 
+    \x{202f}\x{205f} 
+    \x{3000}
+    Letter:ABC
+    Mark:\x{300}\x{1d172}\x{1d17b}
+    Number:9\x{660}
+    Punctuation:\x{66a},;
+    Symbol:\x{6de}<>\x{fffc}
+    Cf-property:\x{ad}\x{600}\x{601}\x{602}\x{603}\x{604}\x{6dd}\x{70f}
+    \x{200b}\x{200c}\x{200d}\x{200e}\x{200f}
+    \x{202a}\x{202b}\x{202c}\x{202d}\x{202e}
+    \x{202f}
+    \x{2060}\x{2061}\x{2062}\x{2063}\x{2064}
+    \x{206a}\x{206b}\x{206c}\x{206d}\x{206e}\x{206f}
+    \x{feff}
+    \x{fff9}\x{fffa}\x{fffb}
+    \x{110bd}
+    \x{1d173}\x{1d174}\x{1d175}\x{1d176}\x{1d177}\x{1d178}\x{1d179}\x{1d17a}
+    \x{e0001}
+    \x{e0020}\x{e0030}\x{e0040}\x{e0050}\x{e0060}\x{e0070}\x{e007f}
+
+/^[[:^punct:]]+$/utf,ucp
+    abcde  
+\= Expect no match
+    \$+<=>^`|~
+    !\"#%&'()*,-./:;?@[\\]_{}
+    \x{a1}\x{a7}  
+    \x{37e} 
+
+/[RST]+/i,utf,ucp
+    Ss\x{17f}
+    
+/[R-T]+/i,utf,ucp
+    Ss\x{17f}
+
+/[q-u]+/i,utf,ucp
+    Ss\x{17f}
+
+/^s?c/im,utf
+    scat
+    
+# The next four tests are for repeated caseless back references when the 
+# code unit length of the matched text is different to that of the original
+# group in the UTF-8 case.
+
+/^(\x{23a})\1*(.)/i,utf
+    \x{23a}\x{23a}\x{23a}\x{23a}
+    \x{23a}\x{2c65}\x{2c65}\x{2c65}
+    \x{23a}\x{23a}\x{2c65}\x{23a}
+
+/^(\x{23a})\1*(..)/i,utf
+    \x{23a}\x{2c65}\x{2c65}\x{2c65}
+    \x{23a}\x{23a}\x{2c65}\x{23a}
+
+/^(\x{23a})\1*(...)/i,utf
+    \x{23a}\x{2c65}\x{2c65}\x{2c65}
+    \x{23a}\x{23a}\x{2c65}\x{23a}
+
+/^(\x{23a})\1*(....)/i,utf
+\= Expect no match
+    \x{23a}\x{2c65}\x{2c65}\x{2c65}
+    \x{23a}\x{23a}\x{2c65}\x{23a}
+
+/[A-`]/i,utf
+    abcdefghijklmno
+
+/[\S\V\H]/utf
+
+/[^\p{Any}]*+x/utf
+    x
+
+/[[:punct:]]/utf,ucp
+    \x{b4} 
+
+/[[:^ascii:]]/utf,ucp
+    \x{100}
+    \x{200}
+    \x{300}
+    \x{37e}
+\= Expect no match     
+    aa
+    99
+    
+/[[:^ascii:]\w]/utf,ucp
+    aa
+    99
+    gg
+    \x{100}
+    \x{200}
+    \x{300}
+    \x{37e}
+
+/[\w[:^ascii:]]/utf,ucp
+    aa
+    99
+    gg
+    \x{100}
+    \x{200}
+    \x{300}
+    \x{37e}
+
+/[^[:ascii:]\W]/utf,ucp
+    \x{100}
+    \x{200}
+\= Expect no match     
+    aa
+    99
+    gg
+    \x{37e}
+
+/[^[:^ascii:]\d]/utf,ucp
+    a
+    ~
+    \a
+    \x{7f}
+\= Expect no match
+    0
+    \x{389}
+    \x{20ac}
+
+/(?=.*b)\pL/
+    11bb
+    
+/(?(?=.*b)(?=.*b)\pL|.*c)/
+    11bb
+
+/^\x{123}+?$/utf,no_auto_possess
+    \x{123}\x{123}\x{123}
+
+/^\x{123}+?$/i,utf,no_auto_possess
+    \x{123}\x{122}\x{123}
+\= Expect no match     
+    \x{123}\x{124}\x{123}
+    
+/\N{U+1234}/utf
+    \x{1234}
+
+/[\N{U+1234}]/utf
+    \x{1234}
+    
+# Test the full list of Unicode "Pattern White Space" characters that are to
+# be ignored by /x. The pattern lines below may show up oddly in text editors
+# or when listed to the screen. Note that characters such as U+2002, which are
+# matched as space by \h and \v are *not* "Pattern White Space".
+
+/A‎‏  B/x,utf
+    AB
+
+/A B/x,utf
+    A\x{2002}B
+\= Expect no match
+    AB
+    
+# ------- 
+
+/[^\x{100}-\x{ffff}]*[\x80-\xff]/utf
+    \x{99}\x{99}\x{99}
+
+/[^\x{100}-\x{ffff}ABC]*[\x80-\xff]/utf
+    \x{99}\x{99}\x{99}
+
+/[^\x{100}-\x{ffff}]*[\x80-\xff]/i,utf
+    \x{99}\x{99}\x{99}
+    
+# Script run tests
+
+/^(*script_run:.{4})/utf
+    abcd                               Latin x4
+    \x{2e80}\x{2fa1d}\x{3041}\x{30a1}  Han Han Hiragana Katakana
+    \x{3041}\x{30a1}\x{3007}\x{3007}   Hiragana Katakana Han Han
+    \x{30a1}\x{3041}\x{3007}\x{3007}   Katakana Hiragana Han Han
+    \x{1100}\x{2e80}\x{2e80}\x{1101}   Hangul Han Han Hangul
+    \x{2e80}\x{3105}\x{2e80}\x{3105}   Han Bopomofo Han Bopomofo
+    \x{02ea}\x{2e80}\x{2e80}\x{3105}   Bopomofo-Sk Han Han Bopomofo
+    \x{3105}\x{2e80}\x{2e80}\x{3105}   Bopomofo Han Han Bopomofo
+    \x{0300}cd!                        Inherited Latin Latin Common
+    \x{0391}12\x{03a9}                 Greek Common-digits Greek 
+    \x{0400}12\x{fe2f}                 Cyrillic Common-digits Cyrillic
+    \x{0531}12\x{fb17}                 Armenian Common-digits Armenian
+    \x{0591}12\x{fb4f}                 Hebrew Common-digits Hebrew
+    \x{0600}12\x{1eef1}                Arabic Common-digits Arabic
+    \x{0600}\x{0660}\x{0669}\x{1eef1}  Arabic Arabic-digits Arabic
+    \x{0700}12\x{086a}                 Syriac Common-digits Syriac
+    \x{1200}12\x{ab2e}                 Ethiopic Common-digits Ethiopic
+    \x{1680}12\x{169c}                 Ogham Common-digits Ogham
+    \x{3041}12\x{3041}                 Hiragana Common-digits Hiragana
+    \x{0980}\x{09e6}\x{09e7}\x{0993}   Bengali Bengali-digits Bengali
+    !cde                               Common Latin Latin Latin
+    A..B                               Latin Common Common Latin 
+    0abc                               Ascii-digit Latin Latin Latin
+    1\x{0700}\x{0700}\x{0700}          Ascii-digit Syriac x 3
+    \x{1A80}\x{1A80}\x{1a40}\x{1a41}   Tai Tham Hora digits, letters
+\= Expect no match
+    a\x{370}bcd                        Latin Greek Latin Latin
+    \x{1100}\x{02ea}\x{02ea}\x{02ea}   Hangul Bopomofo x3
+    \x{02ea}\x{02ea}\x{02ea}\x{1100}   Bopomofo x3 Hangul
+    \x{1100}\x{2e80}\x{3041}\x{1101}   Hangul Han Hiragana Hangul
+    \x{0391}\x{09e6}\x{09e7}\x{03a9}   Greek Bengali digits Greek 
+    \x{0600}7\x{0669}\x{1eef1}         Arabic ascii-digit Arabic-digit Arabic
+    \x{0600}\x{0669}7\x{1eef1}         Arabic Arabic-digit ascii-digit Arabic
+    A5\x{ff19}B                        Latin Common-ascii/notascii-digits Latin 
+    \x{0300}cd\x{0391}                 Inherited Latin Latin Greek
+    !cd\x{0391}                        Common Latin Latin Greek
+    \x{1A80}\x{1A90}\x{1a40}\x{1a41}   Tai Tham Hora digit, Tham digit, letters
+    A\x{1d7ce}\x{1d7ff}B               Common fancy-common-2-sets-digits Common
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+    
+/^(*sr:.{4}|..)/utf
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+
+/^(*atomic_script_run:.{4}|..)/utf
+\= Expect no match
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+
+/^(*asr:.*)/utf
+\= Expect no match
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+
+/^(?>(*sr:.*))/utf
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+
+/^(*sr:.*)/utf
+    \x{2e80}\x{3105}\x{2e80}\x{30a1}   Han Bopomofo Han Katakana
+    \x{10fffd}\x{10fffd}\x{10fffd}     Private use (Unknown)
+
+/^(*sr:\x{2e80}*)/utf
+    \x{2e80}\x{2e80}\x{3105}           Han Han Bopomofo
+
+/^(*sr:\x{2e80}*)\x{2e80}/utf
+    \x{2e80}\x{2e80}\x{3105}           Han Han Bopomofo
+    
+/^(*sr:.*)Test/utf
+    Test script run on an empty string
+
+/^(*sr:(.{2})){2}/utf
+    \x{0600}7\x{0669}\x{1eef1}         Arabic ascii-digit Arabic-digit Arabic
+    \x{1A80}\x{1A80}\x{1a40}\x{1a41}   Tai Tham Hora digits, letters
+    \x{1A80}\x{1a40}\x{1A90}\x{1a41}   Tai Tham Hora digit, letter, Tham digit, letter
+\= Expect no match
+    \x{1100}\x{2e80}\x{3041}\x{1101}   Hangul Han Hiragana Hangul
+    
+/^(*sr:\S*)/utf
+    \x{1cf4}\x{20f0}\x{900}\x{11305}   [Dev,Gran,Kan] [Dev,Gran,Lat] Dev Gran
+    \x{1cf4}\x{20f0}\x{11305}\x{900}   [Dev,Gran,Kan] [Dev,Gran,Lat] Gran Dev
+    \x{1cf4}\x{20f0}\x{900}ABC         [Dev,Gran,Kan] [Dev,Gran,Lat] Dev Lat
+    \x{1cf4}\x{20f0}ABC                [Dev,Gran,Kan] [Dev,Gran,Lat] Lat
+    \x{20f0}ABC                        [Dev,Gran,Lat] Lat
+    XYZ\x{20f0}ABC                     Lat [Dev,Gran,Lat] Lat
+    \x{a36}\x{a33}\x{900}              [Dev,...] [Dev,...] Dev  
+    \x{3001}\x{2e80}\x{3041}\x{30a1}   [Bopo, Han, etc] Han Hira Kata
+    \x{3001}\x{30a1}\x{2e80}\x{3041}   [Bopo, Han, etc] Kata Han Hira
+    \x{3001}\x{3105}\x{2e80}\x{1101}   [Bopo, Han, etc] Bopomofo Han Hangul
+    \x{3105}\x{3001}\x{2e80}\x{1101}   Bopomofo [Bopo, Han, etc] Han Hangul
+    \x{3031}\x{3041}\x{30a1}\x{2e80}   [Hira Kata] Hira Kata Han
+    \x{060c}\x{06d4}\x{0600}\x{10d00}\x{0700}  [Arab Rohg Syrc Thaa] [Arab Rohg] Arab Rohg Syrc
+    \x{060c}\x{06d4}\x{0700}\x{0600}\x{10d00}  [Arab Rohg Syrc Thaa] [Arab Rohg] Syrc Arab Rohg
+    \x{2e80}\x{3041}\x{3001}\x{3031}\x{2e80}   Han Hira [Bopo, Han, etc] [Hira Kata] Han
+
+/(?<!)(*sr:)/
+
+/(?<!X(*sr:B)C)/
+
+/(?<=abc(?=X(*sr:BCY)Z)XBCYZ)./
+    abcXBCYZ!
+
+/(?<=abc(?=X(*sr:BXY)CCC)XBXYCCC)./
+   abcXBXYCCC!
+
+/^(*sr:\S*)/utf
+    \x{10d00}\x{10d00}\x{06d4}     Rohingya Rohingya Arabic-full-stop
+    \x{06d4}\x{10d00}\x{10d00}     Arabic-full-stop Rohingya Rohingya
+    \x{10d00}\x{10d00}\x{0363}     Rohingya Rohingya Inherited-extend-Latin
+    \x{0363}\x{10d00}\x{10d00}     Inherited-extend-Latin Rohingya Rohingya
+    AB\x{0363}                     Latin Latin Inherited-extend-Latin
+    \x{0363}AB                     Inherited-extend-Latin Latin Latin
+    AB\x{1cf7}                     Latin Latin Common-extended-Beng
+    \x{1cf7}AB                     Common-extend-Beng Latin Latin
+    \x{1cf7}\x{0993}               Common-extend-Beng Bengali
+    A\x{1abe}BC                    Test enclosing mark
+    \x{0370}\x{1abe}\x{0371}       Which can occur with any script (Greek here)
+    \x{3001}\x{adf9}\x{3001}       [.. Hangul ..] Hangul [.. Hangul ..]
+    \x{3400}\x{3001}XXX            Han [Han etc.]
+    \x{3400}\x{1cd5}               Han [Bengali Devanagari]
+    \x{ac01}\x{3400}               Hangul [.. Hangul ..]
+    \x{ac01}\x{1cd5}               Hangul [Bengali Devanagari]
+    \x{102e0}\x{06d4}\x{1ee4d}     [Arabic Coptic] [Arab Rohingya] Arabic
+    \x{102e0}\x{06d4}\x{2cc9}      [Arabic Coptic] [Arab Rohingya] Coptic
+    \x{102e0}\x{06d4}\x{10d30}     [Arabic Coptic] [Arab Rohingya] Rohingya
+    
+# Test loop breaking for empty string match
+
+/^(*sr:A|)*BCD/utf
+    AABCD
+    ABCD
+    BCD 
+    
+# The use of (*ACCEPT) breaks script run checking 
+
+/^(*sr:.*(*ACCEPT)ZZ)/utf
+    \x{1100}\x{2e80}\x{3041}\x{1101}   Hangul Han Hiragana Hangul
+
+# ------- 
+
+# Test group names containing non-ASCII letters and digits
+
+/(?'ABáC'...)\g{ABáC}/utf
+    abcabcdefg
+
+/(?'XʰABC'...)/utf
+    xyzpq
+
+/(?'XאABC'...)/utf
+    12345
+
+/(?'XᾈABC'...)/utf
+    %^&*(...
+
+/(?'𐨐ABC'...)/utf
+    abcde
+
+/^(?'אABC'...)(?&אABC)(?P=אABC)/utf
+    123123123456
+
+/^(?'אABC'...)(?&אABC)/utf
+    123123123456
+
+/\X*/
+    \xF3aaa\xE4\xEA\xEB\xFEa
+
+/Я/i,utf
+    \x{42f} 
+    \x{44f} 
+
+/(?=Я)/i,utf
+    \x{42f} 
+    \x{44f} 
+
+# End of testinput4
