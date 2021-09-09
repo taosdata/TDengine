@@ -132,7 +132,7 @@ taos>
 
 **Windows (x64/x86) environment:**
 
-Under cmd, enter the c:\ tdengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
+Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
 
 ```mysql
   C:\TDengine>taos     
