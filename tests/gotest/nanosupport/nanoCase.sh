@@ -16,6 +16,7 @@ script_dir="$(dirname $(readlink -f $0))"
 cd $script_dir
 rm -f go.*
 go mod init nano
-go build 
-sleep 1s
+go mod tidy
+go build
+sleep 10s
 ./nano -h $1 -p $2
