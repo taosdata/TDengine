@@ -79,8 +79,8 @@ if $rows != 1 then
   return -1
 endi  
 
-sql create table wrong_type(ts timestamp, c0 tinyint, c1 smallint, c2 int, c3 bigint, c4 float, c5 double, c6 bool) tags(t0 tinyint, t1 smallint, t2 int, t3 bigint, t4 float, t5 double, t6 bool)
-sql insert into wrong_type_1 using wrong_type tags(1, 2, 3, 4, 5, 6, true) values(now, 1, 2, 3, 4, 5, 6, false) 
+sql create table wrong_type(ts timestamp, c0 tinyint, c1 smallint, c2 int, c3 bigint, c4 float, c5 double, c6 bool, c7 nchar(20)) tags(t0 tinyint, t1 smallint, t2 int, t3 bigint, t4 float, t5 double, t6 bool, t7 nchar(10))
+sql insert into wrong_type_1 using wrong_type tags(1, 2, 3, 4, 5, 6, true, 'notsupport') values(now, 1, 2, 3, 4, 5, 6, false, 'notsupport') 
 sql_error select * from wrong_type where ts match '.*'
 sql_error select * from wrong_type where ts nmatch '.*'
 sql_error select * from wrong_type where c0 match '.*'
@@ -94,19 +94,25 @@ sql_error select * from wrong_type where c3 nmatch '.*'
 sql_error select * from wrong_type where c4 match '.*'
 sql_error select * from wrong_type where c4 nmatch '.*'
 sql_error select * from wrong_type where c5 match '.*'
+sql_error select * from wrong_type where c5 nmatch '.*'
+sql_error select * from wrong_type where c6 match '.*'
 sql_error select * from wrong_type where c6 nmatch '.*'
+sql_error select * from wrong_type where c7 match '.*'
+sql_error select * from wrong_type where c7 nmatch '.*'
 sql_error select * from wrong_type where t1 match '.*'
 sql_error select * from wrong_type where t1 nmatch '.*'
 sql_error select * from wrong_type where t2 match '.*'
-sql_error select * from wrong_type where t2 match '.*'
+sql_error select * from wrong_type where t2 nmatch '.*'
 sql_error select * from wrong_type where t3 match '.*'
-sql_error select * from wrong_type where t3 match '.*'
+sql_error select * from wrong_type where t3 nmatch '.*'
 sql_error select * from wrong_type where t4 match '.*'
-sql_error select * from wrong_type where t4 match '.*'
+sql_error select * from wrong_type where t4 nmatch '.*'
+sql_error select * from wrong_type where t5 match '.*'
 sql_error select * from wrong_type where t5 nmatch '.*'
-sql_error select * from wrong_type where t5 nmatch '.*'
+sql_error select * from wrong_type where t6 match '.*'
 sql_error select * from wrong_type where t6 nmatch '.*'
-sql_error select * from wrong_type where t6 nmatch '.*'
+sql_error select * from wrong_type where t7 match '.*'
+sql_error select * from wrong_type where t7 nmatch '.*'
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
