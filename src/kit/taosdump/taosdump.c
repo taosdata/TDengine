@@ -62,6 +62,20 @@ typedef struct {
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
 
+static bool isStringNumber(char *input)
+{
+    int len = strlen(input);
+    if (0 == len) {
+        return false;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (!isdigit(input[i]))
+            return false;
+    }
+
+    return true;
+}
 
 // -------------------------- SHOW DATABASE INTERFACE-----------------------
 enum _show_db_index {
@@ -211,16 +225,15 @@ static struct argp_option options[] = {
     {"password", 'p', 0,    0,  "User password to connect to server. Default is taosdata.", 0},
 #endif
     {"port", 'P', "PORT",        0,  "Port to connect", 0},
-    {"cversion",      'v', "CVERION",     0,  "client version", 0},
     {"mysqlFlag",     'q', "MYSQLFLAG",   0,  "mysqlFlag, Default is 0", 0},
     // input/output file
     {"outpath", 'o', "OUTPATH",     0,  "Output file path.", 1},
     {"inpath", 'i', "INPATH",      0,  "Input file path.", 1},
     {"resultFile", 'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.", 1},
 #ifdef _TD_POWER_
-    {"config", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
 #else
-    {"config", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
 #endif
     {"encode", 'e', "ENCODE", 0,  "Input file encoding.", 1},
     // dump unit options
@@ -230,7 +243,7 @@ static struct argp_option options[] = {
     // dump format options
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
-    {"avro", 'V', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
+    {"avro", 'v', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
     {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00:000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
     {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
 #if TSDB_SUPPORT_NANOSECOND == 1
@@ -243,21 +256,16 @@ static struct argp_option options[] = {
     {"table-batch", 't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
     {"thread_num",  'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.", 3},
     {"debug",   'g', 0, 0,  "Print debug info.",    8},
-    {"verbose", 'b', 0, 0,  "Print verbose debug info.", 9},
-    {"performanceprint", 'm', 0, 0,  "Print performance debug info.", 10},
     {0}
 };
-
-#define MAX_PASSWORD_SIZE   20
 
 /* Used by main to communicate with parse_opt. */
 typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char    password[MAX_PASSWORD_SIZE];
+    char    password[SHELL_MAX_PASSWORD_LEN];
     uint16_t port;
-    char     cversion[12];
     uint16_t mysqlFlag;
     // output file
     char     outpath[MAX_FILE_NAME_LEN];
@@ -328,7 +336,6 @@ struct arguments g_args = {
     "taosdata",
 #endif
     0,
-    "",
     0,
     // outpath and inpath
     "",
@@ -360,6 +367,24 @@ struct arguments g_args = {
     false       // performance_print
 };
 
+static void errorPrintReqArg2(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option requires a number argument '-%s'\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+}
+
+static void errorPrintReqArg3(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option '%s' requires an argument\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+}
+
 /* Parse a single option. */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     /* Get the input argument from argp_parse, which we
@@ -380,20 +405,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'p':
             break;
         case 'P':
+            if (!isStringNumber(arg)) {
+                errorPrintReqArg2("taosdump", "P");
+                exit(EXIT_FAILURE);
+            }
             g_args.port = atoi(arg);
             break;
         case 'q':
             g_args.mysqlFlag = atoi(arg);
             break;
-        case 'v':
-            if (wordexp(arg, &full_path, 0) != 0) {
-                errorPrint("Invalid client vesion %s\n", arg);
-                return -1;
-            }
-            tstrncpy(g_args.cversion, full_path.we_wordv[0], 11);
-            wordfree(&full_path);
-            break;
-            // output file path
         case 'o':
             if (wordexp(arg, &full_path, 0) != 0) {
                 errorPrint("Invalid path %s\n", arg);
@@ -420,9 +440,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.resultFile = arg;
             break;
         case 'c':
+            if (0 == strlen(arg)) {
+                errorPrintReqArg3("taosdump", "-c or --config-dir");
+                exit(EXIT_FAILURE);
+            }
             if (wordexp(arg, &full_path, 0) != 0) {
                 errorPrint("Invalid path %s\n", arg);
-                return -1;
+                exit(EXIT_FAILURE);
             }
             tstrncpy(configDir, full_path.we_wordv[0], MAX_FILE_NAME_LEN);
             wordfree(&full_path);
@@ -432,7 +456,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
             // dump unit option
         case 'A':
-            g_args.all_databases = true;
             break;
         case 'D':
             g_args.databases = true;
@@ -444,7 +467,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'N':
             g_args.with_property = false;
             break;
-        case 'V':
+        case 'v':
             g_args.avro = true;
             break;
         case 'S':
@@ -477,6 +500,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.table_batch = atoi(arg);
             break;
         case 'T':
+            if (!isStringNumber(arg)) {
+                errorPrint("%s", "\n\t-T need a number following!\n");
+                exit(EXIT_FAILURE);
+            }
             g_args.thread_num = atoi(arg);
             break;
         case OPT_ABORT:
@@ -555,20 +582,37 @@ static void parse_precision_first(
     }
 }
 
-static void parse_password(
+static void parse_args(
         int argc, char *argv[], SArguments *arguments) {
+
     for (int i = 1; i < argc; i++) {
-        if (strncmp(argv[i], "-p", 2) == 0) {
-            if (strlen(argv[i]) == 2) {
+        if ((strncmp(argv[i], "-p", 2) == 0)
+              || (strncmp(argv[i], "--password", 10) == 0)) {
+            if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
+                taosSetConsoleEcho(false);
                 if(scanf("%20s", arguments->password) > 1) {
                     errorPrint("%s() LN%d, password read error!\n", __func__, __LINE__);
                 }
+                taosSetConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+                tstrncpy(arguments->password, (char *)(argv[i] + 2),
+                        SHELL_MAX_PASSWORD_LEN);
+                strcpy(argv[i], "-p");
             }
-            argv[i] = "";
+        } else if (strcmp(argv[i], "-gg") == 0) {
+            arguments->verbose_print = true;
+            strcpy(argv[i], "");
+        } else if (strcmp(argv[i], "-PP") == 0) {
+            arguments->performance_print = true;
+            strcpy(argv[i], "");
+        } else if (strcmp(argv[i], "-A") == 0) {
+            g_args.all_databases = true;
+        } else {
+            continue;
         }
+
     }
 }
 
@@ -630,6 +674,9 @@ static void parse_timestamp(
 }
 
 int main(int argc, char *argv[]) {
+    static char verType[32] = {0};
+    sprintf(verType, "version: %s\n", version);
+    argp_program_version = verType;
 
     int ret = 0;
     /* Parse our arguments; every option seen by parse_opt will be
@@ -637,7 +684,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         parse_precision_first(argc, argv, &g_args);
         parse_timestamp(argc, argv, &g_args);
-        parse_password(argc, argv, &g_args);
+        parse_args(argc, argv, &g_args);
     }
 
     argp_parse(&argp, argc, argv, 0, 0, &g_args);
@@ -656,7 +703,6 @@ int main(int argc, char *argv[]) {
         printf("user: %s\n", g_args.user);
         printf("password: %s\n", g_args.password);
         printf("port: %u\n", g_args.port);
-        printf("cversion: %s\n", g_args.cversion);
         printf("mysqlFlag: %d\n", g_args.mysqlFlag);
         printf("outpath: %s\n", g_args.outpath);
         printf("inpath: %s\n", g_args.inpath);
@@ -685,11 +731,6 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("==============================\n");
-
-    if (g_args.cversion[0] != 0){
-        tstrncpy(version, g_args.cversion, 11);
-    }
-
     if (taosCheckParam(&g_args) < 0) {
         exit(EXIT_FAILURE);
     }
@@ -707,7 +748,6 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "user: %s\n", g_args.user);
         fprintf(g_fpOfResult, "password: %s\n", g_args.password);
         fprintf(g_fpOfResult, "port: %u\n", g_args.port);
-        fprintf(g_fpOfResult, "cversion: %s\n", g_args.cversion);
         fprintf(g_fpOfResult, "mysqlFlag: %d\n", g_args.mysqlFlag);
         fprintf(g_fpOfResult, "outpath: %s\n", g_args.outpath);
         fprintf(g_fpOfResult, "inpath: %s\n", g_args.inpath);

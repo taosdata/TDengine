@@ -221,3 +221,5 @@ run general/stream/table_replica1_vnoden.sim
 run general/stream/metrics_replica1_vnoden.sim
 run general/db/show_create_db.sim
 run general/db/show_create_table.sim
+run general/parser/like.sim
+run general/parser/regex.sim

@@ -35,7 +35,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 - Linux操作系统的服务器
-- 安装好Golang, 1.10版本以上
+- 安装好Golang，1.10版本以上
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
@@ -48,13 +48,15 @@ go build
 
 ### 安装Prometheus
 
-通过Prometheus的官网下载安装。[下载地址](https://prometheus.io/download/)
+通过Prometheus的官网下载安装。具体请见：[下载地址](https://prometheus.io/download/)。
 
 ### 配置Prometheus
 
-参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)，在Prometheus的配置文件中的<remote_write>部分，增加以下配置
+参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)，在Prometheus的配置文件中的<remote_write>部分，增加以下配置：
 
-- url: bailongma API服务提供的URL，参考下面的blm_prometheus启动示例章节
+```
+  - url: "bailongma API服务提供的URL"（参考下面的blm_prometheus启动示例章节）
+```
 
 启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
 
@@ -62,7 +64,7 @@ go build
 blm_prometheus程序有以下选项，在启动blm_prometheus程序时可以通过设定这些选项来设定blm_prometheus的配置。
 ```bash
 --tdengine-name
-如果TDengine安装在一台具备域名的服务器上，也可以通过配置TDengine的域名来访问TDengine。在K8S环境下，可以配置成TDengine所运行的service name
+如果TDengine安装在一台具备域名的服务器上，也可以通过配置TDengine的域名来访问TDengine。在K8S环境下，可以配置成TDengine所运行的service name。
 
 --batch-size
 blm_prometheus会将收到的prometheus的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
@@ -71,10 +73,10 @@ blm_prometheus会将收到的prometheus的数据拼装成TDengine的写入请求
 设置在TDengine中创建的数据库名称，blm_prometheus会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
 
 --dbuser
-设置访问TDengine的用户名，缺省值是'root'
+设置访问TDengine的用户名，缺省值是'root'。
 
 --dbpassword
-设置访问TDengine的密码，缺省值是'taosdata'
+设置访问TDengine的密码，缺省值是'taosdata'。
 
 --port
 blm_prometheus对prometheus提供服务的端口号。
@@ -125,7 +127,7 @@ select * from apiserver_request_latencies_bucket;
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 
 - Linux操作系统的服务器
-- 安装好Golang, 1.10版本以上
+- 安装好Golang，1.10版本以上
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_telegraf，存放了Telegraf的写入API程序。编译过程如下：
@@ -139,7 +141,7 @@ go build
 
 ### 安装Telegraf
 
-目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads
+目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads 。
 
 ### 配置Telegraf
 
@@ -153,7 +155,7 @@ go build
 
 在agent部分：
 
-- hostname: 区分不同采集设备的机器名称，需确保其唯一性
+- hostname: 区分不同采集设备的机器名称，需确保其唯一性。
 - metric_batch_size: 100，允许Telegraf每批次写入记录最大数量，增大其数量可以降低Telegraf的请求发送频率。
 
 关于如何使用Telegraf采集数据以及更多有关使用Telegraf的信息，请参考Telegraf官方的[文档](https://docs.influxdata.com/telegraf/v1.11/)。
@@ -163,7 +165,7 @@ blm_telegraf程序有以下选项，在启动blm_telegraf程序时可以通过�
 
 ```bash
 --host
-TDengine服务端的IP地址，缺省值为空
+TDengine服务端的IP地址，缺省值为空。
 
 --batch-size
 blm_telegraf会将收到的telegraf的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
@@ -172,10 +174,10 @@ blm_telegraf会将收到的telegraf的数据拼装成TDengine的写入请求，�
 设置在TDengine中创建的数据库名称，blm_telegraf会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
 
 --dbuser
-设置访问TDengine的用户名，缺省值是'root'
+设置访问TDengine的用户名，缺省值是'root'。
 
 --dbpassword
-设置访问TDengine的密码，缺省值是'taosdata'
+设置访问TDengine的密码，缺省值是'taosdata'。
 
 --port
 blm_telegraf对telegraf提供服务的端口号。
@@ -183,12 +185,12 @@ blm_telegraf对telegraf提供服务的端口号。
 
 ### 启动示例
 
-通过以下命令启动一个blm_telegraf的API服务
+通过以下命令启动一个blm_telegraf的API服务：
 ```bash
 ./blm_telegraf -host 127.0.0.1 -port 8089
 ```
 
-假设blm_telegraf所在服务器的IP地址为"10.1.2.3"，则在telegraf的配置文件中, 在output plugins部分，增加[[outputs.http]]配置项： 
+假设blm_telegraf所在服务器的IP地址为"10.1.2.3"，则在telegraf的配置文件中, 在output plugins部分，增加[[outputs.http]]配置项：
 
 ```yaml
 url = "http://10.1.2.3:8089/telegraf"
