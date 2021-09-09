@@ -79,13 +79,13 @@ Query OK, 1 row(s) in set (0.006385s)
 taos>
 ```
 
-上述命令里，可以看到这个刚启动的这个数据节点的End Point是：h1.taos.com:6030，就是这个新集群的firstEP。
+上述命令里，可以看到这个刚启动的这个数据节点的End Point是：h1.taos.com:6030，就是这个新集群的firstEp。
 
 ## <a class="anchor" id="node-other"></a>启动后续数据节点
 
 将后续的数据节点添加到现有集群，具体有以下几步：
 
-1. 按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章的方法在每个物理节点启动taosd；（注意：每个物理节点都需要在 taos.cfg 文件中将 firstEP 参数配置为新集群首个节点的 End Point——在本例中是 h1.taos.com:6030）
+1. 按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章的方法在每个物理节点启动taosd；（注意：每个物理节点都需要在 taos.cfg 文件中将 firstEp参数配置为新集群首个节点的 End Point——在本例中是 h1.taos.com:6030）
 
 2. 在第一个数据节点，使用CLI程序taos，登录进TDengine系统，执行命令：
 
@@ -110,7 +110,7 @@ taos>
 
 **提示：**
 
-- 任何已经加入集群在线的数据节点，都可以作为后续待加入节点的 firstEP。
+- 任何已经加入集群在线的数据节点，都可以作为后续待加入节点的 firstEp。
 - firstEp 这个参数仅仅在该数据节点首次加入集群时有作用，加入集群后，该数据节点会保存最新的 mnode 的 End Point 列表，不再依赖这个参数。
   - 接下来，配置文件中的 firstEp 参数就主要在客户端连接的时候使用了，例如 taos shell 如果不加参数，会默认连接由 firstEp 指定的节点。
 - 两个没有配置 firstEp 参数的数据节点 dnode 启动后，会独立运行起来。这个时候，无法将其中一个数据节点加入到另外一个数据节点，形成集群。**无法将两个独立的集群合并成为新的集群**。
@@ -119,9 +119,14 @@ taos>
 
 上面已经介绍如何从零开始搭建集群。集群组建完后，还可以随时添加新的数据节点进行扩容，或删除数据节点，并检查集群当前状态。
 
+
+**提示：**
+
+- 以下所有执行命令的操作需要先登陆进TDengine系统，必要时请使用root权限。
+
 ### 添加数据节点
 
-执行CLI程序taos，使用root账号登录进系统，执行：
+执行CLI程序taos，执行：
 
 ```
 CREATE DNODE "fqdn:port"; 
@@ -131,7 +136,7 @@ CREATE DNODE "fqdn:port";
 
 ### 删除数据节点
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 
 ```mysql
 DROP DNODE "fqdn:port | dnodeID";
@@ -153,7 +158,7 @@ DROP DNODE "fqdn:port | dnodeID";
 
 手动将某个vnode迁移到指定的dnode。
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 
 ```mysql
 ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
@@ -169,7 +174,7 @@ ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
 
 ### 查看数据节点
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 ```mysql
 SHOW DNODES;
 ```
@@ -180,8 +185,9 @@ SHOW DNODES;
 
 为充分利用多核技术，并提供scalability，数据需要分片处理。因此TDengine会将一个DB的数据切分成多份，存放在多个vnode里。这些vnode可能分布在多个数据节点dnode里，这样就实现了水平扩展。一个vnode仅仅属于一个DB，但一个DB可以有多个vnode。vnode的是mnode根据当前系统资源的情况，自动进行分配的，无需任何人工干预。
 
-执行CLI程序taos，使用root账号登录进TDengine系统，执行：
+执行CLI程序taos，执行：
 ```mysql
+USE SOME_DATABASE;
 SHOW VGROUPS;
 ```
 

@@ -23,7 +23,7 @@ import string
 from requests.auth import HTTPBasicAuth
 func_list=['avg','count','twa','sum','stddev','leastsquares','min',
 'max','first','last','top','bottom','percentile','apercentile',
-'last_row','diff','spread']
+'last_row','diff','spread','distinct']
 condition_list=[
     "where _c0 > now -10d ",
     'interval(10s)',
@@ -33,7 +33,7 @@ condition_list=[
     'fill(null)'
     
 ]
-where_list = ['_c0>now-10d',' <50','like',' is null']
+where_list = ['_c0>now-10d',' <50','like',' is null','in']
 class ConcurrentInquiry:
     # def __init__(self,ts=1500000001000,host='127.0.0.1',user='root',password='taosdata',dbname='test',
     #             stb_prefix='st',subtb_prefix='t',n_Therads=10,r_Therads=10,probabilities=0.05,loop=5,
@@ -152,6 +152,20 @@ class ConcurrentInquiry:
             elif 'is null' in c:
                 conlist = ' ' + random.choice(tlist) + random.choice([' is null',' is not null'])
                 l.append(conlist) 
+            elif 'in' in c:
+                in_list = []
+                temp = []
+                for i in range(random.randint(0,100)):
+                    temp.append(random.randint(-10000,10000))
+                temp = (str(i) for i in temp)
+                in_list.append(temp)
+                temp1 = []
+                for i in range(random.randint(0,100)):
+                    temp1.append("'" + ''.join(random.sample(string.ascii_letters, random.randint(0,10))) + "'")
+                in_list.append(temp1)  
+                in_list.append(['NULL','NULL'])
+                conlist = ' ' + random.choice(tlist) +  ' in (' + ','.join(random.choice(in_list)) + ')'
+                l.append(conlist)
             else:
                 s_all = string.ascii_letters
                 conlist = ' ' + random.choice(tlist) + " like \'%" + random.choice(s_all) + "%\' " 
@@ -182,7 +196,14 @@ class ConcurrentInquiry:
 
     def con_order(self,tlist,col_list,tag_list):
         return 'order by '+random.choice(tlist)
-    
+
+    def con_state_window(self,tlist,col_list,tag_list):
+        return 'state_window(' + random.choice(tlist + tag_list) + ')'
+
+    def con_session_window(self,tlist,col_list,tag_list):
+        session_window = 'session_window(' + random.choice(tlist + tag_list) + ',' + str(random.randint(0,20)) + random.choice(['a','s','d','w','n','y']) + ')'
+        return session_window
+
     def gen_subquery_sql(self):
         subsql ,col_num = self.gen_query_sql(1)
         if col_num == 0:
@@ -221,7 +242,7 @@ class ConcurrentInquiry:
         else: 
             sql=sql+','.join(sel_col_list)         #select col & func
         sql = sql + ' from ('+ subsql +') ' 
-        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
+        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill,self.con_state_window,self.con_session_window]
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
         for i in sel_con:
@@ -281,7 +302,7 @@ class ConcurrentInquiry:
             sql = sql + ' from '+random.choice(self.subtb_list)+' '
         else:
             sql = sql + ' from '+random.choice(self.stb_list)+' ' 
-        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
+        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill,self.con_state_window,self.con_session_window]
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
         for i in sel_con:

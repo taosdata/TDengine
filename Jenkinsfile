@@ -234,11 +234,12 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
+              node test1970.js
               '''
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
                 mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo
+                echo '' |./taosdemo -c /etc/taos
               '''
               sh '''
                 cd ${WKC}/tests/gotest
@@ -256,13 +257,11 @@ pipeline {
           
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                timeout(time: 60, unit: 'MINUTES'){
-                  sh '''
-                  cd ${WKC}/tests/pytest
-                  ./crash_gen.sh -a -p -t 4 -s 2000
-                  '''
-                }
+            timeout(time: 60, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests/pytest
+              ./crash_gen.sh -a -p -t 4 -s 2000
+              '''
             }
             timeout(time: 60, unit: 'MINUTES'){
               // sh '''
