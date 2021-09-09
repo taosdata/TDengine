@@ -3616,8 +3616,6 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
     for(int32_t i = 0; i < size; ++i) {
       STableKeyInfo *pKeyInfo = taosArrayGet(pTableList, i);
-      assert(((STable*)pKeyInfo->pTable)->type == TSDB_CHILD_TABLE);
-
       tsdbRefTable(pKeyInfo->pTable);
 
       STableKeyInfo info = {.pTable = pKeyInfo->pTable, .lastKey = skey};
