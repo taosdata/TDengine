@@ -1039,7 +1039,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines0, 3);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines0 code: %d, %s.\n", code, tstrerror(code));
   }
 
   /* timestamp */
@@ -1053,7 +1053,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines1, 6);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines1 code: %d, %s.\n", code, tstrerror(code));
   }
 
   /* metric value */
@@ -1064,7 +1064,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_0, 2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_0 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //smallint
@@ -1074,7 +1074,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_1, 2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_1 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //int
@@ -1084,7 +1084,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_2, 2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_2 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //bigint
@@ -1094,7 +1094,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_3, 2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_3 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //float
@@ -1113,7 +1113,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_4, 11);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_4 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //double
@@ -1131,7 +1131,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_5, 10);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_5 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //bool
@@ -1149,7 +1149,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_6, 10);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_6 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //binary
@@ -1160,7 +1160,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_7, 3);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_7 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //nchar
@@ -1170,7 +1170,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines2_8, 2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines2_8 code: %d, %s.\n", code, tstrerror(code));
   }
 
   /* tags */
@@ -1181,7 +1181,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines3_0, 2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines3_0 code: %d, %s.\n", code, tstrerror(code));
   }
 
   //tag ID as child table name
@@ -1192,7 +1192,7 @@ void verify_telnet_insert(TAOS* taos) {
   };
   code = taos_insert_telnet_lines(taos, lines3_1, 3);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("lines3_1 code: %d, %s.\n", code, tstrerror(code));
   }
 
   return;
@@ -1226,7 +1226,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, message);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload_0 code: %d, %s.\n", code, tstrerror(code));
   }
 
   char *message1 =
@@ -1257,7 +1257,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, message1);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload_1 code: %d, %s.\n", code, tstrerror(code));
   }
 
   char *message2 =
@@ -1308,7 +1308,7 @@ void verify_json_insert(TAOS* taos) {
    ]";
   code = taos_insert_json_payload(taos, message2);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload_2 code: %d, %s.\n", code, tstrerror(code));
   }
 
 
@@ -1332,7 +1332,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload0_0 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1353,7 +1353,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload0_1 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1374,7 +1374,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload0_2 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1395,7 +1395,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload0_3 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1416,7 +1416,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload0_4 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1440,7 +1440,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload0_5 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1469,7 +1469,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload1_0 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1495,7 +1495,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload1_1 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1521,7 +1521,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload1_2 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1547,7 +1547,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload1_3 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1573,7 +1573,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload1_4 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1605,7 +1605,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_0 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1635,7 +1635,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_1 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1665,7 +1665,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_2 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1695,7 +1695,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_3 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1725,7 +1725,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_4 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1755,7 +1755,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_5 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1785,7 +1785,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_6 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1815,7 +1815,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_7 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1845,7 +1845,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload2_8 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
@@ -1925,7 +1925,7 @@ void verify_json_insert(TAOS* taos) {
 
   code = taos_insert_json_payload(taos, payload_str);
   if (code) {
-    printf("code: %d, %s.\n", code, tstrerror(code));
+    printf("payload3_0 code: %d, %s.\n", code, tstrerror(code));
   }
   free(payload_str);
   cJSON_Delete(payload);
