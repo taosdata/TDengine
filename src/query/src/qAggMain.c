@@ -30,6 +30,7 @@
 #include "qUdf.h"
 #include "queryLog.h"
 
+
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
 
@@ -290,7 +291,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_APERCT) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1) + sizeof(SHistogramInfo) + sizeof(SAPercentileInfo);
+      int16_t bytesHist = sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1) + sizeof(SHistogramInfo) + sizeof(SAPercentileInfo);
+      int16_t bytesDigest = sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION);
+      *bytes = MAX(bytesHist, bytesDigest);
       *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
@@ -2312,9 +2315,9 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo *
   SET_DOUBLE_VAL(&pInfo->minval, DBL_MAX);
   SET_DOUBLE_VAL(&pInfo->maxval, -DBL_MAX);
   pInfo->numOfElems = 0;
-
   return true;
 }
+
 
 static void percentile_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
@@ -2360,7 +2363,7 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
         SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
-      pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
+      pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);      
     } else {
       for (int32_t i = 0; i < pCtx->size; ++i) {
         char *data = GET_INPUT_DATA(pCtx, i);
@@ -2382,7 +2385,6 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
         pInfo->numOfElems += 1;
       }
     }
-
     return;
   }
 
@@ -2403,6 +2405,7 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
 
 static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   double v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+  double result = 0;
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *   ppInfo = (SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo);
@@ -2412,7 +2415,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
     assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
-    SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
+    result = getPercentile(pMemBucket, v);
+    SET_DOUBLE_VAL((double *)pCtx->pOutput, result);
   }
 
   tMemBucketDestroy(pMemBucket);
@@ -2450,13 +2454,9 @@ static bool tdigest_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo *pResultInfo)
   }
   
   // new TDigest
-  SAPercentileInfo *pAPerc = getAPerctInfo(pCtx);
-  int compression = 500;
-  if(pAPerc) {
-    if(pAPerc->pTDigest == NULL) {
-      pAPerc->pTDigest = tdigestNew(compression);
-    }
-  }
+  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
+  pInfo->pTDigest = tdigestNewFrom(tmp, COMPRESSION);
   return true;
 }
 
@@ -2502,10 +2502,23 @@ static void tdigest_do(SQLFunctionCtx *pCtx) {
 static void tdigest_merge(SQLFunctionCtx *pCtx) {
   SAPercentileInfo *pInput = (SAPercentileInfo *)GET_INPUT_DATA_LIST(pCtx);
   assert(pInput->pTDigest);
+  pInput->pTDigest = (TDigest*)((char*)pInput + sizeof(SAPercentileInfo));
+  pInput->pTDigest->centroids = (Centroid*)((char*)pInput + sizeof(SAPercentileInfo) + sizeof(TDigest));
+
+  // input merge no elements , no need merge
+  if(pInput->pTDigest->num_centroids == 0) {
+    return ;
+  }
 
   SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
-  tdigestMerge(pOutput->pTDigest, pInput->pTDigest);
-
+  TDigest* pTDigest = pOutput->pTDigest;
+  if(pTDigest->num_centroids == 0) {
+    memcpy(pTDigest, pInput->pTDigest, TDIGEST_SIZE(COMPRESSION));
+    tdigestAutoFill(pTDigest, COMPRESSION);
+  } else {
+    tdigestMerge(pOutput->pTDigest, pInput->pTDigest);
+  }
+  
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   SET_VAL(pCtx, 1, 1);
@@ -2535,7 +2548,7 @@ static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
     }
   }
 
-  tdigestFree(pAPerc->pTDigest);
+  tdigestFreeFrom(pAPerc->pTDigest);
   pAPerc->pTDigest = NULL;
 
   doFinalizer(pCtx);
@@ -2658,7 +2671,6 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
 
       double  ratio[] = {v};
       double *res = tHistogramUniform(pOutput->pHisto, ratio, 1);
-
       memcpy(pCtx->pOutput, res, sizeof(double));
       free(res);
     } else {
