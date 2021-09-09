@@ -1151,7 +1151,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, true, false);
-    if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
+    if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code || TSDB_CODE_TSC_NEED_TO_FETCH_META == code) {
       return code;
     }
     
@@ -1163,7 +1163,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     sql = sToken.z;
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, false);
     if (pInsertParam->sql == NULL) {
-      assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
+      assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_TSC_NEED_TO_FETCH_META);
     }
   }
 
@@ -1417,7 +1417,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
        * After retrieving the table meta from server, the sql string will be parsed from the paused position.
        * And during the getTableMetaCallback function, the sql string will be parsed from the paused position.
        */
-      if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
+      if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code || TSDB_CODE_TSC_NEED_TO_FETCH_META == code) {
         return code;
       }
 
