@@ -1,8 +1,8 @@
 # TAOS SQL
 
-TDengine provides a SQL-style language, TAOS SQL, to insert or query data, and support other common tips. To finish this document, you should have some understanding about SQL.
+TDengine provides a SQL-style language, TAOS SQL, to insert or query data. This document introduces TAOS SQL and supports other common tips. To read through this document, readers should have basic understanding about SQL.
 
-TAOS SQL is the main tool for users to write and query data to TDengine. TAOS SQL provides a style and mode similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion function for temporal structured data, the relevant function of data deletion is non-existent in TAO SQL.
+TAOS SQL is the main tool for users to write and query data into/from TDengine. TAOS SQL provides a syntax style similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion functionality for time-series data, the relevant functions of data deletion is unsupported in TAO SQL.
 
 Let’s take a look at the conventions used for syntax descriptions.
 
@@ -127,7 +127,7 @@ Note:
     ALTER DATABASE db_name CACHELAST 0;
     ```
     CACHELAST parameter controls whether last_row of the data subtable is cached in memory. The default value is 0, and the value range is [0, 1]. Where 0 means not enabled and 1 means enabled. (supported from version 2.0. 11)
-    
+   
     **Tips**: After all the above parameters are modified, show databases can be used to confirm whether the modification is successful.
 
 - **Show all databases in system**
@@ -138,14 +138,17 @@ Note:
 
 ## <a class="anchor" id="table"></a> Table Management
 
-- Create a table
-Note:
+- **Create a table**
 
-1. The first field must be a timestamp, and system will set it as the primary key;
-2. The max length of table name is 192;
-3. The length of each row of the table cannot exceed 16k characters;
-4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
-5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
+    ```
+  Note:
+   1. The first field must be a timestamp, and system will set it as the primary key;
+   2. The max length of table name is 192;
+   3. The length of each row of the table cannot exceed 16k characters;
+   4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
+   5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
 
 - **Create a table via STable**
 
@@ -171,10 +174,10 @@ Note:
    
    Note:
    1. The method of batch creating tables requires that the data table must use STable as a template.
-   2. On the premise of not exceeding the length limit of SQL statements, it is suggested that the number of tables in a single statement should be controlled between 1000 and 3000, which will obtain an ideal speed of table building.
+   2. On the premise of not exceeding the length limit of SQL statements, it is suggested that the number of tables in a single statement should be controlled between 1000 and 3000, which will obtain an ideal speed of table creating.
 
 - **Drop a table**
-    
+  
     ```mysql
     DROP TABLE [IF EXISTS] tb_name;
     ```
@@ -218,7 +221,7 @@ Note:
 
 ## <a class="anchor" id="super-table"></a> STable Management
 
-Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That is, in the instruction description later in this section, the three instructions of CREATE, DROP and ALTER need to write TABLE instead of STABLE in the old version as the reserved word.
+Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That is, in the instruction description later in this section, the three instructions of CREATE, DROP and ALTER need to write TABLE instead of STABLE in the old version as the reserved word.
 
 - **Create a STable**
 
@@ -290,7 +293,7 @@ Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That
     Modify a tag name of STable. After modifying, all sub-tables under the STable will automatically update the new tag name.
 
 - **Modify a tag value of sub-table**
-    
+  
     ```mysql
     ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
     ```
@@ -306,7 +309,7 @@ Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That
   Insert a record into table tb_name.
 
 - **Insert a record with data corresponding to a given column**
-   
+  
     ```mysql
     INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...);
     ```
@@ -320,14 +323,14 @@ Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That
     Insert multiple records into table tb_name.
 
 - **Insert multiple records into a given column**
-    
+  
     ```mysql
     INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     Insert multiple records into a given column of table tb_name.
 
 - **Insert multiple records into multiple tables**
-    
+  
     ```mysql
     INSERT INTO tb1_name VALUES (field1_value1, ...) (field1_value2, ...) ...
                 tb2_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
@@ -421,7 +424,7 @@ taos> SELECT * FROM d1001;
 Query OK, 3 row(s) in set (0.001165s)
 ```
 
-For Stables, wildcards contain *tag columns*.
+For STables, wildcards contain *tag columns*.
 
 ```mysql
 taos> SELECT * FROM meters;
@@ -720,7 +723,7 @@ TDengine supports aggregations over data, they are listed below:
     ================================================
                         9 |                     9 |
     Query OK, 1 row(s) in set (0.004475s)
-  
+    
     taos> SELECT COUNT(*), COUNT(voltage) FROM d1001;
         count(*)        |    count(voltage)     |
     ================================================
@@ -758,7 +761,7 @@ TDengine supports aggregations over data, they are listed below:
   ```
 
 - **TWA**
-   
+  
   ```mysql
   SELECT TWA(field_name) FROM tb_name WHERE clause;
   ```
@@ -799,7 +802,7 @@ TDengine supports aggregations over data, they are listed below:
   ================================================================================
               35.200000763 |                   658 |               0.950000018 |
   Query OK, 1 row(s) in set (0.000980s)
-   ```
+  ```
 
 - **STDDEV**
   
@@ -896,7 +899,7 @@ TDengine supports aggregations over data, they are listed below:
    ======================================
                13.40000 |          223 |
    Query OK, 1 row(s) in set (0.001123s)
-  
+    
    taos> SELECT MAX(current), MAX(voltage) FROM d1001;
        max(current)     | max(voltage) |
    ======================================
@@ -937,8 +940,6 @@ TDengine supports aggregations over data, they are listed below:
    Query OK, 1 row(s) in set (0.001023s)
    ```
 
-- 
-
 - **LAST**
 
    ```mysql
@@ -972,7 +973,7 @@ TDengine supports aggregations over data, they are listed below:
    ```
 
 - **TOP**
-   
+  
     ```mysql
     SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
@@ -1029,7 +1030,7 @@ TDengine supports aggregations over data, they are listed below:
     2018-10-03 14:38:15.000 |                218 |
     2018-10-03 14:38:16.650 |                218 |
     Query OK, 2 row(s) in set (0.001332s)
-  
+    
     taos> SELECT BOTTOM(current, 2) FROM d1001;
             ts            |  bottom(current, 2)  |
     =================================================
@@ -1092,7 +1093,7 @@ TDengine supports aggregations over data, they are listed below:
     =======================
                 12.30000 |
     Query OK, 1 row(s) in set (0.001238s)
-  
+    
     taos> SELECT LAST_ROW(current) FROM d1002;
     last_row(current)   |
     =======================
@@ -1146,7 +1147,7 @@ TDengine supports aggregations over data, they are listed below:
     ============================
                 5.000000000 |
     Query OK, 1 row(s) in set (0.001792s)
-  
+    
     taos> SELECT SPREAD(voltage) FROM d1001;
         spread(voltage)      |
     ============================
@@ -1172,7 +1173,7 @@ TDengine supports aggregations over data, they are listed below:
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
-TDengine supports aggregating by intervals. Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
+TDengine supports aggregating by intervals (time range). Data in a table can partitioned by intervals and aggregated to generate results. For example, a temperature sensor collects data once per second, but the average temperature needs to be queried every 10 minutes. This aggregation is suitable for down sample operation, and the syntax is as follows:
 
 ```mysql
 SELECT function_list FROM tb_name
@@ -1235,11 +1236,11 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 
 **Restrictions on group by**
 
-TAOS SQL supports group by operation on tags, tbnames and ordinary columns, required that only one column and whichhas less than 100,000 unique values.
+TAOS SQL supports group by operation on tags, tbnames and ordinary columns, required that only one column and which has less than 100,000 unique values.
 
 **Restrictions on join operation**
 
-TAOS SQL supports join columns of two tables by Primary Key timestamp between them, and does not support four operations after tables aggregated for the time being.
+TAOS SQL supports join columns of two tables by Primary Key timestamp between them, and does not support four arithmetic operations after tables aggregated for the time being.
 
 **Availability of is no null**
 

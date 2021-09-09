@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>Quick Install
 
-TDengine software consists of 3 components: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
+TDengine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
 
 ### <a class="anchor" id="source-install"></a>Install from Source
 
@@ -16,7 +16,7 @@ Please refer to the detailed operation in [Quickly experience TDengine through D
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
-It’s extremely easy to install for TDengine, which takes only a few seconds from downloaded to successful installed. The server installation package includes clients and connectors. We provide 3 installation packages, which you can choose according to actual needs:
+Three different packages for TDengine server are provided, please pick up the one you like. (Lite packages only have execution files and connector of C/C++, but standard packages support connectors of nearly all programming languages.) Beta version has more features, but we suggest you to install stable version for production or testing.
 
 Click [here](https://www.taosdata.com/en/getting-started/#Install-from-Package) to download the install package.
 
@@ -131,7 +131,7 @@ After starting the TDengine server, you can execute the command `taosdemo` in th
 $ taosdemo
 ```
 
-Using this command, a STable named `meters` will be created in the database `test` There are 10k tables under this stable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
+Using this command, a STable named `meters` will be created in the database `test`. There are 10k tables under this STable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
 
 It takes about 10 minutes to execute this command. Once finished, 1 billion rows of records will be inserted.
 
@@ -201,7 +201,7 @@ Note: ● has been verified by official tests; ○ has been verified by unoffici
 
 List of platforms supported by TDengine client and connectors
 
-At the moment, TDengine connectors can support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32.
+At the moment, TDengine connectors can support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and operating system such as Linux/Win64/Win32.
 
 Comparison matrix as following:
 
@@ -218,4 +218,4 @@ Comparison matrix as following:
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests.
 
-Please visit [Connectors](https://www.taosdata.com/en/documentation/connector) section for more detailed information.
+Please visit Connectors section for more detailed information.
