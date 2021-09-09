@@ -859,13 +859,25 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
     }
     return r1;
-  } else if (r1 < r2 && ASCENDING_TRAVERSE(order)) {
-    pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
-    return r1;
-  }
-  else {
-    pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
-    return r2;
+  } else {
+    if (ASCENDING_TRAVERSE(order)) {
+      if (r1 < r2) {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
+        return r1;
+      } else {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        return r2;
+      }
+    } else {
+      if (r1 < r2) {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        return r2;
+      } else {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
+        return r1;
+      }
+    }
+    
   }
 }
 
@@ -930,7 +942,7 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
         pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
         return rimem;
       } else {
-        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
         return rmem;
       }
     }
@@ -1329,11 +1341,11 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* p
 
     assert(cur->blockCompleted);
     if (cur->rows == binfo.rows) {
-      tsdbDebug("%p whole file block qualified, brange:%"PRId64"-%"PRId64", rows:%d, lastKey:%"PRId64", %"PRIx64,
-                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, pQueryHandle->qId);
+      tsdbDebug("%p whole file block qualified, brange:%"PRId64"-%"PRId64", rows:%d, lastKey:%"PRId64", tid:%d, %"PRIx64,
+                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, binfo.tid, pQueryHandle->qId);
     } else {
-      tsdbDebug("%p create data block from remain file block, brange:%"PRId64"-%"PRId64", rows:%d, total:%d, lastKey:%"PRId64", %"PRIx64,
-                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, binfo.rows, cur->lastKey, pQueryHandle->qId);
+      tsdbDebug("%p create data block from remain file block, brange:%"PRId64"-%"PRId64", rows:%d, total:%d, lastKey:%"PRId64", tid:%d, %"PRIx64,
+                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, binfo.rows, cur->lastKey, binfo.tid, pQueryHandle->qId);
     }
 
   }

@@ -1157,6 +1157,10 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
     httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_PARSE_ERROR_STATE);
   }
 
+  if (ok != 0) {
+    pContext->error = true;
+  }
+
   return ok;
 }
 

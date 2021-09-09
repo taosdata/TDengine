@@ -255,8 +255,12 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
 
     if (c == '\\') {
-      esc = true;
-      continue;
+      if (quote != 0 && (*command == '_' || *command == '\\')) {
+        //DO nothing 
+      } else {
+        esc = true;
+        continue;
+      }
     }
 
     if (quote == c) {
