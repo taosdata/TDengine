@@ -361,9 +361,9 @@ int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight) {
 
 int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   size_t szPattern = varDataLen(pRight);
-  char *pattern = malloc(szPattern);
+  char *pattern = malloc(szPattern+1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  assert(pattern[szPattern-1] == '\0');
+  pattern[szPattern] = 0;
 
   size_t szSubject = varDataLen(pLeft);
   char *subject = malloc(szSubject+1);

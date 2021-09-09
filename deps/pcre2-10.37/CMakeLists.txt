@@ -172,7 +172,7 @@ ENDIF(INTEL_CET_ENABLED)
 # Note: CMakeSetup displays these in alphabetical order, regardless of
 # the order we use here.
 
-SET(BUILD_SHARED_LIBS OFF CACHE BOOL
+SET(BUILD_SHARED_LIBS ON CACHE BOOL
     "Build shared libraries instead of static ones.")
 
 OPTION(PCRE2_BUILD_PCRE2_8 "Build 8 bit PCRE2 library" ON)
