@@ -98,6 +98,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
             tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
         }
         arguments->password = g_password;
+        arguments->is_use_passwd = true;
         strcpy(argv[i], "");
         argc -= 1;
     }

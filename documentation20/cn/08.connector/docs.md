@@ -64,7 +64,10 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 编辑taos.cfg文件(默认路径/etc/taos/taos.cfg)，将firstEP修改为TDengine服务器的End Point，例如：h1.taos.com:6030
 
-**提示： 如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
+**提示： **
+
+1. **如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
+2. **为防止与服务器端连接时出现“unable to resolve FQDN”错误，建议确认客户端的hosts文件已经配置正确的FQDN值。**
 
 **Windows x64/x86**
 
@@ -96,7 +99,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 **提示：** 
 
 1. **如利用FQDN连接服务器，必须确认本机网络环境DNS已配置好，或在hosts文件中添加FQDN寻址记录，如编辑C:\Windows\system32\drivers\etc\hosts，添加如下的记录：`192.168.1.99  h1.taos.com` **
-2．**卸载：运行unins000.exe可卸载TDengine应用驱动。**
+2. **卸载：运行unins000.exe可卸载TDengine应用驱动。**
 
 ### 安装验证
 
@@ -309,7 +312,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 <a class="anchor" id="stmt"></a>
 ### 参数绑定 API
 
-除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。
+除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。文档中有时也会把此功能称为“原生接口写入”。
 
 从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
 1. 调用 `taos_stmt_init` 创建参数绑定对象；
