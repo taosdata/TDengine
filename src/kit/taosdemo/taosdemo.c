@@ -88,7 +88,7 @@ extern char configDir[];
 #define DOUBLE_BUFF_LEN         42
 #define TIMESTAMP_BUFF_LEN      21
 
-#define MAX_SAMPLES_ONCE_FROM_FILE   10000
+#define MAX_SAMPLES             10000
 #define MAX_NUM_COLUMNS        (TSDB_MAX_COLUMNS - 1)      // exclude first column timestamp
 
 #define MAX_DB_COUNT            8
@@ -4500,7 +4500,7 @@ static int generateSampleFromCsvForStb(
 
     assert(stbInfo->sampleDataBuf);
     memset(stbInfo->sampleDataBuf, 0,
-            MAX_SAMPLES_ONCE_FROM_FILE * stbInfo->lenOfOneRow);
+            MAX_SAMPLES * stbInfo->lenOfOneRow);
     while(1) {
         readLen = tgetline(&line, &n, fp);
         if (-1 == readLen) {
@@ -4531,7 +4531,7 @@ static int generateSampleFromCsvForStb(
                 line, readLen);
         getRows++;
 
-        if (getRows == MAX_SAMPLES_ONCE_FROM_FILE) {
+        if (getRows == MAX_SAMPLES) {
             break;
         }
     }
@@ -6105,7 +6105,7 @@ static int getRowDataFromSample(
         char* dataBuf, int64_t maxLen, int64_t timestamp,
         SSuperTable* stbInfo, int64_t* sampleUsePos)
 {
-    if ((*sampleUsePos) == MAX_SAMPLES_ONCE_FROM_FILE) {
+    if ((*sampleUsePos) == MAX_SAMPLES) {
         *sampleUsePos = 0;
     }
 
@@ -6361,7 +6361,7 @@ static int generateSampleFromRand(
         exit(EXIT_FAILURE);
     }
 
-    for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
+    for (int i=0; i < MAX_SAMPLES; i++) {
         uint64_t pos = 0;
         memset(buff, 0, lenOfOneRow);
 
@@ -6468,11 +6468,11 @@ static int generateSampleFromRandForStb(SSuperTable *stbInfo)
 }
 
 static int prepareSampleForNtb() {
-    g_sampleDataBuf = calloc(g_args.lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
+    g_sampleDataBuf = calloc(g_args.lenOfOneRow * MAX_SAMPLES, 1);
     if (NULL == g_sampleDataBuf) {
         errorPrint2("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
                 __func__, __LINE__,
-                g_args.lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
+                g_args.lenOfOneRow * MAX_SAMPLES,
                 strerror(errno));
         return -1;
     }
@@ -6483,11 +6483,11 @@ static int prepareSampleForNtb() {
 static int prepareSampleForStb(SSuperTable *stbInfo) {
 
     stbInfo->sampleDataBuf = calloc(
-            stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
+            stbInfo->lenOfOneRow * MAX_SAMPLES, 1);
     if (NULL == stbInfo->sampleDataBuf) {
         errorPrint2("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
                 __func__, __LINE__,
-                stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
+                stbInfo->lenOfOneRow * MAX_SAMPLES,
                 strerror(errno));
         return -1;
     }
@@ -7675,7 +7675,7 @@ static int execBindParamBatch(
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     uint32_t columnCount = (stbInfo)?pThreadInfo->stbInfo->columnCount:g_args.columnCount;
 
-    uint32_t thisBatch = MAX_SAMPLES_ONCE_FROM_FILE - (*pSamplePos);
+    uint32_t thisBatch = MAX_SAMPLES - (*pSamplePos);
 
     if (thisBatch > batch) {
         thisBatch = batch;
@@ -7845,7 +7845,7 @@ static int execBindParamBatch(
         recordFrom ++;
 
         (*pSamplePos) ++;
-        if ((*pSamplePos) == MAX_SAMPLES_ONCE_FROM_FILE) {
+        if ((*pSamplePos) == MAX_SAMPLES) {
             *pSamplePos = 0;
         }
 
@@ -7900,57 +7900,57 @@ static int parseSamplefileToStmtBatch(
 
         switch(data_type) {
             case TSDB_DATA_TYPE_INT:
-                tmpP = calloc(1, sizeof(int) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(int) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_TINYINT:
-                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_SMALLINT:
-                tmpP = calloc(1, sizeof(int16_t) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(int16_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_BIGINT:
-                tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_BOOL:
-                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_FLOAT:
-                tmpP = calloc(1, sizeof(float) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(float) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_DOUBLE:
-                tmpP = calloc(1, sizeof(double) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(double) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
-                tmpP = calloc(1, MAX_SAMPLES_ONCE_FROM_FILE *
+                tmpP = calloc(1, MAX_SAMPLES *
                         (((stbInfo)?stbInfo->columns[c].dataLen:g_args.binwidth)));
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_TIMESTAMP:
-                tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES_ONCE_FROM_FILE);
+                tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
@@ -7965,7 +7965,7 @@ static int parseSamplefileToStmtBatch(
     char *sampleDataBuf = (stbInfo)?stbInfo->sampleDataBuf:g_sampleDataBuf;
     int64_t lenOfOneRow = (stbInfo)?stbInfo->lenOfOneRow:g_args.lenOfOneRow;
 
-    for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
+    for (int i=0; i < MAX_SAMPLES; i++) {
         int cursor = 0;
 
         for (int c = 0; c < columnCount; c++) {
@@ -8105,11 +8105,11 @@ static int parseSampleToStmt(
         SSuperTable *stbInfo, uint32_t timePrec)
 {
     pThreadInfo->sampleBindArray =
-        calloc(1, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
+        calloc(1, sizeof(char *) * MAX_SAMPLES);
     if (pThreadInfo->sampleBindArray == NULL) {
         errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
                 __func__, __LINE__,
-                (uint64_t)sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
+                (uint64_t)sizeof(char *) * MAX_SAMPLES);
         return -1;
     }
 
@@ -8117,7 +8117,7 @@ static int parseSampleToStmt(
     char *sampleDataBuf = (stbInfo)?stbInfo->sampleDataBuf:g_sampleDataBuf;
     int64_t lenOfOneRow = (stbInfo)?stbInfo->lenOfOneRow:g_args.lenOfOneRow;
 
-    for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
+    for (int i=0; i < MAX_SAMPLES; i++) {
         char *bindArray =
             calloc(1, sizeof(TAOS_BIND) * (columnCount + 1));
         if (bindArray == NULL) {
@@ -8282,7 +8282,7 @@ static uint32_t execBindParam(
         recordFrom ++;
 
         (*pSamplePos) ++;
-        if ((*pSamplePos) == MAX_SAMPLES_ONCE_FROM_FILE) {
+        if ((*pSamplePos) == MAX_SAMPLES) {
             *pSamplePos = 0;
         }
 
@@ -9416,7 +9416,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 #else
         tmfree((char *)pThreadInfo->bind_ts);
         if (pThreadInfo->sampleBindArray) {
-            for (int k = 0; k < MAX_SAMPLES_ONCE_FROM_FILE; k++) {
+            for (int k = 0; k < MAX_SAMPLES; k++) {
                 uintptr_t *tmp = (uintptr_t *)(*(uintptr_t *)(
                             pThreadInfo->sampleBindArray
                             + sizeof(uintptr_t *) * k));
