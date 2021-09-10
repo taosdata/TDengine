@@ -286,16 +286,6 @@ class TDTestCase:
             "derivative(ceil(ubigint_col), 1s, 0)",
             "derivative(ceil(usmallint_col), 1s, 0)",
             "derivative(ceil(utinyint_col), 1s, 0)",
-            "ceil(int_col) + ceil(int_col)",
-            "ceil(bigint_col) + ceil(bigint_col)",
-            "ceil(float_col) + ceil(float_col)",
-            "ceil(double_col) + ceil(double_col)",
-            "ceil(smallint_col) + ceil(smallint_col)",
-            "ceil(tinyint_col) + ceil(tinyint_col)",
-            "ceil(uint_col) + ceil(uint_col)",
-            "ceil(ubigint_col) + ceil(ubigint_col)",
-            "ceil(usmallint_col) + ceil(usmallint_col)",
-            "ceil(utinyint_col) + ceil(utinyint_col)",
             "ceil(int_col) - ceil(int_col)",
             "ceil(bigint_col) - ceil(bigint_col)",
             "ceil(float_col) - ceil(float_col)",
@@ -1434,16 +1424,66 @@ class TDTestCase:
                         or select_command[s] == "distinct ceil(uint_col)"\
                         or select_command[s] == "distinct ceil(ubigint_col)"\
                         or select_command[s] == "distinct ceil(usmallint_col)"\
-                        or select_command[s] == "distinct ceil(utinyint_col)"):
+                        or select_command[s] == "distinct ceil(utinyint_col)"\
+                        or select_command[s] == "ceil(int_col) + ceil(int_col)"\
+                        or select_command[s] == "ceil(bigint_col) + ceil(bigint_col)"\
+                        or select_command[s] == "ceil(float_col) + ceil(float_col)"\
+                        or select_command[s] == "ceil(double_col) + ceil(double_col)"\
+                        or select_command[s] == "ceil(smallint_col) + ceil(smallint_col)"\
+                        or select_command[s] == "ceil(tinyint_col) + ceil(tinyint_col)"\
+                        or select_command[s] == "ceil(uint_col) + ceil(uint_col)"\
+                        or select_command[s] == "ceil(ubigint_col) + ceil(ubigint_col)"\
+                        or select_command[s] == "ceil(usmallint_col) + ceil(usmallint_col)"\
+                        or select_command[s] == "ceil(utinyint_col) + ceil(utinyint_col)"\
+                        or select_command[s] == "ceil(int_col) + ceil(int_col)"\
+                        or select_command[s] == "ceil(bigint_col) + ceil(bigint_col)"\
+                        or select_command[s] == "ceil(float_col) + ceil(float_col)"\
+                        or select_command[s] == "ceil(double_col) + ceil(double_col)"\
+                        or select_command[s] == "ceil(smallint_col) + ceil(smallint_col)"\
+                        or select_command[s] == "ceil(tinyint_col) + ceil(tinyint_col)"\
+                        or select_command[s] == "ceil(uint_col) + ceil(uint_col)"\
+                        or select_command[s] == "ceil(ubigint_col) + ceil(ubigint_col)"\
+                        or select_command[s] == "ceil(usmallint_col) + ceil(usmallint_col)"\
+                        or select_command[s] == "ceil(utinyint_col) + cei(utinyint_col)"\
+                        or select_command[s] == "ceil(int_col) - ceil(int_col)"\
+                        or select_command[s] == "ceil(bigint_col) - ceil(bigint_col)"\
+                        or select_command[s] == "ceil(float_col) - ceil(float_col)"\
+                        or select_command[s] == "ceil(double_col) - ceil(double_col)"\
+                        or select_command[s] == "ceil(smallint_col) - ceil(smallint_col)"\
+                        or select_command[s] == "ceil(tinyint_col) - ceil(tinyint_col)"\
+                        or select_command[s] == "ceil(uint_col) - ceil(uint_col)"\
+                        or select_command[s] == "ceil(ubigint_col) - ceil(ubigint_col)"\
+                        or select_command[s] == "ceil(usmallint_col) - ceil(usmallint_col)"\
+                        or select_command[s] == "ceil(utinyint_col) - ceil(utinyint_col)"\
+                        or select_command[s] == "ceil(int_col) * ceil(int_col)"\
+                        or select_command[s] == "ceil(bigint_col) * ceil(bigint_col)"\
+                        or select_command[s] == "ceil(float_col) * ceil(float_col)"\
+                        or select_command[s] == "ceil(double_col) * ceil(double_col)"\
+                        or select_command[s] == "ceil(smallint_col) * ceil(smallint_col)"\
+                        or select_command[s] == "ceil(tinyint_col) * ceil(tinyint_col)"\
+                        or select_command[s] == "ceil(uint_col) * ceil(uint_col)"\
+                        or select_command[s] == "ceil(ubigint_col) * ceil(ubigint_col)"\
+                        or select_command[s] == "ceil(usmallint_col) * ceil(usmallint_col)"\
+                        or select_command[s] == "ceil(utinyint_col) * ceil(utinyint_col)"\
+                        or select_command[s] == "ceil(int_col) / ceil(int_col)"\
+                        or select_command[s] == "ceil(bigint_col) / ceil(bigint_col)"\
+                        or select_command[s] == "ceil(float_col) / ceil(float_col)"\
+                        or select_command[s] == "ceil(double_col) / ceil(double_col)"\
+                        or select_command[s] == "ceil(smallint_col) / ceil(smallint_col)"\
+                        or select_command[s] == "ceil(tinyint_col) / ceil(tinyint_col)"\
+                        or select_command[s] == "ceil(uint_col) / ceil(uint_col)"\
+                        or select_command[s] == "ceil(ubigint_col) / ceil(ubigint_col)"\
+                        or select_command[s] == "ceil(usmallint_col) / ceil(usmallint_col)"\
+                        or select_command[s] == "ceil(utinyint_col) / ceil(utinyint_col)"):
                     tdSql.query(sql)
                 else:
                     tdSql.error(sql)
-        for s in range(len(simple_select_command)):
+        for sim in range(len(simple_select_command)):
             for fr in range(len(advance_from_command)):
                 for filter in range(len(filter_command)):
                     for fill in range(len(fill_command)):
                         sql = "select " + simple_select_command[
-                            s] + from_command[fr] + filter_command[
+                            sim] + advance_from_command[fr] + filter_command[
                                 filter] + fill_command[fill]
                         if sql == "select ceil(t1.int_col) from t1"\
                             or sql == "select ceil(super.int_col) from super"\
