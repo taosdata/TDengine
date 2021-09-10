@@ -125,17 +125,17 @@ enum TEST_MODE {
     INVAID_TEST
 };
 
-typedef enum CREATE_SUB_TALBE_MOD_EN {
+typedef enum CREATE_SUB_TABLE_MOD_EN {
     PRE_CREATE_SUBTBL,
     AUTO_CREATE_SUBTBL,
     NO_CREATE_SUBTBL
-} CREATE_SUB_TALBE_MOD_EN;
+} CREATE_SUB_TABLE_MOD_EN;
 
-typedef enum TALBE_EXISTS_EN {
+typedef enum TABLE_EXISTS_EN {
     TBL_NO_EXISTS,
     TBL_ALREADY_EXISTS,
     TBL_EXISTS_BUTT
-} TALBE_EXISTS_EN;
+} TABLE_EXISTS_EN;
 
 enum enumSYNC_MODE {
     SYNC_MODE,
@@ -251,7 +251,7 @@ typedef struct SArguments_S {
     int64_t  insertRows;
     int      abort;
     uint32_t disorderRatio;               // 0: no disorder, >0: x%
-    int      disorderRange;               // ms, us or ns. accordig to database precision
+    int      disorderRange;               // ms, us or ns. according to database precision
     uint32_t method_of_delete;
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
@@ -392,7 +392,7 @@ typedef struct SDbs_S {
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
-    uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
+    uint64_t     queryInterval;  // 0: unlimited  > 0   loop/s
     uint32_t     concurrent;
     int          sqlCount;
     uint32_t     asyncMode; // 0: sync, 1: async
@@ -413,7 +413,7 @@ typedef struct SpecifiedQueryInfo_S {
 
 typedef struct SuperQueryInfo_S {
     char         stbName[TSDB_TABLE_NAME_LEN];
-    uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
+    uint64_t     queryInterval;  // 0: unlimited  > 0   loop/s
     uint32_t     threadCnt;
     uint32_t     asyncMode; // 0: sync, 1: async
     uint64_t     subscribeInterval; // ms
@@ -738,10 +738,10 @@ static void printVersion() {
     char taosdemo_status[] = TAOSDEMO_STATUS;
 
     if (strlen(taosdemo_status) == 0) {
-        printf("taosdemo verison %s-%s\n",
+        printf("taosdemo version %s-%s\n",
                 tdengine_ver, taosdemo_ver);
     } else {
-        printf("taosdemo verison %s-%s, status:%s\n",
+        printf("taosdemo version %s-%s, status:%s\n",
                 tdengine_ver, taosdemo_ver, taosdemo_status);
     }
 }
@@ -818,7 +818,7 @@ static void printHelp() {
             "The number of records per table. Default is 10000.");
     printf("%s%s%s%s\n", indent, "-M, --random", "\t\t\t",
             "The value of records generated are totally random.");
-    printf("%s\n", "\t\t\t\tThe default is to simulate power equipment senario.");
+    printf("%s\n", "\t\t\t\tThe default is to simulate power equipment scenario.");
     printf("%s%s%s%s\n", indent, "-x, --no-insert", "\t\t",
             "No-insert flag.");
     printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Default input yes for prompt.");
@@ -863,7 +863,7 @@ static void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
     fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
 }
 
-static void errorUnreconized(char *program, char *wrong_arg)
+static void errorUnrecognized(char *program, char *wrong_arg)
 {
     fprintf(stderr, "%s: unrecognized options '%s'\n", program, wrong_arg);
     fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
@@ -920,7 +920,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "--file=", strlen("--file="))) {
                 arguments->metaFile = (char *)(argv[i] + strlen("--file="));
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-c", strlen("-c")))
@@ -942,7 +942,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "--config-dir=", strlen("--config-dir="))) {
                 tstrncpy(configDir, (char *)(argv[i] + strlen("--config-dir=")), TSDB_FILENAME_LEN);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-h", strlen("-h")))
@@ -964,7 +964,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "--host=", strlen("--host="))) {
                 arguments->host = (char *)(argv[i] + strlen("--host="));
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if (strcmp(argv[i], "-PP") == 0) {
@@ -998,7 +998,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->port = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-I", strlen("-I")))
@@ -1059,7 +1059,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 i++;
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-u", strlen("-u")))
@@ -1081,7 +1081,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->user = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-p", strlen("-p")))
@@ -1115,7 +1115,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->output_file = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-s", strlen("-s")))
@@ -1137,7 +1137,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->sqlFile = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-q", strlen("-q")))
@@ -1175,7 +1175,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->async_mode = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-T", strlen("-T")))
@@ -1213,7 +1213,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->nthreads = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-i", strlen("-i")))
@@ -1251,7 +1251,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->insert_interval = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-S", strlen("-S")))
@@ -1289,7 +1289,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->async_mode = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if (strcmp(argv[i], "-qt") == 0) {
@@ -1335,7 +1335,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->interlace_rows = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-r", strlen("-r")))
@@ -1373,7 +1373,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->reqPerReq = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-t", strlen("-t")))
@@ -1411,7 +1411,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->ntables = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1451,7 +1451,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->insertRows = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-d", strlen("-d")))
@@ -1473,7 +1473,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->database = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-l", strlen("-l")))
@@ -1512,12 +1512,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->columnCount = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
             if (arguments->columnCount > MAX_NUM_COLUMNS) {
-                printf("WARNING: max acceptible columns count is %d\n", MAX_NUM_COLUMNS);
+                printf("WARNING: max acceptable columns count is %d\n", MAX_NUM_COLUMNS);
                 prompt();
                 arguments->columnCount = MAX_NUM_COLUMNS;
             }
@@ -1552,7 +1552,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 dataType = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1687,7 +1687,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->binwidth = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-m", strlen("-m")))
@@ -1709,7 +1709,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->tb_prefix = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((strcmp(argv[i], "-N") == 0)
@@ -1774,7 +1774,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->disorderRange = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-O", strlen("-O")))
@@ -1812,7 +1812,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->disorderRatio = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1866,7 +1866,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->replica = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1878,7 +1878,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         } else if (strcmp(argv[i], "-D") == 0) {
             arguments->method_of_delete = atoi(argv[++i]);
             if (arguments->method_of_delete > 3) {
-                errorPrint("%s", "\n\t-D need a valud (0~3) number following!\n");
+                errorPrint("%s", "\n\t-D need a value (0~3) number following!\n");
                 exit(EXIT_FAILURE);
             }
         } else if ((strcmp(argv[i], "--version") == 0)
@@ -1893,7 +1893,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             printf("    Usage: taosdemo [-f JSONFILE] [-u USER] [-p PASSWORD] [-c CONFIG_DIR]\n\
                     [-h HOST] [-P PORT] [-I INTERFACE] [-d DATABASE] [-a REPLICA]\n\
                     [-m TABLEPREFIX] [-s SQLFILE] [-N] [-o OUTPUTFILE] [-q QUERYMODE]\n\
-                    [-b DATATYPES] [-w WIDTH_OF_BINARY] [-l COLUNNS] [-T THREADNUMBER]\n\
+                    [-b DATATYPES] [-w WIDTH_OF_BINARY] [-l COLUMNS] [-T THREADNUMBER]\n\
                     [-i SLEEPTIME] [-S TIME_STEP] [-B INTERLACE_ROWS] [-t TABLES]\n\
                     [-n RECORDS] [-M] [-x] [-y] [-O ORDERMODE] [-R RANGE] [-a REPLIcA][-g]\n\
                     [--help] [--usage] [--version]\n");
@@ -2466,9 +2466,9 @@ static int printfInsertMeta() {
         printf("  database[%d] name:      \033[33m%s\033[0m\n",
                 i, g_Dbs.db[i].dbName);
         if (0 == g_Dbs.db[i].drop) {
-            printf("  drop:                  \033[33mno\033[0m\n");
+            printf("  drop:                  \033[33m no\033[0m\n");
         } else {
-            printf("  drop:                  \033[33myes\033[0m\n");
+            printf("  drop:                  \033[33m yes\033[0m\n");
         }
 
         if (g_Dbs.db[i].dbCfg.blocks > 0) {
@@ -2577,9 +2577,9 @@ static int printfInsertMeta() {
                     g_Dbs.db[i].superTbls[j].insertRows);
             /*
                if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
-               printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");
+               printf("      multiThreadWriteOneTbl:  \033[33m no\033[0m\n");
                }else {
-               printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n");
+               printf("      multiThreadWriteOneTbl:  \033[33m yes\033[0m\n");
                }
                */
             printf("      interlaceRows:     \033[33m%u\033[0m\n",
@@ -5137,7 +5137,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             goto PARSE_OVER;
         }
 
-        // super_talbes
+        // super_tables
         cJSON *stables = cJSON_GetObjectItem(dbinfos, "super_tables");
         if (!stables || stables->type != cJSON_Array) {
             errorPrint("%s", "failed to read json, super_tables not found\n");
@@ -5474,7 +5474,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
             } else if (!insertInterval) {
-                verbosePrint("%s() LN%d: stable insert interval be overrided by global %"PRIu64".\n",
+                verbosePrint("%s() LN%d: stable insert interval be overrode by global %"PRIu64".\n",
                         __func__, __LINE__, g_args.insert_interval);
                 g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
             } else {
@@ -9534,7 +9534,7 @@ static void *readTable(void *sarg) {
     insertRows = g_args.insertRows;
     //  }
 
-    int64_t ntables = pThreadInfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
+    int64_t ntables = pThreadInfo->ntables; // pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
     int64_t totalData = insertRows * ntables;
     bool do_aggreFunc = g_Dbs.do_aggreFunc;
 
@@ -9603,7 +9603,7 @@ static void *readMetric(void *sarg) {
     }
 
     int64_t insertRows = pThreadInfo->stbInfo->insertRows;
-    int64_t ntables = pThreadInfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
+    int64_t ntables = pThreadInfo->ntables; // pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
     int64_t totalData = insertRows * ntables;
     bool do_aggreFunc = g_Dbs.do_aggreFunc;
 
@@ -9709,7 +9709,7 @@ static int insertTestProcess() {
     }
     free(cmdBuffer);
 
-    // pretreatement
+    // pretreatment
     if (prepareSampleData() != 0) {
         if (g_fpOfInsertResult)
             fclose(g_fpOfInsertResult);
@@ -10141,7 +10141,7 @@ static void stable_sub_callback(
 
     if (param)
         fetchResult(res, (threadInfo *)param);
-    // tao_unscribe() will free result.
+    // tao_unsubscribe() will free result.
 }
 
 static void specified_sub_callback(
@@ -10154,7 +10154,7 @@ static void specified_sub_callback(
 
     if (param)
         fetchResult(res, (threadInfo *)param);
-    // tao_unscribe() will free result.
+    // tao_unsubscribe() will free result.
 }
 
 static TAOS_SUB* subscribeImpl(
@@ -10494,12 +10494,12 @@ static int subscribeTestProcess() {
 
     //==== create threads for query for specified table
     if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
-        debugPrint("%s() LN%d, sepcified query sqlCount %d.\n",
+        debugPrint("%s() LN%d, specified query sqlCount %d.\n",
                 __func__, __LINE__,
                 g_queryInfo.specifiedQueryInfo.sqlCount);
     } else {
         if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-            errorPrint2("%s() LN%d, sepcified query sqlCount %d.\n",
+            errorPrint2("%s() LN%d, specified query sqlCount %d.\n",
                     __func__, __LINE__,
                     g_queryInfo.specifiedQueryInfo.sqlCount);
             exit(EXIT_FAILURE);
