@@ -37,7 +37,7 @@ With TDengine, the most important thing is timestamp. When creating and insertin
 - Epch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
 - Arithmetic operations can be applied to timestamp. For example: now-2h represents a timestamp which is 2 hours ago from the current server time. Units include u( microsecond), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). In `select * from t1 where ts > now-2w and ts <= now-1w`, which queries data of the whole week before two weeks. To specify the interval of down sampling, you can also use n(calendar month) and y(calendar year) as time units.
 
-Default time precision of TDengine is millisecond, you can change it to microseocnd by setting parameter enableMicrosecond. 
+TDengiene's default timestamp is set to be accurate to a millisecond. Starting from `v2.1.5.0`  precisions upto microseconds and nanoseconds are supported, this can be achieved by setting the PRECISION parameter passed during CREATE DATABASE.
 
 In TDengine, the following 10 data types can be used in data model of an ordinary table.
 
