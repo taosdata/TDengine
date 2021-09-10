@@ -87,6 +87,7 @@ typedef struct STableMetaInfo {
   SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
+  int32_t       joinTagNum;
 } STableMetaInfo;
 
 struct   SQInfo;      // global merge operator

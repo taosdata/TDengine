@@ -28,13 +28,13 @@ OptrStr gOptrStr[] = {
   {TSDB_RELATION_GREATER_EQUAL,            ">="},
   {TSDB_RELATION_NOT_EQUAL,                "!="},
   {TSDB_RELATION_LIKE,                     "like"},
-  {TSDB_RELATION_MATCH,                    "match"},
   {TSDB_RELATION_ISNULL,                   "is null"},
   {TSDB_RELATION_NOTNULL,                  "not null"},
   {TSDB_RELATION_IN,                       "in"},
   {TSDB_RELATION_AND,                      "and"},
   {TSDB_RELATION_OR,                       "or"},
-  {TSDB_RELATION_NOT,                      "not"}
+  {TSDB_RELATION_NOT,                      "not"},
+  {TSDB_RELATION_MATCH,                    "match"}
 };
 
 static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const void *desc2) {
@@ -3227,21 +3227,24 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
       break;
     }
 
-    if ((pDataStatis[index].numOfNull <= 0) && (ctx->isnull && !ctx->notnull && !ctx->isrange)) {
-      ret = false;
-      break;
-    }
-    
-    // all data in current column are NULL, no need to check its boundary value
-    if (pDataStatis[index].numOfNull == numOfRows) {
-
-      // if isNULL query exists, load the null data column
-      if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
+    if (pDataStatis[index].numOfNull <= 0) {
+      if (ctx->isnull && !ctx->notnull && !ctx->isrange) {
         ret = false;
         break;
       }
+    } else if (pDataStatis[index].numOfNull > 0) {
+      if (pDataStatis[index].numOfNull == numOfRows) {
+        if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
+          ret = false;
+          break;
+        }
 
-      continue;
+        continue;
+      } else {
+        if (ctx->isnull) {
+          continue;
+        }
+      }
     }
 
     SDataStatis* pDataBlockst = &pDataStatis[index];

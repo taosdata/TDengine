@@ -86,7 +86,6 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
-tExprNode* exprTreeFromTableName(const char* tbnameCond);
 tExprNode* exprdup(tExprNode* pTree);
 
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
