@@ -509,7 +509,6 @@ static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupR
 
   size_t len = taosArrayGetSize(pRuntimeEnv->pResultRowArrayList);
   for(; pGroupResInfo->position < len; ++pGroupResInfo->position) {
-
     SResultRowCell* pResultRowCell = taosArrayGet(pRuntimeEnv->pResultRowArrayList, pGroupResInfo->position);
     if (pResultRowCell->groupId != groupId) {
       break;
@@ -522,7 +521,6 @@ static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupR
 
     taosArrayPush(pGroupResInfo->pRows, &pResultRowCell->pRow);
     pResultRowCell->pRow->numOfRows = (uint32_t) num;
-
   }
 
   return TSDB_CODE_SUCCESS;
@@ -634,13 +632,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRu
   int64_t st = taosGetTimestampUs();
 
   while (pGroupResInfo->currentGroup < pGroupResInfo->totalGroup) {
-//    SArray *group = GET_TABLEGROUP(pRuntimeEnv, pGroupResInfo->currentGroup);
-
     mergeIntoGroupResultImplRv(pRuntimeEnv, pGroupResInfo, pGroupResInfo->currentGroup, offset);
-//    int32_t ret = mergeIntoGroupResultImpl(pRuntimeEnv, pGroupResInfo, group, offset);
-//    if (ret != TSDB_CODE_SUCCESS) {
-//      return ret;
-//    }
 
     // this group generates at least one result, return results
     if (taosArrayGetSize(pGroupResInfo->pRows) > 0) {
@@ -656,7 +648,6 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRu
   qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_QID(pRuntimeEnv),
          pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
-//  pQInfo->summary.firstStageMergeTime += elapsedTime;
   return TSDB_CODE_SUCCESS;
 }
 

@@ -947,7 +947,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->pointInterpQuery = query.pointInterpQuery;
   pQueryMsg->needReverseScan  = query.needReverseScan;
   pQueryMsg->stateWindow      = query.stateWindow;
-
   pQueryMsg->numOfTags        = htonl(numOfTags);
   pQueryMsg->sqlstrLen        = htonl(sqlLen);
   pQueryMsg->sw.gap           = htobe64(query.sw.gap);
@@ -974,7 +973,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tableCols[i].type  = htons(pCol->type);
     //pQueryMsg->tableCols[i].flist.numOfFilters = htons(pCol->flist.numOfFilters);
     pQueryMsg->tableCols[i].flist.numOfFilters = 0;
-
+    pQueryMsg->tableCols[i].flist.filterInfo = 0;
     // append the filter information after the basic column information
     //serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
   }

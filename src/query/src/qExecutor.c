@@ -4812,7 +4812,6 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
   pQueryAttr->tsdb = tsdb;
 
-
   if (tsdb != NULL) {
     int32_t code = setupQueryHandle(tsdb, pRuntimeEnv, pQInfo->qId, pQueryAttr->stableQuery);
     if (code != TSDB_CODE_SUCCESS) {
