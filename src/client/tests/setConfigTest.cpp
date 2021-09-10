@@ -62,3 +62,10 @@ TEST(testCase, set_config_test5) {
   ASSERT_EQ(ret.retCode, -3);
   printf("msg:%d->%s", ret.retCode, ret.retMsg);
 }
+
+TEST(testCase, set_config_test6) {
+  const char *config = "{\"numOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitThreadsnumOfCoitT3333dd\":\"10\", \"esdfa\":\"10\"}";
+  setConfRet ret = taos_set_config(config);
+  ASSERT_EQ(ret.retCode, -1);
+  printf("msg:%d->%s", ret.retCode, ret.retMsg);
+}

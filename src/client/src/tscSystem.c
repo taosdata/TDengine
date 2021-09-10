@@ -440,30 +440,30 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
 #include "cJSON.h"
 static setConfRet taos_set_config_imp(const char *config){
-  setConfRet ret;
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
   static bool setConfFlag = false;
   if (setConfFlag) {
-    ret.retCode = -5;
+    ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
     strcpy(ret.retMsg, "configuration can only set once");
     return ret;
   }
   taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL){
-    ret.retCode = -4;
+    ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
     strcpy(ret.retMsg, "parse json error");
     return ret;
   }
 
   int size = cJSON_GetArraySize(root);
   if(!cJSON_IsObject(root) || size == 0) {
-    ret.retCode = -3;
+    ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
     strcpy(ret.retMsg, "json content is invalid, must be not empty object");
     return ret;
   }
 
   if(size >= 1000) {
-    ret.retCode = -6;
+    ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
     strcpy(ret.retMsg, "json object size is too long");
     return ret;
   }
@@ -471,21 +471,25 @@ static setConfRet taos_set_config_imp(const char *config){
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if(!item) {
-      ret.retCode = -2;
+      ret.retCode = SET_CONF_RET_ERR_INNER;
       strcpy(ret.retMsg, "inner error");
       return ret;
     }
     if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
-      ret.retCode = -1;
+      ret.retCode = SET_CONF_RET_ERR_PART;
       if (strlen(ret.retMsg) == 0){
-        snprintf(ret.retMsg, 1024, "part error|%s", item->string);
+        snprintf(ret.retMsg, RET_MSG_LENGTH - 1, "part error|%s", item->string);
       }else{
-        char tmp[1000] = {0};
-        strncpy(tmp, ret.retMsg, 1000);
-        snprintf(ret.retMsg, 1024, "%s|%s", tmp, item->string);
+        int leftSize = RET_MSG_LENGTH - 1 - strlen(ret.retMsg);
+        leftSize = leftSize >= 0 ? leftSize : 0;
+        strncat(ret.retMsg, "|",  leftSize);
+        leftSize = RET_MSG_LENGTH - 1 - strlen(ret.retMsg);
+        leftSize = leftSize >= 0 ? leftSize : 0;
+        strncat(ret.retMsg, item->string, leftSize);
       }
     }
   }
+  cJSON_Delete(root);
   setConfFlag = true;
   return ret;
 }

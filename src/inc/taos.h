@@ -62,9 +62,20 @@ typedef struct taosField {
   int16_t  bytes;
 } TAOS_FIELD;
 
+typedef enum {
+  SET_CONF_RET_SUCC = 0,
+  SET_CONF_RET_ERR_PART = -1,
+  SET_CONF_RET_ERR_INNER = -2,
+  SET_CONF_RET_ERR_JSON_INVALID = -3,
+  SET_CONF_RET_ERR_JSON_PARSE = -4,
+  SET_CONF_RET_ERR_ONLY_ONCE = -5,
+  SET_CONF_RET_ERR_TOO_LONG = -6
+} SET_CONF_RET_CODE;
+
+#define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
-  char   retMsg[1024];
-  int8_t retCode;
+  SET_CONF_RET_CODE retCode;
+  char   retMsg[RET_MSG_LENGTH];
 } setConfRet;
 
 #ifdef _TD_GO_DLL_
