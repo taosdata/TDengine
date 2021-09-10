@@ -31,21 +31,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "osMath.h"
 #include "tdigest.h"
 
 #define INTERPOLATE(x, x0, x1) (((x) - (x0)) / ((x1) - (x0)))
 #define INTEGRATED_LOCATION(compression, q) ((compression) * (asin(2 * (q) - 1) + M_PI / 2) / M_PI)
 #define FLOAT_EQ(f1, f2) (fabs((f1) - (f2)) <= FLT_EPSILON)
 
-/* From http://stackoverflow.com/questions/3437404/min-and-max-in-c */
-#define MAX(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-      __typeof__ (b) _b = (b); \
-     _a > _b ? _a : _b; })
-#define MIN(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-      __typeof__ (b) _b = (b); \
-     _a < _b ? _a : _b; })
 typedef struct MergeArgs {
     TDigest *t;
     Centroid *centroids;
@@ -67,7 +59,7 @@ TDigest *tdigestNewFrom(void* pBuf, int compression) {
     tdigestAutoFill(t, compression);
 
     t->compression = compression;
-    t->size = GET_CENTROID(compression);
+    t->size = (long long)GET_CENTROID(compression);
     t->threshold = GET_THRESHOLD(compression);
     t->min = INFINITY;
     return t;
