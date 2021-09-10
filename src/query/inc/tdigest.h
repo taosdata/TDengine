@@ -22,6 +22,10 @@
 #ifndef TDIGEST_H
 #define TDIGEST_H
 
+#ifndef M_PI
+#define M_PI        3.14159265358979323846264338327950288   /* pi             */
+#endif
+
 #define COMPRESSION 400
 #define GET_CENTROID(compression)  (ceil(compression * M_PI / 2) + 1)
 #define GET_THRESHOLD(compression) (7.5 + 0.37 * compression - 2e-4 * pow(compression, 2))
