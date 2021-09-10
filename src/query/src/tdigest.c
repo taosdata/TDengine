@@ -60,7 +60,7 @@ TDigest *tdigestNewFrom(void* pBuf, int compression) {
 
     t->compression = compression;
     t->size = (long long)GET_CENTROID(compression);
-    t->threshold = GET_THRESHOLD(compression);
+    t->threshold = (int)GET_THRESHOLD(compression);
     t->min = INFINITY;
     return t;
 }
