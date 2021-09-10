@@ -2442,7 +2442,6 @@ static SAPercentileInfo *getAPerctInfo(SQLFunctionCtx *pCtx) {
   return pInfo;
 }
 
-
 //
 //   ----------------- tdigest -------------------
 //
@@ -2477,7 +2476,6 @@ static void tdigest_do(SQLFunctionCtx *pCtx) {
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
-
     notNullElems += 1;
 
     double v = 0; // value  
@@ -2486,14 +2484,11 @@ static void tdigest_do(SQLFunctionCtx *pCtx) {
     tdigestAdd(pAPerc->pTDigest, v, w);
   }
 
-  //tdigestCompress(pAPerc->pTDigest);
-
   if (!pCtx->hasNull) {
     assert(pCtx->size == notNullElems);
   }
 
   SET_VAL(pCtx, notNullElems, 1);
-
   if (notNullElems > 0) {
     pResInfo->hasResult = DATA_SET_FLAG;
   }
@@ -2548,9 +2543,7 @@ static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
     }
   }
 
-  tdigestFreeFrom(pAPerc->pTDigest);
   pAPerc->pTDigest = NULL;
-
   doFinalizer(pCtx);
 }
 
@@ -2652,7 +2645,6 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
   pResInfo->hasResult = DATA_SET_FLAG;
   SET_VAL(pCtx, 1, 1);
 }
-
 
 static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
   if (getAlgo(pCtx) == ALGO_TDIGEST) {

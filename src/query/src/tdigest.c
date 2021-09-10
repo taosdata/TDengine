@@ -31,7 +31,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "tdigest.h"
 
 #define INTERPOLATE(x, x0, x1) (((x) - (x0)) / ((x1) - (x0)))
@@ -47,24 +46,21 @@
    ({ __typeof__ (a) _a = (a); \
       __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
+typedef struct MergeArgs {
+    TDigest *t;
+    Centroid *centroids;
+    int idx;
+    double weight_so_far;
+    double k1;
+    double min;
+    double max;
+}MergeArgs;     
 
 void tdigestAutoFill(TDigest* t, int compression) {
     t->centroids    = (Centroid*)((char*)t + sizeof(TDigest));
     t->buffered_pts = (Point*)   ((char*)t + sizeof(TDigest) + sizeof(Centroid) * (int)GET_CENTROID(compression));
 }
 
-TDigest *tdigestNew(int compression) {
-    TDigest *t = malloc(sizeof(TDigest));
-
-    memset(t, 0, sizeof(TDigest));
-
-    t->compression = compression;
-    t->size = GET_CENTROID(compression);
-    t->threshold = GET_THRESHOLD(compression);
-    t->min = INFINITY;
-
-    return t;
-}
 TDigest *tdigestNewFrom(void* pBuf, int compression) {
     memset(pBuf, 0, sizeof(TDigest) + sizeof(Centroid)*(compression + 1));
     TDigest* t = (TDigest*)pBuf;
@@ -86,16 +82,6 @@ static int centroid_cmp(const void *a, const void *b) {
         return 1;
     return 0;
 }
-
-typedef struct MergeArgs {
-    TDigest *t;
-    Centroid *centroids;
-    int idx;
-    double weight_so_far;
-    double k1;
-    double min;
-    double max;
-}MergeArgs;
 
 static void merge_centroid(MergeArgs *args, Centroid *merge) {
     double k2;
@@ -168,7 +154,6 @@ void tdigestCompress(TDigest *t) {
 
     while (i < num_unmerged)
         merge_centroid(&args, &unmerged_centroids[i++]);
-
     free(unmerged_centroids);
 
     while (j < t->num_centroids)
@@ -244,7 +229,7 @@ double tdigestCDF(TDigest *t, double x) {
         if (x < a->mean + right) {
             double cdf = (weight_so_far
                     + a->weight
-                            * INTERPOLATE(x, a->mean - left, a->mean + right))
+                    * INTERPOLATE(x, a->mean - left, a->mean + right))
                     / t->total_weight;
             return MAX(cdf, 0.0);
         }
@@ -256,10 +241,10 @@ double tdigestCDF(TDigest *t, double x) {
     a = b;
     right = t->max - a->mean;
 
-    if (x < a->mean + right)
-        return (weight_so_far
-                + a->weight * INTERPOLATE(x, a->mean - left, a->mean + right))
+    if (x < a->mean + right) {
+        return (weight_so_far + a->weight * INTERPOLATE(x, a->mean - left, a->mean + right))
                 / t->total_weight;
+    }
 
     return 1;
 }
@@ -301,14 +286,11 @@ double tdigestQuantile(TDigest *t, double q) {
         left = right;
 
         b = c;
-        right = (b->weight * a->mean + a->weight * b->mean)
-                / (a->weight + b->weight);
-
+        right = (b->weight * a->mean + a->weight * b->mean)/ (a->weight + b->weight);
         if (idx < weight_so_far + a->weight) {
             double p = (idx - weight_so_far) / a->weight;
             return left * (1 - p) + right * p;
         }
-
         weight_so_far += a->weight;
     }
 
@@ -336,12 +318,4 @@ void tdigestMerge(TDigest *t1, TDigest *t2) {
     for (int i = 0; i < t2->num_centroids; i++) {
         tdigestAdd(t1, t2->centroids[i].mean, t2->centroids[i].weight);
     }
-}
-
-void tdigestFree(TDigest *t) {
-    free(t);
-}
-
-void tdigestFreeFrom(TDigest *t) {
-    // nothing to do 
 }
