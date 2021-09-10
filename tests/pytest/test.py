@@ -18,6 +18,7 @@ import getopt
 import subprocess
 import time
 from distutils.log import warn as printf
+from fabric2 import Connection
 
 from util.log import *
 from util.dnodes import *
@@ -122,10 +123,12 @@ if __name__ == "__main__":
         host = masterIp
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
-    print(windows)
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
+        remote_conn = Connection("root@%s"%host)
+        with remote_conn.cd('/root/TDinternal/community/tests/pytest'):
+            remote_conn.run("python3 ./test.py")
         conn = taos.connect(
             host="%s"%(host),
             config="C:\\TDengine\\cfg")
