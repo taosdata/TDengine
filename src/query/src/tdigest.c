@@ -124,7 +124,7 @@ void tdigestCompress(TDigest *t) {
     qsort(unmerged_centroids, num_unmerged, sizeof(Centroid), centroid_cmp);
     memset(&args, 0, sizeof(MergeArgs));
     args.centroids = (Centroid*)malloc((size_t)(sizeof(Centroid) * t->size));
-    memset(args.centroids, 0, sizeof(Centroid) * t->size);
+    memset(args.centroids, 0, (size_t)(sizeof(Centroid) * t->size));
 
     args.t = t;
     args.min = INFINITY;
