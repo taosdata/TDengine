@@ -102,7 +102,11 @@ class TDCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
                 case.init(conn, self._logSql)
-                case.run()
+                try:
+                    case.run()
+                except Exception as e:
+                    tdLog.notice(repr(e))
+                    tdLog.exit("%s failed" % (fileName))
                 case.stop()
                 runNum += 1
                 continue
