@@ -303,7 +303,7 @@ void tdigestMerge(TDigest *t1, TDigest *t2) {
     int num_points = t2->num_buffered_pts;
     for(int i = num_points - 1; i >= 0; i--) {
         Point* p = t2->buffered_pts + i;
-        tdigestAdd(t1, p->value, p->value);
+        tdigestAdd(t1, p->value, p->weight);
         t2->num_buffered_pts --;
     }
     // centroids
