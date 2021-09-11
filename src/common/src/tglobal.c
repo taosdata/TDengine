@@ -279,6 +279,9 @@ uint32_t curRange     = 100;    // range
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
 #endif
 
+// long query death-lock
+int8_t tsDeadLockKillQuery = 0;
+
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
 void (*monExecuteSQLFp)(char *sql) = NULL;
@@ -1613,7 +1616,17 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
+   // enable kill long query
+  cfg.option = "deadLockKillQuery";
+  cfg.ptr = &tsDeadLockKillQuery;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
@@ -1667,6 +1680,9 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
+#else
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
 
 }
