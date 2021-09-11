@@ -2085,7 +2085,7 @@ int32_t tscAllocPayloadFast(SSqlCmd *pCmd, size_t size) {
     assert(pCmd->allocSize == 0);
 
     pCmd->payload = malloc(size);
-    pCmd->allocSize = size;
+    pCmd->allocSize = (uint32_t) size;
   } else if (pCmd->allocSize < size) {
     char* tmp = realloc(pCmd->payload, size);
     if (tmp == NULL) {
@@ -2093,7 +2093,7 @@ int32_t tscAllocPayloadFast(SSqlCmd *pCmd, size_t size) {
     }
 
     pCmd->payload = tmp;
-    pCmd->allocSize = size;
+    pCmd->allocSize = (uint32_t) size;
   }
 
   assert(pCmd->allocSize >= size);
