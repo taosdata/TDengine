@@ -109,7 +109,7 @@ void tdigestCompress(TDigest *t) {
     if (!t->num_buffered_pts)
         return;
 
-    unmerged_centroids = malloc(sizeof(Centroid) * t->num_buffered_pts);
+    unmerged_centroids = (Centroid*)malloc(sizeof(Centroid) * t->num_buffered_pts);
     for (i = 0; i < num_unmerged; i++) {
         Point *p = t->buffered_pts + i;
         Centroid *c = &unmerged_centroids[i];
@@ -123,7 +123,7 @@ void tdigestCompress(TDigest *t) {
 
     qsort(unmerged_centroids, num_unmerged, sizeof(Centroid), centroid_cmp);
     memset(&args, 0, sizeof(MergeArgs));
-    args.centroids = malloc(sizeof(Centroid) * t->size);
+    args.centroids = (Centroid*)malloc(sizeof(Centroid) * t->size);
     memset(args.centroids, 0, sizeof(Centroid) * t->size);
 
     args.t = t;
@@ -146,7 +146,7 @@ void tdigestCompress(TDigest *t) {
 
     while (i < num_unmerged)
         merge_centroid(&args, &unmerged_centroids[i++]);
-    free(unmerged_centroids);
+    free((void*)unmerged_centroids);
 
     while (j < t->num_centroids)
         merge_centroid(&args, &t->centroids[j++]);
@@ -162,7 +162,7 @@ void tdigestCompress(TDigest *t) {
     }
 
     memcpy(t->centroids, args.centroids, sizeof(Centroid) * t->num_centroids);
-    free(args.centroids);
+    free((void*)args.centroids);
 }
 
 void tdigestAdd(TDigest* t, double x, long long w) {
