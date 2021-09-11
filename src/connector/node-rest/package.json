@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "prepare": "npm run build",
-    "build": "esbuild --bundle --platform=node --outfile=lib/index.js src/index.js",
+    "build": "esbuild --bundle --platform=node --outfile=lib/index.js  src/index.js",
     "build:dev": "esbuild --bundle --platform=node --outfile=dist/examples/show-database.js examples/show-databases.js --watch"
   },
   "devDependencies": {
