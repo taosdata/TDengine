@@ -4256,6 +4256,165 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   doFinalizer(pCtx);
 }
 
+typedef struct {
+  double cumSum;
+} SCumSumInfo;
+
+static bool csum_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  SCumSumInfo* pCumSumInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pCumSumInfo->cumSum = 0;
+  return true;
+}
+
+static void csum_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SCumSumInfo* pCumSumInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  void* data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order = TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
+
+  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY* tsList = GET_TS_LIST(pCtx);
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *pData = (int32_t *)data;
+      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pCumSumInfo->cumSum += pData[i];
+        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+
+        ++notNullElems;
+        pOutput += 1;
+        pTimestamp += 1;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *pData = (int64_t *)data;
+      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pCumSumInfo->cumSum += pData[i];
+        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+
+        ++notNullElems;
+        pOutput += 1;
+        pTimestamp += 1;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *pData = (int8_t *)data;
+      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pCumSumInfo->cumSum += pData[i];
+        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+
+        ++notNullElems;
+        pOutput += 1;
+        pTimestamp += 1;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *pData = (int16_t *)data;
+      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pCumSumInfo->cumSum += pData[i];
+        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+
+        ++notNullElems;
+        pOutput += 1;
+        pTimestamp += 1;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *pData = (float *)data;
+      float *pOutput = (float *)pCtx->pOutput;
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pCumSumInfo->cumSum += pData[i];
+        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+
+        ++notNullElems;
+        pOutput += 1;
+        pTimestamp += 1;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *pData = (double *)data;
+      double *pOutput = (double *)pCtx->pOutput;
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pCumSumInfo->cumSum += pData[i];
+        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+
+        ++notNullElems;
+        pOutput += 1;
+        pTimestamp += 1;
+      }
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+    GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
+  }
+}
+
+typedef struct {
+  int32_t numSamples;
+
+} SSampleInfo;
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
