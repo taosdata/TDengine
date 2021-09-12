@@ -1315,6 +1315,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   }
 
   if ((fArraySize = taosArrayGetSize(fArray)) <= 0) {
+    taosArrayDestroy(fArray);
     tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu32, REPO_ID(pRepo), dataDir, (uint32_t)fArraySize);
     return 0;
   }

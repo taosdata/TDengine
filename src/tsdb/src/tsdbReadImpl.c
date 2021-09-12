@@ -267,11 +267,9 @@ static FORCE_INLINE size_t tsdbSizeOfSBlock(int32_t sBlkVer) {
   }
 }
 
-static int tsdbHeadRefactor(SDFile *pHeadf, SBlockInfo *pSrcBlkInfo, uint32_t srcBlkInfoLen, SBlockInfo **pDstBlkInfo,
-                            int32_t *dstBlkInfoLen) {
+static int tsdbHeadRefactor(SDFile *pHeadf, SBlockInfo **pDstBlkInfo, uint32_t srcBlkInfoLen, int32_t *dstBlkInfoLen) {
   int sBlkVer = tsdbGetSBlockVer(pHeadf->info.fver);
   if (sBlkVer == SBlockVerLatest) {
-    *pDstBlkInfo = pSrcBlkInfo;
     *dstBlkInfoLen = srcBlkInfoLen;
     return TSDB_CODE_SUCCESS;
   }
@@ -281,20 +279,22 @@ static int tsdbHeadRefactor(SDFile *pHeadf, SBlockInfo *pSrcBlkInfo, uint32_t sr
   *dstBlkInfoLen = sizeof(SBlockInfo) + nBlks * sizeof(SBlock);
 
   if (srcBlkInfoLen == *dstBlkInfoLen) {
-    *pDstBlkInfo = pSrcBlkInfo;
     return TSDB_CODE_SUCCESS;
   }
 
   ASSERT(*dstBlkInfoLen >= srcBlkInfoLen);
 
-  if (tsdbMakeRoom((void **)(pDstBlkInfo), *dstBlkInfoLen) < 0) return -1;
-  memset(*pDstBlkInfo, 0, *dstBlkInfoLen);                // the blkVer is set to 0
-  memcpy(*pDstBlkInfo, pSrcBlkInfo, sizeof(SBlockInfo));  // copy header
+  SBlockInfo *tmpBlkInfo = NULL;
+  if (tsdbMakeRoom((void **)(&tmpBlkInfo), *dstBlkInfoLen) < 0) return -1;
+  memset(tmpBlkInfo, 0, *dstBlkInfoLen);                 // the blkVer is set to 0
+  memcpy(tmpBlkInfo, *pDstBlkInfo, sizeof(SBlockInfo));  // copy header
   for (int i = 0; i < nBlks; ++i) {
-    memcpy((*pDstBlkInfo)->blocks + i, POINTER_SHIFT(pSrcBlkInfo->blocks, i * originBlkSize), originBlkSize);
+    memcpy(tmpBlkInfo->blocks + i, POINTER_SHIFT((*pDstBlkInfo)->blocks, i * originBlkSize), originBlkSize);
     // TODO: update the fields if the SBlock definition changed later
   }
-  taosTZfree(pSrcBlkInfo);
+  taosTZfree(*pDstBlkInfo);
+  *pDstBlkInfo = tmpBlkInfo;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -303,7 +303,6 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen) {
 
   SDFile *    pHeadf = TSDB_READ_HEAD_FILE(pReadh);
   SBlockIdx * pBlkIdx = pReadh->pBlkIdx;
-  SBlockInfo *pBlkInfo = NULL;
 
   if (tsdbSeekDFile(pHeadf, pBlkIdx->offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load SBlockInfo part while seek file %s since %s, offset:%u len:%u",
@@ -311,13 +310,12 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen) {
     return -1;
   }
 
-  if (tsdbMakeRoom((void **)(&pBlkInfo), pBlkIdx->len) < 0) return -1;
+  if (tsdbMakeRoom((void **)(&pReadh->pBlkInfo), pBlkIdx->len) < 0) return -1;
 
-  int64_t nread = tsdbReadDFile(pHeadf, (void *)pBlkInfo, pBlkIdx->len);
+  int64_t nread = tsdbReadDFile(pHeadf, (void *)(pReadh->pBlkInfo), pBlkIdx->len);
   if (nread < 0) {
     tsdbError("vgId:%d failed to load SBlockInfo part while read file %s since %s, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
-    taosTZfree(pBlkInfo);
     return -1;
   }
 
@@ -325,23 +323,20 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d SBlockInfo part in file %s is corrupted, offset:%u expected bytes:%u read bytes:%" PRId64,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len, nread);
-    taosTZfree(pBlkInfo);
     return -1;
   }
 
-  if (!taosCheckChecksumWhole((uint8_t *)pBlkInfo, pBlkIdx->len)) {
+  if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkInfo), pBlkIdx->len)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d SBlockInfo part in file %s is corrupted since wrong checksum, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len);
-    taosTZfree(pBlkInfo);
     return -1;
   }
 
-  ASSERT(pBlkIdx->tid == pBlkInfo->tid && pBlkIdx->uid == pBlkInfo->uid);
+  ASSERT(pBlkIdx->tid == pReadh->pBlkInfo->tid && pBlkIdx->uid == pReadh->pBlkInfo->uid);
 
   int32_t dstBlkInfoLen = 0;
-  if (tsdbHeadRefactor(pHeadf, pBlkInfo, pBlkIdx->len, &(pReadh->pBlkInfo), &dstBlkInfoLen) < 0) {
-    taosTZfree(pBlkInfo);
+  if (tsdbHeadRefactor(pHeadf, &(pReadh->pBlkInfo), pBlkIdx->len, &dstBlkInfoLen) < 0) {
     return -1;
   }
 
