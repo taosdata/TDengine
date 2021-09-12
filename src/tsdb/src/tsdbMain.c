@@ -673,7 +673,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     err = -1;
     goto out;
   }
@@ -775,7 +775,7 @@ out:
 
 static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
   ASSERT(pTable->lastRow == NULL);
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
   }
 

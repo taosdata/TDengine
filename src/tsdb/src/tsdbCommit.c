@@ -949,7 +949,7 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
   SBlock *pBlock;
 
   if (pCommith->readh.pBlkIdx) {
-    if (tsdbLoadBlockInfo(&(pCommith->readh), NULL) < 0) {
+    if (tsdbLoadBlockInfo(&(pCommith->readh), NULL, NULL) < 0) {
       TSDB_RUNLOCK_TABLE(pIter->pTable);
       return -1;
     }

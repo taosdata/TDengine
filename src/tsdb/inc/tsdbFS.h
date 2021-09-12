@@ -22,20 +22,24 @@
  * // TODO update date and add release version.
  */
 typedef enum {
-  TSDB_FS_VERSION_0,
-  TSDB_FS_VERSION_1,
-} ETsdbFsVersion;
+  TSDB_FS_VER_0,
+  TSDB_FS_VER_1,
+} ETsdbFsVer;
 
-static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T ftype) {  // for DFile
-  switch (ftype) {
+#define TSDB_FVER_TYPE uint32_t
+
+static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest version for DFile
+  switch (fType) {
     case TSDB_FILE_HEAD:
-      return TSDB_FS_VERSION_1;
+      return TSDB_FS_VER_1;
     default:
-      return TSDB_FS_VERSION_0;
+      return TSDB_FS_VER_0;
   }
 }
 
-static FORCE_INLINE uint32_t tsdbGetSFSVersion() { return TSDB_FS_VERSION_1; }  // for current
+static FORCE_INLINE uint32_t tsdbGetSFSVersion() { return TSDB_FS_VER_1; }  // latest version for current
+
+int tsdbRefactorFS(STsdbRepo *pRepo);
 
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;

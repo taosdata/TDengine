@@ -168,6 +168,7 @@ typedef struct {
   uint32_t offset;
   uint64_t size;
   uint64_t tombSize;
+  uint32_t fver;
 } SDFInfo;
 
 typedef struct {
@@ -175,16 +176,15 @@ typedef struct {
   TFILE   f;
   int     fd;
   uint8_t state;
-  uint32_t fver;
+
 } SDFile;
 
 void  tsdbInitDFile(SDFile* pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype);
 void  tsdbInitDFileEx(SDFile* pDFile, SDFile* pODFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
-void* tsdbDecodeSDFile(void* buf, SDFile* pDFile);
+void* tsdbDecodeSDFile(void* buf, SDFile* pDFile, uint32_t sfver);
 int   tsdbCreateDFile(SDFile* pDFile, bool updateHeader, TSDB_FILE_T ftype);
 int   tsdbUpdateDFileHeader(SDFile* pDFile);
-int   tsdbUpdateDFileHeaderEx(SDFile* pDFile, uint32_t fver);
 int   tsdbLoadDFileHeader(SDFile* pDFile, SDFInfo* pInfo);
 int   tsdbParseDFilename(const char* fname, int* vid, int* fid, TSDB_FILE_T* ftype, uint32_t* version);
 
@@ -319,7 +319,7 @@ typedef struct {
 void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
-void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet, bool containNFiles);
+void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet, uint32_t sfver);
 int   tsdbEncodeDFileSetEx(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSetEx(void* buf, SDFileSet* pSet);
 int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);

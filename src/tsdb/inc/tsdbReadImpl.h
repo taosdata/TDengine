@@ -35,6 +35,7 @@ typedef struct {
   TSKEY    maxKey;
 } SBlockIdx;
 
+#if 0
 typedef struct {
   int64_t last : 1;
   int64_t offset : 63;
@@ -46,14 +47,51 @@ typedef struct {
   int16_t numOfCols;  // not including timestamp column
   TSKEY   keyFirst;
   TSKEY   keyLast;
-#ifdef __TD_6117__
-  int64_t hasAggr : 1;
-  int64_t blkVer : 7;
-  int64_t aggrOffset : 56;
-  int32_t aggrLen;
+  } SBlock;
 #endif
-} SBlock;
 
+/**
+ * int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+ * int16_t numOfCols;  // not including timestamp column
+ */
+#define SBlockFieldsP0    \
+  int64_t last : 1;       \
+  int64_t offset : 63;    \
+  int32_t algorithm : 8;  \
+  int32_t numOfRows : 24; \
+  int32_t len;            \
+  int32_t keyLen;         \
+  int16_t numOfSubBlocks; \
+  int16_t numOfCols;      \
+  TSKEY   keyFirst;       \
+  TSKEY   keyLast
+
+#define SBlockFieldsP1     \
+  int64_t hasAggr : 1;     \
+  int64_t blkVer : 7;      \
+  int64_t aggrOffset : 56; \
+  int32_t aggrLen
+
+typedef struct {
+  SBlockFieldsP0;
+} SBlockV0;
+
+typedef struct {
+  SBlockFieldsP0;
+  SBlockFieldsP1;
+} SBlockV1;
+
+typedef enum {
+  TSDB_SBLK_VER_0,
+  TSDB_SBLK_VER_1,
+} ESBlockVer;
+
+#define SBlockVerLatest TSDB_SBLK_VER_1
+
+#define SBlockBase SBlockV0  // base SBlock definition
+#define SBlock SBlockV1      // latest SBlock definition
+
+// lastest SBlockInfo definition
 typedef struct {
   int32_t  delimiter;  // For recovery usage
   int32_t  tid;
@@ -61,20 +99,40 @@ typedef struct {
   SBlock   blocks[];
 } SBlockInfo;
 
+// definition of SBlockInfoV{#verion}
+#define SBlockInfoV(version)    \
+  typedef struct {              \
+    int32_t          delimiter; \
+    int32_t          tid;       \
+    uint64_t         uid;       \
+    SBlockV##version blocks[];  \
+  } SBlockInfoV##version;
+
 typedef struct {
   int16_t  colId;
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;
-  // int64_t  sum;
-  // int64_t  max;
-  // int64_t  min;
-  // int16_t  maxIndex;
-  // int16_t  minIndex;
-  // int16_t  numOfNull;
+  int64_t  sum;
+  int64_t  max;
+  int64_t  min;
+  int16_t  maxIndex;
+  int16_t  minIndex;
+  int16_t  numOfNull;
   uint8_t  offsetH;
   char     padding[1];
-} SBlockCol;
+} SBlockColV0;
+typedef struct {
+  int16_t  colId;
+  int32_t  len;
+  uint32_t type : 8;
+  uint32_t offset : 24;
+  uint8_t  offsetH;
+  char     padding[1];
+} SBlockColV1;
+
+#define SBlockColBase SBlockColV0  // base SBlockCol definition
+#define SBlockCol SBlockColV1      // latest SBlockCol definition
 
 typedef struct {
   int16_t colId;
@@ -118,7 +176,7 @@ struct SReadH {
   STable *    pTable;   // table to read
   SBlockIdx * pBlkIdx;  // current reading table SBlockIdx
   int         cidx;
-  SBlockInfo *pBlkInfo;
+  SBlockInfo *  pBlkInfo;  // SBlockInfoV#
   SBlockData *pBlkData;  // Block info
   SAggrBlkData *pAggrBlkData;  // Aggregate Block info
   SDataCols * pDCols[2];
@@ -148,7 +206,7 @@ int   tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
 void  tsdbCloseAndUnsetFSet(SReadH *pReadh);
 int   tsdbLoadBlockIdx(SReadH *pReadh);
 int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
-int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
+int   tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
@@ -172,6 +230,22 @@ static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       return -1;
     }
+  }
+
+  return 0;
+}
+
+FORCE_INLINE int tsdbInitReadHBlkIdx(SReadH *pReadh, STsdbRepo *pRepo) {
+  ASSERT(pReadh != NULL && pRepo != NULL);
+
+  memset((void *)pReadh, 0, sizeof(*pReadh));
+  pReadh->pRepo = pRepo;
+  TSDB_FSET_SET_INIT(TSDB_READ_FSET(pReadh));
+
+  pReadh->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
+  if (pReadh->aBlkIdx == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
   }
 
   return 0;

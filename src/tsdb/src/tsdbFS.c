@@ -90,7 +90,7 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
   return tlen;
 }
 
-static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray, bool containNFiles) {
+static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, SFSHeader *pSFSHeader) {
   uint64_t  nset;
   SDFileSet dset;
   dset.nFiles = TSDB_FILE_MIN;  // default value: .head/.data/.last
@@ -98,11 +98,24 @@ static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray, bool containNFil
   taosArrayClear(pArray);
 
   buf = taosDecodeFixedU64(buf, &nset);
+
+  if (pSFSHeader->version == TSDB_FS_VER_0) {
+    uint32_t extendedSize = pSFSHeader->len + nset * TSDB_FILE_MAX * sizeof(TSDB_FVER_TYPE);
+    if (taosTSizeof(*originBuf) < extendedSize) {
+      int ptrDistance = POINTER_DISTANCE(buf, *originBuf);
+      if (tsdbMakeRoom(originBuf, extendedSize) < 0) {
+        terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+        return -1;
+      }
+      buf = POINTER_SHIFT(*originBuf, ptrDistance);
+    }
+  }
+
   for (size_t i = 0; i < nset; i++) {
-    buf = tsdbDecodeDFileSet(buf, &dset, containNFiles);
+    buf = tsdbDecodeDFileSet(buf, &dset, pSFSHeader->version);
     taosArrayPush(pArray, (void *)(&dset));
   }
-  return buf;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
@@ -116,14 +129,12 @@ static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   return tlen;
 }
 
-static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus, bool containNFiles) {
+static int tsdbDecodeFSStatus(void **originBuf, void *buf, SFSStatus *pStatus, SFSHeader *pSFSHeader) {
   tsdbResetFSStatus(pStatus);
   pStatus->pmf = &(pStatus->mf);
 
   buf = tsdbDecodeSMFile(buf, pStatus->pmf);
-  buf = tsdbDecodeDFileSetArray(buf, pStatus->df, containNFiles);
-
-  return buf;
+  return tsdbDecodeDFileSetArray(originBuf, buf, pStatus->df, pSFSHeader);
 }
 
 static SFSStatus *tsdbNewFSStatus(int maxFSet) {
@@ -327,6 +338,12 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
 
   if (tsdbScanAndTryFixFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to scan and fix FS since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  // add switch to control
+  if (tsdbRefactorFS(pRepo) < 0) {
+    tsdbError("vgId:%d failed to refactor FS since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
 
@@ -690,7 +707,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
   ptr = tsdbDecodeFSHeader(ptr, &fsheader);
   ptr = tsdbDecodeFSMeta(ptr, &(pStatus->meta));
 
-  if (fsheader.version != TSDB_FS_VERSION_0) {
+  if (fsheader.version != TSDB_FS_VER_0) {
     // TODO: handle file version change
   }
 
@@ -719,7 +736,9 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     }
 
     ptr = buffer;
-    ptr = tsdbDecodeFSStatus(ptr, pStatus, fsheader.version == TSDB_FS_VERSION_0 ? false : true);
+    if (tsdbDecodeFSStatus(&buffer, ptr, pStatus, &fsheader) < 0) {
+      goto _err;
+    }
   } else {
     tsdbResetFSStatus(pStatus);
   }

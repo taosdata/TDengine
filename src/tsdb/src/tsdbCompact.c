@@ -360,7 +360,8 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
         tsdbUnRefTable(pTh->pTable);
       }
 
-      pTh->pInfo = taosTZfree(pTh->pInfo);
+      // pTh->pInfo = taosTZfree(pTh->pInfo);
+      tfree(pTh->pInfo);
     }
 
     pComph->tbArray = taosArrayDestroy(pComph->tbArray);
@@ -386,11 +387,11 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       pTh->bindex = *(pReadH->pBlkIdx);
       pTh->pBlkIdx = &(pTh->bindex);
 
-      if (tsdbMakeRoom((void **)(&(pTh->pInfo)), pTh->pBlkIdx->len) < 0) {
-        return -1;
-      }
-
-      if (tsdbLoadBlockInfo(pReadH, (void *)(pTh->pInfo)) < 0) {
+      // if (tsdbMakeRoom((void **)(&(pTh->pInfo)), pTh->pBlkIdx->len) < 0) {
+      //   return -1;
+      // }
+      int32_t originLen = 0;
+      if (tsdbLoadBlockInfo(pReadH, (void **)(&(pTh->pInfo)), &originLen) < 0) {
         return -1;
       }
     }

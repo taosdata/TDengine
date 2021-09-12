@@ -33,7 +33,8 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
 
   memset((void *)pReadh, 0, sizeof(*pReadh));
   pReadh->pRepo = pRepo;
-  TSDB_FSET_SET_INIT(TSDB_READ_FSET(pReadh));
+
+  TSDB_FSET_SET_CLOSED(TSDB_READ_FSET(pReadh));
 
   pReadh->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
   if (pReadh->aBlkIdx == NULL) {
@@ -199,6 +200,7 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
   return 0;
 }
 
+#if 0
 int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   ASSERT(pReadh->pBlkIdx != NULL);
 
@@ -241,6 +243,124 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   }
 
   return 0;
+}
+#endif
+
+static FORCE_INLINE int32_t tsdbGetSBlockVer(int32_t fver) {
+  switch (fver) {
+    case TSDB_FS_VER_0:
+      return TSDB_SBLK_VER_0;
+    case TSDB_FS_VER_1:
+    default:
+      return TSDB_SBLK_VER_1;
+  }
+}
+
+static FORCE_INLINE size_t tsdbSizeOfSBlock(int32_t sBlkVer) {
+  switch (sBlkVer) {
+    case TSDB_SBLK_VER_0:
+      return sizeof(SBlockV0);
+    case TSDB_SBLK_VER_1:
+      return sizeof(SBlockV1);
+    default:
+      return sizeof(SBlock);
+  }
+}
+
+static int tsdbHeadRefactor(SDFile *pHeadf, SBlockInfo *pSrcBlkInfo, uint32_t srcBlkInfoLen, SBlockInfo **pDstBlkInfo,
+                            int32_t *dstBlkInfoLen) {
+  int sBlkVer = tsdbGetSBlockVer(pHeadf->info.fver);
+  if (sBlkVer == SBlockVerLatest) {
+    *pDstBlkInfo = pSrcBlkInfo;
+    *dstBlkInfoLen = srcBlkInfoLen;
+    return TSDB_CODE_SUCCESS;
+  }
+  uint32_t originBlkSize = tsdbSizeOfSBlock(sBlkVer);
+  int      nBlks = (srcBlkInfoLen - sizeof(SBlockInfo)) / originBlkSize;
+
+  *dstBlkInfoLen = sizeof(SBlockInfo) + nBlks * sizeof(SBlock);
+
+  if (srcBlkInfoLen == *dstBlkInfoLen) {
+    *pDstBlkInfo = pSrcBlkInfo;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ASSERT(*dstBlkInfoLen >= srcBlkInfoLen);
+
+  if (tsdbMakeRoom((void **)(pDstBlkInfo), *dstBlkInfoLen) < 0) return -1;
+  memset(*pDstBlkInfo, 0, *dstBlkInfoLen);                // the blkVer is set to 0
+  memcpy(*pDstBlkInfo, pSrcBlkInfo, sizeof(SBlockInfo));  // copy header
+  for (int i = 0; i < nBlks; ++i) {
+    memcpy((*pDstBlkInfo)->blocks + i, POINTER_SHIFT(pSrcBlkInfo->blocks, i * originBlkSize), originBlkSize);
+    // TODO: update the fields if the SBlock definition changed later
+  }
+  taosTZfree(pSrcBlkInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+int tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen) {
+  ASSERT(pReadh->pBlkIdx != NULL);
+
+  SDFile *    pHeadf = TSDB_READ_HEAD_FILE(pReadh);
+  SBlockIdx * pBlkIdx = pReadh->pBlkIdx;
+  SBlockInfo *pBlkInfo = NULL;
+
+  if (tsdbSeekDFile(pHeadf, pBlkIdx->offset, SEEK_SET) < 0) {
+    tsdbError("vgId:%d failed to load SBlockInfo part while seek file %s since %s, offset:%u len:%u",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
+    return -1;
+  }
+
+  if (tsdbMakeRoom((void **)(&pBlkInfo), pBlkIdx->len) < 0) return -1;
+
+  int64_t nread = tsdbReadDFile(pHeadf, (void *)pBlkInfo, pBlkIdx->len);
+  if (nread < 0) {
+    tsdbError("vgId:%d failed to load SBlockInfo part while read file %s since %s, offset:%u len :%u",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
+    taosTZfree(pBlkInfo);
+    return -1;
+  }
+
+  if (nread < pBlkIdx->len) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d SBlockInfo part in file %s is corrupted, offset:%u expected bytes:%u read bytes:%" PRId64,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len, nread);
+    taosTZfree(pBlkInfo);
+    return -1;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)pBlkInfo, pBlkIdx->len)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d SBlockInfo part in file %s is corrupted since wrong checksum, offset:%u len :%u",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len);
+    taosTZfree(pBlkInfo);
+    return -1;
+  }
+
+  ASSERT(pBlkIdx->tid == pBlkInfo->tid && pBlkIdx->uid == pBlkInfo->uid);
+
+  int32_t dstBlkInfoLen = 0;
+  if (tsdbHeadRefactor(pHeadf, pBlkInfo, pBlkIdx->len, &(pReadh->pBlkInfo), &dstBlkInfoLen) < 0) {
+    taosTZfree(pBlkInfo);
+    return -1;
+  }
+
+  if (extendedLen != NULL) {
+    if (pTarget != NULL) {
+      if (*extendedLen < dstBlkInfoLen) {
+        char *t = realloc(*pTarget, dstBlkInfoLen);
+        if (t == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          return -1;
+        }
+        *pTarget = t;
+      }
+      memcpy(*pTarget, (void *)(pReadh->pBlkInfo), dstBlkInfoLen);
+    }
+    *extendedLen = dstBlkInfoLen;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {

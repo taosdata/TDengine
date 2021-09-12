@@ -27,7 +27,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
 static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
-static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
+static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo, TSDB_FVER_TYPE sfver);
 static int   tsdbRollBackDFile(SDFile *pDFile);
 
 // ============== SMFile
@@ -302,6 +302,7 @@ void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, 
 
   memset(&(pDFile->info), 0, sizeof(pDFile->info));
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
+  pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
   tsdbGetFilename(vid, fid, ver, ftype, fname);
   tfsInitFile(&(pDFile->f), did.level, did.id, fname);
@@ -321,8 +322,8 @@ int tsdbEncodeSDFile(void **buf, SDFile *pDFile) {
   return tlen;
 }
 
-void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
-  buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
+void *tsdbDecodeSDFile(void *buf, SDFile *pDFile, uint32_t sfver) {
+  buf = tsdbDecodeDFInfo(buf, &(pDFile->info), sfver);
   buf = tfsDecodeFile(buf, &(pDFile->f));
   TSDB_FILE_SET_CLOSED(pDFile);
 
@@ -341,7 +342,7 @@ static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
 static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   char *aname;
 
-  buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
+  buf = tsdbDecodeDFInfo(buf, &(pDFile->info), tsdbGetSFSVersion());
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pDFile);
@@ -353,7 +354,7 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
 int tsdbCreateDFile(SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0755);
+  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pDFile->fd < 0) {
     if (errno == ENOENT) {
       // Try to create directory recursively
@@ -364,7 +365,7 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
       }
       tfree(s);
 
-      pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0755);
+      pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
       if (pDFile->fd < 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
@@ -380,8 +381,9 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
   }
 
   pDFile->info.size += TSDB_FILE_HEAD_SIZE;
+  pDFile->info.fver = tsdbGetDFSVersion(fType);
 
-  if (tsdbUpdateDFileHeaderEx(pDFile, tsdbGetDFSVersion(fType)) < 0) {
+  if (tsdbUpdateDFileHeader(pDFile) < 0) {
     tsdbCloseDFile(pDFile);
     tsdbRemoveDFile(pDFile);
     return -1;
@@ -390,45 +392,7 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
   return 0;
 }
 
-// keep the fver in DFileHeader(e.g. during fs check in openFS)
 int tsdbUpdateDFileHeader(SDFile *pDFile) {
-  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
-
-  if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
-    tsdbDebug("prop:file %s seek to read fail", TSDB_FILE_FULL_NAME(pDFile));
-    return -1;
-  }
-
-  if (tsdbReadDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
-    tsdbDebug("prop:file %s read fail, fd is %d", TSDB_FILE_FULL_NAME(pDFile), pDFile->fd);
-    return -1;
-  }
-
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbDebug("prop:file %s checksum fail", TSDB_FILE_FULL_NAME(pDFile));
-    return -1;
-  }
-
-  void *ptr = POINTER_SHIFT(buf, sizeof(uint32_t));
-  tsdbEncodeDFInfo(&ptr, &(pDFile->info));
-
-  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
-
-  if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
-    tsdbDebug("prop:file %s seek to write fail", TSDB_FILE_FULL_NAME(pDFile));
-    return -1;
-  }
-
-  if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
-    tsdbDebug("prop:file %s write fail", TSDB_FILE_FULL_NAME(pDFile));
-    return -1;
-  }
-
-  return 0;
-}
-// update the fver in DFileHeader
-int tsdbUpdateDFileHeaderEx(SDFile *pDFile, uint32_t fver) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
   if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
@@ -436,7 +400,6 @@ int tsdbUpdateDFileHeaderEx(SDFile *pDFile, uint32_t fver) {
   }
 
   void *ptr = buf;
-  taosEncodeFixedU32(&ptr, fver);
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
@@ -467,8 +430,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = taosDecodeFixedU32(pBuf, &(pDFile->fver));
-  pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
+  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_FS_VER_1);
   return 0;
 }
 
@@ -526,7 +488,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
 
 static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
   int tlen = 0;
-
+  tlen += taosEncodeFixedU32(buf, pInfo->fver);
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
   tlen += taosEncodeFixedU32(buf, pInfo->len);
   tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
@@ -538,7 +500,12 @@ static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
   return tlen;
 }
 
-static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
+static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo, TSDB_FVER_TYPE sfver) {
+  if (sfver > TSDB_FS_VER_0) {
+    buf = taosDecodeFixedU32(buf, &(pInfo->fver));
+  } else {
+    pInfo->fver = TSDB_FS_VER_0;  // default value
+  }
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
   buf = taosDecodeFixedU32(buf, &(pInfo->len));
   buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
@@ -620,25 +587,27 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
 
   tlen += taosEncodeFixedI32(buf, pSet->fid);
   tlen += taosEncodeFixedU8(buf, pSet->nFiles);
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
     tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
 
   return tlen;
 }
 
-void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet, bool containNFiles) {
+void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet, uint32_t sfver) {
   int32_t fid;
 
   buf = taosDecodeFixedI32(buf, &(fid));
   pSet->state = 0;
   pSet->fid = fid;
-  if (containNFiles) {
+
+  if (sfver > TSDB_FS_VER_0) {
     buf = taosDecodeFixedU8(buf, &(pSet->nFiles));
   }
+
   ASSERT(TSDB_FSET_NFILES_VALID(pSet));
   for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
-    buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
+    buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype), sfver);
   }
   return buf;
 }
@@ -647,7 +616,8 @@ int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
   tlen += taosEncodeFixedI32(buf, pSet->fid);
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+  tlen += taosEncodeFixedU8(buf, pSet->nFiles);
+  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
     tlen += tsdbEncodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
 
@@ -658,8 +628,9 @@ void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
   int32_t fid;
 
   buf = taosDecodeFixedI32(buf, &(fid));
+  buf = taosDecodeFixedU8(buf, &(pSet->nFiles));
   pSet->fid = fid;
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
     buf = tsdbDecodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
   return buf;
