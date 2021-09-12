@@ -1068,12 +1068,12 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   ASSERT((!isLast) || rowsToWrite < pCfg->minRowsPerFileBlock);
 
   // Make buffer space
-  if (tsdbMakeRoom(ppBuf, TSDB_BLOCK_STATIS_SIZE(pDataCols->numOfCols)) < 0) {
+  if (tsdbMakeRoom(ppBuf, tsdbBlockStatisSize(pDataCols->numOfCols, SBlockVerLatest)) < 0) {
     return -1;
   }
   pBlockData = (SBlockData *)(*ppBuf);
 
-  if (tsdbMakeRoom(ppExBuf, TSDB_BLOCK_AGGR_SIZE(pDataCols->numOfCols)) < 0) {
+  if (tsdbMakeRoom(ppExBuf, tsdbBlockAggrSize(pDataCols->numOfCols, SBlockVerLatest)) < 0) {
     return -1;
   }
   pAggrBlkData = (SAggrBlkData *)(*ppExBuf);
@@ -1082,7 +1082,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   int nColsNotAllNull = 0;
   for (int ncol = 1; ncol < pDataCols->numOfCols; ncol++) {  // ncol from 1, we skip the timestamp column
     SDataCol * pDataCol = pDataCols->cols + ncol;
-    SBlockCol *pBlockCol = pBlockData->cols + nColsNotAllNull;
+    SBlockCol *  pBlockCol = pBlockData->cols + nColsNotAllNull;
     SAggrBlkCol *pAggrBlkCol = pAggrBlkData->cols + nColsNotAllNull;
 
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
@@ -1113,11 +1113,11 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   // Compress the data if neccessary
   int      tcol = 0;  // counter of not all NULL and written columns
   uint32_t toffset = 0;
-  int32_t  tsize = TSDB_BLOCK_STATIS_SIZE(nColsNotAllNull);
+  int32_t  tsize = tsdbBlockStatisSize(nColsNotAllNull, SBlockVerLatest);
   int32_t  lsize = tsize;
   int32_t  keyLen = 0;
 
-  int32_t  tsizeAggr = TSDB_BLOCK_AGGR_SIZE(nColsNotAllNull);
+  int32_t tsizeAggr = tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
 
   for (int ncol = 0; ncol < pDataCols->numOfCols; ncol++) {
     // All not NULL columns finish
@@ -1186,8 +1186,8 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   }
 
 #ifdef __TD_6117__
-  pAggrBlkData->delimiter = TSDB_FILE_DELIMITER;
-  pAggrBlkData->uid = TABLE_UID(pTable);
+  // pAggrBlkData->delimiter = TSDB_FILE_DELIMITER;
+  // pAggrBlkData->uid = TABLE_UID(pTable);
   pAggrBlkData->numOfCols = nColsNotAllNull;
 
   taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
@@ -1212,6 +1212,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   pBlock->keyLast = dataColsKeyLast(pDataCols);
 #ifdef __TD_6117__
   pBlock->hasAggr = 1;
+  pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = offsetAggr;
   pBlock->aggrLen = tsizeAggr;
 #endif

@@ -156,6 +156,7 @@ int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 // tsdb config 
 // For backward compatibility
 bool tsdbForceKeepFile = false;
+bool tsdbEnableUpgradeFS = false;
 
 #ifdef __TD_6117__
 bool tsdbQueryFromSMA = true;

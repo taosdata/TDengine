@@ -708,7 +708,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     // file block with sub-blocks has no statistics data
     if (pBlock->numOfSubBlocks <= 1) {
       tsdbLoadBlockStatis(pReadh, pBlock);
-      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
+      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns, pBlock);
       loadStatisData = true;
     }
 

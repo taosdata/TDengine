@@ -131,8 +131,9 @@ typedef struct {
   char     padding[1];
 } SBlockColV1;
 
-#define SBlockColBase SBlockColV0  // base SBlockCol definition
 #define SBlockCol SBlockColV1      // latest SBlockCol definition
+
+#define SBlockColV(blkVer) SBlockColV##blkVer
 
 typedef struct {
   int16_t colId;
@@ -142,7 +143,11 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-} SAggrBlkCol;
+} SAggrBlkColV1;
+
+#define SAggrBlkCol SAggrBlkColV1  // latest SAggrBlkCol definition
+
+#define SAggrBlkColV(blkVer) SAggrBlkColV##blkVer
 
 // Code here just for back-ward compatibility
 static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
@@ -160,12 +165,12 @@ typedef struct {
   int32_t   delimiter;  // For recovery usage
   int32_t   numOfCols;  // For recovery usage
   uint64_t  uid;        // For recovery usage
-  SBlockCol cols[];
+  SBlockCol cols[];     // latest definition
 } SBlockData;
 typedef struct {
-  int32_t     delimiter;  // For recovery usage
+  // int32_t     delimiter;  // For recovery usage
   int32_t     numOfCols;  // For recovery usage
-  uint64_t    uid;        // For recovery usage
+  // uint64_t    uid;        // For recovery usage
   SAggrBlkCol cols[];
 } SAggrBlkData;
 
@@ -197,8 +202,32 @@ struct SReadH {
 #define TSDB_READ_COMP_BUF(rh) ((rh)->pCBuf)
 #define TSDB_READ_EXBUF(rh) ((rh)->pExBuf)
 
-#define TSDB_BLOCK_STATIS_SIZE(ncols) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
-#define TSDB_BLOCK_AGGR_SIZE(ncols) (sizeof(SAggrBlkData) + sizeof(SAggrBlkCol) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_STATIS_SIZE(ncols, blkVer) \
+  (sizeof(SBlockData) + sizeof(SBlockColV(blkVer)) * (ncols) + sizeof(TSCKSUM))
+
+static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
+  switch (blkVer) {
+    case TSDB_SBLK_VER_0:
+      return TSDB_BLOCK_STATIS_SIZE(nCols, 0);
+    case TSDB_SBLK_VER_1:
+    default:
+      return TSDB_BLOCK_STATIS_SIZE(nCols, 1);
+  }
+}
+
+#define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) \
+  (sizeof(SAggrBlkData) + sizeof(SAggrBlkColV(blkVer)) * (ncols) + sizeof(TSCKSUM))
+
+static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
+  switch (blkVer) {
+    case TSDB_SBLK_VER_0:
+      ASSERT(false);
+      return 0;
+    case TSDB_SBLK_VER_1:
+    default:
+      return TSDB_BLOCK_AGGR_SIZE(nCols, 1);
+  }
+}
 
 int   tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo);
 void  tsdbDestroyReadH(SReadH *pReadh);
@@ -212,7 +241,7 @@ int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
-void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols);
+void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock);
 
 static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
   void * pBuf = *ppBuf;
