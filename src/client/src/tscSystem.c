@@ -53,7 +53,7 @@ static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
 
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
-
+\
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
@@ -480,11 +480,11 @@ static setConfRet taos_set_config_imp(const char *config){
       if (strlen(ret.retMsg) == 0){
         snprintf(ret.retMsg, RET_MSG_LENGTH, "part error|%s", item->string);
       }else{
-        int leftSize = RET_MSG_LENGTH - 1 - strlen(ret.retMsg);
-        leftSize = leftSize >= 0 ? leftSize : 0;
+        int tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+        size_t leftSize = tmp >= 0 ? tmp : 0;
         strncat(ret.retMsg, "|",  leftSize);
-        leftSize = RET_MSG_LENGTH - 1 - strlen(ret.retMsg);
-        leftSize = leftSize >= 0 ? leftSize : 0;
+        tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+        leftSize = tmp >= 0 ? tmp : 0;
         strncat(ret.retMsg, item->string, leftSize);
       }
     }
