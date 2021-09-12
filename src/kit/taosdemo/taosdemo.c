@@ -8104,7 +8104,7 @@ static int parseSampleToStmt(
         SSuperTable *stbInfo, uint32_t timePrec)
 {
     pThreadInfo->sampleBindArray =
-        calloc(1, sizeof(char *) * MAX_SAMPLES);
+        (char *)calloc(1, sizeof(char *) * MAX_SAMPLES);
     if (pThreadInfo->sampleBindArray == NULL) {
         errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
                 __func__, __LINE__,
@@ -8172,6 +8172,7 @@ static int parseSampleToStmt(
                             timePrec,
                             bindBuffer)) {
                     free(bindBuffer);
+                    free(bindArray);
                     return -1;
                 }
                 free(bindBuffer);
