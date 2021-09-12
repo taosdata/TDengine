@@ -14,10 +14,10 @@ void print_result(TAOS_RES* res, int blockFetch) {
   int         num_fields = taos_num_fields(res);
   TAOS_FIELD* fields = taos_fetch_fields(res);
   int         nRows = 0;
-  
+
   if (blockFetch) {
     nRows = taos_fetch_block(res, &row);
-    //for (int i = 0; i < nRows; i++) {
+    // for (int i = 0; i < nRows; i++) {
     //  taos_print_row(buf, row + i, fields, num_fields);
     //  puts(buf);
     //}
@@ -34,15 +34,11 @@ void print_result(TAOS_RES* res, int blockFetch) {
   printf("%d rows consumed.\n", nRows);
 }
 
-
-void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
-  print_result(res, *(int*)param);
-}
-
+void subscribe_callback(TAOS_SUB* tsub, TAOS_RES* res, void* param, int code) { print_result(res, *(int*)param); }
 
 void check_row_count(int line, TAOS_RES* res, int expected) {
-  int actual = 0;
-  TAOS_ROW    row;
+  int      actual = 0;
+  TAOS_ROW row;
   while ((row = taos_fetch_row(res))) {
     actual++;
   }
@@ -53,16 +49,14 @@ void check_row_count(int line, TAOS_RES* res, int expected) {
   }
 }
 
-
 void do_query(TAOS* taos, const char* sql) {
   TAOS_RES* res = taos_query(taos, sql);
   taos_free_result(res);
 }
 
-
 void run_test(TAOS* taos) {
   do_query(taos, "drop database if exists test;");
-  
+
   usleep(100000);
   do_query(taos, "create database test;");
   usleep(100000);
@@ -161,14 +155,13 @@ void run_test(TAOS* taos) {
   taos_unsubscribe(tsub, 0);
 }
 
-
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
   const char* sql = "select * from meters;";
   const char* topic = "test-multiple";
-  int async = 1, restart = 0, keep = 1, test = 0, blockFetch = 0;
+  int         async = 1, restart = 0, keep = 1, test = 0, blockFetch = 0;
 
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-h=", 3) == 0) {
@@ -240,20 +233,21 @@ int main(int argc, char *argv[]) {
   if (tsub == NULL) {
     printf("failed to create subscription.\n");
     exit(0);
-  } 
+  }
 
   if (async) {
     getchar();
-  } else while(1) {
-    TAOS_RES* res = taos_consume(tsub);
-    if (res == NULL) {
-      printf("failed to consume data.");
-      break;
-    } else {
-      print_result(res, blockFetch);
-      getchar();
+  } else
+    while (1) {
+      TAOS_RES* res = taos_consume(tsub);
+      if (res == NULL) {
+        printf("failed to consume data.");
+        break;
+      } else {
+        print_result(res, blockFetch);
+        getchar();
+      }
     }
-  }
 
   printf("total rows consumed: %d\n", nTotalRows);
   taos_unsubscribe(tsub, keep);

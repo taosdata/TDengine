@@ -859,13 +859,25 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
     }
     return r1;
-  } else if (r1 < r2 && ASCENDING_TRAVERSE(order)) {
-    pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
-    return r1;
-  }
-  else {
-    pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
-    return r2;
+  } else {
+    if (ASCENDING_TRAVERSE(order)) {
+      if (r1 < r2) {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
+        return r1;
+      } else {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        return r2;
+      }
+    } else {
+      if (r1 < r2) {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        return r2;
+      } else {
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
+        return r1;
+      }
+    }
+    
   }
 }
 
@@ -930,7 +942,7 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
         pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
         return rimem;
       } else {
-        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
         return rmem;
       }
     }
@@ -1329,11 +1341,11 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* p
 
     assert(cur->blockCompleted);
     if (cur->rows == binfo.rows) {
-      tsdbDebug("%p whole file block qualified, brange:%"PRId64"-%"PRId64", rows:%d, lastKey:%"PRId64", %"PRIx64,
-                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, pQueryHandle->qId);
+      tsdbDebug("%p whole file block qualified, brange:%"PRId64"-%"PRId64", rows:%d, lastKey:%"PRId64", tid:%d, %"PRIx64,
+                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, binfo.tid, pQueryHandle->qId);
     } else {
-      tsdbDebug("%p create data block from remain file block, brange:%"PRId64"-%"PRId64", rows:%d, total:%d, lastKey:%"PRId64", %"PRIx64,
-                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, binfo.rows, cur->lastKey, pQueryHandle->qId);
+      tsdbDebug("%p create data block from remain file block, brange:%"PRId64"-%"PRId64", rows:%d, total:%d, lastKey:%"PRId64", tid:%d, %"PRIx64,
+                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, binfo.rows, cur->lastKey, binfo.tid, pQueryHandle->qId);
     }
 
   }
@@ -1572,7 +1584,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    pSchema1 = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row1));
+    pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
   }
   if(isRow1DataRow) {
     numOfColsOfRow1 = schemaNCols(pSchema1);
@@ -1584,7 +1596,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   if(row2) {
     isRow2DataRow = isDataRow(row2);
     if (pSchema2 == NULL) {
-      pSchema2 = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row2));
+      pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
     }
     if(isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -2460,7 +2472,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pQueryHandle->order) && win.skey > pQueryHandle->window.ekey) ||
-        (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
+    (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
       tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, 0x%"PRIx64, pQueryHandle,
                 pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qId);
@@ -3474,19 +3486,19 @@ void filterPrepare(void* expr, void* param) {
 
   if (pInfo->optr == TSDB_RELATION_IN) {
      int dummy = -1;
-     SHashObj *pObj = NULL; 
+     SHashObj *pObj = NULL;
      if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
         pObj = taosHashInit(256, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
         SArray *arr = (SArray *)(pCond->arr);
         for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
           char* p = taosArrayGetP(arr, i);
-          strtolower(varDataVal(p), varDataVal(p));
-          taosHashPut(pObj, varDataVal(p),varDataLen(p), &dummy, sizeof(dummy));
+          strntolower_s(varDataVal(p), varDataVal(p), varDataLen(p));
+          taosHashPut(pObj, varDataVal(p), varDataLen(p), &dummy, sizeof(dummy));
         }
      } else {
        buildFilterSetFromBinary((void **)&pObj, pCond->pz, pCond->nLen);
      }
-     pInfo->q = (char *)pObj;  
+     pInfo->q = (char *)pObj;
   } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {

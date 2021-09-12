@@ -239,6 +239,9 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
             } else {
               setNull(output, pCol->col.type, pCol->col.bytes);
             }
+            if (!FILL_IS_ASC_FILL(pFillInfo)) {
+              memcpy(*prev + pCol->col.offset, output, pCol->col.bytes);
+            }
           } else {
             assignVal(output, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
           }
@@ -430,7 +433,7 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
     pFillInfo->pData[i] = pColData->pData;
 
-    if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
+    if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??

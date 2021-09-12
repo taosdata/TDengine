@@ -15,6 +15,7 @@ import sys
 import subprocess
 import random
 import math
+import numpy as np
 
 from util.log import *
 from util.cases import *
@@ -57,16 +58,33 @@ class TDTestCase:
 
     def td3690(self):
         tdLog.printNoPrefix("==========TD-3690==========")
+
+        tdSql.prepare()
+
+        tdSql.execute("show variables")
+        res_off = tdSql.cursor.fetchall()
+        resList = np.array(res_off)
+        index = np.where(resList == "offlineThreshold")
+        index_value = np.dstack((index[0])).squeeze()
         tdSql.query("show variables")
-        tdSql.checkData(53, 1, 864000)
+        tdSql.checkData(index_value, 1, 864000)
 
     def td4082(self):
         tdLog.printNoPrefix("==========TD-4082==========")
+
+        tdSql.prepare()
+
         cfgfile = self.getCfgFile()
         max_compressMsgSize = 100000000
 
+        tdSql.execute("show variables")
+        res_com = tdSql.cursor.fetchall()
+        rescomlist = np.array(res_com)
+        cpms_index = np.where(rescomlist == "compressMsgSize")
+        index_value = np.dstack((cpms_index[0])).squeeze()
+
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, -1)
+        tdSql.checkData(index_value, 1, -1)
 
         tdSql.query("show dnodes")
         index = tdSql.getData(0, 0)
@@ -80,7 +98,7 @@ class TDTestCase:
 
         tdDnodes.start(index)
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, 100000000)
+        tdSql.checkData(index_value, 1, 100000000)
 
         tdDnodes.stop(index)
         cmd = f"sed -i '$s/{max_compressMsgSize}/{max_compressMsgSize+10}/g' {cfgfile} "
@@ -91,7 +109,7 @@ class TDTestCase:
 
         tdDnodes.start(index)
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, -1)
+        tdSql.checkData(index_value, 1, -1)
 
         tdDnodes.stop(index)
         cmd = f"sed -i '$d' {cfgfile}"
@@ -104,8 +122,12 @@ class TDTestCase:
 
     def td4097(self):
         tdLog.printNoPrefix("==========TD-4097==========")
+
         tdSql.execute("drop database if exists db")
         tdSql.execute("drop database if exists db1")
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
         tdSql.execute("create database  if not exists db keep 3650")
         tdSql.execute("create database  if not exists db1 keep 3650")
         tdSql.execute("create database  if not exists new keep 3650")
@@ -267,10 +289,22 @@ class TDTestCase:
         # keep ~ [days,365000]
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database  if not exists db")
+
+        tdSql.execute("show variables")
+        res_kp = tdSql.cursor.fetchall()
+        resList = np.array(res_kp)
+        keep_index = np.where(resList == "keep")
+        index_value = np.dstack((keep_index[0])).squeeze()
+
         tdSql.query("show variables")
-        tdSql.checkData(38, 1, 3650)
+        tdSql.checkData(index_value, 1, 3650)
+
         tdSql.query("show databases")
-        tdSql.checkData(0,7,"3650,3650,3650")
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "3650,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 3650)
 
         days = tdSql.getData(0, 6)
         tdSql.error("alter database db keep 3650001")
@@ -289,14 +323,22 @@ class TDTestCase:
 
         tdSql.execute("alter database db keep 36500")
         tdSql.query("show databases")
-        tdSql.checkData(0, 7, "3650,3650,36500")
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "36500,36500,36500")
+        else:
+            tdSql.checkData(0, 7, 36500)
+
         tdSql.execute("drop database if exists db")
 
         tdSql.execute("create database  if not exists db1")
         tdSql.query("show databases")
-        tdSql.checkData(0, 7, "3650,3650,3650")
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "3650,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 3650)
+
         tdSql.query("show variables")
-        tdSql.checkData(38, 1, 3650)
+        tdSql.checkData(index_value, 1, 3650)
 
         tdSql.execute("alter database db1 keep 365")
         tdSql.execute("drop database if exists db1")
@@ -697,10 +739,8 @@ class TDTestCase:
         tdSql.checkRows(tbnum*3)
         tdSql.query(f"select distinct  c1 c2, c2 c3 from t1 where c1 <{tbnum}")
         tdSql.checkRows(3)
-        tdSql.query("select distinct  c1, c2 from stb1 order by ts")
-        tdSql.checkRows(tbnum*3+1)
-        tdSql.query("select distinct  c1, c2 from t1 order by ts")
-        tdSql.checkRows(4)
+        tdSql.error("select distinct  c1, c2 from stb1 order by ts")
+        tdSql.error("select distinct  c1, c2 from t1 order by ts")
         tdSql.error("select distinct  c1, ts from stb1 group by c2")
         tdSql.error("select distinct  c1, ts from t1 group by c2")
         tdSql.error("select distinct  c1, max(c2) from stb1 ")
@@ -1001,15 +1041,93 @@ class TDTestCase:
         tdSql.error("select ts as t, top(t1, 3) from stb1 order by c3")
         tdSql.error("select ts as t, top(t1, 3) from t1 order by c3")
 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("select ts as t, diff(c1) from t1")
+        tdSql.checkRows(5)
+        tdSql.checkCols(3)
+        for i in range(5):
+            data=tdSql.getData(i, 0)
+            tdSql.checkData(i, 1, data)
+        tdSql.query("select ts as t, diff(c1) from stb1 group by tbname")
+        tdSql.checkRows(500)
+        tdSql.checkCols(4)
+        tdSql.query("select ts as t, diff(c1) from t1")
+        tdSql.query("select ts as t, diff(c1) from t1")
+        tdSql.error("select ts as t, diff(c1) from stb1")
+        tdSql.query("select ts as t, diff(c2) from t1")
+        tdSql.checkRows(5)
+        tdSql.error("select ts as t, diff(c3) from t1")
+        tdSql.error("select ts as t, diff(c4) from t1")
+        tdSql.query("select ts as t, diff(c5) from t1")
+        tdSql.checkRows(5)
+        tdSql.error("select ts as t, diff(c6) from t1")
+        tdSql.error("select ts as t, diff(t1) from t1")
+        tdSql.error("select ts as t, diff(c1, c2) from t1")
+
+        tdSql.error("select ts as t, bottom(c1, 0) from t1")
+        tdSql.query("select ts as t, bottom(c1, 5) from t1")
+        tdSql.checkRows(5)
+        tdSql.checkCols(3)
+        for i in range(5):
+            data=tdSql.getData(i, 0)
+            tdSql.checkData(i, 1, data)
+        tdSql.query("select ts as t, bottom(c1, 5) from stb1")
+        tdSql.checkRows(5)
+        tdSql.query("select ts as t, bottom(c1, 5) from stb1 group by tbname")
+        tdSql.checkRows(500)
+        tdSql.query("select ts as t, bottom(c1, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.query("select ts as t, bottom(c2, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, bottom(c3, 5) from t1")
+        tdSql.error("select ts as t, bottom(c4, 5) from t1")
+        tdSql.query("select ts as t, bottom(c5, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, bottom(c6, 5) from t1")
+        tdSql.error("select ts as t, bottom(c5, 8) as b from t1 order by b")
+        tdSql.error("select ts as t, bottom(t1, 1) from t1")
+        tdSql.error("select ts as t, bottom(t1, 1) from stb1")
+        tdSql.error("select ts as t, bottom(t1, 3) from stb1 order by c3")
+        tdSql.error("select ts as t, bottom(t1, 3) from t1 order by c3")
+
+
+        tdSql.error("select ts as t, top(c1, 0) from t1")
+        tdSql.query("select ts as t, top(c1, 5) from t1")
+        tdSql.checkRows(5)
+        tdSql.checkCols(3)
+        for i in range(5):
+            data=tdSql.getData(i, 0)
+            tdSql.checkData(i, 1, data)
+        tdSql.query("select ts as t, top(c1, 5) from stb1")
+        tdSql.checkRows(5)
+        tdSql.query("select ts as t, top(c1, 5) from stb1 group by tbname")
+        tdSql.checkRows(500)
+        tdSql.query("select ts as t, top(c1, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.query("select ts as t, top(c2, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, top(c3, 5) from t1")
+        tdSql.error("select ts as t, top(c4, 5) from t1")
+        tdSql.query("select ts as t, top(c5, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, top(c6, 5) from t1")
+        tdSql.error("select ts as t, top(c5, 8) as b from t1 order by b")
+        tdSql.error("select ts as t, top(t1, 1) from t1")
+        tdSql.error("select ts as t, top(t1, 1) from stb1")
+        tdSql.error("select ts as t, top(t1, 3) from stb1 order by c3")
+        tdSql.error("select ts as t, top(t1, 3) from t1 order by c3")
+
         pass
 
 
     def run(self):
 
         # master branch
-        # self.td3690()
-        # self.td4082()
-        # self.td4288()
+        self.td3690()
+        self.td4082()
+        self.td4288()
         # self.td4724()
         # self.td5798()
         # self.td5935()
