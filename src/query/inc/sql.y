@@ -19,6 +19,7 @@
 %left STAR SLASH REM.
 %left CONCAT.
 %right UMINUS UPLUS BITNOT.
+%right QUESTION ARROW.
 
 %include {
 #include <stdio.h>
@@ -753,6 +754,12 @@ expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 
 // match expression
 expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
+
+// question expression
+expr(A) ::= expr(X) QUESTION expr(Y).    {A = tSqlExprCreate(X, Y, TK_QUESTION);  }
+
+// arrow expression
+expr(A) ::= expr(X) ARROW expr(Y).    {A = tSqlExprCreate(X, Y, TK_ARROW);  }
 
 //in expression
 expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }

@@ -309,6 +309,12 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         *tokenId = TK_COMMENT;
         return i;
       }
+      if (z[1] == '>') {
+        for (i = 2; z[i] && z[i] != '\n'; i++) {
+        }
+        *tokenId = TK_ARROW;
+        return i;
+      }
       *tokenId = TK_MINUS;
       return 1;
     }
