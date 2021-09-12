@@ -1011,6 +1011,22 @@ class TDTestCase:
         except LinesError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
+    def errorTypeCheckCase(self):
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql_list = [f'{stb_name} 0 "hkgjiwdj" t0=f,t1=127I8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"', \
+                        f'{stb_name} 0 "hkgjiwdj" t0=f,t1=127i8,t2=32767I16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"', \
+                        f'{stb_name} 0 "hkgjiwdj" t0=f,t1=127i8,t2=32767i16,t3=2147483647I32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"', \
+                        f'{stb_name} 0 "hkgjiwdj" t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807I64,t5=11.12345f32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"', \
+                        f'{stb_name} 0 "hkgjiwdj" t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345F32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"', \
+                        f'{stb_name} 0 "hkgjiwdj" t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789F64,t7="vozamcts",t8=L"ncharTagValue"', \
+                        f'{stb_name} 1626006833639000000NS "hkgjiwdj" t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vozamcts",t8=L"ncharTagValue"']
+        for input_sql in input_sql_list:
+            try:
+                self._conn.insert_telnet_lines([input_sql])
+                raise Exception("should not reach here")
+            except LinesError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
             stb --> supertable
@@ -1312,6 +1328,7 @@ class TDTestCase:
         self.blankTagInsertCheckCase()
         self.chineseCheckCase()
         self.multiFieldCheckCase()
+        self.errorTypeCheckCase()
         # MultiThreads
         # self.stbInsertMultiThreadCheckCase()
         # self.sStbStbDdataInsertMultiThreadCheckCase()
