@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"taos/connector"
+	"nano/connector"
 	"time"
 
 	"github.com/taosdata/go-utils/tdengine/config"
