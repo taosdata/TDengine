@@ -165,7 +165,7 @@ typedef struct {
   int32_t   delimiter;  // For recovery usage
   int32_t   numOfCols;  // For recovery usage
   uint64_t  uid;        // For recovery usage
-  SBlockCol cols[];     // latest definition
+  SBlockCol cols[];
 } SBlockData;
 typedef struct {
   // int32_t     delimiter;  // For recovery usage
@@ -239,6 +239,7 @@ int   tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
+// int   tsdbLoadBlockHead(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
 void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock);

@@ -417,7 +417,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   return 0;
 }
 
-static int tsdbLoadBlockStatisFromData(SReadH *pReadh, SBlock *pBlock) {
+static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
@@ -498,10 +498,22 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
 
   if (pBlock->blkVer == TSDB_SBLK_VER_0) {
-    return tsdbLoadBlockStatisFromData(pReadh, pBlock);
+    return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
+  }
+  if (tsdbLoadBlockStatisFromDFile(pReadh, pBlock) < 0) {
+    return -1;
   }
   return tsdbLoadBlockStatisFromAggr(pReadh, pBlock);
 }
+
+// int tsdbLoadBlockHead(SReadH *pReadh, SBlock *pBlock) {
+//   ASSERT(pBlock->numOfSubBlocks <= 1);
+
+//   if (pBlock->blkVer >= TSDB_SBLK_VER_1) {
+//     return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
+//   }
+//   return 0;
+// }
 
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
   int tlen = 0;
