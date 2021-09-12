@@ -730,6 +730,34 @@ Query OK, 1 row(s) in set (0.001091s)
 5. 从 2.0.17.0 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
 6. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
 
+<a class="anchor" id="join"></a>
+### JOIN 子句
+
+从 2.2.0.0 版本开始，TDengine 对内连接（INNER JOIN）中的自然连接（Natural join）操作实现了完整的支持。也即支持“普通表与普通表之间”、“超级表与超级表之间”、“子查询与子查询之间”进行自然连接。自然连接与内连接的主要区别是，自然连接要求参与连接的字段在不同的表/超级表中必须是同名字段。也即，TDengine 在连接关系的表达中，要求必须使用同名数据列/标签列的相等关系。
+
+在普通表与普通表之间的 JOIN 操作中，只能使用主键时间戳之间的相等关系。例如：
+```sql
+SELECT *
+FROM temp_tb_1 t1, pressure_tb_1 t2
+WHERE t1.ts = t2.ts
+```
+
+在超级表与超级表之间的 JOIN 操作中，除了主键时间戳一致的条件外，还要求引入能实现一一对应的标签列的相等关系。例如：
+```sql
+SELECT *
+FROM temp_stable t1, temp_stable t2
+WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+```
+
+类似地，也可以对多个子查询的查询结果进行 JOIN 操作。
+
+注意，JOIN 操作存在如下限制要求：
+1. 参与一条语句中 JOIN 操作的表/超级表最多可以有 10 个。
+2. 在包含 JOIN 操作的查询语句中不支持 FILL。
+3. 暂不支持参与 JOIN 操作的表之间聚合后的四则运算。
+4. 不支持只对其中一部分表做 GROUP BY。
+5. JOIN 查询的不同表的过滤条件之间不能为 OR。
+
 <a class="anchor" id="nested"></a>
 ### 嵌套查询
 
@@ -757,7 +785,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
   * 外层查询不支持 GROUP BY。
 
 <a class="anchor" id="union"></a>
-### UNION ALL 操作符
+### UNION ALL 子句
 
 ```mysql
 SELECT ...
@@ -1485,12 +1513,6 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 **GROUP BY的限制**
 
 TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。
-
-**JOIN 操作的限制**
-
-TAOS SQL 支持表之间按主键时间戳来 join 两张表的列，暂不支持两个表之间聚合后的四则运算。
-
-JOIN 查询的不同表的过滤条件之间不能为 OR。
 
 **IS NOT NULL 与不为空的表达式适用范围**
 
