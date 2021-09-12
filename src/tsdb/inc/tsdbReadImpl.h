@@ -235,20 +235,4 @@ static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
   return 0;
 }
 
-FORCE_INLINE int tsdbInitReadHBlkIdx(SReadH *pReadh, STsdbRepo *pRepo) {
-  ASSERT(pReadh != NULL && pRepo != NULL);
-
-  memset((void *)pReadh, 0, sizeof(*pReadh));
-  pReadh->pRepo = pRepo;
-  TSDB_FSET_SET_INIT(TSDB_READ_FSET(pReadh));
-
-  pReadh->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
-  if (pReadh->aBlkIdx == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  return 0;
-}
-
 #endif /*_TD_TSDB_READ_IMPL_H_*/

@@ -454,7 +454,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
   }
 
   if (pDFile->info.size < dfstat.st_size) {
-    if (tsdbOpenDFile(&df, O_RDWR) < 0) {
+    if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
       return -1;
     }
 

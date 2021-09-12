@@ -1322,7 +1322,8 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
   // Loop to recover each file set
   SDFileSet fset = {0};
-  bool      isOneFSetFinish = false;
+  bool      isOneFSetFinish = true;
+  int       lastFType = -1;
   // one fileset ends when (1) the array ends or (2) encounter different fid
   for (size_t index = 0; index < fArraySize; ++index) {
     int         tvid = -1, tfid = -1;
@@ -1332,13 +1333,17 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     pf = taosArrayGet(fArray, index);
     tfsbasename(pf, bname);
-    tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
+    tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion); 
     ASSERT(tvid == REPO_ID(pRepo));
     SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ttype);
-
     if (tfid < pRepo->rtn.minFid) {  // skip the file expired
       continue;
     }
+    if ((isOneFSetFinish == false) && (lastFType == ttype)) {  // only fetch the 1st file with same fid and type.
+      continue;
+    }
+
+    lastFType = ttype;
 
     if (index == 0) {
       memset(&fset, 0, sizeof(SDFileSet));
@@ -1477,7 +1482,13 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
     } else if (ftype1 > ftype2) {
       return 1;
     } else {
-      return 0;
+      if (version1 < version2) {
+        return -1;
+      } else if (version1 > version2) {
+        return 1;
+      } else {
+        return 0;
+      }
     }
   }
 }
