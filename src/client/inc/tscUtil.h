@@ -36,7 +36,7 @@ extern "C" {
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
 
 #define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
-  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo) || UTIL_TABLE_IS_TMP_TABLE(metaInfo)))
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
 #define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
@@ -92,7 +92,7 @@ typedef struct SMergeTsCtx {
 }SMergeTsCtx;
 
 typedef struct SVgroupTableInfo {
-  SVgroupInfo vgInfo;
+  SVgroupMsg  vgInfo;
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
@@ -144,6 +144,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
 bool timeWindowInterpoRequired(SQueryInfo *pQueryInfo);
@@ -173,7 +174,9 @@ void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
 
-int tscAllocPayload(SSqlCmd* pCmd, int size);
+// the memory is not reset in case of fast allocate payload function
+int32_t tscAllocPayloadFast(SSqlCmd *pCmd, size_t size);
+int32_t tscAllocPayload(SSqlCmd* pCmd, int size);
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes);
 
@@ -190,6 +193,7 @@ void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
 void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArray* pExprList);
 
 static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
+int32_t tscGetFirstInvisibleFieldPos(SQueryInfo* pQueryInfo);
 
 int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize);
 void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t uid);
@@ -214,6 +218,7 @@ SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t function
                            int16_t size);
 
 size_t     tscNumOfExprs(SQueryInfo* pQueryInfo);
+int32_t     tscExprTopBottomIndex(SQueryInfo* pQueryInfo);
 SExprInfo *tscExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t    tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 int32_t    tscExprCopyAll(SArray* dst, const SArray* src, bool deepcopy);
@@ -285,7 +290,11 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
+
+#if 0
 void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
+#endif
+
 /**
  * The create object function must be successful expect for the out of memory issue.
  *
@@ -315,6 +324,7 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex, SSqlC
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId);
+int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries);
 
 void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex);
 
@@ -361,6 +371,8 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
+
+char* cloneCurrentDBName(SSqlObj* pSql);
 
 #ifdef __cplusplus
 }

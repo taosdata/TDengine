@@ -25,7 +25,8 @@ extern "C" {
 #define TSDB_PATTERN_MATCH 0
 #define TSDB_PATTERN_NOMATCH 1
 #define TSDB_PATTERN_NOWILDCARDMATCH 2
-#define TSDB_PATTERN_STRING_MAX_LEN 100
+#define TSDB_PATTERN_STRING_DEFAULT_LEN 100
+#define TSDB_REGEX_STRING_DEFAULT_LEN 128
 
 #define FLT_COMPAR_TOL_FACTOR    4
 #define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
@@ -82,6 +83,7 @@ int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
 int32_t compareStrPatternComp(const void* pLeft, const void* pRight);
+int32_t compareStrRegexComp(const void* pLeft, const void* pRight);
 int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
 

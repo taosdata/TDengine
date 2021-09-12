@@ -31,7 +31,6 @@ void taosCloseDll(void *handle) {
 
 int taosSetConsoleEcho(bool on)
 {
-#if 0
 #define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
     int err;
     struct termios term;
@@ -52,7 +51,6 @@ int taosSetConsoleEcho(bool on)
         return -1;
     }
 
-#endif
     return 0;
 }
 
