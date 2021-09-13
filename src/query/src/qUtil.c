@@ -416,46 +416,6 @@ static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow
   return 0;
 }
 
-static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *param) {
-  int32_t left  = *(int32_t *)pLeft;
-  int32_t right = *(int32_t *)pRight;
-
-  SCompSupporter *  supporter = (SCompSupporter *)param;
-
-  int32_t leftPos  = supporter->rowIndex[left];
-  int32_t rightPos = supporter->rowIndex[right];
-
-  /* left source is exhausted */
-  if (leftPos == -1) {
-    return 1;
-  }
-
-  /* right source is exhausted*/
-  if (rightPos == -1) {
-    return -1;
-  }
-
-  STableQueryInfo** pList = supporter->pTableQueryInfo;
-  SResultRow* pWindowRes1 = pList[left]->resInfo.pResult[leftPos];
-//  SResultRow * pWindowRes1 = getResultRow(&(pList[left]->resInfo), leftPos);
-  TSKEY leftTimestamp = pWindowRes1->win.skey;
-
-//  SResultRowInfo *pWindowResInfo2 = &(pList[right]->resInfo);
-//  SResultRow * pWindowRes2 = getResultRow(pWindowResInfo2, rightPos);
-  SResultRow* pWindowRes2 = pList[right]->resInfo.pResult[rightPos];
-  TSKEY rightTimestamp = pWindowRes2->win.skey;
-
-  if (leftTimestamp == rightTimestamp) {
-    return 0;
-  }
-
-  if (supporter->order == TSDB_ORDER_ASC) {
-    return (leftTimestamp > rightTimestamp)? 1:-1;
-  } else {
-    return (leftTimestamp < rightTimestamp)? 1:-1;
-  }
-}
-
 int32_t tsAscOrder(const void* p1, const void* p2) {
   SResultRowCell* pc1 = (SResultRowCell*) p1;
   SResultRowCell* pc2 = (SResultRowCell*) p2;
@@ -486,7 +446,9 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   }
 }
 
-void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
+void
+
+orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
   if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
     fn = tsAscOrder;
@@ -524,108 +486,6 @@ static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupR
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
-    int32_t* rowCellInfoOffset) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  int32_t *posList = NULL;
-  SLoserTreeInfo *pTree = NULL;
-  STableQueryInfo **pTableQueryInfoList = NULL;
-
-  size_t size = taosArrayGetSize(pTableList);
-  if (pGroupResInfo->pRows == NULL) {
-    pGroupResInfo->pRows = taosArrayInit(100, POINTER_BYTES);
-  }
-
-  posList = calloc(size, sizeof(int32_t));
-  pTableQueryInfoList = malloc(POINTER_BYTES * size);
-
-  if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
-    qError("QInfo:%"PRIu64" failed alloc memory", GET_QID(pRuntimeEnv));
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _end;
-  }
-
-  int32_t numOfTables = 0;
-  for (int32_t i = 0; i < size; ++i) {
-    STableQueryInfo *item = taosArrayGetP(pTableList, i);
-    if (item->resInfo.size > 0) {
-      pTableQueryInfoList[numOfTables++] = item;
-    }
-  }
-
-  // there is no data in current group
-  // no need to merge results since only one table in each group
-  if (numOfTables == 0) {
-    goto _end;
-  }
-
-  SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQueryAttr->order.order};
-
-  int32_t ret = tLoserTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
-  if (ret != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _end;
-  }
-
-  int64_t lastTimestamp = ascQuery? INT64_MIN:INT64_MAX;
-  int64_t startt = taosGetTimestampMs();
-
-  while (1) {
-    int32_t tableIndex = pTree->pNode[0].index;
-
-    SResultRowInfo *pWindowResInfo = &pTableQueryInfoList[tableIndex]->resInfo;
-    SResultRow  *pWindowRes = getResultRow(pWindowResInfo, cs.rowIndex[tableIndex]);
-
-    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pWindowRes, rowCellInfoOffset);
-    if (num <= 0) {
-      cs.rowIndex[tableIndex] += 1;
-
-      if (cs.rowIndex[tableIndex] >= pWindowResInfo->size) {
-        cs.rowIndex[tableIndex] = -1;
-        if (--numOfTables == 0) { // all input sources are exhausted
-          break;
-        }
-      }
-    } else {
-      assert((pWindowRes->win.skey >= lastTimestamp && ascQuery) || (pWindowRes->win.skey <= lastTimestamp && !ascQuery));
-
-      if (pWindowRes->win.skey != lastTimestamp) {
-        taosArrayPush(pGroupResInfo->pRows, &pWindowRes);
-        pWindowRes->numOfRows = (uint32_t) num;
-      }
-
-      lastTimestamp = pWindowRes->win.skey;
-
-      // move to the next row of current entry
-      if ((++cs.rowIndex[tableIndex]) >= pWindowResInfo->size) {
-        cs.rowIndex[tableIndex] = -1;
-
-        // all input sources are exhausted
-        if ((--numOfTables) == 0) {
-          break;
-        }
-      }
-    }
-
-    tLoserTreeAdjust(pTree, tableIndex + pTree->numOfEntries);
-  }
-
-  int64_t endt = taosGetTimestampMs();
-
-  qDebug("QInfo:%"PRIx64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_QID(pRuntimeEnv),
-         pGroupResInfo->currentGroup, endt - startt);
-
-  _end:
-  tfree(pTableQueryInfoList);
-  tfree(posList);
-  tfree(pTree);
-
-  return code;
 }
 
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t* offset) {

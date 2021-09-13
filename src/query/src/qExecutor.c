@@ -4143,7 +4143,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
   int32_t start = 0;
   int32_t step = -1;
 
-  qDebug("QInfo:0x%"PRIx64" start to copy data from windowResInfo to output buf", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" start to copy data from resultrowInfo to output buf", GET_QID(pRuntimeEnv));
   assert(orderType == TSDB_ORDER_ASC || orderType == TSDB_ORDER_DESC);
 
   if (orderType == TSDB_ORDER_ASC) {
