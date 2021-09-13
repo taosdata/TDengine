@@ -39,6 +39,7 @@ extern "C" {
 
 #define TSDB_STATUS_COMMIT_START 1
 #define TSDB_STATUS_COMMIT_OVER 2
+#define TSDB_STATUS_COMMIT_NOBLOCK 3 //commit no block, need to be solved 
 
 // TSDB STATE DEFINITION
 #define TSDB_STATE_OK 0x0
@@ -411,6 +412,11 @@ int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 
 // For TSDB Compact
 int tsdbCompact(STsdbRepo *pRepo);
+
+// For TSDB Health Monitor
+
+// no problem return true
+bool tsdbNoProblem(STsdbRepo* pRepo);
 
 #ifdef __cplusplus
 }

@@ -66,7 +66,11 @@ Run install_client.sh to install.
 
 Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to End Point of the TDengine server, for example: [h1.taos.com](http://h1.taos.com/):6030.
 
-**Tip: If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+**Tip: **
+
+**1. If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+
+**2. To prevent “unable to resolve FQDN” error when connecting to the server, ensure that the hosts file of the client has the correct FQDN value.**
 
 **Windows x64/x86**
 
@@ -128,7 +132,7 @@ taos>
 
 **Windows (x64/x86) environment:**
 
-Under cmd, enter the c:\ tdengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
+Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
 
 ```mysql
   C:\TDengine>taos     
@@ -409,11 +413,11 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 
 Users can find the connector package for python2 and python3 in the source code src/connector/python (or tar.gz/connector/python) folder. Users can install it through `pip` command:
 
-`pip install src/connector/python/linux/python2/`
+`pip install src/connector/python/`
 
 or
 
- `pip3 install src/connector/python/linux/python3/`
+ `pip3 install src/connector/python/`
 
 #### Windows
 

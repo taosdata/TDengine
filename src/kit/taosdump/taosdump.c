@@ -1209,14 +1209,14 @@ _dump_db_point:
 
             fprintf(fp, "USE %s;\n\n", g_dbInfos[0]->name);
 
-            int32_t totalNumOfThread = 1;  // 0: all normal talbe into .tables.tmp.0
+            int32_t totalNumOfThread = 1;  // 0: all normal table into .tables.tmp.0
             int  normalTblFd = -1;
             int32_t retCode;
             int superTblCnt = 0 ;
             for (int i = 1; g_args.arg_list[i]; i++) {
                 if (taosGetTableRecordInfo(g_args.arg_list[i],
                             &tableRecordInfo, taos) < 0) {
-                    errorPrint("input the invalide table %s\n",
+                    errorPrint("input the invalid table %s\n",
                             g_args.arg_list[i]);
                     continue;
                 }
@@ -1341,10 +1341,9 @@ static int taosGetTableDes(
         return count;
     }
 
-    // if chidl-table have tag, using  select tagName from table to get tagValue
+    // if child-table have tag, using  select tagName from table to get tagValue
     for (int i = 0 ; i < count; i++) {
         if (strcmp(stableDes->cols[i].note, "TAG") != 0) continue;
-
 
         sprintf(sqlstr, "select %s from %s.%s",
                 stableDes->cols[i].field, dbName, table);
@@ -2443,7 +2442,7 @@ static int taosGetFilesNum(const char *directoryName,
     }
 
     if (fileNum <= 0) {
-        errorPrint("directory:%s is empry\n", directoryName);
+        errorPrint("directory:%s is empty\n", directoryName);
         exit(-1);
     }
 
@@ -2620,9 +2619,9 @@ static int taosDumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
         memcpy(cmd + cmd_len, line, read_len);
         cmd[read_len + cmd_len]= '\0';
         if (queryDbImpl(taos, cmd)) {
-            errorPrint("%s() LN%d, error sql: linenu:%d, file:%s\n",
+            errorPrint("%s() LN%d, error sql: lineno:%d, file:%s\n",
                     __func__, __LINE__, lineNo, fileName);
-            fprintf(g_fpOfResult, "error sql: linenu:%d, file:%s\n", lineNo, fileName);
+            fprintf(g_fpOfResult, "error sql: lineno:%d, file:%s\n", lineNo, fileName);
         }
 
         memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);

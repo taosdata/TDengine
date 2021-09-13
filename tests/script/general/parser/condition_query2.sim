@@ -623,6 +623,38 @@ if $data70 != @21-05-05 18:19:19.000@ then
   return -1
 endi
 
+sql select ts,c1,t9,t10,tbname from stb5 where tbname nmatch '[123467]+';
+if $rows != 9 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:34.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:35.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:36.000@ then
+  return -1
+endi
+if $data70 != @21-05-05 18:19:37.000@ then
+  return -1
+endi
+if $data80 != @21-05-05 18:19:38.000@ then
+  return -1
+endi
+
 print "tag test"
 sql_error select * from stb5 where t1 match '.*';
 sql_error select * from stb5 where t2 match '.*';
@@ -1275,7 +1307,40 @@ if $data40 != @21-05-05 18:19:38.000@ then
   return -1
 endi
 
-
+sql select ts,c1,t9,t10 from stb5 where t9 nmatch '^[12345]*\$';
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:34.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:35.000@ then
+  return -1
+endi
+if $data70 != @21-05-05 18:19:36.000@ then
+  return -1
+endi
+if $data80 != @21-05-05 18:19:37.000@ then
+  return -1
+endi
+if $data90 != @21-05-05 18:19:38.000@ then
+  return -1
+endi
 
 print "join test"
 sql_error select * from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts =tb2_1.ts;

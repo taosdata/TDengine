@@ -280,6 +280,8 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
       return TSDB_RELATION_MATCH;
+    case TK_NMATCH:
+      return TSDB_RELATION_NMATCH;
     case TK_ISNULL:
       return TSDB_RELATION_ISNULL;
     case TK_NOTNULL:
@@ -3730,6 +3732,9 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     case TK_MATCH:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_MATCH;
       break;
+    case TK_NMATCH:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_NMATCH;
+      break;
     case TK_ISNULL:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_ISNULL;
       break;
@@ -3798,7 +3803,7 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
       ((pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
 
   if (!pColFilter->filterstr) {
-    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH) {
+    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       goto _err_ret;
     }
@@ -4352,13 +4357,13 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 // check for match expression
 static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg1 = "regular expression string should be less than %d characters";
-  const char* msg2 = "illegal column type for match";
+  const char* msg2 = "illegal column type for match/nmatch";
   const char* msg3 = "invalid regular expression";
 
   tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
-  if (pExpr->tokenId == TK_MATCH) {
+  if (pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
     if (pRight->value.nLen > tsMaxRegexStringLen) {
       char tmp[64] = {0};
       sprintf(tmp, msg1, tsMaxRegexStringLen);
@@ -4366,8 +4371,12 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
+    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
       return invalidOperationMsg(msgBuf, msg2);
+    }
+
+    if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
+      return invalidOperationMsg(msgBuf, msg3);
     }
 
     int errCode = 0;
@@ -7953,11 +7962,12 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
         && pExpr->tokenId != TK_NOTNULL
         && pExpr->tokenId != TK_LIKE
         && pExpr->tokenId != TK_MATCH
+        && pExpr->tokenId != TK_NMATCH
         ) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
-    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH) {
+    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
@@ -8414,7 +8424,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     if (p->vgroupIdList != NULL) {
       size_t s = taosArrayGetSize(p->vgroupIdList);
 
-      size_t vgroupsz = sizeof(SVgroupInfo) * s + sizeof(SVgroupsInfo);
+      size_t vgroupsz = sizeof(SVgroupMsg) * s + sizeof(SVgroupsInfo);
       pTableMetaInfo->vgroupList = calloc(1, vgroupsz);
       if (pTableMetaInfo->vgroupList == NULL) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -8429,14 +8439,11 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
         taosHashGetClone(tscVgroupMap, id, sizeof(*id), NULL, &existVgroupInfo);
 
         assert(existVgroupInfo.inUse >= 0);
-        SVgroupInfo *pVgroup = &pTableMetaInfo->vgroupList->vgroups[j];
+        SVgroupMsg *pVgroup = &pTableMetaInfo->vgroupList->vgroups[j];
 
         pVgroup->numOfEps = existVgroupInfo.numOfEps;
         pVgroup->vgId = existVgroupInfo.vgId;
-        for (int32_t k = 0; k < existVgroupInfo.numOfEps; ++k) {
-          pVgroup->epAddr[k].port = existVgroupInfo.ep[k].port;
-          pVgroup->epAddr[k].fqdn = strndup(existVgroupInfo.ep[k].fqdn, TSDB_FQDN_LEN);
-        }
+        memcpy(&pVgroup->epAddr, &existVgroupInfo.ep, sizeof(pVgroup->epAddr));
       }
     }
   }

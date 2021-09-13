@@ -1,5 +1,5 @@
 @echo off
-echo ==== start run cases001.go
+echo ==== start run cases002.go
 
 del go.*
 go mod init demotest
