@@ -403,6 +403,25 @@ typedef struct TAOS_MULTI_BIND {
   （2.1.3.0 版本新增）  
   用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
+<a class="anchor" id="schemaless"></a>
+### Schemaless 方式写入接口
+
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
+
+- `int taos_insert_lines(TAOS* taos, char* lines[], int numLines)`
+
+  （2.2.0.0 版本新增）  
+  以 Schemaless 格式写入多行数据。其中：
+    * taos：调用 taos_connect 返回的数据库连接。
+    * lines：由 char 字符串指针组成的数组，指向本次想要写入数据库的多行数据。
+    * numLines：lines 数据的总行数。 
+
+  返回值为 0 表示写入成功，非零值表示出错。具体错误代码请参见 [taoserror.h](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h) 文件。
+
+  说明：
+    1. 此接口是一个同步阻塞式接口，使用时机与 `taos_query()` 一致。
+    2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
+
 ### 连续查询接口
 
 TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时间段，对一张或多张数据库的表(数据流)进行各种实时聚合计算操作。操作简单，仅有打开、关闭流的API。具体如下： 
