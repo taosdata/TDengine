@@ -44,7 +44,11 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
+<<<<<<< HEAD
             if ("taosdump" in files):
+=======
+            if ("taosd" in files):
+>>>>>>> ab15a3d26... [TD-5757]<fix>: taosdump precision.
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -136,7 +140,11 @@ class TDTestCase:
 
         # dump part data with -S  -E
         os.system(
+<<<<<<< HEAD
             '%staosdump --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -C ns  -o ./taosdumptest/dumptmp2 ' %
+=======
+            '%staosdump --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
+>>>>>>> ab15a3d26... [TD-5757]<fix>: taosdump precision.
             binPath)
         os.system(
             '%staosdump --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
@@ -218,7 +226,11 @@ class TDTestCase:
             "%staosdump --databases timedb1 -o ./taosdumptest/dumptmp1" % binPath)
 
         os.system(
+<<<<<<< HEAD
             '%staosdump --databases timedb1 -S 1625068810000000 -E 1625068860000000  -C us  -o ./taosdumptest/dumptmp2 ' %
+=======
+            '%staosdump --databases timedb1 -S 1625068810000000 -E 1625068860000000  -o ./taosdumptest/dumptmp2 ' %
+>>>>>>> ab15a3d26... [TD-5757]<fix>: taosdump precision.
             binPath)
         os.system(
             '%staosdump --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  ' %
@@ -299,7 +311,11 @@ class TDTestCase:
             "%staosdump --databases timedb1 -o ./taosdumptest/dumptmp1" % binPath)
 
         os.system(
+<<<<<<< HEAD
             '%staosdump --databases timedb1 -S 1625068810000 -E 1625068860000  -C ms  -o ./taosdumptest/dumptmp2 ' %
+=======
+            '%staosdump --databases timedb1 -S 1625068810000 -E 1625068860000  -o ./taosdumptest/dumptmp2 ' %
+>>>>>>> ab15a3d26... [TD-5757]<fix>: taosdump precision.
             binPath)
         os.system(
             '%staosdump --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  ' %
