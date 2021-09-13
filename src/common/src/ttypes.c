@@ -38,11 +38,7 @@ const int32_t TYPE_BYTES[15] = {
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
   do {                                                                         \
-    if (_list[(_index)] >= (INT64_MAX - (__sum))) {                            \
-      __sum = INT64_MAX;                                                       \
-    } else {                                                                   \
-      (__sum) += (_list)[(_index)];                                            \
-    }                                                                          \
+    (__sum) += (_list)[(_index)];                                              \
     if ((__min) > (_list)[(_index)]) {                                         \
       (__min) = (_list)[(_index)];                                             \
       (__minIndex) = (_index);                                                 \
@@ -372,21 +368,21 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
 }
 
 tDataTypeDescriptor tDataTypes[15] = {
-  {TSDB_DATA_TYPE_NULL,      6,1,        "NOTYPE",   NULL,     NULL,      NULL},
-  {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               tsCompressBool,      tsDecompressBool,      getStatics_bool},
-  {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
-  {TSDB_DATA_TYPE_SMALLINT,  8,  SHORT_BYTES,  "SMALLINT",           tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
-  {TSDB_DATA_TYPE_INT,       3,  INT_BYTES,    "INT",                tsCompressInt,       tsDecompressInt,       getStatics_i32},
-  {TSDB_DATA_TYPE_BIGINT,    6,  LONG_BYTES,   "BIGINT",             tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
-  {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              tsCompressFloat,     tsDecompressFloat,     getStatics_f},
-  {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             tsCompressDouble,    tsDecompressDouble,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6,  0,      "BINARY",             tsCompressString,    tsDecompressString,    getStatics_bin},
-  {TSDB_DATA_TYPE_TIMESTAMP, 9,  LONG_BYTES,   "TIMESTAMP",          tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5,  8,      "NCHAR",              tsCompressString,    tsDecompressString,    getStatics_nchr},
-  {TSDB_DATA_TYPE_UTINYINT,  16, CHAR_BYTES,   "TINYINT UNSIGNED",   tsCompressTinyint,   tsDecompressTinyint,   getStatics_u8},
-  {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
-  {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       tsCompressInt,       tsDecompressInt,       getStatics_u32},
-  {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
+  {TSDB_DATA_TYPE_NULL,      6,  1,            "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
+  {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               false,      true,           tsCompressBool,      tsDecompressBool,      getStatics_bool},
+  {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            INT8_MIN,   INT8_MAX,       tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
+  {TSDB_DATA_TYPE_SMALLINT,  8,  SHORT_BYTES,  "SMALLINT",           INT16_MIN,  INT16_MAX,      tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
+  {TSDB_DATA_TYPE_INT,       3,  INT_BYTES,    "INT",                INT32_MIN,  INT32_MAX,      tsCompressInt,       tsDecompressInt,       getStatics_i32},
+  {TSDB_DATA_TYPE_BIGINT,    6,  LONG_BYTES,   "BIGINT",             INT64_MIN,  INT64_MAX,      tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
+  {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              0,          0,              tsCompressFloat,     tsDecompressFloat,     getStatics_f},
+  {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             0,          0,              tsCompressDouble,    tsDecompressDouble,    getStatics_d},
+  {TSDB_DATA_TYPE_BINARY,    6,  0,            "BINARY",             0,          0,              tsCompressString,    tsDecompressString,    getStatics_bin},
+  {TSDB_DATA_TYPE_TIMESTAMP, 9,  LONG_BYTES,   "TIMESTAMP",          INT64_MIN,  INT64_MAX,      tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
+  {TSDB_DATA_TYPE_NCHAR,     5,  8,            "NCHAR",              0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_UTINYINT,  16, CHAR_BYTES,   "TINYINT UNSIGNED",   0,          UINT8_MAX,      tsCompressTinyint,   tsDecompressTinyint,   getStatics_u8},
+  {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
+  {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
+  {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
 };
 
 char tTokenTypeSwitcher[13] = {
@@ -405,11 +401,37 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
 };
 
+float floatMin = -FLT_MAX, floatMax = FLT_MAX;
+double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
+
+FORCE_INLINE void* getDataMin(int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT:
+      return &floatMin;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &doubleMin;
+    default:
+      return &tDataTypes[type].minValue;
+  }
+}
+
+FORCE_INLINE void* getDataMax(int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT:
+      return &floatMax;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &doubleMax;
+    default:
+      return &tDataTypes[type].maxValue;
+  }
+}
+
+
 bool isValidDataType(int32_t type) {
   return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
 }
 
-void setVardataNull(char* val, int32_t type) {
+void setVardataNull(void* val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {
     varDataSetLen(val, sizeof(int8_t));
     *(uint8_t*) varDataVal(val) = TSDB_DATA_BINARY_NULL;
@@ -421,75 +443,75 @@ void setVardataNull(char* val, int32_t type) {
   }
 }
 
-void setNull(char *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
+void setNull(void *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
 
-void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
+void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_BOOL_NULL;
+        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_BOOL_NULL;
       }
       break;
     case TSDB_DATA_TYPE_TINYINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_TINYINT_NULL;
+        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_TINYINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint16_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_SMALLINT_NULL;
+        *(uint16_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_SMALLINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_INT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_INT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_INT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_BIGINT_NULL;
+        *(uint64_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_BIGINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UTINYINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UTINYINT_NULL;
+        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_UTINYINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint16_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_USMALLINT_NULL;
+        *(uint16_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_USMALLINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UINT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_UINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UBIGINT_NULL;
+        *(uint64_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_UBIGINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_FLOAT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_FLOAT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_FLOAT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_DOUBLE_NULL;
+        *(uint64_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_DOUBLE_NULL;
       }
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        setVardataNull(val + i * bytes, type);
+        setVardataNull(POINTER_SHIFT(val, i * bytes), type);
       }
       break;
     default: {
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[TSDB_DATA_TYPE_INT].bytes) = TSDB_DATA_INT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[TSDB_DATA_TYPE_INT].bytes)) = TSDB_DATA_INT_NULL;
       }
       break;
     }
@@ -565,6 +587,53 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
     }
   }
 }
+
+void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
+  if (optr == TSDB_BINARY_OP_ADD) {
+    switch (type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        *((int8_t *)dst) = GET_INT8_VAL(s1) + GET_INT8_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        *((uint8_t *)dst) = GET_UINT8_VAL(s1) + GET_UINT8_VAL(s2);        
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        *((int16_t *)dst) = GET_INT16_VAL(s1) + GET_INT16_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        *((uint16_t *)dst) = GET_UINT16_VAL(s1) + GET_UINT16_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        *((int32_t *)dst) = GET_INT32_VAL(s1) + GET_INT32_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        *((uint32_t *)dst) = GET_UINT32_VAL(s1) + GET_UINT32_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        *((int64_t *)dst) = GET_INT64_VAL(s1) + GET_INT64_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        *((uint64_t *)dst) = GET_UINT64_VAL(s1) + GET_UINT64_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        *((int64_t *)dst) = GET_INT64_VAL(s1) + GET_INT64_VAL(s2);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        SET_FLOAT_VAL(dst, GET_FLOAT_VAL(s1) + GET_FLOAT_VAL(s2));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        SET_DOUBLE_VAL(dst, GET_DOUBLE_VAL(s1) + GET_DOUBLE_VAL(s2));
+        break;
+      default: {
+        assert(0);
+        break;
+      }
+    }
+  } else {
+    assert(0);
+  }
+}
+
 
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf) {
   switch (type) {

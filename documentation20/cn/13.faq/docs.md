@@ -26,15 +26,15 @@
 
 ## 2. Windows平台下JDBCDriver找不到动态链接库，怎么办？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
 
 ## 3. 创建数据表时提示more dnodes are needed
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)。
 
 ## 4. 如何让TDengine crash时生成core文件？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)。
 
 ## 5. 遇到错误“Unable to establish connection”, 我怎么办？
 
@@ -49,7 +49,7 @@
 
 3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
 
-4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得)）,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name —— 可在服务器上执行Linux命令hostname -f获得），FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 
 5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件。如果部署的是TDengine集群，客户端需要能ping通所有集群节点的FQDN。
 
@@ -74,16 +74,16 @@
 
 产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
 
-1. 请检查连接的服务器的FQDN是否正确,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
-2. 如果网络配置有DNS server, 请检查是否正常工作
-3. 如果网络没有配置DNS server, 请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址。
+1. 请检查连接的服务器的FQDN是否正确，FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
+2. 如果网络配置有DNS server，请检查是否正常工作
+3. 如果网络没有配置DNS server，请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址
 4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法连接服务器的
 
 ## 7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误
 
 如果你确认语法正确，2.0之前版本，请检查SQL语句长度是否超过64K。如果超过，也会返回这个错误。
 
-## 8. 是否支持validation queries?
+## 8. 是否支持validation queries？
 
 TDengine还没有一组专用的validation queries。然而建议你使用系统监测的数据库”log"来做。
 
@@ -137,7 +137,7 @@ Connection = DriverManager.getConnection(url, properties);
 
 TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
 
-- 2.0.0.0 至 2.0.6.x 的版本，重新配置机器B的hostname为机器A的hostname
+- 2.0.0.0 至 2.0.6.x 的版本，重新配置机器B的hostname为机器A的hostname。
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 

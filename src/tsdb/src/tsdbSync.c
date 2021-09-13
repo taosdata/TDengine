@@ -209,7 +209,7 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
     // Recv from remote
     SMFile  mf;
     SDiskID did = {.level = TFS_PRIMARY_LEVEL, .id = TFS_PRIMARY_ID};
-    tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), false);
+    tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
     if (tsdbCreateMFile(&mf, false) < 0) {
       tsdbError("vgId:%d, failed to create file while recv metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;

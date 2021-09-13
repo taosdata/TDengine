@@ -42,7 +42,7 @@ typedef struct SHashNode {
 
 #define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
-#define GET_HASH_PNODE(_n) ((char*)(_n) - sizeof(SHashNode));
+#define GET_HASH_PNODE(_n) ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
@@ -123,11 +123,20 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param keyLen
  * @param fp
  * @param d
- * @param dsize
  * @return
  */
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d);
 
+/**
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @param fp
+ * @param d
+ * @param sz 
+ * @return
+ */
+void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz);
 /**
  * remove item with the specified key
  * @param pHashObj
@@ -160,6 +169,10 @@ size_t taosHashGetMemSize(const SHashObj *pHashObj);
 void *taosHashIterate(SHashObj *pHashObj, void *p);
 
 void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
+
+void *taosHashGetDataKey(SHashObj *pHashObj, void *data);
+
+uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data);
 
 #ifdef __cplusplus
 }

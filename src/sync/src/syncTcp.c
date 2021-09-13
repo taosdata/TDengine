@@ -177,7 +177,7 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
   SPoolInfo * pInfo = &pPool->info;
 
   if (pConn->closedByApp == 0) shutdown(pConn->fd, SHUT_WR);
-  (*pInfo->processBrokenLink)(pConn->handleId);
+  (*pInfo->processBrokenLink)(pConn->handleId, pConn->closedByApp);
 
   pThread->numOfFds--;
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);

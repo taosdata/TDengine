@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-void taosNetTest(char *role, char *host, int port, int pkgLen);
+void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen, int32_t pkgNum, char *pkgType);
 
 #ifdef __cplusplus
 }

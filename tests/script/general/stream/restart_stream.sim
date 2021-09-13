@@ -34,11 +34,11 @@ while $i < 10
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( 0 )  
 
-  $x = -1440
+  $x = -400
   $y = 0
   while $y < $rowNum
-    $ms = $x . m 
-    sql insert into $tb values (now $ms , $y , $y ) 
+    $ms = $x . m
+    sql insert into $tb values (1626739200000 $ms , $y , $y ) 
     $x = $x + 1
 	$y = $y + 1
   endw 
@@ -54,7 +54,7 @@ sql select count(*) from $tb interval(1d)
 print ===>rows $rows, data $data01
 if $rows != 1 then
   return -1
-endi  
+endi 
 if $data01 != 20 then
   return -1
 endi  
@@ -114,11 +114,11 @@ while $i < 5
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( 0 )  
   
-  $x = -1440
+  $x = -400
   $y = 0
   while $y < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now $ms , $y , $y ) 
+    sql insert into $tb values (1626739200000 $ms , $y , $y ) 
     $x = $x + 1
 	$y = $y + 1
   endw 

@@ -43,7 +43,7 @@ static void    syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
 static void    syncRecoverFromMaster(SSyncPeer *pPeer);
 static void    syncCheckPeerConnection(void *param, void *tmrId);
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId);
-static void    syncProcessBrokenLink(int64_t rid);
+static void    syncProcessBrokenLink(int64_t rid, int32_t closedByApp);
 static int32_t syncProcessPeerMsg(int64_t rid, void *buffer);
 static void    syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    syncRemovePeer(SSyncPeer *pPeer);
@@ -1308,7 +1308,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   pthread_mutex_unlock(&pNode->mutex);
 }
 
-static void syncProcessBrokenLink(int64_t rid) {
+static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return;
 
@@ -1316,9 +1316,10 @@ static void syncProcessBrokenLink(int64_t rid) {
 
   pthread_mutex_lock(&pNode->mutex);
 
-  sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d", pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd);
+  sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d closedByApp:%d",
+         pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd, closedByApp);
   pPeer->peerFd = -1;
-  if (pPeer->isArb) {
+  if (!closedByApp && pPeer->isArb) {
     tsArbOnline = 0;
   }
 

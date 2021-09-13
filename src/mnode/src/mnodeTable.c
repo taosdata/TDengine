@@ -1812,12 +1812,8 @@ static int32_t getVgroupInfoLength(SSTableVgroupMsg* pInfo, int32_t numOfTable) 
 }
 
 static char* serializeVgroupInfo(SSTableObj *pTable, char* name, char* msg, SMnodeMsg* pMsgBody, void* handle) {
-  SName sn = {0};
-  tNameFromString(&sn, name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  const char* tableName = tNameGetTableName(&sn);
-
-  strncpy(msg, tableName, TSDB_TABLE_NAME_LEN);
-  msg += TSDB_TABLE_NAME_LEN;
+  strncpy(msg, name, TSDB_TABLE_FNAME_LEN);
+  msg += TSDB_TABLE_FNAME_LEN;
 
   if (pTable->vgHash == NULL) {
     mDebug("msg:%p, app:%p stable:%s, no vgroup exist while get stable vgroup info", pMsgBody, handle, name);

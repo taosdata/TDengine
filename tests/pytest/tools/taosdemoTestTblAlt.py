@@ -98,8 +98,8 @@ class TDTestCase:
                     break
                 time.sleep(1)
 
-            print("alter table test.meters add column col10 int")
-            tdSql.execute("alter table test.meters add column col10 int")
+            print("alter table test.meters add column c10 int")
+            tdSql.execute("alter table test.meters add column c10 int")
             print("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
             tdSql.execute("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
 
