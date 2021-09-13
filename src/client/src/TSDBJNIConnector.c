@@ -655,8 +655,13 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfColsFp, (jint)numOfFields);
 
   for (int i = 0; i < numOfFields; i++) {
-    (*env)->CallVoidMethod(env, rowobj, g_blockdataSetByteArrayFp, i, fields[i].bytes * numOfRows,
-                           jniFromNCharToByteArray(env, (char *)row[i], fields[i].bytes * numOfRows));
+    int bytes = fields[i].bytes;
+
+    if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_NCHAR) {
+      bytes += 2;
+    }
+    (*env)->CallVoidMethod(env, rowobj, g_blockdataSetByteArrayFp, i, bytes * numOfRows,
+                           jniFromNCharToByteArray(env, (char *)row[i], bytes * numOfRows));
   }
 
   return JNI_SUCCESS;

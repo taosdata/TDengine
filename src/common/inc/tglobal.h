@@ -74,6 +74,7 @@ extern int8_t   tsKeepOriginalColumnName;
 // client
 extern int32_t tsMaxSQLStringLen;
 extern int32_t tsMaxWildCardsLen;
+extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
@@ -223,6 +224,8 @@ extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char Compressor[];
 #endif
+// long query 
+extern int8_t tsDeadLockKillQuery;
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

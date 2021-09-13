@@ -767,12 +767,6 @@ typedef struct SSTableVgroupMsg {
 } SSTableVgroupMsg, SSTableVgroupRspMsg;
 
 typedef struct {
-  int32_t       vgId;
-  int8_t        numOfEps;
-  SEpAddr1      epAddr[TSDB_MAX_REPLICA];
-} SVgroupInfo;
-
-typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
@@ -780,13 +774,8 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  SVgroupInfo vgroups[];
-} SVgroupsInfo;
-
-typedef struct {
-  int32_t numOfVgroups;
   SVgroupMsg vgroups[];
-} SVgroupsMsg;
+} SVgroupsMsg, SVgroupsInfo;
 
 typedef struct STableMetaMsg {
   int32_t       contLen;

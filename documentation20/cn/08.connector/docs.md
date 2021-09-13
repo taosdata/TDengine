@@ -17,7 +17,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
-其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+其中 ● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 注意：
 
@@ -64,7 +64,10 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 编辑taos.cfg文件(默认路径/etc/taos/taos.cfg)，将firstEP修改为TDengine服务器的End Point，例如：h1.taos.com:6030
 
-**提示： 如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
+**提示： **
+
+1. **如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
+2. **为防止与服务器端连接时出现“unable to resolve FQDN”错误，建议确认客户端的hosts文件已经配置正确的FQDN值。**
 
 **Windows x64/x86**
 
@@ -96,7 +99,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 **提示：** 
 
 1. **如利用FQDN连接服务器，必须确认本机网络环境DNS已配置好，或在hosts文件中添加FQDN寻址记录，如编辑C:\Windows\system32\drivers\etc\hosts，添加如下的记录：`192.168.1.99  h1.taos.com` **
-2．**卸载：运行unins000.exe可卸载TDengine应用驱动。**
+2. **卸载：运行unins000.exe可卸载TDengine应用驱动。**
 
 ### 安装验证
 
@@ -309,7 +312,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 <a class="anchor" id="stmt"></a>
 ### 参数绑定 API
 
-除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。
+除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。文档中有时也会把此功能称为“原生接口写入”。
 
 从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
 1. 调用 `taos_stmt_init` 创建参数绑定对象；
@@ -399,6 +402,25 @@ typedef struct TAOS_MULTI_BIND {
 
   （2.1.3.0 版本新增）  
   用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
+
+<a class="anchor" id="schemaless"></a>
+### Schemaless 方式写入接口
+
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
+
+- `int taos_insert_lines(TAOS* taos, char* lines[], int numLines)`
+
+  （2.2.0.0 版本新增）  
+  以 Schemaless 格式写入多行数据。其中：
+    * taos：调用 taos_connect 返回的数据库连接。
+    * lines：由 char 字符串指针组成的数组，指向本次想要写入数据库的多行数据。
+    * numLines：lines 数据的总行数。 
+
+  返回值为 0 表示写入成功，非零值表示出错。具体错误代码请参见 [taoserror.h](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h) 文件。
+
+  说明：
+    1. 此接口是一个同步阻塞式接口，使用时机与 `taos_query()` 一致。
+    2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
 
 ### 连续查询接口
 
@@ -654,22 +676,23 @@ conn.close()
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
-注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。
+注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
 
 ### 安装
 
-RESTful接口不依赖于任何TDengine的库，因此客户端不需要安装任何TDengine的库，只要客户端的开发语言支持HTTP协议即可。
+RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安装任何 TDengine 的库，只要客户端的开发语言支持 HTTP 协议即可。
 
 ### 验证
 
-在已经安装TDengine服务器端的情况下，可以按照如下方式进行验证。
+在已经安装 TDengine 服务器端的情况下，可以按照如下方式进行验证。
 
-下面以Ubuntu环境中使用curl工具（确认已经安装）来验证RESTful接口的正常。
+下面以 Ubuntu 环境中使用 curl 工具（确认已经安装）来验证 RESTful 接口的正常。
 
-下面示例是列出所有的数据库，请把h1.taosdata.com和6041（缺省值）替换为实际运行的TDengine服务fqdn和端口号：
+下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 fqdn 和端口号：
 ```html
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
 ```
+
 返回值结果如下表示验证通过：
 ```json
 {
@@ -682,22 +705,23 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taos
 }
 ```
 
-### RESTful连接器的使用
+### RESTful 连接器的使用
 
-#### HTTP请求格式 
+#### HTTP 请求格式 
 
 ```
-http://<fqdn>:<port>/rest/sql
+http://<fqdn>:<port>/rest/sql/[db_name]
 ```
 
 参数说明：
 
-- fqnd: 集群中的任一台主机FQDN或IP地址
-- port: 配置文件中httpPort配置项，缺省为6041
+- fqnd: 集群中的任一台主机 FQDN 或 IP 地址
+- port: 配置文件中 httpPort 配置项，缺省为 6041
+- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.2.0.0 版本开始支持）
 
-例如：http://h1.taos.com:6041/rest/sql 是指向地址为h1.taos.com:6041的url。
+例如：http://h1.taos.com:6041/rest/sql/test 是指向地址为 h1.taos.com:6041 的 url，并将默认使用的数据库库名设置为 test。
 
-HTTP请求的Header里需带有身份认证信息，TDengine支持Basic认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
+HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
 - 自定义身份认证信息如下所示（<token>稍后介绍）
 
@@ -711,25 +735,25 @@ Authorization: Taosd <TOKEN>
 Authorization: Basic <TOKEN>
 ```
 
-HTTP请求的BODY里就是一个完整的SQL语句，SQL语句中的数据表应提供数据库前缀，例如\<db-name>.\<tb-name>。如果表名不带数据库前缀，系统会返回错误。因为HTTP模块只是一个简单的转发，没有当前DB的概念。 
+HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 \<db_name>.\<tb_name>。如果表名不带数据库前缀，又没有在 url 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。 
 
-使用curl通过自定义身份认证方式来发起一个HTTP Request，语法如下：
+使用 curl 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
 
 ```bash
-curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql
+curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 ```
 
 或者
 
 ```bash
-curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
+curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 ```
 
-其中，`TOKEN`为`{username}:{password}`经过Base64编码之后的字符串，例如`root:taosdata`编码后为`cm9vdDp0YW9zZGF0YQ==`
+其中，`TOKEN` 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
 
-### HTTP返回格式
+### HTTP 返回格式
 
-返回值为JSON格式，如下:
+返回值为 JSON 格式，如下:
 
 ```json
 {
@@ -747,9 +771,9 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 说明：
 
 - status: 告知操作结果是成功还是失败。
-- head: 表的定义，如果不返回结果集，则仅有一列“affected_rows”。（从 2.0.17.0 版本开始，建议不要依赖 head 返回值来判断数据列类型，而推荐使用 column_meta。在未来版本中，有可能会从返回值中去掉 head 这一项。）
+- head: 表的定义，如果不返回结果集，则仅有一列 “affected_rows”。（从 2.0.17.0 版本开始，建议不要依赖 head 返回值来判断数据列类型，而推荐使用 column_meta。在未来版本中，有可能会从返回值中去掉 head 这一项。）
 - column_meta: 从 2.0.17.0 版本开始，返回值中增加这一项来说明 data 里每一列的数据类型。具体每个列会用三个值来说明，分别为：列名、列类型、类型长度。例如`["current",6,4]`表示列名为“current”；列类型为 6，也即 float 类型；类型长度为 4，也即对应 4 个字节表示的 float。如果列类型为 binary 或 nchar，则类型长度表示该列最多可以保存的内容长度，而不是本次返回值中的具体数据长度。当列类型是 nchar 的时候，其类型长度表示可以保存的 unicode 字符数量，而不是 bytes。
-- data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有[[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
+- data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
 - rows: 表明总共多少行数据。
 
 column_meta 中的列类型说明：
@@ -766,13 +790,13 @@ column_meta 中的列类型说明：
 
 ### 自定义授权码
 
-HTTP请求中需要带有授权码`<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送`HTTP GET`请求来获取授权码，操作如下：
+HTTP 请求中需要带有授权码 `<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送 `HTTP GET` 请求来获取授权码，操作如下：
 
 ```bash
 curl http://<fqnd>:<port>/rest/login/<username>/<password>
 ```
 
-其中，`fqdn`是TDengine数据库的fqdn或ip地址，port是TDengine服务的端口号，`username`为数据库用户名，`password`为数据库密码，返回值为`JSON`格式，各字段含义如下：
+其中，`fqdn` 是 TDengine 数据库的 fqdn 或 ip 地址，port 是 TDengine 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 `JSON` 格式，各字段含义如下：
 
 - status：请求结果的标志位
 
@@ -798,7 +822,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ### 使用示例
 
-- 在demo库里查询表d1001的所有记录： 
+- 在 demo 库里查询表 d1001 的所有记录： 
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
@@ -818,7 +842,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 }
 ```
 
-- 创建库demo：
+- 创建库 demo：
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
@@ -837,9 +861,9 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 
 ### 其他用法
 
-#### 结果集采用Unix时间戳
+#### 结果集采用 Unix 时间戳
 
-HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
+HTTP 请求 URL 采用 `sqlt` 时，返回结果集的时间戳将采用 Unix 时间戳格式表示，例如
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
@@ -860,9 +884,9 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 }
 ```
 
-#### 结果集采用UTC时间字符串
+#### 结果集采用 UTC 时间字符串
 
-HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
+HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC 时间字符串表示，例如
 ```bash
   curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
 ```
@@ -884,13 +908,14 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 ### 重要配置项
 
-下面仅列出一些与RESTful接口有关的配置参数，其他系统参数请看配置文件里的说明。（注意：配置修改后，需要重启taosd服务才能生效）
+下面仅列出一些与 RESTful 接口有关的配置参数，其他系统参数请看配置文件里的说明。（注意：配置修改后，需要重启 taosd 服务才能生效）
 
-- 对外提供RESTful服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）
-- httpMaxThreads: 启动的线程数量，默认为2（2.0.17.0版本开始，默认值改为CPU核数的一半向下取整）
-- restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
-- httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
-- httpDebugFlag: 日志开关，默认131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认131
+- 对外提供 RESTful 服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）。
+- httpMaxThreads: 启动的线程数量，默认为 2（2.0.17.0 版本开始，默认值改为 CPU 核数的一半向下取整）。
+- restfulRowLimit: 返回结果集（JSON 格式）的最大条数，默认值为 10240。
+- httpEnableCompress: 是否支持压缩，默认不支持，目前 TDengine 仅支持 gzip 压缩格式。
+- httpDebugFlag: 日志开关，默认 131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认 131。
+- httpDbNameMandatory: 是否必须在 RESTful url 中指定默认的数据库名。默认为 0，即关闭此检查。如果设置为 1，那么每个 RESTful url 中都必须设置一个默认数据库名，否则无论此时执行的 SQL 语句是否需要指定数据库，都会返回一个执行错误，拒绝执行此 SQL 语句。
 
 ## <a class="anchor" id="csharp"></a>CSharp Connector
 
@@ -981,14 +1006,17 @@ go build
 
 ### Go连接器的使用
 
-TDengine提供了GO驱动程序包`taosSql`.`taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine。
+TDengine提供了GO驱动程序包`taosSql`。`taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine。
 ```go
 import (
   "database/sql"
-  _ "github.com/taosdata/driver-go/taosSql"
+  _ "github.com/taosdata/driver-go/v2/taosSql"
 )
 ```
+
 **提示**：下划线与双引号之间必须有一个空格。
+
+`taosSql` 的 v2 版本进行了重构，分离出内置数据库操作接口 `database/sql/driver` 到目录 `taosSql`；订阅、stmt等其他功能放到目录 `af`。
 
 ### 常用API
 
