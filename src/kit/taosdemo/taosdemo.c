@@ -3576,10 +3576,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
 
     char* childTblName = *childTblNameOfSuperTbl;
 
-    if (offset >= 0) {
-        snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
-                limit, offset);
-    }
+    snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
+        limit, offset);
 
     //get all child table name use cmd: select tbname from superTblName;
     snprintf(command, 1024, "select tbname from %s.%s %s",
@@ -7450,6 +7448,7 @@ static int32_t prepareStmtWithoutStb(
                         g_args.binwidth,
                         pThreadInfo->time_precision,
                         NULL)) {
+                free(bindArray);
                 return -1;
             }
         }
@@ -8104,7 +8103,7 @@ static int parseSampleToStmt(
         SSuperTable *stbInfo, uint32_t timePrec)
 {
     pThreadInfo->sampleBindArray =
-        calloc(1, sizeof(char *) * MAX_SAMPLES);
+        (char *)calloc(1, sizeof(char *) * MAX_SAMPLES);
     if (pThreadInfo->sampleBindArray == NULL) {
         errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
                 __func__, __LINE__,
@@ -8172,6 +8171,7 @@ static int parseSampleToStmt(
                             timePrec,
                             bindBuffer)) {
                     free(bindBuffer);
+                    free(bindArray);
                     return -1;
                 }
                 free(bindBuffer);
