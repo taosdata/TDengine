@@ -3282,11 +3282,6 @@ void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
   size_t num = taosArrayGetSize(pVgroupTables);
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
-
-    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-      tfree(pInfo->vgInfo.epAddr[j].fqdn);
-    }
-
     taosArrayDestroy(pInfo->itemList);
   }
 
@@ -3300,10 +3295,6 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   assert(size > index);
 
   SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTable, index);
-  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-    tfree(pInfo->vgInfo.epAddr[j].fqdn);
-  }
-
   taosArrayDestroy(pInfo->itemList);
   taosArrayRemove(pVgroupTable, index);
 }
@@ -3312,10 +3303,6 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
   memset(info, 0, sizeof(SVgroupTableInfo));
 
   info->vgInfo = pInfo->vgInfo;
-  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-    info->vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
-  }
-
   if (pInfo->itemList) {
     info->itemList = taosArrayDup(pInfo->itemList);
   }
@@ -4350,12 +4337,12 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
     SVgroupInfo* pNewVInfo = &pNew->vgroups[i];
 
     SVgroupInfo* pvInfo = &vgroupList->vgroups[i];
-    pNewVInfo->vgId = pvInfo->vgId;
+    pNewVInfo->vgId     = pvInfo->vgId;
     pNewVInfo->numOfEps = pvInfo->numOfEps;
 
     for(int32_t j = 0; j < pvInfo->numOfEps; ++j) {
-      pNewVInfo->epAddr[j].fqdn = strdup(pvInfo->epAddr[j].fqdn);
-      pNewVInfo->epAddr[j].port = pvInfo->epAddr[j].port;
+        tstrncpy(pNewVInfo->epAddr[j].fqdn, pvInfo->epAddr[j].fqdn, TSDB_FQDN_LEN);
+        pNewVInfo->epAddr[j].port = pvInfo->epAddr[j].port;
     }
   }
 
@@ -4367,32 +4354,8 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
     return NULL;
   }
 
-  for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
-
-    for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
-      tfree(pVgroupInfo->epAddr[j].fqdn);
-    }
-
-    for(int32_t j = pVgroupInfo->numOfEps; j < TSDB_MAX_REPLICA; j++) {
-      assert( pVgroupInfo->epAddr[j].fqdn == NULL );
-    }
-  }
-
   tfree(vgroupList);
   return NULL;
-}
-
-void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
-  dst->vgId = src->vgId;
-  dst->numOfEps = src->numOfEps;
-  for(int32_t i = 0; i < dst->numOfEps; ++i) {
-    tfree(dst->epAddr[i].fqdn);
-    dst->epAddr[i].port = src->epAddr[i].port;
-    assert(dst->epAddr[i].fqdn == NULL);
-
-    dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
-  }
 }
 
 char* serializeTagData(STagData* pTagData, char* pMsg) {
@@ -4539,7 +4502,7 @@ SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo) {
   SVgroupsInfo* pInfo = calloc(1, size);
   pInfo->numOfVgroups = pVgroupsInfo->numOfVgroups;
   for (int32_t m = 0; m < pVgroupsInfo->numOfVgroups; ++m) {
-    tscSVgroupInfoCopy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m]);
+    memcpy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m], sizeof(SVgroupMsg));
   }
   return pInfo;
 }
