@@ -50,6 +50,7 @@ int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
+static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
@@ -249,6 +250,7 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
+  pthread_mutex_destroy(&setConfMutex);
   taosCacheCleanup(tscVgroupListBuf);
   tscVgroupListBuf = NULL;
 
@@ -495,15 +497,8 @@ static setConfRet taos_set_config_imp(const char *config){
 }
 
 setConfRet taos_set_config(const char *config){
-  static int32_t lock = 0;
-
-  for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
-    if (i % 1000 == 0) {
-      printf("haven't acquire lock after spin %d times.", i);
-      sched_yield();
-    }
-  }
+  pthread_mutex_lock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
-  atomic_store_32(&lock, 0);
+  pthread_mutex_unlock(&setConfMutex);
   return ret;
 }
