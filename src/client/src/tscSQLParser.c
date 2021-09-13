@@ -281,6 +281,8 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
       return TSDB_RELATION_MATCH;
+    case TK_NMATCH:
+      return TSDB_RELATION_NMATCH;
     case TK_ISNULL:
       return TSDB_RELATION_ISNULL;
     case TK_NOTNULL:
@@ -3782,6 +3784,9 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     case TK_MATCH:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_MATCH;
       break;
+    case TK_NMATCH:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_NMATCH;
+      break;
     case TK_ISNULL:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_ISNULL;
       break;
@@ -3846,15 +3851,17 @@ static int32_t tablenameListToString(tSqlExpr* pExpr, SStringBuilder* sb) {
 }
 
 static int32_t tablenameCondToString(tSqlExpr* pExpr, uint32_t opToken, SStringBuilder* sb) {
-  assert(opToken == TK_LIKE || opToken == TK_MATCH);
+  assert(opToken == TK_LIKE || opToken == TK_MATCH || opToken == TK_NMATCH);
   if (opToken == TK_LIKE) {
     taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN);
     taosStringBuilderAppendString(sb, pExpr->value.pz);
   } else if (opToken == TK_MATCH) {
     taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN);
     taosStringBuilderAppendString(sb, pExpr->value.pz);
+  } else if (opToken == TK_NMATCH) {
+    taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_NMATCH, QUERY_COND_REL_PREFIX_NMATCH_LEN);
+    taosStringBuilderAppendString(sb, pExpr->value.pz);
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3903,12 +3910,13 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
       && pExpr->tokenId != TK_NOTNULL
       && pExpr->tokenId != TK_LIKE
       && pExpr->tokenId != TK_MATCH
+      && pExpr->tokenId != TK_NMATCH
       && pExpr->tokenId != TK_IN) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       goto _err_ret;
     }
   } else {
-    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH) {
+    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       goto _err_ret;
     }
@@ -3956,7 +3964,7 @@ static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr*
 
   if (pTableCond->tokenId == TK_IN) {
     ret = tablenameListToString(pRight, sb);
-  } else if (pTableCond->tokenId == TK_LIKE || pTableCond->tokenId == TK_MATCH) {
+  } else if (pTableCond->tokenId == TK_LIKE || pTableCond->tokenId == TK_MATCH || pTableCond->tokenId == TK_NMATCH) {
     if (pRight->tokenId != TK_STRING) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -4410,7 +4418,7 @@ static bool validateJoinExprNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
 }
 
 static bool validTableNameOptr(tSqlExpr* pExpr) {
-  const char nameFilterOptr[] = {TK_IN, TK_LIKE, TK_MATCH};
+  const char nameFilterOptr[] = {TK_IN, TK_LIKE, TK_MATCH, TK_NMATCH};
 
   for (int32_t i = 0; i < tListLen(nameFilterOptr); ++i) {
     if (pExpr->tokenId == nameFilterOptr[i]) {
@@ -4505,13 +4513,13 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 // check for match expression
 static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg1 = "regular expression string should be less than %d characters";
-  const char* msg2 = "illegal column type for match";
+  const char* msg2 = "illegal column type for match/nmatch";
   const char* msg3 = "invalid regular expression";
 
   tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
-  if (pExpr->tokenId == TK_MATCH) {
+  if (pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
     if (pRight->value.nLen > tsMaxRegexStringLen) {
       char tmp[64] = {0};
       sprintf(tmp, msg1, tsMaxRegexStringLen);
@@ -4519,8 +4527,12 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
+    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
       return invalidOperationMsg(msgBuf, msg2);
+    }
+
+    if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
+      return invalidOperationMsg(msgBuf, msg3);
     }
 
     int errCode = 0;
@@ -4925,9 +4937,12 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   STagCond* pTagCond = &pQueryInfo->tagCond;
   pTagCond->tbnameCond.uid = pTableMetaInfo->pTableMeta->id.uid;
 
-  assert(pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_IN);
+  assert(pExpr->tokenId == TK_LIKE
+         || pExpr->tokenId == TK_MATCH
+         || pExpr->tokenId == TK_NMATCH
+         || pExpr->tokenId == TK_IN);
 
-  if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH) {
+  if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
     char* str = taosStringBuilderGetResult(sb, NULL);
     pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
     pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
@@ -8224,11 +8239,12 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
         && pExpr->tokenId != TK_NOTNULL
         && pExpr->tokenId != TK_LIKE
         && pExpr->tokenId != TK_MATCH
+        && pExpr->tokenId != TK_NMATCH
         ) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
-    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH) {
+    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
