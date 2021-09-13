@@ -281,6 +281,10 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
       return TSDB_RELATION_MATCH;
+    case TK_QUESTION:
+      return TSDB_RELATION_QUESTION;
+    case TK_ARROW:
+      return TSDB_RELATION_ARROW;
     case TK_ISNULL:
       return TSDB_RELATION_ISNULL;
     case TK_NOTNULL:

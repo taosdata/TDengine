@@ -165,6 +165,8 @@ do { \
 #define TSDB_RELATION_NOT         13
 
 #define TSDB_RELATION_MATCH       14
+#define TSDB_RELATION_QUESTION    15
+#define TSDB_RELATION_ARROW       16
 
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
