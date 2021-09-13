@@ -32,6 +32,7 @@
 #include "ttoken.h"
 
 #include "tdataformat.h"
+#include "cJSON.h"
 
 enum {
   TSDB_USE_SERVER_TS = 0,
@@ -385,6 +386,10 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
         
         varDataSetLen(payload, output);
       }
+      break;
+
+    case TSDB_DATA_TYPE_JSON:
+      *((int8_t *)payload) = -1;
       break;
 
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -1065,6 +1070,67 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       }
 
       tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+    }
+
+    // encode json tag string
+    if(spd.numOfBound == 1 && pTagSchema[spd.boundedColumns[0]].type == TSDB_DATA_TYPE_JSON){
+      const char* msg1 = "json parse error";
+      char tmp = sToken.z[sToken.n];
+      sToken.z[sToken.n] = 0;
+      cJSON *root = cJSON_Parse(sToken.z);
+      if (root == NULL){
+        tscError("json parse error");
+        return false;
+      }
+
+      int size = cJSON_GetArraySize(root);
+      if(!cJSON_IsObject(root) || size == 0){
+        tscError("json error invalide value");
+      }
+
+      int jsonIndex = 0;
+      for(int i = 0; i < size; i++) {
+        cJSON* item = cJSON_GetArrayItem(root, i);
+        if (!item) {
+          tscError("json inner error:%d", i);
+          continue;
+        }
+        char tagVal[TSDB_MAX_TAGS_LEN];
+        int32_t output = 0;
+        if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+          tscError("json string error:%s|%s", strerror(errno), item->string);
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          tscDestroyBoundColumnInfo(&spd);
+          return tscSQLSyntaxErrMsg(pInsertParam->msg, "serizelize json error", NULL);
+        }
+
+        varDataSetLen(tagVal, output);
+        tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
+
+        if(item->type == cJSON_String){
+          output = 0;
+          if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagVal), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+            tscError("json string error:%s|%s", strerror(errno), item->string);
+            tdDestroyKVRowBuilder(&kvRowBuilder);
+            tscDestroyBoundColumnInfo(&spd);
+            return tscSQLSyntaxErrMsg(pInsertParam->msg, "serizelize json error", NULL);
+          }
+
+          varDataSetLen(tagVal, output);
+
+          tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
+        }else if(item->type == cJSON_Number){
+          *((double *)tagVal) = item->valuedouble;
+
+          tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal);
+        }else{
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          tscDestroyBoundColumnInfo(&spd);
+          return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalidate json value", NULL);
+        }
+      }
+      cJSON_Delete(root);
+      sToken.z[sToken.n] = tmp;
     }
 
     tscDestroyBoundColumnInfo(&spd);

@@ -21,6 +21,11 @@
 #include "tulog.h"
 #include "taoserror.h"
 
+bool isInteger(double x){
+  int truncated = (int)x;
+  return (x == truncated);
+}
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;

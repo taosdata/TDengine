@@ -41,6 +41,7 @@
 #include "qScript.h"
 #include "ttype.h"
 #include "qFilter.h"
+#include "cJSON.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -1476,6 +1477,34 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   return true;
 }
 
+static bool validataTagJson(char *json){
+  const char* msg1 = "json parse error";
+  cJSON *root = cJSON_Parse(json);
+  if (root == NULL){
+    tscError("json parse error : %s", json);
+    return false;
+  }
+
+  int size = cJSON_GetArraySize(root);
+  if(!cJSON_IsObject(root) || size == 0)
+  }
+  for(int i = 0; i < size; i++) {
+    cJSON* item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      item->string,
+    }
+  }
+  cJSON_Delete(root);
+}
+
+
+if (numOfTags == 1) {
+TAOS_FIELD* p = taosArrayGet(pTagsList, 0);
+if (p->type == TSDB_DATA_TYPE_JSON && validataTagJson(p->)) {
+invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+return false;
+}
+}
 
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd) {
   assert(pTagsList != NULL);
@@ -1487,6 +1516,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   const char* msg5 = "invalid data type in tags";
   const char* msg6 = "invalid tag name";
   const char* msg7 = "invalid binary/nchar tag length";
+  const char* msg8 = "only support one tag if include json type";
 
   // number of fields at least 1
   size_t numOfTags = taosArrayGetSize(pTagsList);
@@ -1499,6 +1529,11 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
     if (!isValidDataType(p->type)) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      return false;
+    }
+
+    if (p->type == TSDB_DATA_TYPE_JSON && numOfTags != 1) {
+      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
       return false;
     }
 

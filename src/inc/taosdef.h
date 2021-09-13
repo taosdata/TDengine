@@ -39,7 +39,7 @@ extern "C" {
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[15];
+extern const int32_t TYPE_BYTES[16];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES    sizeof(char)

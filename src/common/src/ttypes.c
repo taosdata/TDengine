@@ -18,7 +18,7 @@
 #include "ttokendef.h"
 #include "tscompression.h"
 
-const int32_t TYPE_BYTES[15] = {
+const int32_t TYPE_BYTES[16] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     sizeof(int8_t),          // TSDB_DATA_TYPE_BOOL
     sizeof(int8_t),          // TSDB_DATA_TYPE_TINYINT
@@ -34,6 +34,7 @@ const int32_t TYPE_BYTES[15] = {
     sizeof(uint16_t),        // TSDB_DATA_TYPE_USMALLINT
     sizeof(uint32_t),        // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_JSON
 };
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
@@ -367,7 +368,7 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
   *maxIndex = 0;
 }
 
-tDataTypeDescriptor tDataTypes[15] = {
+tDataTypeDescriptor tDataTypes[16] = {
   {TSDB_DATA_TYPE_NULL,      6,  1,            "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
   {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               false,      true,           tsCompressBool,      tsDecompressBool,      getStatics_bool},
   {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            INT8_MIN,   INT8_MAX,       tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
@@ -383,6 +384,7 @@ tDataTypeDescriptor tDataTypes[15] = {
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
   {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
+  {TSDB_DATA_TYPE_JSON,      4,  CHAR_BYTES,   "JSON",               INT8_MIN,          INT8_MAX,              tsCompressTinyint,    tsDecompressTinyint,    getStatics_i8},
 };
 
 char tTokenTypeSwitcher[13] = {
@@ -428,7 +430,7 @@ FORCE_INLINE void* getDataMax(int32_t type) {
 
 
 bool isValidDataType(int32_t type) {
-  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
+  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_JSON;
 }
 
 void setVardataNull(void* val, int32_t type) {

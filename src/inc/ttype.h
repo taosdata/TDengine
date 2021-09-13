@@ -192,7 +192,7 @@ typedef struct tDataTypeDescriptor {
                         int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypes[15];
+extern tDataTypeDescriptor tDataTypes[16];
 
 bool isValidDataType(int32_t type);
 
