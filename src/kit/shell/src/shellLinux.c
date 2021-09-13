@@ -68,8 +68,21 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
-        tsDnodeShellPort = atoi(arg);
-        arguments->port  = atoi(arg);
+        int32_t port = atoi(arg);
+        if (port <= 0 || port > 65535) {
+          fprintf(stderr, "Invalid port\n");
+          return -1;
+        }
+        char *cur = arg;
+        while (*cur != 0) {
+          if (!isdigit(*cur)) {
+            fprintf(stderr, "Invalid port\n");
+            return -1;
+          }
+          cur++;
+        }
+        tsDnodeShellPort = port;
+        arguments->port  = port;
       } else {
         fprintf(stderr, "Invalid port\n");
         return -1;
@@ -213,8 +226,18 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     parse_args(argc, argv, arguments);
   }
 
-  argp_parse(&argp, argc, argv, 0, 0, arguments);
-  if (arguments->abort) {
+  error_t code = argp_parse(&argp, argc, argv, 0, 0, arguments);
+
+  /*If valid port is given, host FQDN must be required as well.
+   *taosConnectImpl() will ignore any given port and use default
+   *port number to connect if host is omitted.
+  */
+  if (arguments->port != 0 && arguments->host == NULL) {
+    code = -1;
+    fprintf(stderr, "host FQDN must be given when port is used\n");
+  }
+
+  if (code != 0 || arguments->abort) {
     #ifndef _ALPINE
       error(10, 0, "ABORTED");
     #else
