@@ -3887,147 +3887,6 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
 }
 
 
-#if 0
-
-static void queryIndexedColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
-  SSkipListIterator* iter = NULL;
-
-  SQueryCond cond = {0};
-  if (setQueryCond(pQueryInfo, &cond) != TSDB_CODE_SUCCESS) {
-    //todo handle error
-  }
-
-  if (cond.start != NULL) {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->type, TSDB_ORDER_ASC);
-  } else {
-    iter = tSkipListCreateIterFromVal(pSkipList, (char*)(cond.end ? cond.end->v: NULL), pSkipList->type, TSDB_ORDER_DESC);
-  }
-
-  if (cond.start != NULL) {
-    int32_t optr = cond.start->optr;
-
-    if (optr == TSDB_RELATION_EQUAL) {   // equals
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-
-        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
-        if (ret != 0) {
-          break;
-        }
-
-        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-        taosArrayPush(result, &info);
-      }
-    } else if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL) { // greater equal
-      bool comp = true;
-      int32_t ret = 0;
-
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-
-        if (comp) {
-          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
-          assert(ret >= 0);
-        }
-
-        if (ret == 0 && optr == TSDB_RELATION_GREATER) {
-          continue;
-        } else {
-          STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-          taosArrayPush(result, &info);
-          comp = false;
-        }
-      }
-    } else if (optr == TSDB_RELATION_NOT_EQUAL) {   // not equal
-      bool comp = true;
-
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
-        if (comp) {
-          continue;
-        }
-
-        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-        taosArrayPush(result, &info);
-      }
-
-      tSkipListDestroyIter(iter);
-
-      comp = true;
-      iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->type, TSDB_ORDER_DESC);
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
-        if (comp) {
-          continue;
-        }
-
-        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-        taosArrayPush(result, &info);
-      }
-
-    } else if (optr == TSDB_RELATION_IN) {
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-
-        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
-        if (ret != 0) {
-          break;
-        }
-
-        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-        taosArrayPush(result, &info);
-      }
-      
-    } else {
-      assert(0);
-    }
-  } else {
-    int32_t optr = cond.end ? cond.end->optr : TSDB_RELATION_INVALID;
-    if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
-      bool    comp = true;
-      int32_t ret = 0;
-
-      while (tSkipListIterNext(iter)) {
-        SSkipListNode *pNode = tSkipListIterGet(iter);
-
-        if (comp) {
-          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
-          assert(ret <= 0);
-        }
-
-        if (ret == 0 && optr == TSDB_RELATION_LESS) {
-          continue;
-        } else {
-          STableKeyInfo info = {.pTable = (void *)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-          taosArrayPush(result, &info);
-          comp = false;  // no need to compare anymore
-        }
-      }
-    } else {
-      assert(pQueryInfo->optr == TSDB_RELATION_ISNULL || pQueryInfo->optr == TSDB_RELATION_NOTNULL);
-
-      while (tSkipListIterNext(iter)) {
-        SSkipListNode *pNode = tSkipListIterGet(iter);
-
-        bool isnull = isNull(SL_GET_NODE_KEY(pSkipList, pNode), pQueryInfo->sch.type);
-        if ((pQueryInfo->optr == TSDB_RELATION_ISNULL && isnull) ||
-            (pQueryInfo->optr == TSDB_RELATION_NOTNULL && (!isnull))) {
-          STableKeyInfo info = {.pTable = (void *)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-          taosArrayPush(result, &info);
-        }
-      }
-    }
-  }
-
-  free(cond.start);
-  free(cond.end);
-  tSkipListDestroyIter(iter);
-}
-
-#endif
-
 static FORCE_INLINE int32_t tsdbGetTagDataFromId(void *param, int32_t id, void **data) {
   STable* pTable = (STable*)(SL_GET_NODE_DATA((SSkipListNode *)param));
   
@@ -4041,11 +3900,65 @@ static FORCE_INLINE int32_t tsdbGetTagDataFromId(void *param, int32_t id, void *
 }
 
 
+
+static void queryIndexedColumn(SSkipList* pSkipList, void* filterInfo, SArray* res) {
+  SSkipListIterator* iter = NULL;
+  char *startVal = NULL;
+  int32_t order = 0;
+  int32_t inRange = 0;
+  int32_t flag = 0;
+  bool all = false;
+  int8_t *addToResult = NULL;
+
+  filterGetIndexedColumnInfo(filterInfo, &startVal, &order, &flag);
+
+  tsdbDebug("filter index column start, order:%d, flag:%d", order, flag);
+
+  while (order) {
+    if (FILTER_GET_FLAG(order, TSDB_ORDER_ASC)) {
+      iter = tSkipListCreateIterFromVal(pSkipList, startVal, pSkipList->type, TSDB_ORDER_ASC);
+      FILTER_CLR_FLAG(order, TSDB_ORDER_ASC);
+    } else {
+      iter = tSkipListCreateIterFromVal(pSkipList, startVal, pSkipList->type, TSDB_ORDER_DESC);
+      FILTER_CLR_FLAG(order, TSDB_ORDER_DESC);
+    }
+    
+    while (tSkipListIterNext(iter)) {
+      SSkipListNode *pNode = tSkipListIterGet(iter);
+
+      if (inRange == 0 || !FILTER_GET_FLAG(flag, FI_ACTION_NO_NEED)) {
+        tsdbDebug("filter index column, filter it");
+        filterSetColFieldData(filterInfo, pNode, tsdbGetTagDataFromId);
+        all = filterExecute(filterInfo, 1, &addToResult, NULL, 0);
+      }
+      
+      char *pData = SL_GET_NODE_DATA(pNode);
+
+      tsdbDebug("filter index column, table:%s, result:%d", ((STable *)pData)->name->data, all);
+
+      if (all || (addToResult && *addToResult)) {
+        STableKeyInfo info = {.pTable = (void*)pData, .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(res, &info);
+        inRange = 1;
+      } else if (inRange){
+        break;
+      }
+    }
+
+    inRange = 0;
+
+    tfree(addToResult);
+    tSkipListDestroyIter(iter);
+  }
+
+  tsdbDebug("filter index column end");
+}
+
 static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray* res) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+  int8_t *addToResult = NULL;
 
   while (tSkipListIterNext(iter)) {
-    int8_t *addToResult = NULL;
 
     SSkipListNode *pNode = tSkipListIterGet(iter);
 
@@ -4058,8 +3971,10 @@ static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray*
     if (all || (addToResult && *addToResult)) {
       STableKeyInfo info = {.pTable = (void*)pData, .lastKey = TSKEY_INITIAL_VAL};
       taosArrayPush(res, &info);
-    }
+    }    
   }
+
+  tfree(addToResult);
 
   tSkipListDestroyIter(iter);
 }
@@ -4070,13 +3985,13 @@ static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo
   bool indexQuery = false;
   SSkipList *pSkipList = pTable->pIndex;
   
-  filterIsIndexedQuery(filterInfo, pTSSchema->columns->colId, &indexQuery);
+  filterIsIndexedColumnQuery(filterInfo, pTSSchema->columns->colId, &indexQuery);
   
-  //if (indexQuery) {
-    //queryIndexedColumn(pSkipList, filterInfo, pRes);
-  //} else {
+  if (indexQuery) {
+    queryIndexedColumn(pSkipList, filterInfo, pRes);
+  } else {
     queryIndexlessColumn(pSkipList, filterInfo, pRes);
-  //}
+  }
 
   return TSDB_CODE_SUCCESS;
 }

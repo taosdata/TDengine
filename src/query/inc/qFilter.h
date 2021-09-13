@@ -83,6 +83,12 @@ enum {
   RANGE_TYPE_MR_CTX = 3,
 };
 
+enum {
+  FI_ACTION_NO_NEED = 1,
+  FI_ACTION_CONTINUE,
+  FI_ACTION_STOP,
+};
+
 typedef struct OptrStr {
   uint16_t optr;
   char    *str;
@@ -332,7 +338,8 @@ extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, 
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
 extern bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows);
-extern int32_t filterIsIndexedQuery(SFilterInfo* info, int32_t idxId, bool *res);
+extern int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res);
+extern int32_t filterGetIndexedColumnInfo(SFilterInfo* info, char** val, int32_t *order, int32_t *flag);
 
 #ifdef __cplusplus
 }

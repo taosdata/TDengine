@@ -203,3 +203,91 @@ sleep 100
 
 run general/parser/condition_query.sim
 run general/parser/condition_query2.sim
+
+
+
+sql drop database if exists cdb
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 100
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 1000
+system sh/cfg.sh -n dnode1 -c minTablesPerVnode -v 1000
+system sh/exec.sh -n dnode1 -s start
+
+sql create database if not exists cdb 
+sql use cdb
+sql create table stba (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+sql create table stbb (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 bool)
+sql create table stbc (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 float)
+sql create table stbd (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 binary(10))
+sql create table stbe (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 nchar(10))
+
+
+sql create table tba_0 using stba tags(0)
+sql create table tba_1 using stba tags(1)
+sql create table tba_2 using stba tags(2)
+sql create table tba_3 using stba tags(3)
+sql create table tba_4 using stba tags(4)
+sql create table tba_5 using stba tags(5)
+sql create table tba_6 using stba tags(6)
+sql create table tba_7 using stba tags(7)
+sql create table tba_8 using stba tags(8)
+sql create table tba_9 using stba tags(9)
+
+sql create table tbb_0 using stbb tags(true)
+sql create table tbb_1 using stbb tags(false)
+sql create table tbb_2 using stbb tags(true)
+sql create table tbb_3 using stbb tags(false)
+sql create table tbb_4 using stbb tags(true)
+sql create table tbb_5 using stbb tags(false)
+sql create table tbb_6 using stbb tags(true)
+sql create table tbb_7 using stbb tags(false)
+sql create table tbb_8 using stbb tags(true)
+sql create table tbb_9 using stbb tags(false)
+
+sql create table tbc_0 using stbc tags(0)
+sql create table tbc_1 using stbc tags(1)
+sql create table tbc_2 using stbc tags(2)
+sql create table tbc_3 using stbc tags(3)
+sql create table tbc_4 using stbc tags(4)
+sql create table tbc_5 using stbc tags(5)
+sql create table tbc_6 using stbc tags(6)
+sql create table tbc_7 using stbc tags(7)
+sql create table tbc_8 using stbc tags(8)
+sql create table tbc_9 using stbc tags(9)
+
+
+sql create table tbd_0 using stbd tags('0000')
+sql create table tbd_1 using stbd tags('1111')
+sql create table tbd_2 using stbd tags('2222')
+sql create table tbd_3 using stbd tags('3333')
+sql create table tbd_4 using stbd tags('4444')
+sql create table tbd_5 using stbd tags('5555')
+sql create table tbd_6 using stbd tags('6666')
+sql create table tbd_7 using stbd tags('7777')
+sql create table tbd_8 using stbd tags('8888')
+sql create table tbd_9 using stbd tags('9999')
+
+sql create table tbe_0 using stbe tags('0000')
+sql create table tbe_1 using stbe tags('1111')
+sql create table tbe_2 using stbe tags('2222')
+sql create table tbe_3 using stbe tags('3333')
+sql create table tbe_4 using stbe tags('4444')
+sql create table tbe_5 using stbe tags('5555')
+sql create table tbe_6 using stbe tags('6666')
+sql create table tbe_7 using stbe tags('7777')
+sql create table tbe_8 using stbe tags('8888')
+sql create table tbe_9 using stbe tags('9999')
+
+
+run general/parser/condition_query3.sim
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 100
+system sh/exec.sh -n dnode1 -s start
+
+run general/parser/condition_query3.sim
+

@@ -2765,8 +2765,10 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
   bool all = true;
   uint16_t *unitIdx = NULL;
 
-  *p = calloc(numOfRows, sizeof(int8_t));
-
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
+  
   for (int32_t i = 0; i < numOfRows; ++i) {
     //FILTER_UNIT_CLR_F(info);
 
@@ -2868,7 +2870,9 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
     return all;
   }
 
-  *p = calloc(numOfRows, sizeof(int8_t));
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
@@ -2889,8 +2893,10 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
     return all;
   }
 
-  *p = calloc(numOfRows, sizeof(int8_t));
-
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
+  
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
@@ -2917,7 +2923,9 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SDataSta
     return all;
   }
 
-  *p = calloc(numOfRows, sizeof(int8_t));
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (isNull(colData, info->cunits[0].dataType)) {
@@ -2945,13 +2953,16 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
   if (filterExecuteBasedOnStatis(info, numOfRows, p, statis, numOfCols, &all) == 0) {
     return all;
   }
-
-  *p = calloc(numOfRows, sizeof(int8_t));
+  
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
     if (isNull(colData, info->cunits[uidx].dataType)) {
+      (*p)[i] = 0;
       all = false;
       continue;
     }
@@ -2975,8 +2986,10 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *
     return all;
   }
 
-  *p = calloc(numOfRows, sizeof(int8_t));
-
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
+  
   for (int32_t i = 0; i < numOfRows; ++i) {
     //FILTER_UNIT_CLR_F(info);
   
@@ -3414,7 +3427,7 @@ int32_t filterFreeNcharColumns(SFilterInfo* info) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterIsIndexedQuery(SFilterInfo* info, int32_t idxId, bool *res) {
+int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res) {
   CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "null parameter");
 
   CHK_JMP(info->fields[FLD_TYPE_COLUMN].num > 1 || info->fields[FLD_TYPE_COLUMN].num <= 0);
@@ -3425,7 +3438,8 @@ int32_t filterIsIndexedQuery(SFilterInfo* info, int32_t idxId, bool *res) {
 
   int32_t optr = FILTER_UNIT_OPTR(info->units);
   
-  CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN);
+  CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN || optr == TSDB_RELATION_MATCH 
+       || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL);
 
   *res = true;
 
@@ -3436,6 +3450,30 @@ _return:
   
   return TSDB_CODE_SUCCESS;
 }
+
+
+int32_t filterGetIndexedColumnInfo(SFilterInfo* info, char** val, int32_t *order, int32_t *flag) {
+  SFilterComUnit *cunit = info->cunits;
+  uint8_t optr = cunit->optr;
+
+  *val = cunit->valData;
+  *order = TSDB_ORDER_ASC;
+
+  if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
+    *order = TSDB_ORDER_DESC;
+  }
+
+  if (optr == TSDB_RELATION_NOT_EQUAL) {
+    *order = TSDB_ORDER_ASC|TSDB_ORDER_DESC;
+  }
+
+  if (cunit->valData2 == cunit->valData && optr != TSDB_RELATION_EQUAL) {
+    FILTER_SET_FLAG(*flag, FI_ACTION_NO_NEED);
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 

@@ -1159,6 +1159,27 @@ if $data30 != @21-05-05 18:19:11.000@ then
   return -1
 endi
 
+sql select * from stb5 where t1 <> 1;
+if $rows != 34 then
+  return -1
+endi
+
+sql select t1,ts,c1 from stb5 where t1 <> '2021-05-05 18:19:01.000'
+if $rows != 26 then
+  return -1
+endi
+
+sql select t1,ts,c1 from stb5 where t1 <> '2021-05-05 18:19:01.000' and t1 <> '2021-05-05 18:19:08.000';
+if $rows != 21 then
+  return -1
+endi
+
+sql select t1,ts,c1 from stb5 where t1 > '2021-05-05 18:19:02.000';
+if $rows != 22 then
+  return -1
+endi
+
+
 print "join test"
 sql_error select * from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts =tb2_1.ts;
 sql select tb1.ts from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.ts < '2021-05-05 18:19:06.000';
