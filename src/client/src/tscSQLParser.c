@@ -4531,6 +4531,10 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       return invalidOperationMsg(msgBuf, msg2);
     }
 
+    if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
+      return invalidOperationMsg(msgBuf, msg3);
+    }
+
     int errCode = 0;
     regex_t regex;
     char    regErrBuf[256] = {0};

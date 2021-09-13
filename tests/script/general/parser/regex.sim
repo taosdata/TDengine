@@ -79,6 +79,9 @@ if $rows != 1 then
   return -1
 endi  
 
+sql_error select c1b from $st_name where c1b match e;
+sql_error select c1b from $st_name where c1b nmatch e;
+
 sql create table wrong_type(ts timestamp, c0 tinyint, c1 smallint, c2 int, c3 bigint, c4 float, c5 double, c6 bool, c7 nchar(20)) tags(t0 tinyint, t1 smallint, t2 int, t3 bigint, t4 float, t5 double, t6 bool, t7 nchar(10))
 sql insert into wrong_type_1 using wrong_type tags(1, 2, 3, 4, 5, 6, true, 'notsupport') values(now, 1, 2, 3, 4, 5, 6, false, 'notsupport') 
 sql_error select * from wrong_type where ts match '.*'
