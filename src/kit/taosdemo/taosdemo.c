@@ -3576,10 +3576,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
 
     char* childTblName = *childTblNameOfSuperTbl;
 
-    if (offset >= 0) {
-        snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
-                limit, offset);
-    }
+    snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
+        limit, offset);
 
     //get all child table name use cmd: select tbname from superTblName;
     snprintf(command, 1024, "select tbname from %s.%s %s",
@@ -7450,6 +7448,7 @@ static int32_t prepareStmtWithoutStb(
                         g_args.binwidth,
                         pThreadInfo->time_precision,
                         NULL)) {
+                free(bindArray);
                 return -1;
             }
         }
