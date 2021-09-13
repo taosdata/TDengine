@@ -228,13 +228,13 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   error_t code = argp_parse(&argp, argc, argv, 0, 0, arguments);
 
-  /*If valid port is given, host FQDN must be required as well.
+  /*If valid port is given, server info must be required as well.
    *taosConnectImpl() will ignore any given port and use default
-   *port number to connect if host is omitted.
+   *port number to connect if host name/ip is omitted.
   */
   if (arguments->port != 0 && arguments->host == NULL) {
     code = -1;
-    fprintf(stderr, "host FQDN must be given when port is used\n");
+    fprintf(stderr, "Require server info(provide using -h option) when port is specified\n");
   }
 
   if (code != 0 || arguments->abort) {
