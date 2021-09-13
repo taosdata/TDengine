@@ -589,8 +589,50 @@ if $data70 != @21-05-05 18:19:15.000@ then
   return -1
 endi
 
-print "tag test"
+sql select ts,c1,t9,t10,tbname from stb5 where tbname match '^3';
+if $rows != 0 then
+  return -1
+endi
 
+sql select ts,c1,t9,t10,tbname from stb5 where tbname match 'tb.?_[34]';
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:15.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:17.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
+if $data70 != @21-05-05 18:19:19.000@ then
+  return -1
+endi
+
+print "tag test"
+sql_error select * from stb5 where t1 match '.*';
+sql_error select * from stb5 where t2 match '.*';
+sql_error select * from stb5 where t3 match '.*';
+sql_error select * from stb5 where t4 match '.*';
+sql_error select * from stb5 where t5 match '.*';
+sql_error select * from stb5 where t6 match '.*';
+sql_error select * from stb5 where t7 match '.*';
+sql_error select * from stb5 where t8 match '.*';
+sql_error select * from stb5 where t10 match '.*';
 sql_error select * from tb1 where t1 in (1,2) and t1 in (2,3);
 
 sql select * from stb1 where t1 in (1,2) and t1 in (2,3);
@@ -1178,6 +1220,61 @@ sql select t1,ts,c1 from stb5 where t1 > '2021-05-05 18:19:02.000';
 if $rows != 22 then
   return -1
 endi
+
+sql select ts,c1,t9,t10 from stb5 where t9 match '1.+';
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data70 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+
+sql select ts,c1,t9,t10 from stb5 where t9 match '[3-9]';
+if $rows != 22 then
+  return -1
+endi
+
+sql select ts,c1,t9,t10 from stb5 where t9 match '8.*';
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:34.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:35.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:36.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:37.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:38.000@ then
+  return -1
+endi
+
 
 
 print "join test"

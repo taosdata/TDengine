@@ -42,6 +42,9 @@ if $rows != 4 then
   return -1
 endi
 
+sql select tbname,t1 from stba where t1 is null;
+sql select tbname,t1 from stba where t1 is not null;
+
 sql_error select tbname,t1 from stbb where t1 > true;
 sql select tbname,t1 from stbb where t1 = true;
 if $rows != 5 then
@@ -52,6 +55,10 @@ sql select tbname,t1 from stbb where t1 <> true;
 if $rows != 5 then
   return -1
 endi
+
+sql select tbname,t1 from stbb where t1 is null;
+sql select tbname,t1 from stbb where t1 is not null;
+
 
 sql select tbname,t1 from stbc;
 if $rows != 10 then
@@ -93,6 +100,9 @@ if $rows != 4 then
   return -1
 endi
 
+sql select tbname,t1 from stbc where t1 is null;
+sql select tbname,t1 from stbc where t1 is not null;
+
 sql select tbname,t1 from stbd where t1 > '2222';
 if $rows != 7 then
   return -1
@@ -128,6 +138,9 @@ if $rows != 4 then
   return -1
 endi
 
+sql select tbname,t1 from stbd where t1 is null;
+sql select tbname,t1 from stbd where t1 is not null;
+
 sql select tbname,t1 from stbe where t1 > '2222';
 if $rows != 7 then
   return -1
@@ -162,5 +175,8 @@ sql select tbname,t1 from stbe where t1 < '6666' and t1 >= '2222';
 if $rows != 4 then
   return -1
 endi
+
+sql select tbname,t1 from stbe where t1 is null;
+sql select tbname,t1 from stbe where t1 is not null;
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

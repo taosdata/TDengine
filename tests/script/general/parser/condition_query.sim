@@ -32,6 +32,15 @@ sql_error select * from stb1 where c4 != 'null';
 sql_error select * from stb1 where c5 >= 'null';
 sql_error select * from stb1 where c6 <= 'null';
 sql_error select * from stb1 where c7 < 'nuLl';
+sql_error select * from stb1 where c1 match '.*';
+sql_error select * from stb1 where c2 match '.*';
+sql_error select * from stb1 where c3 match '.*';
+sql_error select * from stb1 where c4 match '.*';
+sql_error select * from stb1 where c5 match '.*';
+sql_error select * from stb1 where c6 match '.*';
+sql_error select * from stb1 where c7 match '.*';
+sql_error select * from stb1 where c9 match '.*';
+sql_error select * from stb1 where ts match '.*';
 
 sql_error select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
@@ -2232,3 +2241,77 @@ endi
 if $data50 != @21-05-05 18:19:28.000@ then
   return -1
 endi
+
+sql select * from stb1 where c8 match '^1.*';
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 match '1.*';
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data70 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data80 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data90 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 match '1.+';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+
+

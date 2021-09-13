@@ -204,8 +204,6 @@ sleep 100
 run general/parser/condition_query.sim
 run general/parser/condition_query2.sim
 
-
-
 sql drop database if exists cdb
 
 

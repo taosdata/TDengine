@@ -2643,10 +2643,12 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
 
     SDataStatis* pDataBlockst = &pDataStatis[index];
     void *minVal, *maxVal;
+    float minv = 0;
+    float maxv = 0;
 
     if (cunit->dataType == TSDB_DATA_TYPE_FLOAT) {
-      float minv = (float)(*(double *)(&pDataBlockst->min));
-      float maxv = (float)(*(double *)(&pDataBlockst->max));
+      minv = (float)(*(double *)(&pDataBlockst->min));
+      maxv = (float)(*(double *)(&pDataBlockst->max));
        
       minVal = &minv;
       maxVal = &maxv;
@@ -3263,10 +3265,12 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
     SDataStatis* pDataBlockst = &pDataStatis[index];
 
     SFilterRangeNode *r = ctx->rs;
+    float minv = 0;
+    float maxv = 0;
 
     if (ctx->type == TSDB_DATA_TYPE_FLOAT) {
-      float minv = (float)(*(double *)(&pDataBlockst->min));
-      float maxv = (float)(*(double *)(&pDataBlockst->max));
+      minv = (float)(*(double *)(&pDataBlockst->min));
+      maxv = (float)(*(double *)(&pDataBlockst->max));
        
       minVal = &minv;
       maxVal = &maxv;
