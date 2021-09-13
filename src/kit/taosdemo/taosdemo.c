@@ -109,7 +109,7 @@ extern char configDir[];
 #define DEFAULT_DATATYPE_NUM    1
 #define DEFAULT_CHILDTABLES     10000
 
-#define STMT_BIND_PARAM_BATCH   0
+#define STMT_BIND_PARAM_BATCH   1
 
 char* g_sampleDataBuf = NULL;
 #if STMT_BIND_PARAM_BATCH == 1
@@ -8467,18 +8467,18 @@ static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t inter
             pThreadInfo->threadID, __func__, __LINE__);
 
     int64_t insertRows;
-    int64_t nTimeStampStep;
+    int64_t timeStampStep;
     uint64_t insert_interval;
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
 
     if (stbInfo) {
         insertRows = stbInfo->insertRows;
-        nTimeStampStep = stbInfo->timeStampStep;
+        timeStampStep = stbInfo->timeStampStep;
         insert_interval = stbInfo->insertInterval;
     } else {
         insertRows = g_args.insertRows;
-        nTimeStampStep = g_args.timestamp_step;
+        timeStampStep = g_args.timestamp_step;
         insert_interval = g_args.insert_interval;
     }
 
@@ -8537,7 +8537,7 @@ static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t inter
 
             samplePos = pThreadInfo->samplePos;
             startTime = pThreadInfo->start_time
-                + interlace * interlaceRows;
+                + interlace * interlaceRows * timeStampStep;
             uint64_t remainRecPerTbl =
                     insertRows - interlaceRows * interlace;
             uint64_t recPerTbl = 0;
@@ -8639,7 +8639,7 @@ static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t inter
                     lastPrintTime = currentPrintTime;
                 }
 
-                startTime += (generated * nTimeStampStep);
+                startTime += (generated * timeStampStep);
             }
         }
         pThreadInfo->samplePos = samplePos;
@@ -8679,7 +8679,7 @@ static void* syncWriteInterlaceStmt(threadInfo *pThreadInfo, uint32_t interlaceR
 
     int64_t insertRows;
     uint64_t maxSqlLen;
-    int64_t nTimeStampStep;
+    int64_t timeStampStep;
     uint64_t insert_interval;
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
@@ -8687,12 +8687,12 @@ static void* syncWriteInterlaceStmt(threadInfo *pThreadInfo, uint32_t interlaceR
     if (stbInfo) {
         insertRows = stbInfo->insertRows;
         maxSqlLen = stbInfo->maxSqlLen;
-        nTimeStampStep = stbInfo->timeStampStep;
+        timeStampStep = stbInfo->timeStampStep;
         insert_interval = stbInfo->insertInterval;
     } else {
         insertRows = g_args.insertRows;
         maxSqlLen = g_args.max_sql_len;
-        nTimeStampStep = g_args.timestamp_step;
+        timeStampStep = g_args.timestamp_step;
         insert_interval = g_args.insert_interval;
     }
 
@@ -8800,7 +8800,7 @@ static void* syncWriteInterlaceStmt(threadInfo *pThreadInfo, uint32_t interlaceR
                 generatedRecPerTbl += batchPerTbl;
 
                 startTime = pThreadInfo->start_time
-                    + generatedRecPerTbl * nTimeStampStep;
+                    + generatedRecPerTbl * timeStampStep;
 
                 flagSleep = true;
                 if (generatedRecPerTbl >= insertRows)
@@ -8905,7 +8905,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows)
 
     int64_t insertRows;
     uint64_t maxSqlLen;
-    int64_t nTimeStampStep;
+    int64_t timeStampStep;
     uint64_t insert_interval;
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
@@ -8913,12 +8913,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows)
     if (stbInfo) {
         insertRows = stbInfo->insertRows;
         maxSqlLen = stbInfo->maxSqlLen;
-        nTimeStampStep = stbInfo->timeStampStep;
+        timeStampStep = stbInfo->timeStampStep;
         insert_interval = stbInfo->insertInterval;
     } else {
         insertRows = g_args.insertRows;
         maxSqlLen = g_args.max_sql_len;
-        nTimeStampStep = g_args.timestamp_step;
+        timeStampStep = g_args.timestamp_step;
         insert_interval = g_args.insert_interval;
     }
 
@@ -9061,7 +9061,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows)
                 generatedRecPerTbl += batchPerTbl;
 
                 startTime = pThreadInfo->start_time
-                    + generatedRecPerTbl * nTimeStampStep;
+                    + generatedRecPerTbl * timeStampStep;
 
                 flagSleep = true;
                 if (generatedRecPerTbl >= insertRows)
@@ -9650,24 +9650,24 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    int64_t start_time;
+    int64_t startTime;
     if (stbInfo) {
         if (0 == strncasecmp(stbInfo->startTimestamp, "now", 3)) {
-            start_time = taosGetTimestamp(timePrec);
+            startTime = taosGetTimestamp(timePrec);
         } else {
             if (TSDB_CODE_SUCCESS != taosParseTime(
                         stbInfo->startTimestamp,
-                        &start_time,
+                        &startTime,
                         strlen(stbInfo->startTimestamp),
                         timePrec, 0)) {
                 ERROR_EXIT("failed to parse time!\n");
             }
         }
     } else {
-        start_time = DEFAULT_START_TIME;
+        startTime = DEFAULT_START_TIME;
     }
-    debugPrint("%s() LN%d, start_time= %"PRId64"\n",
-            __func__, __LINE__, start_time);
+    debugPrint("%s() LN%d, startTime= %"PRId64"\n",
+            __func__, __LINE__, startTime);
 
     // read sample data from file first
     int ret;
@@ -9787,13 +9787,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    assert(pids != NULL);
-
     threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    assert(pids != NULL);
     assert(infos != NULL);
-
-    memset(pids, 0, threads * sizeof(pthread_t));
-    memset(infos, 0, threads * sizeof(threadInfo));
 
     char *stmtBuffer = calloc(1, BUFFER_SIZE);
     assert(stmtBuffer);
@@ -9861,7 +9857,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         pThreadInfo->time_precision = timePrec;
         pThreadInfo->stbInfo = stbInfo;
 
-        pThreadInfo->start_time = start_time;
+        pThreadInfo->start_time = startTime;
         pThreadInfo->minDelay = UINT64_MAX;
 
         if ((NULL == stbInfo) ||
@@ -10077,7 +10073,7 @@ static void *readTable(void *sarg) {
     char *command = calloc(1, BUFFER_SIZE);
     assert(command);
 
-    uint64_t sTime = pThreadInfo->start_time;
+    uint64_t startTime = pThreadInfo->start_time;
     char *tb_prefix = pThreadInfo->tb_prefix;
     FILE *fp = fopen(pThreadInfo->filePath, "a");
     if (NULL == fp) {
@@ -10110,7 +10106,7 @@ static void *readTable(void *sarg) {
         uint64_t count = 0;
         for (int64_t i = 0; i < ntables; i++) {
             sprintf(command, "SELECT %s FROM %s%"PRId64" WHERE ts>= %" PRIu64,
-                    g_aggreFunc[j], tb_prefix, i, sTime);
+                    g_aggreFunc[j], tb_prefix, i, startTime);
 
             double t = taosGetTimestampMs();
             TAOS_RES *pSql = taos_query(taos, command);
