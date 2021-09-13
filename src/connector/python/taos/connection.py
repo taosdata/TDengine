@@ -154,6 +154,25 @@ class TaosConnection(object):
         """
         return taos_insert_telnet_lines(self._conn, lines)
 
+    def insert_json_payload(self, payload):
+        """OpenTSDB HTTP JSON format support
+
+        ## Example
+        "{
+            "metric": "cpu_load_0",
+            "timestamp": 1626006833610123,
+            "value": 55.5,
+            "tags":
+                {
+                    "host": "ubuntu",
+                    "interface": "eth0",
+                    "Id": "tb0"
+                }
+        }"
+
+        """
+        return taos_insert_json_payload(self._conn, payload)
+
     def cursor(self):
         # type: () -> TaosCursor
         """Return a new Cursor object using the connection."""
