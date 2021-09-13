@@ -126,12 +126,14 @@ if __name__ == "__main__":
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
+        td_clinet = TDSimClient("C:\\TDengine")
+        td_clinet.deploy()
         remote_conn = Connection("root@%s"%host)
         with remote_conn.cd('/root/TDinternal/community/tests/pytest'):
             remote_conn.run("python3 ./test.py")
         conn = taos.connect(
             host="%s"%(host),
-            config="C:\\TDengine\\cfg")
+            config=td_clinet.cfgDir)
         tdCases.runOneWindows(conn, fileName)
     else:
         tdDnodes.init(deployPath)
