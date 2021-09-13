@@ -69,8 +69,12 @@ typedef struct {
   int8_t  precision;
   int8_t  compression;
   int8_t  update;
-  int8_t  cacheLastRow;
+  int8_t  cacheLastRow;    // 0:no cache, 1: cache last row, 2: cache last NULL column 3: 1&2
 } STsdbCfg;
+
+#define CACHE_NO_LAST(c)          ((c)->cacheLastRow == 0)
+#define CACHE_LAST_ROW(c)         (((c)->cacheLastRow & 1) > 0)
+#define CACHE_LAST_NULL_COLUMN(c) (((c)->cacheLastRow & 2) > 0)
 
 // --------- TSDB REPOSITORY USAGE STATISTICS
 typedef struct {
@@ -90,7 +94,7 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
 int        tsdbCloseRepo(STsdbRepo *repo, int toCommit);
 int32_t    tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg);
 int        tsdbGetState(STsdbRepo *repo);
-
+int8_t     tsdbGetCompactState(STsdbRepo *repo);
 // --------- TSDB TABLE DEFINITION
 typedef struct {
   uint64_t uid;  // the unique table ID
@@ -107,7 +111,7 @@ typedef struct {
   uint64_t   superUid;
   STSchema * schema;
   STSchema * tagSchema;
-  SDataRow   tagValues;
+  SKVRow     tagValues;
   char *     sql;
 } STableCfg;
 
@@ -221,7 +225,7 @@ typedef struct {
 
 typedef struct {
   uint32_t  numOfTables;
-  SArray *  pGroupList;
+  SArray   *pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
@@ -265,6 +269,12 @@ TsdbQueryHandleT *tsdbQueryTables(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
  */
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfo, uint64_t qId,
                                   SMemRef *pRef);
+
+
+TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef);
+
+bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle);
+
 
 /**
  * get the queried table object list
@@ -399,6 +409,9 @@ void tsdbDecCommitRef(int vgId);
 // For TSDB file sync
 int tsdbSyncSend(void *pRepo, SOCKET socketFd);
 int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
+
+// For TSDB Compact
+int tsdbCompact(STsdbRepo *pRepo);
 
 #ifdef __cplusplus
 }

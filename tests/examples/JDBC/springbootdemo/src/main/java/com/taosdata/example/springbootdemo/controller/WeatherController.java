@@ -15,37 +15,23 @@ public class WeatherController {
     @Autowired
     private WeatherService weatherService;
 
-    /**
-     * create database and table
-     *
-     * @return
-     */
+    @GetMapping("/lastOne")
+    public Weather lastOne() {
+        return weatherService.lastOne();
+    }
+
     @GetMapping("/init")
     public int init() {
         return weatherService.init();
     }
 
-    /**
-     * Pagination Query
-     *
-     * @param limit
-     * @param offset
-     * @return
-     */
     @GetMapping("/{limit}/{offset}")
     public List<Weather> queryWeather(@PathVariable Long limit, @PathVariable Long offset) {
         return weatherService.query(limit, offset);
     }
 
-    /**
-     * upload single weather info
-     *
-     * @param temperature
-     * @param humidity
-     * @return
-     */
     @PostMapping("/{temperature}/{humidity}")
-    public int saveWeather(@PathVariable float temperature, @PathVariable int humidity) {
+    public int saveWeather(@PathVariable float temperature, @PathVariable float humidity) {
         return weatherService.save(temperature, humidity);
     }
 

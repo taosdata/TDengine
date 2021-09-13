@@ -480,11 +480,13 @@ static int tfsFormatDir(char *idir, char *odir) {
     return -1;
   }
 
-  if (realpath(wep.we_wordv[0], odir) == NULL) {
+  char tmp[PATH_MAX] = {0};
+  if (realpath(wep.we_wordv[0], tmp) == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wordfree(&wep);
     return -1;
   }
+  strcpy(odir, tmp);
 
   wordfree(&wep);
   return 0;

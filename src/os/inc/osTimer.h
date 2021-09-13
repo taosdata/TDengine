@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-// TAOS_OS_FUNC_TIMER
-void taosMsleep(int mseconds);
 int taosInitTimer(void (*callback)(int), int ms);
 void taosUninitTimer();
 

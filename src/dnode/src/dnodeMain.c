@@ -40,6 +40,10 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
+#include "mnode.h"
+#include "qScript.h"
+#include "tcache.h"
+#include "tscompression.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -83,6 +87,29 @@ static SStep tsDnodeSteps[] = {
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+  {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
+};
+
+static SStep tsDnodeCompactSteps[] = {
+  {"dnode-tfile",     tfInit,              tfCleanup},
+  {"dnode-globalcfg", taosCheckGlobalCfg,  NULL},
+  {"dnode-storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"dnode-cfg",       dnodeInitCfg,        dnodeCleanupCfg},
+  {"dnode-eps",       dnodeInitEps,        dnodeCleanupEps},
+  {"dnode-minfos",    dnodeInitMInfos,     dnodeCleanupMInfos},
+  {"dnode-wal",       walInit,             walCleanUp},
+  {"dnode-sync",      syncInit,            syncCleanUp},
+  {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
+  {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
+  {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
+  {"dnode-mread",     dnodeInitMRead,      NULL},
+  {"dnode-mwrite",    dnodeInitMWrite,     NULL},
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},
+  {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
+  {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-mread",     NULL,                dnodeCleanupMRead},
+  {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},
 };
 
 static int dnodeCreateDir(const char *dir) {
@@ -94,13 +121,23 @@ static int dnodeCreateDir(const char *dir) {
 }
 
 static void dnodeCleanupComponents() {
-  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  dnodeStepCleanup(tsDnodeSteps, stepSize);
+  if (!tsCompactMnodeWal) {
+    int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+    dnodeStepCleanup(tsDnodeSteps, stepSize);
+  } else {
+    int32_t stepSize = sizeof(tsDnodeCompactSteps) / sizeof(SStep);
+    dnodeStepCleanup(tsDnodeCompactSteps, stepSize);
+  }
 }
 
 static int32_t dnodeInitComponents() {
-  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  return dnodeStepInit(tsDnodeSteps, stepSize);
+  if (!tsCompactMnodeWal) {
+    int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+    return dnodeStepInit(tsDnodeSteps, stepSize);
+  } else {
+    int32_t stepSize = sizeof(tsDnodeCompactSteps) / sizeof(SStep);
+    return dnodeStepInit(tsDnodeCompactSteps, stepSize);
+  }
 }
 
 static int32_t dnodeInitTmr() {
@@ -173,6 +210,7 @@ void dnodeCleanUpSystem() {
     dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();
+    taosStopCacheRefreshWorker();
   }
 }
 
@@ -202,6 +240,12 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+#ifdef TD_TSZ
+  // compress module init
+  tsCompressInit();
+#endif
+
+  // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
     dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
@@ -217,7 +261,24 @@ static int32_t dnodeInitStorage() {
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
   // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
-  //TODO(dengyihao): no need to init here 
+  if (tsCompactMnodeWal == 1) {
+    sprintf(tsMnodeTmpDir, "%s/mnode_tmp", tsDataDir);
+    if (taosDirExist(tsMnodeTmpDir)) {
+      dError("mnode_tmp dir already exist in %s,quit compact job", tsMnodeTmpDir);
+      return -1;
+    }
+    if (dnodeCreateDir(tsMnodeTmpDir) < 0) {
+      dError("failed to create dir: %s, reason: %s", tsMnodeTmpDir, strerror(errno));
+      return -1;
+    }
+
+    sprintf(tsMnodeBakDir, "%s/mnode_bak", tsDataDir);
+    if (taosDirExist(tsMnodeBakDir)) {
+      dError("mnode_bak dir already exist in %s,quit compact job", tsMnodeBakDir);
+      return -1;
+    }
+  }
+  //TODO(dengyihao): no need to init here
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
@@ -260,7 +321,15 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() { tfsDestroy(); }
+static void dnodeCleanupStorage() {
+  // storage destroy
+  tfsDestroy();
+
+ #ifdef TD_TSZ
+  // compress destroy
+  tsCompressExit();
+ #endif
+}
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
+#include "tsclient.h"
 #include "httpLog.h"
 #include "httpJson.h"
 #include "httpRestHandle.h"
@@ -62,13 +63,21 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   httpJsonItemToken(jsonBuf);
   httpJsonToken(jsonBuf, JsonArrStt);
 
+  SSqlObj *pObj = (SSqlObj *) result;
+  bool     isAlterSql = (pObj->sqlstr == NULL) ? false : httpCheckAlterSql(pObj->sqlstr);
+
   if (num_fields == 0) {
     httpJsonItemToken(jsonBuf);
     httpJsonString(jsonBuf, REST_JSON_AFFECT_ROWS, REST_JSON_AFFECT_ROWS_LEN);
   } else {
-    for (int32_t i = 0; i < num_fields; ++i) {
+    if (isAlterSql == true) {
       httpJsonItemToken(jsonBuf);
-      httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
+      httpJsonString(jsonBuf, REST_JSON_AFFECT_ROWS, REST_JSON_AFFECT_ROWS_LEN);
+    } else {
+      for (int32_t i = 0; i < num_fields; ++i) {
+        httpJsonItemToken(jsonBuf);
+        httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
+      }
     }
   }
 
@@ -99,8 +108,14 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
       httpJsonItemToken(jsonBuf);
       httpJsonToken(jsonBuf, JsonArrStt);
 
-      httpJsonItemToken(jsonBuf);
-      httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
+      if (isAlterSql == true) {
+        httpJsonItemToken(jsonBuf);
+        httpJsonString(jsonBuf, REST_JSON_AFFECT_ROWS, REST_JSON_AFFECT_ROWS_LEN);
+      } else {
+        httpJsonItemToken(jsonBuf);
+        httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
+      }
+
       httpJsonItemToken(jsonBuf);
       httpJsonInt(jsonBuf, fields[i].type);
       httpJsonItemToken(jsonBuf);
@@ -186,13 +201,11 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (timestampFormat == REST_TIMESTAMP_FMT_LOCAL_STRING) {
-            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]),
-                              taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
           } else if (timestampFormat == REST_TIMESTAMP_FMT_TIMESTAMP) {
             httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           } else {
-            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]),
-                                 taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
           }
           break;
         default:

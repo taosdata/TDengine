@@ -64,13 +64,24 @@ extern "C" {
 #include "tsdbReadImpl.h"
 // Commit
 #include "tsdbCommit.h"
+// Compact
+#include "tsdbCompact.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
+
+#include "tsdbRowMergeBuf.h"
 // Main definitions
 struct STsdbRepo {
   uint8_t state;
 
   STsdbCfg        config;
+
+  STsdbCfg        save_config;    // save apply config
+  bool            config_changed; // config changed flag
+  pthread_mutex_t save_mutex;     // protect save config
+  
+  uint8_t         hasCachedLastColumn;
+
   STsdbAppH       appH;
   STsdbStat       stat;
   STsdbMeta*      tsdbMeta;
@@ -78,10 +89,14 @@ struct STsdbRepo {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFS*        fs;
+  SRtn            rtn;
   tsem_t          readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code;  // Commit code
+
+  SMergeBuf       mergeBuf;  //used when update=2
+  int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
 };
 
 #define REPO_ID(r) (r)->config.tsdbId
@@ -95,6 +110,7 @@ int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
+int        tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 

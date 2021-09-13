@@ -35,3 +35,5 @@ python3 ./test.py $1 -s && sleep 1
 python3 ./test.py $1 -f client/client.py
 python3 ./test.py $1 -s && sleep 1
 
+# connector
+python3 ./test.py $1 -f connector/lua.py

@@ -18,8 +18,8 @@
 #define CHK_TEST(statement)                       \
 do {                                              \
   D("testing: %s", #statement);                   \
-  int r = (statement);                            \
-  if (r) {                                        \
+  int _r = (statement);                            \
+  if (_r) {                                        \
     D("testing failed: %s", #statement);          \
     return 1;                                     \
   }                                               \
@@ -181,7 +181,7 @@ static int do_statement(SQLHSTMT stmt, const char *statement) {
     r = traverse_cols(stmt, cols);
     char buf[4096];
     while (1) {
-      SQLRETURN r = SQLFetch(stmt);
+      r = SQLFetch(stmt);
       if (r==SQL_NO_DATA) break;
       CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "");
       for (size_t i=0; i<cols; ++i) {
@@ -312,11 +312,7 @@ static int test_sqls_in_stmt(SQLHENV env, SQLHDBC conn, SQLHSTMT stmt, const cha
     size_t len = 0;
 
     ssize_t n = 0;
-#ifdef _MSC_VER
-    n = taosGetlineImp(&line, &len, f);
-#else
-    n = getline(&line, &len, f);
-#endif
+    n = tgetline(&line, &len, f);
     if (n==-1) break;
 
     const char *p = NULL;

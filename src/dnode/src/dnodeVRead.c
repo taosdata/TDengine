@@ -119,6 +119,12 @@ static void *dnodeProcessReadQueue(void *wparam) {
   int32_t      qtype;
   void *       pVnode;
 
+  char* threadname  = strcmp(pPool->name, "vquery") == 0? "dnodeQueryQ":"dnodeFetchQ";
+
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s", threadname);
+  setThreadName(name);
+
   while (1) {
     if (taosReadQitemFromQset(pPool->qset, &qtype, (void **)&pRead, &pVnode) == 0) {
       dDebug("dnode vquery got no message from qset:%p, exiting", pPool->qset);

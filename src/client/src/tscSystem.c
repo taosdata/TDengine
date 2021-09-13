@@ -19,15 +19,13 @@
 #include "trpc.h"
 #include "tnote.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "tsched.h"
 #include "tscLog.h"
-#include "tscUtil.h"
 #include "tsclient.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "ttimezone.h"
-#include "tlocale.h"
+#include "qScript.h"
 
 // global, not configurable
 #define TSC_VAR_NOT_RELEASE 1
@@ -35,8 +33,10 @@
 
 int32_t    sentinel = TSC_VAR_NOT_RELEASE;
 
-SHashObj  *tscVgroupMap;         // hash map to keep the global vgroup info
-SHashObj  *tscTableMetaInfo;     // table meta info
+SHashObj  *tscVgroupMap;         // hash map to keep the vgroup info from mnode
+SHashObj  *tscTableMetaMap;      // table meta info buffer
+SCacheObj *tscVgroupListBuf;     // super table vgroup list information, only survives 5 seconds for each super table vgroup list
+
 int32_t    tscObjRef = -1;
 void      *tscTmr;
 void      *tscQhandle;
@@ -44,17 +44,21 @@ int32_t    tscRefId = -1;
 int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
-int32_t   tscNumOfThreads = 1;     // num of rpc threads  
-char      tscLogFileName[12] = "taoslog";
-int       tscLogFileNum = 10;
-static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+int32_t    tscNumOfThreads = 1;     // num of rpc threads
+char       tscLogFileName[12] = "taoslog";
+int        tscLogFileNum = 10;
+
+static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
+static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
+
+// pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
+
 void tscFreeRpcObj(void *param) {
   assert(param);
   SRpcObj *pRpcObj = (SRpcObj *)(param);
@@ -66,10 +70,9 @@ void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
-  pthread_mutex_lock(&rpcObjMutex);
-  taosCacheRelease(tscRpcCache, (void *)&param, false); 
-  pthread_mutex_unlock(&rpcObjMutex);
-} 
+
+  taosCacheRelease(tscRpcCache, (void *)&param, false);
+}
 
 int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj) {
   pthread_mutex_lock(&rpcObjMutex);
@@ -79,7 +82,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     *ppRpcObj = pRpcObj;   
     pthread_mutex_unlock(&rpcObjMutex);
     return 0;
-  } 
+  }
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -103,7 +106,8 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     pthread_mutex_unlock(&rpcObjMutex);
     tscError("failed to init connection to TDengine");
     return -1;
-  } 
+  }
+
   pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*5);   
   if (pRpcObj == NULL) {
     rpcClose(rpcObj.pDnodeConn);
@@ -117,7 +121,11 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
 }
 
 void taos_init_imp(void) {
-  char temp[128]  = {0};
+  char temp[128] = {0};
+
+  // In the APIs of other program language, taos_cleanup is not available yet.
+  // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
+  atexit(taos_cleanup);
   
   errno = TSDB_CODE_SUCCESS;
   srand(taosGetTimestampSec());
@@ -148,36 +156,43 @@ void taos_init_imp(void) {
     taosInitNotes();
 
     rpcInit();
+
+    scriptEnvPoolInit();
+
     tscDebug("starting to initialize TAOS client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
 
   taosSetCoreDump();
   tscInitMsgsFp();
-  int queueSize = tsMaxConnections*2;
 
   double factor = (tscEmbedded == 0)? 2.0:4.0;
   tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
   if (tscNumOfThreads < 2) {
     tscNumOfThreads = 2;
   }
+
+  int32_t queueSize = tsMaxConnections*2;
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
-    tscError("failed to init scheduler");
+    tscError("failed to init task queue");
     tscInitRes = -1;
     return;
   }
+
+  tscDebug("client task queue is initialized, numOfWorkers: %d", tscNumOfThreads);
 
   tscTmr = taosTmrInit(tsMaxConnections * 2, 200, 60000, "TSC");
   if(0 == tscEmbedded){
     taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
-  if (tscTableMetaInfo == NULL) {
-    tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
-    tscVgroupMap = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    tscTableMetaInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    tscDebug("TableMeta:%p", tscTableMetaInfo);
+  if (tscTableMetaMap == NULL) {
+    tscObjRef        = taosOpenRef(40960, tscFreeRegisteredSqlObj);
+    tscVgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    tscTableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    tscVgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
+    tscDebug("TableMeta:%p, vgroup:%p is initialized", tscTableMetaMap, tscVgroupMap);
   }
    
   int refreshTime = 5;
@@ -186,14 +201,13 @@ void taos_init_imp(void) {
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
 
-  // in other language APIs, taos_cleanup is not available yet.
-  // So, to make sure taos_cleanup will be invoked to clean up the allocated
-  // resource to suppress the valgrind warning.
-  atexit(taos_cleanup);
   tscDebug("client is initialized successfully");
 }
 
-int taos_init() {     pthread_once(&tscinit, taos_init_imp);  return tscInitRes;}
+int taos_init() {
+  pthread_once(&tscinit, taos_init_imp);
+  return tscInitRes;
+}
 
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
@@ -203,8 +217,12 @@ void taos_cleanup(void) {
     return;
   }
 
-  taosHashCleanup(tscTableMetaInfo);
-  tscTableMetaInfo = NULL;
+  if (tscEmbedded == 0) {
+    scriptEnvPoolCleanup();
+  }
+
+  taosHashCleanup(tscTableMetaMap);
+  tscTableMetaMap = NULL;
 
   taosHashCleanup(tscVgroupMap);
   tscVgroupMap = NULL;
@@ -230,6 +248,9 @@ void taos_cleanup(void) {
     taosCacheCleanup(p); 
     pthread_mutex_destroy(&rpcObjMutex);
   }
+
+  taosCacheCleanup(tscVgroupListBuf);
+  tscVgroupListBuf = NULL;
 
   if (tscEmbedded == 0) {
     rpcCleanup();
@@ -290,16 +311,24 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
         if (strlen(tsLocale) == 0) { // locale does not set yet
           char* defaultLocale = setlocale(LC_CTYPE, "");
+
+          // The locale of the current OS does not be set correctly, so the default locale cannot be acquired.
+          // The launch of current system will abort soon.
+          if (defaultLocale == NULL) {
+            tscError("failed to get default locale, please set the correct locale in current OS");
+            return -1;
+          }
+
           tstrncpy(tsLocale, defaultLocale, TSDB_LOCALE_LEN);
         }
 
         // set the user specified locale
         char *locale = setlocale(LC_CTYPE, pStr);
 
-        if (locale != NULL) {
+        if (locale != NULL) { // failed to set the user specified locale
           tscInfo("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        } else { // set the user-specified localed failed, use default LC_CTYPE as current locale
+        } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
           tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }

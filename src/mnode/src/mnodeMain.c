@@ -32,6 +32,7 @@
 #include "mnodeSdb.h"
 #include "mnodeVgroup.h"
 #include "mnodeUser.h"
+#include "mnodeFunc.h"
 #include "mnodeTable.h"
 #include "mnodeCluster.h"
 #include "mnodeShow.h"
@@ -46,6 +47,7 @@ static SStep tsMnodeSteps[] = {
   {"cluster", mnodeInitCluster, mnodeCleanupCluster},
   {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
   {"users",   mnodeInitUsers,   mnodeCleanupUsers},
+  {"funcs",   mnodeInitFuncs,   mnodeCleanupFuncs},
   {"dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes},
   {"dbs",     mnodeInitDbs,     mnodeCleanupDbs},
   {"vgroups", mnodeInitVgroups, mnodeCleanupVgroups},
@@ -55,6 +57,18 @@ static SStep tsMnodeSteps[] = {
   {"balance", bnInit,           bnCleanUp},
   {"grant",   grantInit,        grantCleanUp},
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
+};
+
+static SStep tsMnodeCompactSteps[] = {
+  {"cluster", mnodeCompactCluster, NULL},
+  {"dnodes",  mnodeCompactDnodes,  NULL},
+  {"mnodes",  mnodeCompactMnodes,  NULL},
+  {"accts",   mnodeCompactAccts,  NULL},
+  {"users",   mnodeCompactUsers,  NULL},
+  {"dbs",     mnodeCompactDbs,     NULL},
+  {"vgroups", mnodeCompactVgroups, NULL},
+  {"tables",  mnodeCompactTables,  NULL}, 
+
 };
 
 static void mnodeInitTimer();
@@ -69,6 +83,11 @@ static void mnodeCleanupComponents() {
 static int32_t mnodeInitComponents() {
   int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
   return dnodeStepInit(tsMnodeSteps, stepSize);
+}
+
+int32_t mnodeCompactComponents() {
+  int32_t stepSize = sizeof(tsMnodeCompactSteps) / sizeof(SStep);
+  return dnodeStepInit(tsMnodeCompactSteps, stepSize);
 }
 
 int32_t mnodeStartSystem() {
@@ -104,7 +123,7 @@ int32_t mnodeStartSystem() {
 
 int32_t mnodeInitSystem() {
   mnodeInitTimer();
-  if (mnodeNeedStart()) {
+  if (mnodeNeedStart() || tsCompactMnodeWal) {
     return mnodeStartSystem();
   }
   return 0;

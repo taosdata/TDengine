@@ -15,11 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosdef.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
 
-#ifndef TAOS_OS_FUNC_SIGNAL
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
+
 typedef void (*FLinuxSignalHandler)(int32_t signum, siginfo_t *sigInfo, void *context);
 
 void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
@@ -27,9 +29,9 @@ void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
 #if 1
   act.sa_flags = SA_SIGINFO;
   act.sa_sigaction = (FLinuxSignalHandler)sigfp;
-#else  
+#else
   act.sa_handler = sigfp;
-#endif  
+#endif
   sigaction(signum, &act, NULL);
 }
 

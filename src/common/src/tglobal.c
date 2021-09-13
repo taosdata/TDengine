@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
+#include "tcompare.h"
 
 // TSDB
 bool tsdbForceKeepFile = false;
@@ -52,6 +53,7 @@ int32_t  tsDnodeId = 0;
 // common
 int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
+int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
@@ -77,17 +79,21 @@ int32_t tsCompressMsgSize = -1;
 
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
+int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
-int32_t tsMaxNumOfOrderedResults = 100000;
+int32_t tsMaxNumOfOrderedResults = 1000000;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
 
-// 10 ms for interval time range, changed accordingly
-int32_t tsMinIntervalTime = 10;
+// the maxinum number of distict query result
+int32_t tsMaxNumOfDistinctResults  = 1000 * 10000;
+
+// 1 us for interval time range, changed accordingly
+int32_t tsMinIntervalTime = 1;
 
 // 20sec, the maximum value of stream computing delay, changed accordingly
 int32_t tsMaxStreamComputDelay = 20000;
@@ -159,6 +165,7 @@ int32_t  tsHttpMaxThreads = 2;
 int8_t   tsHttpEnableCompress = 1;
 int8_t   tsHttpEnableRecordSql = 0;
 int8_t   tsTelegrafUseFieldNum = 0;
+int8_t   tsHttpDbNameMandatory = 0;
 
 // mqtt
 int8_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
@@ -179,17 +186,21 @@ int32_t tsMonitorInterval = 30;  // seconds
 int8_t  tsEnableStream = 1;
 
 // internal
+int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
 int8_t tscEmbedded = 0;
-char   configDir[TSDB_FILENAME_LEN] = {0};
-char   tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char   tsDataDir[TSDB_FILENAME_LEN] = {0};
-char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
+char   configDir[PATH_MAX] = {0};
+char   tsVnodeDir[PATH_MAX] = {0};
+char   tsDnodeDir[PATH_MAX] = {0};
+char   tsMnodeDir[PATH_MAX] = {0};
+char   tsMnodeTmpDir[PATH_MAX] = {0};
+char   tsMnodeBakDir[PATH_MAX] = {0};
+char   tsDataDir[PATH_MAX] = {0};
+char   tsScriptDir[PATH_MAX] = {0};
+char   tsTempDir[PATH_MAX] = "/tmp/";
 
 int32_t  tsDiskCfgNum = 0;
+int32_t tsTopicBianryLen = 16000;
 
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];
@@ -203,7 +214,7 @@ SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
  *     TSDB_TIME_PRECISION_MICRO: 86400000000L
  *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
 char    tsOsName[10] = "Linux";
@@ -242,6 +253,19 @@ int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
+
+#ifdef TD_TSZ
+//
+// lossy compress 6
+//
+char lossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty can close lossy compress.
+// below option can take effect when tsLossyColumns not empty 
+double   fPrecision   = 1E-8;   // float column precision
+double   dPrecision   = 1E-16;  // double column precision
+uint32_t maxRange     = 500;    // max range
+uint32_t curRange     = 100;    // range
+char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
+#endif
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -527,6 +551,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "maxNumOfDistinctRes";
+  cfg.ptr = &tsMaxNumOfDistinctResults;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 10*10000;
+  cfg.maxValue = 10000*10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+  
   cfg.option = "numOfMnodes";
   cfg.ptr = &tsNumOfMnodes;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -627,6 +661,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 3000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "rpcForceTcp";
+  cfg.ptr = &tsRpcForceTcp;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "rpcMaxTime";
@@ -945,7 +989,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = -1;
-  cfg.maxValue = 10000000;
+  cfg.maxValue = 100000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -960,12 +1004,22 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "maxWildCardsLength";
+  cfg.ptr = &tsMaxWildCardsLen;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = TSDB_MAX_FIELD_LEN;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "maxNumOfOrderedRes";
   cfg.ptr = &tsMaxNumOfOrderedResults;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MAX_SQL_LEN;
-  cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
+  cfg.minValue = 100000;
+  cfg.maxValue = 100000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1164,6 +1218,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "topicBinaryLen";
+  cfg.ptr = &tsTopicBianryLen;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 16;
+  cfg.maxValue = 16000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "httpEnableRecordSql";
   cfg.ptr = &tsHttpEnableRecordSql;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1200,6 +1264,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 1;
   cfg.maxValue = 10000000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "httpDbNameMandatory";
+  cfg.ptr = &tsHttpDbNameMandatory;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1506,6 +1580,63 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = tListLen(tsTempDir);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+#ifdef TD_TSZ
+  // lossy compress
+  cfg.option = "lossyColumns";
+  cfg.ptr = lossyColumns;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(lossyColumns);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "fPrecision";
+  cfg.ptr = &fPrecision;
+  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = MIN_FLOAT;
+  cfg.maxValue = MAX_FLOAT;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "dPrecision";
+  cfg.ptr = &dPrecision;
+  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = MIN_FLOAT;
+  cfg.maxValue = MAX_FLOAT;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxRange";
+  cfg.ptr = &maxRange;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "range";
+  cfg.ptr = &curRange;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
+#else
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+#endif
+
 }
 
 void taosInitGlobalCfg() {

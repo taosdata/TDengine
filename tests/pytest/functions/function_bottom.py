@@ -104,6 +104,21 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 2)
+
+        tdSql.query("select ts,bottom(col1, 2),ts from test1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.001")
+        tdSql.checkData(1, 3, "2018-09-17 09:00:00.001")
+
+
+        tdSql.query("select ts,bottom(col1, 2),ts from test group by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.001")
+        tdSql.checkData(1, 3, "2018-09-17 09:00:00.001")
                    
         #TD-2457 bottom + interval + order by
         tdSql.error('select top(col2,1) from test interval(1y) order by col2;')

@@ -83,8 +83,10 @@ int64_t dbgWSize = 0;
 
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
+#elif (_TD_TQ_ == true)
+char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
 #else
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
+char    tsLogDir[PATH_MAX] = "/var/log/taos";
 #endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
@@ -685,10 +687,9 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *tLogBuff = (SLogBuff *)param;
+  setThreadName("log");
   
   while (1) {
-    //tsem_wait(&(tLogBuff->buffNotEmpty));
-
     taosMsleep(writeInterval);
 
     // Polling the buffer

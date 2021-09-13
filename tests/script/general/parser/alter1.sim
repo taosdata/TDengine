@@ -129,8 +129,8 @@ if $rows != 3 then
   return -1
 endi
 
-sql drop database $db
-sql show databases
-if $rows != 0 then 
-  return -1
-endi
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then
+#  return -1
+#endi

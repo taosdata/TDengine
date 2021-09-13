@@ -98,6 +98,7 @@ int ConvertString(char *buf, size_t nBytes, UINT cpFrom, UINT cpTo, LPCSTR lpDef
 char *DupAndConvert(const char *string, UINT cpFrom, UINT cpTo, LPCSTR lpDefaultChar) {
   int nBytes;
   char *pBuf;
+  char *pBuf1;
   nBytes = 4 * ((int)lstrlen(string) + 1); /* Worst case for the size needed */
   pBuf = (char *)malloc(nBytes);
   if (!pBuf) {
@@ -110,8 +111,9 @@ char *DupAndConvert(const char *string, UINT cpFrom, UINT cpTo, LPCSTR lpDefault
     free(pBuf);
     return NULL;
   }
-  pBuf = realloc(pBuf, nBytes+1);
-  return pBuf;
+  pBuf1 = realloc(pBuf, nBytes+1);
+  if(pBuf1 == NULL && pBuf != NULL)  free(pBuf);
+  return pBuf1;
 }
 
 int CountCharacters(const char *string, UINT cp) {

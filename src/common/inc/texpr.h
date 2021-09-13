@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TAST_H
-#define TDENGINE_TAST_H
+#ifndef TDENGINE_TEXPR_H
+#define TDENGINE_TEXPR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,38 +62,42 @@ typedef struct tExprNode {
   uint8_t nodeType;
   union {
     struct {
-      uint8_t optr;             // filter operator
-      uint8_t hasPK;            // 0: do not contain primary filter, 1: contain
-      void *  info;             // support filter operation on this expression only available for leaf node
-
+      uint8_t           optr;   // filter operator
+      uint8_t           hasPK;  // 0: do not contain primary filter, 1: contain
+      void             *info;   // support filter operation on this expression only available for leaf node
       struct tExprNode *pLeft;  // left child pointer
       struct tExprNode *pRight; // right child pointer
     } _node;
-    struct SSchema *pSchema;
-    tVariant *      pVal;
+
+    struct SSchema     *pSchema;
+    tVariant           *pVal;
   };
 } tExprNode;
 
 typedef struct SExprTraverseSupp {
   __result_filter_fn_t   nodeFilterFn;
   __do_filter_suppl_fn_t setupInfoFn;
-  void *                 pExtInfo;
+  void                  *pExtInfo;
 } SExprTraverseSupp;
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
+tExprNode* exprdup(tExprNode* pTree);
 
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
-bool exprTreeApplayFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
+bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 
 void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                             char *(*cb)(void *, const char*, int32_t));
+
+void buildFilterSetFromBinary(void **q, const char *buf, int32_t len);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TAST_H
+#endif  // TDENGINE_TEXPR_H

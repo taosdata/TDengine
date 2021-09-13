@@ -476,21 +476,23 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   
   cDebug("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
-  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
+  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_MEM_ROW_DATA_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
   SSubmitMsg *pMsg = (SSubmitMsg *) (buffer + sizeof(SWalHead));
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
 
-  SDataRow trow = (SDataRow)pBlk->data;
-  tdInitDataRow(trow, pSchema);
+  SMemRow trow = (SMemRow)pBlk->data;
+  SDataRow dataRow = (SDataRow)memRowDataBody(trow);
+  memRowSetType(trow, SMEM_ROW_DATA);
+  tdInitDataRow(dataRow, pSchema);
 
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
     STColumn *c = pSchema->columns + i;
-    void* val = row[i];
+    void *val = row[i];
     if (val == NULL) {
-      val = getNullValue(c->type);
+      val = (void *)getNullValue(c->type);
     } else if (c->type == TSDB_DATA_TYPE_BINARY) {
       val = ((char*)val) - sizeof(VarDataLenT);
     } else if (c->type == TSDB_DATA_TYPE_NCHAR) {
@@ -500,9 +502,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       memcpy((char *)val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;
     }
-    tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
+    tdAppendColVal(dataRow, val, c->type, c->offset);
   }
-  pBlk->dataLen = htonl(dataRowLen(trow));
+  pBlk->dataLen = htonl(memRowDataTLen(trow));
   pBlk->schemaLen = 0;
 
   pBlk->uid = htobe64(pObj->uid);
@@ -511,7 +513,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pBlk->sversion = htonl(pSchema->version);
   pBlk->padding = 0;
 
-  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowLen(trow);
+  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + memRowDataTLen(trow);
 
   pMsg->header.vgId = htonl(pContext->vgId);
   pMsg->header.contLen = htonl(pHead->len);

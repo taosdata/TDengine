@@ -176,6 +176,16 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     return false;
   }
 
+#define ESCAPE_ERROR_PROC(code, context, root)                          \
+  do {                                                                  \
+    if (code != TSDB_CODE_SUCCESS) {                                    \
+      httpSendErrorResp(context, code);                                 \
+                                                                        \
+      cJSON_Delete(root);                                               \
+      return false;                                                     \
+    }                                                                   \
+  } while (0)
+
   for (int32_t i = 0; i < size; ++i) {
     cJSON* query = cJSON_GetArrayItem(root, i);
     if (query == NULL) continue;
@@ -186,7 +196,14 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       continue;
     }
 
-    int32_t refIdBuffer = httpAddToSqlCmdBuffer(pContext, refId->valuestring);
+    char *newStr = NULL;
+    int32_t retCode = 0;
+
+    retCode = httpCheckAllocEscapeSql(refId->valuestring, &newStr);
+    ESCAPE_ERROR_PROC(retCode, pContext, root);
+
+    int32_t refIdBuffer = httpAddToSqlCmdBuffer(pContext, newStr);
+    httpCheckFreeEscapedSql(refId->valuestring, newStr);
     if (refIdBuffer == -1) {
       httpWarn("context:%p, fd:%d, user:%s, refId buffer is full", pContext, pContext->fd, pContext->user);
       break;
@@ -195,7 +212,11 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     cJSON*  alias = cJSON_GetObjectItem(query, "alias");
     int32_t aliasBuffer = -1;
     if (!(alias == NULL || alias->valuestring == NULL || strlen(alias->valuestring) == 0)) {
-      aliasBuffer = httpAddToSqlCmdBuffer(pContext, alias->valuestring);
+      retCode = httpCheckAllocEscapeSql(alias->valuestring, &newStr);
+      ESCAPE_ERROR_PROC(retCode, pContext, root);
+
+      aliasBuffer = httpAddToSqlCmdBuffer(pContext, newStr);
+      httpCheckFreeEscapedSql(alias->valuestring, newStr);
       if (aliasBuffer == -1) {
         httpWarn("context:%p, fd:%d, user:%s, alias buffer is full", pContext, pContext->fd, pContext->user);
         break;
@@ -211,7 +232,11 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       continue;
     }
 
-    int32_t sqlBuffer = httpAddToSqlCmdBuffer(pContext, sql->valuestring);
+    retCode = httpCheckAllocEscapeSql(sql->valuestring, &newStr);
+    ESCAPE_ERROR_PROC(retCode, pContext, root);
+
+    int32_t sqlBuffer = httpAddToSqlCmdBuffer(pContext, newStr);
+    httpCheckFreeEscapedSql(sql->valuestring, newStr);
     if (sqlBuffer == -1) {
       httpWarn("context:%p, fd:%d, user:%s, sql buffer is full", pContext, pContext->fd, pContext->user);
       break;
@@ -236,6 +261,8 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       break;
     }
   }
+
+#undef ESCAPE_ERROR_PROC
 
   pContext->reqType = HTTP_REQTYPE_MULTI_SQL;
   pContext->encodeMethod = &gcQueryMethod;

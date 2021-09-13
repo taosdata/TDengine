@@ -110,7 +110,7 @@ public class TSDBResultSetMetaData extends WrapperImpl implements ResultSetMetaD
 
         ColumnMetaData columnMetaData = this.colMetaDataList.get(column - 1);
         switch (columnMetaData.getColType()) {
-            
+
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 return 5;
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:

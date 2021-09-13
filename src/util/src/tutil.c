@@ -64,12 +64,15 @@ int32_t strRmquote(char *z, int32_t len){
     int32_t j = 0;
     for (uint32_t k = 1; k < len - 1; ++k) {
       if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
+        if (z[k] == '\\' && z[k + 1] == '_') {
+          //match '_' self
+        } else {
           z[j] = z[k + 1];
-  
-        cnt++;
-        j++;
-        k++;
-        continue;
+          cnt++;
+          j++;
+          k++;
+          continue;
+        }
       }
   
       z[j] = z[k];
@@ -197,7 +200,7 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   if (n == 0) {
     *p = 0;
     return dst;
-  } 
+  }
   for (c = *src++; n-- > 0; c = *src++) {
     if (esc) {
       esc = 0;
@@ -216,6 +219,26 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   }
 
   *p = 0;
+  return dst;
+}
+
+char* strntolower_s(char *dst, const char *src, int32_t n) {
+  char *p = dst, c;
+
+  assert(dst != NULL);
+  if (n == 0) {
+    return NULL;
+  }
+
+  while (n-- > 0) {
+    c = *src;
+    if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    }
+    *p++ = c;
+    src++;
+  }
+
   return dst;
 }
 
@@ -427,13 +450,23 @@ char *taosIpStr(uint32_t ipInt) {
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
-  float fv = 0; 
-  *(int32_t*)(&fv) = *(int32_t*)pBuf;
+#if __STDC_VERSION__ >= 201112L
+  static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
+#else
+  assert(sizeof(float) == sizeof(uint32_t));
+#endif
+  float fv = 0;
+  memcpy(&fv, pBuf, sizeof(fv)); // in ARM, return *((const float*)(pBuf)) may cause problem
   return fv; 
 }
 
 FORCE_INLINE double taos_align_get_double(const char* pBuf) {
-  double dv = 0; 
-  *(int64_t*)(&dv) = *(int64_t*)pBuf;
+#if __STDC_VERSION__ >= 201112L
+  static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
+#else
+  assert(sizeof(double) == sizeof(uint64_t));
+#endif
+  double dv = 0;
+  memcpy(&dv, pBuf, sizeof(dv)); // in ARM, return *((const double*)(pBuf)) may cause problem
   return dv; 
 }

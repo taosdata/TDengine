@@ -74,7 +74,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A)  //"Ref is not there")
 
 //client
-#define TSDB_CODE_TSC_INVALID_SQL               TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid SQL statement")
+#define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid Operation")
 #define TSDB_CODE_TSC_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0201)  //"Invalid qhandle")
 #define TSDB_CODE_TSC_INVALID_TIME_STAMP        TAOS_DEF_ERROR_CODE(0, 0x0202)  //"Invalid combination of client/service time")
 #define TSDB_CODE_TSC_INVALID_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0203)  //"Invalid value in client")
@@ -100,6 +100,12 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0217)  //"Database not specified or available")
 #define TSDB_CODE_TSC_INVALID_TABLE_NAME        TAOS_DEF_ERROR_CODE(0, 0x0218)  //"Table does not exist")
 #define TSDB_CODE_TSC_EXCEED_SQL_LIMIT          TAOS_DEF_ERROR_CODE(0, 0x0219)  //"SQL statement too long check maxSQLLength config")
+#define TSDB_CODE_TSC_FILE_EMPTY                TAOS_DEF_ERROR_CODE(0, 0x021A)  //"File is empty")
+#define TSDB_CODE_TSC_LINE_SYNTAX_ERROR         TAOS_DEF_ERROR_CODE(0, 0x021B)  //"Syntax error in Line")
+#define TSDB_CODE_TSC_NO_META_CACHED            TAOS_DEF_ERROR_CODE(0, 0x021C)  //"No table meta cached")
+#define TSDB_CODE_TSC_DUP_COL_NAMES             TAOS_DEF_ERROR_CODE(0, 0x021D)  //"duplicated column names")
+#define TSDB_CODE_TSC_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021E)  //"Invalid tag length")
+#define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid column length")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
@@ -173,6 +179,17 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_FIELD_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x036C)  //"Field does not exist")
 #define TSDB_CODE_MND_INVALID_STABLE_NAME       TAOS_DEF_ERROR_CODE(0, 0x036D)  //"Super table does not exist")
 #define TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG  TAOS_DEF_ERROR_CODE(0, 0x036E)  //"Invalid create table message")
+#define TSDB_CODE_MND_EXCEED_MAX_ROW_BYTES      TAOS_DEF_ERROR_CODE(0, 0x036F)  //"Exceed max row bytes")
+
+#define TSDB_CODE_MND_INVALID_FUNC_NAME         TAOS_DEF_ERROR_CODE(0, 0x0370)  //"Invalid func name")
+#define TSDB_CODE_MND_INVALID_FUNC_LEN          TAOS_DEF_ERROR_CODE(0, 0x0371)  //"Invalid func length")
+#define TSDB_CODE_MND_INVALID_FUNC_CODE         TAOS_DEF_ERROR_CODE(0, 0x0372)  //"Invalid func code")
+#define TSDB_CODE_MND_FUNC_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0373)  //"Func already exists")
+#define TSDB_CODE_MND_INVALID_FUNC              TAOS_DEF_ERROR_CODE(0, 0x0374)  //"Invalid func")
+#define TSDB_CODE_MND_INVALID_FUNC_BUFSIZE      TAOS_DEF_ERROR_CODE(0, 0x0375)  //"Invalid func bufSize")
+
+#define TSDB_CODE_MND_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x0376)  //"invalid tag length")
+#define TSDB_CODE_MND_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x0377)   //"invalid column length")
 
 #define TSDB_CODE_MND_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0380)  //"Database not specified or available")
 #define TSDB_CODE_MND_DB_ALREADY_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0381)  //"Database already exists")
@@ -245,6 +262,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TDB_NO_AVAIL_DISK             TAOS_DEF_ERROR_CODE(0, 0x0613)  //"No available disk")
 #define TSDB_CODE_TDB_MESSED_MSG                TAOS_DEF_ERROR_CODE(0, 0x0614)  //"TSDB messed message")
 #define TSDB_CODE_TDB_IVLD_TAG_VAL              TAOS_DEF_ERROR_CODE(0, 0x0615)  //"TSDB invalid tag value")
+#define TSDB_CODE_TDB_NO_CACHE_LAST_ROW         TAOS_DEF_ERROR_CODE(0, 0x0616)  //"TSDB no cache last row data")
 
 // query
 #define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)  //"Invalid handle")
@@ -260,6 +278,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW       TAOS_DEF_ERROR_CODE(0, 0x070A)  //"Too many time window in query")
 #define TSDB_CODE_QRY_NOT_ENOUGH_BUFFER         TAOS_DEF_ERROR_CODE(0, 0x070B)  //"Query buffer limit has reached")
 #define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica")
+#define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070D)  //"System error")
 
 
 // grant
@@ -394,6 +413,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_HTTP_OP_VALUE_NULL            TAOS_DEF_ERROR_CODE(0, 0x11A5)  //"value not find")
 #define TSDB_CODE_HTTP_OP_VALUE_TYPE            TAOS_DEF_ERROR_CODE(0, 0x11A6)  //"value type should be boolean number or string")
 
+#define TSDB_CODE_HTTP_REQUEST_JSON_ERROR       TAOS_DEF_ERROR_CODE(0, 0x1F00)  //"http request json error")
+
 // odbc
 #define TSDB_CODE_ODBC_OOM                      TAOS_DEF_ERROR_CODE(0, 0x2100)  //"out of memory")
 #define TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM        TAOS_DEF_ERROR_CODE(0, 0x2101)  //"convertion not a valid literal input")
@@ -428,6 +449,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_FS_FILE_ALREADY_EXISTS        TAOS_DEF_ERROR_CODE(0, 0x2206)  //"tfs file already exists")
 #define TSDB_CODE_FS_INVLD_LEVEL                TAOS_DEF_ERROR_CODE(0, 0x2207)  //"tfs invalid level")
 #define TSDB_CODE_FS_NO_VALID_DISK              TAOS_DEF_ERROR_CODE(0, 0x2208)  //"tfs no valid disk")
+
+// monitor
+#define TSDB_CODE_MON_CONNECTION_INVALID        TAOS_DEF_ERROR_CODE(0, 0x2300)  //"monitor invalid monitor db connection")
 
 #ifdef __cplusplus
 }
