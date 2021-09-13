@@ -1106,6 +1106,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tableCols[i].bytes = htons(pCol->bytes);
     pQueryMsg->tableCols[i].type  = htons(pCol->type);
     pQueryMsg->tableCols[i].flist.numOfFilters = htons(pCol->flist.numOfFilters);
+    pQueryMsg->tableCols[i].flist.filterInfo = 0;
 
     // append the filter information after the basic column information
     serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
@@ -1219,6 +1220,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tsBuf.tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
     pQueryMsg->tsBuf.tsLen   = htonl(pQueryMsg->tsBuf.tsLen);
     pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
+  }  else {
+    pQueryMsg->tsBuf.tsLen = 0;
+    pQueryMsg->tsBuf.tsNumOfBlocks = 0;
   }
 
   int32_t numOfOperator = (int32_t) taosArrayGetSize(queryOperator);
@@ -1256,6 +1260,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       pMsg += pUdfInfo->contLen;
     }
+  } else {
+    pQueryMsg->udfContentOffset = 0;
   }
 
   memcpy(pMsg, pSql->sqlstr, sqlLen);

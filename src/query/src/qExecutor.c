@@ -546,6 +546,8 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
 
       // add a new result set for a new group
       taosHashPut(pRuntimeEnv->pResultRowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pResult, POINTER_BYTES);
+      SResultRowCell cell = {.groupId = tableGroupId, .pRow = pResult};
+      taosArrayPush(pRuntimeEnv->pResultRowArrayList, &cell);
     } else {
       pResult = *p1;
     }
@@ -2109,7 +2111,8 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pQueryAttr = pQueryAttr;
 
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  pRuntimeEnv->pResultRowListSet = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pRuntimeEnv->pResultRowListSet = taosHashInit(numOfTables * 10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pRuntimeEnv->pResultRowArrayList = taosArrayInit(numOfTables, sizeof(SResultRowCell));
   pRuntimeEnv->keyBuf  = malloc(pQueryAttr->maxTableColumnWidth + sizeof(int64_t) + POINTER_BYTES);
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
 
@@ -2385,6 +2388,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   destroyOperatorInfo(pRuntimeEnv->proot);
 
   pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
+  taosArrayDestroy(pRuntimeEnv->pResultRowArrayList);
   taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
   pRuntimeEnv->prevResult = NULL;
 }
