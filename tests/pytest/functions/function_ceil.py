@@ -1494,7 +1494,17 @@ class TDTestCase:
                                                                                         or sql == "select ceil(t1.usmallint_col) from t1"\
                                                                                             or sql == "select ceil(super.usmallint_col) from super"\
                                                                                                 or sql == "select ceil(t1.utinyint_col) from t1"\
-                                                                                                    or sql == "select ceil(super.utinyint_col) from super":
+                                                                                                    or sql == "select ceil(super.utinyint_col) from super"\
+                                                                                                        or sql == "select ceil(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                            or sql == "select ceil(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                or sql == "select ceil(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                    or sql == "select ceil(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                        or sql == "select ceil(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                            or sql == "select ceil(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                                or sql == "select ceil(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                                    or sql == "select ceil(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                                        or sql == "select ceil(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
+                                                                                                                                            or sql == "select ceil(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag":
                             tdSql.query(sql)
                         else:
                             tdSql.error(sql)
