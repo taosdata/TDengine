@@ -102,9 +102,7 @@ _libtaos.taos_get_client_info.restype = c_char_p
 
 def taos_get_client_info():
     # type: () -> str
-    """Get client version info.
-    获取客户端版本信息。
-    """
+    """Get client version info."""
     return _libtaos.taos_get_client_info().decode()
 
 
@@ -114,6 +112,7 @@ _libtaos.taos_get_server_info.argtypes = (c_void_p,)
 
 def taos_get_server_info(connection):
     # type: (c_void_p) -> str
+    """Get server version as string."""
     return _libtaos.taos_get_server_info(connection).decode()
 
 
@@ -134,11 +133,10 @@ _libtaos.taos_connect.argtypes = c_char_p, c_char_p, c_char_p, c_char_p, c_uint1
 def taos_connect(host=None, user="root", password="taosdata", db=None, port=0):
     # type: (None|str, str, str, None|str, int) -> c_void_p
     """Create TDengine database connection.
-    创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
 
-    - host: server hostname/FQDN, TDengine管理主节点的FQDN
-    - user: user name/用户名
-    - password: user password / 用户密码
+    - host: server hostname/FQDN
+    - user: user name
+    - password: user password
     - db: database name (optional)
     - port: server port
 
@@ -187,11 +185,10 @@ _libtaos.taos_connect_auth.argtypes = c_char_p, c_char_p, c_char_p, c_char_p, c_
 
 def taos_connect_auth(host=None, user="root", auth="", db=None, port=0):
     # type: (None|str, str, str, None|str, int) -> c_void_p
-    """
-    创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
+    """Connect server with auth token.
 
-    - host: server hostname/FQDN, TDengine管理主节点的FQDN
-    - user: user name/用户名
+    - host: server hostname/FQDN
+    - user: user name
     - auth: base64 encoded auth token
     - db: database name (optional)
     - port: server port
@@ -830,6 +827,22 @@ def taos_insert_lines(connection, lines):
     if errno != 0:
         raise LinesError("insert lines error", errno)
 
+def taos_insert_telnet_lines(connection, lines):
+    # type: (c_void_p, list[str] | tuple(str)) -> None
+    num_of_lines = len(lines)
+    lines = (c_char_p(line.encode("utf-8")) for line in lines)
+    lines_type = ctypes.c_char_p * num_of_lines
+    p_lines = lines_type(*lines)
+    errno = _libtaos.taos_insert_telnet_lines(connection, p_lines, num_of_lines)
+    if errno != 0:
+        raise TelnetLinesError("insert telnet lines error", errno)
+
+def taos_insert_json_payload(connection, payload):
+    # type: (c_void_p, list[str] | tuple(str)) -> None
+    payload = payload.encode("utf-8")
+    errno = _libtaos.taos_insert_json_payload(connection, payload)
+    if errno != 0:
+        raise JsonPayloadError("insert json payload error", errno)
 
 class CTaosInterface(object):
     def __init__(self, config=None):

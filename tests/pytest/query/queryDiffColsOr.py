@@ -10,13 +10,10 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from copy import deepcopy
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 from util.common import tdCom
-
-
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -409,6 +406,62 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.checkEqual(int(res[9][0]), 10)
 
+    def queryMultiTbWithTag(self, tb_name):
+        # tags (1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1)')
+        
+        tdSql.execute(
+            f'CREATE TABLE {tb_name}_sub2 using {tb_name} tags (2, 2, 2, 4, 2.2, 2.2, "binary2", "nchar2", true, 12)')
+        tdSql.execute(
+            f'CREATE TABLE {tb_name}_sub3 using {tb_name} tags (3, 3, 3, 3, 3.3, 3.3, "binary3", "nchar3", true, 13)')
+        tdSql.execute(
+            f'insert into {tb_name}_sub2 values ("2021-01-25 12:00:00", 2, 2, 2, 4, 2.2, 2.2, "binary2", "nchar2", true, 12)')
+        tdSql.execute(
+            f'insert into {tb_name}_sub3 values ("2021-01-27 12:00:00", 3, 3, 3, 3, 3.3, 3.3, "binary3", "nchar3", true, 13)')
+        ## select count avg sum from (condition_A or condition_B and like and in) where condition_A or condition_B or condition_tag_C or condition_tag_D or like and in interval
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(int(res[0][1]), 3)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 10)
+        tdSql.checkEqual(int(res[1][1]), 3)
+        tdSql.checkEqual(int(res[1][2]), 3)
+        tdSql.checkEqual(int(res[1][3]), 3)
+        tdSql.checkEqual(int(res[2][1]), 3)
+        tdSql.checkEqual(int(res[2][2]), 2)
+        tdSql.checkEqual(int(res[2][3]), 6)
+
+
+        # ! to confirm
+        ## select count avg sum from (condition_A or condition_B or condition_tag_C or condition_tag_D and like and in) where condition_A or condition_B or like and in interval
+        # query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where t1 = 3 and t1 = 2 or c1 >1  or c2 = 2  and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        # res = tdSql.query(query_sql, True)
+        # tdSql.checkRows(3)
+        # tdSql.checkEqual(int(res[0][1]), 3)
+        # tdSql.checkEqual(int(res[0][2]), 1)
+        # tdSql.checkEqual(int(res[0][3]), 10)
+        # tdSql.checkEqual(int(res[1][1]), 3)
+        # tdSql.checkEqual(int(res[1][2]), 3)
+        # tdSql.checkEqual(int(res[1][3]), 3)
+        # tdSql.checkEqual(int(res[2][1]), 3)
+        # tdSql.checkEqual(int(res[2][2]), 2)
+        # tdSql.checkEqual(int(res[2][3]), 6)
+
+        ## select count avg sum from (condition_A and condition_B and and line and in and ts and  condition_tag_A and  condition_tag_B and between) where condition_C orr condition_D or condition_tag_C or condition_tag_D or like and in interval
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >= 1 and c2 = 2 and c7 like "binar_" and c4 in (3, 5) and ts > "2021-01-11 12:00:00" and t1 < 2 and t1 > 0 and c6 between 0 and 7) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(int(res[0][1]), 2)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 2)
+        tdSql.checkEqual(int(res[1][1]), 1)
+        tdSql.checkEqual(int(res[1][2]), 1)
+        tdSql.checkEqual(int(res[1][3]), 1)
+
+        # ! to confirm
+        #select * from (select * from pyclqtwi where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5) and ts > "2021-01-11 12:00:00") where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) ;
+        #DB error: invalid operation: invalid expression (0.008747s)
+
     def checkTbColTypeOperator(self):
         '''
             Ordinary table full column type and operator
@@ -492,33 +545,13 @@ class TDTestCase:
         '''
         tb_name = self.initStb()
         self.queryMultiTb(tb_name)
-        
-        
-        # tb_name1 = tdCom.getLongName(8, "letters")
-        # tb_name2 = tdCom.getLongName(8, "letters")
-        # tb_name3 = tdCom.getLongName(8, "letters")
-        # tdSql.execute(
-        #     f"CREATE TABLE {tb_name1} (ts timestamp, c1 tinyint, c2 smallint, c3 int)")
-        # tdSql.execute(
-        #     f"CREATE TABLE {tb_name2} (ts timestamp, c1 tinyint, c2 smallint, c3 int)")
-        # tdSql.execute(
-        #     f"CREATE TABLE {tb_name3} (ts timestamp, c1 tinyint, c2 smallint, c3 int)")
-        # insert_sql_list = [f'insert into {tb_name1} values ("2021-01-01 12:00:00", 1, 5, 1)',
-        #                    f'insert into {tb_name1} values ("2021-01-03 12:00:00", 2, 4, 1)',
-        #                    f'insert into {tb_name1} values ("2021-01-05 12:00:00", 3, 2, 1)',
-        #                    f'insert into {tb_name2} values ("2021-01-01 12:00:00", 4, 2, 1)',
-        #                    f'insert into {tb_name2} values ("2021-01-02 12:00:00", 5, 1, 1)',
-        #                    f'insert into {tb_name2} values ("2021-01-04 12:00:00", 1, 2, 1)',
-        #                    f'insert into {tb_name3} values ("2021-01-02 12:00:00", 4, 2, 1)',
-        #                    f'insert into {tb_name3} values ("2021-01-06 12:00:00", 5, 1, 1)',
-        #                    f'insert into {tb_name3} values ("2021-01-07 12:00:00", 1, 2, 1)',
-        #                    ]
-        # for sql in insert_sql_list:
-        #     tdSql.execute(sql)
-        # tdSql.query(
-        #     f'select * from {tb_name1} t1, {tb_name2}, {tb_name3} t3 t2 where (t1.ts=t2.ts or t2.ts=t3.ts)')
-        # tdSql.checkRows(4)
-
+    
+    def checkMultiTbWithTag(self):
+        '''
+            test Multi tb with tag
+        '''
+        tb_name = self.initStb()
+        self.queryMultiTbWithTag(tb_name)
 
     def run(self):
         tdSql.prepare()
@@ -534,7 +567,7 @@ class TDTestCase:
         self.checkStbPreCal()
         self.checkMultiTb()
         self.checkMultiStb()
-
+        self.checkMultiTbWithTag()
 
     def stop(self):
         tdSql.close()

@@ -208,7 +208,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 | **C#**      | ●               | ●         | ○         | ○               | ○         | ○         | ○                   | --                   | --                 |
 | **RESTful** | ●               | ●         | ●         | ●               | ●         | ●         | ●                   | ●                    | ●                  |
 
-注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+注：● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 请跳转到 [连接器](https://www.taosdata.com/cn/documentation/connector) 查看更详细的信息。
 
