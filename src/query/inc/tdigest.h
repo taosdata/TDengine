@@ -29,41 +29,41 @@
 #define COMPRESSION 400
 #define GET_CENTROID(compression)  (ceil(compression * M_PI / 2) + 1)
 #define GET_THRESHOLD(compression) (7.5 + 0.37 * compression - 2e-4 * pow(compression, 2))
-#define TDIGEST_SIZE(compression)  (sizeof(TDigest) + sizeof(Centroid)*GET_CENTROID(compression) + sizeof(Point)*GET_THRESHOLD(compression))
+#define TDIGEST_SIZE(compression)  (sizeof(TDigest) + sizeof(SCentroid)*GET_CENTROID(compression) + sizeof(SPt)*GET_THRESHOLD(compression))
 
-typedef struct Centroid {
+typedef struct SCentroid {
     double mean;
-    long long weight;
-}Centroid;
+    int64_t weight;
+}SCentroid;
 
-typedef struct Point {
+typedef struct SPt {
     double value;
-    long long weight;
-}Point;
+    int64_t weight;
+}SPt;
 
 typedef struct TDigest {
     double compression;
-    int threshold;
-    long long size;
+    int32_t threshold;
+    int64_t size;
 
-    long long total_weight;
+    int64_t total_weight;
     double min;
     double max;
 
-    int num_buffered_pts;
-    Point *buffered_pts;
+    int32_t num_buffered_pts;
+    SPt *buffered_pts;
 
-    int num_centroids;
-    Centroid *centroids;
+    int32_t num_centroids;
+    SCentroid *centroids;
 }TDigest;
 
-TDigest *tdigestNewFrom(void* pBuf, int compression);
-void tdigestAdd(TDigest *t, double x, long long w);
+TDigest *tdigestNewFrom(void* pBuf, int32_t compression);
+void tdigestAdd(TDigest *t, double x, int64_t w);
 void tdigestMerge(TDigest *t1, TDigest *t2);
 double tdigestCDF(TDigest *t, double x);
 double tdigestQuantile(TDigest *t, double q);
 void tdigestCompress(TDigest *t);
 void tdigestFreeFrom(TDigest *t);
-void tdigestAutoFill(TDigest* t, int compression);
+void tdigestAutoFill(TDigest* t, int32_t compression);
 
 #endif /* TDIGEST_H */

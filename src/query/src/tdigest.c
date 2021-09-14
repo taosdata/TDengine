@@ -24,13 +24,7 @@
  * Copyright (c) 2016, Usman Masood <usmanm at fastmail dot fm>
  */
 
-#include <ctype.h>
-#include <float.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 #include "osMath.h"
 #include "tdigest.h"
 
@@ -38,36 +32,36 @@
 #define INTEGRATED_LOCATION(compression, q) ((compression) * (asin(2 * (q) - 1) + M_PI / 2) / M_PI)
 #define FLOAT_EQ(f1, f2) (fabs((f1) - (f2)) <= FLT_EPSILON)
 
-typedef struct MergeArgs {
+typedef struct SMergeArgs {
     TDigest *t;
-    Centroid *centroids;
-    int idx;
+    SCentroid *centroids;
+    int32_t idx;
     double weight_so_far;
     double k1;
     double min;
     double max;
-}MergeArgs;     
+}SMergeArgs;     
 
-void tdigestAutoFill(TDigest* t, int compression) {
-    t->centroids    = (Centroid*)((char*)t + sizeof(TDigest));
-    t->buffered_pts = (Point*)   ((char*)t + sizeof(TDigest) + sizeof(Centroid) * (int)GET_CENTROID(compression));
+void tdigestAutoFill(TDigest* t, int32_t compression) {
+    t->centroids    = (SCentroid*)((char*)t + sizeof(TDigest));
+    t->buffered_pts = (SPt*)   ((char*)t + sizeof(TDigest) + sizeof(SCentroid) * (int32_t)GET_CENTROID(compression));
 }
 
-TDigest *tdigestNewFrom(void* pBuf, int compression) {
-    memset(pBuf, 0, sizeof(TDigest) + sizeof(Centroid)*(compression + 1));
+TDigest *tdigestNewFrom(void* pBuf, int32_t compression) {
+    memset(pBuf, 0, sizeof(TDigest) + sizeof(SCentroid)*(compression + 1));
     TDigest* t = (TDigest*)pBuf;
     tdigestAutoFill(t, compression);
 
     t->compression = compression;
-    t->size = (long long)GET_CENTROID(compression);
-    t->threshold = (int)GET_THRESHOLD(compression);
+    t->size = (int64_t)GET_CENTROID(compression);
+    t->threshold = (int32_t)GET_THRESHOLD(compression);
     t->min = INFINITY;
     return t;
 }
 
-static int centroid_cmp(const void *a, const void *b) {
-    Centroid *c1 = (Centroid *) a;
-    Centroid *c2 = (Centroid *) b;
+static int32_t cmpCentroid(const void *a, const void *b) {
+    SCentroid *c1 = (SCentroid *) a;
+    SCentroid *c2 = (SCentroid *) b;
     if (c1->mean < c2->mean)
         return -1;
     if (c1->mean > c2->mean)
@@ -75,9 +69,9 @@ static int centroid_cmp(const void *a, const void *b) {
     return 0;
 }
 
-static void merge_centroid(MergeArgs *args, Centroid *merge) {
+static void mergeCentroid(SMergeArgs *args, SCentroid *merge) {
     double k2;
-    Centroid *c = &args->centroids[args->idx];
+    SCentroid *c = &args->centroids[args->idx];
 
     args->weight_so_far += merge->weight;
     k2 = INTEGRATED_LOCATION(args->t->compression,
@@ -100,31 +94,30 @@ static void merge_centroid(MergeArgs *args, Centroid *merge) {
 }
 
 void tdigestCompress(TDigest *t) {
-    Centroid *unmerged_centroids;
-    long long unmerged_weight = 0;
-    int num_unmerged = t->num_buffered_pts;
-    int i, j;
-    MergeArgs args;
+    SCentroid *unmerged_centroids;
+    int64_t unmerged_weight = 0;
+    int32_t num_unmerged = t->num_buffered_pts;
+    int32_t i, j;
+    SMergeArgs args;
 
     if (!t->num_buffered_pts)
         return;
 
-    unmerged_centroids = (Centroid*)malloc(sizeof(Centroid) * t->num_buffered_pts);
+    unmerged_centroids = (SCentroid*)malloc(sizeof(SCentroid) * t->num_buffered_pts);
     for (i = 0; i < num_unmerged; i++) {
-        Point *p = t->buffered_pts + i;
-        Centroid *c = &unmerged_centroids[i];
+        SPt *p = t->buffered_pts + i;
+        SCentroid *c = &unmerged_centroids[i];
         c->mean = p->value;
         c->weight = p->weight;
         unmerged_weight += c->weight;
     }
-
     t->num_buffered_pts = 0;
     t->total_weight += unmerged_weight;
 
-    qsort(unmerged_centroids, num_unmerged, sizeof(Centroid), centroid_cmp);
-    memset(&args, 0, sizeof(MergeArgs));
-    args.centroids = (Centroid*)malloc((size_t)(sizeof(Centroid) * t->size));
-    memset(args.centroids, 0, (size_t)(sizeof(Centroid) * t->size));
+    qsort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
+    memset(&args, 0, sizeof(SMergeArgs));
+    args.centroids = (SCentroid*)malloc((size_t)(sizeof(SCentroid) * t->size));
+    memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));
 
     args.t = t;
     args.min = INFINITY;
@@ -132,44 +125,43 @@ void tdigestCompress(TDigest *t) {
     i = 0;
     j = 0;
     while (i < num_unmerged && j < t->num_centroids) {
-        Centroid *a = &unmerged_centroids[i];
-        Centroid *b = &t->centroids[j];
+        SCentroid *a = &unmerged_centroids[i];
+        SCentroid *b = &t->centroids[j];
 
         if (a->mean <= b->mean) {
-            merge_centroid(&args, a);
+            mergeCentroid(&args, a);
             i++;
         } else {
-            merge_centroid(&args, b);
+            mergeCentroid(&args, b);
             j++;
         }
     }
 
     while (i < num_unmerged)
-        merge_centroid(&args, &unmerged_centroids[i++]);
+        mergeCentroid(&args, &unmerged_centroids[i++]);
     free((void*)unmerged_centroids);
 
     while (j < t->num_centroids)
-        merge_centroid(&args, &t->centroids[j++]);
+        mergeCentroid(&args, &t->centroids[j++]);
 
     if (t->total_weight > 0) {
         t->min = MIN(t->min, args.min);
-
-        if (args.centroids[args.idx].weight <= 0)
+        if (args.centroids[args.idx].weight <= 0) {
             args.idx--;
-
+        }
         t->num_centroids = args.idx + 1;
         t->max = MAX(t->max, args.max);
     }
 
-    memcpy(t->centroids, args.centroids, sizeof(Centroid) * t->num_centroids);
+    memcpy(t->centroids, args.centroids, sizeof(SCentroid) * t->num_centroids);
     free((void*)args.centroids);
 }
 
-void tdigestAdd(TDigest* t, double x, long long w) {
+void tdigestAdd(TDigest* t, double x, int64_t w) {
     if (w == 0)
         return;
 
-    int i = t->num_buffered_pts;
+    int32_t i = t->num_buffered_pts;
     t->buffered_pts[i].value  = x;
     t->buffered_pts[i].weight = w;
     t->num_buffered_pts++;
@@ -182,21 +174,18 @@ double tdigestCDF(TDigest *t, double x) {
     if (t == NULL)
         return 0;
 
-    int i;
+    int32_t i;
     double left, right;
-    long long weight_so_far;
-    Centroid *a, *b, tmp;
+    int64_t weight_so_far;
+    SCentroid *a, *b, tmp;
 
     tdigestCompress(t);
-
     if (t->num_centroids == 0)
         return NAN;
-
     if (x < t->min)
         return 0;
     if (x > t->max)
         return 1;
-
     if (t->num_centroids == 1) {
         if (FLOAT_EQ(t->max, t->min))
             return 0.5;
@@ -211,7 +200,7 @@ double tdigestCDF(TDigest *t, double x) {
     right = 0;
 
     for (i = 0; i < t->num_centroids; i++) {
-        Centroid *c = &t->centroids[i];
+        SCentroid *c = &t->centroids[i];
 
         left = b->mean - (a->mean + right);
         a = b;
@@ -245,27 +234,22 @@ double tdigestQuantile(TDigest *t, double q) {
     if (t == NULL)
         return 0;
 
-    int i;
+    int32_t i;
     double left, right, idx;
-    long long weight_so_far;
-    Centroid *a, *b, tmp;
+    int64_t weight_so_far;
+    SCentroid *a, *b, tmp;
 
     tdigestCompress(t);
-
     if (t->num_centroids == 0)
         return NAN;
-
     if (t->num_centroids == 1)
         return t->centroids[0].mean;
-
     if (FLOAT_EQ(q, 0.0))
         return t->min;
-
     if (FLOAT_EQ(q, 1.0))
         return t->max;
 
     idx = q * t->total_weight;
-
     weight_so_far = 0;
     b = &tmp;
     b->mean = t->min;
@@ -273,7 +257,7 @@ double tdigestQuantile(TDigest *t, double q) {
     right = t->min;
 
     for (i = 0; i < t->num_centroids; i++) {
-        Centroid *c = &t->centroids[i];
+        SCentroid *c = &t->centroids[i];
         a = b;
         left = right;
 
@@ -299,15 +283,15 @@ double tdigestQuantile(TDigest *t, double q) {
 }
 
 void tdigestMerge(TDigest *t1, TDigest *t2) {
-    // points
-    int num_points = t2->num_buffered_pts;
-    for(int i = num_points - 1; i >= 0; i--) {
-        Point* p = t2->buffered_pts + i;
+    // SPoints
+    int32_t num_SPoints = t2->num_buffered_pts;
+    for(int32_t i = num_SPoints - 1; i >= 0; i--) {
+        SPt* p = t2->buffered_pts + i;
         tdigestAdd(t1, p->value, p->weight);
         t2->num_buffered_pts --;
     }
     // centroids
-    for (int i = 0; i < t2->num_centroids; i++) {
+    for (int32_t i = 0; i < t2->num_centroids; i++) {
         tdigestAdd(t1, t2->centroids[i].mean, t2->centroids[i].weight);
     }
 }
