@@ -178,6 +178,9 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds 65 characters", info->id);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
+    if (*cur == ' ') {
+      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    }
     if (*cur == '=') {
       break;
     }
