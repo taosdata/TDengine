@@ -50,6 +50,7 @@ class TDTestCase:
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
+        os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")
         os.system("%staosdemo -f tools/taosdemoAllTest/TD-4985/query-limit-offset.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
@@ -57,25 +58,25 @@ class TDTestCase:
 
         for i in range(1000):
             tdSql.execute('''insert into stb00_9999 values(%d, %d, %d,'test99.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_8888 values(%d, %d, %d,'test98.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_7777 values(%d, %d, %d,'test97.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_6666 values(%d, %d, %d,'test96.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_5555 values(%d, %d, %d,'test95.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_4444 values(%d, %d, %d,'test94.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_3333 values(%d, %d, %d,'test93.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_2222 values(%d, %d, %d,'test92.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_1111 values(%d, %d, %d,'test91.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_100 values(%d, %d, %d,'test90.%s')'''
-                            % (1600000000000 + i, i, -10000+i, i))
+                            % (1630425600000 + i, i, -10000+i, i))
         tdSql.query("select * from stb0 where c2 like 'test99%' ")
         tdSql.checkRows(1000)
         tdSql.query("select * from stb0 where  tbname like 'stb00_9999'  limit 10" )
@@ -176,7 +177,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")
+        
 
     def stop(self):
         tdSql.close()
