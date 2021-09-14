@@ -100,7 +100,7 @@ static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, 
   buf = taosDecodeFixedU64(buf, &nset);
 
   if (pSFSHeader->version == TSDB_FS_VER_0) {
-    uint32_t extendedSize = pSFSHeader->len + nset * TSDB_FILE_MAX * sizeof(TSDB_FVER_TYPE);
+    uint64_t extendedSize = pSFSHeader->len + nset * TSDB_FILE_MAX * sizeof(TSDB_FVER_TYPE);
     if (taosTSizeof(*originBuf) < extendedSize) {
       int ptrDistance = POINTER_DISTANCE(buf, *originBuf);
       if (tsdbMakeRoom(originBuf, extendedSize) < 0) {
