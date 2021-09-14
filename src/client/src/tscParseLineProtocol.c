@@ -42,6 +42,18 @@ uint64_t genLinesSmlId() {
   return id;
 }
 
+static uint64_t linesSmlHandleId = 0;
+
+uint64_t genLinesSmlId() {
+  uint64_t id;
+
+  do {
+    id = atomic_add_fetch_64(&linesSmlHandleId, 1);
+  } while (id == 0);
+
+  return id;
+}
+
 int compareSmlColKv(const void* p1, const void* p2) {
   TAOS_SML_KV* kv1 = (TAOS_SML_KV*)p1;
   TAOS_SML_KV* kv2 = (TAOS_SML_KV*)p2;
@@ -355,6 +367,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
+        taosMsleep(500);
       }
       break;
     }
@@ -379,6 +392,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
+        taosMsleep(500);
       }
       break;
     }
@@ -400,6 +414,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
+        taosMsleep(500);
       }
       break;
     }
@@ -421,6 +436,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
+        taosMsleep(500);
       }
       break;
     }
@@ -462,6 +478,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
+        taosMsleep(500);
       }
       break;
     }
@@ -562,19 +579,19 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pSql->cmd.payload, "table name is invalid");
-      tscFreeRegisteredSqlObj(pSql);
+      taosReleaseRef(tscObjRef, pSql->self);
       return code;
     }
 
     SName sname = {0};
     if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
-      tscFreeRegisteredSqlObj(pSql);
+      taosReleaseRef(tscObjRef, pSql->self);
       return code;
     }
     char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
     memset(fullTableName, 0, tListLen(fullTableName));
     tNameExtractFullName(&sname, fullTableName);
-    tscFreeRegisteredSqlObj(pSql);
+    taosReleaseRef(tscObjRef, pSql->self);
 
     size_t size = 0;
     taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
@@ -745,7 +762,87 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
   return code;
 }
 
-static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind, SSmlLinesInfo* info) {
+static int32_t doInsertChildTableWithStmt(TAOS* taos, char* sql, char* cTableName, SArray* batchBind, SSmlLinesInfo* info) {
+  int32_t code = 0;
+
+  TAOS_STMT* stmt = taos_stmt_init(taos);
+  if (stmt == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+
+  if (code != 0) {
+    tscError("SML:0x%"PRIx64" taos_stmt_prepare return %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
+    return code;
+  }
+
+  bool tryAgain = false;
+  int32_t try = 0;
+  do {
+    code = taos_stmt_set_tbname(stmt, cTableName);
+    if (code != 0) {
+      tscError("SML:0x%"PRIx64" taos_stmt_set_tbname return %d:%s", info->id, code, tstrerror(code));
+      taos_stmt_close(stmt);
+      return code;
+    }
+
+    size_t rows = taosArrayGetSize(batchBind);
+    for (int32_t i = 0; i < rows; ++i) {
+      TAOS_BIND* colsBinds = taosArrayGetP(batchBind, i);
+      code = taos_stmt_bind_param(stmt, colsBinds);
+      if (code != 0) {
+        tscError("SML:0x%"PRIx64" taos_stmt_bind_param return %d:%s", info->id, code, tstrerror(code));
+        taos_stmt_close(stmt);
+        return code;
+      }
+      code = taos_stmt_add_batch(stmt);
+      if (code != 0) {
+        tscError("SML:0x%"PRIx64" taos_stmt_add_batch return %d:%s", info->id, code, tstrerror(code));
+        taos_stmt_close(stmt);
+        return code;
+      }
+    }
+
+    code = taos_stmt_execute(stmt);
+    if (code != 0) {
+      tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s, try:%d", info->id, code, tstrerror(code), try);
+    }
+
+    tryAgain = false;
+    if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID
+         || code == TSDB_CODE_VND_INVALID_VGROUP_ID
+         || code == TSDB_CODE_TDB_TABLE_RECONFIGURE
+         || code == TSDB_CODE_APP_NOT_READY
+         || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && try++ < TSDB_MAX_REPLICA) {
+      tryAgain = true;
+    }
+
+    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+      TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+      int32_t   code2 = taos_errno(res2);
+      if (code2 != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%" PRIx64 " insert child table. reset query cache. error: %s", info->id, taos_errstr(res2));
+      }
+      taos_free_result(res2);
+      if (tryAgain) {
+        taosMsleep(100 * (2 << try));
+      }
+    }
+    if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if (tryAgain) {
+        taosMsleep( 100 * (2 << try));
+      }
+    }
+  } while (tryAgain);
+
+
+  taos_stmt_close(stmt);
+  return code;
+}
+
+static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind, size_t rowSize, SSmlLinesInfo* info) {
   size_t numCols = taosArrayGetSize(colsSchema);
   char* sql = malloc(tsMaxSQLStringLen+1);
   if (sql == NULL) {
@@ -768,86 +865,32 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
   sql[strlen(sql)] = '\0';
 
-  tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu", info->id, cTableName, taosArrayGetSize(rowsBind));
-
-  int32_t code = 0;
-
-  TAOS_STMT* stmt = taos_stmt_init(taos);
-  if (stmt == NULL) {
-    tfree(sql);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  size_t rows = taosArrayGetSize(rowsBind);
+  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
+  size_t batchSize = MIN(maxBatchSize, rows);
+  tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu, batch size: %zu",
+           info->id, cTableName, rows, batchSize);
+  SArray* batchBind = taosArrayInit(batchSize, POINTER_BYTES);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int i = 0; i < rows;) {
+    int j = i;
+    for (; j < i + batchSize && j<rows; ++j) {
+      taosArrayPush(batchBind, taosArrayGet(rowsBind, j));
+    }
+    if (j > i) {
+      tscDebug("SML:0x%"PRIx64" insert child table batch from line %d to line %d.", info->id, i, j - 1);
+      code = doInsertChildTableWithStmt(taos, sql, cTableName, batchBind, info);
+      if (code != 0) {
+        taosArrayDestroy(batchBind);
+        tfree(sql);
+        return code;
+      }
+      taosArrayClear(batchBind);
+    }
+    i = j;
   }
-
-  code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+  taosArrayDestroy(batchBind);
   tfree(sql);
-
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" taos_stmt_prepare return %d:%s", info->id, code, tstrerror(code));
-    taos_stmt_close(stmt);
-    return code;
-  }
-
-  bool tryAgain = false;
-  int32_t try = 0;
-  do {
-    code = taos_stmt_set_tbname(stmt, cTableName);
-    if (code != 0) {
-      tscError("SML:0x%"PRIx64" taos_stmt_set_tbname return %d:%s", info->id, code, tstrerror(code));
-      taos_stmt_close(stmt);
-      return code;
-    }
-
-    size_t rows = taosArrayGetSize(rowsBind);
-    for (int32_t i = 0; i < rows; ++i) {
-      TAOS_BIND* colsBinds = taosArrayGetP(rowsBind, i);
-      code = taos_stmt_bind_param(stmt, colsBinds);
-      if (code != 0) {
-        tscError("SML:0x%"PRIx64" taos_stmt_bind_param return %d:%s", info->id, code, tstrerror(code));
-        taos_stmt_close(stmt);
-        return code;
-      }
-      code = taos_stmt_add_batch(stmt);
-      if (code != 0) {
-        tscError("SML:0x%"PRIx64" taos_stmt_add_batch return %d:%s", info->id, code, tstrerror(code));
-        taos_stmt_close(stmt);
-        return code;
-      }
-    }
-
-    code = taos_stmt_execute(stmt);
-    if (code != 0) {
-      tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s, try:%d", info->id, code, tstrerror(code), try);
-    }
-
-    tryAgain = false;
-    if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID
-        || code == TSDB_CODE_VND_INVALID_VGROUP_ID
-        || code == TSDB_CODE_TDB_TABLE_RECONFIGURE
-        || code == TSDB_CODE_APP_NOT_READY
-        || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && try++ < TSDB_MAX_REPLICA) {
-      tryAgain = true;
-    }
-
-    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-      TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
-      int32_t   code2 = taos_errno(res2);
-      if (code2 != TSDB_CODE_SUCCESS) {
-        tscError("SML:0x%" PRIx64 " insert child table. reset query cache. error: %s", info->id, taos_errstr(res2));
-      }
-      taos_free_result(res2);
-      if (tryAgain) {
-        taosMsleep(50 * (2 << try));
-      }
-    }
-    if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      if (tryAgain) {
-        taosMsleep( 50 * (2 << try));
-      }
-    }
-  } while (tryAgain);
-
-
-  taos_stmt_close(stmt);
   return code;
 }
 
@@ -855,10 +898,7 @@ static int32_t arrangePointsByChildTableName(TAOS_SML_DATA_POINT* points, int nu
                                              SHashObj* cname2points, SArray* stableSchemas, SSmlLinesInfo* info) {
   for (int32_t i = 0; i < numPoints; ++i) {
     TAOS_SML_DATA_POINT * point = points + i;
-    uintptr_t valPointer = (uintptr_t)point;
-    size_t* pSchemaIndex = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-    assert(pSchemaIndex != NULL);
-    SSmlSTableSchema* stableSchema = taosArrayGet(stableSchemas, *pSchemaIndex);
+    SSmlSTableSchema* stableSchema = taosArrayGet(stableSchemas, point->schemaIdx);
 
     for (int j = 0; j < point->tagNum; ++j) {
       TAOS_SML_KV* kv =  point->tags + j;
@@ -902,10 +942,7 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
     TAOS_SML_DATA_POINT * pDataPoint = taosArrayGetP(cTablePoints, i);
     for (int j = 0; j < pDataPoint->tagNum; ++j) {
       TAOS_SML_KV* kv = pDataPoint->tags + j;
-      uintptr_t valPointer = (uintptr_t)kv;
-      size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-      assert(pFieldSchemaIdx != NULL);
-      tagKVs[*pFieldSchemaIdx] = kv;
+      tagKVs[kv->fieldSchemaIdx] = kv;
     }
   }
   
@@ -941,7 +978,7 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
 }
 
 static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema, char* cTableName,
-                                     SArray* cTablePoints, SSmlLinesInfo* info) {
+                                     SArray* cTablePoints, size_t rowSize, SSmlLinesInfo* info) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   size_t numCols = taosArrayGetSize(sTableSchema->fields);
@@ -978,7 +1015,7 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
     taosArrayPush(rowsBind, &colBinds);
   }
 
-  code = insertChildTableBatch(taos, cTableName, sTableSchema->fields, rowsBind, info);
+  code = insertChildTableBatch(taos, cTableName, sTableSchema->fields, rowsBind, rowSize, info);
   if (code != 0) {
     tscError("SML:0x%"PRIx64" insert into child table %s failed. error %s", info->id, cTableName, tstrerror(code));
   }
@@ -1018,8 +1055,15 @@ static int32_t applyDataPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t 
       goto cleanup;
     }
 
-    tscDebug("SML:0x%"PRIx64" apply child table points. child table: %s", info->id, point->childTableName);
-    code = applyChildTableFields(taos, sTableSchema, point->childTableName, cTablePoints, info);
+    size_t rowSize = 0;
+    size_t numCols = taosArrayGetSize(sTableSchema->fields);
+    for (int i = 0; i < numCols; ++i) {
+      SSchema* colSchema = taosArrayGet(sTableSchema->fields, i);
+      rowSize += colSchema->bytes;
+    }
+
+    tscDebug("SML:0x%"PRIx64" apply child table points. child table: %s, row size: %zu", info->id, point->childTableName, rowSize);
+    code = applyChildTableFields(taos, sTableSchema, point->childTableName, cTablePoints, rowSize, info);
     if (code != 0) {
       tscError("SML:0x%"PRIx64" Apply child table fields failed. child table %s, error %s", info->id, point->childTableName, tstrerror(code));
       goto cleanup;
@@ -1080,6 +1124,14 @@ clean_up:
 }
 
 int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
+  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
+  info->id = genLinesSmlId();
+  int code = tscSmlInsert(taos, points, numPoint, info);
+  free(info);
+  return code;
+}
+
+int tsc_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
   SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
   info->id = genLinesSmlId();
   int code = tscSmlInsert(taos, points, numPoint, info);
@@ -2171,14 +2223,4 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
 cleanup:
   tscDebug("SML:0x%"PRIx64" taos_insert_lines finish inserting %d lines. code: %d", info->id, numLines, code);
   points = TARRAY_GET_START(lpPoints);
-  numPoints = taosArrayGetSize(lpPoints);
-  for (int i=0; i<numPoints; ++i) {
-    destroySmlDataPoint(points+i);
-  }
-
-  taosArrayDestroy(lpPoints);
-
-  tfree(info);
-  return code;
-}
-
+  n

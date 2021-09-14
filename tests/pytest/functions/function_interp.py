@@ -11,6 +11,12 @@
 
 # -*- coding: utf-8 -*-
 
+<<<<<<< HEAD
+=======
+import sys
+from util.dnodes import *
+import taos
+>>>>>>> origin/master
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -19,6 +25,12 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
+<<<<<<< HEAD
+=======
+        self.rowNum = 10
+        self.ts = 1537100000000
+
+>>>>>>> origin/master
     def run(self):
         tdSql.prepare()
         tdSql.execute("create table ap1 (ts timestamp, pav float)")
@@ -55,6 +67,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select interp(pav) from ap1 where ts = '2021-07-25 02:19:54' FILL (LINEAR)")
         tdSql.checkRows(0)
+<<<<<<< HEAD
         # check None
         tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (None)")
         tdSql.checkRows(0)
@@ -78,6 +91,8 @@ class TDTestCase:
         for i in range(5):
             tdSql.checkData(i,1,1.00000)
             tdSql.checkData(i,2,2.00000)
+=======
+>>>>>>> origin/master
         tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (LINEAR)")
         tdSql.checkRows(6)
         tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (NEXT)")
@@ -110,6 +125,33 @@ class TDTestCase:
         tdSql.error("select interp(*) from ap1 ts >= '2021-07-25 02:19:54' FILL(NEXT)")
         tdSql.error("select interp(*) from ap1 ts <= '2021-07-25 02:19:54' FILL(NEXT)")
         tdSql.error("select interp(*) from ap1 where ts >'2021-07-25 02:19:59.938' and ts < now every(1s) fill(next)")
+<<<<<<< HEAD
+=======
+
+        # test case for https://jira.taosdata.com:18080/browse/TS-241
+        tdSql.execute("create database test minrows 10")
+        tdSql.execute("use test")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(id int)")
+        tdSql.execute("create table t1 using st tags(1)")
+
+        for i in range(10):            
+            for j in range(10):
+                tdSql.execute("insert into t1 values(%d, %d)" % (self.ts + i * 3600000 + j, j))
+            tdSql.query("select interp(c1) from st where ts >= '2018-09-16 20:00:00.000' and ts <= '2018-09-17 06:00:00.000' every(1h) fill(linear)")
+            if i==0:
+                tdSql.checkRows(0)
+            else:
+                tdSql.checkRows(11)
+            
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
+            tdSql.query("select interp(c1) from st where ts >= '2018-09-16 20:00:00.000' and ts <= '2018-09-17 06:00:00.000' every(1h) fill(linear)")            
+            if i==0:
+                tdSql.checkRows(0)
+            else:
+                tdSql.checkRows(11)
+
+>>>>>>> origin/master
 
     def stop(self):
         tdSql.close()

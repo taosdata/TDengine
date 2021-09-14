@@ -207,11 +207,6 @@ typedef struct {
 } SEpAddrMsg;
 
 typedef struct {
-  char*    fqdn;
-  uint16_t port;
-} SEpAddr1;
-
-typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
 
@@ -770,7 +765,7 @@ typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SVgroupMsg;
+} SVgroupMsg, SVgroupInfo;
 
 typedef struct {
   int32_t numOfVgroups;

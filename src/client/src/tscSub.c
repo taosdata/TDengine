@@ -127,6 +127,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   pSql->signature = pSql;
   pSql->pTscObj = pObj;
   pSql->pSubscription = pSub;
+  pSql->rootObj = pSql;
   pSub->pSql = pSql;
 
   SSqlCmd* pCmd = &pSql->cmd;

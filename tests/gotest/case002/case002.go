@@ -43,9 +43,16 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+<<<<<<< HEAD
 	db.Exec("drop database if exists test")
 	db.Exec("create database if not exists test ")
 	db.Exec("use test")
+=======
+	db.Exec("drop if exists database test")
+	db.Exec("create if not exists database test")
+	db.Exec("use test")
+	db.Exec("drop if exists database test")
+>>>>>>> origin/master
 	db.Exec("create table test (ts timestamp ,level int)")
 	for i := 0; i < 10; i++ {
 		sqlcmd := fmt.Sprintf("insert into test values(%d,%d)", ts+i, i)

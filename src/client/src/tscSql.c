@@ -879,6 +879,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   pSql->pTscObj  = taos;
   pSql->signature = pSql;
+  pSql->rootObj = pSql;
   SSqlCmd *pCmd = &pSql->cmd;
   
   pCmd->resColumnId = TSDB_RES_COL_ID;
@@ -987,6 +988,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   pSql->pTscObj   = taos;
   pSql->signature = pSql;
+  pSql->rootObj = pSql;
 
   int32_t code = (uint8_t) tscTransferTableNameList(pSql, str, length, plist);
   free(str);

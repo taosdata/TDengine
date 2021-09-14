@@ -497,7 +497,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     totalExamplePass=`expr $totalExamplePass + 1`
   fi 
 
-  ./prepare 127.0.0.1 > /dev/null 2>&1
+  ./prepare > /dev/null 2>&1
   if [ $? != "0" ]; then
     echo "prepare failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    

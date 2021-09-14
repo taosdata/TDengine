@@ -55,7 +55,7 @@ typedef struct STidTags {
 #pragma pack(pop)
 
 typedef struct SJoinSupporter {
-  SSqlObj*        pObj;           // parent SqlObj
+  int64_t         pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
   SInterval       interval;
   SLimitVal       limit;          // limit info
@@ -291,10 +291,6 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
 
-#if 0
-void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
-#endif
-
 /**
  * The create object function must be successful expect for the out of memory issue.
  *
@@ -371,6 +367,8 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
+
+char* cloneCurrentDBName(SSqlObj* pSql);
 
 char* cloneCurrentDBName(SSqlObj* pSql);
 

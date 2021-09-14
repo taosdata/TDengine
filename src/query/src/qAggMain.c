@@ -3734,6 +3734,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         }
       }
     } else {
+      if (GET_RES_INFO(pCtx)->numOfRes > 0) {
+        return;
+      }
+    
       // no data generated yet
       if (pCtx->size < 1) {
         return;
@@ -3763,11 +3767,15 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
           if (pCtx->size > 1) {
             ekey = GET_TS_DATA(pCtx, 1);
             if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
+              setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
+              SET_VAL(pCtx, 1, 1);
               return;
             }
 
             val = ((char*)pCtx->pInput) + pCtx->inputBytes;            
           } else {
+            setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
+            SET_VAL(pCtx, 1, 1);
             return;
           }
         } else {
@@ -3812,7 +3820,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
 }
 
-static void interp_function(SQLFunctionCtx *pCtx) {
+static void interp_function(SQLFunctionCtx *pCtx) {  
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
     bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
@@ -4057,9 +4065,21 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
-    if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
+    if (INT64_MIN == pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
+      continue;
+    }
+
+    if (primaryKey[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = primaryKey[i];
+      
       continue;
     }
     

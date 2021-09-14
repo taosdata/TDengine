@@ -1,6 +1,10 @@
 #!/bin/bash
 
+<<<<<<< HEAD
 echo "==== start run cases002.go"
+=======
+echo "==== start run cases001.go"
+>>>>>>> origin/master
 
 set +e
 #set -x

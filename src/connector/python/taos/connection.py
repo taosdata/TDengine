@@ -90,6 +90,7 @@ class TaosConnection(object):
     def subscribe(self, restart, topic, sql, interval, callback=None, param=None):
         # type: (bool, str, str, int, subscribe_callback_type, c_void_p) -> TaosSubscription
         """Create a subscription."""
+<<<<<<< HEAD
         if self._conn is None:
             return None
         sub = taos_subscribe(self._conn, restart, topic, sql, interval, callback, param)
@@ -172,6 +173,62 @@ class TaosConnection(object):
 
         """
         return taos_insert_json_payload(self._conn, payload)
+=======
+        if self._conn is None:
+            return None
+        sub = taos_subscribe(self._conn, restart, topic, sql, interval, callback, param)
+        return TaosSubscription(sub, callback != None)
+
+    def statement(self, sql=None):
+        # type: (str | None) -> TaosStmt
+        if self._conn is None:
+            return None
+        stmt = taos_stmt_init(self._conn)
+        if sql != None:
+            taos_stmt_prepare(stmt, sql)
+
+        return TaosStmt(stmt)
+
+    def load_table_info(self, tables):
+        # type: (str) -> None
+        taos_load_table_info(self._conn, tables)
+
+    def stream(self, sql, callback, stime=0, param=None, callback2=None):
+        # type: (str, Callable[[Any, TaosResult, TaosRows], None], int, Any, c_void_p) -> TaosStream
+        # cb = cast(callback, stream_callback_type)
+        # ref = byref(cb)
+
+        stream = taos_open_stream(self._conn, sql, callback, stime, param, callback2)
+        return TaosStream(stream)
+
+    def insert_lines(self, lines):
+        # type: (list[str]) -> None
+        """Line protocol and schemaless support
+
+        ## Example
+
+        ```python
+        import taos
+        conn = taos.connect()
+        conn.exec("drop database if exists test")
+        conn.select_db("test")
+        lines = [
+            'ste,t2=5,t3=L"ste" c1=true,c2=4,c3="string" 1626056811855516532',
+        ]
+        conn.insert_lines(lines)
+        ```
+
+        ## Exception
+
+        ```python
+        try:
+            conn.insert_lines(lines)
+        except SchemalessError as err:
+            print(err)
+        ```
+        """
+        return taos_insert_lines(self._conn, lines)
+>>>>>>> origin/master
 
     def cursor(self):
         # type: () -> TaosCursor

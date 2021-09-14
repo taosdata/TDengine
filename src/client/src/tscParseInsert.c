@@ -114,7 +114,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   }
 
   for (int k = pToken->n; pToken->z[k] != '\0'; k++) {
-    if (pToken->z[k] == ' ' || pToken->z[k] == '\t') continue;
+    if (isspace(pToken->z[k])) continue;
     if (pToken->z[k] == ',') {
       *next = pTokenEnd;
       *time = useconds;
@@ -1589,7 +1589,8 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
 
     ret = tsParseInsertSql(pSql);
     if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
-      tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
+      SInsertStatementParam* pInsertParam = &pCmd->insertParam;
+      tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, msg:%s, clear meta cache and retry ", pSql->self, pInsertParam->msg, tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
@@ -1757,6 +1758,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       pSql->res.numOfRows = 0;
       code = doPackSendDataBlock(pSql, pInsertParam, pTableMeta, count, pTableDataBlock);
       if (code != TSDB_CODE_SUCCESS) {
+        pParentSql->res.code = code;
         goto _error;
       }
 

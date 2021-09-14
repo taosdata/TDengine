@@ -948,6 +948,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
   if (handleData) { // data in current group is all handled
     doFinalizeResultImpl(pAggInfo, pAggInfo->binfo.pCtx, pOperator->numOfOutput);
+
     int32_t numOfRows = getNumOfResult(pOperator->pRuntimeEnv, pAggInfo->binfo.pCtx, pOperator->numOfOutput);
 
     pAggInfo->binfo.pRes->info.rows += numOfRows;
