@@ -56,7 +56,6 @@ measurement,tag_set field_set timestamp
   - 后缀为 i16，表示为 SMALLINT (INT16) 类型；
   - 后缀为 i32，表示为 INT (INT32) 类型；
   - 后缀为 i64，表示为 BIGINT (INT64) 类型；
-  - 后缀为 b，表示为 BOOL 类型。
 * t, T, true, True, TRUE, f, F, false, False 将直接作为 BOOL 型来处理。
 
 timestamp 位置的时间戳通过后缀来声明时间精度，具体如下：
@@ -72,13 +71,15 @@ timestamp 位置的时间戳通过后缀来声明时间精度，具体如下：
 st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"passit",c2=false,c4=4f64 1626006833639000000ns
 ```
 
+需要注意的是，如果描述数据类型后缀时使用了错误的大小写，或者为数据指定的数据类型有误，均可能引发报错提示而导致数据写入失败。
+
 ### Schemaless 的处理逻辑
 
 Schemaless 按照如下原则来处理行数据：
 1. 当 tag_set 中有 ID 字段时，该字段的值将作为数据子表的表名。
 2. 没有 ID 字段时，将使用 `measurement + tag_value1 + tag_value2 + ...` 的 md5 值来作为子表名。
 3. 如果指定的超级表名不存在，则 Schemaless 会创建这个超级表。
-4. 如果指定的数据子表不存在，则 Schemaless 会使用 tag values 创建这个数据子表。
+4. 如果指定的数据子表不存在，则 Schemaless 会按照步骤 1 或 2 确定的子表名来创建子表。
 5. 如果数据行中指定的标签列或普通列不存在，则 Schemaless 会在超级表中增加对应的标签列或普通列（只增不减）。
 6. 如果超级表中存在一些标签列或普通列未在一个数据行中被指定取值，那么这些列的值在这一行中会被置为 NULL。
 7. 对 BINARY 或 NCHAR 列，如果数据行中所提供值的长度超出了列类型的限制，那么 Schemaless 会增加该列允许存储的字符长度上限（只增不减），以保证数据的完整保存。
