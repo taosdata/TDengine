@@ -181,7 +181,7 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoIns
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
-python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdumpTestNanoSupport.py
+python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 #
 python3 ./test.py -f tsdb/tsdbComp.py 
