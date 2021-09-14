@@ -25,7 +25,7 @@
 #include "tlosertree.h"
 #include "tsdbint.h"
 #include "texpr.h"
-#include "qfilter.h"
+#include "qFilter.h"
 
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
