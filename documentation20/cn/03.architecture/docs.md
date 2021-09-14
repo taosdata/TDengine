@@ -156,7 +156,7 @@ TDengine 的设计是基于单个硬件、软件系统不可靠，基于任何�
 
 TDengine 分布式架构的逻辑结构图如下：
 
-![TDengine架构示意图](page://images/architecture/structure.png)
+![TDengine架构示意图](https://raw.githubusercontent.com/taosdata/TDengine/develop/documentation20/en/images/architecture/structure.png)
 <center> 图 1 TDengine架构示意图  </center>
 
 一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点(dnode)、TDengine应用驱动(taosc)以及应用(app)。系统中存在一到多个数据节点，这些数据节点组成一个集群(cluster)。应用通过taosc的API与TDengine集群进行互动。下面对每个逻辑单元进行简要介绍。
