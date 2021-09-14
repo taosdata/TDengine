@@ -26,7 +26,7 @@ typedef int (*__merge_compare_fn_t)(const void *, const void *, void *param);
 
 typedef struct SLoserTreeNode {
   int32_t index;
-  void *  pData;
+  void   *pData;
 } SLoserTreeNode;
 
 typedef struct SLoserTreeInfo {
@@ -34,8 +34,7 @@ typedef struct SLoserTreeInfo {
   int32_t              totalEntries;
   __merge_compare_fn_t comparFn;
   void *               param;
-
-  SLoserTreeNode *pNode;
+  SLoserTreeNode      *pNode;
 } SLoserTreeInfo;
 
 uint32_t tLoserTreeCreate(SLoserTreeInfo **pTree, int32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);

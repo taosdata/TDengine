@@ -2128,11 +2128,12 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   int32_t code = 0;
 
-  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
+  SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genLinesSmlId();
 
   if (numLines <= 0 || numLines > 65536) {
     tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
+    tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
@@ -2140,7 +2141,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   for (int i = 0; i < numLines; ++i) {
     if (lines[i] == NULL) {
       tscError("SML:0x%"PRIx64" taos_insert_lines line %d is NULL", info->id, i);
-      free(info);
+      tfree(info);
       code = TSDB_CODE_TSC_APP_ERROR;
       return code;
     }
@@ -2149,7 +2150,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
   if (lpPoints == NULL) {
     tscError("SML:0x%"PRIx64" taos_insert_lines failed to allocate memory", info->id);
-    free(info);
+    tfree(info);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -2177,7 +2178,7 @@ cleanup:
 
   taosArrayDestroy(lpPoints);
 
-  free(info);
+  tfree(info);
   return code;
 }
 
