@@ -110,7 +110,8 @@ extern int8_t  tsCacheLastRow;
 
 //tsdb 
 extern bool tsdbForceKeepFile;
-extern bool tsdbEnableUpgradeFS;
+extern bool tsdbForceCompactFile;
+extern bool tsdbEnableUpgradeFile;
 
 #ifdef __TD_6117__
 extern bool tsdbQueryFromSMA;

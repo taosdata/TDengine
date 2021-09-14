@@ -236,7 +236,7 @@ int   tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
 void  tsdbCloseAndUnsetFSet(SReadH *pReadh);
 int   tsdbLoadBlockIdx(SReadH *pReadh);
 int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
-int   tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, int32_t *extendedLen);
+int   tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, uint32_t *extendedLen);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);

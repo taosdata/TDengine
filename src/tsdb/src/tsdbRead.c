@@ -1102,7 +1102,8 @@ static int32_t loadBlockInfo(STsdbQueryHandle * pQueryHandle, int32_t index, int
   //   pCheckInfo->compSize = compIndex->len;
   // }
 
-  if (tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void**)(&pCheckInfo->pCompInfo), &pCheckInfo->compSize) < 0) {
+  if (tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void**)(&pCheckInfo->pCompInfo), (uint32_t*)(&pCheckInfo->compSize)) <
+      0) {
     return terrno;
   }
   SBlockInfo* pCompInfo = pCheckInfo->pCompInfo;

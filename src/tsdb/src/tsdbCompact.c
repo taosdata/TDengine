@@ -220,6 +220,9 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
   }
 
   static bool tsdbShouldCompact(SCompactH *pComph) {
+    if (tsdbForceCompactFile) {
+      return true;
+    }
     STsdbRepo *     pRepo = TSDB_COMPACT_REPO(pComph);
     STsdbCfg *      pCfg = REPO_CFG(pRepo);
     SReadH *        pReadh = &(pComph->readh);
@@ -390,7 +393,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       // if (tsdbMakeRoom((void **)(&(pTh->pInfo)), pTh->pBlkIdx->len) < 0) {
       //   return -1;
       // }
-      int32_t originLen = 0;
+      uint32_t originLen = 0;
       if (tsdbLoadBlockInfo(pReadH, (void **)(&(pTh->pInfo)), &originLen) < 0) {
         return -1;
       }

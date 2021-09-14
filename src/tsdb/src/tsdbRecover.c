@@ -226,10 +226,9 @@ static int tsdbDestroyHFile(SDFile *pDFile) {
 static int tsdbRefactorHeadF(STsdbRepo *pRepo, SRecoverH *pRecoverH, SDFileSet *pSet, int32_t *nRemain) {
   SDFile *pHeadF = TSDB_DFILE_IN_SET(pSet, TSDB_FILE_HEAD);
   if (pHeadF->info.fver == tsdbGetDFSVersion(TSDB_FILE_HEAD)) {
-    if (taosArrayPush(REPO_FS(pRepo)->nstatus->df, pSet) == NULL) {
-      terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    if (tsdbUpdateDFileSet(REPO_FS(pRepo),pSet) < 0) {
       return -1;
-    }
+    }    
     ++*nRemain;
     return TSDB_CODE_SUCCESS;
   }
@@ -321,8 +320,7 @@ static int tsdbRefactorHeadF(STsdbRepo *pRepo, SRecoverH *pRecoverH, SDFileSet *
   SDFileSet *pDestFSet = TSDB_READ_FSET(pReadH);
   tsdbInitDFileEx(TSDB_DFILE_IN_SET(pDestFSet, TSDB_FILE_HEAD), pTmpHeadF);
 
-  if (taosArrayPush(REPO_FS(pRepo)->nstatus->df, pDestFSet) == NULL) {
-    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+  if (tsdbUpdateDFileSet(REPO_FS(pRepo),pDestFSet) < 0) {
     return -1;
   }
 

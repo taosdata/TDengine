@@ -341,7 +341,7 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     return -1;
   }
 
-  if (tsdbEnableUpgradeFS && tsdbRefactorFS(pRepo) < 0) {
+  if (tsdbEnableUpgradeFile && tsdbRefactorFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to refactor FS since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }

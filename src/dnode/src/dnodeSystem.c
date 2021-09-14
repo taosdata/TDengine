@@ -42,10 +42,12 @@ int32_t main(int32_t argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       dump_config = 1;
-    } else if (strcmp(argv[i], "--enable-upgrade-fs") == 0) {
-      tsdbEnableUpgradeFS = true;
+    } else if (strcmp(argv[i], "--enable-upgrade-file") == 0) {
+      tsdbEnableUpgradeFile = true;
     } else if (strcmp(argv[i], "--disable-query-from-sma") == 0) {
       tsdbQueryFromSMA = false;
+    } else if (strcmp(argv[i], "--force-compact-file") == 0) {
+      tsdbForceCompactFile = true;
     } else if (strcmp(argv[i], "--force-keep-file") == 0) {
       tsdbForceKeepFile = true;
     } else if (strcmp(argv[i], "--compact-mnode-wal") == 0) {
