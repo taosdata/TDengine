@@ -441,13 +441,15 @@ pipeline {
             }
           }
         } 
-        stage('win') {
-          stage('build')
+        
+        stage('build'){
           agent{label " crashgen "}
           steps {
             pre_test()
+            sleep 600
           }
-          stage('test')
+        }
+        stage('test'){
           agent{label "win"}
           steps{
             pre_test_win()
@@ -456,7 +458,9 @@ pipeline {
             test-all.bat CrashGen
             '''
           }
-        }       
+        }
+          
+               
     }
   }
   }

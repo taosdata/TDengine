@@ -129,7 +129,7 @@ if __name__ == "__main__":
         td_clinet = TDSimClient("C:\\TDengine")
         td_clinet.deploy()
         remote_conn = Connection("root@%s"%host)
-        with remote_conn.cd('/root/TDinternal/community/tests/pytest'):
+        with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
             remote_conn.run("python3 ./test.py")
         conn = taos.connect(
             host="%s"%(host),
