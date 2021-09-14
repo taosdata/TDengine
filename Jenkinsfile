@@ -1,4 +1,5 @@
 import hudson.model.Result
+import hudson.model.*;
 import jenkins.model.CauseOfInterruption
 properties([pipelineTriggers([githubPush()])])
 node {
@@ -6,6 +7,7 @@ node {
 }
 
 def skipbuild=0
+def win_stop=0
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -446,8 +448,12 @@ pipeline {
           agent{label " crashgen "}
           steps {
             pre_test()
-            sleep 600
-          }
+            script{             
+                while(win_stop == 0){
+                  sleep(1)
+                  }
+              }
+            }
         }
         stage('test'){
           agent{label "win"}
@@ -457,6 +463,10 @@ pipeline {
             cd C:\\workspace\\TDinternal\\community\\tests\\pytest
             test-all.bat CrashGen
             '''
+            script{
+              win_stop=1
+              println win_stop
+            }
           }
         }
           
