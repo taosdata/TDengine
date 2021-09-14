@@ -84,6 +84,8 @@ int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
 int32_t compareStrPatternComp(const void* pLeft, const void* pRight);
 int32_t compareStrRegexComp(const void* pLeft, const void* pRight);
+int32_t compareStrRegexCompMatch(const void* pLeft, const void* pRight);
+int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight);
 int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
 
