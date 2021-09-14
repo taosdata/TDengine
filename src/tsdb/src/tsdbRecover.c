@@ -252,7 +252,7 @@ static int tsdbRefactorHeadF(STsdbRepo *pRepo, SRecoverH *pRecoverH, SDFileSet *
     return -1;
   }
 
-  int    arraySize = taosArrayGetSize(pReadH->aBlkIdx);
+  int    arraySize = (int)taosArrayGetSize(pReadH->aBlkIdx);
   SBlock supBlk;
   for (int iBlkIdx = 0; iBlkIdx < arraySize; ++iBlkIdx) {
     pReadH->pBlkIdx = taosArrayGet(pReadH->aBlkIdx, iBlkIdx);
