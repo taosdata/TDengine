@@ -350,6 +350,14 @@ int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+int32_t compareStrRegexCompMatch(const void* pLeft, const void* pRight) {
+  return compareStrRegexComp(pLeft, pRight);
+}
+
+int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight) {
+  return compareStrRegexComp(pLeft, pRight) ? 0 : 1;
+}
+
 int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   size_t sz = varDataLen(pRight);
   char *pattern = malloc(sz + 1);
@@ -449,7 +457,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == TSDB_RELATION_MATCH) {
-        comparFn = compareStrRegexComp;
+        comparFn = compareStrRegexCompMatch;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
@@ -463,7 +473,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == TSDB_RELATION_MATCH) {
-        comparFn = compareStrRegexComp;
+        comparFn = compareStrRegexCompMatch;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
