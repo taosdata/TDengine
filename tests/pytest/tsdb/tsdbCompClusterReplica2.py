@@ -24,7 +24,7 @@ from random import choice
  
 class TwoClients:
     def initConnection(self):
-        self.host = "chenhaoran02"
+        self.host = "chenhaoran01"
         self.user = "root"
         self.password = "taosdata"
         self.config = "/etc/taos/"     
@@ -116,8 +116,10 @@ class TwoClients:
         sleep(3)
         tdSql.execute(" drop dnode 'chenhaoran02:6030'; ")
         sleep(20)
-        os.system("rm -rf /var/lib/taos/*")
+        # remove data file;
+        os.system("rm -rf /home/chr/data/data0/*")
         print("clear dnode chenhaoran02'data files")
+        sleep(5)
         os.system("nohup /usr/bin/taosd > /dev/null 2>&1 &")
         print("start taosd")
         sleep(10)
