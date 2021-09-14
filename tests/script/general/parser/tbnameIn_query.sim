@@ -125,11 +125,10 @@ if $data21 != 2 then
   return -1
 endi
 
-# multiple tbname in is not allowed NOW
-sql_error select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbname in ('ti_tb5', 'ti_tb1000') group by t1 order by t1 asc
-#if $rows != 4 then
-#  return -1
-#endi
+sql select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbname in ('ti_tb5', 'ti_tb1000') group by t1 order by t1 asc
+if $rows != 0 then
+  return -1
+endi
 #if $data00 != $rowNum then
 #  return -1
 #endi

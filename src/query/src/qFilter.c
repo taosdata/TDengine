@@ -937,7 +937,7 @@ int32_t filterAddUnitToGroup(SFilterGroup *group, uint16_t unitIdx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType) {
+int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType, bool tolower) {
   SBufferReader br = tbufInitReader(buf, len, false); 
   uint32_t sType  = tbufReadUint32(&br);     
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(tType), true, false);
@@ -1113,6 +1113,7 @@ int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint3
         }
         t = varDataLen(tmp);
         pvar = varDataVal(tmp);
+        strntolower_s(pvar, pvar, t);
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
@@ -1157,7 +1158,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
 
   if (tree->_node.optr == TSDB_RELATION_IN && (!IS_VAR_DATA_TYPE(type))) {
     void *data = NULL;
-    filterConvertSetFromBinary((void **)&data, var->pz, var->nLen, type);
+    filterConvertSetFromBinary((void **)&data, var->pz, var->nLen, type, false);
     CHK_LRET(data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
 
     if (taosHashGetSize((SHashObj *)data) <= 0) {
@@ -1798,7 +1799,10 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == TSDB_RELATION_IN) {
-      filterConvertSetFromBinary((void **)&fi->data, var->pz, var->nLen, type);
+      SSchema *sch = FILTER_UNIT_COL_DESC(info, unit);
+      bool tolower = (sch->colId == -1) ? true : false;
+      
+      filterConvertSetFromBinary((void **)&fi->data, var->pz, var->nLen, type, tolower);
       CHK_LRET(fi->data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
 
       FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);
@@ -2531,8 +2535,6 @@ int32_t filterPostProcessRange(SFilterInfo *info) {
 
 
 int32_t filterGenerateComInfo(SFilterInfo *info) {
-  uint16_t n = 0;
-  
   info->cunits = malloc(info->unitNum * sizeof(*info->cunits));
   info->blkUnitRes = malloc(sizeof(*info->blkUnitRes) * info->unitNum);
   info->blkUnits = malloc(sizeof(*info->blkUnits) * (info->unitNum + 1) * info->groupNum);
@@ -2560,24 +2562,6 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].dataSize = FILTER_UNIT_COL_SIZE(info, unit);
     info->cunits[i].dataType = FILTER_UNIT_DATA_TYPE(unit);
   }
-
-  uint16_t cgroupNum = info->groupNum + 1;
-  
-  for (uint16_t i = 0; i < info->groupNum; ++i) {
-    cgroupNum += info->groups[i].unitNum;
-  }
-
-  info->cgroups = malloc(cgroupNum * sizeof(*info->cgroups));
-  
-  for (uint16_t i = 0; i < info->groupNum; ++i) {
-    info->cgroups[n++] = info->groups[i].unitNum;
-
-    for (uint16_t m = 0; m < info->groups[i].unitNum; ++m) {
-      info->cgroups[n++] = info->groups[i].unitIdxs[m];
-    }
-  }
-
-  info->cgroups[n] = 0;
   
   return TSDB_CODE_SUCCESS;
 }
@@ -2887,7 +2871,7 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    (*p)[i] = isNull(colData, info->cunits[uidx].dataType);
+    (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
     if ((*p)[i] == 0) {
       all = false;
     }    
@@ -2910,7 +2894,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    (*p)[i] = !isNull(colData, info->cunits[uidx].dataType);
+    (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
     if ((*p)[i] == 0) {
       all = false;
     }
@@ -2938,7 +2922,7 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SDataSta
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
-    if (isNull(colData, info->cunits[0].dataType)) {
+    if (colData == NULL || isNull(colData, info->cunits[0].dataType)) {
       all = false;
       colData += dataSize;
       continue;
@@ -2971,7 +2955,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    if (isNull(colData, info->cunits[uidx].dataType)) {
+    if (colData == NULL || isNull(colData, info->cunits[uidx].dataType)) {
       (*p)[i] = 0;
       all = false;
       continue;
@@ -3015,7 +2999,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (isNull(colData, cunit->dataType)) {
+          if (colData == NULL || isNull(colData, cunit->dataType)) {
             (*p)[i] = optr == TSDB_RELATION_ISNULL ? true : false;
           } else {
             if (optr == TSDB_RELATION_NOTNULL) {
