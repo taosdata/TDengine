@@ -102,8 +102,8 @@ static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, 
   if (pSFSHeader->version == TSDB_FS_VER_0) {
     uint64_t extendedSize = pSFSHeader->len + nset * TSDB_FILE_MAX * sizeof(TSDB_FVER_TYPE);
     if (taosTSizeof(*originBuf) < extendedSize) {
-      size_t ptrDistance = (size_t)POINTER_DISTANCE(buf, *originBuf);
-      if (tsdbMakeRoom(originBuf, extendedSize) < 0) {
+      size_t ptrDistance = POINTER_DISTANCE(buf, *originBuf);
+      if (tsdbMakeRoom(originBuf, (size_t)extendedSize) < 0) {
         terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
         return -1;
       }
