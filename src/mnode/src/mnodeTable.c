@@ -1231,7 +1231,9 @@ static int32_t mnodeAddSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, add tag result:%s, numOfTags:%d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
           tstrerror(code), pStable->numOfTags);
-
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1287,6 +1289,9 @@ static int32_t mnodeDropSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, drop tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
           tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1321,6 +1326,9 @@ static int32_t mnodeModifySuperTableTagNameCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, modify tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1376,6 +1384,9 @@ static int32_t mnodeAddSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, add column result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
           tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1444,6 +1455,9 @@ static int32_t mnodeDropSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, delete column result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1489,6 +1503,9 @@ static int32_t mnodeChangeSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, change column result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 

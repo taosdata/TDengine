@@ -22,6 +22,7 @@
 
 #include <qSqlparser.h>
 #include "os.h"
+#include "regex.h"
 #include "qPlan.h"
 #include "qSqlparser.h"
 #include "qTableMeta.h"
@@ -278,6 +279,10 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_BINARY_OP_REMAINDER;
     case TK_LIKE:
       return TSDB_RELATION_LIKE;
+    case TK_MATCH:
+      return TSDB_RELATION_MATCH;
+    case TK_NMATCH:
+      return TSDB_RELATION_NMATCH;
     case TK_ISNULL:
       return TSDB_RELATION_ISNULL;
     case TK_NOTNULL:
@@ -3796,6 +3801,12 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     case TK_LIKE:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_LIKE;
       break;
+    case TK_MATCH:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_MATCH;
+      break;
+    case TK_NMATCH:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_NMATCH;
+      break;
     case TK_ISNULL:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_ISNULL;
       break;
@@ -3859,10 +3870,18 @@ static int32_t tablenameListToString(tSqlExpr* pExpr, SStringBuilder* sb) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tablenameCondToString(tSqlExpr* pExpr, SStringBuilder* sb) {
-  taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN);
-  taosStringBuilderAppendString(sb, pExpr->value.pz);
-
+static int32_t tablenameCondToString(tSqlExpr* pExpr, uint32_t opToken, SStringBuilder* sb) {
+  assert(opToken == TK_LIKE || opToken == TK_MATCH || opToken == TK_NMATCH);
+  if (opToken == TK_LIKE) {
+    taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN);
+    taosStringBuilderAppendString(sb, pExpr->value.pz);
+  } else if (opToken == TK_MATCH) {
+    taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN);
+    taosStringBuilderAppendString(sb, pExpr->value.pz);
+  } else if (opToken == TK_NMATCH) {
+    taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_NMATCH, QUERY_COND_REL_PREFIX_NMATCH_LEN);
+    taosStringBuilderAppendString(sb, pExpr->value.pz);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3882,7 +3901,7 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   SSchema*    pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
   int32_t     ret = 0;
-  const char* msg1 = "non binary column not support like operator";
+  const char* msg1 = "non binary column not support like/match operator";
   const char* msg2 = "binary column not support this operator";  
   const char* msg3 = "bool column not support this operator";
   const char* msg4 = "primary key not support this operator";
@@ -3910,12 +3929,14 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
       && pExpr->tokenId != TK_ISNULL
       && pExpr->tokenId != TK_NOTNULL
       && pExpr->tokenId != TK_LIKE
+      && pExpr->tokenId != TK_MATCH
+      && pExpr->tokenId != TK_NMATCH
       && pExpr->tokenId != TK_IN) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       goto _err_ret;
     }
   } else {
-    if (pExpr->tokenId == TK_LIKE) {
+    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       goto _err_ret;
     }
@@ -3963,12 +3984,12 @@ static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr*
 
   if (pTableCond->tokenId == TK_IN) {
     ret = tablenameListToString(pRight, sb);
-  } else if (pTableCond->tokenId == TK_LIKE) {
+  } else if (pTableCond->tokenId == TK_LIKE || pTableCond->tokenId == TK_MATCH || pTableCond->tokenId == TK_NMATCH) {
     if (pRight->tokenId != TK_STRING) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
     
-    ret = tablenameCondToString(pRight, sb);
+    ret = tablenameCondToString(pRight, pTableCond->tokenId, sb);
   }
 
   if (ret != TSDB_CODE_SUCCESS) {
@@ -4417,7 +4438,7 @@ static bool validateJoinExprNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
 }
 
 static bool validTableNameOptr(tSqlExpr* pExpr) {
-  const char nameFilterOptr[] = {TK_IN, TK_LIKE};
+  const char nameFilterOptr[] = {TK_IN, TK_LIKE, TK_MATCH, TK_NMATCH};
 
   for (int32_t i = 0; i < tListLen(nameFilterOptr); ++i) {
     if (pExpr->tokenId == nameFilterOptr[i]) {
@@ -4509,6 +4530,49 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+// check for match expression
+static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
+  const char* msg1 = "regular expression string should be less than %d characters";
+  const char* msg2 = "illegal column type for match/nmatch";
+  const char* msg3 = "invalid regular expression";
+
+  tSqlExpr* pLeft  = pExpr->pLeft;
+  tSqlExpr* pRight = pExpr->pRight;
+
+  if (pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
+    if (pRight->value.nLen > tsMaxRegexStringLen) {
+      char tmp[64] = {0};
+      sprintf(tmp, msg1, tsMaxRegexStringLen);
+      return invalidOperationMsg(msgBuf, tmp);
+    }
+
+    SSchema* pSchema = tscGetTableSchema(pTableMeta);
+    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
+      return invalidOperationMsg(msgBuf, msg2);
+    }
+
+    if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
+      return invalidOperationMsg(msgBuf, msg3);
+    }
+
+    int errCode = 0;
+    regex_t regex;
+    char    regErrBuf[256] = {0};
+
+    const char* pattern = pRight->value.pz;
+    int cflags = REG_EXTENDED;
+    if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
+      regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));
+      tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
+      return invalidOperationMsg(msgBuf, msg3);
+    }
+    regfree(&regex);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
   tSqlExpr* left = tSqlExprClone(expr);
   tSqlExpr* right = expr;
@@ -4556,6 +4620,12 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
   // validate the like expression
   code = validateLikeExpr(*pExpr, pTableMeta, index.columnIndex, tscGetErrorMsgPayload(pCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // validate the match expression
+  code = validateMatchExpr(*pExpr, pTableMeta, index.columnIndex, tscGetErrorMsgPayload(pCmd));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4887,65 +4957,69 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   STagCond* pTagCond = &pQueryInfo->tagCond;
   pTagCond->tbnameCond.uid = pTableMetaInfo->pTableMeta->id.uid;
 
-  assert(pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_IN);
+  assert(pExpr->tokenId == TK_LIKE
+         || pExpr->tokenId == TK_MATCH
+         || pExpr->tokenId == TK_NMATCH
+         || pExpr->tokenId == TK_IN);
 
-  if (pExpr->tokenId == TK_LIKE) {
+  if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
     char* str = taosStringBuilderGetResult(sb, NULL);
     pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
     pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
     return TSDB_CODE_SUCCESS;
-  }
+  } else {
+    SStringBuilder sb1;
+    memset(&sb1, 0, sizeof(sb1));
+    taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
 
-  SStringBuilder sb1; memset(&sb1, 0, sizeof(sb1));
-  taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
+    // remove the duplicated input table names
+    int32_t num = 0;
+    char*   tableNameString = taosStringBuilderGetResult(sb, NULL);
 
-  // remove the duplicated input table names
-  int32_t num = 0;
-  char*   tableNameString = taosStringBuilderGetResult(sb, NULL);
+    char** segments = strsplit(tableNameString + QUERY_COND_REL_PREFIX_IN_LEN, TBNAME_LIST_SEP, &num);
+    qsort(segments, num, POINTER_BYTES, tableNameCompar);
 
-  char** segments = strsplit(tableNameString + QUERY_COND_REL_PREFIX_IN_LEN, TBNAME_LIST_SEP, &num);
-  qsort(segments, num, POINTER_BYTES, tableNameCompar);
-
-  int32_t j = 1;
-  for (int32_t i = 1; i < num; ++i) {
-    if (strcmp(segments[i], segments[i - 1]) != 0) {
-      segments[j++] = segments[i];
+    int32_t j = 1;
+    for (int32_t i = 1; i < num; ++i) {
+      if (strcmp(segments[i], segments[i - 1]) != 0) {
+        segments[j++] = segments[i];
+      }
     }
-  }
-  num = j;
+    num = j;
 
-  char name[TSDB_DB_NAME_LEN] = {0};
-  tNameGetDbName(&pTableMetaInfo->name, name);
-  SStrToken dbToken = { .type = TK_STRING, .z = name, .n = (uint32_t)strlen(name) };
-  
-  for (int32_t i = 0; i < num; ++i) {
-    if (i >= 1) {
-      taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);
+    char name[TSDB_DB_NAME_LEN] = {0};
+    tNameGetDbName(&pTableMetaInfo->name, name);
+    SStrToken dbToken = {.type = TK_STRING, .z = name, .n = (uint32_t)strlen(name)};
+
+    for (int32_t i = 0; i < num; ++i) {
+      if (i >= 1) {
+        taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);
+      }
+
+      char      idBuf[TSDB_TABLE_FNAME_LEN] = {0};
+      int32_t   xlen = (int32_t)strlen(segments[i]);
+      SStrToken t = {.z = segments[i], .n = xlen, .type = TK_STRING};
+
+      int32_t ret = setObjFullName(idBuf, account, &dbToken, &t, &xlen);
+      if (ret != TSDB_CODE_SUCCESS) {
+        taosStringBuilderDestroy(&sb1);
+        tfree(segments);
+
+        invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+        return ret;
+      }
+
+      taosStringBuilderAppendString(&sb1, idBuf);
     }
 
-    char      idBuf[TSDB_TABLE_FNAME_LEN] = {0};
-    int32_t   xlen = (int32_t)strlen(segments[i]);
-    SStrToken t = {.z = segments[i], .n = xlen, .type = TK_STRING};
+    char* str = taosStringBuilderGetResult(&sb1, NULL);
+    pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
+    pQueryInfo->tagCond.tbnameCond.len = (int32_t)strlen(str);
 
-    int32_t ret = setObjFullName(idBuf, account, &dbToken, &t, &xlen);
-    if (ret != TSDB_CODE_SUCCESS) {
-      taosStringBuilderDestroy(&sb1);
-      tfree(segments);
-
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-      return ret;
-    }
-
-    taosStringBuilderAppendString(&sb1, idBuf);
+    taosStringBuilderDestroy(&sb1);
+    tfree(segments);
+    return TSDB_CODE_SUCCESS;
   }
-
-  char* str = taosStringBuilderGetResult(&sb1, NULL);
-  pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
-  pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
-
-  taosStringBuilderDestroy(&sb1);
-  tfree(segments);
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mergeTimeRange(SSqlCmd* pCmd, STimeWindow* res, STimeWindow* win, int32_t optr) {
@@ -8132,7 +8206,7 @@ int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelect
 }
 
 static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNodeList, tSqlExpr* pExpr, int32_t sqlOptr) {
-  const char* msg1 = "non binary column not support like operator";
+  const char* msg1 = "non binary column not support like/match operator";
   const char* msg2 = "invalid operator for binary column in having clause";
   const char* msg3 = "invalid operator for bool column in having clause";
 
@@ -8184,11 +8258,13 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
         && pExpr->tokenId != TK_ISNULL
         && pExpr->tokenId != TK_NOTNULL
         && pExpr->tokenId != TK_LIKE
+        && pExpr->tokenId != TK_MATCH
+        && pExpr->tokenId != TK_NMATCH
         ) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
-    if (pExpr->tokenId == TK_LIKE) {
+    if (pExpr->tokenId == TK_LIKE || pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
@@ -8645,7 +8721,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     if (p->vgroupIdList != NULL) {
       size_t s = taosArrayGetSize(p->vgroupIdList);
 
-      size_t vgroupsz = sizeof(SVgroupInfo) * s + sizeof(SVgroupsInfo);
+      size_t vgroupsz = sizeof(SVgroupMsg) * s + sizeof(SVgroupsInfo);
       pTableMetaInfo->vgroupList = calloc(1, vgroupsz);
       if (pTableMetaInfo->vgroupList == NULL) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -8660,14 +8736,11 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
         taosHashGetClone(tscVgroupMap, id, sizeof(*id), NULL, &existVgroupInfo);
 
         assert(existVgroupInfo.inUse >= 0);
-        SVgroupInfo *pVgroup = &pTableMetaInfo->vgroupList->vgroups[j];
+        SVgroupMsg *pVgroup = &pTableMetaInfo->vgroupList->vgroups[j];
 
         pVgroup->numOfEps = existVgroupInfo.numOfEps;
         pVgroup->vgId = existVgroupInfo.vgId;
-        for (int32_t k = 0; k < existVgroupInfo.numOfEps; ++k) {
-          pVgroup->epAddr[k].port = existVgroupInfo.ep[k].port;
-          pVgroup->epAddr[k].fqdn = strndup(existVgroupInfo.ep[k].fqdn, TSDB_FQDN_LEN);
-        }
+        memcpy(&pVgroup->epAddr, &existVgroupInfo.ep, sizeof(pVgroup->epAddr));
       }
     }
   }

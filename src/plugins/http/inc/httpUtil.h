@@ -17,6 +17,7 @@
 #define TDENGINE_HTTP_UTIL_H
 
 bool httpCheckUsedbSql(char *sql);
+bool httpCheckAlterSql(char *sql);
 void httpTimeToString(int32_t t, char *buf, int32_t buflen);
 
 bool    httpUrlMatch(HttpContext *pContext, int32_t pos, char *cmp);

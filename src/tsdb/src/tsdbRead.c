@@ -288,8 +288,6 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
       STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
 
       STableCheckInfo info = { .lastKey = pKeyInfo->lastKey, .pTableObj = pKeyInfo->pTable };
-      info.tableId = ((STable*)(pKeyInfo->pTable))->tableId;
-
       assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
                                         info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));
 
@@ -2218,7 +2216,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     SBlock* pBlock = pTableCheck->pCompInfo->blocks;
     sup.numOfBlocksPerTable[numOfQualTables] = pTableCheck->numOfBlocks;
 
-    char* buf = calloc(1, sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
+    char* buf = malloc(sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
     if (buf == NULL) {
       cleanBlockOrderSupporter(&sup, numOfQualTables);
       return TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -3618,8 +3616,6 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
     for(int32_t i = 0; i < size; ++i) {
       STableKeyInfo *pKeyInfo = taosArrayGet(pTableList, i);
-      assert(((STable*)pKeyInfo->pTable)->type == TSDB_CHILD_TABLE);
-
       tsdbRefTable(pKeyInfo->pTable);
 
       STableKeyInfo info = {.pTable = pKeyInfo->pTable, .lastKey = skey};
@@ -3707,6 +3703,12 @@ static bool tableFilterFp(const void* pNode, void* param) {
       return ret < 0;
     }
     case TSDB_RELATION_LIKE: {
+      return ret == 0;
+    }
+    case TSDB_RELATION_MATCH: {
+      return ret == 0;
+    }
+    case TSDB_RELATION_NMATCH: {
       return ret == 0;
     }
     case TSDB_RELATION_IN: {
@@ -4042,6 +4044,10 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
     pCond->start->v    = queryColInfo->q; 
   } else if (optr == TSDB_RELATION_LIKE) {
     assert(0);
+  } else if (optr == TSDB_RELATION_MATCH) {
+    assert(0);
+  } else if (optr == TSDB_RELATION_NMATCH) {
+    assert(0);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4199,7 +4205,9 @@ static void queryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, S
     if (pQueryInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
         addToResult = pQueryInfo->compare(name, pQueryInfo->q);
-      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE) {
+      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE ||
+                 pQueryInfo->optr == TSDB_RELATION_MATCH ||
+                 pQueryInfo->optr == TSDB_RELATION_NMATCH) {
         addToResult = !pQueryInfo->compare(name, pQueryInfo->q);
       }
     } else {
@@ -4231,7 +4239,9 @@ void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *re
     param->setupInfoFn(pExpr, param->pExtInfo);
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
-    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE && pQueryInfo->optr != TSDB_RELATION_IN)) {
+    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE
+                                && pQueryInfo->optr != TSDB_RELATION_MATCH && pQueryInfo->optr != TSDB_RELATION_NMATCH
+                                && pQueryInfo->optr != TSDB_RELATION_IN)) {
       queryIndexedColumn(pSkipList, pQueryInfo, result);
     } else {
       queryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);

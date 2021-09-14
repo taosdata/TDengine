@@ -2500,7 +2500,7 @@ static void tdigest_merge(SQLFunctionCtx *pCtx) {
   SAPercentileInfo *pInput = (SAPercentileInfo *)GET_INPUT_DATA_LIST(pCtx);
   assert(pInput->pTDigest);
   pInput->pTDigest = (TDigest*)((char*)pInput + sizeof(SAPercentileInfo));
-  pInput->pTDigest->centroids = (Centroid*)((char*)pInput + sizeof(SAPercentileInfo) + sizeof(TDigest));
+  pInput->pTDigest->centroids = (SCentroid*)((char*)pInput + sizeof(SAPercentileInfo) + sizeof(TDigest));
 
   // input merge no elements , no need merge
   if(pInput->pTDigest->num_centroids == 0) {
