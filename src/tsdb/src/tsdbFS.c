@@ -985,7 +985,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
   SDFileSet *pSet;
 
   while ((pSet = tsdbFSIterNext(&fsiter))) {
-    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
       if (tfsIsSameFile(pf, TSDB_FILE_F(pDFile))) {
         return true;

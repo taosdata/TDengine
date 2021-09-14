@@ -25,6 +25,8 @@ static int  tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int3
 static int  tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int16_t *colIds,
                                       int numOfColIds);
 static int  tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol);
+static int  tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock);
+static int  tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock);
 
 int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
   ASSERT(pReadh != NULL && pRepo != NULL);
@@ -492,23 +494,22 @@ static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
 int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
 
-  if (pBlock->blkVer == TSDB_SBLK_VER_0) {
-    return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
+  if (pBlock->blkVer > TSDB_SBLK_VER_0) {
+    tsdbLoadBlockStatisFromAggr(pReadh, pBlock);
+    
   }
-  if (tsdbLoadBlockStatisFromDFile(pReadh, pBlock) < 0) {
-    return -1;
-  }
-  return tsdbLoadBlockStatisFromAggr(pReadh, pBlock);
+  return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
 }
 
-// int tsdbLoadBlockHead(SReadH *pReadh, SBlock *pBlock) {
-//   ASSERT(pBlock->numOfSubBlocks <= 1);
-
-//   if (pBlock->blkVer >= TSDB_SBLK_VER_1) {
-//     return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
-//   }
-//   return 0;
-// }
+int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
+  ASSERT(pBlock->numOfSubBlocks <= 1);
+  
+  if (pBlock->blkVer > TSDB_SBLK_VER_0) {
+    return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
+  }
+  
+  return 0;
+}
 
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
   int tlen = 0;
@@ -758,7 +759,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   tdResetDataCols(pDataCols);
 
   // If only load timestamp column, no need to load SBlockData part
-  if (numOfColIds > 1 && tsdbLoadBlockStatis(pReadh, pBlock) < 0) return -1;
+  if (numOfColIds > 1 && tsdbLoadBlockOffset(pReadh, pBlock) < 0) return -1;
 
   pDataCols->numOfRows = pBlock->numOfRows;
 
@@ -800,7 +801,18 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
           break;
         }
 
-        pBlockCol = &(pReadh->pBlkData->cols[ccol]);
+        if (pBlock->blkVer == SBlockVerLatest) {
+          pBlockCol = &(pReadh->pBlkData->cols[ccol]);
+        } else {
+          SBlockColV0 *pBlkCol = ((SBlockColV0 *)(pReadh->pBlkData->cols)) + ccol;
+          blockCol.colId = pBlkCol->colId;
+          blockCol.len = pBlkCol->len;
+          blockCol.type = pBlkCol->type;
+          blockCol.offset = pBlkCol->offset;
+          blockCol.offsetH = pBlkCol->offsetH;
+          pBlockCol = &blockCol;
+        }
+
         if (pBlockCol->colId > colId) {
           pBlockCol = NULL;
           break;
