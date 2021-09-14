@@ -27,6 +27,7 @@ typedef enum {
 } ETsdbFsVer;
 
 #define TSDB_FVER_TYPE uint32_t
+#define TSDB_LATEST_FVER TSDB_FS_VER_1
 
 static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest version for DFile
   switch (fType) {

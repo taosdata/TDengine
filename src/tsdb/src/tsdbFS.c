@@ -1207,7 +1207,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
     TSDB_FSET_SET_INIT(&fset);
 
     // Loop to recover ONE fset
-    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX - 1; ftype++) {
+    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
 
       if (index >= taosArrayGetSize(fArray)) {

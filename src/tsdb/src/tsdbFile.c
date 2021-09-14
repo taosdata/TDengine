@@ -341,7 +341,7 @@ static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
 
 static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   char *aname;
-
+  // The sync module would send DFileSet with latest verion.
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info), tsdbGetSFSVersion());
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
@@ -430,7 +430,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_FS_VER_1);
+  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_LATEST_FVER);
   return 0;
 }
 
