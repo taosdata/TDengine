@@ -117,7 +117,7 @@ def pre_test_win(){
     cd C:\\workspace\\TDinternal
     rd /s /Q C:\\workspace\\TDinternal\\debug
     cd C:\\workspace\\TDinternal\\community
-    git reset --hard HEAD~10 >/dev/null
+    git reset --hard HEAD~10 
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
@@ -138,7 +138,7 @@ def pre_test_win(){
     }
     bat'''
     cd C:\\workspace\\TDinternal\\community
-    git pull >/dev/null
+    git pull 
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
@@ -164,7 +164,7 @@ def pre_test_win(){
     }
     bat '''
     cd C:\\workspace\\TDinternal
-    git pull >/dev/null 
+    git pull 
 
     export TZ=Asia/Harbin
     date
