@@ -389,7 +389,16 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
       break;
 
     case TSDB_DATA_TYPE_JSON:
-      *((int8_t *)payload) = -1;
+      if (pToken->n > TSDB_MAX_TAGS_LEN) {
+        return tscInvalidOperationMsg(msg, "json tag length too long");
+      }
+      if (pToken->type == TK_NULL) {
+        *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
+      } else if (pToken->type != TK_STRING){
+        tscInvalidOperationMsg(msg, "invalid json data", pToken->z);
+      } else{
+        *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
+      }
       break;
 
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -1097,7 +1106,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         }
         char tagVal[TSDB_MAX_TAGS_LEN];
         int32_t output = 0;
-        if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+        if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
           tscError("json string error:%s|%s", strerror(errno), item->string);
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
@@ -1109,7 +1118,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
         if(item->type == cJSON_String){
           output = 0;
-          if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagVal), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+          if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
             tscError("json string error:%s|%s", strerror(errno), item->string);
             tdDestroyKVRowBuilder(&kvRowBuilder);
             tscDestroyBoundColumnInfo(&spd);
@@ -1117,7 +1126,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           }
 
           varDataSetLen(tagVal, output);
-
           tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
         }else if(item->type == cJSON_Number){
           *((double *)tagVal) = item->valuedouble;
@@ -1671,7 +1679,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   } else {
     SSqlInfo sqlInfo = qSqlParse(pSql->sqlstr);
     ret = tscValidateSqlInfo(pSql, &sqlInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
+    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql1>parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true, pSql->self);

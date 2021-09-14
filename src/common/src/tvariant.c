@@ -888,6 +888,16 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       
       break;
     }
+    case TSDB_DATA_TYPE_JSON: {
+      if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+        *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
+      } else if (pVariant->nType != TSDB_DATA_TYPE_BINARY){
+        return -1;
+      } else {
+        *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
+      }
+      break;
+    }
   }
   
   return 0;

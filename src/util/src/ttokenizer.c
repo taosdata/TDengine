@@ -44,6 +44,7 @@ static SKeyword keywordTable[] = {
     {"TIMESTAMP",    TK_TIMESTAMP},
     {"BINARY",       TK_BINARY},
     {"NCHAR",        TK_NCHAR},
+    {"JSON",         TK_JSON},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
@@ -257,7 +258,7 @@ static void doInitKeywordsTable(void) {
 
 static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
-static int32_t tKeywordCode(const char* z, int n) {
+static int32_t gtKeywordCode(const char* z, int n) {
   pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
   
   char key[512] = {0};

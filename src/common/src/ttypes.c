@@ -34,7 +34,7 @@ const int32_t TYPE_BYTES[16] = {
     sizeof(uint16_t),        // TSDB_DATA_TYPE_USMALLINT
     sizeof(uint32_t),        // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_JSON
+    sizeof(int8_t),          // TSDB_DATA_TYPE_JSON
 };
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
@@ -430,7 +430,7 @@ FORCE_INLINE void* getDataMax(int32_t type) {
 
 
 bool isValidDataType(int32_t type) {
-  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_JSON;
+  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
 }
 
 void setVardataNull(void* val, int32_t type) {
