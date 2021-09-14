@@ -776,7 +776,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 - data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
 - rows: 表明总共多少行数据。
 
-column_meta 中的列类型说明：
+<a class="anchor" id="column_meta"></a>column_meta 中的列类型说明：
 * 1：BOOL
 * 2：TINYINT
 * 3：SMALLINT
