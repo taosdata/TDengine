@@ -6,7 +6,6 @@ for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
     call %%i ARG1 -w 1 -m %1 > result.txt 2>error.txt
     if errorlevel 1 ( call :colorEcho 0c "failed" &echo. ) else ( call :colorEcho 0a "Success" &echo. )   
 )
-
 exit
 
 :colorEcho

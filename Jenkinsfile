@@ -110,7 +110,77 @@ def pre_test(){
     '''
     return 1
 }
+def pre_test_win(){
+    bat '''
+    cd C:\\
+    rd /s /Q C:\\TDengine
+    cd C:\\workspace\\TDinternal
+    rd /s /Q C:\\workspace\\TDinternal\\debug
+    cd C:\\workspace\\TDinternal\\community
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        bat '''
+        git checkout master
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        bat '''
+        git checkout 2.0
+        '''
+      } 
+      else{
+        bat '''
+        git checkout develop
+        '''
+      }
+    }
+    bat'''
+    cd C:\\workspace\\TDinternal\\community
+    git pull >/dev/null
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git clean -dfx
+    cd C:\\workspace\\TDinternal
+    git reset --hard HEAD~10
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        bat '''
+        git checkout master
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        bat '''
+        git checkout 2.0
+        '''
+      } 
+      else{
+        bat '''
+        git checkout develop
+        '''
+      } 
+    }
+    bat '''
+    cd C:\\workspace\\TDinternal
+    git pull >/dev/null 
 
+    export TZ=Asia/Harbin
+    date
+    git clean -dfx
+    mkdir debug
+    cd debug
+    call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
+    cmake ../ -G "NMake Makefiles" 
+    nmake
+    nmake install 
+    cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
+    python -m pip install .
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    '''
+    return 1
+}
 pipeline {
   agent none
   environment{
@@ -370,7 +440,23 @@ pipeline {
               date'''              
             }
           }
-        }        
+        } 
+        stage('win') {
+          stage('build')
+          agent{label " crashgen "}
+          steps {
+            pre_test()
+          }
+          stage('test')
+          agent{label "win"}
+          steps{
+            pre_test_win()
+            bat'''
+            cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+            test-all.bat CrashGen
+            '''
+          }
+        }       
     }
   }
   }
