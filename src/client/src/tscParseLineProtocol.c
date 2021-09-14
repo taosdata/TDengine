@@ -42,18 +42,6 @@ uint64_t genLinesSmlId() {
   return id;
 }
 
-static uint64_t linesSmlHandleId = 0;
-
-uint64_t genLinesSmlId() {
-  uint64_t id;
-
-  do {
-    id = atomic_add_fetch_64(&linesSmlHandleId, 1);
-  } while (id == 0);
-
-  return id;
-}
-
 int compareSmlColKv(const void* p1, const void* p2) {
   TAOS_SML_KV* kv1 = (TAOS_SML_KV*)p1;
   TAOS_SML_KV* kv2 = (TAOS_SML_KV*)p2;
@@ -156,8 +144,7 @@ static int32_t buildSmlKvSchema(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* arra
     taosHashPut(hash, field.name, tagKeyLen, &fieldIdx, sizeof(fieldIdx));
   }
 
-  uintptr_t valPointer = (uintptr_t)smlKv;
-  taosHashPut(info->smlDataToSchema, &valPointer, sizeof(uintptr_t), &fieldIdx, sizeof(fieldIdx));
+  smlKv->fieldSchemaIdx = (uint32_t)fieldIdx;
 
   return 0;
 }
@@ -251,8 +238,7 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       }
     }
 
-    uintptr_t valPointer = (uintptr_t)point;
-    taosHashPut(info->smlDataToSchema, &valPointer, sizeof(uintptr_t), &stableIdx, sizeof(stableIdx));
+    point->schemaIdx = (uint32_t)stableIdx;
   }
 
   size_t numStables = taosArrayGetSize(stableSchemas);
@@ -956,10 +942,7 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
   for (int j = 0; j < numTags; ++j) {
     if (tagKVs[j] == NULL) continue;
     TAOS_SML_KV* kv =  tagKVs[j];
-    uintptr_t valPointer = (uintptr_t)kv;
-    size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-    assert(pFieldSchemaIdx != NULL);
-    TAOS_BIND* bind = taosArrayGet(tagBinds, *pFieldSchemaIdx);
+    TAOS_BIND* bind = taosArrayGet(tagBinds, kv->fieldSchemaIdx);
     bind->buffer_type = kv->type;
     bind->length = malloc(sizeof(uintptr_t*));
     *bind->length = kv->length;
@@ -1002,10 +985,7 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
     }
     for (int j = 0; j < point->fieldNum; ++j) {
       TAOS_SML_KV* kv = point->fields + j;
-      uintptr_t valPointer = (uintptr_t)kv;
-      size_t* pFieldSchemaIdx = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-      assert(pFieldSchemaIdx != NULL);
-      TAOS_BIND* bind = colBinds + *pFieldSchemaIdx;
+      TAOS_BIND* bind = colBinds + kv->fieldSchemaIdx;
       bind->buffer_type = kv->type;
       bind->length = malloc(sizeof(uintptr_t*));
       *bind->length = kv->length;
@@ -1043,10 +1023,7 @@ static int32_t applyDataPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t 
     SArray* cTablePoints = *pCTablePoints;
 
     TAOS_SML_DATA_POINT* point = taosArrayGetP(cTablePoints, 0);
-    uintptr_t valPointer = (uintptr_t)point;
-    size_t* pSchemaIndex = taosHashGet(info->smlDataToSchema, &valPointer, sizeof(uintptr_t));
-    assert(pSchemaIndex != NULL);
-    SSmlSTableSchema*    sTableSchema = taosArrayGet(stableSchemas, *pSchemaIndex);
+    SSmlSTableSchema*    sTableSchema = taosArrayGet(stableSchemas, point->schemaIdx);
 
     tscDebug("SML:0x%"PRIx64" apply child table tags. child table: %s", info->id, point->childTableName);
     code = applyChildTableTags(taos, point->childTableName, point->stableName, sTableSchema, cTablePoints, info);
@@ -1089,7 +1066,6 @@ int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLine
   tscDebug("SML:0x%"PRIx64" taos_sml_insert. number of points: %d", info->id, numPoint);
 
   int32_t code = TSDB_CODE_SUCCESS;
-  info->smlDataToSchema = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, false);
 
   tscDebug("SML:0x%"PRIx64" build data point schemas", info->id);
   SArray* stableSchemas = taosArrayInit(32, sizeof(SSmlSTableSchema)); // SArray<STableColumnsSchema>
@@ -1119,15 +1095,6 @@ clean_up:
     taosArrayDestroy(schema->tags);
   }
   taosArrayDestroy(stableSchemas);
-  taosHashCleanup(info->smlDataToSchema);
-  return code;
-}
-
-int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
-  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
-  info->id = genLinesSmlId();
-  int code = tscSmlInsert(taos, points, numPoint, info);
-  free(info);
   return code;
 }
 
@@ -2223,4 +2190,13 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
 cleanup:
   tscDebug("SML:0x%"PRIx64" taos_insert_lines finish inserting %d lines. code: %d", info->id, numLines, code);
   points = TARRAY_GET_START(lpPoints);
-  n
+  numPoints = taosArrayGetSize(lpPoints);
+  for (int i=0; i<numPoints; ++i) {
+    destroySmlDataPoint(points+i);
+  }
+
+  taosArrayDestroy(lpPoints);
+
+  tfree(info);
+  return code;
+}

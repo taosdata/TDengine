@@ -160,21 +160,6 @@ int main(int argc, char* argv[]) {
 
   time_t  ct = time(0);
   int64_t ts = ct * 1000;
-  char* lineFormat = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %lldms";
-
-  char** lines = calloc(numSuperTables * numChildTables * numRowsPerChildTable, sizeof(char*));
-  int l = 0;
-  for (int i = 0; i < numSuperTables; ++i) {
-    for (int j = 0; j < numChildTables; ++j) {
-      for (int k = 0; k < numRowsPerChildTable; ++k) {
-        char* line = calloc(512, 1);
-        snprintf(line, 512, lineFormat, i, j, ts + 10 * l);
-        lines[l] = line;
-        ++l;
-      }
-    }
-  }
-  //shuffle(lines, numSuperTables * numChildTables * numRowsPerChildTable);
 
   char* lineTemplate = calloc(65536, sizeof(char));
   getLineTemplate(lineTemplate, 65535, numFields);
