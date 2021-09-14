@@ -430,6 +430,26 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     pVal->nType = TSDB_DATA_TYPE_BINARY;
     pVal->nLen = (int32_t)len;
 
+  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN) == 0) {
+    right->nodeType = TSQL_NODE_VALUE;
+    expr->_node.optr = TSDB_RELATION_MATCH;
+    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    right->pVal = pVal;
+    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_MATCH_LEN) + 1;
+    pVal->pz = exception_malloc(len);
+    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_MATCH_LEN, len);
+    pVal->nType = TSDB_DATA_TYPE_BINARY;
+    pVal->nLen = (int32_t)len;
+  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_NMATCH, QUERY_COND_REL_PREFIX_NMATCH_LEN) == 0) {
+    right->nodeType = TSQL_NODE_VALUE;
+    expr->_node.optr = TSDB_RELATION_NMATCH;
+    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    right->pVal = pVal;
+    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_NMATCH_LEN) + 1;
+    pVal->pz = exception_malloc(len);
+    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_NMATCH_LEN, len);
+    pVal->nType = TSDB_DATA_TYPE_BINARY;
+    pVal->nLen = (int32_t)len;
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_IN;

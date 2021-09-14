@@ -1,3 +1,4 @@
+
 @echo off
 echo ==== start Go connector test cases test ====
 cd /d %~dp0
@@ -18,3 +19,10 @@ rem case002.bat
 
 :: cd case002
 :: case002.bat
+
+
+rem cd nanosupport 
+rem nanoCase.bat 
+
+:: cd nanosupport 
+:: nanoCase.bat 

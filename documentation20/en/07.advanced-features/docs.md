@@ -9,8 +9,8 @@ Continuous query of TDengine adopts time-driven mode, which can be defined direc
 The continuous query provided by TDengine differs from the time window calculation in ordinary stream computing in the following ways:
 
 - Unlike the real-time feedback calculated results of stream computing, continuous query only starts calculation after the time window is closed. For example, if the time period is 1 day, the results of that day will only be generated after 23:59:59.
-- If a history record is written to the time interval that has been calculated, the continuous query will not recalculate and will not push the results to the user again. For the mode of writing back to TDengine, the existing calculated results will not be updated.
-- Using the mode of continuous query pushing results, the server does not cache the client's calculation status, nor does it provide Exactly-Once semantic guarantee. If the user's application side crashed, the continuous query pulled up again would only recalculate the latest complete time window from the time pulled up again. If writeback mode is used, TDengine can ensure the validity and continuity of data writeback.
+- If a history record is written to the time interval that has been calculated, the continuous query will not re-calculate and will not push the new results to the user again. 
+- TDengine server does not cache or save the client's status, nor does it provide Exactly-Once semantic guarantee. If the application crashes, the continuous query will be pull up again and starting time must be provided by the application. 
 
 ### How to use continuous query
 
@@ -29,7 +29,7 @@ We already know that the average voltage of these meters can be counted with one
 select avg(voltage) from meters interval(1m) sliding(30s);
 ```
 
-Every time this statement is executed, all data will be recalculated. If you need to execute every 30 seconds to incrementally calculate the data of the latest minute, you can improve the above statement as following, using a different `startTime` each time and executing it regularly:
+Every time this statement is executed, all data will be re-calculated. If you need to execute every 30 seconds to incrementally calculate the data of the latest minute, you can improve the above statement as following, using a different `startTime` each time and executing it regularly:
 
 ```sql
 select avg(voltage) from meters where ts > {startTime} interval(1m) sliding(30s);
@@ -65,7 +65,7 @@ It should be noted that now in the above example refers to the time when continu
 
 ### Manage the Continuous Query
 
-Users can view all continuous queries running in the system through the show streams command in the console, and can kill the corresponding continuous queries through the kill stream command. Subsequent versions will provide more finer-grained and convenient continuous query management commands.
+Users can view all continuous queries running in the system through the `show streams` command in the console, and can kill the corresponding continuous queries through the `kill stream` command. Subsequent versions will provide more finer-grained and convenient continuous query management commands.
 
 ## <a class="anchor" id="subscribe"></a> Publisher/Subscriber
 
@@ -101,7 +101,7 @@ Another method is to query the STable. In this way, no matter how many meters th
 select * from meters where ts > {last_timestamp} and current > 10;
 ```
 
-However, how to choose `last_timestamp` has become a new problem. Because, on the one hand, the time of data generation (the data timestamp) and the time of data storage are generally not the same, and sometimes the deviation is still very large; On the other hand, the time when the data of different meters arrive at TDengine will also vary. Therefore, if we use the timestamp of the data from the slowest meter as `last_timestamp` in the query, we may repeatedly read the data of other meters; If the timestamp of the fastest meter is used, the data of other meters may be missed.
+However, how to choose `last_timestamp` has become a new problem. Because, on the one hand, the time of data generation (the data timestamp) and the time of data writing are generally not the same, and sometimes the deviation is still very large; On the other hand, the time when the data of different meters arrive at TDengine will also vary. Therefore, if we use the timestamp of the data from the slowest meter as `last_timestamp` in the query, we may repeatedly read the data of other meters; If the timestamp of the fastest meter is used, the data of other meters may be missed.
 
 The subscription function of TDengine provides a thorough solution to the above problem.
 

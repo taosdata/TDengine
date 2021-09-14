@@ -183,6 +183,9 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosub
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdumpTestNanoSupport.py
 
+#
+python3 ./test.py -f tsdb/tsdbComp.py 
+
 # update
 python3 ./test.py -f update/allow_update.py
 python3 ./test.py -f update/allow_update-0.py
@@ -267,7 +270,7 @@ python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
-python3 ./test.py -f query/operator_cost.py
+# python3 ./test.py -f query/operator_cost.py
 # python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 
@@ -390,7 +393,7 @@ python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/query.py
-
+python3 ./test.py -f query/queryDiffColsOr.py
 #======================p4-end===============
 
 
