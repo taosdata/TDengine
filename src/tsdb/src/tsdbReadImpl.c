@@ -647,7 +647,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     return -1;
   }
 
-  int32_t tsize = tsdbBlockStatisSize(pBlock->numOfCols, pBlock->blkVer);
+  int32_t tsize = (int32_t)tsdbBlockStatisSize(pBlock->numOfCols, pBlock->blkVer);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%d",
