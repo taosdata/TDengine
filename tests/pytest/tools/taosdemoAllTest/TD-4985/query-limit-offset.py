@@ -13,6 +13,7 @@
 
 import sys
 import os
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -23,6 +24,9 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
+
+        now = time.time()
+        self.ts = int(round(now * 1000))
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -58,25 +62,25 @@ class TDTestCase:
 
         for i in range(1000):
             tdSql.execute('''insert into stb00_9999 values(%d, %d, %d,'test99.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_8888 values(%d, %d, %d,'test98.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_7777 values(%d, %d, %d,'test97.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_6666 values(%d, %d, %d,'test96.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_5555 values(%d, %d, %d,'test95.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_4444 values(%d, %d, %d,'test94.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_3333 values(%d, %d, %d,'test93.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_2222 values(%d, %d, %d,'test92.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_1111 values(%d, %d, %d,'test91.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
             tdSql.execute('''insert into stb00_100 values(%d, %d, %d,'test90.%s')'''
-                            % (1630425600000 + i, i, -10000+i, i))
+                            % (self.ts + i, i, -10000+i, i))
         tdSql.query("select * from stb0 where c2 like 'test99%' ")
         tdSql.checkRows(1000)
         tdSql.query("select * from stb0 where  tbname like 'stb00_9999'  limit 10" )
