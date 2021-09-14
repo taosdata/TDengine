@@ -211,8 +211,8 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
   start = cur = *index;
 
   while (1) {
-    // ',' or '\0' identifies a value
-    if (*cur == ',' || *cur == '\0') {
+    // whitespace or '\0' identifies a value
+    if (*cur == ' ' || *cur == '\0') {
       // '\0' indicates end of value
       *is_last_kv = (*cur == '\0') ? true : false;
       break;
