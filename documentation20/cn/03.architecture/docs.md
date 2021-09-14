@@ -207,7 +207,7 @@ TDengine 分布式架构的逻辑结构图如下：
 
 为解释vnode、mnode、taosc和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
 
-![TDengine典型的操作流程](page://images/architecture/message.png)
+![TDengine典型的操作流程](https://raw.githubusercontent.com/taosdata/TDengine/develop/documentation20/en/images/architecture/message.png)
 <center> 图 2 TDengine典型的操作流程 </center>
 
 1. 应用通过JDBC、ODBC或其他API接口发起插入数据的请求。
@@ -278,7 +278,7 @@ TDengine除vnode分片之外，还对时序数据按照时间段进行分区。�
 
 Master Vnode遵循下面的写入流程：
 
-![TDengine Master写入流程](page://images/architecture/write_master.png)
+![TDengine Master写入流程](https://raw.githubusercontent.com/taosdata/TDengine/develop/documentation20/en/images/architecture/write_master.png)
 <center> 图 3 TDengine Master写入流程  </center>
 
 1. master vnode收到应用的数据插入请求，验证OK，进入下一步；
@@ -292,7 +292,7 @@ Master Vnode遵循下面的写入流程：
 
 对于slave vnode，写入流程是：
 
-![TDengine Slave写入流程](page://images/architecture/write_slave.png)
+![TDengine Slave写入流程](https://raw.githubusercontent.com/taosdata/TDengine/develop/documentation20/en/images/architecture/write_slave.png)
 <center> 图 4 TDengine Slave写入流程  </center>
 
 1. slave vnode收到Master vnode转发了的数据插入请求。检查last version是否与master一致，如果一致，进入下一步。如果不一致，需要进入同步状态。
@@ -434,7 +434,7 @@ SELECT COUNT(*) FROM d1001 WHERE ts >= '2017-7-14 00:00:00' AND ts < '2017-7-14 
 
 TDengine对每个数据采集点单独建表，但在实际应用中经常需要对不同的采集点数据进行聚合。为高效的进行聚合操作，TDengine引入超级表（STable）的概念。超级表用来代表一特定类型的数据采集点，它是包含多张表的表集合，集合里每张表的模式（schema）完全一致，但每张表都带有自己的静态标签，标签可以有多个，可以随时增加、删除和修改。应用可通过指定标签的过滤条件，对一个STable下的全部或部分表进行聚合或统计操作，这样大大简化应用的开发。其具体流程如下图所示：
 
-![多表聚合查询原理图](page://images/architecture/multi_tables.png)
+![多表聚合查询原理图](https://raw.githubusercontent.com/taosdata/TDengine/develop/documentation20/en/images/architecture/multi_tables.png)
 <center> 图 5 多表聚合查询原理图  </center>
 
 1. 应用将一个查询条件发往系统；
