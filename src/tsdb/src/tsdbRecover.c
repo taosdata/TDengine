@@ -358,6 +358,7 @@ int tsdbRefactorFS(STsdbRepo *pRepo) {
 
   tsdbDestoryRecoverH(&recoverH);
   if (nRemain == size) {
+    // all head files are not changed
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
     if (pStatus != NULL) {
