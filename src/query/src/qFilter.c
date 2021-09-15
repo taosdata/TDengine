@@ -1113,7 +1113,10 @@ int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint3
         }
         t = varDataLen(tmp);
         pvar = varDataVal(tmp);
-        strntolower_s(pvar, pvar, t);
+        
+        if (tolower) {
+          strntolower_s(pvar, pvar, (int32_t)t);
+        }
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
