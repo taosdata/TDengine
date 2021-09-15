@@ -662,6 +662,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
   // Recover the data
   int ccol = 0;  // loop iter for SBlockCol object
   int dcol = 0;  // loop iter for SDataCols object
+  SBlockCol blockCol = {0};
   while (dcol < pDataCols->numOfCols) {
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
     if (dcol != 0 && ccol >= pBlockData->numOfCols) {
@@ -676,10 +677,19 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     int32_t  tlen = pBlock->keyLen;
 
     if (dcol != 0) {
-      SBlockCol *pBlockCol = &(pBlockData->cols[ccol]);
-      tcolId = pBlockCol->colId;
-      toffset = tsdbGetBlockColOffset(pBlockCol);
-      tlen = pBlockCol->len;
+      if (pBlock->blkVer == SBlockVerLatest) {
+        SBlockCol *pBlockCol = &(pBlockData->cols[ccol]);
+        tcolId = pBlockCol->colId;
+        toffset = tsdbGetBlockColOffset(pBlockCol);
+        tlen = pBlockCol->len;
+      } else {
+        SBlockColV0 *pBlockCol = (SBlockColV0 *)(pBlockData->cols) + ccol;
+        tcolId = pBlockCol->colId;
+        blockCol.offset = pBlockCol->offset;
+        blockCol.offsetH = pBlockCol->offsetH;
+        toffset = tsdbGetBlockColOffset(&blockCol);
+        tlen = pBlockCol->len;
+      }
     } else {
       ASSERT(pDataCol->colId == tcolId);
     }
