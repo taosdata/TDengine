@@ -60,16 +60,22 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->curSql = pSql->sqlstr;
 
+  taosAcquireRef(tscObjRef, pSql->self);
   int32_t code = tsParseSql(pSql, true);
-  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    taosReleaseRef(tscObjRef, pSql->self);
+    return;
+  }
   
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
     tscAsyncResultOnError(pSql);
+    taosReleaseRef(tscObjRef, pSql->self);
     return;
   }
 
   tscDoQuery(pSql);
+  taosReleaseRef(tscObjRef, pSql->self);
 }
 
 // TODO return the correct error code to client in tscQueueAsyncError
