@@ -56,6 +56,12 @@ def pre_test(){
         cd ${WKC}
         git checkout 2.0
         '''
+      }
+      else if(env.CHANGE_TARGET == '3.0'){
+        sh '''
+        cd ${WKC}
+        git checkout 3.0
+        '''
       } 
       else{
         sh '''
@@ -84,6 +90,12 @@ def pre_test(){
         sh '''
         cd ${WK}
         git checkout 2.0
+        '''
+      } 
+      else if(env.CHANGE_TARGET == '3.0'){
+        sh '''
+        cd ${WK}
+        git checkout 3.0
         '''
       } 
       else{
@@ -145,6 +157,11 @@ pipeline {
               git checkout 2.0
               '''
             } 
+            else if(env.CHANGE_TARGET == '3.0'){
+              sh '''
+              git checkout 3.0
+              '''
+            } 
             else{
               sh '''
               git checkout develop
@@ -182,13 +199,13 @@ pipeline {
           steps {
             
             pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh p1
-              date'''
-            }
+            // timeout(time: 55, unit: 'MINUTES'){
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh p1
+            //   date'''
+            // }
             
           }
         }
@@ -197,66 +214,68 @@ pipeline {
           steps {
             
             pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
-                sh '''
-                date
-                cd ${WKC}/tests
-                ./test-all.sh p2
-                date'''
-            }
+            // timeout(time: 55, unit: 'MINUTES'){
+            //     sh '''
+            //     date
+            //     cd ${WKC}/tests
+            //     ./test-all.sh p2
+            //     date'''
+            // }
           }
         }
         stage('python_3_s6') {
           agent{label " slave6 || slave16 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
-              pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh p3
-              date'''
-            }
+          steps {  
+            pre_test()   
+            // timeout(time: 55, unit: 'MINUTES'){       
+              
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh p3
+            //   date'''
+            // }
           }
         }
         stage('test_b1_s2') {
           agent{label " slave2 || slave12 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
-              pre_test()
-              sh '''
-                rm -rf /var/lib/taos/*
-                rm -rf /var/log/taos/*
-                nohup taosd >/dev/null &
-                sleep 10
-              '''
-              sh '''
-              cd ${WKC}/tests/examples/nodejs
-              npm install td2.0-connector > /dev/null 2>&1
-              node nodejsChecker.js host=localhost
-              node test1970.js
-	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-	      npm install td2.0-connector > /dev/null 2>&1
-              node nanosecondTest.js
+          steps {   
+            pre_test()  
+        //     timeout(time: 55, unit: 'MINUTES'){       
+              
+        //       sh '''
+        //         rm -rf /var/lib/taos/*
+        //         rm -rf /var/log/taos/*
+        //         nohup taosd >/dev/null &
+        //         sleep 10
+        //       '''
+        //       sh '''
+        //       cd ${WKC}/tests/examples/nodejs
+        //       npm install td2.0-connector > /dev/null 2>&1
+        //       node nodejsChecker.js host=localhost
+        //       node test1970.js
+	      // cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+	      // npm install td2.0-connector > /dev/null 2>&1
+        //       node nanosecondTest.js
 
-              '''
-              sh '''
-                cd ${WKC}/tests/examples/C#/taosdemo
-                mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo -c /etc/taos
-                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
-                mcs -out:nano *.cs > /dev/null 2>&1
-                echo '' |./nano
-              '''
-              sh '''
-                cd ${WKC}/tests/gotest
-                bash batchtest.sh
-              '''
-              sh '''
-              cd ${WKC}/tests
-              ./test-all.sh b1fq
-              date'''
-            }
+        //       '''
+        //       sh '''
+        //         cd ${WKC}/tests/examples/C#/taosdemo
+        //         mcs -out:taosdemo *.cs > /dev/null 2>&1
+        //         echo '' |./taosdemo -c /etc/taos
+        //         cd ${WKC}/tests/connectorTest/C#Test/nanosupport
+        //         mcs -out:nano *.cs > /dev/null 2>&1
+        //         echo '' |./nano
+        //       '''
+        //       sh '''
+        //         cd ${WKC}/tests/gotest
+        //         bash batchtest.sh
+        //       '''
+        //       sh '''
+        //       cd ${WKC}/tests
+        //       ./test-all.sh b1fq
+        //       date'''
+        //     }
           }
         }
         stage('test_crash_gen_s3') {
@@ -264,34 +283,34 @@ pipeline {
           
           steps {
             pre_test()
-            timeout(time: 60, unit: 'MINUTES'){
-              sh '''
-              cd ${WKC}/tests/pytest
-              ./crash_gen.sh -a -p -t 4 -s 2000
-              '''
-            }
-            timeout(time: 60, unit: 'MINUTES'){
-              // sh '''
-              // cd ${WKC}/tests/pytest
-              // rm -rf /var/lib/taos/*
-              // rm -rf /var/log/taos/*
-              // ./handle_crash_gen_val_log.sh
-              // '''
-              sh '''
-              cd ${WKC}/tests/pytest
-              rm -rf /var/lib/taos/*
-              rm -rf /var/log/taos/*
-              ./handle_taosd_val_log.sh
-              '''
-            }
-            timeout(time: 55, unit: 'MINUTES'){
-                sh '''
-                date
-                cd ${WKC}/tests
-                ./test-all.sh b2fq
-                date
-                '''
-            }                     
+            // timeout(time: 60, unit: 'MINUTES'){
+            //   sh '''
+            //   cd ${WKC}/tests/pytest
+            //   ./crash_gen.sh -a -p -t 4 -s 2000
+            //   '''
+            // }
+            // timeout(time: 60, unit: 'MINUTES'){
+            //   // sh '''
+            //   // cd ${WKC}/tests/pytest
+            //   // rm -rf /var/lib/taos/*
+            //   // rm -rf /var/log/taos/*
+            //   // ./handle_crash_gen_val_log.sh
+            //   // '''
+            //   sh '''
+            //   cd ${WKC}/tests/pytest
+            //   rm -rf /var/lib/taos/*
+            //   rm -rf /var/log/taos/*
+            //   ./handle_taosd_val_log.sh
+            //   '''
+            // }
+            // timeout(time: 55, unit: 'MINUTES'){
+            //     sh '''
+            //     date
+            //     cd ${WKC}/tests
+            //     ./test-all.sh b2fq
+            //     date
+            //     '''
+            // }                     
           }
         }
         stage('test_valgrind_s4') {
@@ -299,83 +318,87 @@ pipeline {
 
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./valgrind-test.sh 2>&1 > mem-error-out.log
-                ./handle_val_log.sh
-                '''
-            }     
-            timeout(time: 55, unit: 'MINUTES'){      
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b3fq
-              date'''
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh full example
-              date'''
-            }
+            // catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            //     sh '''
+            //     cd ${WKC}/tests/pytest
+            //     ./valgrind-test.sh 2>&1 > mem-error-out.log
+            //     ./handle_val_log.sh
+            //     '''
+            // }     
+            // timeout(time: 55, unit: 'MINUTES'){      
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh b3fq
+            //   date'''
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh full example
+            //   date'''
+            // }
           }
         }
         stage('test_b4_s7') {
           agent{label " slave7 || slave17 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
-              pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b4fq
-              cd ${WKC}/tests
-              ./test-all.sh p4
-              cd ${WKC}/tests
-              ./test-all.sh full jdbc
-              cd ${WKC}/tests
-              ./test-all.sh full unit
-              date'''
-            }
+          steps {  
+            pre_test()   
+            // timeout(time: 55, unit: 'MINUTES'){       
+              
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh b4fq
+            //   cd ${WKC}/tests
+            //   ./test-all.sh p4
+            //   cd ${WKC}/tests
+            //   ./test-all.sh full jdbc
+            //   cd ${WKC}/tests
+            //   ./test-all.sh full unit
+            //   date'''
+            // }
           }
         }
         stage('test_b5_s8') {
           agent{label " slave8 || slave18 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
-              pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b5fq
-              date'''
-            }
+          steps { 
+            pre_test()    
+            // timeout(time: 55, unit: 'MINUTES'){       
+              
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh b5fq
+            //   date'''
+            // }
           }
         }
         stage('test_b6_s9') {
           agent{label " slave9 || slave19 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
-              pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b6fq
-              date'''
-            }
+          steps { 
+            pre_test()    
+            // timeout(time: 55, unit: 'MINUTES'){       
+              
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh b6fq
+            //   date'''
+            // }
           }
         }
         stage('test_b7_s10') {
           agent{label " slave10 || slave20 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
-              pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b7fq
-              date'''              
-            }
+          steps {  
+            pre_test()   
+            // timeout(time: 55, unit: 'MINUTES'){       
+              
+            //   sh '''
+            //   date
+            //   cd ${WKC}/tests
+            //   ./test-all.sh b7fq
+            //   date'''              
+            // }
           }
         }        
     }
