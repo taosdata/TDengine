@@ -464,8 +464,9 @@ pipeline {
         stage('test'){
           agent{label "win"}
           steps{
-            pre_test_win()
+            
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                pre_test_win()
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
                 .\\test-all.bat Wintest
