@@ -144,7 +144,7 @@ def pre_test_win(){
     bat'''
     cd C:\\workspace\\TDinternal\\community
     git pull 
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
     cd C:\\workspace\\TDinternal
@@ -182,9 +182,10 @@ def pre_test_win(){
     cmake ../ -G "NMake Makefiles" 
     nmake
     nmake install 
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
-    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    
     '''
     return 1
 }
@@ -467,7 +468,7 @@ pipeline {
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                test-all.bat Wintest
+                .\\test-all.bat Wintest
                 '''
             }     
             script{
