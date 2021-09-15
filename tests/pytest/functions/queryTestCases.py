@@ -594,7 +594,7 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t0 tinyint, t1 int)")
         tdSql.execute("create stable db.stb2 (ts timestamp, c1 int) tags(t0 binary(16), t1 binary(16))")
-        numtab=2000000
+        numtab=20000
         for i in range(numtab):
             sql  = f"create table db.t{i} using db.stb1 tags({i%128}, {100+i})"
             tdSql.execute(sql)
@@ -1129,13 +1129,13 @@ class TDTestCase:
         # self.td4082()
         # self.td4288()
         # self.td4724()
-        # self.td5798()
         # self.td5935()
         # self.td6068()
 
         # develop branch
         self.td4097()
         self.td4889()
+        self.td5798()
         # self.td5168()
         self.td5433()
 
