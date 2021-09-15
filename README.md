@@ -101,7 +101,7 @@ so you should run this command in the TDengine directory to install them:
 git submodule update --init --recursive
 ```
 
-You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You need to upload ssh public key to GitHub first. Please refer to GitHub official documentation.
+You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
 ```
 [url "git@github.com:"]
     insteadOf = https://github.com/
