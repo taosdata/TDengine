@@ -4546,17 +4546,15 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     pattern[lenPattern] = '\0';
 
     tfree(pRight->value.pz);
-    pRight->value.pz = strndup(pattern, lenPattern);
+    pRight->value.pz = pattern;
     pRight->value.nLen = lenPattern;
 
     int cflags = REG_EXTENDED;
     if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
       regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));
       tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
-      free(pattern);
       return invalidOperationMsg(msgBuf, msg3);
     }
-    free(pattern);
     regfree(&regex);
   }
 
