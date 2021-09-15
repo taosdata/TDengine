@@ -1650,9 +1650,19 @@ bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     memcpy(pVal->value, &bVal, pVal->length);
     return true;
   }
-  //Handle default(no appendix) as float
-  if (isValidInteger(value) || isValidFloat(value)) {
-    pVal->type = TSDB_DATA_TYPE_FLOAT;
+  //Handle default(no appendix) interger type as BIGINT
+  if (isValidInteger(value)) {
+    pVal->type = TSDB_DATA_TYPE_BIGINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    if (!convertStrToNumber(pVal, value, info)) {
+      return false;
+    }
+    return true;
+  }
+
+  //Handle default(no appendix) floating number type as DOUBLE
+  if (isValidFloat(value)) {
+    pVal->type = TSDB_DATA_TYPE_DOUBLE;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     if (!convertStrToNumber(pVal, value, info)) {
       return false;
