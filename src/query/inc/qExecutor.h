@@ -43,9 +43,7 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
-//TODO: may need to fine tune this threshold
-#define QUERY_COMP_THRESHOLD (1024 * 512)
-#define NEEDTO_COMPRESS_QUERY(size) ((size) > QUERY_COMP_THRESHOLD ? 1 : 0)
+#define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData? 1 : 0)
 
 enum {
   // when query starts to execute, this status will set
@@ -88,11 +86,18 @@ typedef struct SResultRow {
   char         *key;               // start key of current result row
 } SResultRow;
 
+typedef struct SResultRowCell {
+  uint64_t     groupId;
+  SResultRow  *pRow;
+} SResultRowCell;
+
 typedef struct SGroupResInfo {
   int32_t totalGroup;
   int32_t currentGroup;
   int32_t index;
   SArray* pRows;      // SArray<SResultRow*>
+  bool    ordered;
+  int32_t position;
 } SGroupResInfo;
 
 /**
@@ -223,6 +228,7 @@ typedef struct SQueryAttr {
   bool             distinct;         // distinct  query or not
   bool             stateWindow;       // window State on sub/normal table
   bool             createFilterOperator; // if filter operator is needed
+  bool             multigroupResult; // multigroup result can exist in one SSDataBlock
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -285,8 +291,9 @@ typedef struct SQueryRuntimeEnv {
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
   SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
+  SArray*               pResultRowArrayList; // The array list that contains the Result rows
   char*                 keyBuf;           // window key buffer
-  SResultRowPool*       pool;             // window result object pool
+  SResultRowPool*       pool;             // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   char**                prevRow;
 
   SArray*               prevResult;       // intermediate result, SArray<SInterResult>
@@ -469,16 +476,23 @@ typedef struct SLimitOperatorInfo {
 } SLimitOperatorInfo;
 
 typedef struct SSLimitOperatorInfo {
-  int64_t   groupTotal;
-  int64_t   currentGroupOffset;
+  int64_t      groupTotal;
+  int64_t      currentGroupOffset;
 
-  int64_t   rowsTotal;
-  int64_t   currentOffset;
-  SLimitVal limit;
-  SLimitVal slimit;
+  int64_t      rowsTotal;
+  int64_t      currentOffset;
+  SLimitVal    limit;
+  SLimitVal    slimit;
 
-  char    **prevRow;
-  SArray   *orderColumnList;
+  char       **prevRow;
+  SArray      *orderColumnList;
+  bool         hasPrev;
+  bool         ignoreCurrentGroup;
+  bool         multigroupResult;
+  SSDataBlock *pRes;   // result buffer
+  SSDataBlock *pPrevBlock;
+  int64_t      capacity;
+  int64_t      threshold;
 } SSLimitOperatorInfo;
 
 typedef struct SFilterOperatorInfo {
@@ -490,8 +504,9 @@ typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;
   SSDataBlock *pRes;
   int64_t      totalInputRows;
-
+  void       **p;
   SSDataBlock *existNewGroupBlock;
+  bool         multigroupResult;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -553,9 +568,9 @@ typedef struct SMultiwayMergeInfo {
   bool                 hasDataBlockForNewGroup;
   SSDataBlock         *pExistBlock;
 
-  bool                 hasPrev;
-  bool                 groupMix;
   SArray              *udfInfo;
+  bool                 hasPrev;
+  bool                 multiGroupResults;
 } SMultiwayMergeInfo;
 
 // todo support the disk-based sort
@@ -577,7 +592,7 @@ SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createAllTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, bool multigroupResult);
 SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
@@ -586,10 +601,10 @@ SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInf
 SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
-                                              int32_t numOfRows, void* merger, bool groupMix);
-SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo);
+                                              int32_t numOfRows, void* merger);
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo, bool groupResultMixedUp);
 SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger, bool multigroupResult);
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
 
@@ -606,6 +621,7 @@ bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilter
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
 
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);
+
 void* destroyOutputBuf(SSDataBlock* pBlock);
 void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
@@ -614,6 +630,7 @@ int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int3
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
+void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

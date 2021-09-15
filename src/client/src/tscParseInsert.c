@@ -1693,7 +1693,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
   STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
 
-  SInsertStatementParam* pInsertParam = &pCmd->insertParam;
+  SInsertStatementParam *pInsertParam = &pCmd->insertParam;
   destroyTableNameList(pInsertParam);
 
   pInsertParam->pDataBlocks = tscDestroyBlockArrayList(pInsertParam->pDataBlocks);
@@ -1777,6 +1777,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
 
 _error:
+  pParentSql->res.code = code;
   tfree(tokenBuf);
   tfree(line);
   taos_free_result(pSql);

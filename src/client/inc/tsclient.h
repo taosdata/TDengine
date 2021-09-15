@@ -38,6 +38,11 @@ extern "C" {
 #include "qUtil.h"
 #include "tcmdtype.h"
 
+typedef enum {
+  TAOS_REQ_FROM_SHELL,
+  TAOS_REQ_FROM_HTTP
+} SReqOrigin;
+
 // forward declaration
 struct SSqlInfo;
 
@@ -123,7 +128,7 @@ typedef struct {
   int32_t kvLen;    // len of SKVRow
 } SMemRowInfo;
 typedef struct {
-  uint8_t      memRowType;   // default is 0, that is SDataRow
+  uint8_t      memRowType;   // default is 0, that is SDataRow 
   uint8_t      compareStat;  // 0 no need, 1 need compare
   TDRowTLenT   kvRowInitLen;
   SMemRowInfo *rowInfo;
@@ -229,7 +234,6 @@ typedef struct STableDataBlocks {
 typedef struct {
   STableMeta   *pTableMeta;
   SArray       *vgroupIdList;
-//  SVgroupsInfo *pVgroupsInfo;
 } STableMetaVgroupInfo;
 
 typedef struct SInsertStatementParam {
@@ -281,20 +285,14 @@ typedef struct {
   int32_t      resColumnId;
 } SSqlCmd;
 
-typedef struct SResRec {
-  int numOfRows;
-  int numOfTotal;
-} SResRec;
-
 typedef struct {
   int32_t        numOfRows;                  // num of results in current retrieval
-  int64_t        numOfRowsGroup;             // num of results of current group
   int64_t        numOfTotal;                 // num of total results
   int64_t        numOfClauseTotal;           // num of total result in current subclause
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qId;
+  uint64_t       qId;     // query id of SQInfo
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;
@@ -302,8 +300,6 @@ typedef struct {
   int16_t        precision;
   bool           completed;
   int32_t        code;
-  int32_t        numOfGroups;
-  SResRec *      pGroupRec;
   char *         data;
   TAOS_ROW       tsrow;
   TAOS_ROW       urow;
@@ -311,8 +307,7 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
-  TAOS_FIELD*           final;
-  SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
+  TAOS_FIELD*    final;
   struct SGlobalMerger *pMerger;
 } SSqlRes;
 
@@ -340,6 +335,7 @@ typedef struct STscObj {
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
+  SReqOrigin         from;
 } STscObj;
 
 typedef struct SSubqueryState {
@@ -371,7 +367,6 @@ typedef struct SSqlObj {
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
-  bool             isBind;
 
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
@@ -486,6 +481,7 @@ bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
+int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql);
 
 int32_t tscInvalidOperationMsg(char *msg, const char *additionalInfo, const char *sql);
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql);

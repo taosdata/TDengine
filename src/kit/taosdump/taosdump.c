@@ -62,6 +62,20 @@ typedef struct {
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
 
+static bool isStringNumber(char *input)
+{
+    int len = strlen(input);
+    if (0 == len) {
+        return false;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (!isdigit(input[i]))
+            return false;
+    }
+
+    return true;
+}
 
 // -------------------------- SHOW DATABASE INTERFACE-----------------------
 enum _show_db_index {
@@ -167,6 +181,7 @@ typedef struct {
     int32_t   threadIndex;
     int32_t   totalThreads;
     char      dbName[TSDB_DB_NAME_LEN];
+    int         precision;
     void     *taosCon;
     int64_t   rowsOfDumpOut;
     int64_t   tablesOfDumpOut;
@@ -211,16 +226,15 @@ static struct argp_option options[] = {
     {"password", 'p', 0,    0,  "User password to connect to server. Default is taosdata.", 0},
 #endif
     {"port", 'P', "PORT",        0,  "Port to connect", 0},
-    {"cversion",      'v', "CVERION",     0,  "client version", 0},
     {"mysqlFlag",     'q', "MYSQLFLAG",   0,  "mysqlFlag, Default is 0", 0},
     // input/output file
     {"outpath", 'o', "OUTPATH",     0,  "Output file path.", 1},
     {"inpath", 'i', "INPATH",      0,  "Input file path.", 1},
     {"resultFile", 'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.", 1},
 #ifdef _TD_POWER_
-    {"config", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
 #else
-    {"config", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
 #endif
     {"encode", 'e', "ENCODE", 0,  "Input file encoding.", 1},
     // dump unit options
@@ -230,34 +244,24 @@ static struct argp_option options[] = {
     // dump format options
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
-    {"avro", 'V', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
+    {"avro", 'v', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
     {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00:000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
     {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
-#if TSDB_SUPPORT_NANOSECOND == 1
-    {"precision",  'C', "PRECISION",  0,  "Specify precision for converting human-readable time to epoch. Valid value is one of ms, us, and ns. Default is ms.", 6},
-#else
-    {"precision",  'C', "PRECISION",  0,  "Use specified precision to convert human-readable time. Valid value is one of ms and us. Default is ms.", 6},
-#endif
     {"data-batch",  'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Max value is 32766. Default is 1.", 3},
     {"max-sql-len", 'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",   3},
     {"table-batch", 't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
     {"thread_num",  'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.", 3},
     {"debug",   'g', 0, 0,  "Print debug info.",    8},
-    {"verbose", 'b', 0, 0,  "Print verbose debug info.", 9},
-    {"performanceprint", 'm', 0, 0,  "Print performance debug info.", 10},
     {0}
 };
-
-#define MAX_PASSWORD_SIZE   20
 
 /* Used by main to communicate with parse_opt. */
 typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char    password[MAX_PASSWORD_SIZE];
+    char    password[SHELL_MAX_PASSWORD_LEN];
     uint16_t port;
-    char     cversion[12];
     uint16_t mysqlFlag;
     // output file
     char     outpath[MAX_FILE_NAME_LEN];
@@ -273,8 +277,11 @@ typedef struct arguments {
     bool     with_property;
     bool     avro;
     int64_t  start_time;
+    char     humanStartTime[28];
     int64_t  end_time;
+    char     humanEndTime[28];
     char     precision[8];
+
     int32_t  data_batch;
     int32_t  max_sql_len;
     int32_t  table_batch; // num of table which will be dump into one output file.
@@ -288,6 +295,8 @@ typedef struct arguments {
     bool      debug_print;
     bool      verbose_print;
     bool      performance_print;
+
+    int         dbCount;
 } SArguments;
 
 /* Our argp parser. */
@@ -310,13 +319,17 @@ static void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols,
 static void taosDumpCreateMTableClause(STableDef *tableDes, char *metric,
         int numOfCols, FILE *fp, char* dbName);
 static int32_t taosDumpTable(char *tbName, char *metric,
-        FILE *fp, TAOS* taosCon, char* dbName);
+        FILE *fp, TAOS* taosCon, char* dbName, int precision);
 static int taosDumpTableData(FILE *fp, char *tbName,
         TAOS* taosCon, char* dbName,
+        int precision,
         char *jsonAvroSchema);
 static int taosCheckParam(struct arguments *arguments);
 static void taosFreeDbInfos();
-static void taosStartDumpOutWorkThreads(int32_t numOfThread, char *dbName);
+static void taosStartDumpOutWorkThreads(
+        int32_t numOfThread,
+        char *dbName,
+        int precision);
 
 struct arguments g_args = {
     // connection option
@@ -328,7 +341,6 @@ struct arguments g_args = {
     "taosdata",
 #endif
     0,
-    "",
     0,
     // outpath and inpath
     "",
@@ -342,8 +354,10 @@ struct arguments g_args = {
     false,      // schemeonly
     true,       // with_property
     false,      // avro format
-    -INT64_MAX, // start_time
+    -INT64_MAX + 1, // start_time
+    {0},        // humanStartTime
     INT64_MAX,  // end_time
+    {0},        // humanEndTime
     "ms",       // precision
     1,          // data_batch
     TSDB_MAX_SQL_LEN,   // max_sql_len
@@ -357,8 +371,27 @@ struct arguments g_args = {
     false,      // isDumpIn
     false,      // debug_print
     false,      // verbose_print
-    false       // performance_print
+    false,      // performance_print
+        0,      // dbCount
 };
+
+static void errorPrintReqArg2(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option requires a number argument '-%s'\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+}
+
+static void errorPrintReqArg3(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option '%s' requires an argument\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+}
 
 /* Parse a single option. */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -380,20 +413,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'p':
             break;
         case 'P':
+            if (!isStringNumber(arg)) {
+                errorPrintReqArg2("taosdump", "P");
+                exit(EXIT_FAILURE);
+            }
             g_args.port = atoi(arg);
             break;
         case 'q':
             g_args.mysqlFlag = atoi(arg);
             break;
-        case 'v':
-            if (wordexp(arg, &full_path, 0) != 0) {
-                errorPrint("Invalid client vesion %s\n", arg);
-                return -1;
-            }
-            tstrncpy(g_args.cversion, full_path.we_wordv[0], 11);
-            wordfree(&full_path);
-            break;
-            // output file path
         case 'o':
             if (wordexp(arg, &full_path, 0) != 0) {
                 errorPrint("Invalid path %s\n", arg);
@@ -420,9 +448,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.resultFile = arg;
             break;
         case 'c':
+            if (0 == strlen(arg)) {
+                errorPrintReqArg3("taosdump", "-c or --config-dir");
+                exit(EXIT_FAILURE);
+            }
             if (wordexp(arg, &full_path, 0) != 0) {
                 errorPrint("Invalid path %s\n", arg);
-                return -1;
+                exit(EXIT_FAILURE);
             }
             tstrncpy(configDir, full_path.we_wordv[0], MAX_FILE_NAME_LEN);
             wordfree(&full_path);
@@ -432,7 +464,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
             // dump unit option
         case 'A':
-            g_args.all_databases = true;
             break;
         case 'D':
             g_args.databases = true;
@@ -444,17 +475,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'N':
             g_args.with_property = false;
             break;
-        case 'V':
+        case 'v':
             g_args.avro = true;
             break;
         case 'S':
             // parse time here.
-            g_args.start_time = atol(arg);
             break;
         case 'E':
-            g_args.end_time = atol(arg);
-            break;
-        case 'C':
             break;
         case 'B':
             g_args.data_batch = atoi(arg);
@@ -477,6 +504,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.table_batch = atoi(arg);
             break;
         case 'T':
+            if (!isStringNumber(arg)) {
+                errorPrint("%s", "\n\t-T need a number following!\n");
+                exit(EXIT_FAILURE);
+            }
             g_args.thread_num = atoi(arg);
             break;
         case OPT_ABORT:
@@ -523,7 +554,7 @@ static int queryDbImpl(TAOS *taos, char *command) {
     return 0;
 }
 
-static void parse_precision_first(
+UNUSED_FUNC static void parse_precision_first(
         int argc, char *argv[], SArguments *arguments) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-C") == 0) {
@@ -555,11 +586,14 @@ static void parse_precision_first(
     }
 }
 
-static void parse_password(
+static void parse_args(
         int argc, char *argv[], SArguments *arguments) {
+
     for (int i = 1; i < argc; i++) {
-        if (strncmp(argv[i], "-p", 2) == 0) {
-            if (strlen(argv[i]) == 2) {
+        if ((strncmp(argv[i], "-p", 2) == 0)
+              || (strncmp(argv[i], "--password", 10) == 0)) {
+            if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
                 taosSetConsoleEcho(false);
                 if(scanf("%20s", arguments->password) > 1) {
@@ -567,13 +601,92 @@ static void parse_password(
                 }
                 taosSetConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+                tstrncpy(arguments->password, (char *)(argv[i] + 2),
+                        SHELL_MAX_PASSWORD_LEN);
+                strcpy(argv[i], "-p");
             }
-            argv[i] = "";
+        } else if (strcmp(argv[i], "-gg") == 0) {
+            arguments->verbose_print = true;
+            strcpy(argv[i], "");
+        } else if (strcmp(argv[i], "-PP") == 0) {
+            arguments->performance_print = true;
+            strcpy(argv[i], "");
+        } else if (strcmp(argv[i], "-A") == 0) {
+            g_args.all_databases = true;
+        } else {
+            continue;
+        }
+
+    }
+}
+
+static void copyHumanTimeToArg(char *timeStr, bool isStartTime)
+{
+    if (isStartTime)
+        strcpy(g_args.humanStartTime, timeStr);
+    else
+        strcpy(g_args.humanEndTime, timeStr);
+}
+
+static void copyTimestampToArg(char *timeStr, bool isStartTime)
+{
+    if (isStartTime)
+        g_args.start_time = atol(timeStr);
+    else
+        g_args.end_time = atol(timeStr);
+}
+
+static void parse_timestamp(
+        int argc, char *argv[], SArguments *arguments) {
+    for (int i = 1; i < argc; i++) {
+        char *tmp;
+        bool isStartTime = false;
+        bool isEndTime = false;
+
+        if (strcmp(argv[i], "-S") == 0) {
+            isStartTime = true;
+        } else if (strcmp(argv[i], "-E") == 0) {
+            isEndTime = true;
+        }
+
+        if (isStartTime || isEndTime) {
+            if (NULL == argv[i+1]) {
+                errorPrint("%s need a valid value following!\n", argv[i]);
+                exit(-1);
+            }
+            tmp = strdup(argv[i+1]);
+
+            if (strchr(tmp, ':') && strchr(tmp, '-')) {
+                copyHumanTimeToArg(tmp, isStartTime);
+            } else {
+                copyTimestampToArg(tmp, isStartTime);
+            }
         }
     }
 }
 
+static int getPrecisionByString(char *precision)
+{
+    if (0 == strncasecmp(precision,
+                "ms", 2)) {
+        return TSDB_TIME_PRECISION_MILLI;
+    } else if (0 == strncasecmp(precision,
+                "us", 2)) {
+        return TSDB_TIME_PRECISION_MICRO;
+#if TSDB_SUPPORT_NANOSECOND == 1
+    } else if (0 == strncasecmp(precision,
+                "ns", 2)) {
+        return TSDB_TIME_PRECISION_NANO;
+#endif
+    } else {
+        errorPrint("Invalid time precision: %s",
+                precision);
+    }
+
+    return -1;
+}
+
+/*
 static void parse_timestamp(
         int argc, char *argv[], SArguments *arguments) {
     for (int i = 1; i < argc; i++) {
@@ -592,6 +705,7 @@ static void parse_timestamp(
 
             int64_t tmpEpoch;
             if (strchr(tmp, ':') && strchr(tmp, '-')) {
+                strcpy(g_args.humanStartTime, tmp)
                 int32_t timePrec;
                 if (0 == strncasecmp(arguments->precision,
                             "ms", strlen("ms"))) {
@@ -630,16 +744,20 @@ static void parse_timestamp(
         }
     }
 }
+*/
 
 int main(int argc, char *argv[]) {
+    static char verType[32] = {0};
+    sprintf(verType, "version: %s\n", version);
+    argp_program_version = verType;
 
     int ret = 0;
     /* Parse our arguments; every option seen by parse_opt will be
        reflected in arguments. */
     if (argc > 1) {
-        parse_precision_first(argc, argv, &g_args);
+//        parse_precision_first(argc, argv, &g_args);
         parse_timestamp(argc, argv, &g_args);
-        parse_password(argc, argv, &g_args);
+        parse_args(argc, argv, &g_args);
     }
 
     argp_parse(&argp, argc, argv, 0, 0, &g_args);
@@ -658,7 +776,6 @@ int main(int argc, char *argv[]) {
         printf("user: %s\n", g_args.user);
         printf("password: %s\n", g_args.password);
         printf("port: %u\n", g_args.port);
-        printf("cversion: %s\n", g_args.cversion);
         printf("mysqlFlag: %d\n", g_args.mysqlFlag);
         printf("outpath: %s\n", g_args.outpath);
         printf("inpath: %s\n", g_args.inpath);
@@ -670,7 +787,9 @@ int main(int argc, char *argv[]) {
         printf("with_property: %s\n", g_args.with_property?"true":"false");
         printf("avro format: %s\n", g_args.avro?"true":"false");
         printf("start_time: %" PRId64 "\n", g_args.start_time);
+        printf("human readable start time: %s \n", g_args.humanStartTime);
         printf("end_time: %" PRId64 "\n", g_args.end_time);
+        printf("human readable end time: %s \n", g_args.humanEndTime);
         printf("precision: %s\n", g_args.precision);
         printf("data_batch: %d\n", g_args.data_batch);
         printf("max_sql_len: %d\n", g_args.max_sql_len);
@@ -687,11 +806,6 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("==============================\n");
-
-    if (g_args.cversion[0] != 0){
-        tstrncpy(version, g_args.cversion, 11);
-    }
-
     if (taosCheckParam(&g_args) < 0) {
         exit(EXIT_FAILURE);
     }
@@ -709,7 +823,6 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "user: %s\n", g_args.user);
         fprintf(g_fpOfResult, "password: %s\n", g_args.password);
         fprintf(g_fpOfResult, "port: %u\n", g_args.port);
-        fprintf(g_fpOfResult, "cversion: %s\n", g_args.cversion);
         fprintf(g_fpOfResult, "mysqlFlag: %d\n", g_args.mysqlFlag);
         fprintf(g_fpOfResult, "outpath: %s\n", g_args.outpath);
         fprintf(g_fpOfResult, "inpath: %s\n", g_args.inpath);
@@ -721,7 +834,9 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "with_property: %s\n", g_args.with_property?"true":"false");
         fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
         fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", g_args.start_time);
+        fprintf(g_fpOfResult, "human readable start time: %s \n", g_args.humanStartTime);
         fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", g_args.end_time);
+        fprintf(g_fpOfResult, "human readable end time: %s \n", g_args.humanEndTime);
         fprintf(g_fpOfResult, "precision: %s\n", g_args.precision);
         fprintf(g_fpOfResult, "data_batch: %d\n", g_args.data_batch);
         fprintf(g_fpOfResult, "max_sql_len: %d\n", g_args.max_sql_len);
@@ -778,7 +893,8 @@ int main(int argc, char *argv[]) {
 
 static void taosFreeDbInfos() {
     if (g_dbInfos == NULL) return;
-    for (int i = 0; i < 128; i++) tfree(g_dbInfos[i]);
+    for (int i = 0; i < g_args.dbCount; i++)
+        tfree(g_dbInfos[i]);
     tfree(g_dbInfos);
 }
 
@@ -1008,6 +1124,88 @@ static int32_t taosSaveTableOfMetricToTempFile(
     return 0;
 }
 
+static int getDbCount()
+{
+    int count;
+
+    TAOS     *taos = NULL;
+    TAOS_RES *result     = NULL;
+    char     *command    = NULL;
+    TAOS_ROW row;
+
+    command = (char *)malloc(COMMAND_SIZE);
+    if (command == NULL) {
+        errorPrint("%s() LN%d, failed to allocate command buffer\n", __func__, __LINE__);
+        return 0;
+    }
+
+    /* Connect to server */
+    taos = taos_connect(g_args.host, g_args.user, g_args.password,
+            NULL, g_args.port);
+    if (NULL == taos) {
+        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        free(command);
+        return 0;
+    }
+
+    sprintf(command, "show databases");
+    result = taos_query(taos, command);
+    int32_t code = taos_errno(result);
+
+    if (0 != code) {
+        errorPrint("%s() LN%d, failed to run command: %s, reason: %s\n",
+                __func__, __LINE__, command, taos_errstr(result));
+        free(command);
+        return 0;
+    }
+
+    TAOS_FIELD *fields = taos_fetch_fields(result);
+
+    while ((row = taos_fetch_row(result)) != NULL) {
+        // sys database name : 'log', but subsequent version changed to 'log'
+        if ((strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
+                && (!g_args.allow_sys)) {
+            continue;
+        }
+
+        if (g_args.databases) {  // input multi dbs
+            for (int i = 0; g_args.arg_list[i]; i++) {
+                if (strncasecmp(g_args.arg_list[i],
+                            (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                            fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
+                    goto _dump_db_point;
+            }
+            continue;
+        } else if (!g_args.all_databases) {  // only input one db
+            if (strncasecmp(g_args.arg_list[0],
+                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
+                goto _dump_db_point;
+            else
+                continue;
+        }
+
+_dump_db_point:
+
+        count++;
+
+        if (g_args.databases) {
+            if (count > g_args.arg_list_len) break;
+
+        } else if (!g_args.all_databases) {
+            if (count >= 1) break;
+        }
+    }
+
+    if (count == 0) {
+        errorPrint("%d databases valid to dump\n", count);
+    }
+
+    free(command);
+    return count;
+}
+
 static int taosDumpOut() {
     TAOS     *taos       = NULL;
     TAOS_RES *result     = NULL;
@@ -1032,7 +1230,14 @@ static int taosDumpOut() {
         return -1;
     }
 
-    g_dbInfos = (SDbInfo **)calloc(128, sizeof(SDbInfo *));
+    g_args.dbCount = getDbCount();
+
+    if (0 == g_args.dbCount) {
+        errorPrint("%d databases valid to dump\n", g_args.dbCount);
+        return -1;
+    }
+
+    g_dbInfos = (SDbInfo **)calloc(g_args.dbCount, sizeof(SDbInfo *));
     if (g_dbInfos == NULL) {
         errorPrint("%s() LN%d, failed to allocate memory\n",
                 __func__, __LINE__);
@@ -1127,9 +1332,9 @@ _dump_db_point:
             g_dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
             g_dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
 
-            tstrncpy(g_dbInfos[count]->precision, (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
-                    min(8, fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes + 1));
-            //g_dbInfos[count]->precision = *((int8_t *)row[TSDB_SHOW_DB_PRECISION_INDEX]);
+            tstrncpy(g_dbInfos[count]->precision,
+                    (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
+                    DB_PRECISION_LEN);
             g_dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
         }
         count++;
@@ -1171,14 +1376,14 @@ _dump_db_point:
 
             fprintf(fp, "USE %s;\n\n", g_dbInfos[0]->name);
 
-            int32_t totalNumOfThread = 1;  // 0: all normal talbe into .tables.tmp.0
+            int32_t totalNumOfThread = 1;  // 0: all normal table into .tables.tmp.0
             int  normalTblFd = -1;
             int32_t retCode;
             int superTblCnt = 0 ;
             for (int i = 1; g_args.arg_list[i]; i++) {
                 if (taosGetTableRecordInfo(g_args.arg_list[i],
                             &tableRecordInfo, taos) < 0) {
-                    errorPrint("input the invalide table %s\n",
+                    errorPrint("input the invalid table %s\n",
                             g_args.arg_list[i]);
                     continue;
                 }
@@ -1225,8 +1430,10 @@ _dump_db_point:
             }
 
             // start multi threads to dumpout
+
             taosStartDumpOutWorkThreads(totalNumOfThread,
-                    g_dbInfos[0]->name);
+                    g_dbInfos[0]->name,
+                    getPrecisionByString(g_dbInfos[0]->precision));
 
             char tmpFileName[MAX_FILE_NAME_LEN];
 _clean_tmp_file:
@@ -1303,10 +1510,9 @@ static int taosGetTableDes(
         return count;
     }
 
-    // if chidl-table have tag, using  select tagName from table to get tagValue
+    // if child-table have tag, using  select tagName from table to get tagValue
     for (int i = 0 ; i < count; i++) {
         if (strcmp(stableDes->cols[i].note, "TAG") != 0) continue;
-
 
         sprintf(sqlstr, "select %s from %s.%s",
                 stableDes->cols[i].field, dbName, table);
@@ -1416,7 +1622,7 @@ static int convertSchemaToAvroSchema(STableDef *stableDes, char **avroSchema)
 
 static int32_t taosDumpTable(
         char *tbName, char *metric,
-        FILE *fp, TAOS* taosCon, char* dbName) {
+        FILE *fp, TAOS* taosCon, char* dbName, int precision) {
     int count = 0;
 
     STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef)
@@ -1467,7 +1673,7 @@ static int32_t taosDumpTable(
 
     int32_t ret = 0;
     if (!g_args.schemaonly) {
-        ret = taosDumpTableData(fp, tbName, taosCon, dbName,
+        ret = taosDumpTableData(fp, tbName, taosCon, dbName, precision,
             jsonAvroSchema);
     }
 
@@ -1558,7 +1764,8 @@ static void* taosDumpOutWorkThreadFp(void *arg)
 
         int ret = taosDumpTable(
                 tableRecord.name, tableRecord.metric,
-                fp, pThread->taosCon, pThread->dbName);
+                fp, pThread->taosCon, pThread->dbName,
+                pThread->precision);
         if (ret >= 0) {
             // TODO: sum table count and table rows by self
             pThread->tablesOfDumpOut++;
@@ -1607,7 +1814,7 @@ static void* taosDumpOutWorkThreadFp(void *arg)
     return NULL;
 }
 
-static void taosStartDumpOutWorkThreads(int32_t  numOfThread, char *dbName)
+static void taosStartDumpOutWorkThreads(int32_t  numOfThread, char *dbName, int precision)
 {
     pthread_attr_t thattr;
     SThreadParaObj *threadObj =
@@ -1626,6 +1833,7 @@ static void taosStartDumpOutWorkThreads(int32_t  numOfThread, char *dbName)
         pThread->threadIndex = t;
         pThread->totalThreads = numOfThread;
         tstrncpy(pThread->dbName, dbName, TSDB_DB_NAME_LEN);
+        pThread->precision = precision;
         pThread->taosCon = taos_connect(g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
         if (pThread->taosCon == NULL) {
@@ -1875,7 +2083,8 @@ static int taosDumpDb(SDbInfo *dbInfo, FILE *fp, TAOS *taosCon) {
     }
 
     // start multi threads to dumpout
-    taosStartDumpOutWorkThreads(numOfThread, dbInfo->name);
+    taosStartDumpOutWorkThreads(numOfThread, dbInfo->name,
+            getPrecisionByString(dbInfo->precision));
     for (int loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
         sprintf(tmpBuf, ".tables.tmp.%d", loopCnt);
         (void)remove(tmpBuf);
@@ -2153,14 +2362,38 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
 }
 
 static int taosDumpTableData(FILE *fp, char *tbName,
-        TAOS* taosCon, char* dbName,
+        TAOS* taosCon, char* dbName, int precision,
         char *jsonAvroSchema) {
     int64_t    totalRows     = 0;
 
     char sqlstr[1024] = {0};
+
+    int64_t start_time, end_time;
+    if (strlen(g_args.humanStartTime)) {
+        if (TSDB_CODE_SUCCESS != taosParseTime(
+                g_args.humanStartTime, &start_time, strlen(g_args.humanStartTime),
+                precision, 0)) {
+            errorPrint("Input %s, time format error!\n", g_args.humanStartTime);
+            return -1;
+        }
+    } else {
+        start_time = g_args.start_time;
+    }
+
+    if (strlen(g_args.humanEndTime)) {
+        if (TSDB_CODE_SUCCESS != taosParseTime(
+                g_args.humanEndTime, &end_time, strlen(g_args.humanEndTime),
+                precision, 0)) {
+            errorPrint("Input %s, time format error!\n", g_args.humanEndTime);
+            return -1;
+        }
+    } else {
+        end_time = g_args.end_time;
+    }
+
     sprintf(sqlstr,
             "select * from %s.%s where _c0 >= %" PRId64 " and _c0 <= %" PRId64 " order by _c0 asc;",
-            dbName, tbName, g_args.start_time, g_args.end_time);
+            dbName, tbName, start_time, end_time);
 
     TAOS_RES* res = taos_query(taosCon, sqlstr);
     int32_t code = taos_errno(res);
@@ -2405,7 +2638,7 @@ static int taosGetFilesNum(const char *directoryName,
     }
 
     if (fileNum <= 0) {
-        errorPrint("directory:%s is empry\n", directoryName);
+        errorPrint("directory:%s is empty\n", directoryName);
         exit(-1);
     }
 
@@ -2582,9 +2815,9 @@ static int taosDumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
         memcpy(cmd + cmd_len, line, read_len);
         cmd[read_len + cmd_len]= '\0';
         if (queryDbImpl(taos, cmd)) {
-            errorPrint("%s() LN%d, error sql: linenu:%d, file:%s\n",
+            errorPrint("%s() LN%d, error sql: lineno:%d, file:%s\n",
                     __func__, __LINE__, lineNo, fileName);
-            fprintf(g_fpOfResult, "error sql: linenu:%d, file:%s\n", lineNo, fileName);
+            fprintf(g_fpOfResult, "error sql: lineno:%d, file:%s\n", lineNo, fileName);
         }
 
         memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);

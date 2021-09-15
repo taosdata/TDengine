@@ -113,11 +113,11 @@
                     </includes>
                     <excludes>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
+                        <exclude>**/JDBCTypeAndTypeCompareTest.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
                         <exclude>**/DatetimeBefore1970Test.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
                         <exclude>**/InvalidResultSetPointerTest.java</exclude>
-                        <exclude>**/RestfulConnectionTest.java</exclude>
                         <exclude>**/TSDBJNIConnectorTest.java</exclude>
                         <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/UnsignedNumberJniTest.java</exclude>

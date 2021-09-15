@@ -206,6 +206,8 @@ static int normalStmtPrepare(STscStmt* stmt) {
         return code;
       }
       start = i + token.n;
+    } else if (token.type == TK_ILLEGAL) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "invalid sql");
     }
 
     i += token.n;
@@ -1489,7 +1491,6 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->signature = pSql;
   pSql->pTscObj   = pObj;
   pSql->maxRetry  = TSDB_MAX_REPLICA;
-  pSql->isBind    = true;
   pStmt->pSql     = pSql;
   pStmt->last     = STMT_INIT;
 
@@ -1527,8 +1528,9 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
   pCmd->insertParam.objectId = pSql->self;
 
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
-
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);  
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
@@ -1536,6 +1538,8 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
   pRes->qId = 0;
   pRes->numOfRows = 1;
+
+  registerSqlObj(pSql);
 
   strtolower(pSql->sqlstr, sql);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
@@ -1545,8 +1549,6 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
     pSql->cmd.insertParam.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
-
-    registerSqlObj(pSql);
 
     int32_t ret = stmtParseInsertTbTags(pSql, pStmt);
     if (ret != TSDB_CODE_SUCCESS) {
