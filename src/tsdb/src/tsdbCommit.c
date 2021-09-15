@@ -1080,6 +1080,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   // Get # of cols not all NULL(not including key column)
   int nColsNotAllNull = 0;
+  int aggrNum = 0;
   for (int ncol = 1; ncol < pDataCols->numOfCols; ncol++) {  // ncol from 1, we skip the timestamp column
     SDataCol * pDataCol = pDataCols->cols + ncol;
     SBlockCol *  pBlockCol = pBlockData->cols + nColsNotAllNull;
@@ -1104,6 +1105,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pAggrBlkCol->min), &(pAggrBlkCol->max),
                                                &(pAggrBlkCol->sum), &(pAggrBlkCol->minIndex), &(pAggrBlkCol->maxIndex),
                                                &(pAggrBlkCol->numOfNull));
+      ++aggrNum;
     }
     nColsNotAllNull++;
   }
@@ -1188,14 +1190,17 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 #ifdef __TD_6117__
   // pAggrBlkData->delimiter = TSDB_FILE_DELIMITER;
   // pAggrBlkData->uid = TABLE_UID(pTable);
-  pAggrBlkData->numOfCols = nColsNotAllNull;
+  int aggrStatus = ((aggrNum > 0) && (rowsToWrite > 5)) ? 1 : 0;  // TODO: How to make the decision?
+  if (aggrStatus > 0) {
+    pAggrBlkData->numOfCols = nColsNotAllNull;
 
-  taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
-  tsdbUpdateDFileMagic(pDFileAggr, POINTER_SHIFT(pAggrBlkData, tsizeAggr - sizeof(TSCKSUM)));
+    taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
+    tsdbUpdateDFileMagic(pDFileAggr, POINTER_SHIFT(pAggrBlkData, tsizeAggr - sizeof(TSCKSUM)));
 
-  // Write the whole block to file
-  if (tsdbAppendDFile(pDFileAggr, (void *)pAggrBlkData, tsizeAggr, &offsetAggr) < tsizeAggr) {
-    return -1;
+    // Write the whole block to file
+    if (tsdbAppendDFile(pDFileAggr, (void *)pAggrBlkData, tsizeAggr, &offsetAggr) < tsizeAggr) {
+      return -1;
+    }
   }
 #endif
 
@@ -1211,7 +1216,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   pBlock->keyFirst = dataColsKeyFirst(pDataCols);
   pBlock->keyLast = dataColsKeyLast(pDataCols);
 #ifdef __TD_6117__
-  pBlock->hasAggr = 1;
+  pBlock->hasAggr = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = offsetAggr;
   pBlock->aggrLen = tsizeAggr;

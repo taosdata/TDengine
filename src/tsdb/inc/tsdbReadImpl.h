@@ -99,15 +99,6 @@ typedef struct {
   SBlock   blocks[];
 } SBlockInfo;
 
-// definition of SBlockInfoV{#verion}
-#define SBlockInfoV(version)    \
-  typedef struct {              \
-    int32_t          delimiter; \
-    int32_t          tid;       \
-    uint64_t         uid;       \
-    SBlockV##version blocks[];  \
-  } SBlockInfoV##version;
-
 typedef struct {
   int16_t  colId;
   int32_t  len;
@@ -134,8 +125,6 @@ typedef struct {
 
 #define SBlockCol SBlockColV1      // latest SBlockCol definition
 
-#define SBlockColV(blkVer) SBlockColV##blkVer
-
 typedef struct {
   int16_t colId;
   int16_t maxIndex;
@@ -147,8 +136,6 @@ typedef struct {
 } SAggrBlkColV1;
 
 #define SAggrBlkCol SAggrBlkColV1  // latest SAggrBlkCol definition
-
-#define SAggrBlkColV(blkVer) SAggrBlkColV##blkVer
 
 // Code here just for back-ward compatibility
 static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
@@ -204,7 +191,7 @@ struct SReadH {
 #define TSDB_READ_EXBUF(rh) ((rh)->pExBuf)
 
 #define TSDB_BLOCK_STATIS_SIZE(ncols, blkVer) \
-  (sizeof(SBlockData) + sizeof(SBlockColV(blkVer)) * (ncols) + sizeof(TSCKSUM))
+  (sizeof(SBlockData) + sizeof(SBlockColV##blkVer) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
@@ -217,7 +204,7 @@ static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
 }
 
 #define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) \
-  (sizeof(SAggrBlkData) + sizeof(SAggrBlkColV(blkVer)) * (ncols) + sizeof(TSCKSUM))
+  (sizeof(SAggrBlkData) + sizeof(SAggrBlkColV##blkVer) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {

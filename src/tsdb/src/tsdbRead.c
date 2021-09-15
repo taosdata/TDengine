@@ -3368,8 +3368,12 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   }
 
   int64_t stime = taosGetTimestampUs();
-  if (tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock) < 0) {
+  int     statisStatus = tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock);
+  if (statisStatus < TSDB_STATIS_OK) {
     return terrno;
+  } else if (statisStatus > TSDB_STATIS_OK) {
+    *pBlockStatis = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int16_t* colIds = pHandle->defaultLoadColumn->pData;

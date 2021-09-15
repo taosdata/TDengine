@@ -63,13 +63,12 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
 
 void tsdbDestroyReadH(SReadH *pReadh) {
   if (pReadh == NULL) return;
-#ifdef __TD_6117__
   pReadh->pExBuf = taosTZfree(pReadh->pExBuf);
-#endif
   pReadh->pCBuf = taosTZfree(pReadh->pCBuf);
   pReadh->pBuf = taosTZfree(pReadh->pBuf);
   pReadh->pDCols[0] = tdFreeDataCols(pReadh->pDCols[0]);
   pReadh->pDCols[1] = tdFreeDataCols(pReadh->pDCols[1]);
+  pReadh->pAggrBlkData = taosTZfree(pReadh->pAggrBlkData);
   pReadh->pBlkData = taosTZfree(pReadh->pBlkData);
   pReadh->pBlkInfo = taosTZfree(pReadh->pBlkInfo);
   pReadh->cidx = 0;
@@ -450,9 +449,7 @@ static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
 }
 
 static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
-  if(!pBlock->hasAggr) {
-    return 0;
-  }
+  ASSERT((pBlock->blkVer > TSDB_SBLK_VER_0) && pBlock->hasAggr);  // TODO: remove after pass all the test
   SDFile *pDFileAggr = TSDB_READ_AGGR_FILE(pReadh);
 
   if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
@@ -495,8 +492,10 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
 
   if (pBlock->blkVer > TSDB_SBLK_VER_0) {
-    tsdbLoadBlockStatisFromAggr(pReadh, pBlock);
-    
+    if (pBlock->hasAggr) {
+      return tsdbLoadBlockStatisFromAggr(pReadh, pBlock);
+    }
+    return TSDB_STATIS_NONE;
   }
   return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
 }

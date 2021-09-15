@@ -159,10 +159,6 @@ bool tsdbForceKeepFile = false;
 bool tsdbForceCompactFile = false; // compact TSDB fileset forcibly
 bool tsdbEnableUpgradeFile = false; // upgrade TSDB .head from v0 to v1+
 
-#ifdef __TD_6117__
-bool tsdbQueryFromSMA = true;
-#endif
-
 // balance
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
