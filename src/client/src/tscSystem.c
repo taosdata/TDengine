@@ -122,6 +122,10 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
 
 void taos_init_imp(void) {
   char temp[128] = {0};
+
+  // In the APIs of other program language, taos_cleanup is not available yet.
+  // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
+  atexit(taos_cleanup);
   
   errno = TSDB_CODE_SUCCESS;
   srand(taosGetTimestampSec());
@@ -196,10 +200,6 @@ void taos_init_imp(void) {
   pthread_mutex_init(&rpcObjMutex, NULL);
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
-
-  // In the APIs of other program language, taos_cleanup is not available yet.
-  // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
-  atexit(taos_cleanup);
 
   tscDebug("client is initialized successfully");
 }

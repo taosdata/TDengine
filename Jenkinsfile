@@ -238,7 +238,7 @@ pipeline {
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
                 mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo
+                echo '' |./taosdemo -c /etc/taos
               '''
               sh '''
                 cd ${WKC}/tests/gotest
@@ -256,21 +256,19 @@ pipeline {
           
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                timeout(time: 60, unit: 'MINUTES'){
-                  sh '''
-                  cd ${WKC}/tests/pytest
-                  ./crash_gen.sh -a -p -t 4 -s 2000
-                  '''
-                }
-            }
             timeout(time: 60, unit: 'MINUTES'){
               sh '''
               cd ${WKC}/tests/pytest
-              rm -rf /var/lib/taos/*
-              rm -rf /var/log/taos/*
-              ./handle_crash_gen_val_log.sh
+              ./crash_gen.sh -a -p -t 4 -s 2000
               '''
+            }
+            timeout(time: 60, unit: 'MINUTES'){
+              // sh '''
+              // cd ${WKC}/tests/pytest
+              // rm -rf /var/lib/taos/*
+              // rm -rf /var/log/taos/*
+              // ./handle_crash_gen_val_log.sh
+              // '''
               sh '''
               cd ${WKC}/tests/pytest
               rm -rf /var/lib/taos/*
