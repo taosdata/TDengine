@@ -155,7 +155,7 @@ The design of TDengine is based on the assumption that one single node or softwa
 Logical structure diagram of TDengine distributed architecture as following:
 
 ![TDengine architecture diagram](page://images/architecture/structure.png)
-<center> Picture 1: TDengine architecture diagram  </center>
+<center> Picture 1 TDengine architecture diagram  </center>
 
 
 
@@ -269,7 +269,7 @@ If a database has N replicas, thus a virtual node group has N virtual nodes, but
 Master Vnode uses a writing process as follows:
 
 ![TDengine Master Writing Process](page://images/architecture/write_master.png)
-Figure 3: TDengine Master writing process
+<center> Picture 3 TDengine Master writing process </center>
 
 1. Master vnode receives the application data insertion request, verifies, and moves to next step;
 2. If the system configuration parameter `walLevel` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
@@ -283,7 +283,7 @@ Figure 3: TDengine Master writing process
 For a slave vnode, the write process as follows:
 
 ![TDengine Slave Writing Process](page://images/architecture/write_slave.png)
-<center> Picture 3 TDengine Slave Writing Process  </center>
+<center> Picture 4 TDengine Slave Writing Process  </center>
 
 1. Slave vnode receives a data insertion request forwarded by Master vnode;
 2. If the system configuration parameter `walLevel` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
@@ -420,7 +420,7 @@ For the data collected by device D1001, the number of records per hour is counte
 TDengine creates a separate table for each data collection point, but in practical applications, it is often necessary to aggregate data from different data collection points. In order to perform aggregation operations efficiently, TDengine introduces the concept of STable. STable is used to represent a specific type of data collection point. It is a table set containing multiple tables. The schema of each table in the set is the same, but each table has its own static tag. The tags can be multiple and be added, deleted and modified at any time. Applications can aggregate or statistically operate all or a subset of tables under a STABLE by specifying tag filters, thus greatly simplifying the development of applications. The process is shown in the following figure:
 
 ![Diagram of multi-table aggregation query](page://images/architecture/multi_tables.png)
-<center> Picture 4 Diagram of multi-table aggregation query  </center>
+<center> Picture 5 Diagram of multi-table aggregation query  </center>
 
 1. Application sends a query condition to system;
 2. TAOSC sends the STable name to Meta Node(management node);
