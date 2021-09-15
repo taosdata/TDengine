@@ -1630,10 +1630,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                             && strcasecmp(token, "BINARY")
                             && strcasecmp(token, "TIMESTAMP")
                             && strcasecmp(token, "NCHAR")
-                            && strcasecmp(dataType, "UTINYINT")
-                            && strcasecmp(dataType, "USMALLINT")
-                            && strcasecmp(dataType, "UINT")
-                            && strcasecmp(dataType, "UBIGINT")) {
+                            && strcasecmp(token, "UTINYINT")
+                            && strcasecmp(token, "USMALLINT")
+                            && strcasecmp(token, "UINT")
+                            && strcasecmp(token, "UBIGINT")) {
                         printHelp();
                         free(g_dupstr);
                         errorPrint("%s", "-b: Invalid data_type!\n");
@@ -1999,6 +1999,22 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
 
             case TSDB_DATA_TYPE_TIMESTAMP:
                 g_args.lenOfOneRow += TIMESTAMP_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UTINYINT:
+                g_args.lenOfOneRow += UTINYINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_USMALLINT:
+                g_args.lenOfOneRow += USMALLINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UINT:
+                g_args.lenOfOneRow += UINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UBIGINT:
+                g_args.lenOfOneRow += UBIGINT_BUFF_LEN;
                 break;
 
             default:
