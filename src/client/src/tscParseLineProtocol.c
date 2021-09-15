@@ -1137,7 +1137,7 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-static bool isValidInteger(char *str) {
+bool isValidInteger(char *str) {
   char *c = str;
   if (*c != '+' && *c != '-' && !isdigit(*c)) {
     return false;
@@ -1152,7 +1152,7 @@ static bool isValidInteger(char *str) {
   return true;
 }
 
-static bool isValidFloat(char *str) {
+bool isValidFloat(char *str) {
   char *c = str;
   uint8_t has_dot, has_exp, has_sign;
   has_dot = 0;

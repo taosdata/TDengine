@@ -741,11 +741,20 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
       break;
     }
     case cJSON_Number: {
-      //convert default JSON Number type to float
-      pVal->type = TSDB_DATA_TYPE_FLOAT;
-      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-      pVal->value = tcalloc(pVal->length, 1);
-      *(float *)(pVal->value) = (float)(root->valuedouble);
+      //convert default JSON Number type to BIGINT/DOUBLE
+      if (isValidInteger(root->numberstring)) {
+        pVal->type = TSDB_DATA_TYPE_BIGINT;
+        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+        pVal->value = tcalloc(pVal->length, 1);
+        *(int64_t *)(pVal->value) = (int64_t)(root->valuedouble);
+      } else if (isValidFloat(root->numberstring)) {
+        pVal->type = TSDB_DATA_TYPE_DOUBLE;
+        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+        pVal->value = tcalloc(pVal->length, 1);
+        *(double *)(pVal->value) = (double)(root->valuedouble);
+      } else {
+        return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+      }
       break;
     }
     case cJSON_String: {
