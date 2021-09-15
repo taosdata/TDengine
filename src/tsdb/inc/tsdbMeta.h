@@ -110,10 +110,12 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   } else {  // get the schema with version
     void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-      goto _exit;
+      pTSchema = *(STSchema**)taosArrayGetLast(pDTable->schema);
+      // terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      // goto _exit;
+    } else {
+      pTSchema = *(STSchema**)ptr;
     }
-    pTSchema = *(STSchema**)ptr;
   }
 
   ASSERT(pTSchema != NULL);
@@ -124,7 +126,7 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
     pSchema = pTSchema;
   }
 
-_exit:
+// _exit:
   if (lock) TSDB_RUNLOCK_TABLE(pDTable);
   return pSchema;
 }
