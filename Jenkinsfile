@@ -174,7 +174,6 @@ def pre_test_win(){
     cd C:\\workspace\\TDinternal
     git pull 
 
-    export TZ=Asia/Harbin
     date
     git clean -dfx
     mkdir debug
