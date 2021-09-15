@@ -6565,6 +6565,7 @@ static int generateSampleFromRand(
                     pos += sprintf(buff + pos, "%s,", data);
                     break;
 
+                case TSDB_DATA_TYPE_UINT:
                 case TSDB_DATA_TYPE_INT:
                     if ((g_args.demo_mode) && (c == 1)) {
                         tmp = demo_voltage_int_str();
@@ -6574,6 +6575,7 @@ static int generateSampleFromRand(
                     pos += sprintf(buff + pos, "%s,", tmp);
                     break;
 
+                case TSDB_DATA_TYPE_UBIGINT:
                 case TSDB_DATA_TYPE_BIGINT:
                     pos += sprintf(buff + pos, "%s,", rand_bigint_str());
                     break;
@@ -6595,10 +6597,12 @@ static int generateSampleFromRand(
                     pos += sprintf(buff + pos, "%s,", rand_double_str());
                     break;
 
+                case TSDB_DATA_TYPE_USMALLINT:
                 case TSDB_DATA_TYPE_SMALLINT:
                     pos += sprintf(buff + pos, "%s,", rand_smallint_str());
                     break;
 
+                case TSDB_DATA_TYPE_UTINYINT:
                 case TSDB_DATA_TYPE_TINYINT:
                     pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
                     break;
@@ -7126,13 +7130,17 @@ static int32_t prepareStmtBindArrayByType(
         char *value)
 {
     int32_t *bind_int;
+    uint32_t *bind_uint;
     int64_t *bind_bigint;
+    uint64_t *bind_ubigint;
     float   *bind_float;
     double  *bind_double;
     int8_t  *bind_bool;
     int64_t *bind_ts2;
     int16_t *bind_smallint;
+    uint16_t *bind_usmallint;
     int8_t  *bind_tinyint;
+    uint8_t  *bind_utinyint;
 
     switch(data_type) {
         case TSDB_DATA_TYPE_BINARY:
@@ -7198,6 +7206,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->is_null = NULL;
             break;
 
+        case TSDB_DATA_TYPE_UINT:
+            bind_uint = malloc(sizeof(uint32_t));
+            assert(bind_uint);
+
+            if (value) {
+                *bind_uint = atoi(value);
+            } else {
+                *bind_uint = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UINT;
+            bind->buffer_length = sizeof(uint32_t);
+            bind->buffer = bind_uint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
         case TSDB_DATA_TYPE_BIGINT:
             bind_bigint = malloc(sizeof(int64_t));
             assert(bind_bigint);
@@ -7210,6 +7234,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
             bind->buffer_length = sizeof(int64_t);
             bind->buffer = bind_bigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            bind_ubigint = malloc(sizeof(uint64_t));
+            assert(bind_ubigint);
+
+            if (value) {
+                *bind_ubigint = atoll(value);
+            } else {
+                *bind_ubigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UBIGINT;
+            bind->buffer_length = sizeof(uint64_t);
+            bind->buffer = bind_ubigint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
             break;
@@ -7262,6 +7302,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->is_null = NULL;
             break;
 
+        case TSDB_DATA_TYPE_USMALLINT:
+            bind_usmallint = malloc(sizeof(uint16_t));
+            assert(bind_usmallint);
+
+            if (value) {
+                *bind_usmallint = (uint16_t)atoi(value);
+            } else {
+                *bind_usmallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
+            bind->buffer_length = sizeof(uint16_t);
+            bind->buffer = bind_usmallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
         case TSDB_DATA_TYPE_TINYINT:
             bind_tinyint = malloc(sizeof(int8_t));
             assert(bind_tinyint);
@@ -7274,6 +7330,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
             bind->buffer_length = sizeof(int8_t);
             bind->buffer = bind_tinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            bind_utinyint = malloc(sizeof(uint8_t));
+            assert(bind_utinyint);
+
+            if (value) {
+                *bind_utinyint = (int8_t)atoi(value);
+            } else {
+                *bind_utinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UTINYINT;
+            bind->buffer_length = sizeof(uint8_t);
+            bind->buffer = bind_utinyint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
             break;
@@ -7352,11 +7424,15 @@ static int32_t prepareStmtBindArrayByTypeForRand(
         char *value)
 {
     int32_t *bind_int;
+    uint32_t *bind_uint;
     int64_t *bind_bigint;
+    uint64_t *bind_ubigint;
     float   *bind_float;
     double  *bind_double;
     int16_t *bind_smallint;
+    uint16_t *bind_usmallint;
     int8_t  *bind_tinyint;
+    uint8_t  *bind_utinyint;
     int8_t  *bind_bool;
     int64_t *bind_ts2;
 
@@ -7426,6 +7502,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             *ptr += bind->buffer_length;
             break;
 
+        case TSDB_DATA_TYPE_UINT:
+            bind_uint = (uint32_t *)*ptr;
+
+            if (value) {
+                *bind_uint = atoi(value);
+            } else {
+                *bind_uint = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UINT;
+            bind->buffer_length = sizeof(uint32_t);
+            bind->buffer = bind_uint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
         case TSDB_DATA_TYPE_BIGINT:
             bind_bigint = (int64_t *)*ptr;
 
@@ -7437,6 +7530,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
             bind->buffer_length = sizeof(int64_t);
             bind->buffer = bind_bigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            bind_ubigint = (uint64_t *)*ptr;
+
+            if (value) {
+                *bind_ubigint = atoll(value);
+            } else {
+                *bind_ubigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UBIGINT;
+            bind->buffer_length = sizeof(uint64_t);
+            bind->buffer = bind_ubigint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
 
@@ -7494,6 +7604,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             *ptr += bind->buffer_length;
             break;
 
+        case TSDB_DATA_TYPE_USMALLINT:
+            bind_usmallint = (uint16_t *)*ptr;
+
+            if (value) {
+                *bind_usmallint = (uint16_t)atoi(value);
+            } else {
+                *bind_usmallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_USMALLINT;
+            bind->buffer_length = sizeof(uint16_t);
+            bind->buffer = bind_usmallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
         case TSDB_DATA_TYPE_TINYINT:
             bind_tinyint = (int8_t *)*ptr;
 
@@ -7505,6 +7632,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
             bind->buffer_length = sizeof(int8_t);
             bind->buffer = bind_tinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            bind_utinyint = (uint8_t *)*ptr;
+
+            if (value) {
+                *bind_utinyint = (uint8_t)atoi(value);
+            } else {
+                *bind_utinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UTINYINT;
+            bind->buffer_length = sizeof(uint8_t);
+            bind->buffer = bind_utinyint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
 
