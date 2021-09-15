@@ -268,6 +268,7 @@ If a database has N replicas, thus a virtual node group has N virtual nodes, but
 
 Master Vnode uses a writing process as follows:
 
+![TDengine Master Writing Process](page://images/architecture/write_master.png)
 Figure 3: TDengine Master writing process
 
 1. Master vnode receives the application data insertion request, verifies, and moves to next step;
@@ -281,7 +282,7 @@ Figure 3: TDengine Master writing process
 
 For a slave vnode, the write process as follows:
 
-![TDengine Slave Writing Process](page://images/architecture/write_master.png)
+![TDengine Slave Writing Process](page://images/architecture/write_slave.png)
 <center> Picture 3 TDengine Slave Writing Process  </center>
 
 1. Slave vnode receives a data insertion request forwarded by Master vnode;
