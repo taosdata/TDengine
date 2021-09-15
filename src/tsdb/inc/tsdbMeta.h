@@ -113,8 +113,9 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
       pTSchema = *(STSchema**)taosArrayGetLast(pDTable->schema);
       // terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       // goto _exit;
+    } else {
+      pTSchema = *(STSchema**)ptr;
     }
-    pTSchema = *(STSchema**)ptr;
   }
 
   ASSERT(pTSchema != NULL);
