@@ -7,7 +7,6 @@ for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
     if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 8 ) else ( call :colorEcho 0a "Success" &echo. )   
 )
 exit
-
 :colorEcho
 echo off
 <nul set /p ".=%DEL%" > "%~2"
