@@ -100,21 +100,31 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。
 
 - 创建标量函数：`CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B);`
-  * X：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  * Y：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）；
-  * Z：此函数计算结果的数据类型，使用数字表示，含义与上文中 udfNormalFunc 的 itype 参数一致；
+  * ids(X)：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
+  * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
+  * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
   * B：系统使用的中间临时缓冲区大小，单位是字节，最小 0，最大 512，通常可以设置为 128。
 
+  例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
+  ```sql
+  CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT bufsize(128);
+  ```
+
 - 创建聚合函数：`CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B);`
-  * X：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  * Y：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）；
-  * Z：此函数计算结果的数据类型，使用数字表示，含义与上文中 udfNormalFunc 的 itype 参数一致；
+  * ids(X)：聚合函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
+  * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
+  * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
   * B：系统使用的中间临时缓冲区大小，单位是字节，最小 0，最大 512，通常可以设置为 128。
+
+  例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
+  ```sql
+  CREATE FUNCTION abs_max AS "/home/taos/udf_example/abs_max.so" OUTPUTTYPE BIGINT bufsize(128);
+  ```
 
 ### 管理 UDF
 
 - 删除指定名称的用户定义函数：`DROP FUNCTION ids(X);`
-  * X：此参数的含义与 CREATE 指令中的 X 参数一致。
+  * ids(X)：此参数的含义与 CREATE 指令中的 ids(X) 参数一致，也即要删除的函数的名字，例如 `DROP FUNCTION add_one;`。
 - 显示系统中当前可用的所有 UDF：`SHOW FUNCTIONS;`
 
 ### 调用 UDF
