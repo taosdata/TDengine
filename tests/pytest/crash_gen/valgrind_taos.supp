@@ -18116,26 +18116,65 @@
    fun:malloc
    fun:lib_build_and_cache_attr
    fun:lib_getattr
-   ...
+   fun:PyObject_GetAttr
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:PyEval_EvalCode
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
 } 
 {
    <insert_a_suppression_name_here>
    Memcheck:Leak
    match-leak-kinds: definite
    fun:malloc
-   fun:lib_build_cpython_func
    fun:lib_build_and_cache_attr
    fun:lib_getattr
    fun:PyObject_GetAttr
-   ...
-} 
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+}
 {
    <insert_a_suppression_name_here>
    Memcheck:Leak
    match-leak-kinds: definite
    fun:malloc
-   fun:_PyObject_GC_New
-   fun:ffi_internal_new
+   fun:_my_Py_InitModule
    fun:b_init_cffi_1_0_external_module
-   ...
-} 
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyObject_CallMethod
+   fun:PyInit__constant_time
+   fun:_PyImport_LoadDynamicModuleWithSpec
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:lib_build_cpython_func.isra.87
+   fun:lib_build_and_cache_attr
+   fun:lib_getattr
+   fun:PyObject_GetAttr
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+}
