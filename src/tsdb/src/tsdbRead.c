@@ -3474,9 +3474,12 @@ void filterPrepare(void* expr, void* param) {
      int dummy = -1;
      SHashObj *pObj = NULL;
      if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
-        pObj = taosHashInit(256, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
         SArray *arr = (SArray *)(pCond->arr);
-        for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
+
+       size_t size = taosArrayGetSize(arr);
+       pObj = taosHashInit(size * 2, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
+
+        for (size_t i = 0; i < size; i++) {
           char* p = taosArrayGetP(arr, i);
           strntolower_s(varDataVal(p), varDataVal(p), varDataLen(p));
           taosHashPut(pObj, varDataVal(p), varDataLen(p), &dummy, sizeof(dummy));
@@ -3484,12 +3487,14 @@ void filterPrepare(void* expr, void* param) {
      } else {
        buildFilterSetFromBinary((void **)&pObj, pCond->pz, pCond->nLen);
      }
+
      pInfo->q = (char *)pObj;
   } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
+
     // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
     pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
@@ -3665,8 +3670,7 @@ static bool tableFilterFp(const void* pNode, void* param) {
        uint64_t v;
        GET_TYPED_DATA(v, uint64_t, pInfo->sch.type, val);
        return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
-     }
-     else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+     } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
        double v;
        GET_TYPED_DATA(v, double, pInfo->sch.type, val);
        return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
@@ -4126,19 +4130,6 @@ static void queryIndexedColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SAr
         taosArrayPush(result, &info);
       }
 
-    } else if (optr == TSDB_RELATION_IN) {
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-
-        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
-        if (ret != 0) {
-          break;
-        }
-
-        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
-        taosArrayPush(result, &info);
-      }
-      
     } else {
       assert(0);
     }
