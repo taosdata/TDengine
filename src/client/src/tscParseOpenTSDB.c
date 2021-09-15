@@ -38,7 +38,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   uint16_t len = 0;
 
   pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN + 1, 1);    // +1 to avoid 1772 line over write
-  if (pSml->stableName == NULL){
+  if (pSml->stableName == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   if (isdigit(*cur)) {
@@ -485,6 +485,7 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
   }
 
   size_t typeLen = strlen(type->valuestring);
+  strntolower_s(type->valuestring, type->valuestring, typeLen);
   if (typeLen == 1 && type->valuestring[0] == 's') {
     //seconds
     *tsVal = (int64_t)(*tsVal * 1e9);
@@ -505,6 +506,8 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
       default:
         return TSDB_CODE_TSC_INVALID_JSON;
     }
+  } else {
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   return TSDB_CODE_SUCCESS;
