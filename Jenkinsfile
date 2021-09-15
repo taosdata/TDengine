@@ -124,16 +124,19 @@ def pre_test_win(){
     script {
       if (env.CHANGE_TARGET == 'master') {
         bat '''
+        cd C:\\workspace\\TDinternal\\community
         git checkout master
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
         bat '''
+        cd C:\\workspace\\TDinternal\\community
         git checkout 2.0
         '''
       } 
       else{
         bat '''
+        cd C:\\workspace\\TDinternal\\community
         git checkout develop
         '''
       }
@@ -150,16 +153,19 @@ def pre_test_win(){
     script {
       if (env.CHANGE_TARGET == 'master') {
         bat '''
+        cd C:\\workspace\\TDinternal
         git checkout master
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
         bat '''
+        cd C:\\workspace\\TDinternal
         git checkout 2.0
         '''
       } 
       else{
         bat '''
+        cd C:\\workspace\\TDinternal
         git checkout develop
         '''
       } 
