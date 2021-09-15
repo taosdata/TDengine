@@ -459,10 +459,12 @@ pipeline {
           agent{label "win"}
           steps{
             pre_test_win()
-            bat'''
-            cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-            test-all.bat CrashGen
-            '''
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                bat'''
+                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                test-all.bat CrashGen
+                '''
+            }     
             script{
               win_stop=1
               println win_stop

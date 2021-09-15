@@ -4,7 +4,7 @@ for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1)
 for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
     echo Processing %%i
     call %%i ARG1 -w 1 -m %1 > result.txt 2>error.txt
-    if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 3 ) else ( call :colorEcho 0a "Success" &echo. )   
+    if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 8 ) else ( call :colorEcho 0a "Success" &echo. )   
 )
 exit
 
