@@ -282,6 +282,9 @@ char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESS
 // long query death-lock
 int8_t tsDeadLockKillQuery = 0;
 
+// schemaless
+char tsSmlDefaultJSONStrType[7] = "binary";
+
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
 void (*monExecuteSQLFp)(char *sql) = NULL;
@@ -1634,6 +1637,17 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // Schemaless config
+  cfg.option = "smlDefaultJSONStrType";
+  cfg.ptr = tsSmlDefaultJSONStrType;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsSmlDefaultJSONStrType);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

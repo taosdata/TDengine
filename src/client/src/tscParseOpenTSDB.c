@@ -749,8 +749,17 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
       break;
     }
     case cJSON_String: {
-      //convert default JSON String type to nchar
-      pVal->type = TSDB_DATA_TYPE_NCHAR;
+      /* set default JSON type to binary/nchar according to
+       * user configured parameter tsSmlDefaultJSONStrType
+       */
+      if (strcasecmp(tsSmlDefaultJSONStrType, "binary") == 0) {
+        pVal->type = TSDB_DATA_TYPE_BINARY;
+      } else if (strcasecmp(tsSmlDefaultJSONStrType, "nchar") == 0) {
+        pVal->type = TSDB_DATA_TYPE_NCHAR;
+      } else {
+        tscError("OTD:0x%"PRIx64" Invalid default JSON string type set from config %s", info->id, tsSmlDefaultJSONStrType);
+        return TSDB_CODE_TSC_INVALID_JSON_CONFIG;
+      }
       //pVal->length = wcslen((wchar_t *)root->valuestring) * TSDB_NCHAR_SIZE;
       pVal->length = (int16_t)strlen(root->valuestring);
       pVal->value = tcalloc(pVal->length + 1, 1);
