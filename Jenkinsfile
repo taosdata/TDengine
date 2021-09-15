@@ -451,7 +451,7 @@ pipeline {
         } 
         
         stage('build'){
-          agent{label " crashgen "}
+          agent{label " wintest "}
           steps {
             pre_test()
             script{             
