@@ -7169,22 +7169,14 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
     /*
      *  if numOfSelectivity equals to 0, it is a super table projection query
      */
-    if (numOfSelectivity == 1 || numOfScalar == 1) {
-      if (numOfSelectivity == numOfScalar) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
+    if (numOfSelectivity == 1) {
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
-      if (numOfSelectivity == 1 && code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
 
-    } else if (numOfSelectivity > 1 || numOfScalar > 1) {
-      if (numOfSelectivity > 1 && numOfScalar > 1) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
+    } else if (numOfSelectivity > 1) {
       /*
        * If more than one selectivity functions exist, all the selectivity functions must be last_row.
        * Otherwise, return with error code.
@@ -7206,7 +7198,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
-      if (numOfSelectivity == 1 && code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
     }
