@@ -467,7 +467,6 @@ pipeline {
             }     
             script{
               win_stop=1
-              println win_stop
             }
           }
         }
