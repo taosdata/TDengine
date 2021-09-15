@@ -68,7 +68,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType before 2.0.24(exclude) | JDBCType after 2.0.24(include) |
+| TDengine DataType | JDBCType （driver 版本 < 2.0.24） | JDBCType （driver 版本 >= 2.0.24） |
 | ----------------- | ------------------ | ------------------ |
 | TIMESTAMP         | java.lang.Long     | java.sql.Timestamp |
 | INT               | java.lang.Integer  | java.lang.Integer  |
