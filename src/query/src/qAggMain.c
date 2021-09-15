@@ -4233,61 +4233,38 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   doFinalizer(pCtx);
 }
 
-void setTagCtxList(SQLFunctionCtx *pCtx)
-{
-  if (pCtx && pCtx->tagInfo.numOfTagCols > 0 && pCtx->ptsList) {
-    int32_t  delta = 4;
-    void    *data = GET_INPUT_DATA_LIST(pCtx);
-    void    *pData = data;
+#define CFR_SET_VAL(type, data, pCtx, func, i, step, notNullElems)             \
+  do {                                                                         \
+    type *pData = (type *) data;                                               \
+    type *pOutput = (type *) pCtx->pOutput;                                    \
+                                                                               \
+    for (; i < pCtx->size && i >= 0; i += step) {                              \
+      if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) { \
+        continue;                                                              \
+      }                                                                        \
+                                                                               \
+      *pOutput++ = (type) func((double) pData[i]);                             \
+                                                                               \
+      notNullElems++;                                                          \
+    }                                                                          \
+  } while (0)
 
-    char **p = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
-    if (p == NULL) {
-      return;
-    }
-
-    for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-      p[j] = pCtx->tagInfo.pTagCtxList[j]->pOutput;
-    }
-
-    switch(pCtx->inputType) {
-    case TSDB_DATA_TYPE_INT:
-      delta = sizeof(int32_t);
-      break;
-    case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_BIGINT:
-      delta = sizeof(int64_t);
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      delta = sizeof(double);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      delta = sizeof(float);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      delta = sizeof(int16_t);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      delta = sizeof(int8_t);
-      break;
-    default:
-      free(p);
-      return;
-    }
-
-    for (int32_t j = 0; j < pCtx->size; ++j) {
-      if (pCtx->hasNull && isNull((const char*) ((char *) pData + j * delta), pCtx->inputType)) {
-        continue;
-      }
-
-      for (int32_t k = 0; k < pCtx->tagInfo.numOfTagCols; ++k) {
-        memcpy(p[k], &pCtx->ptsList[j], (size_t)pCtx->tagInfo.pTagCtxList[k]->outputBytes);
-        p[k] += pCtx->tagInfo.pTagCtxList[k]->outputBytes;
-      }
-    }
-
-    free(p);
-  }
-}
+#define CFR_SET_VAL_DOUBLE(data, pCtx, func, i, step, notNullElems)            \
+  do {                                                                         \
+    double *pData = (double *) data;                                           \
+    double *pOutput = (double *) pCtx->pOutput;                                \
+                                                                               \
+    for (; i < pCtx->size && i >= 0; i += step) {                              \
+      if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) { \
+        continue;                                                              \
+      }                                                                        \
+                                                                               \
+      SET_DOUBLE_VAL(pOutput, func(pData[i]));                                 \
+      pOutput++;                                                               \
+                                                                               \
+      notNullElems++;                                                          \
+    }                                                                          \
+  } while (0)
 
 static void ceil_function(SQLFunctionCtx *pCtx) {
   void *data = GET_INPUT_DATA_LIST(pCtx);
@@ -4299,101 +4276,43 @@ static void ceil_function(SQLFunctionCtx *pCtx) {
 
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
-      int32_t *pData = (int32_t *)data;
-      int32_t *pOutput = (int32_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int32_t) ceil((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int32_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_UINT: {
+      CFR_SET_VAL(uint32_t, data, pCtx, ceil, i, step, notNullElems);
       break;
     };
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t *pData = (int64_t *)data;
-      int64_t *pOutput = (int64_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int64_t) ceil((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int64_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      CFR_SET_VAL(uint64_t, data, pCtx, ceil, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      double *pData = (double *)data;
-      double *pOutput = (double *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        SET_DOUBLE_VAL(pOutput, ceil(pData[i]));
-        pOutput++;
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL_DOUBLE(data, pCtx, ceil, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float *pData = (float *)data;
-      float *pOutput = (float *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (float) ceil((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(float, data, pCtx, ceil, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t *pData = (int16_t *)data;
-      int16_t *pOutput = (int16_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int16_t) ceil((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int16_t, data, pCtx, ceil, i, step, notNullElems);
       break;
     }
-
+    case TSDB_DATA_TYPE_USMALLINT: {
+      CFR_SET_VAL(uint16_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t *pData = (int8_t *)data;
-      int8_t *pOutput = (int8_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int8_t) ceil((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int8_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      CFR_SET_VAL(uint8_t, data, pCtx, ceil, i, step, notNullElems);
       break;
     }
     default:
@@ -4420,101 +4339,43 @@ static void floor_function(SQLFunctionCtx *pCtx) {
 
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
-      int32_t *pData = (int32_t *)data;
-      int32_t *pOutput = (int32_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int32_t) floor((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int32_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_UINT: {
+      CFR_SET_VAL(uint32_t, data, pCtx, floor, i, step, notNullElems);
       break;
     };
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t *pData = (int64_t *)data;
-      int64_t *pOutput = (int64_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int64_t) floor((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int64_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      CFR_SET_VAL(uint64_t, data, pCtx, floor, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      double *pData = (double *)data;
-      double *pOutput = (double *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        SET_DOUBLE_VAL(pOutput, floor(pData[i]));
-        pOutput++;
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL_DOUBLE(data, pCtx, floor, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float *pData = (float *)data;
-      float *pOutput = (float *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (float) floor((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(float, data, pCtx, floor, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t *pData = (int16_t *)data;
-      int16_t *pOutput = (int16_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int16_t) floor((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int16_t, data, pCtx, floor, i, step, notNullElems);
       break;
     }
-
+    case TSDB_DATA_TYPE_USMALLINT: {
+      CFR_SET_VAL(uint16_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t *pData = (int8_t *)data;
-      int8_t *pOutput = (int8_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int8_t) floor((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int8_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      CFR_SET_VAL(uint8_t, data, pCtx, floor, i, step, notNullElems);
       break;
     }
     default:
@@ -4541,101 +4402,43 @@ static void round_function(SQLFunctionCtx *pCtx) {
 
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
-      int32_t *pData = (int32_t *)data;
-      int32_t *pOutput = (int32_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int32_t) round((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int32_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_UINT: {
+      CFR_SET_VAL(uint32_t, data, pCtx, round, i, step, notNullElems);
       break;
     };
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t *pData = (int64_t *)data;
-      int64_t *pOutput = (int64_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int64_t) round((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int64_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      CFR_SET_VAL(uint64_t, data, pCtx, round, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      double *pData = (double *)data;
-      double *pOutput = (double *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        SET_DOUBLE_VAL(pOutput, round(pData[i]));
-        pOutput++;
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL_DOUBLE(data, pCtx, round, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float *pData = (float *)data;
-      float *pOutput = (float *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (float) round((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(float, data, pCtx, round, i, step, notNullElems);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t *pData = (int16_t *)data;
-      int16_t *pOutput = (int16_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int16_t) round((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int16_t, data, pCtx, round, i, step, notNullElems);
       break;
     }
-
+    case TSDB_DATA_TYPE_USMALLINT: {
+      CFR_SET_VAL(uint16_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t *pData = (int8_t *)data;
-      int8_t *pOutput = (int8_t *)pCtx->pOutput;
-
-      for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
-          continue;
-        }
-
-        *pOutput++ = (int8_t) round((double) pData[i]);
-
-        notNullElems++;
-      }
-      setTagCtxList(pCtx);
+      CFR_SET_VAL(int8_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      CFR_SET_VAL(uint8_t, data, pCtx, round, i, step, notNullElems);
       break;
     }
     default:
@@ -4651,6 +4454,9 @@ static void round_function(SQLFunctionCtx *pCtx) {
     GET_RES_INFO(pCtx)->numOfRes += notNullElems;
   }
 }
+
+#undef CFR_SET_VAL
+#undef CFR_SET_VAL_DOUBLE
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
