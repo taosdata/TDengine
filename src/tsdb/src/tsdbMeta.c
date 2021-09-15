@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tsdbint.h"
+#include "tcompare.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
@@ -1051,7 +1052,40 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
 
   pTable->pSuper = pSTable;
 
-  tSkipListPut(pSTable->pIndex, (void *)pTable);
+  if(pSTable->tagSchema->numOfCols == 1 && pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+    int16_t nCols = kvRowNCols(pTable->tagVal);
+    ASSERT(nCols%2 == 1);
+    for (int j = 0; j < nCols; ++j) {
+      SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
+      void* val = (kvRowColVal(pTable->tagVal, pColIdx));
+      if (j == 0){        // json value is the first
+        int8_t jsonVal = *(int8_t*)val;
+        ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
+        continue;
+      }
+
+      void* tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
+      if(tablist == NULL) {
+        tablist = taosArrayInit(8, sizeof(uint64_t));
+        if(tablist == NULL){
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbError("out of memory when alloc json tag array");
+          return -1;
+        }
+      }
+      taosArrayPush(tablist, &TABLE_UID(pTable));
+      taosArraySort(tablist, compareUint64Val);
+      taosArrayRemoveDuplicate(tablist, compareUint64Val, NULL);
+
+      if(taosHashPut(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val), tablist, sizeof(void*)) < 0){
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbError("out of memory when put json tag array");
+        return -1;
+      }
+    }
+  }else{
+    tSkipListPut(pSTable->pIndex, (void *)pTable);
+  }
 
   if (refSuper) T_REF_INC(pSTable);
   return 0;
@@ -1316,12 +1350,17 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-      pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
+      if(pCol->type == TSDB_DATA_TYPE_JSON){
+        assert(pTable->tagSchema->numOfCols == 1);
+        pTable->jsonKeyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
+      }else{
+        pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
                                        SL_ALLOW_DUP_KEY, getTagIndexKey);
-      if (pTable->pIndex == NULL) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        tsdbFreeTable(pTable);
-        return NULL;
+        if (pTable->pIndex == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbFreeTable(pTable);
+          return NULL;
+        }
       }
     }
 

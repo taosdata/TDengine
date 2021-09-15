@@ -30,6 +30,7 @@
 #include "ttimer.h"
 #include "ttokendef.h"
 #include "httpInt.h"
+#include "cJSON.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 
@@ -5149,4 +5150,65 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   pthread_mutex_unlock(&pSql->pTscObj->mutex);
 
   return p;
+}
+
+int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+  cJSON *root = cJSON_Parse(json);
+  if (root == NULL){
+    tscError("json parse error");
+    return tscSQLSyntaxErrMsg(errMsg, "json parse error", NULL);
+
+  }
+
+  int retCode = 0;
+  int size = cJSON_GetArraySize(root);
+  if(!cJSON_IsObject(root) || size == 0){
+    tscError("json error invalide value");
+    retCode = tscSQLSyntaxErrMsg(errMsg, "json error invalide value", NULL);
+    goto end;
+  }
+
+  int jsonIndex = startColId++;
+  for(int i = 0; i < size; i++) {
+    cJSON* item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      tscError("json inner error:%d", i);
+      retCode =  tscSQLSyntaxErrMsg(errMsg, "json inner error", NULL);
+      goto end;
+    }
+    char tagVal[TSDB_MAX_TAGS_LEN];
+    int32_t output = 0;
+    if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
+      tscError("json string error:%s|%s", strerror(errno), item->string);
+      retCode =  tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
+      goto end;
+    }
+
+    varDataSetLen(tagVal, output);
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
+
+    memset(tagVal, 0, TSDB_MAX_TAGS_LEN);
+    if(item->type == cJSON_String){
+      output = 0;
+      if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
+        tscError("json string error:%s|%s", strerror(errno), item->string);
+        retCode =  tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
+        goto end;
+      }
+
+      varDataSetLen(tagVal, output);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
+    }else if(item->type == cJSON_Number){
+      *((double *)tagVal) = item->valuedouble;
+
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal);
+    }else{
+      retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);
+      goto end;
+    }
+  }
+
+end:
+  cJSON_Delete(root);
+  return retCode;
 }

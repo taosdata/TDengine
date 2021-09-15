@@ -430,7 +430,7 @@ FORCE_INLINE void* getDataMax(int32_t type) {
 
 
 bool isValidDataType(int32_t type) {
-  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
+  return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_JSON;
 }
 
 void setVardataNull(void* val, int32_t type) {

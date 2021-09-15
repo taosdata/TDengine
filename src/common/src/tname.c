@@ -193,7 +193,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
       return false;
     }
     // 1. valid types
-    if (!isValidDataType(pSchema[i].type) && pSchema[i].type != TSDB_DATA_TYPE_JSON) {
+    if (!isValidDataType(pSchema[i].type)) {
       return false;
     }
 

@@ -28,6 +28,7 @@ typedef struct STable {
   STSchema*      tagSchema;
   SKVRow         tagVal;
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
+  SHashObj*      jsonKeyMap;     // For json tag key  {"key":[t1, t2, t3]}
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;

@@ -1438,7 +1438,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   int32_t nLen = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pField = taosArrayGet(pFieldList, i);
-    if (!isValidDataType(pField->type)) {
+    if (!isValidDataType(pField->type) || pField->type == TSDB_DATA_TYPE_JSON) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       return false;
     }
@@ -1531,7 +1531,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
 
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-    if (!isValidDataType(p->type) && p->type != TSDB_DATA_TYPE_JSON) {
+    if (!isValidDataType(p->type)) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       return false;
     }
@@ -7740,8 +7740,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg3 = "tag value too long";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "tags number not matched";
-  const char* msg6 = "tags json invalidate";
-  const char* msg7 = "serizelize json error";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -7939,57 +7937,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
       tVariantListItem* pItem = taosArrayGet(pValList, 0);
-      cJSON *root = cJSON_Parse(pItem->pVar.pz);
-      if (root == NULL){
-        tscError("json parse error");
+      ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
+      if (ret != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+        return ret;
       }
-
-      int size = cJSON_GetArraySize(root);
-      if(!cJSON_IsObject(root) || size == 0){
-        tscError("json error invalide value");
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-      }
-
-      int jsonIndex = 0;
-      for(int i = 0; i < size; i++) {
-        cJSON* item = cJSON_GetArrayItem(root, i);
-        if (!item) {
-          tscError("json inner error:%d", i);
-          continue;
-        }
-        char tagVal[TSDB_MAX_TAGS_LEN];
-        int32_t output = 0;
-        if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
-          tscError("json string error:%s|%s", strerror(errno), item->string);
-          tdDestroyKVRowBuilder(&kvRowBuilder);
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-        }
-
-        varDataSetLen(tagVal, output);
-        tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
-
-        if(item->type == cJSON_String){
-          output = 0;
-          if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
-            tscError("json string error:%s|%s", strerror(errno), item->string);
-            tdDestroyKVRowBuilder(&kvRowBuilder);
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-          }
-
-          varDataSetLen(tagVal, output);
-          tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
-        }else if(item->type == cJSON_Number){
-          *((double *)tagVal) = item->valuedouble;
-
-          tdAddColToKVRow(&kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal);
-        }else{
-          tdDestroyKVRowBuilder(&kvRowBuilder);
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);}
-      }
-      cJSON_Delete(root);
     }
 
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);

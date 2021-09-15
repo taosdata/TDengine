@@ -203,7 +203,13 @@ void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp) {
   if (pHashObj != NULL && fp != NULL) {
     pHashObj->equalFp = fp;
   } 
-} 
+}
+
+void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp) {
+  if (pHashObj != NULL && fp != NULL) {
+    pHashObj->freeFp = fp;
+  }
+}
 
 int32_t taosHashGetSize(const SHashObj *pHashObj) {
   if (!pHashObj) {
