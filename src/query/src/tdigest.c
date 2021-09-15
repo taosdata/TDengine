@@ -48,7 +48,7 @@ void tdigestAutoFill(TDigest* t, int32_t compression) {
 }
 
 TDigest *tdigestNewFrom(void* pBuf, int32_t compression) {
-    memset(pBuf, 0, sizeof(TDigest) + sizeof(SCentroid)*(compression + 1));
+    memset(pBuf, 0, TDIGEST_SIZE(compression));
     TDigest* t = (TDigest*)pBuf;
     tdigestAutoFill(t, compression);
 
@@ -129,20 +129,26 @@ void tdigestCompress(TDigest *t) {
         SCentroid *b = &t->centroids[j];
 
         if (a->mean <= b->mean) {
-            mergeCentroid(&args, a);
+            mergeCentroid(&args, a);            
+            assert(args.idx < t->size);
             i++;
         } else {
             mergeCentroid(&args, b);
+            assert(args.idx < t->size);
             j++;
         }
     }
 
-    while (i < num_unmerged)
+    while (i < num_unmerged) {
         mergeCentroid(&args, &unmerged_centroids[i++]);
+        assert(args.idx < t->size);
+    }
     free((void*)unmerged_centroids);
 
-    while (j < t->num_centroids)
+    while (j < t->num_centroids) {
         mergeCentroid(&args, &t->centroids[j++]);
+        assert(args.idx < t->size);
+    }
 
     if (t->total_weight > 0) {
         t->min = MIN(t->min, args.min);
@@ -166,7 +172,7 @@ void tdigestAdd(TDigest* t, double x, int64_t w) {
     t->buffered_pts[i].weight = w;
     t->num_buffered_pts++;
 
-    if (t->num_buffered_pts > t->threshold)
+    if (t->num_buffered_pts >= t->threshold)
         tdigestCompress(t);
 }
 
