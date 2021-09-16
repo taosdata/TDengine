@@ -401,7 +401,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
   TSDB_WLOCK_TABLE(pTable);
   if (pMsg->type == TSDB_DATA_TYPE_JSON){
     kvRowFree(pTable->tagVal);
-    pTable->tagVal = tdKVRowDup(POINTER_SHIFT(pMsg->data, pMsg->schemaLen))
+    pTable->tagVal = tdKVRowDup(POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
   }else{
     tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pMsg->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
   }
