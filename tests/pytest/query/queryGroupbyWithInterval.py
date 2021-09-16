@@ -44,6 +44,14 @@ class TDTestCase:
         tdSql.query("select sum(size) from stest interval(1d) group by appname")        
         tdSql.checkRows(3)
 
+        #For jira: https://jira.taosdata.com:18080/browse/TD-6085
+        tdSql.query("select last(size),appname from stb where tbname in ('test1','test2','test11')")
+        tdSql.checkRows(1)
+        
+        #For jira: https://jira.taosdata.com:18080/browse/TD-6314
+        tdSql.query("select _block_dist() from stb")
+        tdSql.checkRows(1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
