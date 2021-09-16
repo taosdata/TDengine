@@ -77,9 +77,13 @@ export class TDengineRestResultSet {
 
 
   toString() {
-    let fields = this.column_type
-    let rows = this.data
-    this._prettyStr(fields, rows)
+    if(this.status === 'succ'){
+      let fields = this.column_type
+      let rows = this.data
+      this._prettyStr(fields, rows)
+    }else{
+      console.log(this.status+":"+this.desc)
+    }
   }
 
   _prettyStr(fields, data) {

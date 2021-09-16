@@ -52,15 +52,15 @@ export class TDengineRestCursor {
         body: sql,
         headers: {'Authorization': this._token()}
       })
-      if (response.status >= 200 && response.status < 300) {
-
-        return new TDengineRestResultSet(await response.json())
-      } else {
-        throw new Error(response.statusText)
-      }
+      // if (response.status == 'succ') {
+      return await new TDengineRestResultSet(await response.json())
+      // } else {
+      //   throw new Error(response.desc)
+      // }
     } catch (e) {
       console.log("Request Failed " + e)
     }
-  }
 
+  }
 }
+

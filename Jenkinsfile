@@ -240,6 +240,15 @@ pipeline {
               node nanosecondTest.js
 
               '''
+
+              sh '''
+              cd ${WKC}/src/connector/node-rest/
+              npm run build > /dev/null 2>&1
+              npm run build:test > /dev/null 2>&1
+              npm run test
+
+              '''
+
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
                 mcs -out:taosdemo *.cs > /dev/null 2>&1
