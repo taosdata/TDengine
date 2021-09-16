@@ -405,6 +405,25 @@ static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput
   return (numOfSelectivity > 0 && hasTags);
 }
 
+static bool isScalarWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
+  bool    hasTags = false;
+  int32_t numOfScalar = 0;
+
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    int32_t functId = pCtx[i].functionId;
+    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
+      hasTags = true;
+      continue;
+    }
+
+    if ((aAggs[functId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
+      numOfScalar++;
+    }
+  }
+
+  return (numOfScalar > 0 && hasTags);
+}
+
 static bool isProjQuery(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functId = pQueryAttr->pExpr1[i].base.functionId;
@@ -1939,7 +1958,7 @@ void setBlockStatisInfo(SQLFunctionCtx *pCtx, SSDataBlock* pSDataBlock, SColInde
 
 // set the output buffer for the selectivity + tag query
 static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
-  if (!isSelectivityWithTagsQuery(pCtx, numOfOutput)) {
+  if (!isSelectivityWithTagsQuery(pCtx, numOfOutput) && !isScalarWithTagsQuery(pCtx, numOfOutput)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1958,7 +1977,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pCtx[i].outputBytes;
       pTagCtx[num++] = &pCtx[i];
-    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0 || (aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
       p = &pCtx[i];
     } else if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG) {
       // tag function may be the group by tag column

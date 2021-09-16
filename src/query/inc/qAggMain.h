@@ -70,14 +70,14 @@ extern "C" {
 #define TSDB_FUNC_DERIVATIVE   32
 #define TSDB_FUNC_BLKINFO      33
 
+#define TSDB_FUNC_CEIL         34
+#define TSDB_FUNC_FLOOR        35
+#define TSDB_FUNC_ROUND        36
 
-#define TSDB_FUNC_HISTOGRAM    34
-#define TSDB_FUNC_HLL          35
-#define TSDB_FUNC_MODE         36
-#define TSDB_FUNC_SAMPLE       37
-#define TSDB_FUNC_CEIL         38
-#define TSDB_FUNC_FLOOR        39
-#define TSDB_FUNC_ROUND        40
+#define TSDB_FUNC_HISTOGRAM    37
+#define TSDB_FUNC_HLL          38
+#define TSDB_FUNC_MODE         39
+#define TSDB_FUNC_SAMPLE       40
 #define TSDB_FUNC_MAVG         41
 #define TSDB_FUNC_CSUM         42
 
@@ -88,6 +88,7 @@ extern "C" {
 #define TSDB_FUNCSTATE_OF           0x10u   // outer forward
 #define TSDB_FUNCSTATE_NEED_TS      0x20u   // timestamp is required during query processing
 #define TSDB_FUNCSTATE_SELECTIVITY  0x40u   // selectivity functions, can exists along with tag columns
+#define TSDB_FUNCSTATE_SCALAR       0x80u
 
 #define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF

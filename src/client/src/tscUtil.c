@@ -269,7 +269,10 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_DIFF &&
         functionId != TSDB_FUNC_DERIVATIVE &&
         functionId != TSDB_FUNC_TS_DUMMY &&
-        functionId != TSDB_FUNC_TID_TAG) {
+        functionId != TSDB_FUNC_TID_TAG &&
+        functionId != TSDB_FUNC_CEIL &&
+        functionId != TSDB_FUNC_FLOOR &&
+        functionId != TSDB_FUNC_ROUND) {
       return false;
     }
   }
@@ -1466,7 +1469,12 @@ void tscFreeSubobj(SSqlObj* pSql) {
   tscDebug("0x%"PRIx64" start to free sub SqlObj, numOfSub:%d", pSql->self, pSql->subState.numOfSub);
 
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    tscDebug("0x%"PRIx64" free sub SqlObj:0x%"PRIx64", index:%d", pSql->self, pSql->pSubs[i]->self, i);
+    if (pSql->pSubs[i] != NULL) {
+      tscDebug("0x%"PRIx64" free sub SqlObj:0x%"PRIx64", index:%d", pSql->self, pSql->pSubs[i]->self, i);
+    } else {
+      /* just for python error test case */
+      tscDebug("0x%"PRIx64" free sub SqlObj:0x0, index:%d", pSql->self, i);
+    }
     taos_free_result(pSql->pSubs[i]);
     pSql->pSubs[i] = NULL;
   }
