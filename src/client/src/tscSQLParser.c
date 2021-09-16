@@ -1591,7 +1591,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   //  return false;
   //}
   if (pTagField->type == TSDB_DATA_TYPE_JSON) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
   }
 
   if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
@@ -1602,7 +1602,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   int32_t  nLen = 0;
 
   if (numOfTags == 1 && pTagSchema[0].type == TSDB_DATA_TYPE_JSON){
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
   }
 
   for (int32_t i = 0; i < numOfTags; ++i) {
