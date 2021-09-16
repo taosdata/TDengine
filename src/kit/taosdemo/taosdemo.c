@@ -114,7 +114,7 @@ extern char configDir[];
 #define DEFAULT_CHILDTABLES     10000
 
 
-#define STMT_BIND_PARAM_BATCH   0
+#define STMT_BIND_PARAM_BATCH   1
 
 char* g_sampleDataBuf = NULL;
 #if STMT_BIND_PARAM_BATCH == 1
@@ -595,16 +595,22 @@ static void init_rand_data();
 /* ************ Global variables ************  */
 
 int32_t  g_randint[MAX_PREPARED_RAND];
+uint32_t  g_randuint[MAX_PREPARED_RAND];
 int64_t  g_randbigint[MAX_PREPARED_RAND];
+uint64_t  g_randubigint[MAX_PREPARED_RAND];
 float    g_randfloat[MAX_PREPARED_RAND];
 double   g_randdouble[MAX_PREPARED_RAND];
 
 char    *g_randbool_buff = NULL;
 char    *g_randint_buff = NULL;
+char    *g_randuint_buff = NULL;
 char    *g_rand_voltage_buff = NULL;
 char    *g_randbigint_buff = NULL;
+char    *g_randubigint_buff = NULL;
 char    *g_randsmallint_buff = NULL;
+char    *g_randusmallint_buff = NULL;
 char    *g_randtinyint_buff = NULL;
+char    *g_randutinyint_buff = NULL;
 char    *g_randfloat_buff = NULL;
 char    *g_rand_current_buff = NULL;
 char    *g_rand_phase_buff = NULL;
@@ -2221,12 +2227,29 @@ static char *rand_tinyint_str()
         ((cursor % MAX_PREPARED_RAND) * TINYINT_BUFF_LEN);
 }
 
+static char *rand_utinyint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randutinyint_buff +
+        ((cursor % MAX_PREPARED_RAND) * UTINYINT_BUFF_LEN);
+}
+
 static int32_t rand_tinyint()
 {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randint[cursor % MAX_PREPARED_RAND] % 128;
+}
+
+static int32_t rand_utinyint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 255;
 }
 
 static char *rand_smallint_str()
@@ -2238,12 +2261,29 @@ static char *rand_smallint_str()
         ((cursor % MAX_PREPARED_RAND) * SMALLINT_BUFF_LEN);
 }
 
+static char *rand_usmallint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randusmallint_buff +
+        ((cursor % MAX_PREPARED_RAND) * USMALLINT_BUFF_LEN);
+}
+
 static int32_t rand_smallint()
 {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randint[cursor % MAX_PREPARED_RAND] % 32767;
+}
+
+static int32_t rand_usmallint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_int_str()
@@ -2254,12 +2294,28 @@ static char *rand_int_str()
     return g_randint_buff + ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
 }
 
+static char *rand_uint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randuint_buff + ((cursor % MAX_PREPARED_RAND) * UINT_BUFF_LEN);
+}
+
 static int32_t rand_int()
 {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randint[cursor % MAX_PREPARED_RAND];
+}
+
+static int32_t rand_uint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randuint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_bigint_str()
@@ -2271,12 +2327,29 @@ static char *rand_bigint_str()
         ((cursor % MAX_PREPARED_RAND) * BIGINT_BUFF_LEN);
 }
 
+static char *rand_ubigint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randubigint_buff +
+        ((cursor % MAX_PREPARED_RAND) * UBIGINT_BUFF_LEN);
+}
+
 static int64_t rand_bigint()
 {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randbigint[cursor % MAX_PREPARED_RAND];
+}
+
+static int64_t rand_ubigint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randubigint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_float_str()
@@ -2416,9 +2489,18 @@ static void init_rand_data() {
     assert(g_rand_phase_buff);
     g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randdouble_buff);
+    g_randuint_buff = calloc(1, UINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randuint_buff);
+    g_randutinyint_buff = calloc(1, UTINYINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randutinyint_buff);
+    g_randusmallint_buff = calloc(1, USMALLINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randusmallint_buff);
+    g_randubigint_buff = calloc(1, UBIGINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randubigint_buff);
 
     for (int i = 0; i < MAX_PREPARED_RAND; i++) {
         g_randint[i] = (int)(taosRandom() % 65535);
+        g_randuint[i] = (int)(taosRandom() % 65535);
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
         sprintf(g_rand_voltage_buff + i * INT_BUFF_LEN, "%d",
@@ -2427,13 +2509,22 @@ static void init_rand_data() {
         sprintf(g_randbool_buff + i * BOOL_BUFF_LEN, "%s",
                 ((g_randint[i] % 2) & 1)?"true":"false");
         sprintf(g_randsmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
-                g_randint[i] % 32767);
+                g_randint[i] % 32768);
         sprintf(g_randtinyint_buff + i * TINYINT_BUFF_LEN, "%d",
                 g_randint[i] % 128);
+        sprintf(g_randuint_buff + i * UINT_BUFF_LEN, "%d",
+                g_randuint[i]);
+        sprintf(g_randusmallint_buff + i * USMALLINT_BUFF_LEN, "%d",
+                g_randuint[i]);
+        sprintf(g_randutinyint_buff + i * UTINYINT_BUFF_LEN, "%d",
+                g_randuint[i] % 255);
 
         g_randbigint[i] = (int64_t)(taosRandom() % 2147483648);
+        g_randubigint[i] = (int64_t)(taosRandom() % 2147483648);
         sprintf(g_randbigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
                 g_randbigint[i]);
+        sprintf(g_randubigint_buff + i * UBIGINT_BUFF_LEN, "%"PRId64"",
+                g_randubigint[i]);
 
         g_randfloat[i] = (float)(taosRandom() / 1000.0);
         sprintf(g_randfloat_buff + i * FLOAT_BUFF_LEN, "%f",
@@ -3007,16 +3098,32 @@ static void xDumpFieldToFile(FILE* fp, const char* val,
             fprintf(fp, "%d", *((int8_t *)val));
             break;
 
+        case TSDB_DATA_TYPE_UTINYINT:
+            fprintf(fp, "%d", *((uint8_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_SMALLINT:
             fprintf(fp, "%d", *((int16_t *)val));
+            break;
+
+        case TSDB_DATA_TYPE_USMALLINT:
+            fprintf(fp, "%d", *((uint16_t *)val));
             break;
 
         case TSDB_DATA_TYPE_INT:
             fprintf(fp, "%d", *((int32_t *)val));
             break;
 
+        case TSDB_DATA_TYPE_UINT:
+            fprintf(fp, "%d", *((uint32_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_BIGINT:
             fprintf(fp, "%"PRId64"", *((int64_t *)val));
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            fprintf(fp, "%"PRId64"", *((uint64_t *)val));
             break;
 
         case TSDB_DATA_TYPE_FLOAT:
@@ -6358,9 +6465,19 @@ static int64_t generateStbRowData(
                     tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
                     break;
 
+                case TSDB_DATA_TYPE_UINT:
+                    tmpLen = rand_uint_str();
+                    tstrncpy(pstr + dataLen, tmp, UINT_BUFF_LEN);
+                    break;
+
                 case TSDB_DATA_TYPE_BIGINT:
                     tmp = rand_bigint_str();
                     tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
+                    break;
+
+                case TSDB_DATA_TYPE_UBIGINT:
+                    tmp = rand_ubigint_str();
+                    tstrncpy(pstr + dataLen, tmp, UBIGINT_BUFF_LEN);
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
@@ -6390,10 +6507,23 @@ static int64_t generateStbRowData(
                             min(tmpLen + 1, SMALLINT_BUFF_LEN));
                     break;
 
+                case TSDB_DATA_TYPE_USMALLINT:
+                    tmp = rand_usmallint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp,
+                            min(tmpLen + 1, USMALLINT_BUFF_LEN));
+                    break;
+
                 case TSDB_DATA_TYPE_TINYINT:
                     tmp = rand_tinyint_str();
                     tmpLen = strlen(tmp);
                     tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_UTINYINT:
+                    tmp = rand_utinyint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, UTINYINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
@@ -6460,6 +6590,22 @@ static int64_t generateData(char *recBuf, char *data_type,
 
             case TSDB_DATA_TYPE_BIGINT:
                 pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
+                break;
+
+            case TSDB_DATA_TYPE_UTINYINT:
+                pstr += sprintf(pstr, ",%d", rand_utinyint() );
+                break;
+
+            case TSDB_DATA_TYPE_USMALLINT:
+                pstr += sprintf(pstr, ",%d", rand_usmallint());
+                break;
+
+            case TSDB_DATA_TYPE_UINT:
+                pstr += sprintf(pstr, ",%d", rand_uint());
+                break;
+
+            case TSDB_DATA_TYPE_UBIGINT:
+                pstr += sprintf(pstr, ",%"PRId64"", rand_ubigint());
                 break;
 
             case TSDB_DATA_TYPE_TIMESTAMP:
@@ -6566,6 +6712,8 @@ static int generateSampleFromRand(
                     break;
 
                 case TSDB_DATA_TYPE_UINT:
+                    pos += sprintf(buff + pos, "%s,", rand_uint_str());
+                    break;
                 case TSDB_DATA_TYPE_INT:
                     if ((g_args.demo_mode) && (c == 1)) {
                         tmp = demo_voltage_int_str();
@@ -6576,6 +6724,8 @@ static int generateSampleFromRand(
                     break;
 
                 case TSDB_DATA_TYPE_UBIGINT:
+                    pos += sprintf(buff + pos, "%s,", rand_ubigint_str());
+                    break;
                 case TSDB_DATA_TYPE_BIGINT:
                     pos += sprintf(buff + pos, "%s,", rand_bigint_str());
                     break;
@@ -6598,11 +6748,15 @@ static int generateSampleFromRand(
                     break;
 
                 case TSDB_DATA_TYPE_USMALLINT:
+                    pos += sprintf(buff + pos, "%s,", rand_usmallint_str());
+                    break;
                 case TSDB_DATA_TYPE_SMALLINT:
                     pos += sprintf(buff + pos, "%s,", rand_smallint_str());
                     break;
 
                 case TSDB_DATA_TYPE_UTINYINT:
+                    pos += sprintf(buff + pos, "%s,", rand_utinyint_str());
+                    break;
                 case TSDB_DATA_TYPE_TINYINT:
                     pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
                     break;
@@ -8048,6 +8202,7 @@ static int execBindParamBatch(
                             );
                     break;
 
+                case TSDB_DATA_TYPE_UINT:
                 case TSDB_DATA_TYPE_INT:
                     param->buffer_length = sizeof(int32_t);
                     param->buffer = (stbInfo)?
@@ -8057,6 +8212,7 @@ static int execBindParamBatch(
                                     + sizeof(int32_t)*(*pSamplePos));
                     break;
 
+                case TSDB_DATA_TYPE_UTINYINT:
                 case TSDB_DATA_TYPE_TINYINT:
                     param->buffer_length = sizeof(int8_t);
                     param->buffer = (stbInfo)?
@@ -8069,6 +8225,7 @@ static int execBindParamBatch(
                                     + sizeof(int8_t)*(*pSamplePos));
                     break;
 
+                case TSDB_DATA_TYPE_USMALLINT:
                 case TSDB_DATA_TYPE_SMALLINT:
                     param->buffer_length = sizeof(int16_t);
                     param->buffer = (stbInfo)?
@@ -8078,6 +8235,7 @@ static int execBindParamBatch(
                                     + sizeof(int16_t)*(*pSamplePos));
                     break;
 
+                case TSDB_DATA_TYPE_UBIGINT:
                 case TSDB_DATA_TYPE_BIGINT:
                     param->buffer_length = sizeof(int64_t);
                     param->buffer = (stbInfo)?
@@ -8224,24 +8382,28 @@ static int parseSamplefileToStmtBatch(
         char *tmpP = NULL;
 
         switch(data_type) {
+            case TSDB_DATA_TYPE_UINT:
             case TSDB_DATA_TYPE_INT:
                 tmpP = calloc(1, sizeof(int) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
+            case TSDB_DATA_TYPE_UTINYINT:
             case TSDB_DATA_TYPE_TINYINT:
                 tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
+            case TSDB_DATA_TYPE_USMALLINT:
             case TSDB_DATA_TYPE_SMALLINT:
                 tmpP = calloc(1, sizeof(int16_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
+            case TSDB_DATA_TYPE_UBIGINT:
             case TSDB_DATA_TYPE_BIGINT:
                 tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES);
                 assert(tmpP);
@@ -8320,6 +8482,7 @@ static int parseSamplefileToStmtBatch(
             char *tmpP;
 
             switch(data_type) {
+                case TSDB_DATA_TYPE_UINT:
                 case TSDB_DATA_TYPE_INT:
                     *((int32_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int32_t)*i)) =
@@ -8338,18 +8501,21 @@ static int parseSamplefileToStmtBatch(
                         atof(tmpStr);
                     break;
 
+                case TSDB_DATA_TYPE_UTINYINT:
                 case TSDB_DATA_TYPE_TINYINT:
                     *((int8_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int8_t)*i)) =
                         (int8_t)atoi(tmpStr);
                     break;
 
+                case TSDB_DATA_TYPE_USMALLINT:
                 case TSDB_DATA_TYPE_SMALLINT:
                     *((int16_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int16_t)*i)) =
                         (int16_t)atoi(tmpStr);
                     break;
 
+                case TSDB_DATA_TYPE_UBIGINT:
                 case TSDB_DATA_TYPE_BIGINT:
                     *((int64_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int64_t)*i)) =
