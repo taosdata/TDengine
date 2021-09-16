@@ -1438,8 +1438,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       (*iter)++;
     } else if (key1 > key2) {
       if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-        pSchema =
-            tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
         ASSERT(pSchema != NULL);
       }
 
@@ -1460,8 +1459,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       if (update != TD_ROW_DISCARD_UPDATE) {
         //copy mem data
         if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-          pSchema =
-              tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
           ASSERT(pSchema != NULL);
         }
 

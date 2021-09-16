@@ -99,7 +99,6 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
   }
 }
 
-// set rowType to -1 at default if have no relationship with row
 static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
   STable*   pDTable = (pTable->pSuper != NULL) ? pTable->pSuper : pTable;  // for performance purpose
   STSchema* pSchema = NULL;
