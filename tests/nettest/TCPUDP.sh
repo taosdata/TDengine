@@ -6,7 +6,7 @@ do
 	do
 		for S in udp tcp 
 		do
-			taos -n speed -h BCC-2 -P 6030 -N $N -l $l -S $S 2>&1 | tee -a result.txt
+			taos -n speed -P 6030 -N $N -l $l -S $S
 		done
 	done
 done
