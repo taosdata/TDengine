@@ -54,7 +54,7 @@ static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
-\
+
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
