@@ -1166,7 +1166,7 @@ var affectRows = cursor.execute('insert into test.weather values(now, 22.3, 34);
 
 execute方法的返回值为该语句影响的行数，上面的sql向test库的weather表中，插入了一条数据，则返回值affectRows为1。
 
-TDengine目前还不支持update和delete语句。
+TDengine 目前还不支持 delete 语句。但从 2.0.8.0 版本开始，可以通过 `CREATE DATABASE` 时指定的 UPDATE 参数来启用对数据行的 update。
 
 #### 查询
 
