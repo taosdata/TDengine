@@ -617,7 +617,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
   taosArrayDestroy(pHashObj->pMemBlock);
 
   memset(pHashObj, 0, sizeof(SHashObj));
-  free(pHashObj);
+  tfree(pHashObj);
 }
 
 // for profile only

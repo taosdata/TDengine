@@ -5176,7 +5176,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json inner error", NULL);
       goto end;
     }
-    char tagVal[TSDB_MAX_TAGS_LEN];
+    char tagVal[TSDB_MAX_TAGS_LEN] = {0};
     int32_t output = 0;
     if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
       tscError("json string error:%s|%s", strerror(errno), item->string);
@@ -5185,22 +5185,25 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     }
 
     varDataSetLen(tagVal, output);
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);   // add json key
 
     memset(tagVal, 0, TSDB_MAX_TAGS_LEN);
-    if(item->type == cJSON_String){
+    if(item->type == cJSON_String){     // add json value  format: type|data
       output = 0;
-      if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
+      *tagVal = item->type;     // type
+      char* tagData = tagVal + CHAR_BYTES;
+      if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagData), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &output)) {
         tscError("json string error:%s|%s", strerror(errno), item->string);
         retCode =  tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
         goto end;
       }
 
-      varDataSetLen(tagVal, output);
+      varDataSetLen(tagData, output);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
     }else if(item->type == cJSON_Number){
-      *((double *)tagVal) = item->valuedouble;
-
+      *tagVal = item->type;    // type
+      char* tagData = tagVal + CHAR_BYTES;
+      *((double *)tagData) = item->valuedouble;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal);
     }else{
       retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);

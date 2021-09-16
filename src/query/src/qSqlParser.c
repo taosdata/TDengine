@@ -952,7 +952,6 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
     taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
-    tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
   } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
     tSqlExprListDestroy(pInfo->list); 

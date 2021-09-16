@@ -18,6 +18,14 @@
 
 #define TSDB_MAX_TABLE_SCHEMAS 16
 
+#pragma  pack (push,1)
+typedef struct jsonMapValue{
+  uint64_t uid;     // the unique table ID
+  int16_t  colId;   // the json col ID.
+}JsonMapValue;
+
+#pragma  pack (pop)
+
 typedef struct STable {
   STableId       tableId;
   ETableType     type;

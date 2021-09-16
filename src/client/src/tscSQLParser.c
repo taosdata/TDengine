@@ -1583,8 +1583,6 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
-
-    if (p->type == TSDB_DATA_TYPE_JSON && validataTagJson
   }
 
   return true;
@@ -6297,17 +6295,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg14);
     }
 
-    pAlterSQL->tagData.data = calloc(1, pTagsSchema->bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-
-    if (tVariantDump(&pItem->pVar, pAlterSQL->tagData.data, pTagsSchema->type, true) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(pMsg, msg13);
-    }
-    
-    pAlterSQL->tagData.dataLen = pTagsSchema->bytes;
-
-    // validate the length of binary
-    if ((pTagsSchema->type == TSDB_DATA_TYPE_BINARY || pTagsSchema->type == TSDB_DATA_TYPE_NCHAR) &&
-        varDataTLen(pAlterSQL->tagData.data) > pTagsSchema->bytes) {
+    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON && (pItem->pVar.nLen > TSDB_MAX_TAGS_LEN)) {
       return invalidOperationMsg(pMsg, msg14);
     }
 
@@ -6344,14 +6332,17 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     // copy the tag value to pMsg body
-    pItem = taosArrayGet(pVarList, 1);
-    tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true);
-    
+    if (tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true)
+        != TSDB_CODE_SUCCESS){
+      return invalidOperationMsg(pMsg, msg13);
+    }
+
     int32_t len = 0;
-    if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
+    if (!IS_VAR_DATA_TYPE(pTagsSchema->type)) {
       len = tDataTypes[pTagsSchema->type].bytes;
     } else {
       len = varDataTLen(pUpdateMsg->data + schemaLen);
+      if(len > pTagsSchema->bytes) return invalidOperationMsg(pMsg, msg14);
     }
     
     pUpdateMsg->tagValLen = htonl(len);  // length may be changed after dump data

@@ -155,7 +155,6 @@ typedef struct SAlterTableInfo {
   SStrToken          name;
   int16_t            tableType;
   int16_t            type;
-  STagData           tagData;
   SArray            *pAddColumns; // SArray<TAOS_FIELD>
   SArray            *varList;     // set t=val or: change src dst, SArray<tVariantListItem>
 } SAlterTableInfo;
