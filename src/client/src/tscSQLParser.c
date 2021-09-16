@@ -6266,7 +6266,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tVariantListItem* pItem = taosArrayGet(pVarList, 1);
     SSchema* pTagsSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
 
-    if (IS_VAR_DATA_TYPE(pTagsSchema->type) && (pItem->pVar.nLen > pTagsSchema->bytes * TSDB_NCHAR_SIZE)) {
+    if (IS_VAR_DATA_TYPE(pTagsSchema->type) && (pItem->pVar.nLen > pTagsSchema->bytes)) {
       return invalidOperationMsg(pMsg, msg14);
     }
 
@@ -6275,7 +6275,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     int32_t schemaLen = sizeof(STColumn) * numOfTags;
-    int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
+    int32_t size = 0;
+    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON){
+      size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
+    } else {
+      size = sizeof(SUpdateTableTagValMsg) + TSDB_MAX_TAGS_LEN + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
+    }
 
     if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
       tscError("0x%"PRIx64" failed to malloc for alter table pMsg", pSql->self);
@@ -6306,15 +6311,37 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       d += sizeof(STColumn);
     }
 
-    // copy the tag value to pMsg body
-    if (tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true)
-        != TSDB_CODE_SUCCESS){
-      return invalidOperationMsg(pMsg, msg13);
+    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON){
+      SKVRowBuilder kvRowBuilder = {0};
+      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
+      if (code != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return code;
+      }
+      SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+      tdDestroyKVRowBuilder(&kvRowBuilder);
+      if (row == NULL) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      tdSortKVRowByColIdx(row);
+      kvRowCpy(pUpdateMsg->data + schemaLen, row);
+      free(row);
+    }else{
+      // copy the tag value to pMsg body
+      if (tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true)
+          != TSDB_CODE_SUCCESS){
+        return invalidOperationMsg(pMsg, msg13);
+      }
     }
 
     int32_t len = 0;
     if (!IS_VAR_DATA_TYPE(pTagsSchema->type)) {
       len = tDataTypes[pTagsSchema->type].bytes;
+    } else if(pTagsSchema->type == TSDB_DATA_TYPE_JSON){
+      len = kvRowLen(pUpdateMsg->data + schemaLen);
     } else {
       len = varDataTLen(pUpdateMsg->data + schemaLen);
       if(len > pTagsSchema->bytes) return invalidOperationMsg(pMsg, msg14);
