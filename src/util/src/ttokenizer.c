@@ -258,7 +258,7 @@ static void doInitKeywordsTable(void) {
 
 static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
-static int32_t gtKeywordCode(const char* z, int n) {
+static int32_t tKeywordCode(const char* z, int n) {
   pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
   
   char key[512] = {0};

@@ -1597,6 +1597,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
   const char* msg7 = "too many columns";
+  const char* msg8 = "only support one json tag";
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -1622,6 +1623,9 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   //  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   //  return false;
   //}
+  if (pTagField->type == TSDB_DATA_TYPE_JSON) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+  }
 
   if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
@@ -1629,6 +1633,10 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
   SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
   int32_t  nLen = 0;
+
+  if (numOfTags == 1 && pTagSchema[0].type == TSDB_DATA_TYPE_JSON){
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+  }
 
   for (int32_t i = 0; i < numOfTags; ++i) {
     nLen += pTagSchema[i].bytes;
