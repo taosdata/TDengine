@@ -45,6 +45,7 @@ extern int32_t  tsDnodeId;
 // common
 extern int      tsRpcTimer;
 extern int      tsRpcMaxTime;
+extern int      tsRpcForceTcp; // all commands go to tcp protocol if this is enabled
 extern int32_t  tsMaxConnections;
 extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
