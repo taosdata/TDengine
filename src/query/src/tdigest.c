@@ -113,7 +113,7 @@ void tdigestCompress(TDigest *t) {
     t->num_buffered_pts = 0;
 
     qsort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
-    args.centroids = (SCentroid*)calloc(sizeof(SCentroid), t->size);
+    args.centroids = (SCentroid*)calloc(sizeof(SCentroid), (size_t)t->size);
 
     args.t = t;
     args.min = INFINITY;
