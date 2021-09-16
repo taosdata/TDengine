@@ -71,14 +71,13 @@ extern "C" {
 #define TSDB_FUNC_BLKINFO      33
 
 #define TSDB_FUNC_CSUM         34
-
-#define TSDB_FUNC_HLL          35
-#define TSDB_FUNC_MODE         36
-#define TSDB_FUNC_SAMPLE       37
+#define TSDB_FUNC_MAVG         35
+#define TSDB_FUNC_SAMPLE       36
+#define TSDB_FUNC_MODE         37
 #define TSDB_FUNC_CEIL         38
 #define TSDB_FUNC_FLOOR        39
 #define TSDB_FUNC_ROUND        40
-#define TSDB_FUNC_MAVG         41
+#define TSDB_FUNC_HLL         41
 #define TSDB_FUNC_HISTOGRAM    42
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
