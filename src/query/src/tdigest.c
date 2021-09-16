@@ -51,7 +51,7 @@ void tdigestCopy(TDigest* dst, TDigest* src) {
 }
 
 TDigest *tdigestNewFrom(void* pBuf, int32_t compression) {
-    memset(pBuf, 0, TDIGEST_SIZE(compression));
+    memset(pBuf, 0, (size_t)TDIGEST_SIZE(compression));
     TDigest* t = (TDigest*)pBuf;
     
     t->centroids    = (SCentroid*)calloc((int32_t)GET_CENTROID(compression), sizeof(SCentroid));

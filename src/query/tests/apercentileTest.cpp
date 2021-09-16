@@ -36,7 +36,7 @@ enum {
 
 
 void tdigest_init(TDigest **pTDigest) {
-  void *tmp = calloc(1, (int16_t)(TDIGEST_SIZE(COMPRESSION)));
+  void *tmp = calloc(1, (size_t)(TDIGEST_SIZE(COMPRESSION)));
   *pTDigest = tdigestNewFrom(tmp, COMPRESSION);
 }
 
