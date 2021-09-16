@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="queries"></a> Main Query Features
 
-TDengine uses SQL as the query language. Applications can send SQL statements through C/C++, Java, Go, C#, Python, Nodejs connectors, and users can manually execute SQL Ad-Hoc Query through the Command Line Interface (CLI) tool TAOS Shell provided by TDengine. TDengine supports the following query functions:
+TDengine uses SQL as the query language. Applications can send SQL statements through C/C++, Java, Go, C#, Python, Node.js connectors, and users can manually execute SQL Ad-Hoc Query through the Command Line Interface (CLI) tool TAOS Shell provided by TDengine. TDengine supports the following query functions:
 
 - Single-column and multi-column data query
 - Multiple filters for tags and numeric values: >, <, =, < >, like, etc
