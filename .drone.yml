@@ -24,6 +24,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: test_arm64_bionic
@@ -49,6 +50,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: test_arm64_focal
@@ -76,6 +78,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: test_arm64_centos7
@@ -101,6 +104,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: test_arm64_centos8
@@ -126,6 +130,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: test_arm_bionic
@@ -152,6 +157,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: build_trusty
@@ -179,6 +185,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: build_xenial
@@ -205,6 +212,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: build_bionic
@@ -230,6 +238,7 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
 ---
 kind: pipeline
 name: build_centos7
@@ -254,3 +263,4 @@ steps:
     - develop
     - master
     - 2.0
+    - 3.0
