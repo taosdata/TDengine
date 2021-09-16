@@ -104,6 +104,7 @@ extern char configDir[];
 #define DATATYPE_BUFF_LEN       (SMALL_BUFF_LEN*3)
 #define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
+#define DEFAULT_NTHREADS        8
 #define DEFAULT_TIMESTAMP_STEP  1
 #define DEFAULT_INTERLACE_ROWS  0
 #define DEFAULT_DATATYPE_NUM    1
@@ -648,7 +649,7 @@ SArguments g_args = {
     64,              // binwidth
     4,               // columnCount, timestamp + float + int + float
     20 + FLOAT_BUFF_LEN + INT_BUFF_LEN + FLOAT_BUFF_LEN, // lenOfOneRow
-    8,               // num_of_connections/thread
+    DEFAULT_NTHREADS,// nthreads
     0,               // insert_interval
     DEFAULT_TIMESTAMP_STEP, // timestamp_step
     1,               // query_times
@@ -750,19 +751,19 @@ static void printHelp() {
     char indent[10] = "  ";
     printf("%s\n\n", "Usage: taosdemo [OPTION...]");
     printf("%s%s%s%s\n", indent, "-f, --file=FILE", "\t\t",
-            "The meta file to the execution procedure. Default is './meta.json'.");
+            "The meta file to the execution procedure.");
     printf("%s%s%s%s\n", indent, "-u, --user=USER", "\t\t",
             "The user name to use when connecting to the server.");
 #ifdef _TD_POWER_
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. Default is 'powerdb'");
+            "The password to use when connecting to the server. By default is 'powerdb'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. Default is '/etc/power/'.");
+            "Configuration directory. By default is '/etc/power/'.");
 #elif (_TD_TQ_ == true)
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. Default is 'tqueue'");
+            "The password to use when connecting to the server. By default is 'tqueue'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. Default is '/etc/tq/'.");
+            "Configuration directory. By default is '/etc/tq/'.");
 #else
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
             "The password to use when connecting to the server.");
@@ -774,24 +775,24 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
             "The TCP/IP port number to use for the connection.");
     printf("%s%s%s%s\n", indent, "-I, --interface=INTERFACE", "\t",
-            "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
+            "The interface (taosc, rest, and stmt) taosdemo uses. By default use 'taosc'.");
     printf("%s%s%s%s\n", indent, "-d, --database=DATABASE", "\t",
-            "Destination database. Default is 'test'.");
+            "Destination database. By default is 'test'.");
     printf("%s%s%s%s\n", indent, "-a, --replica=REPLICA", "\t\t",
-            "Set the replica parameters of the database, Default 1, min: 1, max: 3.");
+            "Set the replica parameters of the database, By default use 1, min: 1, max: 3.");
     printf("%s%s%s%s\n", indent, "-m, --table-prefix=TABLEPREFIX", "\t",
-            "Table prefix name. Default is 'd'.");
+            "Table prefix name. By default use 'd'.");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
             "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t", "Use normal table flag.");
     printf("%s%s%s%s\n", indent, "-o, --output=FILE", "\t\t",
-            "Direct output to the named file. Default is './output.txt'.");
+            "Direct output to the named file. By default use './output.txt'.");
     printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
-            "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
+            "Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.");
     printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
-            "The data_type of columns, default: FLOAT, INT, FLOAT.");
+            "The data_type of columns, By default use: FLOAT, INT, FLOAT.");
     printf("%s%s%s%s%d\n", indent, "-w, --binwidth=WIDTH", "\t\t",
-            "The width of data_type 'BINARY' or 'NCHAR'. Default is ",
+            "The width of data_type 'BINARY' or 'NCHAR'. By default use ",
             g_args.binwidth);
     printf("%s%s%s%s%d%s%d\n", indent, "-l, --columns=COLUMNS", "\t\t",
             "The number of columns per record. Demo mode by default is ",
@@ -800,32 +801,32 @@ static void printHelp() {
             MAX_NUM_COLUMNS);
     printf("%s%s%s%s\n", indent, indent, indent,
             "\t\t\t\tAll of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
-    printf("%s%s%s%s\n", indent, "-T, --threads=NUMBER", "\t\t",
-            "The number of threads. Default is 10.");
+    printf("%s%s%s%s%d.\n", indent, "-T, --threads=NUMBER", "\t\t",
+            "The number of threads. By default use ", DEFAULT_NTHREADS);
     printf("%s%s%s%s\n", indent, "-i, --insert-interval=NUMBER", "\t",
-            "The sleep time (ms) between insertion. Default is 0.");
+            "The sleep time (ms) between insertion. By default is 0.");
     printf("%s%s%s%s%d.\n", indent, "-S, --time-step=TIME_STEP", "\t",
-            "The timestamp step between insertion. Default is ",
+            "The timestamp step between insertion. By default is ",
             DEFAULT_TIMESTAMP_STEP);
     printf("%s%s%s%s%d.\n", indent, "-B, --interlace-rows=NUMBER", "\t",
-            "The interlace rows of insertion. Default is ",
+            "The interlace rows of insertion. By default is ",
             DEFAULT_INTERLACE_ROWS);
     printf("%s%s%s%s\n", indent, "-r, --rec-per-req=NUMBER", "\t",
-            "The number of records per request. Default is 30000.");
+            "The number of records per request. By default is 30000.");
     printf("%s%s%s%s\n", indent, "-t, --tables=NUMBER", "\t\t",
-            "The number of tables. Default is 10000.");
+            "The number of tables. By default is 10000.");
     printf("%s%s%s%s\n", indent, "-n, --records=NUMBER", "\t\t",
-            "The number of records per table. Default is 10000.");
+            "The number of records per table. By default is 10000.");
     printf("%s%s%s%s\n", indent, "-M, --random", "\t\t\t",
             "The value of records generated are totally random.");
-    printf("%s\n", "\t\t\t\tThe default is to simulate power equipment scenario.");
+    printf("%s\n", "\t\t\t\tBy default to simulate power equipment scenario.");
     printf("%s%s%s%s\n", indent, "-x, --aggr-func", "\t\t",
-            "Test aggregation funtions after insertion.");
-    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Default input yes for prompt.");
+            "Test aggregation functions after insertion.");
+    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Input yes for prompt.");
     printf("%s%s%s%s\n", indent, "-O, --disorder=NUMBER", "\t\t",
-            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. Default is in order.");
+            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. By default is in order.");
     printf("%s%s%s%s\n", indent, "-R, --disorder-range=NUMBER", "\t",
-            "Out of order data's range, ms, default is 1000.");
+            "Out of order data's range. Unit is ms. By default is 1000.");
     printf("%s%s%s%s\n", indent, "-g, --debug", "\t\t\t",
             "Print debug info.");
     printf("%s%s%s%s\n", indent, "-?, --help\t", "\t\t",
@@ -2433,7 +2434,7 @@ static int printfInsertMeta() {
     SHOW_PARSE_RESULT_START();
 
     if (g_args.demo_mode) {
-        printf("\ntaosdemo is simulating data generated by power equipments monitoring...\n\n");
+        printf("\ntaosdemo is simulating data generated by power equipment monitoring...\n\n");
     } else {
         printf("\ntaosdemo is simulating random data as you request..\n\n");
     }
