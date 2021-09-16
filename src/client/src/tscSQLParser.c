@@ -1477,39 +1477,6 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   return true;
 }
 
-static bool validataTagJson(char *json){
-  const char* msg1 = "json parse error";
-  cJSON *root = cJSON_Parse(json);
-  if (root == NULL){
-    tscError("json parse error : %s", json);
-    return false;
-  }
-
-  bool returnVal = true;
-  int size = cJSON_GetArraySize(root);
-  if(!cJSON_IsObject(root) || size == 0){
-    tscError("json error invalide value");
-  }
-  for(int i = 0; i < size; i++) {
-    cJSON* item = cJSON_GetArrayItem(root, i);
-    if (!item) {
-      tscError("json inner error:%d", i);
-      returnVal = false;
-      goto end;
-    }
-    if(item->type != cJSON_String && item->type != cJSON_Number){
-      tscError("json value unsupport:%d", item->type);
-      returnVal = false;
-      goto end;
-    }
-  }
-
-end:
-  cJSON_Delete(root);
-  return returnVal;
-}
-
-
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd) {
   assert(pTagsList != NULL);
 
