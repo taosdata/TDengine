@@ -80,6 +80,8 @@ static void mergeCentroid(SMergeArgs *args, SCentroid *merge) {
     if (k2 - args->k1 > 1 && c->weight > 0) {
         if(args->idx + 1 < args->t->size) { // check avoid overflow
             args->idx++; 
+        } else {
+          assert(0);
         }
         args->k1 = INTEGRATED_LOCATION(args->t->compression,
                 (args->weight_so_far - merge->weight) / args->t->total_weight);
@@ -100,7 +102,7 @@ void tdigestCompress(TDigest *t) {
     int64_t unmerged_weight = 0;
     int32_t num_unmerged = t->num_buffered_pts;
     int32_t i, j;
-    SMergeArgs args;
+    SMergeArgs args = {0};
 
     if (!t->num_buffered_pts)
         return;
@@ -117,7 +119,6 @@ void tdigestCompress(TDigest *t) {
     t->total_weight += unmerged_weight;
 
     qsort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
-    memset(&args, 0, sizeof(SMergeArgs));
     args.centroids = (SCentroid*)malloc((size_t)(sizeof(SCentroid) * t->size));
     memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));
 
@@ -132,24 +133,24 @@ void tdigestCompress(TDigest *t) {
 
         if (a->mean <= b->mean) {
             mergeCentroid(&args, a);            
-            assert(args.idx < t->size);
+            assert(args.idx < (t->size));
             i++;
         } else {
             mergeCentroid(&args, b);
-            assert(args.idx < t->size);
+            assert(args.idx < (t->size));
             j++;
         }
     }
 
     while (i < num_unmerged) {
         mergeCentroid(&args, &unmerged_centroids[i++]);
-        assert(args.idx < t->size);
+        assert(args.idx < (t->size));
     }
     free((void*)unmerged_centroids);
 
     while (j < t->num_centroids) {
         mergeCentroid(&args, &t->centroids[j++]);
-        assert(args.idx < t->size);
+        assert(args.idx < (t->size));
     }
 
     if (t->total_weight > 0) {
@@ -161,6 +162,12 @@ void tdigestCompress(TDigest *t) {
         t->max = MAX(t->max, args.max);
     }
 
+    static int32_t maxcentroids = t->size - 10;
+    if (t->num_centroids > maxcentroids) {
+      maxcentroids = t->num_centroids;
+      printf("maxcentroids:%d\n", maxcentroids);
+    }
+    
     memcpy(t->centroids, args.centroids, sizeof(SCentroid) * t->num_centroids);
     free((void*)args.centroids);
 }
@@ -178,65 +185,6 @@ void tdigestAdd(TDigest* t, double x, int64_t w) {
         tdigestCompress(t);
 }
 
-double tdigestCDF(TDigest *t, double x) {
-    if (t == NULL)
-        return 0;
-
-    int32_t i;
-    double left, right;
-    int64_t weight_so_far;
-    SCentroid *a, *b, tmp;
-
-    tdigestCompress(t);
-    if (t->num_centroids == 0)
-        return NAN;
-    if (x < t->min)
-        return 0;
-    if (x > t->max)
-        return 1;
-    if (t->num_centroids == 1) {
-        if (FLOAT_EQ(t->max, t->min))
-            return 0.5;
-
-        return INTERPOLATE(x, t->min, t->max);
-    }
-
-    weight_so_far = 0;
-    a = b = &tmp;
-    b->mean = t->min;
-    b->weight = 0;
-    right = 0;
-
-    for (i = 0; i < t->num_centroids; i++) {
-        SCentroid *c = &t->centroids[i];
-
-        left = b->mean - (a->mean + right);
-        a = b;
-        b = c;
-        right = (b->mean - a->mean) * a->weight / (a->weight + b->weight);
-
-        if (x < a->mean + right) {
-            double cdf = (weight_so_far
-                    + a->weight
-                    * INTERPOLATE(x, a->mean - left, a->mean + right))
-                    / t->total_weight;
-            return MAX(cdf, 0.0);
-        }
-
-        weight_so_far += a->weight;
-    }
-
-    left = b->mean - (a->mean + right);
-    a = b;
-    right = t->max - a->mean;
-
-    if (x < a->mean + right) {
-        return (weight_so_far + a->weight * INTERPOLATE(x, a->mean - left, a->mean + right))
-                / t->total_weight;
-    }
-
-    return 1;
-}
 
 double tdigestQuantile(TDigest *t, double q) {
     if (t == NULL)

@@ -6,12 +6,15 @@
 #include "taosdef.h"
 
 #include "assert.h"
+#include "qHistogram.h"
 
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
 extern "C" {
 #include "tdigest.h"
+#include "qHistogram.h"
+
 }
 
 
@@ -37,10 +40,25 @@ void tdigest_init(TDigest **pTDigest) {
   *pTDigest = tdigestNewFrom(tmp, COMPRESSION);
 }
 
+void thistogram_init(SHistogramInfo **pHisto) {
+  void *tmp = calloc(1, (int16_t)(sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1) + sizeof(SHistogramInfo)));  
+  *pHisto = tHistogramCreateFrom(tmp, MAX_HISTOGRAM_BIN);
+}
+
+
 static FORCE_INLINE int64_t testGetTimestampUs() {
   struct timeval systemTime;
   gettimeofday(&systemTime, NULL);
   return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
+}
+
+
+double *  thistogram_end(SHistogramInfo* pHisto, double* ratio, int32_t num){
+  assert(pHisto->numOfElems > 0);
+
+  double ratio2 = *ratio * 100;
+
+  return tHistogramUniform(pHisto, &ratio2, 1);
 }
 
 
@@ -64,7 +82,7 @@ void setTestData(void *data, int64_t idx, int32_t type, int64_t value) {
 }
 
 
-void addTestData(void *data, int64_t idx, int32_t type, TDigest* pTDigest) {
+void addDTestData(void *data, int64_t idx, int32_t type, TDigest* pTDigest) {
   switch (type) {
     case TEST_DATA_TYPE_INT:
       tdigestAdd(pTDigest, (double)*((int32_t*)data + idx), 1);
@@ -82,6 +100,26 @@ void addTestData(void *data, int64_t idx, int32_t type, TDigest* pTDigest) {
       assert(0);
   }
 }
+
+void addHTestData(void *data, int64_t idx, int32_t type, SHistogramInfo *pHisto) {
+  switch (type) {
+    case TEST_DATA_TYPE_INT:
+      tHistogramAdd(&pHisto, (double)*((int32_t*)data + idx));
+      break;
+    case TEST_DATA_TYPE_BIGINT:
+      tHistogramAdd(&pHisto, (double)*((int64_t*)data + idx));
+      break;
+    case TEST_DATA_TYPE_FLOAT:
+      tHistogramAdd(&pHisto, (double)*((float*)data + idx));
+      break;
+    case TEST_DATA_TYPE_DOUBLE:
+      tHistogramAdd(&pHisto, (double)*((double*)data + idx));
+      break;
+    default:
+      assert(0);
+  }
+}
+
 
 
 
@@ -134,13 +172,16 @@ void tdigestTest() {
 
   TDigest *pTDigest = NULL;
   void *data = NULL;
-  
-  int64_t totalNum[] = {100,10000,10000000};
+  SHistogramInfo *pHisto = NULL;
+  double ratio = 0.5;
+
+  int64_t totalNum[] = {100,10000,1000000000};
   int32_t numTimes = sizeof(totalNum)/sizeof(totalNum[0]);
   int64_t biggestNum = totalNum[numTimes - 1];
   int32_t unitNum[] = {1,10,100,1000,5000,10000,100000};
   int32_t unitTimes = sizeof(unitNum)/sizeof(unitNum[0]);
-  int32_t dataMode[] = {TEST_DATA_MODE_SEQ, TEST_DATA_MODE_DSEQ, TEST_DATA_MODE_RAND_PER, TEST_DATA_MODE_RAND_LIMIT};
+//  int32_t dataMode[] = {TEST_DATA_MODE_SEQ, TEST_DATA_MODE_DSEQ, TEST_DATA_MODE_RAND_PER, TEST_DATA_MODE_RAND_LIMIT};
+  int32_t dataMode[] = {TEST_DATA_MODE_SEQ};
   int32_t modeTimes = sizeof(dataMode)/sizeof(dataMode[0]);
   int32_t dataTypes[] = {TEST_DATA_TYPE_INT, TEST_DATA_TYPE_BIGINT, TEST_DATA_TYPE_FLOAT, TEST_DATA_TYPE_DOUBLE};
   int32_t typeTimes = sizeof(dataTypes)/sizeof(dataTypes[0]);
@@ -149,7 +190,7 @@ void tdigestTest() {
   int32_t randLimits[] = {10, 50, 100, 1000, 10000};
   int32_t randLTimes = sizeof(randLimits)/sizeof(randLimits[0]);
 
-  double useTime[10][10][10][10] = {0.0};
+  double useTime[2][10][10][10][10] = {0.0};
   
   for (int32_t i = 0; i < modeTimes; ++i) {
     if (dataMode[i] == TEST_DATA_MODE_RAND_PER) {
@@ -160,12 +201,23 @@ void tdigestTest() {
             int64_t startu = testGetTimestampUs();
             tdigest_init(&pTDigest);
             for (int64_t n = 0; n < totalNum[m]; ++n) {
-              addTestData(data, n, dataTypes[j], pTDigest);
+              addDTestData(data, n, dataTypes[j], pTDigest);
             }
-            double res = tdigestQuantile(pTDigest, 50/100);
+            double res = tdigestQuantile(pTDigest, ratio);
             free(pTDigest);
-            useTime[i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
-            printf("Mode:%d,Type:%d,Num:%"PRId64",randP:%d,Used:%fms\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[i][j][m][p]);
+            useTime[0][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
+            printf("DMode:%d,Type:%d,Num:%"PRId64",randP:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[0][i][j][m][p], res);
+
+            startu = testGetTimestampUs();
+            thistogram_init(&pHisto);
+            for (int64_t n = 0; n < totalNum[m]; ++n) {
+              addHTestData(data, n, dataTypes[j], pHisto);
+            }
+            double *res2 = thistogram_end(pHisto, &ratio, 1);
+            free(pHisto);
+            useTime[1][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
+            printf("HMode:%d,Type:%d,Num:%"PRId64",randP:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[1][i][j][m][p], *res2);
+            
           }
           free(data);
         }
@@ -178,12 +230,23 @@ void tdigestTest() {
             int64_t startu = testGetTimestampUs();          
             tdigest_init(&pTDigest);
             for (int64_t n = 0; n < totalNum[m]; ++n) {
-              addTestData(data, m, dataTypes[j], pTDigest);
+              addDTestData(data, m, dataTypes[j], pTDigest);
             }
-            double res = tdigestQuantile(pTDigest, 50/100);
+            double res = tdigestQuantile(pTDigest, ratio);
             free(pTDigest);                  
-            useTime[i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
-            printf("Mode:%d,Type:%d,Num:%"PRId64",randL:%d,Used:%fms\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[i][j][m][p]);
+            useTime[0][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
+            printf("DMode:%d,Type:%d,Num:%"PRId64",randL:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[0][i][j][m][p], res);
+
+
+            startu = testGetTimestampUs();          
+            thistogram_init(&pHisto);
+            for (int64_t n = 0; n < totalNum[m]; ++n) {
+              addHTestData(data, n, dataTypes[j], pHisto);
+            }
+            double* res2 = thistogram_end(pHisto, &ratio, 1);
+            free(pHisto);                  
+            useTime[1][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
+            printf("HMode:%d,Type:%d,Num:%"PRId64",randL:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[1][i][j][m][p], *res2);
           }          
           free(data);
         }
@@ -195,12 +258,24 @@ void tdigestTest() {
           int64_t startu = testGetTimestampUs();        
           tdigest_init(&pTDigest);        
           for (int64_t n = 0; n < totalNum[m]; ++n) {
-            addTestData(data, m, dataTypes[j], pTDigest);
+            addDTestData(data, n, dataTypes[j], pTDigest);
           }
-          double res = tdigestQuantile(pTDigest, 50/100);
+          double res = tdigestQuantile(pTDigest, ratio);
           free(pTDigest);
-          useTime[i][j][m][0] = ((double)(testGetTimestampUs() - startu))/1000;
-          printf("Mode:%d,Type:%d,Num:%"PRId64",Used:%fms\n", dataMode[i], dataTypes[j], totalNum[m], useTime[i][j][m][0]);
+          useTime[0][i][j][m][0] = ((double)(testGetTimestampUs() - startu))/1000;
+          printf("DMode:%d,Type:%d,Num:%"PRId64",Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], useTime[0][i][j][m][0], res);
+
+
+          startu = testGetTimestampUs();        
+          thistogram_init(&pHisto);        
+          for (int64_t n = 0; n < totalNum[m]; ++n) {
+            addHTestData(data, n, dataTypes[j], pHisto);
+          }
+          double* res2 = thistogram_end(pHisto, &ratio, 1);
+          free(pHisto);
+          useTime[1][i][j][m][0] = ((double)(testGetTimestampUs() - startu))/1000;
+          printf("HMode:%d,Type:%d,Num:%"PRId64",Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], useTime[1][i][j][m][0], *res2);
+
         }        
         free(data);
       }

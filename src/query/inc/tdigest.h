@@ -26,8 +26,9 @@
 #define M_PI        3.14159265358979323846264338327950288   /* pi             */
 #endif
 
+#define ADDITION_CENTROID_NUM 100
 #define COMPRESSION 400
-#define GET_CENTROID(compression)  (ceil(compression * M_PI / 2) + 1 + 3) // addition 3 centroid
+#define GET_CENTROID(compression)  (ceil(compression * M_PI / 2) + 1 + ADDITION_CENTROID_NUM) // addition 3 centroid
 #define GET_THRESHOLD(compression) (7.5 + 0.37 * compression - 2e-4 * pow(compression, 2))
 #define TDIGEST_SIZE(compression)  (sizeof(TDigest) + sizeof(SCentroid)*GET_CENTROID(compression) + sizeof(SPt)*GET_THRESHOLD(compression))
 
@@ -60,7 +61,6 @@ typedef struct TDigest {
 TDigest *tdigestNewFrom(void* pBuf, int32_t compression);
 void tdigestAdd(TDigest *t, double x, int64_t w);
 void tdigestMerge(TDigest *t1, TDigest *t2);
-double tdigestCDF(TDigest *t, double x);
 double tdigestQuantile(TDigest *t, double q);
 void tdigestCompress(TDigest *t);
 void tdigestFreeFrom(TDigest *t);
