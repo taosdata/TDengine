@@ -2551,6 +2551,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_MAX:
     case TSDB_FUNC_DIFF:
     case TSDB_FUNC_DERIVATIVE:
+    case TSDB_FUNC_CEIL:
+    case TSDB_FUNC_FLOOR:
+    case TSDB_FUNC_ROUND:
     case TSDB_FUNC_STDDEV:
     case TSDB_FUNC_LEASTSQR: {
       // 1. valid the number of parameters
@@ -2740,6 +2743,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             }
 
             pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+
+            if (pParamElem->pNode->columnName.z == NULL) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+            }
 
             // functions can not be applied to tags
             if ((index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) || (index.columnIndex < 0)) {
@@ -3474,6 +3481,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   int32_t scalarUdf = 0;
   int32_t prjNum = 0;
   int32_t aggNum = 0;
+  int32_t scalNum = 0;
 
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
@@ -3505,6 +3513,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       ++prjNum;
     }
 
+    if (functionId == TSDB_FUNC_CEIL || functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND) {
+      ++scalNum;
+    }
+
     if (functionId == TSDB_FUNC_PRJ && (pExpr1->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX || TSDB_COL_IS_UD_COL(pExpr1->base.colInfo.flag))) {
       continue;
     }
@@ -3526,15 +3538,19 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     }
   }
 
-  aggNum = (int32_t)size - prjNum - aggUdf - scalarUdf;
+  aggNum = (int32_t)size - prjNum - scalNum - aggUdf - scalarUdf;
 
   assert(aggNum >= 0);
 
-  if (aggUdf > 0 && (prjNum > 0 || aggNum > 0 || scalarUdf > 0)) {
+  if (aggUdf > 0 && (prjNum > 0 || aggNum > 0 || scalNum > 0 || scalarUdf > 0)) {
     return false;
   }
 
-  if (scalarUdf > 0 && aggNum > 0) {
+  if (scalarUdf > 0 && (aggNum > 0 || scalNum > 0)) {
+    return false;
+  }
+
+  if (aggNum > 0 && scalNum > 0) {
     return false;
   }
 
@@ -6536,7 +6552,9 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     }
 
     int32_t f = pExpr->base.functionId;
-    if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ARITHM || f == TSDB_FUNC_DERIVATIVE) {
+    if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ARITHM || f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_CEIL || f == TSDB_FUNC_FLOOR || f == TSDB_FUNC_ROUND)
+    {
       isProjectionFunction = true;
       break;
     }
@@ -7138,6 +7156,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   const char* msg2 = "aggregation function should not be mixed up with projection";
 
   bool    tagTsColExists = false;
+  int16_t numOfScalar = 0;
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
 
@@ -7171,6 +7190,8 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       numOfSelectivity++;
+    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
+      numOfScalar++;
     } else {
       numOfAggregation++;
     }
