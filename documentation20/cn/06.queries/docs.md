@@ -3,7 +3,7 @@
 
 ## <a class="anchor" id="queries"></a>主要查询功能
 
-TDengine 采用 SQL 作为查询语言。应用程序可以通过 C/C++, Java, Go, C#, Python, Nodejs 连接器发送 SQL 语句，用户可以通过 TDengine 提供的命令行（Command Line Interface, CLI）工具 TAOS Shell 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
+TDengine 采用 SQL 作为查询语言。应用程序可以通过 C/C++, Java, Go, C#, Python, Node.js 连接器发送 SQL 语句，用户可以通过 TDengine 提供的命令行（Command Line Interface, CLI）工具 TAOS Shell 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
 
 - 单列、多列数据查询
 - 标签和数值的多种过滤条件：>, <, =, <>, like 等
