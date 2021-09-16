@@ -2510,8 +2510,7 @@ static void tdigest_merge(SQLFunctionCtx *pCtx) {
   SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
   TDigest* pTDigest = pOutput->pTDigest;
   if(pTDigest->num_centroids == 0) {
-    memcpy(pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
-    tdigestAutoFill(pTDigest, COMPRESSION);
+    tdigestCopy(pTDigest, pInput->pTDigest);
   } else {
     tdigestMerge(pOutput->pTDigest, pInput->pTDigest);
   }

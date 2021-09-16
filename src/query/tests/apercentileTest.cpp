@@ -175,13 +175,12 @@ void tdigestTest() {
   SHistogramInfo *pHisto = NULL;
   double ratio = 0.5;
 
-  int64_t totalNum[] = {100,10000,1000000000};
+  int64_t totalNum[] = {100,10000,10000000};
   int32_t numTimes = sizeof(totalNum)/sizeof(totalNum[0]);
   int64_t biggestNum = totalNum[numTimes - 1];
   int32_t unitNum[] = {1,10,100,1000,5000,10000,100000};
   int32_t unitTimes = sizeof(unitNum)/sizeof(unitNum[0]);
-//  int32_t dataMode[] = {TEST_DATA_MODE_SEQ, TEST_DATA_MODE_DSEQ, TEST_DATA_MODE_RAND_PER, TEST_DATA_MODE_RAND_LIMIT};
-  int32_t dataMode[] = {TEST_DATA_MODE_SEQ};
+  int32_t dataMode[] = {TEST_DATA_MODE_SEQ, TEST_DATA_MODE_DSEQ, TEST_DATA_MODE_RAND_PER, TEST_DATA_MODE_RAND_LIMIT};
   int32_t modeTimes = sizeof(dataMode)/sizeof(dataMode[0]);
   int32_t dataTypes[] = {TEST_DATA_TYPE_INT, TEST_DATA_TYPE_BIGINT, TEST_DATA_TYPE_FLOAT, TEST_DATA_TYPE_DOUBLE};
   int32_t typeTimes = sizeof(dataTypes)/sizeof(dataTypes[0]);
@@ -290,30 +289,48 @@ void tdigestTest() {
     if (dataMode[i] == TEST_DATA_MODE_RAND_PER) {
       for (int32_t p = 0; p < randPTimes; ++p) {
         for (int32_t j = 0; j < typeTimes; ++j) {
-          printf("Mode:%d,Type:%d,randP:%d -", dataMode[i], dataTypes[j], randPers[p]);
+          printf("DMode:%d,Type:%d,randP:%d -", dataMode[i], dataTypes[j], randPers[p]);
           for (int32_t m = 0; m < numTimes; ++m) {          
-            printf(" %d:%f", totalNum[m], useTime[i][j][m][p]);
+            printf(" %d:%f", totalNum[m], useTime[0][i][j][m][p]);
           }
           printf("\n");
+
+          printf("HMode:%d,Type:%d,randP:%d -", dataMode[i], dataTypes[j], randPers[p]);
+          for (int32_t m = 0; m < numTimes; ++m) {          
+            printf(" %d:%f", totalNum[m], useTime[1][i][j][m][p]);
+          }
+          printf("\n");          
         }
       }
     } else if (dataMode[i] == TEST_DATA_MODE_RAND_LIMIT) {
       for (int32_t p = 0; p < randLTimes; ++p) {
         for (int32_t j = 0; j < typeTimes; ++j) {
-          printf("Mode:%d,Type:%d,randL:%d -", dataMode[i], dataTypes[j], randLimits[p]);
+          printf("DMode:%d,Type:%d,randL:%d -", dataMode[i], dataTypes[j], randLimits[p]);
           for (int64_t m = 0; m < numTimes; ++m) {
-            printf(" %d:%f", totalNum[m], useTime[i][j][m][p]);
+            printf(" %d:%f", totalNum[m], useTime[0][i][j][m][p]);
           }
           printf("\n");
+
+          printf("HMode:%d,Type:%d,randL:%d -", dataMode[i], dataTypes[j], randLimits[p]);
+          for (int64_t m = 0; m < numTimes; ++m) {
+            printf(" %d:%f", totalNum[m], useTime[1][i][j][m][p]);
+          }
+          printf("\n");          
         }
       }
     } else {
       for (int32_t j = 0; j < typeTimes; ++j) {
-        printf("Mode:%d,Type:%d -", dataMode[i], dataTypes[j]);
+        printf("DMode:%d,Type:%d -", dataMode[i], dataTypes[j]);
         for (int64_t m = 0; m < numTimes; ++m) {
-          printf(" %d:%f", totalNum[m], useTime[i][j][m][0]);
+          printf(" %d:%f", totalNum[m], useTime[0][i][j][m][0]);
         }
         printf("\n");
+
+        printf("HMode:%d,Type:%d -", dataMode[i], dataTypes[j]);
+        for (int64_t m = 0; m < numTimes; ++m) {
+          printf(" %d:%f", totalNum[m], useTime[1][i][j][m][0]);
+        }
+        printf("\n");        
       }
     }
   }
