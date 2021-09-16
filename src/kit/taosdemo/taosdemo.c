@@ -1649,7 +1649,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     } else if (0 == strcasecmp(token, "BIGINT")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_BIGINT;
                     } else if (0 == strcasecmp(token, "DOUBLE")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_FLOAT;
+                        arguments->data_type[index] = TSDB_DATA_TYPE_DOUBLE;
                     } else if (0 == strcasecmp(token, "TINYINT")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_TINYINT;
                     } else if (0 == strcasecmp(token, "BINARY")) {
@@ -1660,14 +1660,14 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_BOOL;
                     } else if (0 == strcasecmp(token, "TIMESTAMP")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_TIMESTAMP;
-                    } else if (0 == strcasecmp(dataType, "UTINYINT")) {
-                        arguments->data_type[0] = TSDB_DATA_TYPE_UTINYINT;
-                    } else if (0 == strcasecmp(dataType, "USMALLINT")) {
-                        arguments->data_type[0] = TSDB_DATA_TYPE_USMALLINT;
-                    } else if (0 == strcasecmp(dataType, "UINT")) {
-                        arguments->data_type[0] = TSDB_DATA_TYPE_UINT;
-                    } else if (0 == strcasecmp(dataType, "UBIGINT")) {
-                        arguments->data_type[0] = TSDB_DATA_TYPE_UBIGINT;
+                    } else if (0 == strcasecmp(token, "UTINYINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UTINYINT;
+                    } else if (0 == strcasecmp(token, "USMALLINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_USMALLINT;
+                    } else if (0 == strcasecmp(token, "UINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UINT;
+                    } else if (0 == strcasecmp(token, "UBIGINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UBIGINT;
                     }else {
                         arguments->data_type[index] = TSDB_DATA_TYPE_NULL;
                     }
@@ -2018,7 +2018,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 break;
 
             default:
-                errorPrint2("get error data type : %s\n", g_args.dataType[c]);
+                errorPrint2("Line %d:get error data type : %s\n", __LINE__, g_args.dataType[c]);
                 exit(EXIT_FAILURE);
         }
     }
