@@ -4801,7 +4801,7 @@ SAggFunctionInfo aAggs[] = {{
                               "diff",
                               TSDB_FUNC_DIFF,
                               TSDB_FUNC_INVALID_ID,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               diff_function_setup,
                               diff_function,
                               doFinalizer,
@@ -4897,7 +4897,7 @@ SAggFunctionInfo aAggs[] = {{
                               "derivative",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_DERIVATIVE,
                               TSDB_FUNC_INVALID_ID,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               deriv_function_setup,
                               deriv_function,
                               doFinalizer,
