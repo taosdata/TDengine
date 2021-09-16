@@ -74,7 +74,7 @@ void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
-STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version, int8_t rowType);
+STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
@@ -100,8 +100,7 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
 }
 
 // set rowType to -1 at default if have no relationship with row
-static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version,
-                                                     int8_t rowType) {
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
   STable*   pDTable = (pTable->pSuper != NULL) ? pTable->pSuper : pTable;  // for performance purpose
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
@@ -112,12 +111,8 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   } else {  // get the schema with version
     void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
-      if (rowType == SMEM_ROW_KV) {
-        ptr = taosArrayGetLast(pDTable->schema);
-      } else {
-        terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-        goto _exit;
-      }
+      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      goto _exit;
     }
     pTSchema = *(STSchema**)ptr;
   }
@@ -136,7 +131,7 @@ _exit:
 }
 
 static FORCE_INLINE STSchema* tsdbGetTableSchema(STable* pTable) {
-  return tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
+  return tsdbGetTableSchemaImpl(pTable, false, false, -1);
 }
 
 static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
