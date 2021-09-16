@@ -1453,8 +1453,6 @@ SELECT function_list FROM tb_name
 
 SELECT function_list FROM stb_name
   [WHERE where_condition]
-  [SESSION(ts_col, tol_val)]
-  [STATE_WINDOW(col)]
   [INTERVAL(interval [, offset]) [SLIDING sliding]]
   [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
   [GROUP BY tags]
@@ -1465,8 +1463,8 @@ SELECT function_list FROM stb_name
   1. 时间窗口：聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。当 SLIDING 与 INTERVAL 取值相等的时候，滑动窗口即为翻转窗口。
     * 从 2.1.5.0 版本开始，INTERVAL 语句允许的最短时间间隔调整为 1 微秒（1u），当然如果所查询的 DATABASE 的时间精度设置为毫秒级，那么允许的最短时间间隔为 1 毫秒（1a）。
     * **注意：**用到 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 taos.cfg 配置文件中的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
-  2. 状态窗口：使用整数或布尔值来标识产生记录时设备的状态量，产生的记录如果具有相同的状态量取值则归属于同一个状态窗口，数值改变后该窗口关闭。状态量所对应的列作为 STATE_WINDOW 语句的参数来指定。
-  3. 会话窗口：时间戳所在的列由 SESSION 语句的 ts_col 参数指定，会话窗口根据相邻两条记录的时间戳差值来确定是否属于同一个会话——如果时间戳差异在 tol_val 以内，则认为记录仍属于同一个窗口；如果时间变化超过 tol_val，则自动开启下一个窗口。
+  2. 状态窗口：使用整数或布尔值来标识产生记录时设备的状态量，产生的记录如果具有相同的状态量取值则归属于同一个状态窗口，数值改变后该窗口关闭。状态量所对应的列作为 STATE_WINDOW 语句的参数来指定。（状态窗口暂不支持对超级表使用）
+  3. 会话窗口：时间戳所在的列由 SESSION 语句的 ts_col 参数指定，会话窗口根据相邻两条记录的时间戳差值来确定是否属于同一个会话——如果时间戳差异在 tol_val 以内，则认为记录仍属于同一个窗口；如果时间变化超过 tol_val，则自动开启下一个窗口。（会话窗口暂不支持对超级表使用）
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
 - FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
   1. 不进行填充：NONE（默认填充模式）。
