@@ -1,4 +1,3 @@
-
 python .\test.py -f insert\basic.py 
 python .\test.py -f insert\int.py 
 python .\test.py -f insert\float.py 

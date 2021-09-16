@@ -312,12 +312,11 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
-              node test1970.js
               '''
               sh '''
-                cd ${WKC}/tests/examples/C#/taosdemo
-                mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo -c /etc/taos
+              cd ${WKC}/tests/examples/C#/taosdemo
+              mcs -out:taosdemo *.cs > /dev/null 2>&1
+              ./taosdemo -c /etc/taos -y
               '''
               sh '''
                 cd ${WKC}/tests/gotest
