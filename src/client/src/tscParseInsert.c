@@ -389,7 +389,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
 
     case TSDB_DATA_TYPE_JSON:
       if (pToken->n > TSDB_MAX_TAGS_LEN) {
-        return tscInvalidOperationMsg(msg, "json tag length too long");
+        return tscInvalidOperationMsg(msg, "json tag length too long", pToken->z);
       }
       if (pToken->type == TK_NULL) {
         *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
@@ -1631,7 +1631,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   } else {
     SSqlInfo sqlInfo = qSqlParse(pSql->sqlstr);
     ret = tscValidateSqlInfo(pSql, &sqlInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql1>parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
+    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true, pSql->self);
