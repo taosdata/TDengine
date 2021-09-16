@@ -4,35 +4,32 @@ This is the Node.js library that lets you connect to [TDengine](https://www.gith
 restful. This restful can help you access the TDengine from different platform.
 
 ## Install
+To get started, just type in the following to install the connector through [npm](https://www.npmjs.com/)
 
-### On Linux
-
-### On macOs
-
-### On Windows
+```cmd
+npm install td-rest-connector
+```
 
 ## Usage
 
 ### Connection
 
 ```javascript
-import taoRest  from ''
-var connRest = taoRest({})
+import taoRest  from 'TDengineRest'
+var connRest = taoRest({host:'127.0.0.1',user:'root',pass:'taosdata',port:6041})
 ```
-close a connection 
-```javascript
-connRest.close()
-```
+
 query
 ```javascript
-let data = connRest.Query("sql")
-console.log ("data:"+data)
+(async()=>{
+  data = await connRest.query("show databases");
+  data.toString();
+  }
+)()
 ```
 
 ## Example
-An example of using the NodeJS Restful connector to create a table with weather data and create and execute queries can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/node-rest/rest-node-example.js) 
-
-An example of using the NodeJS Restful connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)
+An example of using the NodeJS Restful connector to create a table with weather data and create and execute queries can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/node-rest/show-database.js) 
 
 ## Contributing to TDengine
 

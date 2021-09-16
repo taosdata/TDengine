@@ -1,7 +1,8 @@
 import {getTaoType} from '../src/restConstant'
 
+
 export class TDengineRestResultSet {
-  constructor(jason) {
+  constructor(result) {
     this.status = ''    //succ
     this.column_name = {} //head
     this.column_type = {} //column_meta
@@ -9,7 +10,7 @@ export class TDengineRestResultSet {
     this.affectRows = null //rows
     this.code = null
     this.desc = null
-    this._init(jason)
+    this._init(result)
   }
 
   //initial the resultSet with a jason parameter
@@ -17,27 +18,27 @@ export class TDengineRestResultSet {
    *
    * @param jason
    */
-  _init(jason) {
-    if (jason.status) {
-      this.status = jason.status
+  _init(result) {
+    if (result.status) {
+      this.status = result.status
     }
-    if (jason.head) {
-      this.column_name = jason.head
+    if (result.head) {
+      this.column_name = result.head
     }
-    if (jason.column_meta) {
-      this.column_type = jason.column_meta
+    if (result.column_meta) {
+      this.column_type = result.column_meta
     }
-    if (jason.data) {
-      this.data = jason.data
+    if (result.data) {
+      this.data = result.data
     }
-    if (jason.rows) {
-      this.affectRows = jason.rows
+    if (result.rows) {
+      this.affectRows = result.rows
     }
-    if (jason.code) {
-      this.code = jason.code
+    if (result.code) {
+      this.code = result.code
     }
-    if (jason.desc) {
-      this.desc = jason.desc
+    if (result.desc) {
+      this.desc = result.desc
     }
   }
 
@@ -95,7 +96,7 @@ export class TDengineRestResultSet {
       if ((fields[i][1]) == 8 || (fields[i][1]) == 10) {
         colSize.push(Math.max(fields[i][0].length, fields[i][2]));  //max(column_name.length,column_type_precision)
       } else {
-        colSize.push(Math.max(fields[i][0].length, this._suggestedMinWidths[fields[i][1]]));// max(column_name.length,suggest_column_with_suggestion)
+        colSize.push(Math.max(fields[i][0].length, suggestedMinWidths[fields[i][1]]));// max(column_name.length,suggest_column_with_suggestion)
       }
       // console.log(colSize)
     }
@@ -122,20 +123,6 @@ export class TDengineRestResultSet {
     return colStr
   }
 
-  _suggestedMinWidths = {
-    0: 4,
-    1: 4,
-    2: 4,
-    3: 6,
-    4: 11,
-    5: 12,
-    6: 24,
-    7: 24,
-    8: 10,
-    9: 25,
-    10: 10,
-  }
-
   _fillEmpty(n) {
     let str = "";
     for (let i = 0; i < n; i++) {
@@ -151,4 +138,18 @@ export class TDengineRestResultSet {
     }
     return f;
   }
+}
+
+const suggestedMinWidths = {
+  0: 4,
+  1: 4,
+  2: 4,
+  3: 6,
+  4: 11,
+  5: 12,
+  6: 24,
+  7: 24,
+  8: 10,
+  9: 25,
+  10: 10,
 }

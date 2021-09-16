@@ -1,9 +1,15 @@
 import {TDengineRestCursor} from '../src/restCursor'
 
 /**
- *
+ *this class collect basic information that can be used to build
+ * a restful connection.
  */
 export class TDengineRestConnection {
+  /**
+   * constructor,give variables some default values
+   * @param options
+   * @returns {TDengineRestConnection}
+   */
   constructor(options) {
     this.host = 'localhost'
     this.port = '6041'
@@ -15,7 +21,7 @@ export class TDengineRestConnection {
   }
 
   /**
-   * this is a private function that 
+   * used to init the connection info using  the input options
    * @param options
    * @private
    */
@@ -37,9 +43,13 @@ export class TDengineRestConnection {
     }
   }
 
+  /**
+   * cursor will return an object of TDengineRestCursor, which can send restful(http) request and get
+   * the response from server.
+   * @returns {TDengineRestCursor}
+   */
   cursor() {
     return new TDengineRestCursor(this)
-    console.log("return a cursor object user query sql")
   }
 }
 
