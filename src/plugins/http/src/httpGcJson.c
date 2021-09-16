@@ -133,6 +133,16 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
       int32_t len;
       len = snprintf(target, HTTP_GC_TARGET_SIZE, "%s{", aliasBuffer);
       for (int32_t i = dataFields + 1; i < num_fields; i++) {
+        if (row[i] == NULL) {
+          len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:nil", fields[i].name);
+
+          if (i < num_fields - 1) {
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
+          }
+
+          continue;
+        }
+
         switch (fields[i].type) {
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
