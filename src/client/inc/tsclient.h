@@ -48,6 +48,8 @@ struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
+typedef void (*_freeSqlSupporter)(void **);
+
 typedef struct SNewVgroupInfo {
   int32_t    vgId;
   int8_t     inUse;
@@ -364,6 +366,7 @@ typedef struct SSqlObj {
   __async_cb_func_t  fp;
   __async_cb_func_t  fetchFp;
   void            *param;
+  _freeSqlSupporter  freeParam;
   int64_t          stime;
   uint32_t         queryId;
   void *           pStream;

@@ -3798,7 +3798,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     int32_t index = ps->subqueryIndex;
     bool ret = subAndCheckDone(pSql, pParentSql, index);
 
-    tscFreeRetrieveSup(pSql);
+    tscFreeRetrieveSup(&pSql->param);
 
     if (!ret) {
       tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, index);
