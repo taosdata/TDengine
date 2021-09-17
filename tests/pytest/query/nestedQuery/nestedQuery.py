@@ -217,7 +217,17 @@ class TDTestCase:
         't1.q_tinyint >= -127 and t1.q_tinyint <= 127 and t2.q_tinyint >= -127 and t2.q_tinyint <= 127',
         't1.q_float >= -100000 and t1.q_float <= 100000 and t2.q_float >= -100000 and t2.q_float <= 100000',
         't1.q_double >= -1000000000 and t1.q_double <= 1000000000 and t2.q_double >= -1000000000 and t2.q_double <= 1000000000', 
-        't1.q_binary like \'binary%\'  or t1.q_binary = \'0\'  or t2.q_binary like \'binary%\'  or t2.q_binary = \'0\' ' , 
+        't1.q_binary like \'binary%\'  and t2.q_binary like \'binary%\'  ' , 
+        't1.q_nchar like \'nchar%\' and t2.q_nchar like \'nchar%\' ' , 't1.q_bool = true and  t1.q_bool = false and t2.q_bool = true and  t2.q_bool = false' , 
+        't1.q_bool in (0 , 1) and t2.q_bool in (0 , 1)' , 't1.q_bool in ( true , false) and t2.q_bool in ( true , false)' , 't1.q_bool = 0 and t1.q_bool = 1 and t2.q_bool = 0 and t2.q_bool = 1' ,
+        't1.q_bigint between  -9223372036854775807 and 9223372036854775807 and t2.q_bigint between  -9223372036854775807 and 9223372036854775807',
+        't1.q_int between -2147483647 and 2147483647 and t2.q_int between -2147483647 and 2147483647',
+        't1.q_smallint between -32767 and 32767 and t2.q_smallint between -32767 and 32767', 
+        't1.q_tinyint between -127 and 127 and t2.q_tinyint between -127 and 127 ','t1.q_float between -100000 and 100000 and t2.q_float between -100000 and 100000',
+        't1.q_double between -1000000000 and 1000000000 and t2.q_double between -1000000000 and 1000000000']
+        #TD-6201 ,'t1.q_bool between 0 and 1 or t2.q_bool between 0 and 1']
+
+        q_u_or_where = ['t1.q_binary like \'binary%\'  or t1.q_binary = \'0\'  or t2.q_binary like \'binary%\'  or t2.q_binary = \'0\' ' , 
         't1.q_nchar like \'nchar%\' or t1.q_nchar = \'0\' or t2.q_nchar like \'nchar%\' or t2.q_nchar = \'0\' ' , 't1.q_bool = true or  t1.q_bool = false or t2.q_bool = true or  t2.q_bool = false' , 
         't1.q_bool in (0 , 1) or t2.q_bool in (0 , 1)' , 't1.q_bool in ( true , false) or t2.q_bool in ( true , false)' , 't1.q_bool = 0 or t1.q_bool = 1 or t2.q_bool = 0 or t2.q_bool = 1' ,
         't1.q_bigint between  -9223372036854775807 and 9223372036854775807 or t2.q_bigint between  -9223372036854775807 and 9223372036854775807',
@@ -225,7 +235,6 @@ class TDTestCase:
         't1.q_smallint between -32767 and 32767 or t2.q_smallint between -32767 and 32767', 
         't1.q_tinyint between -127 and 127 or t2.q_tinyint between -127 and 127 ','t1.q_float between -100000 and 100000 or t2.q_float between -100000 and 100000',
         't1.q_double between -1000000000 and 1000000000 or t2.q_double between -1000000000 and 1000000000']
-        #TD-6201 ,'t1.q_bool between 0 and 1 or t2.q_bool between 0 and 1']
 
         # tag column where
         t_where = ['ts < now +1s','t_bigint >= -9223372036854775807 and t_bigint <= 9223372036854775807','t_int <= 2147483647 and t_int >= -2147483647',
@@ -245,17 +254,28 @@ class TDTestCase:
         't1.t_double >= -1000000000 and t1.t_double <= 1000000000 and t2.t_double >= -1000000000 and t2.t_double <= 1000000000', 
         't1.t_binary like \'binary%\'  or t1.t_binary = \'0\'  or t2.t_binary like \'binary%\'  or t2.t_binary = \'0\' ' , 
         't1.t_nchar like \'nchar%\' or t1.t_nchar = \'0\' or t2.t_nchar like \'nchar%\' or t2.t_nchar = \'0\' ' , 't1.t_bool = true or  t1.t_bool = false or t2.t_bool = true or  t2.t_bool = false' , 
+        't1.t_bool in (0 , 1) and t2.t_bool in (0 , 1)' , 't1.t_bool in ( true , false) and t2.t_bool in ( true , false)' , 't1.t_bool = 0 or t1.t_bool = 1 or t2.t_bool = 0 or t2.t_bool = 1',
+        't1.t_bigint between  -9223372036854775807 and 9223372036854775807 and t2.t_bigint between  -9223372036854775807 and 9223372036854775807',
+        't1.t_int between -2147483647 and 2147483647 and t2.t_int between -2147483647 and 2147483647',
+        't1.t_smallint between -32767 and 32767 and t2.t_smallint between -32767 and 32767', 
+        't1.t_tinyint between -127 and 127 and t2.t_tinyint between -127 and 127 ','t1.t_float between -100000 and 100000 and t2.t_float between -100000 and 100000',
+        't1.t_double between -1000000000 and 1000000000 and t2.t_double between -1000000000 and 1000000000']
+        #TD-6201,'t1.t_bool between 0 and 1 or t2.q_bool between 0 and 1']
+
+        t_u_or_where = ['t1.t_binary like \'binary%\'  or t1.t_binary = \'0\'  or t2.t_binary like \'binary%\'  or t2.t_binary = \'0\' ' , 
+        't1.t_nchar like \'nchar%\' or t1.t_nchar = \'0\' or t2.t_nchar like \'nchar%\' or t2.t_nchar = \'0\' ' , 't1.t_bool = true or  t1.t_bool = false or t2.t_bool = true or  t2.t_bool = false' , 
         't1.t_bool in (0 , 1) or t2.t_bool in (0 , 1)' , 't1.t_bool in ( true , false) or t2.t_bool in ( true , false)' , 't1.t_bool = 0 or t1.t_bool = 1 or t2.t_bool = 0 or t2.t_bool = 1',
         't1.t_bigint between  -9223372036854775807 and 9223372036854775807 or t2.t_bigint between  -9223372036854775807 and 9223372036854775807',
         't1.t_int between -2147483647 and 2147483647 or t2.t_int between -2147483647 and 2147483647',
         't1.t_smallint between -32767 and 32767 or t2.t_smallint between -32767 and 32767', 
         't1.t_tinyint between -127 and 127 or t2.t_tinyint between -127 and 127 ','t1.t_float between -100000 and 100000 or t2.t_float between -100000 and 100000',
         't1.t_double between -1000000000 and 1000000000 or t2.t_double between -1000000000 and 1000000000']
-        #TD-6201,'t1.t_bool between 0 and 1 or t2.q_bool between 0 and 1']
 
         # regular and tag column where 
         qt_where = q_where + t_where
         qt_u_where = q_u_where + t_u_where
+        # now,qt_u_or_where is not support
+        qt_u_or_where = q_u_or_where + t_u_or_where
 
         # tag column where for test super join | this is  support  , 't1.t_bool = t2.t_bool ' ？？？
         t_join_where = ['t1.t_bigint = t2.t_bigint ', 't1.t_int = t2.t_int ', 't1.t_smallint = t2.t_smallint ', 't1.t_tinyint = t2.t_tinyint ',
@@ -535,7 +555,22 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
             #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
-            tdSql.checkRows(6*self.num)
+            #tdSql.checkRows(6*self.num)
+
+        tdSql.query("select 1-5 from table_0;")
+        for i in range(self.fornum):
+            sql = "select  ts , * from  ( select  t1.ts ,"
+            sql += "t1.%s, " % random.choice(s_s_select)            
+            sql += "t1.%s, " % random.choice(q_select) 
+            sql += "t2.%s, " % random.choice(s_s_select)            
+            sql += "t2.%s, " % random.choice(q_select)            
+            sql += "t2.ts from regular_table_1 t1 , regular_table_2 t2 where t1.ts = t2.ts and "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += ");"
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
 
         #2 select column from (select * form regular_table ) where <\>\in\and\or order by        
         dcDB = self.dropandcreateDB(random.randint(1,2))
@@ -672,6 +707,21 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.error(sql)
 
+        tdSql.query("select 3-6 from table_0;")
+        for i in range(self.fornum):
+            sql = "select  ts , * from  ( select  t1.ts ,"
+            sql += "t1.%s, " % random.choice(s_s_select)            
+            sql += "t1.%s, " % random.choice(q_select) 
+            sql += "t2.%s, " % random.choice(s_s_select)            
+            sql += "t2.%s, " % random.choice(q_select)            
+            sql += "t2.ts from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
+            sql += "%s " % random.choice(t_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += ");"
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         #4 select column from (select * form stable  where <\>\in\and\or order by )        
         dcDB = self.dropandcreateDB(random.randint(1,2))
         tdSql.query("select 4-1 from table_0;")
@@ -775,6 +825,19 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
+        
+        tdSql.query("select 8-3 from table_0;")
+        for i in range(self.fornum):
+            sql = "select  *  from  ( select  "
+            sql += "%s " % random.choice(calc_select_in_ts_j) 
+            sql += "from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit1_where)
+            sql += ") ;"
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
 
         #9 select * from (select ts,calc form stable  where <\>\in\and\or order by   )
         # TD-5960\TD-6185        
@@ -807,6 +870,19 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
+
+        tdSql.query("select 9-3 from table_0;")
+        for i in range(self.fornum):
+            sql = "select  *  from  ( select  "
+            sql += "%s " % random.choice(calc_select_in_ts_j) 
+            sql += "from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit1_where)
+            sql += ") ;"
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
 
             #functions or others can not be mixed up ,calc out select not use with ts
         
@@ -860,6 +936,20 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 10-4 from table_0;")
+        for i in range(self.fornum):
+            sql = "select  " 
+            sql += "%s as calc10_1 " % random.choice(calc_select_all) 
+            sql += " from ( select * from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s ;" % random.choice(limit_u_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         #11 select calc from (select * form stable  where <\>\in\and\or order by limit  )        
         dcDB = self.dropandcreateDB(random.randint(1,2))
         tdSql.query("select 11-1 from table_0;")
@@ -907,6 +997,20 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 11-4 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   "
+            sql += "%s " % random.choice(calc_select_all) 
+            sql += "as calc11_1 from ( select * from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s ;" % random.choice(limit_u_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         #12 select calc-diff from (select * form regualr_table  where <\>\in\and\or order by limit  )        
         dcDB = self.dropandcreateDB(random.randint(1,3))
         tdSql.query("select 12-1 from table_0;")
@@ -935,7 +1039,20 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
-            tdSql.checkRows(1)
+            #tdSql.checkRows(1)
+
+        tdSql.query("select 12-2.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select  "
+            sql += "%s " % random.choice(calc_calculate_regular) 
+            sql += " from ( select * from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice([limit_where[2] , limit_where[3]] )
+            sql += ") ;"
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
 
         #12-1 select calc-diff from (select * form stable  where <\>\in\and\or order by limit  )
         tdSql.query("select 12-3 from table_0;")
@@ -961,6 +1078,22 @@ class TDTestCase:
             sql += "%s " % random.choice(calc_calculate_regular_j) 
             sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
             sql += "%s " % random.choice(t_join_where)
+            sql += "%s " % random.choice(group_where)
+            sql += ") "
+            sql += "%s " % random.choice(order_desc_where)
+            sql += "%s " % random.choice([limit_where[2] , limit_where[3]] )
+            sql += " ;"
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
+        tdSql.query("select 12-5 from table_0;")
+        #join query does not support group by
+        for i in range(self.fornum):
+            sql = "select  * from ( select "
+            sql += "%s " % random.choice(calc_calculate_regular_j) 
+            sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(group_where)
             sql += ") "
             sql += "%s " % random.choice(order_desc_where)
@@ -1041,6 +1174,22 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 14-4 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select "
+            sql += "%s as calc14_1, " % random.choice(calc_aggregate_all_j) 
+            sql += "%s as calc14_2, " % random.choice(calc_aggregate_all_j) 
+            sql += "%s " % random.choice(calc_aggregate_all_j) 
+            sql += " as calc14_3 from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(slimit1_where)
+            sql += ") "
+            sql += "%s ;" % random.choice(limit_u_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         #15 TD-6320 select * from (select calc_aggregate_regulars as agg from regular_table  where <\>\in\and\or  order by slimit soffset )
         tdSql.query("select 15-1 from table_0;")
         for i in range(self.fornum):
@@ -1074,6 +1223,22 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 15-2.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select "
+            sql += "%s as calc15_1, " % random.choice(calc_aggregate_regular_j) 
+            sql += "%s as calc15_2, " % random.choice(calc_aggregate_regular_j) 
+            sql += "%s " % random.choice(calc_aggregate_regular_j) 
+            sql += " as calc15_3 from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(order_u_where)            
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s ;" % random.choice(limit_u_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         rsDn = self.restartDnodes()
         tdSql.query("select 15-3 from table_0;")
         for i in range(self.fornum):
@@ -1101,6 +1266,24 @@ class TDTestCase:
             sql += "%s " % random.choice(calc_aggregate_groupbytbname_j) 
             sql += " as calc15_3 from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(t_join_where)
+            sql += "%s " % random.choice(group_where)
+            sql += "%s " % random.choice(having_support)
+            sql += "%s " % random.choice(orders_desc_where)
+            sql += ") "
+            sql += "order by  calc15_1  " 
+            sql += "%s " % random.choice(limit_u_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
+        tdSql.query("select 15-4.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select "
+            sql += "%s as calc15_1, " % random.choice(calc_aggregate_groupbytbname_j) 
+            sql += "%s as calc15_2, " % random.choice(calc_aggregate_groupbytbname_j) 
+            sql += "%s " % random.choice(calc_aggregate_groupbytbname_j) 
+            sql += " as calc15_3 from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
+            sql += "%s " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(group_where)
             sql += "%s " % random.choice(having_support)
             sql += "%s " % random.choice(orders_desc_where)
@@ -1161,6 +1344,20 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
+
+        tdSql.query("select 16-2.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select  " 
+            sql += "%s as calc16_0  " % random.choice(calc_calculate_all_j)
+            sql += ", %s as calc16_1  " % random.choice(calc_aggregate_all_j) 
+            sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
+            sql += ") "
+            sql += "order by calc16_0  " 
+            sql += "%s " % random.choice(limit1_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
         
         dcDB = self.dropandcreateDB(random.randint(1,3))
         tdSql.query("select 16-3 from table_0;")
@@ -1188,6 +1385,18 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
             tdSql.checkRows(1)
+
+        tdSql.query("select 16-4.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select  " 
+            sql += "%s as calc16_1  " % random.choice(calc_calculate_regular_j) 
+            sql += "  from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "limit 2 ) "
+            sql += "%s " % random.choice(limit1_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
         
         tdSql.query("select 16-5 from table_0;")
         for i in range(self.fornum):
@@ -1227,6 +1436,18 @@ class TDTestCase:
             sql += "%s as calc16_1  " % random.choice(calc_calculate_groupbytbname_j) 
             sql += "  from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
             sql += "%s " % random.choice(t_join_where)
+            sql += "limit 2 ) "
+            sql += "%s " % random.choice(limit1_where)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
+        tdSql.query("select 16-8 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select  " 
+            sql += "%s as calc16_1  " % random.choice(calc_calculate_groupbytbname_j) 
+            sql += "  from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
             sql += "limit 2 ) "
             sql += "%s " % random.choice(limit1_where)
             tdLog.info(sql) 
@@ -1275,6 +1496,24 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 17-2.2 from table_0;")
+        for i in range(self.fornum):
+            #this is having_support , but tag-select cannot mix with last_row,other select can 
+            sql = "select   apercentile(cal17_0, %d)/10 ,apercentile(cal17_1, %d)/1000 ,apercentile(cal17_2, %d)*10+%d from  ( select  " %(random.randint(0,100) , random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal17_0 , " % random.choice(calc_calculate_all_j)
+            sql += "%s as cal17_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal17_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and "
+            sql += "%s " % random.choice(qt_u_or_where)
+            sql += "%s " % random.choice(interval_sliding)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         rsDn = self.restartDnodes()
         tdSql.query("select 17-3 from table_0;")
         for i in range(self.fornum):
@@ -1311,6 +1550,23 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
+
+        tdSql.query("select 17-4.2 from table_0;")
+        for i in range(self.fornum):
+            #this is having_tagnot_support , because tag-select cannot mix with last_row...
+            sql = "select   apercentile(cal17_1, %d)/1000 ,apercentile(cal17_2, %d)*10+%d from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal17_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal17_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(qt_u_or_where)
+            sql += "%s " % random.choice(interval_sliding)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
 
         tdSql.query("select 17-5 from table_0;")
         for i in range(self.fornum):
@@ -1364,6 +1620,22 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 17-7.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal17_1, %d)/1000 ,apercentile(cal17_2, %d)*10+%d from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal17_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal17_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from table_1 t1, table_2 t2 where t1.ts = t2.ts and "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(interval_sliding)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit1_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         rsDn = self.restartDnodes()
         tdSql.query("select 17-8 from table_0;")
         for i in range(self.fornum):
@@ -1397,6 +1669,22 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
+
+        tdSql.query("select 17-10 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal17_1, %d)/1000 ,apercentile(cal17_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal17_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal17_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(interval_sliding)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
 
         #18 select apercentile from (select calc_aggregate_alls form regualr_table or stable  where <\>\in\and\or session order by  limit )interval_sliding
         tdSql.query("select 18-1 from table_0;")
@@ -1434,6 +1722,23 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 18-2.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal18_1, %d)/1000 ,apercentile(cal18_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal18_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal18_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(session_u_where)
+            sql += "%s " % random.choice(fill_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         rsDn = self.restartDnodes()
         tdSql.query("select 18-3 from table_0;")
         for i in range(self.fornum):
@@ -1470,6 +1775,23 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 18-4.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal18_1, %d)/1000 ,apercentile(cal18_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal18_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal18_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)
+            sql += "%s " % random.choice(session_u_where)
+            sql += "%s " % random.choice(fill_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         tdSql.query("select 18-5 from table_0;")
         for i in range(self.fornum):
             sql = "select   apercentile(cal18_1, %d)/1000 ,apercentile(cal18_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
@@ -1494,6 +1816,23 @@ class TDTestCase:
             sql += "%s as cal18_2 " % random.choice(calc_aggregate_all_j) 
             sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(t_join_where)
+            sql += "%s " % random.choice(session_u_where)
+            sql += "%s " % random.choice(fill_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+        
+        tdSql.query("select 18-7 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal18_1, %d)/1000 ,apercentile(cal18_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal18_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal18_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
+            sql += "%s " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(session_u_where)
             sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
@@ -1536,6 +1875,21 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.error(sql)
+
+        tdSql.query("select 19-2.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal19_1, %d)/1000 ,apercentile(cal19_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal19_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal19_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
+            sql += "%s " % random.choice(q_u_or_where)        
+            sql += "%s " % random.choice(state_u_window)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
         
         dcDB = self.dropandcreateDB(random.randint(1,2))
         tdSql.query("select 19-3 from table_0;")
@@ -1568,6 +1922,20 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 19-4.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal19_1, %d)/1000 ,apercentile(cal19_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal19_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal19_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from table_1  t1, table_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s " % random.choice(q_u_or_where)  
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         tdSql.query("select 19-5 from table_0;")
         for i in range(self.fornum):
             sql = "select   apercentile(cal19_1, %d)/1000 ,apercentile(cal19_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
@@ -1593,6 +1961,21 @@ class TDTestCase:
             sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
             sql += "%s " % random.choice(q_u_where)        
             #sql += "%s " % random.choice(state_window)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            sql += "%s " % random.choice(interval_sliding)
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
+        tdSql.query("select 19-7 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   apercentile(cal19_1, %d)/1000 ,apercentile(cal19_2, %d)*10+%d  from  ( select  " %(random.randint(0,100) , random.randint(0,100) ,random.randint(-1000,1000))
+            sql += "%s as cal19_1 ," % random.choice(calc_aggregate_all_j) 
+            sql += "%s as cal19_2 " % random.choice(calc_aggregate_all_j) 
+            sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
+            sql += "%s " % random.choice(qt_u_or_where)    
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1639,6 +2022,23 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
 
+        tdSql.query("select 20-2.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select  " 
+            sql += "%s , " % random.choice(calc_select_fill_j)
+            sql += "%s ," % random.choice(calc_select_fill_j) 
+            sql += "%s  " % random.choice(calc_select_fill_j) 
+            sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and  "
+            sql += "%s and " % random.choice(qt_u_or_where)
+            sql += "%s " % random.choice(interp_where_j)  
+            sql += "%s " % random.choice(fill_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
+
         tdSql.query("select 20-3 from table_0;")
         for i in range(self.fornum):
             sql = "select   * from  ( select  " 
@@ -1671,6 +2071,23 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
+
+        tdSql.query("select 20-4.2 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   * from  ( select  " 
+            sql += "%s , " % random.choice(calc_select_fill_j)
+            sql += "%s ," % random.choice(calc_select_fill_j) 
+            sql += "%s  " % random.choice(calc_select_fill_j) 
+            sql += " from table_0 t1, table_1 t2 where t1.ts = t2.ts and    "             
+            sql += "%s and " % random.choice(qt_u_or_where)
+            sql += "%s " % interp_where_j[random.randint(0,5)]
+            sql += "%s " % random.choice(fill_where)
+            sql += "%s " % random.choice(order_u_where)
+            sql += "%s " % random.choice(limit_u_where)
+            sql += ") "
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.error(sql)
                
         dcDB = self.dropandcreateDB(random.randint(1,2))
         tdSql.query("select 20-5 from table_0;")
