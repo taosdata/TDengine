@@ -228,7 +228,7 @@ extern char Compressor[];
 extern int8_t tsDeadLockKillQuery;
 
 // schemaless
-extern char tsSmlDefaultJSONStrType[];
+extern char tsDefaultJSONStrType[];
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];
