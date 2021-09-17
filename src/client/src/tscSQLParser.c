@@ -4663,6 +4663,9 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
     }
 
     *type = rightType;
+
+    *tbIdx = (leftTbIdx == rightTbIdx) ? leftTbIdx : -1;
+    
     return TSDB_CODE_SUCCESS;
   }
 
