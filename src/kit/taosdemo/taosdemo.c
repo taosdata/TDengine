@@ -3945,16 +3945,20 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
 
             
             if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "INT", strlen("INT"))) {
+                        "INT", strlen("INT")) && 
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_INT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "TINYINT", strlen("TINYINT"))) {
+                        "TINYINT", strlen("TINYINT")) && 
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_TINYINT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "SMALLINT", strlen("SMALLINT"))) {
+                        "SMALLINT", strlen("SMALLINT")) && 
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "BIGINT", strlen("BIGINT"))) {
+                        "BIGINT", strlen("BIGINT")) && 
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BIGINT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "FLOAT", strlen("FLOAT"))) {
