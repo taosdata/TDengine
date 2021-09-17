@@ -797,6 +797,12 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
         return MAX(bytes, width);
       }
     }
+    case TSDB_DATA_TYPE_JSON:
+      if (field->bytes > tsMaxBinaryDisplayWidth) {
+        return MAX(tsMaxBinaryDisplayWidth, width);
+      } else {
+        return MAX(field->bytes, width);
+      }
 
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {

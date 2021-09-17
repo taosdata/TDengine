@@ -1106,7 +1106,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         continue;
       }
 
-      void* tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
+      void* tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val), varDataLen(val));
       if(tablist == NULL) {
         void* tablistNew = taosArrayInit(8, sizeof(JsonMapValue));
         if(tablistNew == NULL){
