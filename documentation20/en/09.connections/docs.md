@@ -2,11 +2,11 @@
 
 ## <a class="anchor" id="grafana"></a> Grafana
 
-TDengine can quickly integrate with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
+TDengine can be quickly integrated with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
 
 ### Install Grafana
 
-TDengine currently supports Grafana 5.2.4 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows:
+TDengine currently supports Grafana 6.2 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows:
 
 https://grafana.com/grafana/download.
 
@@ -64,7 +64,7 @@ According to the default prompt, query the average system memory usage at the sp
 
 #### Import Dashboard
 
-A `tdengine-grafana.json` importable dashboard is provided under the Grafana plug-in directory/usr/local/taos/connector/grafana/tdengine/dashboard/.
+A `tdengine-grafana.json` importable dashboard is provided under the Grafana plug-in directory `/usr/local/taos/connector/grafanaplugin/dashboard`.
 
 Click the `Import` button on the left panel and upload the  `tdengine-grafana.json` file:
 

@@ -179,7 +179,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_CEIL ||
+      functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND)
+  {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
 
@@ -405,7 +407,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
-  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
+  for(int32_t i = 0; i <= TSDB_FUNC_ROUND; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
@@ -1214,6 +1216,31 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
         DUPATE_DATA_WITHOUT_TS(pCtx, *(int64_t *)output, v, notNullElems, isMin);
         break;
       }
+
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t v = GET_UINT8_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint8_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t v = GET_UINT16_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint16_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t v = GET_UINT32_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint32_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t v = GET_UINT64_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint64_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
       default:
         break;
     }
@@ -3670,6 +3697,8 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
     return;
   }
 
+  bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
+
   if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
     *(TSKEY *)pCtx->pOutput = pCtx->startTs;
   } else if (type == TSDB_FILL_NULL) {
@@ -3677,7 +3706,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   } else if (type == TSDB_FILL_SET_VALUE) {
     tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
   } else {
-    if (pCtx->start.key != INT64_MIN && pCtx->start.key < pCtx->startTs && pCtx->end.key > pCtx->startTs) {
+    if (pCtx->start.key != INT64_MIN && ((ascQuery && pCtx->start.key <= pCtx->startTs && pCtx->end.key >= pCtx->startTs) || ((!ascQuery) && pCtx->start.key >= pCtx->startTs && pCtx->end.key <= pCtx->startTs))) {
       if (type == TSDB_FILL_PREV) {
         if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
           SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->start.val);
@@ -3716,13 +3745,14 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
       TSKEY skey = GET_TS_DATA(pCtx, 0);
 
       if (type == TSDB_FILL_PREV) {
-        if (skey > pCtx->startTs) {
+        if ((ascQuery && skey > pCtx->startTs) || ((!ascQuery) && skey < pCtx->startTs)) {
           return;
         }
 
         if (pCtx->size > 1) {
           TSKEY ekey = GET_TS_DATA(pCtx, 1);
-          if (ekey > skey && ekey <= pCtx->startTs) {
+          if ((ascQuery &&  ekey > skey && ekey <= pCtx->startTs) ||
+             ((!ascQuery) && ekey < skey && ekey >= pCtx->startTs)){
             skey = ekey;
           }
         }
@@ -3731,10 +3761,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         TSKEY ekey = skey;
         char* val = NULL;
         
-        if (ekey < pCtx->startTs) {
+        if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
           if (pCtx->size > 1) {
             ekey = GET_TS_DATA(pCtx, 1);
-            if (ekey < pCtx->startTs) {
+            if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
               return;
             }
 
@@ -3755,11 +3785,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         TSKEY ekey = GET_TS_DATA(pCtx, 1);
       
         // no data generated yet
-        if (!(skey < pCtx->startTs && ekey > pCtx->startTs)) {
+        if ((ascQuery && !(skey <= pCtx->startTs && ekey >= pCtx->startTs))
+           || ((!ascQuery) && !(skey >= pCtx->startTs && ekey <= pCtx->startTs))) {
           return;
         }
-        
-        assert(pCtx->start.key == INT64_MIN && skey < pCtx->startTs && ekey > pCtx->startTs);
         
         char *start = GET_INPUT_DATA(pCtx, 0);
         char *end = GET_INPUT_DATA(pCtx, 1);
@@ -3788,11 +3817,37 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
-    // impose the timestamp check
-    TSKEY key = GET_TS_DATA(pCtx, 0);
+    bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
+    TSKEY key;
+    char *pData;
+    int32_t typedData = 0;
+    
+    if (ascQuery) {
+      key = GET_TS_DATA(pCtx, 0);
+      pData = GET_INPUT_DATA(pCtx, 0);
+    } else {
+      key = pCtx->start.key;
+      if (key == INT64_MIN) {
+        key = GET_TS_DATA(pCtx, 0);
+        pData = GET_INPUT_DATA(pCtx, 0);
+      } else {        
+        if (!(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL)) {
+          pData = pCtx->start.ptr;
+        } else {
+          typedData = 1;
+          pData = (char *)&pCtx->start.val;
+        }
+      }
+    }
+    
+    //if (key == pCtx->startTs && (ascQuery || !(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL))) {
     if (key == pCtx->startTs) {
-      char *pData = GET_INPUT_DATA(pCtx, 0);
-      assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+      if (typedData) {
+        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)pData);
+      } else {
+        assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+      }
+      
       SET_VAL(pCtx, 1, 1);
     } else {
       interp_function_impl(pCtx);
@@ -4061,7 +4116,7 @@ static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockD
   } else {
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
-    
+
     int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
     if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
       ++maxSteps;
@@ -4195,13 +4250,238 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
     taosArrayDestroy(pDist->dataBlockInfos);
     pDist->dataBlockInfos = NULL;
   }
-  
+
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
   pResInfo->hasResult = DATA_SET_FLAG;
 
   doFinalizer(pCtx);
 }
+
+#define CFR_SET_VAL(type, data, pCtx, func, i, step, notNullElems)             \
+  do {                                                                         \
+    type *pData = (type *) data;                                               \
+    type *pOutput = (type *) pCtx->pOutput;                                    \
+                                                                               \
+    for (; i < pCtx->size && i >= 0; i += step) {                              \
+      if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) { \
+        continue;                                                              \
+      }                                                                        \
+                                                                               \
+      *pOutput++ = (type) func((double) pData[i]);                             \
+                                                                               \
+      notNullElems++;                                                          \
+    }                                                                          \
+  } while (0)
+
+#define CFR_SET_VAL_DOUBLE(data, pCtx, func, i, step, notNullElems)            \
+  do {                                                                         \
+    double *pData = (double *) data;                                           \
+    double *pOutput = (double *) pCtx->pOutput;                                \
+                                                                               \
+    for (; i < pCtx->size && i >= 0; i += step) {                              \
+      if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) { \
+        continue;                                                              \
+      }                                                                        \
+                                                                               \
+      SET_DOUBLE_VAL(pOutput, func(pData[i]));                                 \
+      pOutput++;                                                               \
+                                                                               \
+      notNullElems++;                                                          \
+    }                                                                          \
+  } while (0)
+
+static void ceil_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      CFR_SET_VAL(int32_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_UINT: {
+      CFR_SET_VAL(uint32_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      CFR_SET_VAL(int64_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      CFR_SET_VAL(uint64_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      CFR_SET_VAL_DOUBLE(data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      CFR_SET_VAL(float, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      CFR_SET_VAL(int16_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      CFR_SET_VAL(uint16_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      CFR_SET_VAL(int8_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      CFR_SET_VAL(uint8_t, data, pCtx, ceil, i, step, notNullElems);
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    /*
+     * current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+  }
+}
+
+static void floor_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      CFR_SET_VAL(int32_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_UINT: {
+      CFR_SET_VAL(uint32_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      CFR_SET_VAL(int64_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      CFR_SET_VAL(uint64_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      CFR_SET_VAL_DOUBLE(data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      CFR_SET_VAL(float, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      CFR_SET_VAL(int16_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      CFR_SET_VAL(uint16_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      CFR_SET_VAL(int8_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      CFR_SET_VAL(uint8_t, data, pCtx, floor, i, step, notNullElems);
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    /*
+     * current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+  }
+}
+
+static void round_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      CFR_SET_VAL(int32_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_UINT: {
+      CFR_SET_VAL(uint32_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      CFR_SET_VAL(int64_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      CFR_SET_VAL(uint64_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      CFR_SET_VAL_DOUBLE(data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      CFR_SET_VAL(float, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      CFR_SET_VAL(int16_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      CFR_SET_VAL(uint16_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      CFR_SET_VAL(int8_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      CFR_SET_VAL(uint8_t, data, pCtx, round, i, step, notNullElems);
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    /*
+     * current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+  }
+}
+
+#undef CFR_SET_VAL
+#undef CFR_SET_VAL_DOUBLE
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -4221,8 +4501,8 @@ int32_t functionCompatList[] = {
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
     //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   stddev_dst, interp    rate    irate
     1,          1,        1,         1,       -1,      1,          1,           1,          5,        1,      1,
-    // tid_tag, derivative, blk_info
-    6,          8,        7,
+    // tid_tag, derivative, blk_info,ceil,     floor,  round
+    6,          8,        7,         1,        1,      1
 };
 
 SAggFunctionInfo aAggs[] = {{
@@ -4625,7 +4905,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                                // 33
+                              // 33
                               "_block_dist",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_BLKINFO,
                               TSDB_FUNC_BLKINFO,
@@ -4635,4 +4915,40 @@ SAggFunctionInfo aAggs[] = {{
                               blockinfo_func_finalizer,
                               block_func_merge,
                               dataBlockRequired,
+                          },
+                          {
+                              // 34
+                              "ceil",
+                              TSDB_FUNC_CEIL,
+                              TSDB_FUNC_CEIL,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
+                              function_setup,
+                              ceil_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired
+                          },
+                          {
+                              // 35
+                              "floor",
+                              TSDB_FUNC_FLOOR,
+                              TSDB_FUNC_FLOOR,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
+                              function_setup,
+                              floor_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired
+                          },
+                          {
+                              // 36
+                              "round",
+                              TSDB_FUNC_ROUND,
+                              TSDB_FUNC_ROUND,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
+                              function_setup,
+                              round_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired
                           }};

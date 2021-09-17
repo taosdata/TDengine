@@ -44,6 +44,13 @@ char      PROMPT_HEADER[] = "tq> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 4;
+#elif (_TD_PRO_ == true)
+char      CLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "ProDB> ";
+
+char      CONTINUE_PROMPT[] = "    -> ";
+int       prompt_size = 7;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
@@ -65,7 +72,15 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
  */
 TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
-  printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
+  if (!_args->is_use_passwd) {
+#ifdef TD_WINDOWS
+    strcpy(tsOsName, "Windows");
+#elif defined(TD_DARWIN)
+    strcpy(tsOsName, "Darwin");
+#endif
+    printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
+  }
+
   fflush(stdout);
 
   // set options before initializing
@@ -73,9 +88,7 @@ TAOS *shellInit(SShellArguments *_args) {
     taos_options(TSDB_OPTION_TIMEZONE, _args->timezone);
   }
 
-  if (_args->is_use_passwd) {
-    if (_args->password == NULL) _args->password = getpass("Enter password: ");
-  } else {
+  if (!_args->is_use_passwd) {
     _args->password = TSDB_DEFAULT_PASS;
   }
 
@@ -169,7 +182,7 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
     system("clear");
     return 0;
   }
-  
+
   if (regex_match(command, "^[\t ]*set[ \t]+max_binary_display_width[ \t]+(default|[1-9][0-9]*)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     strtok(command, " \t");
     strtok(NULL, " \t");
@@ -181,7 +194,7 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
     }
     return 0;
   }
-  
+
   if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
@@ -246,10 +259,14 @@ int32_t shellRunCommand(TAOS* con, char* command) {
       esc = false;
       continue;
     }
-    
+
     if (c == '\\') {
-      esc = true;
-      continue;
+      if (quote != 0 && (*command == '_' || *command == '\\')) {
+        //DO nothing 
+      } else {
+        esc = true;
+        continue;
+      }
     }
 
     if (quote == c) {
@@ -335,8 +352,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   }
 
   if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
-    int error_no = 0;    
-  
+    int error_no = 0;
+
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
       atomic_store_64(&result, 0);
@@ -529,7 +546,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
     fprintf(fp, "%s", fields[col].name);
   }
   fputc('\n', fp);
-  
+
   int numOfRows = 0;
   do {
     int32_t* length = taos_fetch_lengths(tres);
@@ -559,7 +576,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
   while (pos < length) {
     wchar_t wc;
     int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
-    if (bytes == 0) {
+    if (bytes <= 0) {
       break;
     }
     pos += bytes;
@@ -715,7 +732,7 @@ static int verticalPrintResult(TAOS_RES* tres) {
 
   int numOfRows = 0;
   int showMore = 1;
-  do {  
+  do {
     if (numOfRows < resShowMaxNum) {
       printf("*************************** %d.row ***************************\n", numOfRows + 1);
 
@@ -850,7 +867,7 @@ static int horizontalPrintResult(TAOS_RES* tres) {
 
   int numOfRows = 0;
   int showMore = 1;
- 
+
   do {
     int32_t* length = taos_fetch_lengths(tres);
     if (numOfRows < resShowMaxNum) {
@@ -866,7 +883,7 @@ static int horizontalPrintResult(TAOS_RES* tres) {
         printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
         showMore = 0;
     }
-    
+
     numOfRows++;
     row = taos_fetch_row(tres);
   } while(row != NULL);
@@ -908,7 +925,7 @@ void read_history() {
     if (errno != ENOENT) {
       fprintf(stderr, "Failed to open file %s, reason:%s\n", f_history, strerror(errno));
     }
-#endif    
+#endif
     return;
   }
 
@@ -933,9 +950,9 @@ void write_history() {
 
   FILE *f = fopen(f_history, "w");
   if (f == NULL) {
-#ifndef WINDOWS    
+#ifndef WINDOWS
     fprintf(stderr, "Failed to open file %s for write, reason:%s\n", f_history, strerror(errno));
-#endif    
+#endif
     return;
   }
 
@@ -981,13 +998,13 @@ void source_file(TAOS *con, char *fptr) {
   /*
   if (access(fname, F_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
-    
+
     wordfree(&full_path);
     free(cmd);
     return;
   }
   */
-  
+
   FILE *f = fopen(fname, "r");
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);

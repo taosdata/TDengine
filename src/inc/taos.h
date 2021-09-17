@@ -62,6 +62,22 @@ typedef struct taosField {
   int16_t  bytes;
 } TAOS_FIELD;
 
+typedef enum {
+  SET_CONF_RET_SUCC = 0,
+  SET_CONF_RET_ERR_PART = -1,
+  SET_CONF_RET_ERR_INNER = -2,
+  SET_CONF_RET_ERR_JSON_INVALID = -3,
+  SET_CONF_RET_ERR_JSON_PARSE = -4,
+  SET_CONF_RET_ERR_ONLY_ONCE = -5,
+  SET_CONF_RET_ERR_TOO_LONG = -6
+} SET_CONF_RET_CODE;
+
+#define RET_MSG_LENGTH 1024
+typedef struct setConfRet {
+  SET_CONF_RET_CODE retCode;
+  char   retMsg[RET_MSG_LENGTH];
+} setConfRet;
+
 #ifdef _TD_GO_DLL_
   #define DLL_EXPORT    __declspec(dllexport)
 #else
@@ -71,6 +87,7 @@ typedef struct taosField {
 DLL_EXPORT int  taos_init();
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT setConfRet   taos_set_config(const char *config);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
@@ -171,6 +188,10 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 DLL_EXPORT int taos_insert_lines(TAOS* taos, char* lines[], int numLines);
+
+DLL_EXPORT int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines);
+
+DLL_EXPORT int taos_insert_json_payload(TAOS* taos, char* payload);
 
 #ifdef __cplusplus
 }

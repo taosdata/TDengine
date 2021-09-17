@@ -4,7 +4,7 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@MapperScan(basePackages = {"com.taosdata.example.springbootdemo.dao"})
+@MapperScan(basePackages = {"com.taosdata.example.springbootdemo"})
 @SpringBootApplication
 public class SpringbootdemoApplication {
 

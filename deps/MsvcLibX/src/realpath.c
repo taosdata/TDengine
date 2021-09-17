@@ -196,6 +196,7 @@ not_compact_enough:
 /* Normally defined in stdlib.h. Output buf must contain PATH_MAX bytes */
 char *realpath(const char *path, char *outbuf) {
   char *pOutbuf = outbuf;
+  char *pOutbuf1 = NULL;
   int iErr;
   const char *pc;
 
@@ -242,8 +243,11 @@ realpath_failed:
     return NULL;
   }
 
-  if (!outbuf) pOutbuf = realloc(pOutbuf, strlen(pOutbuf) + 1);
-  return pOutbuf;
+  if (!outbuf) {
+    pOutbuf1 = realloc(pOutbuf, strlen(pOutbuf) + 1);
+    if(pOutbuf1 == NULL && pOutbuf) free(pOutbuf);
+  }
+  return pOutbuf1;
 }
 
 #endif
@@ -517,6 +521,7 @@ int ResolveLinksA(const char *path, char *buf, size_t bufsize) {
 /* Normally defined in stdlib.h. Output buf must contain PATH_MAX bytes */
 char *realpathU(const char *path, char *outbuf) {
   char *pOutbuf = outbuf;
+  char *pOutbuf1 = NULL;
   char *pPath1 = NULL;
   char *pPath2 = NULL;
   int iErr;
@@ -590,10 +595,13 @@ realpathU_failed:
   }
 
   DEBUG_LEAVE(("return 0x%p; // \"%s\"\n", pOutbuf, pOutbuf));
-  if (!outbuf) pOutbuf = realloc(pOutbuf, strlen(pOutbuf) + 1);
+  if (!outbuf) {
+    pOutbuf1 = realloc(pOutbuf, strlen(pOutbuf) + 1);
+    if(pOutbuf1 == NULL && pOutbuf) free(pOutbuf);
+  }  
   free(pPath1);
   free(pPath2);
-  return pOutbuf;
+  return pOutbuf1;
 }
 
 #endif /* defined(_WIN32) */

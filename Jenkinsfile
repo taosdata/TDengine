@@ -225,6 +225,34 @@ pipeline {
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                nohup taosd >/dev/null &
+                sleep 10
+              '''
+              sh '''
+              cd ${WKC}/tests/examples/nodejs
+              npm install td2.0-connector > /dev/null 2>&1
+              node nodejsChecker.js host=localhost
+              node test1970.js
+	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+	      npm install td2.0-connector > /dev/null 2>&1
+              node nanosecondTest.js
+
+              '''
+              sh '''
+                cd ${WKC}/tests/examples/C#/taosdemo
+                mcs -out:taosdemo *.cs > /dev/null 2>&1
+                echo '' |./taosdemo -c /etc/taos
+                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
+                mcs -out:nano *.cs > /dev/null 2>&1
+                echo '' |./nano
+              '''
+              sh '''
+                cd ${WKC}/tests/gotest
+                bash batchtest.sh
+              '''
+              sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
               date'''
@@ -236,13 +264,11 @@ pipeline {
           
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                timeout(time: 60, unit: 'MINUTES'){
-                  sh '''
-                  cd ${WKC}/tests/pytest
-                  ./crash_gen.sh -a -p -t 4 -s 2000
-                  '''
-                }
+            timeout(time: 60, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests/pytest
+              ./crash_gen.sh -a -p -t 4 -s 2000
+              '''
             }
             timeout(time: 60, unit: 'MINUTES'){
               sh '''

@@ -38,6 +38,11 @@ extern "C" {
 #include "qUtil.h"
 #include "tcmdtype.h"
 
+typedef enum {
+  TAOS_REQ_FROM_SHELL,
+  TAOS_REQ_FROM_HTTP
+} SReqOrigin;
+
 // forward declaration
 struct SSqlInfo;
 
@@ -123,17 +128,15 @@ typedef struct {
   int32_t kvLen;    // len of SKVRow
 } SMemRowInfo;
 typedef struct {
-  uint8_t      memRowType;
-  uint8_t      compareStat;  // 0 unknown, 1 need compare, 2 no need
-  TDRowTLenT   dataRowInitLen;
+  uint8_t      memRowType;   // default is 0, that is SDataRow 
+  uint8_t      compareStat;  // 0 no need, 1 need compare
   TDRowTLenT   kvRowInitLen;
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
 typedef enum {
-  ROW_COMPARE_UNKNOWN = 0,
+  ROW_COMPARE_NO_NEED = 0,
   ROW_COMPARE_NEED = 1,
-  ROW_COMPARE_NO_NEED = 2,
 } ERowCompareStat;
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);
@@ -231,7 +234,6 @@ typedef struct STableDataBlocks {
 typedef struct {
   STableMeta   *pTableMeta;
   SArray       *vgroupIdList;
-//  SVgroupsInfo *pVgroupsInfo;
 } STableMetaVgroupInfo;
 
 typedef struct SInsertStatementParam {
@@ -283,20 +285,14 @@ typedef struct {
   int32_t      resColumnId;
 } SSqlCmd;
 
-typedef struct SResRec {
-  int numOfRows;
-  int numOfTotal;
-} SResRec;
-
 typedef struct {
   int32_t        numOfRows;                  // num of results in current retrieval
-  int64_t        numOfRowsGroup;             // num of results of current group
   int64_t        numOfTotal;                 // num of total results
   int64_t        numOfClauseTotal;           // num of total result in current subclause
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qId;
+  uint64_t       qId;     // query id of SQInfo
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;
@@ -304,8 +300,6 @@ typedef struct {
   int16_t        precision;
   bool           completed;
   int32_t        code;
-  int32_t        numOfGroups;
-  SResRec *      pGroupRec;
   char *         data;
   TAOS_ROW       tsrow;
   TAOS_ROW       urow;
@@ -313,8 +307,7 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
-  TAOS_FIELD*           final;
-  SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
+  TAOS_FIELD*    final;
   struct SGlobalMerger *pMerger;
 } SSqlRes;
 
@@ -342,6 +335,7 @@ typedef struct STscObj {
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
+  SReqOrigin         from;
 } STscObj;
 
 typedef struct SSubqueryState {
@@ -373,7 +367,6 @@ typedef struct SSqlObj {
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
-  bool             isBind;
 
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
@@ -447,7 +440,7 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
 void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);
 void destroyTableNameList(SInsertStatementParam* pInsertParam);
 
-void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
+void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta, uint64_t id);
 
 /**
  * free query result of the sql object
@@ -488,6 +481,7 @@ bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
+int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql);
 
 int32_t tscInvalidOperationMsg(char *msg, const char *additionalInfo, const char *sql);
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql);
@@ -573,7 +567,7 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
   SKVRow   kvRow = memRowKvBody(dest);
 
   memRowSetType(dest, SMEM_ROW_KV);
-  memRowSetKvVersion(kvRow, dataRowVersion(dataRow));
+  memRowSetKvVersion(dest, dataRowVersion(dataRow));
   kvRowSetNCols(kvRow, nBoundCols);
   kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nBoundCols));
 

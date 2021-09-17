@@ -80,7 +80,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/set_tag_vals.sim
 ./test.sh -f general/parser/tags_filter.sim
 ./test.sh -f general/parser/slimit_alter_tags.sim
-#./test.sh -f general/parser/join.sim
+./test.sh -f general/parser/join.sim
 ./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
 ./test.sh -f general/parser/repeatAlter.sim
@@ -89,6 +89,14 @@ cd ../../../debug; make
 ./test.sh -f general/db/nosuchfile.sim
 ./test.sh -f general/parser/function.sim
 ./test.sh -f unique/cluster/vgroup100.sim
+
+./test.sh -f unique/http/admin.sim
+./test.sh -f unique/http/opentsdb.sim
+
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim
+
+./test.sh -f general/alter/cached_schema_after_alter.sim
 
 #======================b1-end===============
 #======================b2-start===============
@@ -134,6 +142,13 @@ cd ../../../debug; make
 
 ./test.sh -f unique/cluster/alter.sim
 ./test.sh -f unique/cluster/cache.sim
+./test.sh -f unique/http/admin.sim
+./test.sh -f unique/http/opentsdb.sim
+
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim
+
+./test.sh -f general/alter/cached_schema_after_alter.sim
 
 
 #======================b2-end===============
@@ -198,13 +213,7 @@ cd ../../../debug; make
 #======================b3-end===============
 #======================b4-start===============
 
-./test.sh -f unique/http/admin.sim
-./test.sh -f unique/http/opentsdb.sim
 
-./test.sh -f unique/import/replica2.sim
-./test.sh -f unique/import/replica3.sim
-
-./test.sh -f general/alter/cached_schema_after_alter.sim
 ./test.sh -f general/alter/count.sim
 ./test.sh -f general/alter/dnode.sim
 ./test.sh -f general/alter/import.sim

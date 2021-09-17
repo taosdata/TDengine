@@ -33,7 +33,9 @@ OptrStr gOptrStr[] = {
   {TSDB_RELATION_IN,                       "in"},
   {TSDB_RELATION_AND,                      "and"},
   {TSDB_RELATION_OR,                       "or"},
-  {TSDB_RELATION_NOT,                      "not"}
+  {TSDB_RELATION_NOT,                      "not"},
+  {TSDB_RELATION_MATCH,                    "match"},
+  {TSDB_RELATION_NMATCH,                   "nmatch"},
 };
 
 static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const void *desc2) {
@@ -156,7 +158,7 @@ int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
 __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val, compareInt64Val, compareFloatVal,
   compareDoubleVal, compareLenPrefixedStr, compareStrPatternComp, compareFindItemInSet, compareWStrPatternComp, 
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
-  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8
+  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8, compareStrRegexCompMatch, compareStrRegexCompNMatch
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -195,7 +197,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
     case TSDB_DATA_TYPE_BINARY: {
-      if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = 19;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = 20;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = 7;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = 8;
@@ -207,7 +213,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   
     case TSDB_DATA_TYPE_NCHAR: {
-      if (optr == TSDB_RELATION_LIKE) {
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = 19;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = 20;
+      } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = 9;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = 8;
@@ -927,7 +937,7 @@ int32_t filterAddUnitToGroup(SFilterGroup *group, uint16_t unitIdx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType) {
+int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType, bool tolower) {
   SBufferReader br = tbufInitReader(buf, len, false); 
   uint32_t sType  = tbufReadUint32(&br);     
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(tType), true, false);
@@ -1103,6 +1113,10 @@ int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint3
         }
         t = varDataLen(tmp);
         pvar = varDataVal(tmp);
+        
+        if (tolower) {
+          strntolower_s(pvar, pvar, (int32_t)t);
+        }
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
@@ -1147,7 +1161,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
 
   if (tree->_node.optr == TSDB_RELATION_IN && (!IS_VAR_DATA_TYPE(type))) {
     void *data = NULL;
-    filterConvertSetFromBinary((void **)&data, var->pz, var->nLen, type);
+    filterConvertSetFromBinary((void **)&data, var->pz, var->nLen, type, false);
     CHK_LRET(data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
 
     if (taosHashGetSize((SHashObj *)data) <= 0) {
@@ -1474,19 +1488,6 @@ _return:
   return code;
 }
 
-#if 0
-int32_t filterInitUnitFunc(SFilterInfo *info) {
-  for (uint16_t i = 0; i < info->unitNum; ++i) {
-    SFilterUnit* unit = &info->units[i];
-    
-    info->cunits[i].func = getComparFunc(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
-
 void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options) {
   if (qDebugFlag & DEBUG_DEBUG) {
     CHK_LRETV(info == NULL, "%s - FilterInfo: EMPTY", msg);
@@ -1521,7 +1522,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         int32_t type = FILTER_UNIT_DATA_TYPE(unit);
         int32_t len = 0;
         int32_t tlen = 0;
-        char str[256] = {0};
+        char str[512] = {0};
         
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SSchema *sch = left->desc;
@@ -1539,6 +1540,24 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
           strcat(str, "NULL");
         }
         strcat(str, "]");
+
+        if (unit->compare.optr2) {
+          strcat(str, " && ");
+          sprintf(str + strlen(str), "[%d][%s]  %s  [", sch->colId, sch->name, gOptrStr[unit->compare.optr2].str);
+          
+          if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
+            SFilterField *right = FILTER_UNIT_RIGHT2_FIELD(info, unit);
+            char *data = right->data;
+            if (IS_VAR_DATA_TYPE(type)) {
+              tlen = varDataLen(data);
+              data += VARSTR_HEADER_SIZE;
+            }
+            converToStr(str + strlen(str), type, data, tlen > 32 ? 32 : tlen, &tlen);
+          } else {
+            strcat(str, "NULL");
+          }
+          strcat(str, "]");
+        }
         
         qDebug("%s", str); //TODO
       }
@@ -1556,36 +1575,62 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       return;
     }
 
-    qDebug("%s - RANGE info:", msg);
+    if (options == 1) {
+      qDebug("%s - RANGE info:", msg);
 
-    qDebug("RANGE Num:%u", info->colRangeNum);
-    for (uint16_t i = 0; i < info->colRangeNum; ++i) {
-      SFilterRangeCtx *ctx = info->colRange[i];
-      qDebug("Column ID[%d] RANGE: isnull[%d],notnull[%d],range[%d]", ctx->colId, ctx->isnull, ctx->notnull, ctx->isrange);
-      if (ctx->isrange) {      
-        SFilterRangeNode *r = ctx->rs;
-        while (r) {
-          char str[256] = {0};        
-          int32_t tlen = 0;
-          if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
-            strcat(str,"(NULL)");
-          } else {
-            FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str,"(") : strcat(str,"[");
-            converToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen);
-            FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str,")") : strcat(str,"]");
+      qDebug("RANGE Num:%u", info->colRangeNum);
+      for (uint16_t i = 0; i < info->colRangeNum; ++i) {
+        SFilterRangeCtx *ctx = info->colRange[i];
+        qDebug("Column ID[%d] RANGE: isnull[%d],notnull[%d],range[%d]", ctx->colId, ctx->isnull, ctx->notnull, ctx->isrange);
+        if (ctx->isrange) {      
+          SFilterRangeNode *r = ctx->rs;
+          while (r) {
+            char str[256] = {0};        
+            int32_t tlen = 0;
+            if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
+              strcat(str,"(NULL)");
+            } else {
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str,"(") : strcat(str,"[");
+              converToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen);
+              FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str,")") : strcat(str,"]");
+            }
+            strcat(str, " - ");
+            if (FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
+              strcat(str, "(NULL)");
+            } else {
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str,"(") : strcat(str,"[");
+              converToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen);
+              FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str,")") : strcat(str,"]");
+            }
+            qDebug("range: %s", str);        
+            
+            r = r->next;
           }
-          strcat(str, " - ");
-          if (FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
-            strcat(str, "(NULL)");
-          } else {
-            FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str,"(") : strcat(str,"[");
-            converToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen);
-            FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str,")") : strcat(str,"]");
-          }
-          qDebug("range: %s", str);        
-          
-          r = r->next;
         }
+      }
+
+      return;
+    }
+
+    qDebug("%s - Block Filter info:", msg);
+
+    if (FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_ALL)) {
+      qDebug("Flag:%s", "ALL");
+      return;
+    } else if (FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY)) {
+      qDebug("Flag:%s", "EMPTY");
+      return;
+    } else if (FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_ACTIVE)){
+      qDebug("Flag:%s", "ACTIVE");
+    }
+
+    qDebug("GroupNum:%d", info->blkGroupNum);
+    uint16_t *unitIdx = info->blkUnits;
+    for (uint16_t i = 0; i < info->blkGroupNum; ++i) {
+      qDebug("Group[%d] UnitNum: %d:", i, *unitIdx);
+      uint16_t unitNum = *(unitIdx++);
+      for (uint16_t m = 0; m < unitNum; ++m) {
+        qDebug("uidx[%d]", *(unitIdx++));
       }
     }
   }
@@ -1674,7 +1719,9 @@ void filterFreeInfo(SFilterInfo *info) {
   CHK_RETV(info == NULL);
 
   tfree(info->cunits);
-
+  tfree(info->blkUnitRes);
+  tfree(info->blkUnits);
+  
   for (int32_t i = 0; i < FLD_TYPE_MAX; ++i) {
     for (uint16_t f = 0; f < info->fields[i].num; ++f) {
       filterFreeField(&info->fields[i].fields[f], i);
@@ -1755,7 +1802,10 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == TSDB_RELATION_IN) {
-      filterConvertSetFromBinary((void **)&fi->data, var->pz, var->nLen, type);
+      SSchema *sch = FILTER_UNIT_COL_DESC(info, unit);
+      bool tolower = (sch->colId == -1) ? true : false;
+      
+      filterConvertSetFromBinary((void **)&fi->data, var->pz, var->nLen, type, tolower);
       CHK_LRET(fi->data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
 
       FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);
@@ -1823,6 +1873,12 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
       return ret < 0;
     }
     case TSDB_RELATION_LIKE: {
+      return ret == 0;
+    }
+    case TSDB_RELATION_MATCH: {
+      return ret == 0;
+    }
+    case TSDB_RELATION_NMATCH: {
       return ret == 0;
     }
     case TSDB_RELATION_IN: {
@@ -2482,10 +2538,10 @@ int32_t filterPostProcessRange(SFilterInfo *info) {
 
 
 int32_t filterGenerateComInfo(SFilterInfo *info) {
-  uint16_t n = 0;
-  
   info->cunits = malloc(info->unitNum * sizeof(*info->cunits));
-  
+  info->blkUnitRes = malloc(sizeof(*info->blkUnitRes) * info->unitNum);
+  info->blkUnits = malloc(sizeof(*info->blkUnits) * (info->unitNum + 1) * info->groupNum);
+
   for (uint16_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
@@ -2493,6 +2549,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].rfunc = filterGetRangeCompFuncFromOptrs(unit->compare.optr, unit->compare.optr2);
     info->cunits[i].optr = FILTER_UNIT_OPTR(unit);
     info->cunits[i].colData = NULL;
+    info->cunits[i].colId = FILTER_UNIT_COL_ID(info, unit);
     
     if (unit->right.type == FLD_TYPE_VALUE) {
       info->cunits[i].valData = FILTER_UNIT_VAL_DATA(info, unit);
@@ -2508,24 +2565,6 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].dataSize = FILTER_UNIT_COL_SIZE(info, unit);
     info->cunits[i].dataType = FILTER_UNIT_DATA_TYPE(unit);
   }
-
-  uint16_t cgroupNum = info->groupNum + 1;
-  
-  for (uint16_t i = 0; i < info->groupNum; ++i) {
-    cgroupNum += info->groups[i].unitNum;
-  }
-
-  info->cgroups = malloc(cgroupNum * sizeof(*info->cgroups));
-  
-  for (uint16_t i = 0; i < info->groupNum; ++i) {
-    info->cgroups[n++] = info->groups[i].unitNum;
-
-    for (uint16_t m = 0; m < info->groups[i].unitNum; ++m) {
-      info->cgroups[n++] = info->groups[i].unitIdxs[m];
-    }
-  }
-
-  info->cgroups[n] = 0;
   
   return TSDB_CODE_SUCCESS;
 }
@@ -2541,36 +2580,325 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
 }
 
 
-static FORCE_INLINE bool filterExecuteImplAll(void *info, int32_t numOfRows, int8_t* p) {
-  return true;
+int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
+  int32_t rmUnit = 0;
+
+  memset(info->blkUnitRes, 0, sizeof(*info->blkUnitRes) * info->unitNum);
+  
+  for (int32_t k = 0; k < info->unitNum; ++k) {
+    int32_t index = -1;
+    SFilterComUnit *cunit = &info->cunits[k];
+
+    if (FILTER_NO_MERGE_DATA_TYPE(cunit->dataType)) {
+      continue;
+    }
+
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      if (pDataStatis[i].colId == cunit->colId) {
+        index = i;
+        break;
+      }
+    }
+
+    if (index == -1) {
+      continue;
+    }
+
+    if (pDataStatis[index].numOfNull <= 0) {
+      if (cunit->optr == TSDB_RELATION_ISNULL) {
+        info->blkUnitRes[k] = -1;
+        rmUnit = 1;
+        continue;
+      }
+
+      if (cunit->optr == TSDB_RELATION_NOTNULL) {
+        info->blkUnitRes[k] = 1;
+        rmUnit = 1;
+        continue;
+      }
+    } else {
+      if (pDataStatis[index].numOfNull == numOfRows) {
+        if (cunit->optr == TSDB_RELATION_ISNULL) {
+          info->blkUnitRes[k] = 1;
+          rmUnit = 1;
+          continue;
+        }
+        
+        info->blkUnitRes[k] = -1;
+        rmUnit = 1;
+        continue;
+      }
+    }
+
+    if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL 
+     || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE || cunit->optr == TSDB_RELATION_MATCH
+     || cunit->optr == TSDB_RELATION_NOT_EQUAL) {
+      continue;
+    }
+
+    SDataStatis* pDataBlockst = &pDataStatis[index];
+    void *minVal, *maxVal;
+    float minv = 0;
+    float maxv = 0;
+
+    if (cunit->dataType == TSDB_DATA_TYPE_FLOAT) {
+      minv = (float)(*(double *)(&pDataBlockst->min));
+      maxv = (float)(*(double *)(&pDataBlockst->max));
+       
+      minVal = &minv;
+      maxVal = &maxv;
+    } else {
+      minVal = &pDataBlockst->min;
+      maxVal = &pDataBlockst->max;
+    }
+
+    bool minRes = false, maxRes = false;
+
+    if (cunit->rfunc >= 0) {
+      minRes = (*gRangeCompare[cunit->rfunc])(minVal, minVal, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
+      maxRes = (*gRangeCompare[cunit->rfunc])(maxVal, maxVal, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
+
+      if (minRes && maxRes) {
+        info->blkUnitRes[k] = 1;
+        rmUnit = 1;
+      } else if ((!minRes) && (!maxRes)) {
+        minRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_LESS_EQUAL, minVal, cunit->valData);
+        maxRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_GREATER_EQUAL, maxVal, cunit->valData2);
+
+        if (minRes && maxRes) {
+          continue;
+        }
+        
+        info->blkUnitRes[k] = -1;
+        rmUnit = 1;
+      }
+    } else {
+      minRes = filterDoCompare(gDataCompare[cunit->func], cunit->optr, minVal, cunit->valData);
+      maxRes = filterDoCompare(gDataCompare[cunit->func], cunit->optr, maxVal, cunit->valData);
+
+      if (minRes && maxRes) {
+        info->blkUnitRes[k] = 1;
+        rmUnit = 1;
+      } else if ((!minRes) && (!maxRes)) {
+        if (cunit->optr == TSDB_RELATION_EQUAL) {
+          minRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_GREATER, minVal, cunit->valData);
+          maxRes = filterDoCompare(gDataCompare[cunit->func], TSDB_RELATION_LESS, maxVal, cunit->valData);
+          if (minRes || maxRes) {
+            info->blkUnitRes[k] = -1;
+            rmUnit = 1;
+          }
+          
+          continue;
+        }
+        
+        info->blkUnitRes[k] = -1;
+        rmUnit = 1;
+      }
+    }
+
+  }
+
+  CHK_LRET(rmUnit == 0, TSDB_CODE_SUCCESS, "NO Block Filter APPLY");
+
+  info->blkGroupNum = info->groupNum;
+  
+  uint16_t *unitNum = info->blkUnits;
+  uint16_t *unitIdx = unitNum + 1;
+  int32_t all = 0, empty = 0;
+  
+  for (uint32_t g = 0; g < info->groupNum; ++g) {
+    SFilterGroup *group = &info->groups[g];
+    *unitNum = group->unitNum;
+    all = 0; 
+    empty = 0;
+    
+    for (uint32_t u = 0; u < group->unitNum; ++u) {
+      uint16_t uidx = group->unitIdxs[u];
+      if (info->blkUnitRes[uidx] == 1) {
+        --(*unitNum);
+        all = 1;
+        continue;
+      } else if (info->blkUnitRes[uidx] == -1) {
+        *unitNum = 0;
+        empty = 1;
+        break;
+      }
+
+      *(unitIdx++) = uidx;
+    }
+
+    if (*unitNum == 0) {
+      --info->blkGroupNum;
+      assert(empty || all);
+      
+      if (empty) {
+        FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY);
+      } else {
+        FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_ALL);
+        goto _return;
+      }
+      
+      continue;
+    }
+
+    unitNum = unitIdx;
+    ++unitIdx;
+  }
+
+  if (info->blkGroupNum) {
+    FILTER_CLR_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY);
+    FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_ACTIVE);
+  }
+
+_return:
+
+  filterDumpInfoToString(info, "Block Filter", 2);
+
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE bool filterExecuteImplEmpty(void *info, int32_t numOfRows, int8_t* p) {
-  return false;
-}
-static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows, int8_t* p) {
+
+bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
+  uint16_t *unitIdx = NULL;
+
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
-    uint16_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    p[i] = isNull(colData, info->cunits[uidx].dataType);
-    if (p[i] == 0) {
+    //FILTER_UNIT_CLR_F(info);
+
+    unitIdx = info->blkUnits;
+    
+    for (uint32_t g = 0; g < info->blkGroupNum; ++g) {
+      uint16_t unitNum = *(unitIdx++);
+      for (uint32_t u = 0; u < unitNum; ++u) {
+        SFilterComUnit *cunit = &info->cunits[*(unitIdx + u)];
+        void *colData = (char *)cunit->colData + cunit->dataSize * i;
+      
+        //if (FILTER_UNIT_GET_F(info, uidx)) {
+        //  p[i] = FILTER_UNIT_GET_R(info, uidx);
+        //} else {
+          uint8_t optr = cunit->optr;
+
+          if (isNull(colData, cunit->dataType)) {
+            (*p)[i] = optr == TSDB_RELATION_ISNULL ? true : false;
+          } else {
+            if (optr == TSDB_RELATION_NOTNULL) {
+              (*p)[i] = 1;
+            } else if (optr == TSDB_RELATION_ISNULL) {
+              (*p)[i] = 0;
+            } else if (cunit->rfunc >= 0) {
+              (*p)[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
+            } else {
+              (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
+            }
+          
+          //FILTER_UNIT_SET_R(info, uidx, p[i]);
+          //FILTER_UNIT_SET_F(info, uidx);
+          }
+
+        if ((*p)[i] == 0) {
+          break;
+        }
+      }
+
+      if ((*p)[i]) {
+        break;
+      }
+
+      unitIdx += unitNum;
+    }
+
+    if ((*p)[i] == 0) {
       all = false;
     }    
   }
 
   return all;
 }
-static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows, int8_t* p) {
+
+
+
+int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols, bool* all) {
+  if (statis && numOfRows >= FILTER_RM_UNIT_MIN_ROWS) {    
+    info->blkFlag = 0;
+    
+    filterRmUnitByRange(info, statis, numOfCols, numOfRows);
+    
+    if (info->blkFlag) {
+      if (FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_ALL)) {
+        *all = true;
+        goto _return;
+      } else if (FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY)) {
+        *all = false;
+        goto _return;
+      }
+
+      assert(info->unitNum > 1);
+      
+      *all = filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols);
+
+      goto _return;
+    }
+  }
+
+  return 1;
+
+_return:
+  info->blkFlag = 0;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static FORCE_INLINE bool filterExecuteImplAll(void *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
+  return true;
+}
+static FORCE_INLINE bool filterExecuteImplEmpty(void *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
+  return false;
+}
+static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
+
+  if (filterExecuteBasedOnStatis(info, numOfRows, p, statis, numOfCols, &all) == 0) {
+    return all;
+  }
+
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    p[i] = !isNull(colData, info->cunits[uidx].dataType);
-    if (p[i] == 0) {
+    (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
+    if ((*p)[i] == 0) {
+      all = false;
+    }    
+  }
+
+  return all;
+}
+static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
+  SFilterInfo *info = (SFilterInfo *)pinfo;
+  bool all = true;
+
+  if (filterExecuteBasedOnStatis(info, numOfRows, p, statis, numOfCols, &all) == 0) {
+    return all;
+  }
+
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
+  
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    uint16_t uidx = info->groups[0].unitIdxs[0];
+    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
+    if ((*p)[i] == 0) {
       all = false;
     }
   }
@@ -2578,7 +2906,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   return all;
 }
 
-bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t* p) {
+bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
   uint16_t dataSize = info->cunits[0].dataSize;
@@ -2587,17 +2915,25 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t* p) {
   void *valData = info->cunits[0].valData;
   void *valData2 = info->cunits[0].valData2;
   __compar_fn_t func = gDataCompare[info->cunits[0].func];
+
+  if (filterExecuteBasedOnStatis(info, numOfRows, p, statis, numOfCols, &all) == 0) {
+    return all;
+  }
+
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
-    if (isNull(colData, info->cunits[0].dataType)) {
+    if (colData == NULL || isNull(colData, info->cunits[0].dataType)) {
       all = false;
       colData += dataSize;
       continue;
     }
 
-    p[i] = (*rfunc)(colData, colData, valData, valData2, func);
+    (*p)[i] = (*rfunc)(colData, colData, valData, valData2, func);
             
-    if (p[i] == 0) {
+    if ((*p)[i] == 0) {
       all = false;
     }
     
@@ -2607,21 +2943,30 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t* p) {
   return all;
 }
 
-bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t* p) {
+bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
+
+  if (filterExecuteBasedOnStatis(info, numOfRows, p, statis, numOfCols, &all) == 0) {
+    return all;
+  }
+  
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint16_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    if (isNull(colData, info->cunits[uidx].dataType)) {
+    if (colData == NULL || isNull(colData, info->cunits[uidx].dataType)) {
+      (*p)[i] = 0;
       all = false;
       continue;
     }
 
-    p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
+    (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
             
-    if (p[i] == 0) {
+    if ((*p)[i] == 0) {
       all = false;
     }
   }
@@ -2630,10 +2975,18 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t* p) {
 }
 
 
-bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t* p) {
+bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
 
+  if (filterExecuteBasedOnStatis(info, numOfRows, p, statis, numOfCols, &all) == 0) {
+    return all;
+  }
+
+  if (*p == NULL) {
+    *p = calloc(numOfRows, sizeof(int8_t));
+  }
+  
   for (int32_t i = 0; i < numOfRows; ++i) {
     //FILTER_UNIT_CLR_F(info);
   
@@ -2649,34 +3002,34 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t* p) {
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (isNull(colData, cunit->dataType)) {
-            p[i] = optr == TSDB_RELATION_ISNULL ? true : false;
+          if (colData == NULL || isNull(colData, cunit->dataType)) {
+            (*p)[i] = optr == TSDB_RELATION_ISNULL ? true : false;
           } else {
             if (optr == TSDB_RELATION_NOTNULL) {
-              p[i] = 1;
+              (*p)[i] = 1;
             } else if (optr == TSDB_RELATION_ISNULL) {
-              p[i] = 0;
+              (*p)[i] = 0;
             } else if (cunit->rfunc >= 0) {
-              p[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
+              (*p)[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
             } else {
-              p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
+              (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
             }
           
           //FILTER_UNIT_SET_R(info, uidx, p[i]);
           //FILTER_UNIT_SET_F(info, uidx);
           }
 
-        if (p[i] == 0) {
+        if ((*p)[i] == 0) {
           break;
         }
       }
 
-      if (p[i]) {
+      if ((*p)[i]) {
         break;
       }
     }
 
-    if (p[i] == 0) {
+    if ((*p)[i] == 0) {
       all = false;
     }    
   }
@@ -2684,8 +3037,9 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t* p) {
   return all;
 }
 
-FORCE_INLINE bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p) {
-  return (*info->func)(info, numOfRows, p);
+
+FORCE_INLINE bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
+  return (*info->func)(info, numOfRows, p, statis, numOfCols);
 }
 
 int32_t filterSetExecFunc(SFilterInfo *info) {
@@ -2767,7 +3121,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data) {
+int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp) {
   CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "info NULL");
   CHK_LRET(info->fields[FLD_TYPE_COLUMN].num <= 0, TSDB_CODE_QRY_APP_ERROR, "no column fileds");
 
@@ -2778,11 +3132,8 @@ int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data) {
   for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema* sch = fi->desc;
-    if (sch->colId == colId) {
-      fi->data = data;
 
-      break;
-    }
+    (*fp)(param, sch->colId, &fi->data);
   }
 
   filterUpdateComUnits(info);
@@ -2791,7 +3142,7 @@ int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data) {
 }
 
 
-int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options) {
+int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   int32_t code = TSDB_CODE_SUCCESS;
   SFilterInfo *info = NULL;
   
@@ -2828,8 +3179,6 @@ int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t option
       taosArrayDestroy(group);
       return code;
     }
-
-    //ERR_JRET(filterInitUnitFunc(info));
   }  
 
   info->unitRes = malloc(info->unitNum * sizeof(*info->unitRes));
@@ -2880,36 +3229,43 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
 
     // no statistics data, load the true data block
     if (index == -1) {
-      return true;
+      break;
     }
 
     // not support pre-filter operation on binary/nchar data type
     if (FILTER_NO_MERGE_DATA_TYPE(ctx->type)) {
-      return true;
+      break;
     }
 
-    if ((pDataStatis[index].numOfNull <= 0) && (ctx->isnull && !ctx->notnull && !ctx->isrange)) {
-      return false;
-    }
-    
-    // all data in current column are NULL, no need to check its boundary value
-    if (pDataStatis[index].numOfNull == numOfRows) {
-
-      // if isNULL query exists, load the null data column
-      if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
-        return false;
+    if (pDataStatis[index].numOfNull <= 0) {
+      if (ctx->isnull && !ctx->notnull && !ctx->isrange) {
+        ret = false;
+        break;
       }
+    } else if (pDataStatis[index].numOfNull > 0) {
+      if (pDataStatis[index].numOfNull == numOfRows) {
+        if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
+          ret = false;
+          break;
+        }
 
-      continue;
+        continue;
+      } else {
+        if (ctx->isnull) {
+          continue;
+        }
+      }
     }
 
     SDataStatis* pDataBlockst = &pDataStatis[index];
 
     SFilterRangeNode *r = ctx->rs;
+    float minv = 0;
+    float maxv = 0;
 
     if (ctx->type == TSDB_DATA_TYPE_FLOAT) {
-      float minv = (float)(*(double *)(&pDataBlockst->min));
-      float maxv = (float)(*(double *)(&pDataBlockst->max));
+      minv = (float)(*(double *)(&pDataBlockst->min));
+      maxv = (float)(*(double *)(&pDataBlockst->max));
        
       minVal = &minv;
       maxVal = &maxv;
@@ -3070,6 +3426,52 @@ int32_t filterFreeNcharColumns(SFilterInfo* info) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res) {
+  CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "null parameter");
+
+  CHK_JMP(info->fields[FLD_TYPE_COLUMN].num > 1 || info->fields[FLD_TYPE_COLUMN].num <= 0);
+
+  CHK_JMP(info->unitNum > 1 || info->unitNum <= 0);
+
+  CHK_JMP(FILTER_GET_COL_FIELD_ID(FILTER_GET_COL_FIELD(info, 0)) != idxId);
+
+  int32_t optr = FILTER_UNIT_OPTR(info->units);
+  
+  CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN || optr == TSDB_RELATION_MATCH 
+       || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL);
+
+  *res = true;
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+  *res = false;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t filterGetIndexedColumnInfo(SFilterInfo* info, char** val, int32_t *order, int32_t *flag) {
+  SFilterComUnit *cunit = info->cunits;
+  uint8_t optr = cunit->optr;
+
+  *val = cunit->valData;
+  *order = TSDB_ORDER_ASC;
+
+  if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
+    *order = TSDB_ORDER_DESC;
+  }
+
+  if (optr == TSDB_RELATION_NOT_EQUAL) {
+    *order = TSDB_ORDER_ASC|TSDB_ORDER_DESC;
+  }
+
+  if (cunit->valData2 == cunit->valData && optr != TSDB_RELATION_EQUAL) {
+    FILTER_SET_FLAG(*flag, FI_ACTION_NO_NEED);
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
 
 
 
