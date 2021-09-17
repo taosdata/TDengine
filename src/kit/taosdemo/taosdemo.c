@@ -81,8 +81,8 @@ extern char configDir[];
 #define MAX_PREPARED_RAND  1000000
 #define INT_BUFF_LEN            11
 #define BIGINT_BUFF_LEN         21
-#define SMALLINT_BUFF_LEN       6
-#define TINYINT_BUFF_LEN        4
+#define SMALLINT_BUFF_LEN       7
+#define TINYINT_BUFF_LEN        5
 #define BOOL_BUFF_LEN           6
 #define FLOAT_BUFF_LEN          22
 #define DOUBLE_BUFF_LEN         42
@@ -2236,7 +2236,7 @@ static int32_t rand_utinyint()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND] % 255;
+    return g_randuint[cursor % MAX_PREPARED_RAND] % 255;
 }
 
 static char *rand_smallint_str()
@@ -2253,7 +2253,7 @@ static int32_t rand_smallint()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND] % 32767;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 32768;
 }
 
 static char *rand_usmallint_str()
@@ -2270,7 +2270,7 @@ static int32_t rand_usmallint()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND];
+    return g_randuint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_int_str()
@@ -2487,7 +2487,7 @@ static void init_rand_data() {
 
     for (int i = 0; i < MAX_PREPARED_RAND; i++) {
         // TODO: make g_randint list include negative number
-        g_randint[i] = (int)(taosRandom() % 65535);
+        g_randint[i] = (int)(taosRandom() % 131069 - 65534);
         g_randuint[i] = (int)(taosRandom() % 65535);
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
@@ -2507,14 +2507,14 @@ static void init_rand_data() {
         sprintf(g_randutinyint_buff + i * TINYINT_BUFF_LEN, "%d",
                 g_randuint[i] % 255);
 
-        g_randbigint[i] = (int64_t)(taosRandom() % 2147483648);
+        g_randbigint[i] = (int64_t)(taosRandom() % 2147483648 - 1073741824);
         g_randubigint[i] = (int64_t)(taosRandom() % 2147483648);
         sprintf(g_randbigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
                 g_randbigint[i]);
         sprintf(g_randubigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
                 g_randubigint[i]);
 
-        g_randfloat[i] = (float)(taosRandom() / 1000.0);
+        g_randfloat[i] = (float)(taosRandom() / 1000.0) * (taosRandom() % 2 > 0.5 ? 1 : -1);
         sprintf(g_randfloat_buff + i * FLOAT_BUFF_LEN, "%f",
                 g_randfloat[i]);
         sprintf(g_rand_current_buff + i * FLOAT_BUFF_LEN, "%f",
@@ -2524,7 +2524,7 @@ static void init_rand_data() {
                 (float)((115 + g_randint[i] % 10
                         + g_randfloat[i]/1000000000)/360));
 
-        g_randdouble[i] = (double)(taosRandom() / 1000000.0);
+        g_randdouble[i] = (double)(taosRandom() / 1000000.0) * (taosRandom() % 2 > 0.5 ? 1 : -1);
         sprintf(g_randdouble_buff + i * DOUBLE_BUFF_LEN, "%f",
                 g_randdouble[i]);
     }
@@ -3601,23 +3601,23 @@ static char* generateTagValuesForStb(SSuperTable* stbInfo, int64_t tableSeq) {
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "timestamp", strlen("timestamp"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%"PRId64",", rand_bigint());
+                    "%"PRId64",", rand_ubigint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "utinyint", strlen("utinyint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%d,", rand_tinyint());
+                    "%d,", rand_utinyint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "usmallint", strlen("usmallint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%d,", rand_smallint());
+                    "%d,", rand_usmallint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "uint", strlen("uint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%d,", rand_int());
+                    "%d,", rand_uint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "ubigint", strlen("ubigint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%"PRId64",", rand_bigint());
+                    "%"PRId64",", rand_ubigint());
         }  else {
             errorPrint2("No support data type: %s\n", stbInfo->tags[i].dataType);
             tmfree(dataBuf);
@@ -6427,8 +6427,7 @@ static int64_t generateStbRowData(
             "(%" PRId64 "", timestamp);
 
     for (int i = 0; i < stbInfo->columnCount; i++) {
-        tstrncpy(pstr + dataLen, ",", 2);
-        dataLen += 1;
+        dataLen += snprintf(pstr + dataLen, 2, ",");
 
         if ((stbInfo->columns[i].data_type == TSDB_DATA_TYPE_BINARY)
                 || (stbInfo->columns[i].data_type == TSDB_DATA_TYPE_NCHAR)) {
@@ -6462,22 +6461,25 @@ static int64_t generateStbRowData(
                         tmp = rand_int_str();
                     }
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_UINT:
                     tmp = rand_uint_str();
-                    tstrncpy(pstr + dataLen, tmp, INT_BUFF_LEN);
+                    tmpLen = strlen(tmp);
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
                     tmp = rand_bigint_str();
-                    tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
+                    tmpLen = strlen(tmp);
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
                 
                 case TSDB_DATA_TYPE_UBIGINT:
                     tmp = rand_ubigint_str();
-                    tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
+                    tmpLen = strlen(tmp);
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
@@ -6491,51 +6493,49 @@ static int64_t generateStbRowData(
                         tmp = rand_float_str();
                     }
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, FLOAT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_DOUBLE:
                     tmp = rand_double_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, DOUBLE_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
                     tmp = rand_smallint_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
-                            min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_USMALLINT:
                     tmp = rand_usmallint_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp,
-                            min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
                     tmp = rand_tinyint_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_UTINYINT:
                     tmp = rand_utinyint_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen +1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
                     tmp = rand_bool_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BOOL_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
                     tmp = rand_bigint_str();
                     tmpLen = strlen(tmp);
-                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BIGINT_BUFF_LEN));
+                    dataLen += snprintf(pstr + dataLen, min(tmpLen + 1, BIGINT_BUFF_LEN), "%s", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_NULL:
@@ -6546,17 +6546,13 @@ static int64_t generateStbRowData(
                             stbInfo->columns[i].dataType);
                     exit(EXIT_FAILURE);
             }
-
-            if (tmp) {
-                dataLen += strlen(tmp);
-            }
         }
 
         if (dataLen > (remainderBufLen - (128)))
             return 0;
     }
 
-    tstrncpy(pstr + dataLen, ")", 2);
+    dataLen += snprintf(pstr + dataLen, 2, ")");
 
     verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
     verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
