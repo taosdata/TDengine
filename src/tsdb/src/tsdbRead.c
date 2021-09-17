@@ -1582,7 +1582,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
+    pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
   }
   if(isRow1DataRow) {
     numOfColsOfRow1 = schemaNCols(pSchema1);
@@ -1594,7 +1594,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   if(row2) {
     isRow2DataRow = isDataRow(row2);
     if (pSchema2 == NULL) {
-      pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+      pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2), (int8_t)memRowType(row2));
     }
     if(isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -1961,11 +1961,11 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
       if ((key < tsArray[pos] && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
           (key > tsArray[pos] && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
         if (rv1 != memRowVersion(row1)) {
-          pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
+          pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
           rv1 = memRowVersion(row1);
         }
         if(row2 && rv2 != memRowVersion(row2)) {
-          pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+          pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2), (int8_t)memRowType(row2));
           rv2 = memRowVersion(row2);
         }
         
@@ -1986,11 +1986,11 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
             doCopyRowsFromFileBlock(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, pos, pos);
           }
           if (rv1 != memRowVersion(row1)) {
-            pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
+            pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
             rv1 = memRowVersion(row1);
           }
           if(row2 && rv2 != memRowVersion(row2)) {
-            pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+            pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2), (int8_t)memRowType(row2));
             rv2 = memRowVersion(row2);
           }
           
@@ -2654,7 +2654,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != memRowVersion(row)) {
-      pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row));
+      pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row), (int8_t)memRowType(row));
       rv = memRowVersion(row);
     }
     mergeTwoRowFromMem(pQueryHandle, maxRowsToRead, numOfRows, row, NULL, numOfCols, pTable, pSchema, NULL, true);

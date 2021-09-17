@@ -26,7 +26,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1538548685000
+        now = time.time()
+        self.ts = int(round(now * 1000))
         self.num = 100
 
     def get_random_string(self, length):

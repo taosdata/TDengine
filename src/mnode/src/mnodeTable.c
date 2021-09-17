@@ -1326,9 +1326,11 @@ static int32_t mnodeModifySuperTableTagNameCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, modify tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+
   return code;
 }
 

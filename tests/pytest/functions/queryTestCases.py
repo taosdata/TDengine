@@ -1129,9 +1129,8 @@ class TDTestCase:
 		self.td3690()
         self.td4082()
         self.td4288()
-        # self.td4724()
-        # self.td5798()
-        # self.td5935()
+        self.td4724()
+        self.td5935()
         self.td6068()
 
         # develop branch
