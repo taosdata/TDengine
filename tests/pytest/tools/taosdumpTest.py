@@ -55,7 +55,7 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/tmp1")
         else:
-            print("path has already existed")
+            print("directory exists")
 
         if not os.path.exists("./taosdumptest/tmp2"):
             os.makedirs("./taosdumptest/tmp2")
