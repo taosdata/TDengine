@@ -590,16 +590,22 @@ static void init_rand_data();
 /* ************ Global variables ************  */
 
 int32_t  g_randint[MAX_PREPARED_RAND];
+uint32_t  g_randuint[MAX_PREPARED_RAND];
 int64_t  g_randbigint[MAX_PREPARED_RAND];
+uint64_t  g_randubigint[MAX_PREPARED_RAND];
 float    g_randfloat[MAX_PREPARED_RAND];
 double   g_randdouble[MAX_PREPARED_RAND];
 
 char    *g_randbool_buff = NULL;
 char    *g_randint_buff = NULL;
+char    *g_randuint_buff = NULL;
 char    *g_rand_voltage_buff = NULL;
 char    *g_randbigint_buff = NULL;
+char    *g_randubigint_buff = NULL;
 char    *g_randsmallint_buff = NULL;
+char    *g_randusmallint_buff = NULL;
 char    *g_randtinyint_buff = NULL;
+char    *g_randutinyint_buff = NULL;
 char    *g_randfloat_buff = NULL;
 char    *g_rand_current_buff = NULL;
 char    *g_rand_phase_buff = NULL;
@@ -1568,7 +1574,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         && strcasecmp(dataType, "DOUBLE")
                         && strcasecmp(dataType, "BINARY")
                         && strcasecmp(dataType, "TIMESTAMP")
-                        && strcasecmp(dataType, "NCHAR")) {
+                        && strcasecmp(dataType, "NCHAR")
+                        && strcasecmp(dataType, "UTINYINT")
+                        && strcasecmp(dataType, "USMALLINT")
+                        && strcasecmp(dataType, "UINT")
+                        && strcasecmp(dataType, "UBIGINT")) {
                     printHelp();
                     errorPrint("%s", "-b: Invalid data_type!\n");
                     exit(EXIT_FAILURE);
@@ -1594,6 +1604,14 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_BOOL;
                 } else if (0 == strcasecmp(dataType, "TIMESTAMP")) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_TIMESTAMP;
+                } else if (0 == strcasecmp(dataType, "UTINYINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_UTINYINT;
+                } else if (0 == strcasecmp(dataType, "USMALLINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_USMALLINT;
+                } else if (0 == strcasecmp(dataType, "UINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_UINT;
+                } else if (0 == strcasecmp(dataType, "UBIGINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_UBIGINT;
                 } else {
                     arguments->data_type[0] = TSDB_DATA_TYPE_NULL;
                 }
@@ -1615,7 +1633,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                             && strcasecmp(token, "DOUBLE")
                             && strcasecmp(token, "BINARY")
                             && strcasecmp(token, "TIMESTAMP")
-                            && strcasecmp(token, "NCHAR")) {
+                            && strcasecmp(token, "NCHAR")
+                            && strcasecmp(token, "UTINYINT")
+                            && strcasecmp(token, "USMALLINT")
+                            && strcasecmp(token, "UINT")
+                            && strcasecmp(token, "UBIGINT")) {
                         printHelp();
                         free(g_dupstr);
                         errorPrint("%s", "-b: Invalid data_type!\n");
@@ -1631,7 +1653,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     } else if (0 == strcasecmp(token, "BIGINT")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_BIGINT;
                     } else if (0 == strcasecmp(token, "DOUBLE")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_FLOAT;
+                        arguments->data_type[index] = TSDB_DATA_TYPE_DOUBLE;
                     } else if (0 == strcasecmp(token, "TINYINT")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_TINYINT;
                     } else if (0 == strcasecmp(token, "BINARY")) {
@@ -1642,6 +1664,14 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_BOOL;
                     } else if (0 == strcasecmp(token, "TIMESTAMP")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_TIMESTAMP;
+                    } else if (0 == strcasecmp(token, "UTINYINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UTINYINT;
+                    } else if (0 == strcasecmp(token, "USMALLINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_USMALLINT;
+                    } else if (0 == strcasecmp(token, "UINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UINT;
+                    } else if (0 == strcasecmp(token, "UBIGINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UBIGINT;
                     } else {
                         arguments->data_type[index] = TSDB_DATA_TYPE_NULL;
                     }
@@ -1945,18 +1975,22 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 break;
 
             case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
                 g_args.lenOfOneRow += INT_BUFF_LEN;
                 break;
 
             case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
                 g_args.lenOfOneRow += BIGINT_BUFF_LEN;
                 break;
 
             case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
                 g_args.lenOfOneRow += SMALLINT_BUFF_LEN;
                 break;
 
             case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
                 g_args.lenOfOneRow += TINYINT_BUFF_LEN;
                 break;
 
@@ -2188,6 +2222,23 @@ static int32_t rand_tinyint()
     return g_randint[cursor % MAX_PREPARED_RAND] % 128;
 }
 
+static char *rand_utinyint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randutinyint_buff +
+        ((cursor % MAX_PREPARED_RAND) * TINYINT_BUFF_LEN);
+}
+
+static int32_t rand_utinyint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 255;
+}
+
 static char *rand_smallint_str()
 {
     static int cursor;
@@ -2203,6 +2254,23 @@ static int32_t rand_smallint()
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randint[cursor % MAX_PREPARED_RAND] % 32767;
+}
+
+static char *rand_usmallint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randusmallint_buff +
+        ((cursor % MAX_PREPARED_RAND) * SMALLINT_BUFF_LEN);
+}
+
+static int32_t rand_usmallint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_int_str()
@@ -2221,6 +2289,22 @@ static int32_t rand_int()
     return g_randint[cursor % MAX_PREPARED_RAND];
 }
 
+static char *rand_uint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randuint_buff + ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
+}
+
+static int32_t rand_uint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randuint[cursor % MAX_PREPARED_RAND];
+}
+
 static char *rand_bigint_str()
 {
     static int cursor;
@@ -2236,6 +2320,23 @@ static int64_t rand_bigint()
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randbigint[cursor % MAX_PREPARED_RAND];
+}
+
+static char *rand_ubigint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randubigint_buff +
+        ((cursor % MAX_PREPARED_RAND) * BIGINT_BUFF_LEN);
+}
+
+static int64_t rand_ubigint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randubigint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_float_str()
@@ -2375,9 +2476,19 @@ static void init_rand_data() {
     assert(g_rand_phase_buff);
     g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
     assert(g_randdouble_buff);
+    g_randuint_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randuint_buff);
+    g_randutinyint_buff = calloc(1, TINYINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randutinyint_buff);
+    g_randusmallint_buff = calloc(1, SMALLINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randusmallint_buff);
+    g_randubigint_buff = calloc(1, BIGINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randubigint_buff);
 
     for (int i = 0; i < MAX_PREPARED_RAND; i++) {
+        // TODO: make g_randint list include negative number
         g_randint[i] = (int)(taosRandom() % 65535);
+        g_randuint[i] = (int)(taosRandom() % 65535);
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
         sprintf(g_rand_voltage_buff + i * INT_BUFF_LEN, "%d",
@@ -2386,13 +2497,22 @@ static void init_rand_data() {
         sprintf(g_randbool_buff + i * BOOL_BUFF_LEN, "%s",
                 ((g_randint[i] % 2) & 1)?"true":"false");
         sprintf(g_randsmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
-                g_randint[i] % 32767);
+                g_randint[i] % 32768);
         sprintf(g_randtinyint_buff + i * TINYINT_BUFF_LEN, "%d",
                 g_randint[i] % 128);
+        sprintf(g_randuint_buff + i * INT_BUFF_LEN, "%d",
+                g_randuint[i]);
+        sprintf(g_randusmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
+                g_randuint[i]);
+        sprintf(g_randutinyint_buff + i * TINYINT_BUFF_LEN, "%d",
+                g_randuint[i] % 255);
 
         g_randbigint[i] = (int64_t)(taosRandom() % 2147483648);
+        g_randubigint[i] = (int64_t)(taosRandom() % 2147483648);
         sprintf(g_randbigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
                 g_randbigint[i]);
+        sprintf(g_randubigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
+                g_randubigint[i]);
 
         g_randfloat[i] = (float)(taosRandom() / 1000.0);
         sprintf(g_randfloat_buff + i * FLOAT_BUFF_LEN, "%f",
@@ -2967,16 +3087,32 @@ static void xDumpFieldToFile(FILE* fp, const char* val,
             fprintf(fp, "%d", *((int8_t *)val));
             break;
 
+        case TSDB_DATA_TYPE_UTINYINT:
+            fprintf(fp, "%d", *((uint8_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_SMALLINT:
             fprintf(fp, "%d", *((int16_t *)val));
+            break;
+
+        case TSDB_DATA_TYPE_USMALLINT:
+            fprintf(fp, "%d", *((uint16_t *)val));
             break;
 
         case TSDB_DATA_TYPE_INT:
             fprintf(fp, "%d", *((int32_t *)val));
             break;
 
+        case TSDB_DATA_TYPE_UINT:
+            fprintf(fp, "%d", *((uint32_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_BIGINT:
             fprintf(fp, "%"PRId64"", *((int64_t *)val));
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            fprintf(fp, "%"PRId64"", *((uint64_t *)val));
             break;
 
         case TSDB_DATA_TYPE_FLOAT:
@@ -3466,6 +3602,22 @@ static char* generateTagValuesForStb(SSuperTable* stbInfo, int64_t tableSeq) {
                     "timestamp", strlen("timestamp"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
                     "%"PRId64",", rand_bigint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "utinyint", strlen("utinyint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%d,", rand_tinyint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "usmallint", strlen("usmallint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%d,", rand_smallint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "uint", strlen("uint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%d,", rand_int());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "ubigint", strlen("ubigint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%"PRId64",", rand_bigint());
         }  else {
             errorPrint2("No support data type: %s\n", stbInfo->tags[i].dataType);
             tmfree(dataBuf);
@@ -3495,18 +3647,22 @@ static int calcRowLen(SSuperTable*  superTbls) {
                 break;
 
             case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
                 lenOfOneRow += INT_BUFF_LEN;
                 break;
 
             case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
                 lenOfOneRow += BIGINT_BUFF_LEN;
                 break;
 
             case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
                 lenOfOneRow += SMALLINT_BUFF_LEN;
                 break;
 
             case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
                 lenOfOneRow += TINYINT_BUFF_LEN;
                 break;
 
@@ -3537,27 +3693,41 @@ static int calcRowLen(SSuperTable*  superTbls) {
     int tagIndex;
     int lenOfTagOfOneRow = 0;
     for (tagIndex = 0; tagIndex < superTbls->tagCount; tagIndex++) {
-        char* dataType = superTbls->tags[tagIndex].dataType;
-
-        if (strcasecmp(dataType, "BINARY") == 0) {
+        char * dataType = superTbls->tags[tagIndex].dataType;
+        switch (superTbls->tags[tagIndex].data_type)
+        {
+        case TSDB_DATA_TYPE_BINARY:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "NCHAR") == 0) {
+            break;
+        case TSDB_DATA_TYPE_NCHAR:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "INT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_UINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + INT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BIGINT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_UBIGINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_USMALLINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + SMALLINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "TINYINT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_UTINYINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + TINYINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BOOL") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_BOOL:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + BOOL_BUFF_LEN;
-        } else if (strcasecmp(dataType, "FLOAT") == 0) {
+            break;
+        case TSDB_DATA_TYPE_FLOAT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + FLOAT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "DOUBLE") == 0) {
+            break;
+        case TSDB_DATA_TYPE_DOUBLE:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
-        } else {
+            break;
+        default:
             errorPrint2("get error tag type : %s\n", dataType);
             exit(EXIT_FAILURE);
         }
@@ -3690,40 +3860,60 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
             tstrncpy(superTbls->tags[tagIndex].field,
                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
-            tstrncpy(superTbls->tags[tagIndex].dataType,
-                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    min(DATATYPE_BUFF_LEN,
-                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
-            if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "INT", strlen("INT"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_INT;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "TINYINT", strlen("TINYINT"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_TINYINT;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "SMALLINT", strlen("SMALLINT"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "BIGINT", strlen("BIGINT"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BIGINT;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "FLOAT", strlen("FLOAT"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_FLOAT;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "DOUBLE", strlen("DOUBLE"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_DOUBLE;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "BINARY", strlen("BINARY"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BINARY;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "NCHAR", strlen("NCHAR"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NCHAR;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "BOOL", strlen("BOOL"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BOOL;
-            } else if (0 == strncasecmp(superTbls->tags[tagIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "TIMESTAMP", strlen("TIMESTAMP"))) {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TINYINT UNSIGNED", strlen("TINYINT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UTINYINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"UTINYINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "SMALLINT UNSIGNED", strlen("SMALLINT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_USMALLINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"USMALLINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "INT UNSIGNED", strlen("INT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"UINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            }else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UBIGINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"UBIGINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
             } else {
                 superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NULL;
             }
@@ -3733,46 +3923,74 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                     min(NOTE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
+            if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL)
+            {
+                tstrncpy(superTbls->tags[tagIndex].dataType,
+                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            }
             tagIndex++;
         } else {
             tstrncpy(superTbls->columns[columnIndex].field,
                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
 
-            tstrncpy(superTbls->columns[columnIndex].dataType,
-                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    min(DATATYPE_BUFF_LEN,
-                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
-            if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            
+            if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "INT", strlen("INT"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_INT;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "TINYINT", strlen("TINYINT"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_TINYINT;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "SMALLINT", strlen("SMALLINT"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "BIGINT", strlen("BIGINT"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BIGINT;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "FLOAT", strlen("FLOAT"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_FLOAT;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "DOUBLE", strlen("DOUBLE"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_DOUBLE;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "BINARY", strlen("BINARY"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BINARY;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "NCHAR", strlen("NCHAR"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_NCHAR;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "BOOL", strlen("BOOL"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BOOL;
-            } else if (0 == strncasecmp(superTbls->columns[columnIndex].dataType,
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                         "TIMESTAMP", strlen("TIMESTAMP"))) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TINYINT UNSIGNED", strlen("TINYINT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UTINYINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"UTINYINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "SMALLINT UNSIGNED", strlen("SMALLINT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_USMALLINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"USMALLINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "INT UNSIGNED", strlen("INT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"UINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UBIGINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"UBIGINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
             } else {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_NULL;
             }
@@ -3782,6 +4000,13 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                     min(NOTE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
+            
+            if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
+                tstrncpy(superTbls->columns[columnIndex].dataType,
+                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            }
 
             columnIndex++;
         }
@@ -3906,6 +4131,30 @@ static int createSuperTable(
                 lenOfOneRow += TIMESTAMP_BUFF_LEN;
                 break;
 
+            case TSDB_DATA_TYPE_UTINYINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "TINYINT UNSIGNED");
+                lenOfOneRow += TINYINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_USMALLINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "SMALLINT UNSIGNED");
+                lenOfOneRow += SMALLINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "INT UNSIGNED");
+                lenOfOneRow += INT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UBIGINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "BIGINT UNSIGNED");
+                lenOfOneRow += BIGINT_BUFF_LEN;
+                break;
+
             default:
                 taos_close(taos);
                 free(command);
@@ -3996,6 +4245,22 @@ static int createSuperTable(
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "DOUBLE");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
+        } else if (strcasecmp(dataType, "UTINYINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "TINYINT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + TINYINT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "USMALLINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "SMALLINT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + SMALLINT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "UINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "INT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + INT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "UBIGINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "BIGINT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
         } else {
             taos_close(taos);
             free(command);
@@ -4151,19 +4416,17 @@ int createDatabasesAndStables(char *command) {
                     errorPrint("create super table %"PRIu64" failed!\n\n", j);
                     continue;
                 }
-            }
-
-            ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
+            } else {
+                ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                     &g_Dbs.db[i].superTbls[j]);
-            if (0 != ret) {
-                errorPrint2("\nget super table %s.%s info failed!\n\n",
-                        g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].stbName);
-                continue;
+                if (0 != ret) {
+                    errorPrint2("\nget super table %s.%s info failed!\n\n",
+                            g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].stbName);
+                    continue;
+                }
             }
-
             validStbCount ++;
         }
-
         g_Dbs.db[i].superTblCount = validStbCount;
     }
 
@@ -4656,6 +4919,18 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "TIMESTAMP", strlen("TIMESTAMP"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "UTINYINT", strlen("UTINYINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_UTINYINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "USMALLINT", strlen("USMALLINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_USMALLINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "UINT", strlen("UINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_UINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "UBIGINT", strlen("UBIGINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_UBIGINT;
         } else {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_NULL;
         }
@@ -4761,6 +5036,18 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         } else if (0 == strncasecmp(superTbls->tags[t].dataType,
                     "TIMESTAMP", strlen("TIMESTAMP"))) {
             superTbls->tags[t].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "UTINYINT", strlen("UTINYINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_UTINYINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "USMALLINT", strlen("USMALLINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_USMALLINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "UINT", strlen("UINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_UINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "UBIGINT", strlen("UBIGINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_UBIGINT;
         } else {
             superTbls->tags[t].data_type = TSDB_DATA_TYPE_NULL;
         }
@@ -6178,8 +6465,18 @@ static int64_t generateStbRowData(
                     tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
                     break;
 
+                case TSDB_DATA_TYPE_UINT:
+                    tmp = rand_uint_str();
+                    tstrncpy(pstr + dataLen, tmp, INT_BUFF_LEN);
+                    break;
+
                 case TSDB_DATA_TYPE_BIGINT:
                     tmp = rand_bigint_str();
+                    tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
+                    break;
+                
+                case TSDB_DATA_TYPE_UBIGINT:
+                    tmp = rand_ubigint_str();
                     tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
                     break;
 
@@ -6210,8 +6507,21 @@ static int64_t generateStbRowData(
                             min(tmpLen + 1, SMALLINT_BUFF_LEN));
                     break;
 
+                case TSDB_DATA_TYPE_USMALLINT:
+                    tmp = rand_usmallint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp,
+                            min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                    break;
+
                 case TSDB_DATA_TYPE_TINYINT:
                     tmp = rand_tinyint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_UTINYINT:
+                    tmp = rand_utinyint_str();
                     tmpLen = strlen(tmp);
                     tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
                     break;
@@ -6323,6 +6633,22 @@ static int64_t generateData(char *recBuf, char *data_type,
                 free(s);
                 break;
 
+            case TSDB_DATA_TYPE_UTINYINT:
+                pstr += sprintf(pstr, ",%d", rand_utinyint() );
+                break;
+
+            case TSDB_DATA_TYPE_USMALLINT:
+                pstr += sprintf(pstr, ",%d", rand_usmallint());
+                break;
+
+            case TSDB_DATA_TYPE_UINT:
+                pstr += sprintf(pstr, ",%d", rand_uint());
+                break;
+
+            case TSDB_DATA_TYPE_UBIGINT:
+                pstr += sprintf(pstr, ",%"PRId64"", rand_ubigint());
+                break;
+
             case TSDB_DATA_TYPE_NULL:
                 break;
 
@@ -6394,8 +6720,16 @@ static int generateSampleFromRand(
                     pos += sprintf(buff + pos, "%s,", tmp);
                     break;
 
+                case TSDB_DATA_TYPE_UINT:
+                    pos += sprintf(buff + pos, "%s,", rand_uint_str());
+                    break;
+
                 case TSDB_DATA_TYPE_BIGINT:
                     pos += sprintf(buff + pos, "%s,", rand_bigint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_UBIGINT:
+                    pos += sprintf(buff + pos, "%s,", rand_ubigint_str());
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
@@ -6419,8 +6753,16 @@ static int generateSampleFromRand(
                     pos += sprintf(buff + pos, "%s,", rand_smallint_str());
                     break;
 
+                case TSDB_DATA_TYPE_USMALLINT:
+                    pos += sprintf(buff + pos, "%s,", rand_usmallint_str());
+                    break;
+
                 case TSDB_DATA_TYPE_TINYINT:
                     pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_UTINYINT:
+                    pos += sprintf(buff + pos, "%s,", rand_utinyint_str());
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
@@ -6946,13 +7288,17 @@ static int32_t prepareStmtBindArrayByType(
         char *value)
 {
     int32_t *bind_int;
+    uint32_t *bind_uint;
     int64_t *bind_bigint;
+    uint64_t *bind_ubigint;
     float   *bind_float;
     double  *bind_double;
     int8_t  *bind_bool;
     int64_t *bind_ts2;
     int16_t *bind_smallint;
+    uint16_t *bind_usmallint;
     int8_t  *bind_tinyint;
+    uint8_t  *bind_utinyint;
 
     switch(data_type) {
         case TSDB_DATA_TYPE_BINARY:
@@ -7017,6 +7363,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
             break;
+        
+        case TSDB_DATA_TYPE_UINT:
+            bind_uint = malloc(sizeof(uint32_t));
+            assert(bind_uint);
+
+            if (value) {
+                *bind_uint = atoi(value);
+            } else {
+                *bind_uint = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UINT;
+            bind->buffer_length = sizeof(uint32_t);
+            bind->buffer = bind_uint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
 
         case TSDB_DATA_TYPE_BIGINT:
             bind_bigint = malloc(sizeof(int64_t));
@@ -7030,6 +7392,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
             bind->buffer_length = sizeof(int64_t);
             bind->buffer = bind_bigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            bind_ubigint = malloc(sizeof(uint64_t));
+            assert(bind_ubigint);
+
+            if (value) {
+                *bind_ubigint = atoll(value);
+            } else {
+                *bind_ubigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UBIGINT;
+            bind->buffer_length = sizeof(uint64_t);
+            bind->buffer = bind_ubigint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
             break;
@@ -7082,6 +7460,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->is_null = NULL;
             break;
 
+        case TSDB_DATA_TYPE_USMALLINT:
+            bind_usmallint = malloc(sizeof(uint16_t));
+            assert(bind_usmallint);
+
+            if (value) {
+                *bind_usmallint = (uint16_t)atoi(value);
+            } else {
+                *bind_usmallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
+            bind->buffer_length = sizeof(uint16_t);
+            bind->buffer = bind_usmallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
         case TSDB_DATA_TYPE_TINYINT:
             bind_tinyint = malloc(sizeof(int8_t));
             assert(bind_tinyint);
@@ -7094,6 +7488,22 @@ static int32_t prepareStmtBindArrayByType(
             bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
             bind->buffer_length = sizeof(int8_t);
             bind->buffer = bind_tinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            bind_utinyint = malloc(sizeof(uint8_t));
+            assert(bind_utinyint);
+
+            if (value) {
+                *bind_utinyint = (int8_t)atoi(value);
+            } else {
+                *bind_utinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UTINYINT;
+            bind->buffer_length = sizeof(uint8_t);
+            bind->buffer = bind_utinyint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
             break;
@@ -7172,11 +7582,15 @@ static int32_t prepareStmtBindArrayByTypeForRand(
         char *value)
 {
     int32_t *bind_int;
+    uint32_t *bind_uint;
     int64_t *bind_bigint;
+    uint64_t *bind_ubigint;
     float   *bind_float;
     double  *bind_double;
     int16_t *bind_smallint;
+    uint16_t *bind_usmallint;
     int8_t  *bind_tinyint;
+    uint8_t  *bind_utinyint;
     int8_t  *bind_bool;
     int64_t *bind_ts2;
 
@@ -7246,6 +7660,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             *ptr += bind->buffer_length;
             break;
 
+        case TSDB_DATA_TYPE_UINT:
+            bind_uint = (uint32_t *)*ptr;
+
+            if (value) {
+                *bind_uint = atoi(value);
+            } else {
+                *bind_uint = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UINT;
+            bind->buffer_length = sizeof(uint32_t);
+            bind->buffer = bind_uint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
         case TSDB_DATA_TYPE_BIGINT:
             bind_bigint = (int64_t *)*ptr;
 
@@ -7257,6 +7688,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
             bind->buffer_length = sizeof(int64_t);
             bind->buffer = bind_bigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            bind_ubigint = (uint64_t *)*ptr;
+
+            if (value) {
+                *bind_ubigint = atoll(value);
+            } else {
+                *bind_ubigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UBIGINT;
+            bind->buffer_length = sizeof(uint64_t);
+            bind->buffer = bind_ubigint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
 
@@ -7314,6 +7762,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             *ptr += bind->buffer_length;
             break;
 
+        case TSDB_DATA_TYPE_USMALLINT:
+            bind_usmallint = (uint16_t *)*ptr;
+
+            if (value) {
+                *bind_usmallint = (uint16_t)atoi(value);
+            } else {
+                *bind_usmallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_USMALLINT;
+            bind->buffer_length = sizeof(uint16_t);
+            bind->buffer = bind_usmallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
         case TSDB_DATA_TYPE_TINYINT:
             bind_tinyint = (int8_t *)*ptr;
 
@@ -7325,6 +7790,23 @@ static int32_t prepareStmtBindArrayByTypeForRand(
             bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
             bind->buffer_length = sizeof(int8_t);
             bind->buffer = bind_tinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            bind_utinyint = (uint8_t *)*ptr;
+
+            if (value) {
+                *bind_utinyint = (uint8_t)atoi(value);
+            } else {
+                *bind_utinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UTINYINT;
+            bind->buffer_length = sizeof(uint8_t);
+            bind->buffer = bind_utinyint;
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
 
@@ -7726,6 +8208,7 @@ static int execBindParamBatch(
                     break;
 
                 case TSDB_DATA_TYPE_INT:
+                case TSDB_DATA_TYPE_UINT:
                     param->buffer_length = sizeof(int32_t);
                     param->buffer = (stbInfo)?
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
@@ -7735,6 +8218,7 @@ static int execBindParamBatch(
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
+                case TSDB_DATA_TYPE_UTINYINT:
                     param->buffer_length = sizeof(int8_t);
                     param->buffer = (stbInfo)?
                         (void *)((uintptr_t)*(uintptr_t*)(
@@ -7747,6 +8231,7 @@ static int execBindParamBatch(
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
+                case TSDB_DATA_TYPE_USMALLINT:
                     param->buffer_length = sizeof(int16_t);
                     param->buffer = (stbInfo)?
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
@@ -7756,6 +8241,7 @@ static int execBindParamBatch(
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
+                case TSDB_DATA_TYPE_UBIGINT:
                     param->buffer_length = sizeof(int64_t);
                     param->buffer = (stbInfo)?
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
@@ -7902,24 +8388,28 @@ static int parseSamplefileToStmtBatch(
 
         switch(data_type) {
             case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
                 tmpP = calloc(1, sizeof(int) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
                 tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
                 tmpP = calloc(1, sizeof(int16_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
 
             case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
                 tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
@@ -7998,6 +8488,7 @@ static int parseSamplefileToStmtBatch(
 
             switch(data_type) {
                 case TSDB_DATA_TYPE_INT:
+                case TSDB_DATA_TYPE_UINT:
                     *((int32_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int32_t)*i)) =
                         atoi(tmpStr);
@@ -8016,18 +8507,21 @@ static int parseSamplefileToStmtBatch(
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
+                case TSDB_DATA_TYPE_UTINYINT:
                     *((int8_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int8_t)*i)) =
                         (int8_t)atoi(tmpStr);
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
+                case TSDB_DATA_TYPE_USMALLINT:
                     *((int16_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int16_t)*i)) =
                         (int16_t)atoi(tmpStr);
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
+                case TSDB_DATA_TYPE_UBIGINT:
                     *((int64_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
                                     +sizeof(char*)*c)+sizeof(int64_t)*i)) =
                         (int64_t)atol(tmpStr);
