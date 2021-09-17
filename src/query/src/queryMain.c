@@ -53,7 +53,6 @@ static void freeqinfoFn(void *qhandle) {
 void freeParam(SQueryParam *param) {
   tfree(param->sql);
   tfree(param->tagCond);
-  tfree(param->tbnameCond);
   tfree(param->pTableIdList);
   taosArrayDestroy(param->pOperator);
   tfree(param->pExprs);
@@ -140,7 +139,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
       qDebug("qmsg:%p query stable, uid:%"PRIu64", tid:%d", pQueryMsg, id->uid, id->tid);
       code = tsdbQuerySTableByTagCond(tsdb, id->uid, pQueryMsg->window.skey, param.tagCond, pQueryMsg->tagCondLen,
-                                      pQueryMsg->tagNameRelType, param.tbnameCond, &tableGroupInfo, param.pGroupColIndex, numOfGroupByCols);
+                                      &tableGroupInfo, param.pGroupColIndex, numOfGroupByCols);
 
       if (code != TSDB_CODE_SUCCESS) {
         qError("qmsg:%p failed to query stable, reason: %s", pQueryMsg, tstrerror(code));

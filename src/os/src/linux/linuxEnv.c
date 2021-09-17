@@ -32,6 +32,13 @@ void osInit() {
 	strcpy(tsDataDir, "/var/lib/tq");
 	strcpy(tsLogDir, "/var/log/tq");
 	strcpy(tsScriptDir, "/etc/tq");
+#elif (_TD_PRO_ == true)
+	if (configDir[0] == 0) {
+	  strcpy(configDir, "/etc/ProDB");
+	}
+	strcpy(tsDataDir, "/var/lib/ProDB");
+	strcpy(tsLogDir, "/var/log/ProDB");
+	strcpy(tsScriptDir, "/etc/ProDB");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");
