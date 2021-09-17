@@ -60,7 +60,14 @@ typedef struct {
         fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
+    do { fprintf(stderr, "\033[31m"); \
+        fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); \
+        fprintf(stderr, "\033[0m"); } while(0)
+
+#define okPrint(fmt, ...) \
+    do { fprintf(stderr, "\033[32m"); \
+        fprintf(stderr, "OK: "fmt, __VA_ARGS__); \
+        fprintf(stderr, "\033[0m"); } while(0)
 
 static bool isStringNumber(char *input)
 {
@@ -1187,14 +1194,15 @@ static int inDatabasesSeq(
         }
     } else {
         char *dupSeq = strdup(g_args.databasesSeq);
-        char *dbname = strsep(&dupSeq, ",");
+        char *running = dupSeq;
+        char *dbname = strsep(&running, ",");
         while (dbname) {
             if (0 == strncmp(dbname, name, len)) {
-                free(dupSeq);
+                tfree(dupSeq);
                 return 0;
             }
 
-            dbname = strsep(&dupSeq, ",");
+            dbname = strsep(&running, ",");
         }
 
     }
@@ -1216,7 +1224,6 @@ static int getDbCount()
             NULL, g_args.port);
     if (NULL == taos) {
         errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
-        free(command);
         return 0;
     }
 
@@ -1358,33 +1365,50 @@ static int taosDumpOut() {
             goto _exit_failure;
         }
 
+        okPrint("%s exists\n", (char *)row[TSDB_SHOW_DB_NAME_INDEX]);
         tstrncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                min(TSDB_DB_NAME_LEN, fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
+                min(TSDB_DB_NAME_LEN,
+                    fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
         if (g_args.with_property) {
-            g_dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
-            g_dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
-            g_dbInfos[count]->replica = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
-            g_dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
-            g_dbInfos[count]->days = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
+            g_dbInfos[count]->ntables =
+                *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+            g_dbInfos[count]->vgroups =
+                *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
+            g_dbInfos[count]->replica =
+                *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
+            g_dbInfos[count]->quorum =
+                *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
+            g_dbInfos[count]->days =
+                *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
 
-            tstrncpy(g_dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
+            tstrncpy(g_dbInfos[count]->keeplist,
+                    (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
                     min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes + 1));
             //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
             //g_dbInfos[count]->daysToKeep1;
             //g_dbInfos[count]->daysToKeep2;
-            g_dbInfos[count]->cache = *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
-            g_dbInfos[count]->blocks = *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
-            g_dbInfos[count]->minrows = *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
-            g_dbInfos[count]->maxrows = *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
-            g_dbInfos[count]->wallevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
-            g_dbInfos[count]->fsync = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
-            g_dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
-            g_dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
+            g_dbInfos[count]->cache =
+                *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
+            g_dbInfos[count]->blocks =
+                *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
+            g_dbInfos[count]->minrows =
+                *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
+            g_dbInfos[count]->maxrows =
+                *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
+            g_dbInfos[count]->wallevel =
+                *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
+            g_dbInfos[count]->fsync =
+                *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
+            g_dbInfos[count]->comp =
+                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+            g_dbInfos[count]->cachelast =
+                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
 
             tstrncpy(g_dbInfos[count]->precision,
                     (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
                     DB_PRECISION_LEN);
-            g_dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
+            g_dbInfos[count]->update =
+                *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
         }
         count++;
 
