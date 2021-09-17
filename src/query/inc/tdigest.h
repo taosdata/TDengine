@@ -64,6 +64,6 @@ void tdigestMerge(TDigest *t1, TDigest *t2);
 double tdigestQuantile(TDigest *t, double q);
 void tdigestCompress(TDigest *t);
 void tdigestFreeFrom(TDigest *t);
-void tdigestCopy(TDigest* dst, TDigest* src);
+void tdigestAutoFill(TDigest* t, int32_t compression);
 
 #endif /* TDIGEST_H */
