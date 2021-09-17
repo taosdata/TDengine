@@ -77,6 +77,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   executeQuery(pSql, pQueryInfo);
+
   taosReleaseRef(tscObjRef, pSql->self);
 }
 
