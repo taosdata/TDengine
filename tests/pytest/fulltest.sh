@@ -396,14 +396,10 @@ python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
-<<<<<<< HEAD
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
-=======
 python3 ./test.py -f query/queryGroupTbname.py
 python3 ./test.py -f insert/verifyMemToDiskCrash.py
-
->>>>>>> origin/master
 #======================p4-end===============
 
 

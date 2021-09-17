@@ -594,7 +594,7 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t0 tinyint, t1 int)")
         tdSql.execute("create stable db.stb2 (ts timestamp, c1 int) tags(t0 binary(16), t1 binary(16))")
-        numtab=2000000
+        numtab=20000
         for i in range(numtab):
             sql  = f"create table db.t{i} using db.stb1 tags({i%128}, {100+i})"
             tdSql.execute(sql)
@@ -740,13 +740,7 @@ class TDTestCase:
         tdSql.query(f"select distinct  c1 c2, c2 c3 from t1 where c1 <{tbnum}")
         tdSql.checkRows(3)
         tdSql.error("select distinct  c1, c2 from stb1 order by ts")
-<<<<<<< HEAD
-        #tdSql.checkRows(tbnum*3+1)
         tdSql.error("select distinct  c1, c2 from t1 order by ts")
-        #tdSql.checkRows(4)
-=======
-        tdSql.error("select distinct  c1, c2 from t1 order by ts")
->>>>>>> origin/master
         tdSql.error("select distinct  c1, ts from stb1 group by c2")
         tdSql.error("select distinct  c1, ts from t1 group by c2")
         tdSql.error("select distinct  c1, max(c2) from stb1 ")
@@ -1131,7 +1125,8 @@ class TDTestCase:
     def run(self):
 
         # master branch
-        self.td3690()
+        self.td4097()
+		self.td3690()
         self.td4082()
         self.td4288()
         # self.td4724()
@@ -1140,10 +1135,10 @@ class TDTestCase:
         self.td6068()
 
         # develop branch
-        # self.td4097()
-        # self.td4889()
+        self.td4889()
+        self.td5798()
         # self.td5168()
-        # self.td5433()
+        self.td5433()
 
     def stop(self):
         tdSql.close()

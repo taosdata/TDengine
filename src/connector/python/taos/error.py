@@ -67,7 +67,6 @@ class ProgrammingError(DatabaseError):
 class NotSupportedError(DatabaseError):
     """Exception raised in case a method or database API was used which is not supported by the database,."""
 
-<<<<<<< HEAD
     pass
 
 
@@ -93,23 +92,5 @@ class TelnetLinesError(DatabaseError):
 
 class JsonPayloadError(DatabaseError):
     """taos_insert_json_payload errors."""
-
-=======
->>>>>>> origin/master
-    pass
-
-
-class StatementError(DatabaseError):
-    """Exception raised in STMT API."""
-
-    pass
-
-class ResultError(DatabaseError):
-    """Result related APIs."""
-
-    pass
-
-class LinesError(DatabaseError):
-    """taos_insert_lines errors."""
 
     pass

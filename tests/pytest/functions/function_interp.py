@@ -11,12 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-<<<<<<< HEAD
-=======
-import sys
-from util.dnodes import *
-import taos
->>>>>>> origin/master
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -25,12 +19,6 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
-<<<<<<< HEAD
-=======
-        self.rowNum = 10
-        self.ts = 1537100000000
-
->>>>>>> origin/master
     def run(self):
         tdSql.prepare()
         tdSql.execute("create table ap1 (ts timestamp, pav float)")
@@ -67,7 +55,6 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select interp(pav) from ap1 where ts = '2021-07-25 02:19:54' FILL (LINEAR)")
         tdSql.checkRows(0)
-<<<<<<< HEAD
         # check None
         tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (None)")
         tdSql.checkRows(0)
@@ -91,8 +78,6 @@ class TDTestCase:
         for i in range(5):
             tdSql.checkData(i,1,1.00000)
             tdSql.checkData(i,2,2.00000)
-=======
->>>>>>> origin/master
         tdSql.query("select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (LINEAR)")
         tdSql.checkRows(6)
         tdSql.query("select interp(pav) from ap1 where ts>= '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' every(1000a) FILL (NEXT)")
@@ -125,8 +110,6 @@ class TDTestCase:
         tdSql.error("select interp(*) from ap1 ts >= '2021-07-25 02:19:54' FILL(NEXT)")
         tdSql.error("select interp(*) from ap1 ts <= '2021-07-25 02:19:54' FILL(NEXT)")
         tdSql.error("select interp(*) from ap1 where ts >'2021-07-25 02:19:59.938' and ts < now every(1s) fill(next)")
-<<<<<<< HEAD
-=======
 
         # test case for https://jira.taosdata.com:18080/browse/TS-241
         tdSql.execute("create database test minrows 10")
@@ -150,8 +133,6 @@ class TDTestCase:
                 tdSql.checkRows(0)
             else:
                 tdSql.checkRows(11)
-
->>>>>>> origin/master
 
     def stop(self):
         tdSql.close()

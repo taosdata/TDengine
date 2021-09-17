@@ -10,19 +10,10 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-<<<<<<< HEAD
-=======
-from copy import deepcopy
->>>>>>> origin/master
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 from util.common import tdCom
-<<<<<<< HEAD
-=======
-
-
->>>>>>> origin/master
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -415,7 +406,6 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.checkEqual(int(res[9][0]), 10)
 
-<<<<<<< HEAD
     def queryMultiTbWithTag(self, tb_name):
         # tags (1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1)')
         
@@ -472,8 +462,6 @@ class TDTestCase:
         #select * from (select * from pyclqtwi where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5) and ts > "2021-01-11 12:00:00") where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) ;
         #DB error: invalid operation: invalid expression (0.008747s)
 
-=======
->>>>>>> origin/master
     def checkTbColTypeOperator(self):
         '''
             Ordinary table full column type and operator
@@ -557,7 +545,6 @@ class TDTestCase:
         '''
         tb_name = self.initStb()
         self.queryMultiTb(tb_name)
-<<<<<<< HEAD
     
     def checkMultiTbWithTag(self):
         '''
@@ -565,35 +552,6 @@ class TDTestCase:
         '''
         tb_name = self.initStb()
         self.queryMultiTbWithTag(tb_name)
-=======
-        
-        
-        # tb_name1 = tdCom.getLongName(8, "letters")
-        # tb_name2 = tdCom.getLongName(8, "letters")
-        # tb_name3 = tdCom.getLongName(8, "letters")
-        # tdSql.execute(
-        #     f"CREATE TABLE {tb_name1} (ts timestamp, c1 tinyint, c2 smallint, c3 int)")
-        # tdSql.execute(
-        #     f"CREATE TABLE {tb_name2} (ts timestamp, c1 tinyint, c2 smallint, c3 int)")
-        # tdSql.execute(
-        #     f"CREATE TABLE {tb_name3} (ts timestamp, c1 tinyint, c2 smallint, c3 int)")
-        # insert_sql_list = [f'insert into {tb_name1} values ("2021-01-01 12:00:00", 1, 5, 1)',
-        #                    f'insert into {tb_name1} values ("2021-01-03 12:00:00", 2, 4, 1)',
-        #                    f'insert into {tb_name1} values ("2021-01-05 12:00:00", 3, 2, 1)',
-        #                    f'insert into {tb_name2} values ("2021-01-01 12:00:00", 4, 2, 1)',
-        #                    f'insert into {tb_name2} values ("2021-01-02 12:00:00", 5, 1, 1)',
-        #                    f'insert into {tb_name2} values ("2021-01-04 12:00:00", 1, 2, 1)',
-        #                    f'insert into {tb_name3} values ("2021-01-02 12:00:00", 4, 2, 1)',
-        #                    f'insert into {tb_name3} values ("2021-01-06 12:00:00", 5, 1, 1)',
-        #                    f'insert into {tb_name3} values ("2021-01-07 12:00:00", 1, 2, 1)',
-        #                    ]
-        # for sql in insert_sql_list:
-        #     tdSql.execute(sql)
-        # tdSql.query(
-        #     f'select * from {tb_name1} t1, {tb_name2}, {tb_name3} t3 t2 where (t1.ts=t2.ts or t2.ts=t3.ts)')
-        # tdSql.checkRows(4)
-
->>>>>>> origin/master
 
     def run(self):
         tdSql.prepare()
@@ -609,11 +567,7 @@ class TDTestCase:
         self.checkStbPreCal()
         self.checkMultiTb()
         self.checkMultiStb()
-<<<<<<< HEAD
         self.checkMultiTbWithTag()
-=======
-
->>>>>>> origin/master
 
     def stop(self):
         tdSql.close()
