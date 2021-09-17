@@ -1106,7 +1106,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         continue;
       }
 
-      SArray** tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
+      void* tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
       if(tablist == NULL) {
         void* tablistNew = taosArrayInit(8, sizeof(JsonMapValue));
         if(tablistNew == NULL){
@@ -1119,11 +1119,11 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
           tsdbError("out of memory when put json tag array");
           return -1;
         }
-        tablist = (SArray**)&tablistNew;
+        tablist = tablistNew;
       }
       JsonMapValue jmvalue = {TABLE_UID(pTable), pColIdx->colId};
-      taosArrayAddBatch(*tablist, &jmvalue, 1);
-      taosArraySort(*tablist, tscCompareJsonMapValue);
+      taosArrayPush(tablist, &jmvalue);
+      taosArraySort(tablist, tscCompareJsonMapValue);
     }
   }else{
     tSkipListPut(pSTable->pIndex, (void *)pTable);
@@ -1153,19 +1153,19 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
         continue;
       }
 
-      SArray** tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
+      void* tablist = taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
       if(tablist == NULL) {
         tsdbError("json tag no key error,%d", j);
         continue;
       }
 
       JsonMapValue jmvalue = {TABLE_UID(pTable), pColIdx->colId};
-      void* p = taosArraySearch(*tablist, &jmvalue, tscCompareJsonMapValue, TD_EQ);
+      void* p = taosArraySearch(tablist, &jmvalue, tscCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
         tsdbError("json tag no tableid error,%d", j);
         continue;
       }
-      taosArrayRemove(*tablist, TARRAY_ELEM_IDX(*tablist, p));
+      taosArrayRemove(tablist, TARRAY_ELEM_IDX((SArray*)tablist, p));
     }
   }else {
     char *  key = getTagIndexKey(pTable);
