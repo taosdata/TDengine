@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define TSDB_CFG_MAX_NUM    122
+#define TSDB_CFG_MAX_NUM    123
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
@@ -89,6 +89,7 @@ void taosDumpGlobalCfg();
 
 void taosInitConfigOption(SGlobalCfg cfg);
 SGlobalCfg * taosGetConfigOption(const char *option);
+bool taosReadConfigOption(const char *option, char *value, char *value2, char *value3, int8_t cfgStatus, int8_t sourceType);
 
 #ifdef __cplusplus
 }

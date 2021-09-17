@@ -68,18 +68,18 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | Java DataType      |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
+| TDengine DataType | JDBCType （driver 版本 < 2.0.24） | JDBCType （driver 版本 >= 2.0.24） |
+| ----------------- | ------------------ | ------------------ |
+| TIMESTAMP         | java.lang.Long     | java.sql.Timestamp |
+| INT               | java.lang.Integer  | java.lang.Integer  |
+| BIGINT            | java.lang.Long     | java.lang.Long     |
+| FLOAT             | java.lang.Float    | java.lang.Float    |
+| DOUBLE            | java.lang.Double   | java.lang.Double   |
+| SMALLINT          | java.lang.Short    | java.lang.Short    |
+| TINYINT           | java.lang.Byte     | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  | java.lang.Boolean  |
+| BINARY            | java.lang.String   | byte array         |
+| NCHAR             | java.lang.String   | java.lang.String   |
 
 ## 安装Java Connector
 

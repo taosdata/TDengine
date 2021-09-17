@@ -776,7 +776,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 - data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
 - rows: 表明总共多少行数据。
 
-column_meta 中的列类型说明：
+<a class="anchor" id="column_meta"></a>column_meta 中的列类型说明：
 * 1：BOOL
 * 2：TINYINT
 * 3：SMALLINT
@@ -1166,7 +1166,7 @@ var affectRows = cursor.execute('insert into test.weather values(now, 22.3, 34);
 
 execute方法的返回值为该语句影响的行数，上面的sql向test库的weather表中，插入了一条数据，则返回值affectRows为1。
 
-TDengine目前还不支持update和delete语句。
+TDengine 目前还不支持 delete 语句。但从 2.0.8.0 版本开始，可以通过 `CREATE DATABASE` 时指定的 UPDATE 参数来启用对数据行的 update。
 
 #### 查询
 
