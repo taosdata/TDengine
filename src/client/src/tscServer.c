@@ -2930,7 +2930,6 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
 
   size_t len = strlen(name);
   
-  STableMeta* pMeta   = pTableMetaInfo->pTableMeta;
   STableMeta* pSTMeta = (STableMeta *)(pSql->pBuf);
   if (pTableMetaInfo->tableMetaCapacity != 0) {
     if (pTableMetaInfo->pTableMeta != NULL) {
@@ -2941,6 +2940,8 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
     tfree(pTableMetaInfo->pTableMeta);
     pTableMetaInfo->tableMetaCapacity = 0;
   }
+
+  STableMeta* pMeta   = pTableMetaInfo->pTableMeta;
 
   if (pMeta && pMeta->id.uid > 0) {
     // in case of child table, here only get the
