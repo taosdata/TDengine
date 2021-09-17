@@ -2752,7 +2752,11 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   tfree(pTableMetaInfo->pTableMeta);
 
   if (isSuperTable) {  // if it is a super table, iterate the hashTable and remove all the childTableMeta
-    taosHashClear(tscTableMetaMap);
+    if (pSql->res.pRsp == NULL) {
+      tscDebug("0x%"PRIx64" unexpected resp from mnode, super table: %s failed to update super table meta ", pSql->self, name);
+      return 0; 
+    }
+    return tscProcessTableMetaRsp(pSql); 
   }
 
   return 0;
