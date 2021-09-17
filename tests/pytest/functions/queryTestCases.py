@@ -1126,7 +1126,7 @@ class TDTestCase:
 
         # master branch
         self.td4097()
-		self.td3690()
+        self.td3690()
         self.td4082()
         self.td4288()
         self.td4724()
