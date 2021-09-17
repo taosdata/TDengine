@@ -79,7 +79,7 @@ extern char configDir[];
 #define DEFAULT_START_TIME 1500000000000
 
 #define MAX_PREPARED_RAND  1000000
-#define INT_BUFF_LEN            11
+#define INT_BUFF_LEN            12
 #define BIGINT_BUFF_LEN         21
 #define SMALLINT_BUFF_LEN       7
 #define TINYINT_BUFF_LEN        5
@@ -2277,7 +2277,7 @@ static int32_t rand_usmallint()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randuint[cursor % MAX_PREPARED_RAND];
+    return g_randuint[cursor % MAX_PREPARED_RAND] % 65535;
 }
 
 static char *rand_int_str()
@@ -2493,9 +2493,8 @@ static void init_rand_data() {
     assert(g_randubigint_buff);
 
     for (int i = 0; i < MAX_PREPARED_RAND; i++) {
-        // TODO: make g_randint list include negative number
-        g_randint[i] = (int)(taosRandom() % 131069 - 65534);
-        g_randuint[i] = (int)(taosRandom() % 65535);
+        g_randint[i] = (int)(taosRandom() % RAND_MAX - (RAND_MAX >> 1));
+        g_randuint[i] = (int)(taosRandom());
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
         sprintf(g_rand_voltage_buff + i * INT_BUFF_LEN, "%d",
@@ -2510,12 +2509,12 @@ static void init_rand_data() {
         sprintf(g_randuint_buff + i * INT_BUFF_LEN, "%d",
                 g_randuint[i]);
         sprintf(g_randusmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
-                g_randuint[i]);
+                g_randuint[i] % 65535);
         sprintf(g_randutinyint_buff + i * TINYINT_BUFF_LEN, "%d",
                 g_randuint[i] % 255);
 
-        g_randbigint[i] = (int64_t)(taosRandom() % 2147483648 - 1073741824);
-        g_randubigint[i] = (int64_t)(taosRandom() % 2147483648);
+        g_randbigint[i] = (int64_t)(taosRandom() % RAND_MAX - (RAND_MAX >> 1));
+        g_randubigint[i] = (uint64_t)(taosRandom());
         sprintf(g_randbigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
                 g_randbigint[i]);
         sprintf(g_randubigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
