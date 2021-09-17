@@ -557,7 +557,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
   pBuilder->nCols++;
 
-  char *jumpType = value;
+  char* jumpType = (char*)value;
   if(isJumpJsonVType) jumpType += CHAR_BYTES;
   int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(jumpType) : TYPE_BYTES[type];
   if (tlen > pBuilder->alloc - pBuilder->size) {
