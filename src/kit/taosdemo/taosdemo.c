@@ -6434,7 +6434,8 @@ static int64_t generateStbRowData(
             "(%" PRId64 "", timestamp);
 
     for (int i = 0; i < stbInfo->columnCount; i++) {
-        dataLen += snprintf(pstr + dataLen, 2, ",");
+        tstrncpy(pstr + dataLen, ",", 2);
+        dataLen += 1;
 
         if ((stbInfo->columns[i].data_type == TSDB_DATA_TYPE_BINARY)
                 || (stbInfo->columns[i].data_type == TSDB_DATA_TYPE_NCHAR)) {
@@ -6468,25 +6469,25 @@ static int64_t generateStbRowData(
                         tmp = rand_int_str();
                     }
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_UINT:
                     tmp = rand_uint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
                     tmp = rand_bigint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
                 
                 case TSDB_DATA_TYPE_UBIGINT:
                     tmp = rand_ubigint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
@@ -6500,49 +6501,49 @@ static int64_t generateStbRowData(
                         tmp = rand_float_str();
                     }
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, FLOAT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_DOUBLE:
                     tmp = rand_double_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, DOUBLE_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
                     tmp = rand_smallint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_USMALLINT:
                     tmp = rand_usmallint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
                     tmp = rand_tinyint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, TINYINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_UTINYINT:
                     tmp = rand_utinyint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen +1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, TINYINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
                     tmp = rand_bool_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, tmpLen + 1, "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BOOL_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
                     tmp = rand_bigint_str();
                     tmpLen = strlen(tmp);
-                    dataLen += snprintf(pstr + dataLen, min(tmpLen + 1, BIGINT_BUFF_LEN), "%s", tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
 
                 case TSDB_DATA_TYPE_NULL:
@@ -6552,6 +6553,9 @@ static int64_t generateStbRowData(
                     errorPrint2("Not support data type: %s\n",
                             stbInfo->columns[i].dataType);
                     exit(EXIT_FAILURE);
+            }
+            if (tmp) {
+                dataLen += tmpLen;
             }
         }
 
