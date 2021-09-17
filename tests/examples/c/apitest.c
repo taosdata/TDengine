@@ -1033,9 +1033,9 @@ void verify_telnet_insert(TAOS* taos) {
 
   /* metric */
   char* lines0[] = {
-      "stb0_0 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
-      "stb0_1 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
-      "stb0_2 1626006833639000000ns 4i8 host=\"host0\",interface=\"eth0\"",
+      "stb0_0 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
+      "stb0_1 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
+      "stb0_2 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
   };
   code = taos_insert_telnet_lines(taos, lines0, 3);
   if (code) {
@@ -1057,7 +1057,7 @@ void verify_telnet_insert(TAOS* taos) {
   }
 
   /* metric value */
-  //tinyin
+  //tinyint
   char* lines2_0[] = {
       "stb2_0 1626006833651ms -127i8 host=\"host0\"",
       "stb2_0 1626006833652ms 127i8 host=\"host0\""
@@ -1176,8 +1176,8 @@ void verify_telnet_insert(TAOS* taos) {
   /* tags */
   //tag value types
   char* lines3_0[] = {
-      "stb3_0 1626006833610ms 1 t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=3.4E38f32,t6=1.7E308f64,t7=true,t8=\"binary_val_1\",t9=L\"标签值1\"",
-      "stb3_0 1626006833610ms 2 t1=-127i8,t2=-32767i16,t3=-2147483647i32,t4=-9223372036854775807i64,t5=-3.4E38f32,t6=-1.7E308f64,t7=false,t8=\"binary_val_2\",t9=L\"标签值2\""
+      "stb3_0 1626006833610ms 1 t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=3.4E38f32 t6=1.7E308f64 t7=true t8=\"binary_val_1\" t9=L\"标签值1\"",
+      "stb3_0 1626006833610ms 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
   };
   code = taos_insert_telnet_lines(taos, lines3_0, 2);
   if (code) {
@@ -1186,9 +1186,9 @@ void verify_telnet_insert(TAOS* taos) {
 
   //tag ID as child table name
   char* lines3_1[] = {
-      "stb3_1 1626006833610ms 1 id=\"child_table1\",host=\"host1\"",
-      "stb3_1 1626006833610ms 2 host=\"host2\",iD=\"child_table2\"",
-      "stb3_1 1626006833610ms 3 ID=\"child_table3\",host=\"host3\""
+      "stb3_1 1626006833610ms 1 id=\"child_table1\" host=\"host1\"",
+      "stb3_1 1626006833610ms 2 host=\"host2\" iD=\"child_table2\"",
+      "stb3_1 1626006833610ms 3 ID=\"child_table3\" host=\"host3\""
   };
   code = taos_insert_telnet_lines(taos, lines3_1, 3);
   if (code) {
