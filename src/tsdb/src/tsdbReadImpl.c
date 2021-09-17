@@ -449,7 +449,7 @@ static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
 }
 
 static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
-  ASSERT((pBlock->blkVer > TSDB_SBLK_VER_0) && pBlock->hasAggr);  // TODO: remove after pass all the test
+  ASSERT((pBlock->blkVer > TSDB_SBLK_VER_0) && (pBlock->hasAggr));  // TODO: remove after pass all the test
   SDFile *pDFileAggr = TSDB_READ_AGGR_FILE(pReadh);
 
   if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
@@ -502,12 +502,7 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
 
 int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
-  
-  if (pBlock->blkVer > TSDB_SBLK_VER_0) {
-    return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
-  }
-  
-  return 0;
+  return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
 }
 
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
