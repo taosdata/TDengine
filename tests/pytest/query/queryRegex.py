@@ -53,9 +53,11 @@ class TDTestCase:
 
         tdSql.error('select * from stb_test where c0 match abc')
 
+        tdSql.error('select * from stb_test where c0 nmatch abc')
+
 
         # tdSql.execute('insert into stb_1 values("2020-10-13 10:00:00.001","abcd\\efgh")')
-        # tdSql.query('select * from stb_test where c0 match "\\\"')
+        # tdSql.query('select * from stb_test where c0 match "\\"')
         # tdSql.checkRows(1)
 
 
