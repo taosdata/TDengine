@@ -2435,7 +2435,6 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
   taosArrayDestroy(pRuntimeEnv->pResultRowArrayList);
   taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
-  taosArrayDestroy(pRuntimeEnv->pResultRowArrayList);
   pRuntimeEnv->prevResult = NULL;
 }
 
