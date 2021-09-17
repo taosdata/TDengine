@@ -747,17 +747,19 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  SHashNode *pNewNode = calloc(1, sizeof(SHashNode) + keyLen + dsize);
+  SHashNode *pNewNode = malloc(sizeof(SHashNode) + keyLen + dsize);
 
   if (pNewNode == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
 
-  pNewNode->keyLen = (uint32_t)keyLen;
+  pNewNode->keyLen  = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
   pNewNode->dataLen = (uint32_t) dsize;
-  pNewNode->count = 1;
+  pNewNode->count   = 1;
+  pNewNode->removed = 0;
+  pNewNode->next    = NULL;
 
   memcpy(GET_HASH_NODE_DATA(pNewNode), pData, dsize);
   memcpy(GET_HASH_NODE_KEY(pNewNode), key, keyLen);

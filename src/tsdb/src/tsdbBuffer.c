@@ -14,11 +14,9 @@
  */
 
 #include "tsdbint.h"
+#include "tsdbHealth.h"
 
 #define POOL_IS_EMPTY(b) (listNEles((b)->bufBlockList) == 0)
-
-static STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize);
-static void           tsdbFreeBufBlock(STsdbBufBlock *pBufBlock);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbBufPool *tsdbNewBufPool() {
@@ -65,10 +63,10 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
   STsdbBufPool *pPool = pRepo->pPool;
 
   ASSERT(pPool != NULL);
-
   pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024; // MB
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
+  pPool->nElasticBlocks = 0;
   pPool->index = 0;
   pPool->nRecycleBlocks = 0;
 
@@ -120,6 +118,18 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
+    if(tsDeadLockKillQuery) {
+      // supply new Block 
+      if(tsdbInsertNewBlock(pRepo) > 0) {
+        tsdbWarn("vgId:%d add new elastic block . elasticBlocks=%d cur free Blocks=%d", REPO_ID(pRepo), pBufPool->nElasticBlocks, pBufPool->bufBlockList->numOfEles);
+        break;
+      } else {
+        // no newBlock, kill query free
+        if(!tsdbUrgeQueryFree(pRepo))
+          tsdbWarn("vgId:%d Urge query free thread start failed.", REPO_ID(pRepo));
+      }
+    }
+
     pRepo->repoLocked = false;
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));
     pRepo->repoLocked = true;
@@ -139,11 +149,11 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------
-static STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
+STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
   STsdbBufBlock *pBufBlock = (STsdbBufBlock *)malloc(sizeof(*pBufBlock) + bufBlockSize);
   if (pBufBlock == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
+    return NULL;
   }
 
   pBufBlock->blockId = 0;
@@ -151,13 +161,9 @@ static STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
   pBufBlock->remain = bufBlockSize;
 
   return pBufBlock;
-
-_err:
-  tsdbFreeBufBlock(pBufBlock);
-  return NULL;
 }
 
-static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
+ void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
 
 int tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
   if (oldTotalBlocks == pRepo->config.totalBlocks) {
@@ -193,10 +199,16 @@ err:
   return err;
 }
 
-void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode) {
+void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic) {
   STsdbBufBlock *pBufBlock = NULL;
   tdListNodeGetData(pPool->bufBlockList, pNode, (void *)(&pBufBlock));
   tsdbFreeBufBlock(pBufBlock);
   free(pNode);
-  pPool->nBufBlocks--;
+  if(bELastic)
+  {
+    pPool->nElasticBlocks--;
+    tsdbWarn("pPool=%p elastic block reduce one . nElasticBlocks=%d cur free Blocks=%d", pPool, pPool->nElasticBlocks, pPool->bufBlockList->numOfEles);
+  }
+  else
+    pPool->nBufBlocks--;
 }

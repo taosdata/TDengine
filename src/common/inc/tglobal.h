@@ -224,6 +224,8 @@ extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char Compressor[];
 #endif
+// long query 
+extern int8_t tsDeadLockKillQuery;
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

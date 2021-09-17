@@ -196,6 +196,7 @@ static SKeyword keywordTable[] = {
     {"INITIALLY",    TK_INITIALLY},
     {"INSTEAD",      TK_INSTEAD},
     {"MATCH",        TK_MATCH},
+    {"NMATCH",       TK_NMATCH},
     {"KEY",          TK_KEY},
     {"OF",           TK_OF},
     {"RAISE",        TK_RAISE},
