@@ -22,7 +22,7 @@ cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
 soMode=dynamic   # [static | dynamic]
-dbName=taos      # [taos | power | tq]
+dbName=taos      # [taos | power | tq | pro]
 allocator=glibc  # [glibc | jemalloc]
 verNumber=""
 verNumberComp="1.0.0.0"
@@ -78,7 +78,7 @@ do
       echo "                  -l [full | lite] "
       echo "                  -a [glibc | jemalloc] "
       echo "                  -s [static | dynamic] "
-      echo "                  -d [taos | power | tq ] "
+      echo "                  -d [taos | power | tq | pro] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
       exit 0
@@ -253,6 +253,10 @@ if [ "$osType" != "Darwin" ]; then
     ${csudo} ./makepkg_tq.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
     ${csudo} ./makeclient_tq.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
     ${csudo} ./makearbi_tq.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  elif [[ "$dbName" == "pro" ]]; then
+    ${csudo} ./makepkg_pro.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo} ./makeclient_pro.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makearbi_pro.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   else
     ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
     ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
@@ -262,4 +266,3 @@ else
   cd ${script_dir}/tools
   ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${dbName}
 fi
-

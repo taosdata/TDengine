@@ -622,6 +622,8 @@ SArguments g_args = {
     "powerdb",      // password
 #elif (_TD_TQ_ == true)
     "tqueue",       // password
+#elif (_TD_PRO_ == true)
+    "prodb",       // password
 #else
     "taosdata",     // password
 #endif
@@ -764,6 +766,11 @@ static void printHelp() {
             "The password to use when connecting to the server. By default is 'tqueue'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
             "Configuration directory. By default is '/etc/tq/'.");
+#elif (_TD_PRO_ == true)
+    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
+            "The password to use when connecting to the server. By default is 'prodb'");
+    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
+            "Configuration directory. By default is '/etc/ProDB/'.");
 #else
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
             "The password to use when connecting to the server.");
