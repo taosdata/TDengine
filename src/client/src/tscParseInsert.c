@@ -1077,7 +1077,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         return code;
       }
 
-      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal, false);
     }
 
     // encode json tag string

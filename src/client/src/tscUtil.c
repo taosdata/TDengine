@@ -5178,7 +5178,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     }
 
     varDataSetLen(tagVal, output);
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);   // add json key
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, false);   // add json key
 
     memset(tagVal, 0, TSDB_MAX_TAGS_LEN);
     if(item->type == cJSON_String){     // add json value  format: type|data
@@ -5192,12 +5192,12 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       }
 
       varDataSetLen(tagData, output);
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
     }else if(item->type == cJSON_Number){
       *tagVal = item->type;    // type
       char* tagData = tagVal + CHAR_BYTES;
       *((double *)tagData) = item->valuedouble;
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal, true);
     }else{
       retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);
       goto end;

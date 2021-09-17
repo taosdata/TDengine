@@ -544,7 +544,7 @@ void   tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
 void   tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
 SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 
-static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value) {
+static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value, bool isJumpJsonVType) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
     SColIdx* pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
@@ -557,7 +557,9 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
   pBuilder->nCols++;
 
-  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+  void *jumpType = value;
+  if(isJumpJsonVType) jumpType = value + CHAR_BYTES;
+  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(jumpType) : TYPE_BYTES[type];
   if (tlen > pBuilder->alloc - pBuilder->size) {
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;

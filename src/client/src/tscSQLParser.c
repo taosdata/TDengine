@@ -7618,7 +7618,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
             }
 
-            tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+            tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal, false);
 
             findColumnIndex = true;
             break;
@@ -7640,7 +7640,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         SSchema*          pSchema = &pTagSchema[i];
         tVariantListItem* pItem = taosArrayGet(pValList, i);
 
-        char tagVal[TSDB_MAX_TAGS_LEN];
+        char tagVal[TSDB_MAX_TAGS_LEN] = {0};
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
           if (pItem->pVar.nLen > pSchema->bytes) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
@@ -7678,7 +7678,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
         }
 
-        tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+        tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal, false);
       }
     }
 
