@@ -60,7 +60,14 @@ typedef struct {
         fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
+    do { fprintf(stderr, "\033[31m"); \
+        fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); \
+        fprintf(stderr, "\033[0m"); } while(0)
+
+#define okPrint(fmt, ...) \
+    do { fprintf(stderr, "\033[32m"); \
+        fprintf(stderr, "OK: "fmt, __VA_ARGS__); \
+        fprintf(stderr, "\033[0m"); } while(0)
 
 static bool isStringNumber(char *input)
 {
@@ -210,7 +217,7 @@ static char doc[] = "";
 /*         to force a line-break, e.g.\n<-- here."; */
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "dbname [tbname ...]\n--databases dbname ...\n--all-databases\n-i inpath\n-o outpath";
+static char args_doc[] = "dbname [tbname ...]\n--databases db1,db2,... \n--all-databases\n-i inpath\n-o outpath";
 
 /* Keys for options without short-options. */
 #define OPT_ABORT 1 /* –abort */
@@ -239,7 +246,7 @@ static struct argp_option options[] = {
     {"encode", 'e', "ENCODE", 0,  "Input file encoding.", 1},
     // dump unit options
     {"all-databases", 'A', 0, 0,  "Dump all databases.", 2},
-    {"databases", 'D', 0, 0,  "Dump assigned databases", 2},
+    {"databases", 'D', "DATABASES", 0,  "Dump inputed databases. Use comma to seprate databases\' name.", 2},
     {"allow-sys",   'a', 0, 0,  "Allow to dump sys database", 2},
     // dump format options
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
@@ -272,6 +279,7 @@ typedef struct arguments {
     // dump unit option
     bool     all_databases;
     bool     databases;
+    char    *databasesSeq;
     // dump format option
     bool     schemaonly;
     bool     with_property;
@@ -348,10 +356,11 @@ struct arguments g_args = {
     "./dump_result.txt",
     NULL,
     // dump unit option
-    false,
-    false,
+    false,      // all_databases
+    false,      // databases
+    NULL,       // databasesSeq
     // dump format option
-    false,      // schemeonly
+    false,      // schemaonly
     true,       // with_property
     false,      // avro format
     -INT64_MAX + 1, // start_time
@@ -375,13 +384,34 @@ struct arguments g_args = {
         0,      // dbCount
 };
 
+UNUSED_FUNC void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
+{
+    fprintf(stderr, "%s %s: %s is an invalid value\n", program, wrong_arg, wrong_value);
+    fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
+static void errorUnrecognized(char *program, char *wrong_arg)
+{
+    fprintf(stderr, "%s: unrecognized options '%s'\n", program, wrong_arg);
+    fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
+static void errorPrintReqArg(char *program, char *wrong_arg)
+{
+    fprintf(stderr,
+            "%s: option requires an argument -- '%s'\n",
+            program, wrong_arg);
+    fprintf(stderr,
+            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+}
+
 static void errorPrintReqArg2(char *program, char *wrong_arg)
 {
     fprintf(stderr,
             "%s: option requires a number argument '-%s'\n",
             program, wrong_arg);
     fprintf(stderr,
-            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
 }
 
 static void errorPrintReqArg3(char *program, char *wrong_arg)
@@ -390,7 +420,7 @@ static void errorPrintReqArg3(char *program, char *wrong_arg)
             "%s: option '%s' requires an argument\n",
             program, wrong_arg);
     fprintf(stderr,
-            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
+            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
 }
 
 /* Parse a single option. */
@@ -611,8 +641,36 @@ static void parse_args(
         } else if (strcmp(argv[i], "-PP") == 0) {
             arguments->performance_print = true;
             strcpy(argv[i], "");
-        } else if (strcmp(argv[i], "-A") == 0) {
+        } else if ((strcmp(argv[i], "-A") == 0)
+                || (0 == strncmp(
+                            argv[i], "--all-database",
+                            strlen("--all-database")))) {
             g_args.all_databases = true;
+        } else if ((strncmp(argv[i], "-D", strlen("-D")) == 0)
+                || (0 == strncmp(
+                        argv[i], "--database",
+                        strlen("--database")))) {
+            if (2 == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg(argv[0], "D");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->databasesSeq = argv[++i];
+            } else if (0 == strncmp(argv[i], "--databases=", strlen("--databases="))) {
+                arguments->databasesSeq = (char *)(argv[i] + strlen("--databases="));
+            } else if (0 == strncmp(argv[i], "-D", strlen("-D"))) {
+                arguments->databasesSeq = (char *)(argv[i] + strlen("-D"));
+            } else if (strlen("--databases") == strlen(argv[i])) {
+                if (argc == i+1) {
+                    errorPrintReqArg3(argv[0], "--databases");
+                    exit(EXIT_FAILURE);
+                }
+                arguments->databasesSeq = argv[++i];
+            } else {
+                errorUnrecognized(argv[0], argv[i]);
+                exit(EXIT_FAILURE);
+            }
+            g_args.databases = true;
         } else {
             continue;
         }
@@ -783,6 +841,7 @@ int main(int argc, char *argv[]) {
         printf("encode: %s\n", g_args.encode);
         printf("all_databases: %s\n", g_args.all_databases?"true":"false");
         printf("databases: %d\n", g_args.databases);
+        printf("databasesSeq: %s\n", g_args.databasesSeq);
         printf("schemaonly: %s\n", g_args.schemaonly?"true":"false");
         printf("with_property: %s\n", g_args.with_property?"true":"false");
         printf("avro format: %s\n", g_args.avro?"true":"false");
@@ -830,6 +889,7 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "encode: %s\n", g_args.encode);
         fprintf(g_fpOfResult, "all_databases: %s\n", g_args.all_databases?"true":"false");
         fprintf(g_fpOfResult, "databases: %d\n", g_args.databases);
+        fprintf(g_fpOfResult, "databasesSeq: %s\n", g_args.databasesSeq);
         fprintf(g_fpOfResult, "schemaonly: %s\n", g_args.schemaonly?"true":"false");
         fprintf(g_fpOfResult, "with_property: %s\n", g_args.with_property?"true":"false");
         fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
@@ -1124,38 +1184,55 @@ static int32_t taosSaveTableOfMetricToTempFile(
     return 0;
 }
 
+static int inDatabasesSeq(
+        char *name,
+        int len)
+{
+    if (strstr(g_args.databasesSeq, ",") == NULL) {
+        if (0 == strncmp(g_args.databasesSeq, name, len)) {
+            return 0;
+        }
+    } else {
+        char *dupSeq = strdup(g_args.databasesSeq);
+        char *running = dupSeq;
+        char *dbname = strsep(&running, ",");
+        while (dbname) {
+            if (0 == strncmp(dbname, name, len)) {
+                tfree(dupSeq);
+                return 0;
+            }
+
+            dbname = strsep(&running, ",");
+        }
+
+    }
+
+    return -1;
+}
+
 static int getDbCount()
 {
-    int count;
+    int count = 0;
 
     TAOS     *taos = NULL;
     TAOS_RES *result     = NULL;
-    char     *command    = NULL;
+    char     *command    = "show databases";
     TAOS_ROW row;
-
-    command = (char *)malloc(COMMAND_SIZE);
-    if (command == NULL) {
-        errorPrint("%s() LN%d, failed to allocate command buffer\n", __func__, __LINE__);
-        return 0;
-    }
 
     /* Connect to server */
     taos = taos_connect(g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
     if (NULL == taos) {
         errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
-        free(command);
         return 0;
     }
 
-    sprintf(command, "show databases");
     result = taos_query(taos, command);
     int32_t code = taos_errno(result);
 
     if (0 != code) {
         errorPrint("%s() LN%d, failed to run command: %s, reason: %s\n",
                 __func__, __LINE__, command, taos_errstr(result));
-        free(command);
         return 0;
     }
 
@@ -1170,39 +1247,24 @@ static int getDbCount()
         }
 
         if (g_args.databases) {  // input multi dbs
-            for (int i = 0; g_args.arg_list[i]; i++) {
-                if (strncasecmp(g_args.arg_list[i],
-                            (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                            fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
-                    goto _dump_db_point;
-            }
-            continue;
+            if (inDatabasesSeq(
+                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0)
+                continue;
         } else if (!g_args.all_databases) {  // only input one db
             if (strncasecmp(g_args.arg_list[0],
                         (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
-                goto _dump_db_point;
-            else
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0)
                 continue;
         }
 
-_dump_db_point:
-
         count++;
-
-        if (g_args.databases) {
-            if (count > g_args.arg_list_len) break;
-
-        } else if (!g_args.all_databases) {
-            if (count >= 1) break;
-        }
     }
 
     if (count == 0) {
         errorPrint("%d databases valid to dump\n", count);
     }
 
-    free(command);
     return count;
 }
 
@@ -1284,23 +1346,17 @@ static int taosDumpOut() {
         }
 
         if (g_args.databases) {  // input multi dbs
-            for (int i = 0; g_args.arg_list[i]; i++) {
-                if (strncasecmp(g_args.arg_list[i],
-                            (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                            fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
-                    goto _dump_db_point;
+            if (inDatabasesSeq(
+                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0) {
+                continue;
             }
-            continue;
         } else if (!g_args.all_databases) {  // only input one db
             if (strncasecmp(g_args.arg_list[0],
                         (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
-                goto _dump_db_point;
-            else
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0)
                 continue;
         }
-
-_dump_db_point:
 
         g_dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
         if (g_dbInfos[count] == NULL) {
@@ -1309,38 +1365,55 @@ _dump_db_point:
             goto _exit_failure;
         }
 
+        okPrint("%s exists\n", (char *)row[TSDB_SHOW_DB_NAME_INDEX]);
         tstrncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                min(TSDB_DB_NAME_LEN, fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
+                min(TSDB_DB_NAME_LEN,
+                    fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
         if (g_args.with_property) {
-            g_dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
-            g_dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
-            g_dbInfos[count]->replica = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
-            g_dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
-            g_dbInfos[count]->days = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
+            g_dbInfos[count]->ntables =
+                *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+            g_dbInfos[count]->vgroups =
+                *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
+            g_dbInfos[count]->replica =
+                *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
+            g_dbInfos[count]->quorum =
+                *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
+            g_dbInfos[count]->days =
+                *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
 
-            tstrncpy(g_dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
+            tstrncpy(g_dbInfos[count]->keeplist,
+                    (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
                     min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes + 1));
             //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
             //g_dbInfos[count]->daysToKeep1;
             //g_dbInfos[count]->daysToKeep2;
-            g_dbInfos[count]->cache = *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
-            g_dbInfos[count]->blocks = *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
-            g_dbInfos[count]->minrows = *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
-            g_dbInfos[count]->maxrows = *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
-            g_dbInfos[count]->wallevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
-            g_dbInfos[count]->fsync = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
-            g_dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
-            g_dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
+            g_dbInfos[count]->cache =
+                *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
+            g_dbInfos[count]->blocks =
+                *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
+            g_dbInfos[count]->minrows =
+                *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
+            g_dbInfos[count]->maxrows =
+                *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
+            g_dbInfos[count]->wallevel =
+                *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
+            g_dbInfos[count]->fsync =
+                *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
+            g_dbInfos[count]->comp =
+                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+            g_dbInfos[count]->cachelast =
+                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
 
             tstrncpy(g_dbInfos[count]->precision,
                     (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
                     DB_PRECISION_LEN);
-            g_dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
+            g_dbInfos[count]->update =
+                *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
         }
         count++;
 
         if (g_args.databases) {
-            if (count > g_args.arg_list_len) break;
+            if (count > g_args.dbCount) break;
 
         } else if (!g_args.all_databases) {
             if (count >= 1) break;
@@ -1357,7 +1430,7 @@ _dump_db_point:
             taosDumpDb(g_dbInfos[i], fp, taos);
         }
     } else {
-        if (g_args.arg_list_len == 1) {             // case: taosdump <db>
+        if (g_args.dbCount == 1) {             // case: taosdump <db>
             taosDumpDb(g_dbInfos[0], fp, taos);
         } else {                                        // case: taosdump <db> tablex tabley ...
             taosDumpCreateDbClause(g_dbInfos[0], g_args.with_property, fp);
@@ -2426,12 +2499,6 @@ static int taosCheckParam(struct arguments *arguments) {
         return -1;
     }
 
-    if (g_args.arg_list_len == 0) {
-        if ((!g_args.all_databases) && (!g_args.isDumpIn)) {
-            errorPrint("%s", "taosdump requires parameters for database and operation\n");
-            return -1;
-        }
-    }
     /*
        if (g_args.isDumpIn && (strcmp(g_args.outpath, DEFAULT_DUMP_FILE) != 0)) {
        fprintf(stderr, "duplicate parameter input and output file path\n");
