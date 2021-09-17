@@ -1432,7 +1432,7 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info
   uint64_t val_u;
   double val_d;
 
-  strntolower_s(str, str, strlen(str));
+  strntolower_s(str, str, (int32_t)strlen(str));
   if (IS_FLOAT_TYPE(type)) {
     val_d = strtod(str, NULL);
   } else {
