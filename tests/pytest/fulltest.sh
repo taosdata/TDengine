@@ -273,6 +273,7 @@ python3 ./test.py -f query/queryCnameDisplay.py
 # python3 ./test.py -f query/operator_cost.py
 # python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
+python3 ./test.py -f query/bug6586.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
