@@ -19,11 +19,25 @@ exe:
 	gcc $(CFLAGS) ./stream.c -o $(ROOT)stream $(LFLAGS)
 	gcc $(CFLAGS) ./subscribe.c -o $(ROOT)subscribe $(LFLAGS)
 	gcc $(CFLAGS) ./apitest.c -o $(ROOT)apitest $(LFLAGS)
+	gcc $(CFLAGS) ./clientcfgtest.c -o $(ROOT)clientcfgtest $(LFLAGS)
+	gcc $(CFLAGS) ./clientcfgtest-wrongtype.c -o $(ROOT)clientcfgtest-wrongtype $(LFLAGS)
+	gcc $(CFLAGS) ./clientcfgtest-wrongjson.c -o $(ROOT)clientcfgtest-wrongjson $(LFLAGS)
+	gcc $(CFLAGS) ./clientcfgtest-wrongvalue.c -o $(ROOT)clientcfgtest-wrongvalue $(LFLAGS)
+	gcc $(CFLAGS) ./clientcfgtest-taosd.c -o $(ROOT)clientcfgtest-taosd $(LFLAGS)
+
 
 clean:
-	rm -f $(ROOT)asyncdemo
-	rm -f $(ROOT)demo
-	rm -f $(ROOT)prepare
-	rm -f $(ROOT)stream
-	rm -f $(ROOT)subscribe
-	rm -f $(ROOT)apitest
+
+	rm $(ROOT)asyncdemo
+	rm $(ROOT)demo
+	rm $(ROOT)prepare
+	rm $(ROOT)batchprepare
+	rm $(ROOT)stream
+	rm $(ROOT)subscribe
+	rm $(ROOT)apitest
+	rm $(ROOT)clientcfgtest
+	rm $(ROOT)clientcfgtest-wrongtype
+	rm $(ROOT)clientcfgtest-wrongjson
+	rm $(ROOT)clientcfgtest-wrongvalue
+	rm $(ROOT)clientcfgtest-taosd
+	

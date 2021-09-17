@@ -1405,7 +1405,11 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     pCmd->command = TSDB_SQL_SELECT;
     tscResetForNextRetrieve(&pSql->res);
 
-    assert(pSupporter->f == NULL);
+    if (pSupporter->f != NULL) {
+      fclose(pSupporter->f);
+      pSupporter->f = NULL;
+    }
+    
     taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure

@@ -16,18 +16,21 @@
  */
 package com.taosdata.jdbc;
 
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.utils.TaosInfo;
 
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * JNI connector
  */
 public class TSDBJNIConnector {
-    private static volatile Boolean isInitialized = false;
+    private static final Object LOCK = new Object();
+    private static volatile boolean isInitialized;
 
     private final TaosInfo taosInfo = TaosInfo.getInstance();
     private long taos = TSDBConstants.JNI_NULL_POINTER;     // Connection pointer used in C
@@ -38,24 +41,27 @@ public class TSDBJNIConnector {
         System.loadLibrary("taos");
     }
 
-    public boolean isClosed() {
-        return this.taos == TSDBConstants.JNI_NULL_POINTER;
-    }
-
-    public boolean isResultsetClosed() {
-        return this.isResultsetClosed;
-    }
-
-    public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
-        synchronized (isInitialized) {
+    public static void init(Properties props) throws SQLWarning {
+        synchronized (LOCK) {
             if (!isInitialized) {
-                initImp(configDir);
+
+                JSONObject configJSON = new JSONObject();
+                for (String key : props.stringPropertyNames()) {
+                    configJSON.put(key, props.getProperty(key));
+                }
+                setConfigImp(configJSON.toJSONString());
+
+                initImp(props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, null));
+
+                String locale = props.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
                 if (setOptions(0, locale) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set locale: " + locale + ". System default will be used.");
                 }
+                String charset = props.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
                 if (setOptions(1, charset) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set charset: " + charset + ". System default will be used.");
                 }
+                String timezone = props.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
                 if (setOptions(2, timezone) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set timezone: " + timezone + ". System default will be used.");
                 }
@@ -65,11 +71,13 @@ public class TSDBJNIConnector {
         }
     }
 
-    public static native void initImp(String configDir);
+    private static native void initImp(String configDir);
 
-    public static native int setOptions(int optionIndex, String optionValue);
+    private static native int setOptions(int optionIndex, String optionValue);
 
-    public static native String getTsCharset();
+    private static native String getTsCharset();
+
+    private static native TSDBException setConfigImp(String config);
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
@@ -158,6 +166,14 @@ public class TSDBJNIConnector {
     }
 
     private native long isUpdateQueryImp(long connection, long pSql);
+
+    public boolean isClosed() {
+        return this.taos == TSDBConstants.JNI_NULL_POINTER;
+    }
+
+    public boolean isResultsetClosed() {
+        return this.isResultsetClosed;
+    }
 
     /**
      * Free result set operation from C to release result set pointer by JNI
@@ -351,4 +367,6 @@ public class TSDBJNIConnector {
     }
 
     private native int insertLinesImp(String[] lines, long conn);
+
+
 }

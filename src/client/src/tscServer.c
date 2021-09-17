@@ -704,11 +704,6 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
     }
   }
 
-  SCond* pCond = &pQueryInfo->tagCond.tbnameCond;
-  if (pCond->len > 0) {
-    srcColListSize += pCond->len;
-  }
-
   return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + srcColFilterSize + srcTagFilterSize +
          exprSize + tsBufSize + tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
@@ -957,8 +952,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->numOfOutput    = htons((int16_t)query.numOfOutput);  // this is the stage one output column number
 
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
-  pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
-  pQueryMsg->tbnameCondLen  = htonl(pQueryInfo->tagCond.tbnameCond.len);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
 
@@ -1076,12 +1069,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pQueryInfo->bufLen > 0) {
     memcpy(pMsg, pQueryInfo->buf, pQueryInfo->bufLen);
     pMsg += pQueryInfo->bufLen;
-  }
-
-  SCond* pCond = &pQueryInfo->tagCond.tbnameCond;
-  if (pCond->len > 0) {
-    strncpy(pMsg, pCond->cond, pCond->len);
-    pMsg += pCond->len;
   }
 
   // compressed ts block

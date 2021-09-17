@@ -264,7 +264,7 @@ typedef struct SQueryAttr {
   SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
 
   SSingleColumnFilterInfo* pFilterInfo;
-  SFilterInfo     *pFilters;
+  void            *pFilters;
   
   void*            tsdb;
   SMemRef          memRef;
@@ -399,7 +399,6 @@ typedef struct SQueryParam {
   char            *sql;
   char            *tagCond;
   char            *colCond;
-  char            *tbnameCond;
   char            *prevResult;
   SArray          *pTableIdList;
   SSqlExpr       **pExpr;
@@ -407,7 +406,7 @@ typedef struct SQueryParam {
   SExprInfo       *pExprs;
   SExprInfo       *pSecExprs;
 
-  SFilterInfo     *pFilters;
+  void            *pFilters;
 
   SColIndex       *pGroupColIndex;
   SColumnInfo     *pTagColumnInfo;
@@ -416,6 +415,11 @@ typedef struct SQueryParam {
   SArray          *pOperator;
   SUdfInfo        *pUdfInfo;
 } SQueryParam;
+
+typedef struct SColumnDataParam{
+  int32_t numOfCols;
+  SArray* pDataBlock;
+} SColumnDataParam;
 
 typedef struct STableScanInfo {
   void           *pQueryHandle;
@@ -640,11 +644,11 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
                                            SSqlExpr **pExpr, SExprInfo *prevExpr, SUdfInfo *pUdfInfo);
 
-int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters);
+int32_t createQueryFilter(char *data, uint16_t len, void** pFilters);
 
 SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
+                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, void* pFilters, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, SQueryParam* param, char* start,
                   int32_t prevResultLen, void* merger);
@@ -684,5 +688,6 @@ void freeQueryAttr(SQueryAttr *pQuery);
 int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
+int32_t getColumnDataFromId(void *param, int32_t id, void **data);
 
 #endif  // TDENGINE_QEXECUTOR_H

@@ -155,9 +155,7 @@ The design of TDengine is based on the assumption that one single node or softwa
 Logical structure diagram of TDengine distributed architecture as following:
 
 ![TDengine architecture diagram](page://images/architecture/structure.png)
-<center> Picture 1: TDengine architecture diagram  </center>
-
-
+<center> Figure 1: TDengine architecture diagram </center>
 
 A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDEngine application driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
 
@@ -199,8 +197,8 @@ A complete TDengine system runs on one or more physical nodes. Logically, it inc
 
 To explain the relationship between vnode, mnode, TAOSC and application and their respective roles, the following is an analysis of a typical data writing process.
 
-![ typical process of TDengine](page://images/architecture/message.png)
-<center> Picture 2  typical process of TDengine </center>
+![typical process of TDengine](page://images/architecture/message.png)
+<center> Figure 2: Typical process of TDengine </center>
 
 1. Application initiates a request to insert data through JDBC, ODBC, or other APIs.
 2. TAOSC checks if meta data existing for the table in the cache. If so, go straight to Step 4. If not, TAOSC sends a get meta-data request to mnode.
@@ -268,7 +266,8 @@ If a database has N replicas, thus a virtual node group has N virtual nodes, but
 
 Master Vnode uses a writing process as follows:
 
-Figure 3: TDengine Master writing process
+![TDengine Master Writing Process](page://images/architecture/write_master.png)
+<center> Figure 3: TDengine Master writing process </center>
 
 1. Master vnode receives the application data insertion request, verifies, and moves to next step;
 2. If the system configuration parameter `walLevel` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
@@ -281,8 +280,8 @@ Figure 3: TDengine Master writing process
 
 For a slave vnode, the write process as follows:
 
-![TDengine Slave Writing Process](page://images/architecture/write_master.png)
-<center> Picture 3 TDengine Slave Writing Process  </center>
+![TDengine Slave Writing Process](page://images/architecture/write_slave.png)
+<center> Figure 4: TDengine Slave Writing Process </center>
 
 1. Slave vnode receives a data insertion request forwarded by Master vnode;
 2. If the system configuration parameter `walLevel` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
@@ -355,16 +354,12 @@ When data is written to disk, it is decided whether to compress the data accordi
 
 By default, TDengine saves all data in /var/lib/taos directory, and the data files of each vnode are saved in a different directory under this directory. In order to expand the storage space, minimize the bottleneck of file reading and improve the data throughput rate, TDengine can configure the system parameter “dataDir” to allow multiple mounted hard disks to be used by system at the same time. In addition, TDengine also provides the function of tiered data storage, i.e. storage on different storage media according to the time stamps of data files. For example, the latest data is stored on SSD, the data for more than one week is stored on local hard disk, and the data for more than four weeks is stored on network storage device, thus reducing the storage cost and ensuring efficient data access. The movement of data on different storage media is automatically done by the system and completely transparent to applications. Tiered storage of data is also configured through the system parameter “dataDir”.
 
-
-
 dataDir format is as follows:
 ```
 dataDir data_path [tier_level]
 ```
 
 Where data_path is the folder path of mount point and tier_level is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data.
-
-
 
 Suppose a physical node with six mountable hard disks/mnt/disk1,/mnt/disk2, …,/mnt/disk6, where disk1 and disk2 need to be designated as level 0 storage media, disk3 and disk4 are level 1 storage media, and disk5 and disk6 are level 2 storage media. Disk1 is a special mount disk, you can configure it in/etc/taos/taos.cfg as follows:
 
@@ -378,7 +373,6 @@ dataDir /mnt/disk6/taos 2
 ```
 
 Mounted disks can also be a non-local network disk, as long as the system can access it.
-
 
 Note: Tiered Storage is only supported in Enterprise Edition
 
@@ -419,7 +413,7 @@ For the data collected by device D1001, the number of records per hour is counte
 TDengine creates a separate table for each data collection point, but in practical applications, it is often necessary to aggregate data from different data collection points. In order to perform aggregation operations efficiently, TDengine introduces the concept of STable. STable is used to represent a specific type of data collection point. It is a table set containing multiple tables. The schema of each table in the set is the same, but each table has its own static tag. The tags can be multiple and be added, deleted and modified at any time. Applications can aggregate or statistically operate all or a subset of tables under a STABLE by specifying tag filters, thus greatly simplifying the development of applications. The process is shown in the following figure:
 
 ![Diagram of multi-table aggregation query](page://images/architecture/multi_tables.png)
-<center> Picture 4 Diagram of multi-table aggregation query  </center>
+<center> Figure 5: Diagram of multi-table aggregation query </center>
 
 1. Application sends a query condition to system;
 2. TAOSC sends the STable name to Meta Node(management node);

@@ -769,7 +769,7 @@ class TDTestCase:
         tdSql.query(f"select distinct  c1,c2 from (select * from t1 where c1 < {tbnum}) ")
         tdSql.checkRows(3)
         tdSql.query(f"select distinct  c1,c2 from (select * from stb1 where t2 !=0 and t2 != 1) ")
-        tdSql.checkRows(4)
+        tdSql.checkRows(0)
         tdSql.error("select distinct  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.error("select  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.query("select distinct  c1, c2 from (select c2, c1 from stb1 where c1 > 2 ) where  c1 < 4")
