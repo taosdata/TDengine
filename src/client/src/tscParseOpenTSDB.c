@@ -498,7 +498,7 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
   }
 
   size_t typeLen = strlen(type->valuestring);
-  strntolower_s(type->valuestring, type->valuestring, typeLen);
+  strntolower_s(type->valuestring, type->valuestring, (int32_t)typeLen);
   if (typeLen == 1 && type->valuestring[0] == 's') {
     //seconds
     *tsVal = (int64_t)(*tsVal * 1e9);
