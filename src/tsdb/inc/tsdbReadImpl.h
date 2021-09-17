@@ -67,8 +67,8 @@ typedef struct {
   TSKEY   keyLast
 
 #define SBlockFieldsP1     \
-  int64_t hasAggr : 1;     \
-  int64_t blkVer : 7;      \
+  int64_t hasAggr : 3;     \
+  int64_t blkVer : 5;      \
   int64_t aggrOffset : 56; \
   int32_t aggrLen
 
@@ -116,11 +116,12 @@ typedef struct {
 
 typedef struct {
   int16_t  colId;
+  uint8_t  offsetH;
+  uint8_t  reserved;  // reserved field, not used
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;
-  uint8_t  offsetH;
-  char     padding[1];
+  char     padding[];
 } SBlockColV1;
 
 #define SBlockCol SBlockColV1      // latest SBlockCol definition
