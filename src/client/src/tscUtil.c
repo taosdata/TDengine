@@ -5161,7 +5161,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     goto end;
   }
 
-  int jsonIndex = startColId++;
+  int jsonIndex = ++startColId;
   for(int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {

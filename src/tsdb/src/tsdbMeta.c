@@ -1122,7 +1122,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         tablist = (SArray**)&tablistNew;
       }
       JsonMapValue jmvalue = {TABLE_UID(pTable), pColIdx->colId};
-      taosArrayPush(*tablist, &jmvalue);
+      taosArrayAddBatch(*tablist, &jmvalue, 1);
       taosArraySort(*tablist, tscCompareJsonMapValue);
     }
   }else{
