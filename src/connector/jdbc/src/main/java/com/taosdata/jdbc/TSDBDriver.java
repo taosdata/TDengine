@@ -118,9 +118,6 @@ public class TSDBDriver extends AbstractDriver {
     }
 
     public Connection connect(String url, Properties info) throws SQLException {
-        if (url == null)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
-
         if (!acceptsURL(url))
             return null;
 
@@ -135,8 +132,7 @@ public class TSDBDriver extends AbstractDriver {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED);
 
         try {
-            TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),
-                    (String) props.get(PROPERTY_KEY_CHARSET), (String) props.get(PROPERTY_KEY_TIME_ZONE));
+            TSDBJNIConnector.init(props);
             return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLWarning sqlWarning) {
             sqlWarning.printStackTrace();
@@ -205,6 +201,7 @@ public class TSDBDriver extends AbstractDriver {
         String dbProductName = url.substring(0, beginningOfSlashes);
         dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
         dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
+        urlProps.setProperty(TSDBDriver.PROPERTY_KEY_PRODUCT_NAME, dbProductName);
 
         // parse database name
         url = url.substring(beginningOfSlashes + 2);
