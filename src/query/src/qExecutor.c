@@ -4290,7 +4290,6 @@ static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows,
                                                                  colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
-}
 static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data, int8_t compressed, int32_t *compLen) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
