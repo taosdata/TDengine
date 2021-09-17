@@ -375,7 +375,7 @@ void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 char* cloneCurrentDBName(SSqlObj* pSql);
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId);
-
+char* parseTagDatatoJson(void *p);
 #ifdef __cplusplus
 }
 #endif

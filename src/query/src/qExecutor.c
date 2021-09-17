@@ -4290,6 +4290,7 @@ static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows,
                                                                  colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
+}
 static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data, int8_t compressed, int32_t *compLen) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -4312,7 +4313,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
         *compLen += compSizes[col];
         compSizes[col] = htonl(compSizes[col]);
       } else {
-        memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
+        memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);   // todo json
         data += pColRes->info.bytes * pRes->info.rows;
       }
     }
@@ -4325,6 +4326,10 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
         *compLen += compSizes[col];
         compSizes[col] = htonl(compSizes[col]);
       } else {
+        if(pColRes->info.type == TSDB_DATA_TYPE_JSON){      // todo json
+          //pColRes->info.bytes =
+
+        }
         memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
         data += pColRes->info.bytes * numOfRows;
       }

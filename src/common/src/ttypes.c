@@ -384,7 +384,7 @@ tDataTypeDescriptor tDataTypes[16] = {
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
   {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
-  {TSDB_DATA_TYPE_JSON,      4,  CHAR_BYTES,   "JSON",               INT8_MIN,          INT8_MAX,              tsCompressTinyint,    tsDecompressTinyint,    getStatics_i8},
+  {TSDB_DATA_TYPE_JSON,      4,TSDB_MAX_NCHAR_LEN,   "JSON", INT8_MIN,          TSDB_MAX_NCHAR_LEN,              tsCompressString,    tsDecompressString,    getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {

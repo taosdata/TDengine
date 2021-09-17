@@ -3552,7 +3552,7 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
 
-    if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+    if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_JSON) {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
     } else {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : varDataVal(pRes->urow[i]);

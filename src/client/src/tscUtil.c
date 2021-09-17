@@ -713,6 +713,35 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
     }
 
     memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+  }else if (pInfo->field.type == TSDB_DATA_TYPE_JSON) {
+    // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
+    char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+    if(buffer == NULL)
+      return ;
+    pRes->buffer[i] = buffer;
+    // string terminated char for binary data
+    memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
+
+    char* p = pRes->urow[i];
+    for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+      char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+
+      if (isNull(p, TSDB_DATA_TYPE_NCHAR)) {
+        memcpy(dst, p, varDataTLen(p));
+      } else {
+        char* json = parseTagDatatoJson(p);
+        if(json){
+          memcpy(varDataVal(dst), json, strlen(json));
+          varDataSetLen(dst, strlen(json));
+          tfree(json);
+        }else{
+          tscError("construct json error");
+        }
+      }
+      p += pInfo->field.bytes;
+    }
+
+    memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
   }
 }
 
@@ -5143,6 +5172,65 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   pthread_mutex_unlock(&pSql->pTscObj->mutex);
 
   return p;
+}
+
+char* parseTagDatatoJson(void *p){
+  char* string = NULL;
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL)
+  {
+    goto end;
+  }
+
+  int16_t nCols = kvRowNCols(p);
+  ASSERT(nCols%2 == 1);
+  char tagJsonKey[TSDB_MAX_TAGS_LEN] = {0};
+  for (int j = 0; j < nCols; ++j) {
+    SColIdx * pColIdx = kvRowColIdxAt(p, j);
+    void* val = (kvRowColVal(p, pColIdx));
+    if (j == 0){        // json value is the first
+      int8_t jsonVal = *(int8_t*)val;
+      ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
+      continue;
+    }
+    if (j%2 == 0) { // json key
+      memset(tagJsonKey, 0, TSDB_MAX_TAGS_LEN);
+      int32_t length = taosUcs4ToMbs(varDataVal(val), varDataLen(val), tagJsonKey);
+      if (length == 0) {
+        tscError("charset:%s to %s. val:%s convert json key failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)val);
+        goto end;
+      }
+    }else{  // json value
+      char tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
+      if(*(char*)val == cJSON_String){
+        int32_t length = taosUcs4ToMbs(varDataVal(val + CHAR_BYTES), varDataLen(val + CHAR_BYTES), tagJsonValue);
+        if (length == 0) {
+          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)val);
+          goto end;
+        }
+        cJSON* value = cJSON_CreateString(tagJsonValue);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if(*(char*)val == cJSON_Number){
+        double jsonVd = *(double*)(val + CHAR_BYTES);
+        cJSON* value = cJSON_CreateNumber(jsonVd);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else{
+        tscError("unsupportted json value");
+      }
+    }
+  }
+  string = cJSON_PrintUnformatted(json);
+end:
+  cJSON_Delete(json);
+  return string;
 }
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
