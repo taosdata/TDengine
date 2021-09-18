@@ -398,6 +398,7 @@ python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
 python3 ./test.py -f query/queryRegex.py
+python3 ./test.py -f client/nettest.py
 #======================p4-end===============
 
 
