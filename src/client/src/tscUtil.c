@@ -5193,7 +5193,7 @@ char* parseTagDatatoJson(void *p){
       ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
       continue;
     }
-    if (j%2 == 0) { // json key
+    if (j%2 != 0) { // json key
       memset(tagJsonKey, 0, TSDB_MAX_TAGS_LEN);
       int32_t length = taosUcs4ToMbs(varDataVal(val), varDataLen(val), tagJsonKey);
       if (length == 0) {

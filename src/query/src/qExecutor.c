@@ -3341,7 +3341,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     val = tsdbGetTableName(pTable);
     assert(val != NULL);
   } else {
-    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
+    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);      // todo json
   }
 
   if (val == NULL || isNull(val, type)) {
