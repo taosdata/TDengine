@@ -2676,17 +2676,40 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 }
 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
-  SSkipListIterator* iter = tSkipListCreateIter(pSuperTable->pIndex);
-  while (tSkipListIterNext(iter)) {
-    SSkipListNode* pNode = tSkipListIterGet(iter);
+  STSchema* pTagSchema = tsdbGetTableTagSchema(pSuperTable);
+  if(pTagSchema->numOfCols == 1 && pTagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+    SArray* pRecord = taosHashIterate(pSuperTable->jsonKeyMap, NULL);
+    SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
 
-    STable* pTable = (STable*) SL_GET_NODE_DATA((SSkipListNode*) pNode);
+    while(pRecord){
+      for (int i = 0; i < taosArrayGetSize(pRecord); ++i) {
+        void* p = taosArrayGet(pRecord, i);
+        void* pFind = taosArraySearch(tablist, p, tscCompareJsonMapValue, TD_EQ);
+        if(pFind == NULL){
+          taosArrayPush(tablist, p);
+        }
+      }
+      pRecord = taosHashIterate(pSuperTable->jsonKeyMap, pRecord);
+    }
+    for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
+      JsonMapValue* p = taosArrayGet(pRecord, i);
+      STableKeyInfo info = {.pTable = p->table, .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(list, &info);
+    }
+    taosArrayDestroy(tablist);
+  }else{
+    SSkipListIterator* iter = tSkipListCreateIter(pSuperTable->pIndex);
+    while (tSkipListIterNext(iter)) {
+      SSkipListNode* pNode = tSkipListIterGet(iter);
 
-    STableKeyInfo info = {.pTable = pTable, .lastKey = TSKEY_INITIAL_VAL};
-    taosArrayPush(list, &info);
+      STable* pTable = (STable*) SL_GET_NODE_DATA((SSkipListNode*) pNode);
+
+      STableKeyInfo info = {.pTable = pTable, .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(list, &info);
+    }
+
+    tSkipListDestroyIter(iter);
   }
-
-  tSkipListDestroyIter(iter);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3626,6 +3649,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
 int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len, 
                                  STableGroupInfo* pGroupInfo, SColIndex* pColIndex, int32_t numOfCols) {
+  SArray* res = NULL;
   if (tsdbRLockRepoMeta(tsdb) < 0) goto _error;
 
   STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
@@ -3647,7 +3671,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   }
 
   //NOTE: not add ref count for super table
-  SArray* res = taosArrayInit(8, sizeof(STableKeyInfo));
+  res = taosArrayInit(8, sizeof(STableKeyInfo));
   STSchema* pTagSchema = tsdbGetTableTagSchema(pTable);
 
   // no tags and tbname condition, all child tables of this stable are involved
@@ -3711,6 +3735,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   return ret;
 
   _error:
+  taosArrayDestroy(res);
   return terrno;
 }
 

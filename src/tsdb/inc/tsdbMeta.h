@@ -20,7 +20,7 @@
 
 #pragma  pack (push,1)
 typedef struct jsonMapValue{
-  uint64_t uid;     // the unique table ID
+  void* table;      // STable *
   int16_t  colId;   // the json col ID.
 }JsonMapValue;
 
@@ -97,6 +97,7 @@ int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
 int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 STSchema*  tsdbGetTableLatestSchema(STable *pTable);
 void       tsdbFreeLastColumns(STable* pTable);
+int        tscCompareJsonMapValue(const void* a, const void* b);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {

@@ -1083,11 +1083,11 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   tsdbUnRefTable(pTable);
 }
 
-static int tscCompareJsonMapValue(const void* a, const void* b) {
+int tscCompareJsonMapValue(const void* a, const void* b) {
   const JsonMapValue* x = (const JsonMapValue*)a;
   const JsonMapValue* y = (const JsonMapValue*)b;
-  if (x->uid > y->uid) return 1;
-  if (x->uid < y->uid) return -1;
+  if (x->table > y->table) return 1;
+  if (x->table < y->table) return -1;
   return 0;
 }
 
@@ -1127,9 +1127,13 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         }
         tablist = tablistNew;
       }
-      JsonMapValue jmvalue = {TABLE_UID(pTable), pColIdx->colId};
-      taosArrayPush(tablist, &jmvalue);
-      taosArraySort(tablist, tscCompareJsonMapValue);
+      JsonMapValue jmvalue = {pTable, pColIdx->colId};
+      void* p = taosArraySearch(tablist, &jmvalue, tscCompareJsonMapValue, TD_EQ);
+      if (p == NULL) {
+        taosArrayPush(tablist, &jmvalue);
+      }else{
+        taosArrayInsert(tablist, TARRAY_ELEM_IDX((SArray*)tablist, p), &jmvalue);
+      }
     }
   }else{
     tSkipListPut(pSTable->pIndex, (void *)pTable);
@@ -1165,7 +1169,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
         continue;
       }
 
-      JsonMapValue jmvalue = {TABLE_UID(pTable), pColIdx->colId};
+      JsonMapValue jmvalue = {pTable, pColIdx->colId};
       void* p = taosArraySearch(tablist, &jmvalue, tscCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
         tsdbError("json tag no tableid error,%d", j);
