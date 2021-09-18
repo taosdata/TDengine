@@ -2693,7 +2693,7 @@ static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
       pRecord = taosHashIterate(pSuperTable->jsonKeyMap, pRecord);
     }
     for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
-      JsonMapValue* p = taosArrayGet(pRecord, i);
+      JsonMapValue* p = taosArrayGet(tablist, i);
       STableKeyInfo info = {.pTable = p->table, .lastKey = TSKEY_INITIAL_VAL};
       taosArrayPush(list, &info);
     }
