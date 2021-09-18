@@ -237,7 +237,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (isSuperTable) {
     if (functionId < 0) {
-      if (pUdfInfo->bufSize > 0) {
+      if (pUdfInfo->bufSize > 0 && pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
         *type = TSDB_DATA_TYPE_BINARY;
         *bytes = pUdfInfo->bufSize;
         *interBytes = *bytes;
