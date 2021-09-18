@@ -15,7 +15,7 @@ TDengine 的模块之一是时序数据库。但除此之外，为减少研发�
 
 采用 TDengine，可将典型的物联网、车联网、工业互联网大数据平台的总拥有成本大幅降低。但需要指出的是，因充分利用了物联网时序数据的特点，它无法用来处理网络爬虫、微博、微信、电商、ERP、CRM 等通用型数据。
 
-![TDengine技术生态图](page://images/eco_system.png)
+![TDengine技术生态图](../images/eco_system.png)
 <center>图 1. TDengine技术生态图</center>
 
 

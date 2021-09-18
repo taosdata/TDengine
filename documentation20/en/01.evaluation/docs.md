@@ -15,7 +15,7 @@ One of the modules of TDengine is the time-series database. However, in addition
 
 With TDengine, the total cost of ownership of typical IoT, Internet of Vehicles, and Industrial Internet Big Data platforms can be greatly reduced. However, since it makes full use of the characteristics of IoT time-series data, TDengine cannot be used to process general data from web crawlers, microblogs, WeChat, e-commerce, ERP, CRM, and other sources.
 
-![TDengine Technology Ecosystem](page://images/eco_system.png)
+![TDengine Technology Ecosystem](../images/eco_system.png)
 
 <center>Figure 1. TDengine Technology Ecosystem</center>
 
