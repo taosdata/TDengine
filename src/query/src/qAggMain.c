@@ -4651,7 +4651,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
 
       ++notNullElems;
       pCtx->pOutput += pCtx->outputBytes;
-      pCtx->ptsOutputBuf++;
+      pTimestamp++;
     }
 
     ++mavgInfo->pos;
