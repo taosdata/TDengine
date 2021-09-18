@@ -404,6 +404,8 @@ python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
 python3 ./test.py -f query/queryGroupTbname.py
 python3 ./test.py -f insert/verifyMemToDiskCrash.py
+
+python3 ./test.py -f client/setconfig.py
 #======================p4-end===============
 
 
