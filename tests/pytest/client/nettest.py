@@ -24,7 +24,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
     def run(self):
-        subprocess.call("./client/TCPUDP.sh",shell=True)
+        subprocess.call("./client/nettest.sh",shell=True)
         
 
     def stop(self):

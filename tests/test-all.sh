@@ -532,7 +532,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo "demo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
-  
+
   if [ "$totalExamplePass" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalExamplePass examples succeed! ### ${NC}"
   fi
