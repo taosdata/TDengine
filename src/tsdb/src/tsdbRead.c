@@ -2678,12 +2678,13 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
   STSchema* pTagSchema = tsdbGetTableTagSchema(pSuperTable);
   if(pTagSchema->numOfCols == 1 && pTagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
-    SArray* pRecord = taosHashIterate(pSuperTable->jsonKeyMap, NULL);
+    SArray** pRecord = taosHashIterate(pSuperTable->jsonKeyMap, NULL);
     SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
 
     while(pRecord){
-      for (int i = 0; i < taosArrayGetSize(pRecord); ++i) {
-        void* p = taosArrayGet(pRecord, i);
+      SArray* tallistOld = *pRecord;
+      for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {
+        void* p = taosArrayGet(tallistOld, i);
         void* pFind = taosArraySearch(tablist, p, tscCompareJsonMapValue, TD_EQ);
         if(pFind == NULL){
           taosArrayPush(tablist, p);
