@@ -1137,7 +1137,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
     sql = sToken.z;
 
-    if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
+    if (tscValidateName(&tableToken, true) != TSDB_CODE_SUCCESS) {
       return tscInvalidOperationMsg(pInsertParam->msg, "invalid table name", *sqlstr);
     }
 
@@ -1178,7 +1178,7 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
   psTblToken->type = TK_ID;
   tGetToken(psTblToken->z, &psTblToken->type);
 
-  return tscValidateName(psTblToken);
+  return tscValidateName(psTblToken, true);
 }
 
 static int32_t validateDataSource(SInsertStatementParam *pInsertParam, int32_t type, const char *sql) {

@@ -240,7 +240,7 @@ void tscColumnListCopyAll(SArray* dst, const SArray* src);
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
-int32_t tscValidateName(SStrToken* pToken);
+int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled);
 
 void tscIncStreamExecutionCount(void* pStream);
 

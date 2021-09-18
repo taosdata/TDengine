@@ -229,6 +229,7 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
+    {"ESCAPE",       TK_ESCAPE}
 };
 
 static const char isIdChar[] = {
@@ -438,6 +439,17 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (strEnd) {
         *tokenId = TK_STRING;
         return i;
+      }
+
+      break;
+    }
+    case '`': {
+      for (i = 1; z[i]; i++) {
+        if (z[i] == '`') {
+          i++;
+          *tokenId = TK_ESCAPE;
+          return i;
+        }
       }
 
       break;

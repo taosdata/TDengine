@@ -559,7 +559,7 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     SStrToken tableToken = {.z = tableNameLowerCase, .n = (uint32_t)strlen(tableNameLowerCase), .type = TK_ID};
     tGetToken(tableNameLowerCase, &tableToken.type);
     // Check if the table name available or not
-    if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
+    if (tscValidateName(&tableToken, true) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pSql->cmd.payload, "table name is invalid");
       tscFreeRegisteredSqlObj(pSql);

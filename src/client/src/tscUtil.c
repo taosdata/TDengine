@@ -2788,9 +2788,55 @@ void tscDequoteAndTrimToken(SStrToken* pToken) {
   pToken->n = last - first;
 }
 
-int32_t tscValidateName(SStrToken* pToken) {
-  if (pToken == NULL || pToken->z == NULL ||
-  (pToken->type != TK_STRING && pToken->type != TK_ID)) {
+void tscRmEscapeAndTrimToken(SStrToken* pToken) {
+  uint32_t first = 0, last = pToken->n;
+
+  // trim leading spaces
+  while (first < last) {
+    char c = pToken->z[first];
+    if (c != ' ' && c != '\t') {
+      break;
+    }
+    first++;
+  }
+
+  // trim ending spaces
+  while (first < last) {
+    char c = pToken->z[last - 1];
+    if (c != ' ' && c != '\t') {
+      break;
+    }
+    last--;
+  }
+
+  // there are still at least two characters
+  if (first < last - 1) {
+    char c = pToken->z[first];
+    // dequote
+    if ((c == '`') && c == pToken->z[last - 1]) {
+      first++;
+      last--;
+    }
+  }
+
+  // left shift the string and pad spaces
+  for (uint32_t i = 0; i + first < last; i++) {
+    pToken->z[i] = pToken->z[first + i];
+  }
+  for (uint32_t i = last - first; i < pToken->n; i++) {
+    pToken->z[i] = ' ';
+  }
+
+  // adjust token length
+  pToken->n = last - first;
+}
+
+
+
+int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled) {
+  if (pToken == NULL || pToken->z == NULL 
+     || (escapeEnabled && pToken->type != TK_STRING && pToken->type != TK_ID && pToken->type != TK_ESCAPE)
+     || ((!escapeEnabled) && pToken->type != TK_STRING && pToken->type != TK_ID)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
@@ -2815,6 +2861,9 @@ int32_t tscValidateName(SStrToken* pToken) {
 
         return tscValidateName(pToken);
       }
+    } else if (escapeEnabled && pToken->type == TK_ESCAPE) {
+      tscRmEscapeAndTrimToken(pToken);
+      return TSDB_CODE_SUCCESS;
     } else {
       if (isNumber(pToken)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -2846,13 +2895,20 @@ int32_t tscValidateName(SStrToken* pToken) {
     pToken->z = sep + 1;
     pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
     int32_t len = tGetToken(pToken->z, &pToken->type);
-    if (len != pToken->n || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
+    if (len != pToken->n || (escapeEnabled && pToken->type != TK_STRING && pToken->type != TK_ID && pToken->type != TK_ESCAPE)
+       || ((!escapeEnabled) && pToken->type != TK_STRING && pToken->type != TK_ID)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
+
+    if (escapeEnabled && pToken->type == TK_ESCAPE) {
+      tscRmEscapeAndTrimToken(pToken);
+    }
+
+    xxxxxxxtolower
 
     // re-build the whole name string
     if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
@@ -4981,7 +5037,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   tGetToken(tablename, &sToken.type);
 
   // Check if the table name available or not
-  if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(&sToken, true) != TSDB_CODE_SUCCESS) {
     sprintf(pCmd->payload, "table name is invalid");
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
