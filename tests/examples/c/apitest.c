@@ -1090,9 +1090,10 @@ void verify_telnet_insert(TAOS* taos) {
   //bigint
   char* lines2_3[] = {
       "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
-      "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
+      "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\"",
+      "stb2_3 1626006833662ms 9223372036854775807 host=\"host0\""
   };
-  code = taos_insert_telnet_lines(taos, lines2_3, 2);
+  code = taos_insert_telnet_lines(taos, lines2_3, 3);
   if (code) {
     printf("lines2_3 code: %d, %s.\n", code, tstrerror(code));
   }
@@ -1107,11 +1108,10 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_4 1626006833660ms -3.4e10f32 host=\"host0\"",
       "stb2_4 1626006833670ms 3.4E+2f32 host=\"host0\"",
       "stb2_4 1626006833680ms -3.4e-2f32 host=\"host0\"",
-      "stb2_4 1626006833690ms 3.15 host=\"host0\"",
       "stb2_4 1626006833700ms 3.4E38f32 host=\"host0\"",
       "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
   };
-  code = taos_insert_telnet_lines(taos, lines2_4, 11);
+  code = taos_insert_telnet_lines(taos, lines2_4, 10);
   if (code) {
     printf("lines2_4 code: %d, %s.\n", code, tstrerror(code));
   }
@@ -1127,9 +1127,10 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_5 1626006833670ms 3.4E+2f64 host=\"host0\"",
       "stb2_5 1626006833680ms -3.4e-2f64 host=\"host0\"",
       "stb2_5 1626006833690ms 1.7E308f64 host=\"host0\"",
-      "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\""
+      "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\"",
+      "stb2_5 1626006833710ms 3.15 host=\"host0\""
   };
-  code = taos_insert_telnet_lines(taos, lines2_5, 10);
+  code = taos_insert_telnet_lines(taos, lines2_5, 11);
   if (code) {
     printf("lines2_5 code: %d, %s.\n", code, tstrerror(code));
   }
@@ -1166,7 +1167,7 @@ void verify_telnet_insert(TAOS* taos) {
   //nchar
   char* lines2_8[] = {
       "stb2_8 1626006833610ms L\"nchar_val数值一\" host=\"host0\"",
-      "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\"",
+      "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\""
   };
   code = taos_insert_telnet_lines(taos, lines2_8, 2);
   if (code) {
