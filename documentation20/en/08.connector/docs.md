@@ -413,11 +413,11 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 
 Users can find the connector package for python2 and python3 in the source code src/connector/python (or tar.gz/connector/python) folder. Users can install it through `pip` command:
 
-`pip install src/connector/python/linux/python2/`
+`pip install src/connector/python/`
 
 or
 
- `pip3 install src/connector/python/linux/python3/`
+ `pip3 install src/connector/python/`
 
 #### Windows
 
