@@ -892,10 +892,12 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
     case TSDB_DATA_TYPE_JSON: {
       if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
-      } else if (pVariant->nType != TSDB_DATA_TYPE_BINARY){
-        return -1;
-      } else {
+      } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY){
         *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
+      } else if (pVariant->nType == TSDB_DATA_TYPE_JSON){   // select * from stable, set tag type to json
+        memcpy(payload, pVariant->pz, pVariant->nLen);
+      } else {
+        return -1;
       }
       break;
     }
