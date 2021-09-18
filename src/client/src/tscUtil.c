@@ -5203,7 +5203,7 @@ char* parseTagDatatoJson(void *p){
     }else{  // json value
       char tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
       if(*(char*)val == cJSON_String){
-        int32_t length = taosUcs4ToMbs(varDataVal(val + CHAR_BYTES), varDataLen(val + CHAR_BYTES), tagJsonValue);
+        int32_t length = taosUcs4ToMbs(varDataVal(POINTER_SHIFT(val,CHAR_BYTES)), varDataLen(POINTER_SHIFT(val,CHAR_BYTES)), tagJsonValue);
         if (length == 0) {
           tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)val);
           goto end;
@@ -5215,7 +5215,7 @@ char* parseTagDatatoJson(void *p){
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(*(char*)val == cJSON_Number){
-        double jsonVd = *(double*)(val + CHAR_BYTES);
+        double jsonVd = *(double*)(POINTER_SHIFT(val,CHAR_BYTES));
         cJSON* value = cJSON_CreateNumber(jsonVd);
         if (value == NULL)
         {

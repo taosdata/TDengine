@@ -212,7 +212,7 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
 
   char *val = NULL;
   if (type == TSDB_DATA_TYPE_JSON){
-    val = kvRowValues(((STable*)pTable)->tagVal);
+    val = ((STable*)pTable)->tagVal;
   }else{
     val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
   }
