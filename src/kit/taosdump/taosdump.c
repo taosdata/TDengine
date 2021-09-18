@@ -698,6 +698,10 @@ static void parse_args(
                 exit(EXIT_FAILURE);
             }
             g_args.databases = true;
+        } else if (0 == strncmp(argv[i], "--version", strlen("--version")) || 
+            0 == strncmp(argv[i], "-V", strlen("-V"))) {
+                printVersion();
+                exit(EXIT_SUCCESS);
         } else {
             continue;
         }
