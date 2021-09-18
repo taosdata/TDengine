@@ -266,7 +266,7 @@ If a database has N replicas, thus a virtual node group has N virtual nodes, but
 
 Master Vnode uses a writing process as follows:
 
-![TDengine Master Writing Process](page://images/architecture/write_master.png)
+![TDengine Master Writing Process](../images/architecture/write_master.png)
 <center> Figure 3: TDengine Master writing process </center>
 
 1. Master vnode receives the application data insertion request, verifies, and moves to next step;
