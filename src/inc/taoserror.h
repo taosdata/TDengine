@@ -110,7 +110,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_DUP_TAG_NAMES             TAOS_DEF_ERROR_CODE(0, 0x0220)  //"duplicated tag names")
 #define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid JSON format")
 #define TSDB_CODE_TSC_INVALID_JSON_TYPE         TAOS_DEF_ERROR_CODE(0, 0x0222)  //"Invalid JSON data type")
-#define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Value out of range")
+#define TSDB_CODE_TSC_INVALID_JSON_CONFIG       TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Invalid JSON configuration")
+#define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0224)  //"Value out of range")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
