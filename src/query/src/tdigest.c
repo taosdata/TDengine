@@ -303,8 +303,8 @@ double tdigestQuantile(TDigest *t, double q) {
 
 void tdigestMerge(TDigest *t1, TDigest *t2) {
     // SPoints
-    int32_t num_SPoints = t2->num_buffered_pts;
-    for(int32_t i = num_SPoints - 1; i >= 0; i--) {
+    int32_t num_pts = t2->num_buffered_pts;
+    for(int32_t i = num_pts - 1; i >= 0; i--) {
         SPt* p = t2->buffered_pts + i;
         tdigestAdd(t1, p->value, p->weight);
         t2->num_buffered_pts --;
