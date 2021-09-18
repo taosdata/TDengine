@@ -218,14 +218,15 @@ class TDTestCase:
         't1.q_float >= -100000 and t1.q_float <= 100000 and t2.q_float >= -100000 and t2.q_float <= 100000',
         't1.q_double >= -1000000000 and t1.q_double <= 1000000000 and t2.q_double >= -1000000000 and t2.q_double <= 1000000000', 
         't1.q_binary like \'binary%\'  and t2.q_binary like \'binary%\'  ' , 
-        't1.q_nchar like \'nchar%\' and t2.q_nchar like \'nchar%\' ' , 't1.q_bool = true and  t1.q_bool = false and t2.q_bool = true and  t2.q_bool = false' , 
-        't1.q_bool in (0 , 1) and t2.q_bool in (0 , 1)' , 't1.q_bool in ( true , false) and t2.q_bool in ( true , false)' , 't1.q_bool = 0 and t1.q_bool = 1 and t2.q_bool = 0 and t2.q_bool = 1' ,
+        't1.q_nchar like \'nchar%\' and t2.q_nchar like \'nchar%\' ' , 
+        't1.q_bool in (0 , 1) and t2.q_bool in (0 , 1)' , 't1.q_bool in ( true , false) and t2.q_bool in ( true , false)' , 
         't1.q_bigint between  -9223372036854775807 and 9223372036854775807 and t2.q_bigint between  -9223372036854775807 and 9223372036854775807',
         't1.q_int between -2147483647 and 2147483647 and t2.q_int between -2147483647 and 2147483647',
         't1.q_smallint between -32767 and 32767 and t2.q_smallint between -32767 and 32767', 
         't1.q_tinyint between -127 and 127 and t2.q_tinyint between -127 and 127 ','t1.q_float between -100000 and 100000 and t2.q_float between -100000 and 100000',
         't1.q_double between -1000000000 and 1000000000 and t2.q_double between -1000000000 and 1000000000']
         #TD-6201 ,'t1.q_bool between 0 and 1 or t2.q_bool between 0 and 1']
+        #'t1.q_bool = true and  t1.q_bool = false and t2.q_bool = true and  t2.q_bool = false' , 't1.q_bool = 0 and t1.q_bool = 1 and t2.q_bool = 0 and t2.q_bool = 1' ,
 
         q_u_or_where = ['t1.q_binary like \'binary%\'  or t1.q_binary = \'0\'  or t2.q_binary like \'binary%\'  or t2.q_binary = \'0\' ' , 
         't1.q_nchar like \'nchar%\' or t1.q_nchar = \'0\' or t2.q_nchar like \'nchar%\' or t2.q_nchar = \'0\' ' , 't1.q_bool = true or  t1.q_bool = false or t2.q_bool = true or  t2.q_bool = false' , 
