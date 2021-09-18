@@ -384,6 +384,33 @@ struct arguments g_args = {
         0,      // dbCount
 };
 
+// get taosdump commit number version
+#ifndef TAOSDUMP_COMMIT_SHA1
+#define TAOSDUMP_COMMIT_SHA1 "unknown"
+#endif
+
+#ifndef TD_VERNUMBER
+#define TD_VERNUMBER "unknown"
+#endif
+
+#ifndef TAOSDUMP_STATUS
+#define TAOSDUMP_STATUS "unknown"
+#endif
+
+static void printVersion() {
+    char tdengine_ver[] = TD_VERNUMBER;
+    char taosdump_ver[] = TAOSDUMP_COMMIT_SHA1;
+    char taosdump_status[] = TAOSDUMP_STATUS;
+
+    if (strlen(taosdump_status) == 0) {
+        printf("taosdump version %s-%s\n",
+                tdengine_ver, taosdump_ver);
+    } else {
+        printf("taosdump version %s-%s, status:%s\n",
+                tdengine_ver, taosdump_ver, taosdump_status);
+    }
+}
+
 UNUSED_FUNC void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
 {
     fprintf(stderr, "%s %s: %s is an invalid value\n", program, wrong_arg, wrong_value);
