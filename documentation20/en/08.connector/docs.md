@@ -2,7 +2,7 @@
 
 TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.
 
-![image-connector](page://images/connector.png)
+![image-connector](../images/connector.png)
 
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
