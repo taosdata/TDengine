@@ -8153,7 +8153,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
 }
 
 #if STMT_BIND_PARAM_BATCH == 1
-static int execBindParamBatch(
+static int execStbBindParamBatch(
         threadInfo *pThreadInfo,
         char *tableName,
         int64_t tableSeq,
@@ -8167,7 +8167,9 @@ static int execBindParamBatch(
     TAOS_STMT *stmt = pThreadInfo->stmt;
 
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    uint32_t columnCount = (stbInfo)?pThreadInfo->stbInfo->columnCount:g_args.columnCount;
+    assert(stbInfo);
+
+    uint32_t columnCount = pThreadInfo->stbInfo->columnCount;
 
     uint32_t thisBatch = MAX_SAMPLES - (*pSamplePos);
 
@@ -8192,29 +8194,39 @@ static int execBindParamBatch(
             param->buffer = pThreadInfo->bind_ts_array;
 
         } else {
-            data_type = (stbInfo)?stbInfo->columns[c-1].data_type:g_args.data_type[c-1];
+            data_type = stbInfo->columns[c-1].data_type;
 
             char *tmpP;
 
             switch(data_type) {
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_NCHAR:
                     param->buffer_length =
-                        ((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth);
+                        stbInfo->columns[c-1].dataLen;
 
                     tmpP =
                         (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
                                     +sizeof(char*)*(c-1)));
 
-                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%d position=%"PRId64"\n",
-                            __func__, __LINE__, tmpP, *pSamplePos,
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth)),
-                            (*pSamplePos) *
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth)));
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
 
-                    param->buffer = (void *)(tmpP + *pSamplePos *
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth))
-                            );
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
+                    break;
+
+                case TSDB_DATA_TYPE_NCHAR:
+                    param->buffer_length =
+                        stbInfo->columns[c-1].dataLen;
+
+                    tmpP =
+                        (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
+                                    +sizeof(char*)*(c-1)));
+
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
+
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
                     break;
 
                 case TSDB_DATA_TYPE_INT:
@@ -8869,7 +8881,7 @@ static int32_t prepareStbStmt(
     }
 
 #if STMT_BIND_PARAM_BATCH == 1
-    return execBindParamBatch(
+    return execStbBindParamBatch(
         pThreadInfo,
         tableName,
         tableSeq,
