@@ -325,14 +325,6 @@ static void* exception_calloc(size_t nmemb, size_t size) {
   return p;
 }
 
-static void* exception_malloc(size_t size) {
-  void* p = malloc(size);
-  if (p == NULL) {
-    THROW(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-  return p;
-}
-
 static UNUSED_FUNC char* exception_strdup(const char* str) {
   char* p = strdup(str);
   if (p == NULL) {
@@ -393,88 +385,6 @@ tExprNode* exprTreeFromBinary(const void* data, size_t size) {
 
   SBufferReader br = tbufInitReader(data, size, false);
   return exprTreeFromBinaryImpl(&br);
-}
-
-tExprNode* exprTreeFromTableName(const char* tbnameCond) {
-  if (!tbnameCond) {
-    return NULL;
-  }
-
-  int32_t anchor = CLEANUP_GET_ANCHOR();
-
-  tExprNode* expr = exception_calloc(1, sizeof(tExprNode));
-  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, expr, NULL);
-
-  expr->nodeType = TSQL_NODE_EXPR;
-
-  tExprNode* left = exception_calloc(1, sizeof(tExprNode));
-  expr->_node.pLeft = left;
-
-  left->nodeType = TSQL_NODE_COL;
-  SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
-  left->pSchema = pSchema;
-
-  *pSchema = *tGetTbnameColumnSchema();
-
-  tExprNode* right = exception_calloc(1, sizeof(tExprNode));
-  expr->_node.pRight = right;
-
-  if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
-    expr->_node.optr = TSDB_RELATION_LIKE;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
-    right->pVal = pVal;
-    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
-    pVal->pz = exception_malloc(len);
-    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN, len);
-    pVal->nType = TSDB_DATA_TYPE_BINARY;
-    pVal->nLen = (int32_t)len;
-
-  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
-    expr->_node.optr = TSDB_RELATION_MATCH;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
-    right->pVal = pVal;
-    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_MATCH_LEN) + 1;
-    pVal->pz = exception_malloc(len);
-    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_MATCH_LEN, len);
-    pVal->nType = TSDB_DATA_TYPE_BINARY;
-    pVal->nLen = (int32_t)len;
-
-  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
-    expr->_node.optr = TSDB_RELATION_IN;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
-    right->pVal = pVal;
-    pVal->nType = TSDB_DATA_TYPE_POINTER_ARRAY;
-    pVal->arr = taosArrayInit(2, POINTER_BYTES);
-
-    const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;
-    for (const char *e = cond; *e != 0; e++) {
-      if (*e == TS_PATH_DELIMITER[0]) {
-        cond = e + 1;
-      } else if (*e == ',') {
-        size_t len = e - cond;
-        char* p = exception_malloc(len + VARSTR_HEADER_SIZE);
-        STR_WITH_SIZE_TO_VARSTR(p, cond, (VarDataLenT)len);
-        cond += len;
-        taosArrayPush(pVal->arr, &p);
-      }
-    }
-
-    if (*cond != 0) {
-      size_t len = strlen(cond) + VARSTR_HEADER_SIZE;
-      
-      char* p = exception_malloc(len);
-      STR_WITH_SIZE_TO_VARSTR(p, cond, (VarDataLenT)(len - VARSTR_HEADER_SIZE));
-      taosArrayPush(pVal->arr, &p);
-    }
-
-    taosArraySortString(pVal->arr, taosArrayCompareString);
-  }
-
-  CLEANUP_EXECUTE_TO(anchor, false);
-  return expr;
 }
 
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
