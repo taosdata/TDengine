@@ -405,7 +405,6 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {
 
   if (pContext->session == NULL) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_SESSION_FULL);
-    httpCloseContextByApp(pContext);
   } else {
     httpExecCmd(pContext);
   }

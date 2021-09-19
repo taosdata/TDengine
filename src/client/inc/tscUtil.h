@@ -285,7 +285,7 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
-void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
+
 /**
  * The create object function must be successful expect for the out of memory issue.
  *

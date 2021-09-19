@@ -29,7 +29,9 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1600000000000
+        os.system("rm -rf query/nestedQuery/nestedQuery.py.sql")
+        now = time.time()
+        self.ts = int(round(now * 1000))
         self.num = 10
         self.fornum = 20
 
@@ -464,8 +466,7 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
-            #tdSql.error(sql)
-            tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
+            #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
             tdSql.checkRows(6*self.num)
             
 
@@ -533,7 +534,7 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
-            tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
+            #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
             tdSql.checkRows(6*self.num)
 
         #2 select column from (select * form regular_table ) where <\>\in\and\or order by        
@@ -550,7 +551,7 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
-            tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
+            #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
             tdSql.checkRows(6*self.num)
 
         #join: select column from (select column form regular_table1，regular_table2 )where  t1.ts=t2.ts and <\>\in\and\or order by
@@ -587,7 +588,7 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
-            tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
+            #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
             tdSql.checkRows(6*self.num)
 
         # select ts,* from (select column\tag form stable1,stable2  where t1.ts = t2.ts and <\>\in\and\or order by )        
@@ -686,7 +687,7 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)
-            tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
+            #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
             tdSql.checkRows(6*self.num)
 
         #5 select distinct column\tag from (select * form stable  where <\>\in\and\or order by limit offset )
