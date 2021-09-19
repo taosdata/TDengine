@@ -262,6 +262,8 @@ static struct argp_option options[] = {
     {0}
 };
 
+#define HUMAN_TIME_LEN      28
+
 /* Used by main to communicate with parse_opt. */
 typedef struct arguments {
     // connection option
@@ -285,9 +287,9 @@ typedef struct arguments {
     bool     with_property;
     bool     avro;
     int64_t  start_time;
-    char     humanStartTime[28];
+    char     humanStartTime[HUMAN_TIME_LEN];
     int64_t  end_time;
-    char     humanEndTime[28];
+    char     humanEndTime[HUMAN_TIME_LEN];
     char     precision[8];
 
     int32_t  data_batch;
@@ -681,9 +683,9 @@ static void parse_args(
 static void copyHumanTimeToArg(char *timeStr, bool isStartTime)
 {
     if (isStartTime)
-        strcpy(g_args.humanStartTime, timeStr);
+        tstrncpy(g_args.humanStartTime, timeStr, HUMAN_TIME_LEN);
     else
-        strcpy(g_args.humanEndTime, timeStr);
+        tstrncpy(g_args.humanEndTime, timeStr, HUMAN_TIME_LEN);
 }
 
 static void copyTimestampToArg(char *timeStr, bool isStartTime)
@@ -719,6 +721,8 @@ static void parse_timestamp(
             } else {
                 copyTimestampToArg(tmp, isStartTime);
             }
+
+            free(tmp);
         }
     }
 }
@@ -1205,6 +1209,7 @@ static int inDatabasesSeq(
             dbname = strsep(&running, ",");
         }
 
+        free(dupSeq);
     }
 
     return -1;
@@ -1295,6 +1300,7 @@ static int taosDumpOut() {
     g_args.dbCount = getDbCount();
 
     if (0 == g_args.dbCount) {
+        fclose(fp);
         errorPrint("%d databases valid to dump\n", g_args.dbCount);
         return -1;
     }
