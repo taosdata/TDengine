@@ -4608,7 +4608,7 @@ static bool mavg_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   mavgInfo->pos = 0;
   mavgInfo->sum = 0;
   mavgInfo->numPointsK = (int32_t)pCtx->param[0].i64;
-  mavgInfo->points = (double*)((char*)mavgInfo + sizeof(mavgInfo));
+  mavgInfo->points = (double*)((char*)mavgInfo + sizeof(SMovingAvgInfo));
   return true;
 }
 
@@ -4621,6 +4621,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
   int32_t i = (pCtx->order = TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
 
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  char* pOutput = pCtx->pOutput;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
   for (; i < pCtx->size && i >= 0; i += step) {
@@ -4647,10 +4648,10 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
       mavgInfo->points[pos] = v;
 
       *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-      SET_DOUBLE_VAL(pCtx->pOutput, mavgInfo->sum / mavgInfo->numPointsK)
+      SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPointsK)
 
       ++notNullElems;
-      pCtx->pOutput += pCtx->outputBytes;
+      pOutput += pCtx->outputBytes;
       pTimestamp++;
     }
 
@@ -4700,12 +4701,13 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
   SSampleFuncInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
 
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  char* pOutput = pCtx->pOutput;
   for (int32_t i = 0; i < pRes->numSampled; ++i) {
-    char* output = pCtx->pOutput;
-    tVariantDump(pRes->values + i, (char*)output, type, true);
+
+    tVariantDump(pRes->values + i, (char*)pOutput, type, true);
     *pTimestamp = *(pRes->timeStamps + i);
 
-    pCtx->pOutput += pCtx->outputBytes;
+    pOutput += pCtx->outputBytes;
     pTimestamp++;
   }
 
