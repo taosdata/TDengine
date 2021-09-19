@@ -8207,7 +8207,7 @@ static int execStbBindParamBatch(
                         (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
                                     +sizeof(char*)*(c-1)));
 
-                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRId64" position=%"PRId64"\n",
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
                             __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
                             (*pSamplePos) * param->buffer_length);
 
@@ -8222,7 +8222,7 @@ static int execStbBindParamBatch(
                         (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
                                     +sizeof(char*)*(c-1)));
 
-                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRId64" position=%"PRId64"\n",
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
                             __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
                             (*pSamplePos) * param->buffer_length);
 
