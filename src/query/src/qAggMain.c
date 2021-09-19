@@ -4771,6 +4771,7 @@ static void sample_func_finalizer(SQLFunctionCtx *pCtx) {
     assert(pResInfo->hasResult != DATA_SET_FLAG);
   }
 
+  pResInfo->numOfRes = pRes->numSampled;
   GET_TRUE_DATA_TYPE();
   copySampleFuncRes(pCtx, type);
 
