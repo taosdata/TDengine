@@ -4678,7 +4678,7 @@ static void assignResultSample(SSampleFuncInfo *pInfo, int32_t index, int64_t ts
     tVariantCreateFromBinary(pInfo->values + index, pData, bytes, type);
   }
 
-  *(pInfo->timeStamps + pInfo->numSampled) = ts;
+  *(pInfo->timeStamps + index) = ts;
   return;
 }
 
@@ -4691,7 +4691,6 @@ static void do_reservoir_sample(SSampleFuncInfo *pInfo, int32_t samplesK, int64_
     int32_t j = rand() % (pInfo->totalPoints);
     if (j < samplesK) {
       assignResultSample(pInfo, j, ts, pData, bytes, type);
-      *(pInfo->timeStamps + j) = ts;
     }
   }
 }
