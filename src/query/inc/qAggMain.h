@@ -74,9 +74,7 @@ extern "C" {
 #define TSDB_FUNC_ROUND        35
 
 #define TSDB_FUNC_CSUM         36
-
 #define TSDB_FUNC_MAVG         37
-
 #define TSDB_FUNC_SAMPLE       38
 
 #define TSDB_FUNC_BLKINFO      39

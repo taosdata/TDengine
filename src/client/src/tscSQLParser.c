@@ -3343,7 +3343,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
     
     if ((functionId >= TSDB_FUNC_SUM && functionId <= TSDB_FUNC_TWA) ||
         (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_STDDEV_DST) ||
-        (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE)) {
+        (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE) ||
+        (functionId == TSDB_FUNC_SAMPLE)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
