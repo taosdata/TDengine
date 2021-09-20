@@ -4,7 +4,7 @@
 
 The taos-jdbcdriver is implemented in two forms: JDBC-JNI and JDBC-RESTful (supported from taos-jdbcdriver-2.0.18). JDBC-JNI is implemented by calling the local methods of libtaos.so (or taos.dll) on the client, while JDBC-RESTful encapsulates the RESTful interface implementation internally.
 
-![tdengine-connector](page://images/tdengine-jdbc-connector.png)
+![tdengine-connector](../../images/tdengine-jdbc-connector.png)
 
 The figure above shows the three ways Java applications can access the TDengine:
 
