@@ -931,9 +931,9 @@ static int getDumpDbCount()
 static int64_t dumpNormalTableWithoutStb(TAOS *taos, SDbInfo *dbInfo, char *ntbName)
 {
     int64_t count = 0;
+
     char tmpBuf[4096] = {0};
     FILE *fp = NULL;
-
 
     if (g_args.outpath[0] != 0) {
         sprintf(tmpBuf, "%s/%s.%s.sql",
@@ -957,33 +957,14 @@ static int64_t dumpNormalTableWithoutStb(TAOS *taos, SDbInfo *dbInfo, char *ntbN
     return count;
 }
 
-static int64_t dumpNormalTable(TAOS *taos, char *dbName, char *tbName,
+static int64_t dumpNormalTable(FILE *fp, TAOS *taos, char *dbName, char *tbName,
         char *stbName,
         int precision)
 {
     int64_t count = 0;
-    char tmpBuf[4096] = {0};
-    FILE *fp = NULL;
-
-    if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%s.sql",
-                g_args.outpath, dbName, tbName);
-    } else {
-        sprintf(tmpBuf, "%s.%s.sql",
-                dbName, tbName);
-    }
-
-    fp = fopen(tmpBuf, "w");
-    if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file %s\n",
-                __func__, __LINE__, tmpBuf);
-        return -1;
-    }
-
     count = taosDumpTable(tbName, stbName,
         fp, taos, dbName, precision);
 
-    fclose(fp);
     return count;
 }
 
@@ -994,16 +975,39 @@ static void *dumpNtbOfDb(void *arg) {
     debugPrint("dump table count = \t%"PRId64"\n",
             pThreadInfo->tablesOfDumpOut);
 
+    FILE *fp = NULL;
+    char tmpBuf[4096] = {0};
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%d.sql",
+                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
+    } else {
+        sprintf(tmpBuf, "%s.%d.sql",
+                pThreadInfo->dbName, pThreadInfo->threadIndex);
+    }
+
+    fp = fopen(tmpBuf, "w");
+
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return NULL;
+    }
+
     for (int64_t i = 0; i < pThreadInfo->tablesOfDumpOut; i++) {
         debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
                 pThreadInfo->threadIndex, i,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
-        dumpNormalTable(pThreadInfo->taos,
+        dumpNormalTable(fp,
+                pThreadInfo->taos,
                 pThreadInfo->dbName,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
                 pThreadInfo->precision);
     }
+
+    fclose(fp);
+
     return NULL;
 }
 
@@ -1028,19 +1032,40 @@ static void *dumpNormalTablesOfStb(void *arg) {
         return NULL;
     }
 
+    FILE *fp = NULL;
+    char tmpBuf[4096] = {0};
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%d.sql",
+                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
+    } else {
+        sprintf(tmpBuf, "%s.%d.sql",
+                pThreadInfo->dbName, pThreadInfo->threadIndex);
+    }
+
+    fp = fopen(tmpBuf, "w");
+
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return NULL;
+    }
+
     TAOS_ROW row = NULL;
     int64_t i = 0;
     while((row = taos_fetch_row(res)) != NULL) {
         debugPrint("[%d] sub table %"PRId64": name: %s\n",
                 pThreadInfo->threadIndex, i++, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
 
-        dumpNormalTable(pThreadInfo->taos,
+        dumpNormalTable(fp,
+                pThreadInfo->taos,
                 pThreadInfo->dbName,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
                 pThreadInfo->precision);
     }
 
+    fclose(fp);
     return NULL;
 }
 
