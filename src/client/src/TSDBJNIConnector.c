@@ -200,6 +200,64 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *e
   jniDebug("jni initialized successfully, config directory: %s", configDir);
 }
 
+JNIEXPORT jobject createTSDBException(JNIEnv *env, int code, char *msg) {
+  // find class
+  jclass exception_clazz = (*env)->FindClass(env, "com/taosdata/jdbc/TSDBException");
+  // find methods
+  jmethodID init_method = (*env)->GetMethodID(env, exception_clazz, "<init>", "()V");
+  jmethodID setCode_method = (*env)->GetMethodID(env, exception_clazz, "setCode", "(I)V");
+  jmethodID setMessage_method = (*env)->GetMethodID(env, exception_clazz, "setMessage", "(Ljava/lang/String;)V");
+  // new exception
+  jobject exception_obj = (*env)->NewObject(env, exception_clazz, init_method);
+  // set code
+  (*env)->CallVoidMethod(env, exception_obj, setCode_method, code);
+  // set message
+  jstring message = (*env)->NewStringUTF(env, msg);
+  (*env)->CallVoidMethod(env, exception_obj, setMessage_method, message);
+
+  return exception_obj;
+}
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    setConfigImp
+ * Signature: (Ljava/lang/String;)Lcom/taosdata/jdbc/TSDBException;
+ */
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfigImp(JNIEnv *env, jclass jobj,
+                                                                               jstring config) {
+  /*
+  if (config == NULL) {
+    jniDebug("config value is null");
+    return -1;
+  }
+
+  const char *cfg = (*env)->GetStringUTFChars(env, config, NULL);
+  if (!cfg) {
+    return -1;
+  }
+  return 0;
+  */
+
+  if (config == NULL) {
+    char *msg = "config value is null";
+    jniDebug("config value is null");
+    return createTSDBException(env, -1, msg);
+  }
+
+  const char *cfg = (*env)->GetStringUTFChars(env, config, NULL);
+  if (!cfg) {
+    char *msg = "config value is null";
+    jniDebug("config value is null");
+    return createTSDBException(env, -1, msg);
+  }
+
+  setConfRet result = taos_set_config(cfg);
+  int        code = result.retCode;
+  char *     msg = result.retMsg;
+
+  return createTSDBException(env, code, msg);
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv *env, jobject jobj, jint optionIndex,
                                                                           jstring optionValue) {
   if (optionValue == NULL) {

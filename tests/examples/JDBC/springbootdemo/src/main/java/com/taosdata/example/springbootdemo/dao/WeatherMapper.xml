@@ -9,20 +9,48 @@
         <result column="humidity" jdbcType="FLOAT" property="humidity"/>
     </resultMap>
 
+    <select id="lastOne" resultType="java.util.Map">
+        select last_row(*), location, groupid
+        from test.weather
+    </select>
+
     <update id="dropDB">
-        drop database if exists test
+        drop
+        database if exists test
     </update>
 
     <update id="createDB">
-        create database if not exists test
+        create
+        database if not exists test
     </update>
 
     <update id="createSuperTable">
-        create table if not exists test.weather(ts timestamp, temperature float, humidity float) tags(location nchar(64), groupId int)
+        create table if not exists test.weather
+        (
+            ts
+            timestamp,
+            temperature
+            float,
+            humidity
+            float,
+            note
+            binary
+        (
+            64
+        )) tags
+        (
+            location nchar
+        (
+            64
+        ), groupId int)
     </update>
 
     <update id="createTable" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        create table if not exists test.t#{groupId} using test.weather tags(#{location}, #{groupId})
+        create table if not exists test.t#{groupId} using test.weather tags
+        (
+            #{location},
+            #{groupId}
+        )
     </update>
 
     <select id="select" resultMap="BaseResultMap">
@@ -36,25 +64,29 @@
     </select>
 
     <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        insert into test.t#{groupId} (ts, temperature, humidity) values (#{ts}, ${temperature}, ${humidity})
+        insert into test.t#{groupId} (ts, temperature, humidity, note)
+        values (#{ts}, ${temperature}, ${humidity}, #{note})
     </insert>
 
     <select id="getSubTables" resultType="String">
-        select tbname from test.weather
+        select tbname
+        from test.weather
     </select>
 
     <select id="count" resultType="int">
-        select count(*) from test.weather
+        select count(*)
+        from test.weather
     </select>
 
     <resultMap id="avgResultSet" type="com.taosdata.example.springbootdemo.domain.Weather">
-        <id column="ts" jdbcType="TIMESTAMP" property="ts" />
-        <result column="avg(temperature)" jdbcType="FLOAT" property="temperature" />
-        <result column="avg(humidity)" jdbcType="FLOAT" property="humidity" />
+        <id column="ts" jdbcType="TIMESTAMP" property="ts"/>
+        <result column="avg(temperature)" jdbcType="FLOAT" property="temperature"/>
+        <result column="avg(humidity)" jdbcType="FLOAT" property="humidity"/>
     </resultMap>
 
     <select id="avg" resultMap="avgResultSet">
-        select avg(temperature), avg(humidity)from test.weather interval(1m)
+        select avg(temperature), avg(humidity)
+        from test.weather interval(1m)
     </select>
 
 </mapper>

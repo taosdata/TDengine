@@ -44,6 +44,13 @@ char      PROMPT_HEADER[] = "tq> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 4;
+#elif (_TD_PRO_ == true)
+char      CLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "ProDB> ";
+
+char      CONTINUE_PROMPT[] = "    -> ";
+int       prompt_size = 7;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
@@ -569,7 +576,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
   while (pos < length) {
     wchar_t wc;
     int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
-    if (bytes == 0) {
+    if (bytes <= 0) {
       break;
     }
     pos += bytes;

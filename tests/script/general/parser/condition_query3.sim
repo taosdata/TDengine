@@ -1,0 +1,210 @@
+sql use cdb;
+
+print "index tag test"
+
+sql select tbname,t1 from stba;
+if $rows != 10 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 > 2;
+if $rows != 7 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 >= 4;
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 >= 3 and t1 <= 6;
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 = 3;
+if $rows != 1 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 <> 6;
+if $rows != 9 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 < 6;
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 < 6 and t1 >= 2;
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stba where t1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select tbname,t1 from stba where t1 is not null;
+if $rows != 10 then
+  return -1
+endi
+
+sql_error select tbname,t1 from stbb where t1 > true;
+sql select tbname,t1 from stbb where t1 = true;
+if $rows != 5 then
+  return -1
+endi
+
+sql select tbname,t1 from stbb where t1 <> true;
+if $rows != 5 then
+  return -1
+endi
+
+sql select tbname,t1 from stbb where t1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select tbname,t1 from stbb where t1 is not null;
+if $rows != 10 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc;
+if $rows != 10 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 > 2;
+if $rows != 7 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 >= 4;
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 >= 3 and t1 <= 6;
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 = 3;
+if $rows != 1 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 <> 6;
+if $rows != 9 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 < 6;
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 < 6 and t1 >= 2;
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stbc where t1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select tbname,t1 from stbc where t1 is not null;
+if $rows != 10 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 > '2222';
+if $rows != 7 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 >= '4444';
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 >= '3333' and t1 <= '6666';
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 = '3333';
+if $rows != 1 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 <> '6666';
+if $rows != 9 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 < '6666';
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 < '6666' and t1 >= '2222';
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stbd where t1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select tbname,t1 from stbd where t1 is not null;
+if $rows != 10 then
+  return -1
+endi
+sql select tbname,t1 from stbe where t1 > '2222';
+if $rows != 7 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 >= '4444';
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 >= '3333' and t1 <= '6666';
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 = '3333';
+if $rows != 1 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 <> '6666';
+if $rows != 9 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 < '6666';
+if $rows != 6 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 < '6666' and t1 >= '2222';
+if $rows != 4 then
+  return -1
+endi
+
+sql select tbname,t1 from stbe where t1 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select tbname,t1 from stbe where t1 is not null;
+if $rows != 10 then
+  return -1
+endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
