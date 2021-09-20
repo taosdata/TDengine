@@ -263,12 +263,12 @@ pipeline {
               '''
             }
             timeout(time: 60, unit: 'MINUTES'){
-              // sh '''
-              // cd ${WKC}/tests/pytest
-              // rm -rf /var/lib/taos/*
-              // rm -rf /var/log/taos/*
-              // ./handle_crash_gen_val_log.sh
-              // '''
+              sh '''
+              cd ${WKC}/tests/pytest
+              rm -rf /var/lib/taos/*
+              rm -rf /var/log/taos/*
+              ./handle_crash_gen_val_log.sh
+              '''
               sh '''
               cd ${WKC}/tests/pytest
               rm -rf /var/lib/taos/*
