@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -244,9 +244,10 @@ function install_lib() {
         fi
     else
         ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-
+        # Fix homebrew install problem
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${install_main_dir}/driver/libtaos.dylib   || :
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib   || :
-        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib          || :
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib     || :
     fi
     
     install_jemalloc
