@@ -119,7 +119,7 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
 static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
   assert(pNode->keyLen == pNewNode->keyLen);
 
-  pNode->count--;
+  atomic_sub_fetch_32(&pNode->count, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
   } else {
@@ -459,7 +459,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   if (pNode) {
     code = 0;  // it is found
 
-    pNode->count--;
+    atomic_sub_fetch_32(&pNode->count, 1);
     pNode->removed = 1;
     if (pNode->count <= 0) {
       if (prevNode) {
@@ -741,17 +741,19 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  SHashNode *pNewNode = calloc(1, sizeof(SHashNode) + keyLen + dsize);
+  SHashNode *pNewNode = malloc(sizeof(SHashNode) + keyLen + dsize);
 
   if (pNewNode == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
 
-  pNewNode->keyLen = (uint32_t)keyLen;
+  pNewNode->keyLen  = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
   pNewNode->dataLen = (uint32_t) dsize;
-  pNewNode->count = 1;
+  pNewNode->count   = 1;
+  pNewNode->removed = 0;
+  pNewNode->next    = NULL;
 
   memcpy(GET_HASH_NODE_DATA(pNewNode), pData, dsize);
   memcpy(GET_HASH_NODE_KEY(pNewNode), key, keyLen);
@@ -807,7 +809,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       pNode = pNode->next;
     }
 
-    pOld->count--;
+    atomic_sub_fetch_32(&pOld->count, 1);
     if (pOld->count <=0) {
       if (prevNode) {
         prevNode->next = pOld->next;
@@ -873,7 +875,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
   if (pNode) {
     SHashEntry *pe = pHashObj->hashList[slot];
-    pNode->count++;
+    atomic_add_fetch_32(&pNode->count, 1);
     data = GET_HASH_NODE_DATA(pNode);
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);

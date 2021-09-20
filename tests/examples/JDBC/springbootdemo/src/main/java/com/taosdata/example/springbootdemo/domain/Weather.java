@@ -11,6 +11,7 @@ public class Weather {
     private Float temperature;
     private Float humidity;
     private String location;
+    private String note;
     private int groupId;
 
     public Weather() {
@@ -60,5 +61,13 @@ public class Weather {
 
     public void setGroupId(int groupId) {
         this.groupId = groupId;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
     }
 }

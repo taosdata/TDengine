@@ -104,6 +104,7 @@ extern char configDir[];
 #define DATATYPE_BUFF_LEN       (SMALL_BUFF_LEN*3)
 #define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
+#define DEFAULT_NTHREADS        8
 #define DEFAULT_TIMESTAMP_STEP  1
 #define DEFAULT_INTERLACE_ROWS  0
 #define DEFAULT_DATATYPE_NUM    1
@@ -227,7 +228,7 @@ typedef struct SArguments_S {
     char *   sqlFile;
     bool     use_metric;
     bool     drop_database;
-    bool     insert_only;
+    bool     aggr_func;
     bool     answer_yes;
     bool     debug_print;
     bool     verbose_print;
@@ -375,8 +376,7 @@ typedef struct SDbs_S {
     char        password[SHELL_MAX_PASSWORD_LEN];
     char        resultFile[MAX_FILE_NAME_LEN];
     bool        use_metric;
-    bool        insert_only;
-    bool        do_aggreFunc;
+    bool        aggr_func;
     bool        asyncMode;
 
     uint32_t    threadCount;
@@ -605,6 +605,9 @@ char    *g_rand_current_buff = NULL;
 char    *g_rand_phase_buff = NULL;
 char    *g_randdouble_buff = NULL;
 
+char    *g_aggreFuncDemo[] = {"*", "count(*)", "avg(current)", "sum(current)",
+    "max(current)", "min(current)", "first(current)", "last(current)"};
+
 char    *g_aggreFunc[] = {"*", "count(*)", "avg(C0)", "sum(C0)",
     "max(C0)", "min(C0)", "first(C0)", "last(C0)"};
 
@@ -619,6 +622,8 @@ SArguments g_args = {
     "powerdb",      // password
 #elif (_TD_TQ_ == true)
     "tqueue",       // password
+#elif (_TD_PRO_ == true)
+    "prodb",       // password
 #else
     "taosdata",     // password
 #endif
@@ -628,7 +633,7 @@ SArguments g_args = {
     NULL,            // sqlFile
     true,            // use_metric
     true,            // drop_database
-    true,            // insert_only
+    false,           // aggr_func
     false,           // debug_print
     false,           // verbose_print
     false,           // performance statistic print
@@ -646,7 +651,7 @@ SArguments g_args = {
     64,              // binwidth
     4,               // columnCount, timestamp + float + int + float
     20 + FLOAT_BUFF_LEN + INT_BUFF_LEN + FLOAT_BUFF_LEN, // lenOfOneRow
-    8,               // num_of_connections/thread
+    DEFAULT_NTHREADS,// nthreads
     0,               // insert_interval
     DEFAULT_TIMESTAMP_STEP, // timestamp_step
     1,               // query_times
@@ -748,19 +753,24 @@ static void printHelp() {
     char indent[10] = "  ";
     printf("%s\n\n", "Usage: taosdemo [OPTION...]");
     printf("%s%s%s%s\n", indent, "-f, --file=FILE", "\t\t",
-            "The meta file to the execution procedure. Default is './meta.json'.");
+            "The meta file to the execution procedure.");
     printf("%s%s%s%s\n", indent, "-u, --user=USER", "\t\t",
             "The user name to use when connecting to the server.");
 #ifdef _TD_POWER_
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. Default is 'powerdb'");
+            "The password to use when connecting to the server. By default is 'powerdb'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. Default is '/etc/power/'.");
+            "Configuration directory. By default is '/etc/power/'.");
 #elif (_TD_TQ_ == true)
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. Default is 'tqueue'");
+            "The password to use when connecting to the server. By default is 'tqueue'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. Default is '/etc/tq/'.");
+            "Configuration directory. By default is '/etc/tq/'.");
+#elif (_TD_PRO_ == true)
+    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
+            "The password to use when connecting to the server. By default is 'prodb'");
+    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
+            "Configuration directory. By default is '/etc/ProDB/'.");
 #else
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
             "The password to use when connecting to the server.");
@@ -772,24 +782,24 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
             "The TCP/IP port number to use for the connection.");
     printf("%s%s%s%s\n", indent, "-I, --interface=INTERFACE", "\t",
-            "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
+            "The interface (taosc, rest, and stmt) taosdemo uses. By default use 'taosc'.");
     printf("%s%s%s%s\n", indent, "-d, --database=DATABASE", "\t",
-            "Destination database. Default is 'test'.");
+            "Destination database. By default is 'test'.");
     printf("%s%s%s%s\n", indent, "-a, --replica=REPLICA", "\t\t",
-            "Set the replica parameters of the database, Default 1, min: 1, max: 3.");
+            "Set the replica parameters of the database, By default use 1, min: 1, max: 3.");
     printf("%s%s%s%s\n", indent, "-m, --table-prefix=TABLEPREFIX", "\t",
-            "Table prefix name. Default is 'd'.");
+            "Table prefix name. By default use 'd'.");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
             "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t", "Use normal table flag.");
     printf("%s%s%s%s\n", indent, "-o, --output=FILE", "\t\t",
-            "Direct output to the named file. Default is './output.txt'.");
+            "Direct output to the named file. By default use './output.txt'.");
     printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
-            "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
+            "Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.");
     printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
-            "The data_type of columns, default: FLOAT, INT, FLOAT.");
+            "The data_type of columns, By default use: FLOAT, INT, FLOAT.");
     printf("%s%s%s%s%d\n", indent, "-w, --binwidth=WIDTH", "\t\t",
-            "The width of data_type 'BINARY' or 'NCHAR'. Default is ",
+            "The width of data_type 'BINARY' or 'NCHAR'. By default use ",
             g_args.binwidth);
     printf("%s%s%s%s%d%s%d\n", indent, "-l, --columns=COLUMNS", "\t\t",
             "The number of columns per record. Demo mode by default is ",
@@ -798,32 +808,32 @@ static void printHelp() {
             MAX_NUM_COLUMNS);
     printf("%s%s%s%s\n", indent, indent, indent,
             "\t\t\t\tAll of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
-    printf("%s%s%s%s\n", indent, "-T, --threads=NUMBER", "\t\t",
-            "The number of threads. Default is 10.");
+    printf("%s%s%s%s%d.\n", indent, "-T, --threads=NUMBER", "\t\t",
+            "The number of threads. By default use ", DEFAULT_NTHREADS);
     printf("%s%s%s%s\n", indent, "-i, --insert-interval=NUMBER", "\t",
-            "The sleep time (ms) between insertion. Default is 0.");
+            "The sleep time (ms) between insertion. By default is 0.");
     printf("%s%s%s%s%d.\n", indent, "-S, --time-step=TIME_STEP", "\t",
-            "The timestamp step between insertion. Default is ",
+            "The timestamp step between insertion. By default is ",
             DEFAULT_TIMESTAMP_STEP);
     printf("%s%s%s%s%d.\n", indent, "-B, --interlace-rows=NUMBER", "\t",
-            "The interlace rows of insertion. Default is ",
+            "The interlace rows of insertion. By default is ",
             DEFAULT_INTERLACE_ROWS);
     printf("%s%s%s%s\n", indent, "-r, --rec-per-req=NUMBER", "\t",
-            "The number of records per request. Default is 30000.");
+            "The number of records per request. By default is 30000.");
     printf("%s%s%s%s\n", indent, "-t, --tables=NUMBER", "\t\t",
-            "The number of tables. Default is 10000.");
+            "The number of tables. By default is 10000.");
     printf("%s%s%s%s\n", indent, "-n, --records=NUMBER", "\t\t",
-            "The number of records per table. Default is 10000.");
+            "The number of records per table. By default is 10000.");
     printf("%s%s%s%s\n", indent, "-M, --random", "\t\t\t",
             "The value of records generated are totally random.");
-    printf("%s\n", "\t\t\t\tThe default is to simulate power equipment scenario.");
-    printf("%s%s%s%s\n", indent, "-x, --no-insert", "\t\t",
-            "No-insert flag.");
-    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Default input yes for prompt.");
+    printf("%s\n", "\t\t\t\tBy default to simulate power equipment scenario.");
+    printf("%s%s%s%s\n", indent, "-x, --aggr-func", "\t\t",
+            "Test aggregation functions after insertion.");
+    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Input yes for prompt.");
     printf("%s%s%s%s\n", indent, "-O, --disorder=NUMBER", "\t\t",
-            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. Default is in order.");
+            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. By default is in order.");
     printf("%s%s%s%s\n", indent, "-R, --disorder-range=NUMBER", "\t",
-            "Out of order data's range, ms, default is 1000.");
+            "Out of order data's range. Unit is ms. By default is 1000.");
     printf("%s%s%s%s\n", indent, "-g, --debug", "\t\t\t",
             "Print debug info.");
     printf("%s%s%s%s\n", indent, "-?, --help\t", "\t\t",
@@ -1712,13 +1722,14 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             }
         } else if ((strcmp(argv[i], "-N") == 0)
                 || (0 == strcmp(argv[i], "--normal-table"))) {
+            arguments->demo_mode = false;
             arguments->use_metric = false;
         } else if ((strcmp(argv[i], "-M") == 0)
                 || (0 == strcmp(argv[i], "--random"))) {
             arguments->demo_mode = false;
         } else if ((strcmp(argv[i], "-x") == 0)
-                || (0 == strcmp(argv[i], "--no-insert"))) {
-            arguments->insert_only = false;
+                || (0 == strcmp(argv[i], "--aggr-func"))) {
+            arguments->aggr_func = true;
         } else if ((strcmp(argv[i], "-y") == 0)
                 || (0 == strcmp(argv[i], "--answer-yes"))) {
             arguments->answer_yes = true;
@@ -2429,10 +2440,11 @@ static void init_rand_data() {
 static int printfInsertMeta() {
     SHOW_PARSE_RESULT_START();
 
-    if (g_args.demo_mode)
-        printf("\ntaosdemo is simulating data generated by power equipments monitoring...\n\n");
-    else
+    if (g_args.demo_mode) {
+        printf("\ntaosdemo is simulating data generated by power equipment monitoring...\n\n");
+    } else {
         printf("\ntaosdemo is simulating random data as you request..\n\n");
+    }
 
     if (g_args.iface != INTERFACE_BUT) {
         // first time if no iface specified
@@ -3575,10 +3587,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
 
     char* childTblName = *childTblNameOfSuperTbl;
 
-    if (offset >= 0) {
-        snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
-                limit, offset);
-    }
+    snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
+        limit, offset);
 
     //get all child table name use cmd: select tbname from superTblName;
     snprintf(command, 1024, "select tbname from %s.%s %s",
@@ -7449,6 +7459,7 @@ static int32_t prepareStmtWithoutStb(
                         g_args.binwidth,
                         pThreadInfo->time_precision,
                         NULL)) {
+                free(bindArray);
                 return -1;
             }
         }
@@ -7657,7 +7668,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
 }
 
 #if STMT_BIND_PARAM_BATCH == 1
-static int execBindParamBatch(
+static int execStbBindParamBatch(
         threadInfo *pThreadInfo,
         char *tableName,
         int64_t tableSeq,
@@ -7671,7 +7682,9 @@ static int execBindParamBatch(
     TAOS_STMT *stmt = pThreadInfo->stmt;
 
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    uint32_t columnCount = (stbInfo)?pThreadInfo->stbInfo->columnCount:g_args.columnCount;
+    assert(stbInfo);
+
+    uint32_t columnCount = pThreadInfo->stbInfo->columnCount;
 
     uint32_t thisBatch = MAX_SAMPLES - (*pSamplePos);
 
@@ -7696,29 +7709,39 @@ static int execBindParamBatch(
             param->buffer = pThreadInfo->bind_ts_array;
 
         } else {
-            data_type = (stbInfo)?stbInfo->columns[c-1].data_type:g_args.data_type[c-1];
+            data_type = stbInfo->columns[c-1].data_type;
 
             char *tmpP;
 
             switch(data_type) {
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_NCHAR:
                     param->buffer_length =
-                        ((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth);
+                        stbInfo->columns[c-1].dataLen;
 
                     tmpP =
                         (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
                                     +sizeof(char*)*(c-1)));
 
-                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%d position=%"PRId64"\n",
-                            __func__, __LINE__, tmpP, *pSamplePos,
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth)),
-                            (*pSamplePos) *
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth)));
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
 
-                    param->buffer = (void *)(tmpP + *pSamplePos *
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth))
-                            );
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
+                    break;
+
+                case TSDB_DATA_TYPE_NCHAR:
+                    param->buffer_length =
+                        stbInfo->columns[c-1].dataLen;
+
+                    tmpP =
+                        (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
+                                    +sizeof(char*)*(c-1)));
+
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
+
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
                     break;
 
                 case TSDB_DATA_TYPE_INT:
@@ -8086,7 +8109,7 @@ static int parseSampleToStmt(
         SSuperTable *stbInfo, uint32_t timePrec)
 {
     pThreadInfo->sampleBindArray =
-        calloc(1, sizeof(char *) * MAX_SAMPLES);
+        (char *)calloc(1, sizeof(char *) * MAX_SAMPLES);
     if (pThreadInfo->sampleBindArray == NULL) {
         errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
                 __func__, __LINE__,
@@ -8154,6 +8177,7 @@ static int parseSampleToStmt(
                             timePrec,
                             bindBuffer)) {
                     free(bindBuffer);
+                    free(bindArray);
                     return -1;
                 }
                 free(bindBuffer);
@@ -8343,7 +8367,7 @@ static int32_t prepareStbStmt(
     }
 
 #if STMT_BIND_PARAM_BATCH == 1
-    return execBindParamBatch(
+    return execStbBindParamBatch(
         pThreadInfo,
         tableName,
         tableSeq,
@@ -10051,11 +10075,10 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     free(infos);
 }
 
-static void *readTable(void *sarg) {
-#if 1
+static void *queryNtableAggrFunc(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     TAOS *taos = pThreadInfo->taos;
-    setThreadName("readTable");
+    setThreadName("queryNtableAggrFunc");
     char *command = calloc(1, BUFFER_SIZE);
     assert(command);
 
@@ -10078,10 +10101,20 @@ static void *readTable(void *sarg) {
 
     int64_t ntables = pThreadInfo->ntables; // pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
     int64_t totalData = insertRows * ntables;
-    bool do_aggreFunc = g_Dbs.do_aggreFunc;
+    bool aggr_func = g_Dbs.aggr_func;
 
-    int n = do_aggreFunc ? (sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
-    if (!do_aggreFunc) {
+    char **aggreFunc;
+    int n;
+
+    if (g_args.demo_mode) {
+        aggreFunc = g_aggreFuncDemo;
+        n = aggr_func?(sizeof(g_aggreFuncDemo) / sizeof(g_aggreFuncDemo[0])) : 2;
+    } else {
+        aggreFunc = g_aggreFunc;
+        n = aggr_func?(sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
+    }
+
+    if (!aggr_func) {
         printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
     }
     printf("%"PRId64" records:\n", totalData);
@@ -10092,9 +10125,11 @@ static void *readTable(void *sarg) {
         uint64_t count = 0;
         for (int64_t i = 0; i < ntables; i++) {
             sprintf(command, "SELECT %s FROM %s%"PRId64" WHERE ts>= %" PRIu64,
-                    g_aggreFunc[j], tb_prefix, i, startTime);
+                    aggreFunc[j], tb_prefix, i, startTime);
 
-            double t = taosGetTimestampMs();
+            double t = taosGetTimestampUs();
+            debugPrint("%s() LN%d, sql command: %s\n",
+                    __func__, __LINE__, command);
             TAOS_RES *pSql = taos_query(taos, command);
             int32_t code = taos_errno(pSql);
 
@@ -10111,29 +10146,27 @@ static void *readTable(void *sarg) {
                 count++;
             }
 
-            t = taosGetTimestampMs() - t;
+            t = taosGetTimestampUs() - t;
             totalT += t;
 
             taos_free_result(pSql);
         }
 
         fprintf(fp, "|%10s  |   %"PRId64"   |  %12.2f   |   %10.2f  |\n",
-                g_aggreFunc[j][0] == '*' ? "   *   " : g_aggreFunc[j], totalData,
-                (double)(ntables * insertRows) / totalT, totalT * 1000);
-        printf("select %10s took %.6f second(s)\n", g_aggreFunc[j], totalT * 1000);
+                aggreFunc[j][0] == '*' ? "   *   " : aggreFunc[j], totalData,
+                (double)(ntables * insertRows) / totalT, totalT / 1000000);
+        printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT / 1000000);
     }
     fprintf(fp, "\n");
     fclose(fp);
     free(command);
-#endif
     return NULL;
 }
 
-static void *readMetric(void *sarg) {
-#if 1
+static void *queryStableAggrFunc(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     TAOS *taos = pThreadInfo->taos;
-    setThreadName("readMetric");
+    setThreadName("queryStableAggrFunc");
     char *command = calloc(1, BUFFER_SIZE);
     assert(command);
 
@@ -10147,12 +10180,23 @@ static void *readMetric(void *sarg) {
     int64_t insertRows = pThreadInfo->stbInfo->insertRows;
     int64_t ntables = pThreadInfo->ntables; // pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
     int64_t totalData = insertRows * ntables;
-    bool do_aggreFunc = g_Dbs.do_aggreFunc;
+    bool aggr_func = g_Dbs.aggr_func;
 
-    int n = do_aggreFunc ? (sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
-    if (!do_aggreFunc) {
+    char **aggreFunc;
+    int n;
+
+    if (g_args.demo_mode) {
+        aggreFunc = g_aggreFuncDemo;
+        n = aggr_func?(sizeof(g_aggreFuncDemo) / sizeof(g_aggreFuncDemo[0])) : 2;
+    } else {
+        aggreFunc = g_aggreFunc;
+        n = aggr_func?(sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
+    }
+
+    if (!aggr_func) {
         printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
     }
+
     printf("%"PRId64" records:\n", totalData);
     fprintf(fp, "Querying On %"PRId64" records:\n", totalData);
 
@@ -10164,18 +10208,29 @@ static void *readMetric(void *sarg) {
 
         for (int64_t i = 1; i <= m; i++) {
             if (i == 1) {
-                sprintf(tempS, "t1 = %"PRId64"", i);
+                if (g_args.demo_mode) {
+                    sprintf(tempS, "groupid = %"PRId64"", i);
+                } else {
+                    sprintf(tempS, "t0 = %"PRId64"", i);
+                }
             } else {
-                sprintf(tempS, " or t1 = %"PRId64" ", i);
+                if (g_args.demo_mode) {
+                    sprintf(tempS, " or groupid = %"PRId64" ", i);
+                } else {
+                    sprintf(tempS, " or t0 = %"PRId64" ", i);
+                }
             }
             strncat(condition, tempS, COND_BUF_LEN - 1);
 
-            sprintf(command, "SELECT %s FROM meters WHERE %s", g_aggreFunc[j], condition);
+            sprintf(command, "SELECT %s FROM meters WHERE %s", aggreFunc[j], condition);
 
             printf("Where condition: %s\n", condition);
+
+            debugPrint("%s() LN%d, sql command: %s\n",
+                    __func__, __LINE__, command);
             fprintf(fp, "%s\n", command);
 
-            double t = taosGetTimestampMs();
+            double t = taosGetTimestampUs();
 
             TAOS_RES *pSql = taos_query(taos, command);
             int32_t code = taos_errno(pSql);
@@ -10192,11 +10247,11 @@ static void *readMetric(void *sarg) {
             while(taos_fetch_row(pSql) != NULL) {
                 count++;
             }
-            t = taosGetTimestampMs() - t;
+            t = taosGetTimestampUs() - t;
 
             fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n",
-                    ntables * insertRows / (t * 1000.0), t);
-            printf("select %10s took %.6f second(s)\n\n", g_aggreFunc[j], t * 1000.0);
+                    ntables * insertRows / (t / 1000), t);
+            printf("select %10s took %.6f second(s)\n\n", aggreFunc[j], t / 1000000);
 
             taos_free_result(pSql);
         }
@@ -10204,7 +10259,7 @@ static void *readMetric(void *sarg) {
     }
     fclose(fp);
     free(command);
-#endif
+
     return NULL;
 }
 
@@ -11211,9 +11266,8 @@ static void setParaFromArg() {
     tstrncpy(g_Dbs.resultFile, g_args.output_file, MAX_FILE_NAME_LEN);
 
     g_Dbs.use_metric = g_args.use_metric;
-    g_Dbs.insert_only = g_args.insert_only;
 
-    g_Dbs.do_aggreFunc = true;
+    g_Dbs.aggr_func = g_args.aggr_func;
 
     char dataString[TSDB_MAX_BYTES_PER_ROW];
     char *data_type = g_args.data_type;
@@ -11224,7 +11278,7 @@ static void setParaFromArg() {
     if ((data_type[0] == TSDB_DATA_TYPE_BINARY)
             || (data_type[0] == TSDB_DATA_TYPE_BOOL)
             || (data_type[0] == TSDB_DATA_TYPE_NCHAR)) {
-        g_Dbs.do_aggreFunc = false;
+        g_Dbs.aggr_func = false;
     }
 
     if (g_args.use_metric) {
@@ -11406,7 +11460,7 @@ static void testMetaFile() {
     }
 }
 
-static void queryResult() {
+static void queryAggrFunc() {
     // query data
 
     pthread_t read_id;
@@ -11415,7 +11469,6 @@ static void queryResult() {
     pThreadInfo->start_time = DEFAULT_START_TIME;  // 2017-07-14 10:40:00.000
     pThreadInfo->start_table_from = 0;
 
-    //pThreadInfo->do_aggreFunc = g_Dbs.do_aggreFunc;
     if (g_args.use_metric) {
         pThreadInfo->ntables = g_Dbs.db[0].superTbls[0].childTblCount;
         pThreadInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
@@ -11444,9 +11497,9 @@ static void queryResult() {
     tstrncpy(pThreadInfo->filePath, g_Dbs.resultFile, MAX_FILE_NAME_LEN);
 
     if (!g_Dbs.use_metric) {
-        pthread_create(&read_id, NULL, readTable, pThreadInfo);
+        pthread_create(&read_id, NULL, queryNtableAggrFunc, pThreadInfo);
     } else {
-        pthread_create(&read_id, NULL, readMetric, pThreadInfo);
+        pthread_create(&read_id, NULL, queryStableAggrFunc, pThreadInfo);
     }
     pthread_join(read_id, NULL);
     taos_close(pThreadInfo->taos);
@@ -11468,8 +11521,9 @@ static void testCmdLine() {
     g_args.test_mode = INSERT_TEST;
     insertTestProcess();
 
-    if (false == g_Dbs.insert_only)
-        queryResult();
+    if (g_Dbs.aggr_func) {
+        queryAggrFunc();
+    }
 }
 
 int main(int argc, char *argv[]) {

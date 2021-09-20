@@ -84,11 +84,18 @@ typedef struct SResultRow {
   char         *key;               // start key of current result row
 } SResultRow;
 
+typedef struct SResultRowCell {
+  uint64_t     groupId;
+  SResultRow  *pRow;
+} SResultRowCell;
+
 typedef struct SGroupResInfo {
   int32_t totalGroup;
   int32_t currentGroup;
   int32_t index;
   SArray* pRows;      // SArray<SResultRow*>
+  bool    ordered;
+  int32_t position;
 } SGroupResInfo;
 
 /**
@@ -280,6 +287,7 @@ typedef struct SQueryRuntimeEnv {
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
   SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
+  SArray*               pResultRowArrayList; // The array list that contains the Result rows
   char*                 keyBuf;           // window key buffer
   SResultRowPool*       pool;             // window result object pool
   char**                prevRow;
