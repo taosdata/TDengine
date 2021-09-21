@@ -2842,7 +2842,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         colIndex += 1;  // the first column is ts
 
-        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, numRowsSelected, &resultType, &resultSize, &interResult, 0, false,
+        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, (int32_t)numRowsSelected, &resultType, &resultSize, &interResult, 0, false,
                           pUdfInfo);
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
