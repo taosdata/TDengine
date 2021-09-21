@@ -4710,7 +4710,7 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
   char* pOutput = pCtx->pOutput;
   for (int32_t i = 0; i < pRes->numSampled; ++i) {
-    assignVal(pOutput, pRes->values + i*pCtx->inputBytes, pRes->colBytes, type);
+    assignVal(pOutput, pRes->values + i*pRes->colBytes, pRes->colBytes, type);
     *pTimestamp = *(pRes->timeStamps + i);
 
     pOutput += pCtx->outputBytes;
