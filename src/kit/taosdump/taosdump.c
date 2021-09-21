@@ -133,7 +133,7 @@ enum _describe_table_index {
 
 typedef struct {
     char field[TSDB_COL_NAME_LEN + 1];
-    char type[32];
+    char type[16];
     int length;
     char note[COL_NOTE_LEN];
 } SColDes;
@@ -385,6 +385,33 @@ struct arguments g_args = {
     false,      // performance_print
         0,      // dbCount
 };
+
+// get taosdump commit number version
+#ifndef TAOSDUMP_COMMIT_SHA1
+#define TAOSDUMP_COMMIT_SHA1 "unknown"
+#endif
+
+#ifndef TD_VERNUMBER
+#define TD_VERNUMBER "unknown"
+#endif
+
+#ifndef TAOSDUMP_STATUS
+#define TAOSDUMP_STATUS "unknown"
+#endif
+
+static void printVersion() {
+    char tdengine_ver[] = TD_VERNUMBER;
+    char taosdump_ver[] = TAOSDUMP_COMMIT_SHA1;
+    char taosdump_status[] = TAOSDUMP_STATUS;
+
+    if (strlen(taosdump_status) == 0) {
+        printf("taosdump version %s-%s\n",
+                tdengine_ver, taosdump_ver);
+    } else {
+        printf("taosdump version %s-%s, status:%s\n",
+                tdengine_ver, taosdump_ver, taosdump_status);
+    }
+}
 
 UNUSED_FUNC void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
 {
@@ -673,6 +700,10 @@ static void parse_args(
                 exit(EXIT_FAILURE);
             }
             g_args.databases = true;
+        } else if (0 == strncmp(argv[i], "--version", strlen("--version")) ||
+            0 == strncmp(argv[i], "-V", strlen("-V"))) {
+                printVersion();
+                exit(EXIT_SUCCESS);
         } else {
             continue;
         }
@@ -1571,7 +1602,7 @@ static int taosGetTableDes(
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes + 1));
         tstrncpy(stableDes->cols[count].type,
                 (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                min(32, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes + 1));
+                min(16, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes + 1));
         stableDes->cols[count].length =
             *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
         tstrncpy(stableDes->cols[count].note,
@@ -1641,18 +1672,6 @@ static int taosGetTableDes(
                 break;
             case TSDB_DATA_TYPE_BIGINT:
                 sprintf(stableDes->cols[i].note, "%" PRId64 "", *((int64_t *)row[0]));
-                break;
-            case TSDB_DATA_TYPE_UTINYINT:
-                sprintf(stableDes->cols[i].note, "%d", *((uint8_t *)row[0]));
-                break;
-            case TSDB_DATA_TYPE_USMALLINT:
-                sprintf(stableDes->cols[i].note, "%d", *((uint16_t *)row[0]));
-                break;
-            case TSDB_DATA_TYPE_UINT:
-                sprintf(stableDes->cols[i].note, "%" PRIu32 "", *((uint32_t *)row[0]));
-                break;
-            case TSDB_DATA_TYPE_UBIGINT:
-                sprintf(stableDes->cols[i].note, "%" PRIu64 "", *((uint64_t *)row[0]));
                 break;
             case TSDB_DATA_TYPE_FLOAT:
                 sprintf(stableDes->cols[i].note, "%f", GET_FLOAT_VAL(row[0]));
@@ -2379,19 +2398,6 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
                 case TSDB_DATA_TYPE_BIGINT:
                     curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRId64 "",
                             *((int64_t *)row[col]));
-                    break;
-                case TSDB_DATA_TYPE_UTINYINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((uint8_t *)row[col]));
-                    break;
-                case TSDB_DATA_TYPE_USMALLINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((uint16_t *)row[col]));
-                    break;
-                case TSDB_DATA_TYPE_UINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRIu32 "", *((uint32_t *)row[col]));
-                    break;
-                case TSDB_DATA_TYPE_UBIGINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRIu64 "",
-                            *((uint64_t *)row[col]));
                     break;
                 case TSDB_DATA_TYPE_FLOAT:
                     curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f", GET_FLOAT_VAL(row[col]));
