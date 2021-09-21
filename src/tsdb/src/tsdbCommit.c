@@ -1216,7 +1216,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   pBlock->keyFirst = dataColsKeyFirst(pDataCols);
   pBlock->keyLast = dataColsKeyLast(pDataCols);
 #ifdef __TD_6117__
-  pBlock->hasAggr = aggrStatus;
+  pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = offsetAggr;
   pBlock->aggrLen = tsizeAggr;

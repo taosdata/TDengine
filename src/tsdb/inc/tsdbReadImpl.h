@@ -51,8 +51,8 @@ typedef struct {
 #endif
 
 /**
- * int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
- * int16_t numOfCols;  // not including timestamp column
+ * keyLen;     // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+ * numOfCols;  // not including timestamp column
  */
 #define SBlockFieldsP0    \
   int64_t last : 1;       \
@@ -66,8 +66,13 @@ typedef struct {
   TSKEY   keyFirst;       \
   TSKEY   keyLast
 
+/**
+ * aggrStat;   // 0 - no aggr part in .data/.last/.sma, 1 - has aggr in .sma
+ * blkVer;     // 0 - original block, 1 - block since importing .sma
+ * aggrOffset; // only valid when blkVer > 0 and aggrStat > 0
+ */
 #define SBlockFieldsP1     \
-  int64_t hasAggr : 3;     \
+  int64_t aggrStat : 3;    \
   int64_t blkVer : 5;      \
   int64_t aggrOffset : 56; \
   int32_t aggrLen
