@@ -94,3 +94,6 @@ auto-save-list
 tramp
 .\#*
 TAGS
+
+deps/*
+!deps/CMakeLists.txt
