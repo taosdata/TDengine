@@ -3399,8 +3399,8 @@ void tscRestoreFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
-  const char* msg1 = "TWA/Diff/Derivative/Irate are not allowed to apply to super table directly";
-  const char* msg2 = "TWA/Diff/Derivative/Irate only support group by tbname for super table query";
+  const char* msg1 = "TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE are not allowed to apply to super table directly";
+  const char* msg2 = "TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE only support group by tbname for super table query";
   const char* msg3 = "functions not support for super table query";
 
   // filter sql function not supported by metric query yet.
@@ -3417,7 +3417,8 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
     }
   }
 
-  if (tscIsTWAQuery(pQueryInfo) || tscIsDiffDerivQuery(pQueryInfo) || tscIsIrateQuery(pQueryInfo)) {
+  if (tscIsTWAQuery(pQueryInfo) || tscIsDiffDerivQuery(pQueryInfo) || tscIsIrateQuery(pQueryInfo) ||
+      tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_SAMPLE)) {
     if (pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       return true;
