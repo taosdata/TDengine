@@ -6074,6 +6074,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
       if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
         tscError("json type error, should be string");
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(pMsg, msg25);
       }
       code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
@@ -7698,6 +7699,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       tVariantListItem* pItem = taosArrayGet(pValList, 0);
       if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
         tscError("json type error, should be string");
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
       ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
