@@ -5234,7 +5234,7 @@ end:
 }
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
-  cJSON *root = cJSON_Parse(json->pz);
+  cJSON *root = cJSON_Parse(json);
   if (root == NULL){
     tscError("json parse error");
     return tscSQLSyntaxErrMsg(errMsg, "json parse error", NULL);
