@@ -35,7 +35,11 @@ class TDTestCase:
         tdSql.execute(
             "CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
         tdSql.execute(
+            "CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
+        tdSql.execute(
             "insert into jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}' values (now, 1, 'sss')")
+        tdSql.execute(
+            "insert into jsons1_4 using db_json_tag_test.jsons1 tags(3)")
 
         print("==============step2")
         tdLog.info("select table")
