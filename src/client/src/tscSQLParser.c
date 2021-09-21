@@ -6031,12 +6031,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     int32_t schemaLen = sizeof(STColumn) * numOfTags;
-    int32_t size = 0;
-    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON){
-      size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
-    } else {
-      size = sizeof(SUpdateTableTagValMsg) + TSDB_MAX_TAGS_LEN + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
-    }
+    int32_t size = = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
 
     if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
       tscError("0x%"PRIx64" failed to malloc for alter table pMsg", pSql->self);
@@ -6099,10 +6094,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     int32_t len = 0;
-    if (!IS_VAR_DATA_TYPE(pTagsSchema->type)) {
-      len = tDataTypes[pTagsSchema->type].bytes;
-    } else if(pTagsSchema->type == TSDB_DATA_TYPE_JSON){
+    if(pTagsSchema->type == TSDB_DATA_TYPE_JSON){
       len = kvRowLen(pUpdateMsg->data + schemaLen);
+    }else if (!IS_VAR_DATA_TYPE(pTagsSchema->type)) {
+      len = tDataTypes[pTagsSchema->type].bytes;
     } else {
       len = varDataTLen(pUpdateMsg->data + schemaLen);
       if(len > pTagsSchema->bytes) return invalidOperationMsg(pMsg, msg14);
