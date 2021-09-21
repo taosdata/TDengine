@@ -3924,7 +3924,8 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
       continue;
     }
 
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF ||
+        functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
       if(i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
 
@@ -7928,7 +7929,7 @@ static int32_t updateOutputBufForTopBotQuery(SQueriedTableInfo* pTableInfo, SCol
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int16_t functId = pExprs[i].base.functionId;
 
-    if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM) {
+    if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM || functId == TSDB_FUNC_SAMPLE) {
       int32_t j = getColumnIndexInSource(pTableInfo, &pExprs[i].base, pTagCols);
       if (j < 0 || j >= pTableInfo->numOfCols) {
         return TSDB_CODE_QRY_INVALID_MSG;

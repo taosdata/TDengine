@@ -323,8 +323,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = (int16_t)(sizeof(SSampleFuncInfo) + sizeof(dataBytes) *  param + sizeof(int64_t) * param);
+      *bytes = (int16_t)(sizeof(SSampleFuncInfo) + dataBytes *  param + sizeof(int64_t) * param);
       *interBytes = *bytes;
+
+      return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SPREAD) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SSpreadInfo);
@@ -4774,6 +4776,8 @@ static void sample_func_merge(SQLFunctionCtx *pCtx) {
   pInput->timeStamps = (int64_t*)((char*)pInput->values + pInput->colBytes * pCtx->param[0].i64);
 
   SSampleFuncInfo *pOutput = getSampleFuncOutputInfo(pCtx);
+  pOutput->totalPoints = pInput->totalPoints;
+  pOutput->numSampled = pInput->numSampled;
   for (int32_t i = 0; i < pInput->numSampled; ++i) {
     assignResultSample(pOutput, i, pInput->timeStamps[i],
                        pInput->values + i * pInput->colBytes, pCtx->outputType, pInput->colBytes);
