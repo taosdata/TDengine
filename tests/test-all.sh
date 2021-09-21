@@ -11,15 +11,15 @@ tests_dir=`pwd`
 IN_TDINTERNAL="community"
 
 function stopTaosd {
-	echo "Stop taosd"
+  echo "Stop taosd"
   sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail'
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	while [ -n "$PID" ]
-	do
+  while [ -n "$PID" ]
+  do
     pkill -TERM -x taosd
     sleep 1
-  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	done
+    PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+  done
 }
 
 function dohavecore(){
