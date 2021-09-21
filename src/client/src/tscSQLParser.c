@@ -5867,6 +5867,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg23 = "only column length coulbe be modified";
   const char* msg24 = "invalid binary/nchar column length";
 
+  const char* msg25 = "json type error, should be string";
+
   int32_t code = TSDB_CODE_SUCCESS;
 
   SSqlCmd*        pCmd = &pSql->cmd;
@@ -6069,6 +6071,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SKVRowBuilder kvRowBuilder = {0};
       if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
+        tscError("json type error, should be string");
+        return invalidOperationMsg(pMsg, "json type error, should be string");
       }
       code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
       if (code != TSDB_CODE_SUCCESS) {
@@ -7492,6 +7498,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg3 = "tag value too long";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "tags number not matched";
+  const char* msg6 = "json type error, should be string";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -7689,6 +7696,10 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
       tVariantListItem* pItem = taosArrayGet(pValList, 0);
+      if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
+        tscError("json type error, should be string");
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "json type error, should be string");
+      }
       ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
       if (ret != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);

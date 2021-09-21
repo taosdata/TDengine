@@ -1084,6 +1084,11 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     if(spd.numOfBound == 1 && pTagSchema[spd.boundedColumns[0]].type == TSDB_DATA_TYPE_JSON){
       char tmp = sToken.z[sToken.n];
       sToken.z[sToken.n] = 0;
+      if(sToken.type != TK_STRING) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        tscDestroyBoundColumnInfo(&spd);
+        return tscSQLSyntaxErrMsg(pInsertParam->msg, "json type error, should be string", NULL);
+      }
       code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);

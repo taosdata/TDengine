@@ -49,10 +49,16 @@ class TDTestCase:
         print("==============step3")
         tdLog.info("alter stable add tag")
         tdSql.execute(
-            "ALTER STABLE db_json_tag_test.jsons1 add COLUMN tag2 nchar(20)")
+            "ALTER STABLE db_json_tag_test.jsons1 add tag tag2 nchar(20)")
 
         tdSql.execute(
-            "ALTER STABLE db_json_tag_test.jsons1 drop COLUMN jtag")
+            "ALTER STABLE db_json_tag_test.jsons1 drop tag jtag")
+
+        tdSql.execute(
+            "ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag=4")
+
+        tdSql.execute(
+            "ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35}'")
 
     def stop(self):
         tdSql.close()
