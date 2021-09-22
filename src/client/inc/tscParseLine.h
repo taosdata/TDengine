@@ -54,6 +54,9 @@ typedef struct {
 
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
 bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
+bool isValidInteger(char *str);
+bool isValidFloat(char *str);
+
 int32_t isValidChildTableName(const char *pTbName, int16_t len);
 
 bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,

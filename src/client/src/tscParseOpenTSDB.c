@@ -38,7 +38,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   uint16_t len = 0;
 
   pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN + 1, 1);    // +1 to avoid 1772 line over write
-  if (pSml->stableName == NULL){
+  if (pSml->stableName == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   if (isdigit(*cur)) {
@@ -58,7 +58,13 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
       break;
     }
 
-    pSml->stableName[len] = *cur;
+    //convert dot to underscore for now, will be removed once dot is allowed in tbname.
+    if (*cur == '.') {
+      pSml->stableName[len] = '_';
+    } else {
+      pSml->stableName[len] = *cur;
+    }
+
     cur++;
     len++;
   }
@@ -455,6 +461,13 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
+  //convert dot to underscore for now, will be removed once dot is allowed in tbname.
+  for (int i = 0; i < strlen(metric->valuestring); ++i) {
+    if (metric->valuestring[i] == '.') {
+      metric->valuestring[i] = '_';
+    }
+  }
+
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
 
   return TSDB_CODE_SUCCESS;
@@ -485,6 +498,7 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
   }
 
   size_t typeLen = strlen(type->valuestring);
+  strntolower_s(type->valuestring, type->valuestring, (int32_t)typeLen);
   if (typeLen == 1 && type->valuestring[0] == 's') {
     //seconds
     *tsVal = (int64_t)(*tsVal * 1e9);
@@ -505,6 +519,8 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
       default:
         return TSDB_CODE_TSC_INVALID_JSON;
     }
+  } else {
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -725,16 +741,34 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
       break;
     }
     case cJSON_Number: {
-      //convert default JSON Number type to float
-      pVal->type = TSDB_DATA_TYPE_FLOAT;
-      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-      pVal->value = tcalloc(pVal->length, 1);
-      *(float *)(pVal->value) = (float)(root->valuedouble);
+      //convert default JSON Number type to BIGINT/DOUBLE
+      if (isValidInteger(root->numberstring)) {
+        pVal->type = TSDB_DATA_TYPE_BIGINT;
+        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+        pVal->value = tcalloc(pVal->length, 1);
+        *(int64_t *)(pVal->value) = (int64_t)(root->valuedouble);
+      } else if (isValidFloat(root->numberstring)) {
+        pVal->type = TSDB_DATA_TYPE_DOUBLE;
+        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+        pVal->value = tcalloc(pVal->length, 1);
+        *(double *)(pVal->value) = (double)(root->valuedouble);
+      } else {
+        return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+      }
       break;
     }
     case cJSON_String: {
-      //convert default JSON String type to nchar
-      pVal->type = TSDB_DATA_TYPE_NCHAR;
+      /* set default JSON type to binary/nchar according to
+       * user configured parameter tsDefaultJSONStrType
+       */
+      if (strcasecmp(tsDefaultJSONStrType, "binary") == 0) {
+        pVal->type = TSDB_DATA_TYPE_BINARY;
+      } else if (strcasecmp(tsDefaultJSONStrType, "nchar") == 0) {
+        pVal->type = TSDB_DATA_TYPE_NCHAR;
+      } else {
+        tscError("OTD:0x%"PRIx64" Invalid default JSON string type set from config %s", info->id, tsDefaultJSONStrType);
+        return TSDB_CODE_TSC_INVALID_JSON_CONFIG;
+      }
       //pVal->length = wcslen((wchar_t *)root->valuestring) * TSDB_NCHAR_SIZE;
       pVal->length = (int16_t)strlen(root->valuestring);
       pVal->value = tcalloc(pVal->length + 1, 1);

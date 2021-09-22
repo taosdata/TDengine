@@ -4447,7 +4447,16 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     regex_t regex;
     char    regErrBuf[256] = {0};
 
-    const char* pattern = pRight->value.pz;
+    //remove the quote at the begin end of original sql string.
+    uint32_t lenPattern = pRight->exprToken.n - 2;
+    char* pattern = malloc(lenPattern + 1);
+    strncpy(pattern, pRight->exprToken.z+1, lenPattern);
+    pattern[lenPattern] = '\0';
+
+    tfree(pRight->value.pz);
+    pRight->value.pz = pattern;
+    pRight->value.nLen = lenPattern;
+
     int cflags = REG_EXTENDED;
     if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
       regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));

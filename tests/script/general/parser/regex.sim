@@ -79,6 +79,23 @@ if $rows != 1 then
   return -1
 endi  
 
+sql select c1b from $st_name where c1b match '\\.\\*'
+if $rows != 0 then
+  return -1
+endi
+
+sql select c1b from $st_name where c1b match '\\\\'
+if $rows != 0 then
+  return -1
+endi
+
+sql insert into $ct1_name values(now+3s, '\\this is engine')
+
+sql select c1b from $st_name where c1b match '\\'
+if $rows != 1 then
+  return -1
+endi
+
 sql_error select c1b from $st_name where c1b match e;
 sql_error select c1b from $st_name where c1b nmatch e;
 
