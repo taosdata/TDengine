@@ -16,12 +16,13 @@
 #include "tsdbint.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
-    "head",     // TSDB_FILE_HEAD
-    "data",     // TSDB_FILE_DATA
-    "last",     // TSDB_FILE_LAST
-    "sma",      // TSDB_FILE_SMA(Small Materialized Aggregate)
-    "",         // TSDB_FILE_MAX
-    "meta",     // TSDB_FILE_META
+    "head",  // TSDB_FILE_HEAD
+    "data",  // TSDB_FILE_DATA
+    "last",  // TSDB_FILE_LAST
+    "smad",  // TSDB_FILE_SMA_DATA(Small Materialized Aggregate for .data File)
+    "smal",  // TSDB_FILE_SMA_LAST(Small Materialized Aggregate for .last File)
+    "",      // TSDB_FILE_MAX
+    "meta",  // TSDB_FILE_META
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);

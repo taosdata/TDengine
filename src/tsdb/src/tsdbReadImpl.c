@@ -450,7 +450,7 @@ static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
 
 static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
   ASSERT((pBlock->blkVer > TSDB_SBLK_VER_0) && (pBlock->aggrStat));  // TODO: remove after pass all the test
-  SDFile *pDFileAggr = TSDB_READ_AGGR_FILE(pReadh);
+  SDFile *pDFileAggr = pBlock->last ? TSDB_READ_SMAL_FILE(pReadh) : TSDB_READ_SMAD_FILE(pReadh);
 
   if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",

@@ -38,7 +38,15 @@
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
 #define TSDB_FSET_NFILES_VALID(s) (((s)->nFiles >= TSDB_FILE_MIN) && ((s)->nFiles <= TSDB_FILE_MAX))
-typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_SMA, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
+typedef enum {
+  TSDB_FILE_HEAD = 0,
+  TSDB_FILE_DATA,
+  TSDB_FILE_LAST,
+  TSDB_FILE_SMAD,  // sma for .data
+  TSDB_FILE_SMAL,  // sma for .last
+  TSDB_FILE_MAX,
+  TSDB_FILE_META
+} TSDB_FILE_T;
 
 #define TSDB_FILE_MIN 3U  // min number of files in one DFileSet
 

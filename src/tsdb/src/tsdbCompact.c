@@ -37,7 +37,8 @@ typedef struct {
 #define TSDB_COMPACT_HEAD_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_HEAD)
 #define TSDB_COMPACT_DATA_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_DATA)
 #define TSDB_COMPACT_LAST_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_LAST)
-#define TSDB_COMPACT_AGGR_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_SMA)
+#define TSDB_COMPACT_SMAD_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_SMAD)
+#define TSDB_COMPACT_SMAL_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_SMAL)
 #define TSDB_COMPACT_BUF(pComph) TSDB_READ_BUF(&((pComph)->readh))
 #define TSDB_COMPACT_COMP_BUF(pComph) TSDB_READ_COMP_BUF(&((pComph)->readh))
 #define TSDB_COMPACT_EXBUF(pComph) TSDB_READ_EXBUF(&((pComph)->readh))
@@ -523,8 +524,9 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       isLast = false;
     }
 
-    if (tsdbWriteBlockImpl(pRepo, pTable, pDFile, TSDB_COMPACT_AGGR_FILE(pComph), pDataCols, &block, isLast, true,
-                           ppBuf, ppCBuf, ppExBuf) < 0) {
+    if (tsdbWriteBlockImpl(pRepo, pTable, pDFile,
+                           isLast ? TSDB_COMPACT_SMAL_FILE(pComph) : TSDB_COMPACT_SMAD_FILE(pComph), pDataCols, &block,
+                           isLast, true, ppBuf, ppCBuf, ppExBuf) < 0) {
       return -1;
     }
 

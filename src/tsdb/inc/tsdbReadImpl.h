@@ -126,7 +126,7 @@ typedef struct {
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;
-  char     padding[];
+  // char     padding[];
 } SBlockColV1;
 
 #define SBlockCol SBlockColV1      // latest SBlockCol definition
@@ -191,7 +191,8 @@ struct SReadH {
 #define TSDB_READ_HEAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_HEAD)
 #define TSDB_READ_DATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_DATA)
 #define TSDB_READ_LAST_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_LAST)
-#define TSDB_READ_AGGR_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_SMA)
+#define TSDB_READ_SMAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_SMAD)
+#define TSDB_READ_SMAL_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_SMAL)
 #define TSDB_READ_BUF(rh) ((rh)->pBuf)
 #define TSDB_READ_COMP_BUF(rh) ((rh)->pCBuf)
 #define TSDB_READ_EXBUF(rh) ((rh)->pExBuf)
