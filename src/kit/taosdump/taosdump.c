@@ -2180,15 +2180,21 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
 
 static int taosCheckParam(struct arguments *arguments) {
     if (g_args.all_databases && g_args.databases) {
-        fprintf(stderr, "conflict option --all-databases and --databases\n");
+        errorPrint("%s", "conflict option --all-databases and --databases\n");
         return -1;
     }
 
     if (g_args.start_time > g_args.end_time) {
-        fprintf(stderr, "start time is larger than end time\n");
+        errorPrint("%s", "start time is larger than end time\n");
         return -1;
     }
 
+    if (arguments->arg_list_len == 0) {
+        if ((!arguments->all_databases) && (!arguments->isDumpIn)) {
+            errorPrint("%s", "taosdump requires parameters\n");
+            return -1;
+        }
+    }
     /*
        if (g_args.isDumpIn && (strcmp(g_args.outpath, DEFAULT_DUMP_FILE) != 0)) {
        fprintf(stderr, "duplicate parameter input and output file path\n");
