@@ -13,28 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#ifndef _TD_OS_DEF_H_
+#define _TD_OS_DEF_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sched.h>
-
-#include "osAtomic.h"
-#include "osDef.h"
-#include "osEndian.h"
-#include "osMemory.h"
+#if defined(__GNUC__)
+#define FORCE_INLINE inline __attribute__((always_inline))
+#else
+#define FORCE_INLINE
+#endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_OS_DEF_H_*/

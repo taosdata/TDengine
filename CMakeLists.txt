@@ -20,7 +20,7 @@ set(DEPS_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
 ## googletest
-option(BUILD_TEST "If build unit tests using googletest" ON)
+option(BUILD_TEST "If build unit tests using googletest" OFF)
 
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${DEPS_TMP_FILE})
