@@ -2,7 +2,6 @@
 // to compile: gcc -o apitest apitest.c -ltaos
 
 #include "taoserror.h"
-#include "cJSON.h"
 
 #include <stdio.h>
 #include <stdlib.h>
