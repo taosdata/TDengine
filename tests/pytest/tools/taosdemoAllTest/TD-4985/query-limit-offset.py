@@ -26,6 +26,9 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
         now = time.time()
+
+        print(int(round(now * 1000)))
+
         self.ts = int(round(now * 1000))
 
     def getBuildPath(self):
@@ -54,6 +57,7 @@ class TDTestCase:
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
+        os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")
         os.system("%staosdemo -f tools/taosdemoAllTest/TD-4985/query-limit-offset.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
@@ -82,6 +86,7 @@ class TDTestCase:
                             % (self.ts + i, i, -10000+i, i))
         tdSql.query("select * from stb0 where c2 like 'test99%' ")
         tdSql.checkRows(1000)
+
         tdSql.query("select * from stb0 where  tbname like 'stb00_9999'  limit 10" )
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(1, 1, 1)

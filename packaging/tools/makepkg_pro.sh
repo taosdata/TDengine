@@ -72,11 +72,10 @@ if [ "$verMode" == "cluster" ]; then
     sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove_pro.sh >> remove_prodb_temp.sh
     mv remove_prodb_temp.sh ${install_dir}/bin/remove_pro.sh
 
-
     mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
     cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
     rm -rf ${install_dir}/nginxd/png
-    
+
     # replace the OEM name, add by yangzy@2021-09-22
     sed -i -e 's/www.taosdata.com/www.hanatech.com.cn/g' $(grep -r 'www.taosdata.com' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
     sed -i -e 's/TAOS Data/Hanatech/g' $(grep -r 'TAOS Data' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")

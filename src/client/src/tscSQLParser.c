@@ -4455,7 +4455,7 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 }
 
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
-                                     int32_t* type, int32_t parentOptr) {
+                                     int32_t* type, int32_t parentOptr, int32_t* tbIdx) {
   const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
   const char* msg3 = "only one query time range allowed";
@@ -4473,6 +4473,8 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   if (getColumnIndexByName(&pLeft->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
+
+  *tbIdx = index.tableIndex;
 
   assert(tSqlExprIsParentOfLeaf(*pExpr));
 
@@ -4612,12 +4614,12 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 }
 
 int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
-                        int32_t* type, int32_t parentOptr) {
+                        int32_t* type, int32_t parentOptr, int32_t *tbIdx) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* msg1 = "query condition between different columns must use 'AND'";
+  const char* msg1 = "query condition between columns/tables must use 'AND'";
 
   if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -4632,14 +4634,16 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
   int32_t leftType = -1;
   int32_t rightType = -1;
+  int32_t leftTbIdx = 0;
+  int32_t rightTbIdx = 0;
 
   if (!tSqlExprIsParentOfLeaf(*pExpr)) {
-    int32_t ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, (*pExpr)->tokenId);
+    int32_t ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, (*pExpr)->tokenId, &leftTbIdx);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, &rightType, (*pExpr)->tokenId);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, &rightType, (*pExpr)->tokenId, &rightTbIdx);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -4654,7 +4658,14 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
       }
     }
 
+    if (((leftTbIdx != rightTbIdx) || (leftTbIdx == -1 || rightTbIdx == -1)) && ((*pExpr)->tokenId == TK_OR)) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
     *type = rightType;
+
+    *tbIdx = (leftTbIdx == rightTbIdx) ? leftTbIdx : -1;
+    
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4668,7 +4679,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr);
+  return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr, tbIdx);
 }
 
 static void doExtractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* pQueryInfo, tSqlExpr** pOut, int32_t tableIndex) {
@@ -5210,7 +5221,8 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   int32_t type = 0;
-  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId)) != TSDB_CODE_SUCCESS) {
+  int32_t tbIdx = 0;
+  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId, &tbIdx)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
 

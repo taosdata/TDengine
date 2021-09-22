@@ -7668,7 +7668,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
 }
 
 #if STMT_BIND_PARAM_BATCH == 1
-static int execBindParamBatch(
+static int execStbBindParamBatch(
         threadInfo *pThreadInfo,
         char *tableName,
         int64_t tableSeq,
@@ -7682,7 +7682,9 @@ static int execBindParamBatch(
     TAOS_STMT *stmt = pThreadInfo->stmt;
 
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    uint32_t columnCount = (stbInfo)?pThreadInfo->stbInfo->columnCount:g_args.columnCount;
+    assert(stbInfo);
+
+    uint32_t columnCount = pThreadInfo->stbInfo->columnCount;
 
     uint32_t thisBatch = MAX_SAMPLES - (*pSamplePos);
 
@@ -7707,104 +7709,97 @@ static int execBindParamBatch(
             param->buffer = pThreadInfo->bind_ts_array;
 
         } else {
-            data_type = (stbInfo)?stbInfo->columns[c-1].data_type:g_args.data_type[c-1];
+            data_type = stbInfo->columns[c-1].data_type;
 
             char *tmpP;
 
             switch(data_type) {
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_NCHAR:
                     param->buffer_length =
-                        ((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth);
+                        stbInfo->columns[c-1].dataLen;
 
                     tmpP =
                         (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
                                     +sizeof(char*)*(c-1)));
 
-                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%d position=%"PRId64"\n",
-                            __func__, __LINE__, tmpP, *pSamplePos,
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth)),
-                            (*pSamplePos) *
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth)));
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
 
-                    param->buffer = (void *)(tmpP + *pSamplePos *
-                            (((stbInfo)?stbInfo->columns[c-1].dataLen:g_args.binwidth))
-                            );
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
+                    break;
+
+                case TSDB_DATA_TYPE_NCHAR:
+                    param->buffer_length =
+                        stbInfo->columns[c-1].dataLen;
+
+                    tmpP =
+                        (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
+                                    +sizeof(char*)*(c-1)));
+
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
+
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
                     break;
 
                 case TSDB_DATA_TYPE_INT:
                     param->buffer_length = sizeof(int32_t);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(int32_t)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
                     param->buffer_length = sizeof(int8_t);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(
                                     stbInfo->sampleBindBatchArray
                                     +sizeof(char*)*(c-1))
-                                + stbInfo->columns[c-1].dataLen*(*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(
-                                    g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(int8_t)*(*pSamplePos));
+                                + stbInfo->columns[c-1].dataLen*(*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
                     param->buffer_length = sizeof(int16_t);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(int16_t)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
                     param->buffer_length = sizeof(int64_t);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(int64_t)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
                     param->buffer_length = sizeof(int8_t);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(int8_t)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
                     param->buffer_length = sizeof(float);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(float)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_DOUBLE:
                     param->buffer_length = sizeof(double);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(double)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
                     param->buffer_length = sizeof(int64_t);
-                    param->buffer = (stbInfo)?
+                    param->buffer =
                         (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
-                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos)):
-                        (void *)((uintptr_t)*(uintptr_t*)(g_sampleBindBatchArray+sizeof(char*)*(c-1))
-                                    + sizeof(int64_t)*(*pSamplePos));
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
                     break;
 
                 default:
@@ -7825,7 +7820,7 @@ static int execBindParamBatch(
             if (param->buffer_type == TSDB_DATA_TYPE_NCHAR) {
                 param->length[b] = strlen(
                      (char *)param->buffer + b *
-                         ((stbInfo)?stbInfo->columns[c].dataLen:g_args.binwidth)
+                         stbInfo->columns[c].dataLen
                         );
             } else {
                 param->length[b] = param->buffer_length;
@@ -8372,7 +8367,7 @@ static int32_t prepareStbStmt(
     }
 
 #if STMT_BIND_PARAM_BATCH == 1
-    return execBindParamBatch(
+    return execStbBindParamBatch(
         pThreadInfo,
         tableName,
         tableSeq,
@@ -10060,15 +10055,18 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    fprintf(stderr, "insert delay, avg: %10.2fms, max: %10.2fms, min: %10.2fms\n\n",
-            (double)avgDelay/1000.0,
-            (double)maxDelay/1000.0,
-            (double)minDelay/1000.0);
-    if (g_fpOfInsertResult) {
-        fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %10.2fms, min: %10.2fms\n\n",
-            (double)avgDelay/1000.0,
-            (double)maxDelay/1000.0,
-            (double)minDelay/1000.0);
+    if (minDelay != UINT64_MAX) {
+        fprintf(stderr, "insert delay, avg: %10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+                (double)avgDelay/1000.0,
+                (double)maxDelay/1000.0,
+                (double)minDelay/1000.0);
+
+        if (g_fpOfInsertResult) {
+            fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+                    (double)avgDelay/1000.0,
+                    (double)maxDelay/1000.0,
+                    (double)minDelay/1000.0);
+        }
     }
 
     //taos_close(taos);
