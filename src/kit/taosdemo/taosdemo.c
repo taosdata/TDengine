@@ -11823,7 +11823,6 @@ static void setParaFromArg() {
                 char type[20];
                 char length[20];
                 sscanf(dataType[i], "%[^(](%[^)]", type, length);
-                printf("%s and type is %s, datalength is : %s\n", dataType[i], type, length);
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = atoi(length);
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                     type, min(DATATYPE_BUFF_LEN, strlen(type) + 1));
