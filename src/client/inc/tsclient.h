@@ -573,7 +573,7 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
   SKVRow   kvRow = memRowKvBody(dest);
 
   memRowSetType(dest, SMEM_ROW_KV);
-  memRowSetKvVersion(kvRow, dataRowVersion(dataRow));
+  memRowSetKvVersion(dest, dataRowVersion(dataRow));
   kvRowSetNCols(kvRow, nBoundCols);
   kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nBoundCols));
 
