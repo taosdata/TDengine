@@ -243,6 +243,7 @@ pipeline {
 
               sh '''
               cd ${WKC}/src/connector/node-rest/
+              npm install
               npm run build 
               npm run build:test
               npm run test
