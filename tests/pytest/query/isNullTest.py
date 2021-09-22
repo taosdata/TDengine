@@ -66,7 +66,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 12)
 
         tdSql.query("select count(*) from st where t2 <> '' ")
-        tdSql.checkData(0, 0, 24)
+        tdSql.checkData(0, 0, 12)
 
         tdSql.query("select count(*) from st where t3 is null")
         tdSql.checkData(0, 0, 12)
@@ -81,7 +81,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 12)
 
         tdSql.query("select count(*) from st where t3 <> '' ")
-        tdSql.checkData(0, 0, 24)
+        tdSql.checkData(0, 0, 12)
 
         tdSql.query("select count(*) from st where c1 is not null")
         tdSql.checkData(0, 0, 30)

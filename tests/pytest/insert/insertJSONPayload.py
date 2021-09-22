@@ -31,6 +31,27 @@ class TDTestCase:
 
 
         ### Default format ###
+        ### metric ###
+        print("============= step0 : test metric  ================")
+        payload = '''
+        {
+	    "metric":	".stb.0.",
+	    "timestamp":	1626006833610123,
+	    "value":	10,
+	    "tags":	{
+		"t1":	true,
+		"t2":	false,
+		"t3":	10,
+		"t4":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        '''
+        code = self._conn.insert_json_payload(payload)
+        print("insert_json_payload result {}".format(code))
+
+        tdSql.query("describe _stb_0_")
+        tdSql.checkRows(6)
+
         ### metric value ###
         print("============= step1 : test metric value types  ================")
         payload = '''
@@ -50,7 +71,7 @@ class TDTestCase:
         print("insert_json_payload result {}".format(code))
 
         tdSql.query("describe stb0_0")
-        tdSql.checkData(1, 1, "FLOAT")
+        tdSql.checkData(1, 1, "BIGINT")
 
         payload = '''
         {
@@ -107,12 +128,52 @@ class TDTestCase:
         print("insert_json_payload result {}".format(code))
 
         tdSql.query("describe stb0_3")
-        tdSql.checkData(1, 1, "NCHAR")
+        tdSql.checkData(1, 1, "BINARY")
 
-        ### timestamp 0 ###
         payload = '''
         {
 	    "metric":	"stb0_4",
+	    "timestamp":	1626006833610123,
+	    "value":	3.14,
+	    "tags":	{
+		"t1":	true,
+		"t2":	false,
+		"t3":	10,
+		"t4":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        '''
+        code = self._conn.insert_json_payload(payload)
+        print("insert_json_payload result {}".format(code))
+
+        tdSql.query("describe stb0_4")
+        tdSql.checkData(1, 1, "DOUBLE")
+
+        payload = '''
+        {
+	    "metric":	"stb0_5",
+	    "timestamp":	1626006833610123,
+	    "value":	3.14E-2,
+	    "tags":	{
+		"t1":	true,
+		"t2":	false,
+		"t3":	10,
+		"t4":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        '''
+        code = self._conn.insert_json_payload(payload)
+        print("insert_json_payload result {}".format(code))
+
+        tdSql.query("describe stb0_5")
+        tdSql.checkData(1, 1, "DOUBLE")
+
+
+        print("============= step2 : test timestamp  ================")
+        ### timestamp 0 ###
+        payload = '''
+        {
+	    "metric":	"stb0_6",
 	    "timestamp":	0,
 	    "value":	123,
 	    "tags":	{
@@ -127,14 +188,15 @@ class TDTestCase:
         print("insert_json_payload result {}".format(code))
 
 
+        print("============= step3 : test tags  ================")
         ### ID ###
         payload = '''
         {
-	    "metric":	"stb0_5",
+	    "metric":	"stb0_7",
 	    "timestamp":	0,
 	    "value":	123,
 	    "tags":	{
-		"ID":	"tb0_5",
+		"ID":	"tb0_7",
 		"t1":	true,
 		"iD":	"tb000",
 		"t2":	false,
@@ -147,10 +209,60 @@ class TDTestCase:
         code = self._conn.insert_json_payload(payload)
         print("insert_json_payload result {}".format(code))
 
-        tdSql.query("select tbname from stb0_5")
-        tdSql.checkData(0, 0, "tb0_5")
+        tdSql.query("select tbname from stb0_7")
+        tdSql.checkData(0, 0, "tb0_7")
+
+        ### Default tag numeric types ###
+        payload = '''
+        {
+	    "metric":	"stb0_8",
+	    "timestamp":	0,
+	    "value":	123,
+	    "tags":	{
+		"t1":	123
+	    }
+        }
+        '''
+        code = self._conn.insert_json_payload(payload)
+        print("insert_json_payload result {}".format(code))
+
+        tdSql.query("describe stb0_8")
+        tdSql.checkData(2, 1, "BIGINT")
+
+        payload = '''
+        {
+	    "metric":	"stb0_9",
+	    "timestamp":	0,
+	    "value":	123,
+	    "tags":	{
+		"t1":	123.00
+	    }
+        }
+        '''
+        code = self._conn.insert_json_payload(payload)
+        print("insert_json_payload result {}".format(code))
+
+        tdSql.query("describe stb0_9")
+        tdSql.checkData(2, 1, "DOUBLE")
+
+        payload = '''
+        {
+	    "metric":	"stb0_10",
+	    "timestamp":	0,
+	    "value":	123,
+	    "tags":	{
+		"t1":	123E-1
+	    }
+        }
+        '''
+        code = self._conn.insert_json_payload(payload)
+        print("insert_json_payload result {}".format(code))
+
+        tdSql.query("describe stb0_10")
+        tdSql.checkData(2, 1, "DOUBLE")
 
         ### Nested format ###
+        print("============= step4 : test nested format  ================")
         ### timestamp ###
         #seconds
         payload = '''
