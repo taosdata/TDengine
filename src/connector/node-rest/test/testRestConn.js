@@ -1,8 +1,7 @@
 import {TDRestConnection} from "../TDengineRest";
 import assert from "assert"
 
-let conn = new TDRestConnection({host: 'u195:q' +
-    ':', user: 'root', pass: 'taosdata', port: 6041});
+let conn = new TDRestConnection({host: 'u195', user: 'root', pass: 'taosdata', port: 6041});
 let cursor = conn.cursor();
 
 const createDB = "create database if not exists node_rest";

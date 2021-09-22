@@ -243,8 +243,8 @@ pipeline {
 
               sh '''
               cd ${WKC}/src/connector/node-rest/
-              npm run build > /dev/null 2>&1
-              npm run build:test > /dev/null 2>&1
+              npm run build 
+              npm run build:test
               npm run test
 
               '''
