@@ -346,7 +346,7 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
         TAOS* taos, char* dbName,
         int precision,
         char *jsonAvroSchema);
-static int taosCheckParam(struct arguments *arguments);
+static int checkParam();
 static void taosFreeDbInfos();
 
 struct arguments g_args = {
@@ -2178,7 +2178,7 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
     return totalRows;
 }
 
-static int taosCheckParam(struct arguments *arguments) {
+static int checkParam() {
     if (g_args.all_databases && g_args.databases) {
         errorPrint("%s", "conflict option --all-databases and --databases\n");
         return -1;
@@ -2189,8 +2189,8 @@ static int taosCheckParam(struct arguments *arguments) {
         return -1;
     }
 
-    if (arguments->arg_list_len == 0) {
-        if ((!arguments->all_databases) && (!arguments->isDumpIn)) {
+    if (g_args.arg_list_len == 0) {
+        if ((!g_args.all_databases) && (!g_args.databases) && (!g_args.isDumpIn)) {
             errorPrint("%s", "taosdump requires parameters\n");
             return -1;
         }
@@ -2774,7 +2774,7 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("==============================\n");
-    if (taosCheckParam(&g_args) < 0) {
+    if (checkParam(&g_args) < 0) {
         exit(EXIT_FAILURE);
     }
 
