@@ -41,6 +41,15 @@ class TDTestCase:
         tdSql.execute(
             "insert into test22 using stest tags('test21','ccc') values ('2020-09-04 16:54:54.003',210,3)")
 
+        #2021-09-17 For jira: https://jira.taosdata.com:18080/browse/TD-6085
+        tdSql.query("select last(size),appname from stest where tbname in ('test1','test2','test11')")
+        tdSql.checkRows(1)
+
+        #2021-09-17 For jira: https://jira.taosdata.com:18080/browse/TD-6314
+        tdSql.query("select _block_dist() from stest")
+        tdSql.checkRows(1)
+
+
         tdSql.query("select sum(size) from stest interval(1d) group by appname")        
         tdSql.checkRows(3)
 
