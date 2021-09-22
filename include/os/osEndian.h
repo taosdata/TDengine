@@ -13,25 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#ifndef _TD_OS_ENDIAN_H_
+#define _TD_OS_ENDIAN_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "osEndian.h"
-#include "osMemory.h"
+static const int32_t endian_test_var = 1;
+#define IS_LITTLE_ENDIAN() (*(uint8_t *)(&endian_test_var) != 0)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_OS_ENDIAN_H_*/

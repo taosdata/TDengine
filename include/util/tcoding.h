@@ -19,11 +19,9 @@
 extern "C" {
 #endif
 
-// TODO: move this to a platform file
-#define ENCODE_LIMIT (((uint8_t)1) << 7)
-static const int32_t TNUMBER = 1;
-#define IS_LITTLE_ENDIAN() (*(uint8_t *)(&TNUMBER) != 0)
+#include "os.h "
 
+#define ENCODE_LIMIT (((uint8_t)1) << 7)
 #define ZIGZAGE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAGD(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 

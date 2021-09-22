@@ -12,26 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "osEndian.h"
-#include "osMemory.h"
-
-#ifdef __cplusplus
+int main(int argc, char const *argv[]) {
+  printf("Hello world!\n");
+  return 0;
 }
-#endif
-
-#endif
