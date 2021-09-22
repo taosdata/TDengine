@@ -49,7 +49,6 @@ class TDTestCase:
         tdSql.query("select _block_dist() from stest")
         tdSql.checkRows(1)
 
-
         tdSql.query("select sum(size) from stest interval(1d) group by appname")        
         tdSql.checkRows(3)
 
