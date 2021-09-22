@@ -11737,6 +11737,8 @@ static void initOfQueryMeta() {
 }
 
 static void setParaFromArg() {
+    char type[20];
+    char length[20];
     if (g_args.host) {
         tstrncpy(g_Dbs.host, g_args.host, MAX_HOSTNAME_SIZE);
     } else {
@@ -11820,8 +11822,6 @@ static void setParaFromArg() {
                     dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
             if (1 == regexMatch(dataType[i], "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$", REG_ICASE | 
                     REG_EXTENDED)) {
-                char type[20];
-                char length[20];
                 sscanf(dataType[i], "%[^(](%[^)]", type, length);
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = atoi(length);
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
