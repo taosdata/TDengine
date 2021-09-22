@@ -1857,6 +1857,14 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
 
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSqlExprItem* pItem, int32_t colId) {
   SExprInfo* pExpr = doAddProjectCol(pQueryInfo, pIndex->columnIndex, pIndex->tableIndex, colId);
+  if( pItem->pNode->tokenId == TK_ARROW){
+    tSqlExpr* right = pItem->pNode->pRight;
+    assert(right != NULL && right->type == SQL_NODE_VALUE);
+    tVariantAssign(&(pExpr->base.param[pExpr->base.numOfParams]), &right->value);
+    pExpr->base.numOfParams++;
+    pExpr->base.resType = TSDB_DATA_TYPE_BINARY;     // tag-> operation transform result type
+    assert(pExpr->base.numOfParams <= 3);
+  }
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2202,6 +2210,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   const char* msg1 = "tag for normal table query is not allowed";
   const char* msg2 = "invalid column name";
   const char* msg3 = "tbname not allowed in outer query";
+  const char* msg4 = "-> operate can only used in json type";
+  const char* msg5 = "the right value of -> operation must be string";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
   int32_t tokenId = pItem->pNode->tokenId;
@@ -2244,10 +2254,25 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     // NOTE: the first parameter is reserved for the tag column id during join query process.
     pExpr->base.numOfParams = 2;
     tVariantAssign(&pExpr->base.param[1], &pItem->pNode->value);
-  } else if (tokenId == TK_ID) {
+  }else if (tokenId == TK_ID || tokenId == TK_ARROW) {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
-    if (getColumnIndexByName(&pItem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+    SStrToken* pToken = NULL;
+    if (tokenId == TK_ARROW){
+      tSqlExpr* left = pItem->pNode->pLeft;
+      assert(left != NULL && left->type == SQL_NODE_TABLE_COLUMN);
+      pToken = &left->columnName;
+
+      tSqlExpr* right = pItem->pNode->pRight;
+      assert(right != NULL && right->type == SQL_NODE_VALUE);
+      if(right->tokenId != TK_STRING){
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      }
+    }else {
+      pToken = &pItem->pNode->columnName;
+    }
+
+    if (getColumnIndexByName(pToken, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
@@ -2292,6 +2317,11 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 
       if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
+      SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
+      if (tokenId == TK_ARROW && pSchema->type != TSDB_DATA_TYPE_JSON) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
 
       addProjectQueryCol(pQueryInfo, startPos, &index, pItem, getNewResColId(pCmd));

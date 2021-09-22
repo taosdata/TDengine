@@ -5174,6 +5174,48 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
+pExprInfo[j].base.param[0].nLen
+
+char* findTagValue(void* data, char* key, int32_t keyLen){
+  int16_t nCols = kvRowNCols(data);
+
+  bool found = false;
+  for (int k = 1; k < nCols; ++k) {
+    SColIdx* pColIdx = kvRowColIdxAt(data, k);
+    void*    result = kvRowColVal(data, pColIdx);
+
+    if (k % 2 != 0) {  // json key
+      char    tagJsonKey[TSDB_MAX_TAGS_LEN] = {0};
+      int32_t length = taosUcs4ToMbs(varDataVal(result), varDataLen(result), tagJsonKey);
+      if (length == 0) {
+        tscError("charset:%s to %s. val:%s convert json key failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                 (char*)result);
+        continue;
+      }
+      if (strncmp(key, tagJsonKey, keyLen) != 0) {
+        continue;
+      }
+      found = true;
+    } else {  // json value
+      if (!found) continue;
+
+      if (*(char*)result == cJSON_String) {
+        char    tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
+        int32_t length = taosUcs4ToMbs(varDataVal(POINTER_SHIFT(result, CHAR_BYTES)),
+                                       varDataLen(POINTER_SHIFT(result, CHAR_BYTES)), tagJsonValue);
+        if (length == 0) {
+          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                   (char*)result);
+        }
+      } else if (*(char*)result == cJSON_Number) {
+        double jsonVd = *(double*)(POINTER_SHIFT(result, CHAR_BYTES));
+      } else {
+        tscError("unsupportted json value");
+      }
+    }
+  }
+}
+
 char* parseTagDatatoJson(void *p){
   char* string = NULL;
   cJSON *json = cJSON_CreateObject();

@@ -211,14 +211,12 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
   }
 
   char *val = NULL;
-  if (type == TSDB_DATA_TYPE_JSON){
+  if (pCol->type == TSDB_DATA_TYPE_JSON){
     val = ((STable*)pTable)->tagVal;
   }else{
     val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
+    assert(type == pCol->type && bytes >= pCol->bytes);
   }
-
-  assert(type == pCol->type && bytes >= pCol->bytes);
-
   // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
   //   assert(varDataLen(val) < pCol->bytes);
   // }

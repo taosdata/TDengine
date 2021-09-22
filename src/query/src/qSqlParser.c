@@ -327,6 +327,11 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pRSub->Expr.paramList = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
+  } else if (optrType == TK_ARROW) {
+    pExpr->tokenId = optrType;
+    pExpr->pLeft = pLeft;
+    pExpr->pRight = pRight;
+    pExpr->type = SQL_NODE_TABLE_COLUMN;
   } else {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;

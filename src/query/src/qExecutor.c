@@ -30,6 +30,8 @@
 #include "tscompression.h"
 #include "qScript.h"
 #include "tscLog.h"
+#include "cJSON.h"
+#include "tsdbMeta.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -7176,6 +7178,16 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
           data = tsdbGetTableName(item->pTable);
         } else {
           data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
+          if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
+            STSchema *pSchema = tsdbGetTableTagSchema((STable*) item->pTable);
+            STColumn *pCol = tdGetColOfID(pSchema, pExprInfo[j].base.colInfo.colId);
+            if (pCol == NULL) {
+              continue;  // No matched tag volumn
+            }
+            if(pCol->type == TSDB_DATA_TYPE_JSON){
+
+            }
+          }
         }
 
         dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
