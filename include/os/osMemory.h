@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#ifndef _TD_OS_MEMORY_H_
+#define _TD_OS_MEMORY_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-
-#include "osMemory.h"
+#define tfree(x)       \
+  do {                 \
+    if (x) {           \
+      free((void *)x); \
+      x = 0;           \
+    }                  \
+  } while (0)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_OS_MEMORY_H_*/

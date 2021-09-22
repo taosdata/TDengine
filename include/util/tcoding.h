@@ -19,11 +19,6 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <string.h>
-
-#include "tutil.h"
-
 // TODO: move this to a platform file
 #define ENCODE_LIMIT (((uint8_t)1) << 7)
 static const int32_t TNUMBER = 1;
