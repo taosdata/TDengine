@@ -37,6 +37,6 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 add_subdirectory(deps)
 
 # src
-add_subdirectory(src)
+add_subdirectory(source)
 
 # tests (TODO)
