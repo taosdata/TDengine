@@ -930,7 +930,9 @@ static void monSaveSlowQueryInfo() {
       } else if (strcmp(fields[i].name, "qid") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
       } else if (strcmp(fields[i].name, "created_time") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", *(int64_t *)row[i]);
+        int64_t create_time = *(int64_t *)row[i];
+        create_time = convertTimePrecision(create_time, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO);
+        pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", create_time);
       } else if (strcmp(fields[i].name, "time") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", *(int64_t *)row[i]);
       } else if (strcmp(fields[i].name, "ep") == 0) {
