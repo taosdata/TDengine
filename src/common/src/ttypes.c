@@ -369,7 +369,7 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
 }
 
 tDataTypeDescriptor tDataTypes[16] = {
-  {TSDB_DATA_TYPE_NULL,      6,  1,            "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
+  {TSDB_DATA_TYPE_NULL,      6,  1,     "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
   {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               false,      true,           tsCompressBool,      tsDecompressBool,      getStatics_bool},
   {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            INT8_MIN,   INT8_MAX,       tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
   {TSDB_DATA_TYPE_SMALLINT,  8,  SHORT_BYTES,  "SMALLINT",           INT16_MIN,  INT16_MAX,      tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
@@ -377,14 +377,14 @@ tDataTypeDescriptor tDataTypes[16] = {
   {TSDB_DATA_TYPE_BIGINT,    6,  LONG_BYTES,   "BIGINT",             INT64_MIN,  INT64_MAX,      tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
   {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              0,          0,              tsCompressFloat,     tsDecompressFloat,     getStatics_f},
   {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             0,          0,              tsCompressDouble,    tsDecompressDouble,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6,  0,            "BINARY",             0,          0,              tsCompressString,    tsDecompressString,    getStatics_bin},
+  {TSDB_DATA_TYPE_BINARY,    6,  0,     "BINARY",             0,          0,              tsCompressString,    tsDecompressString,    getStatics_bin},
   {TSDB_DATA_TYPE_TIMESTAMP, 9,  LONG_BYTES,   "TIMESTAMP",          INT64_MIN,  INT64_MAX,      tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5,  8,            "NCHAR",              0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_NCHAR,     5,  8,     "NCHAR",              0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
   {TSDB_DATA_TYPE_UTINYINT,  16, CHAR_BYTES,   "TINYINT UNSIGNED",   0,          UINT8_MAX,      tsCompressTinyint,   tsDecompressTinyint,   getStatics_u8},
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
   {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
-  {TSDB_DATA_TYPE_JSON,      4,TSDB_MAX_NCHAR_LEN,   "JSON", INT8_MIN,          TSDB_MAX_NCHAR_LEN,              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_JSON,      4,  0,     "JSON",               0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {

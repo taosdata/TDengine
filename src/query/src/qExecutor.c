@@ -3344,7 +3344,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     val = tsdbGetTableName(pTable);
     assert(val != NULL);
   } else {
-    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);      // todo json
+    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
   }
 
   if (val == NULL || isNull(val, type)) {
@@ -3357,7 +3357,13 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
     tVariantCreateFromBinary(tag, varDataVal(val), len, type);
     //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
-  } else {
+  } else if(type == TSDB_DATA_TYPE_JSON){
+    assert(kvRowLen(val) < bytes);
+    tVariantCreateFromBinary(tag, val, bytes, type);
+    memcpy(tag->pz + 1, tag->pz, bytes - 1);    // move back 1 byte for select type
+    *(tag->pz) = SELECT_ALL_JSON_TAG;
+  }
+  else {
     tVariantCreateFromBinary(tag, val, bytes, type);
   }
 }
@@ -7139,7 +7145,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
         data = tsdbGetTableName(item->pTable);
       } else {
-        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);
+        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);  //todo json
       }
 
       doSetTagValueToResultBuf(output, data, type, bytes);
@@ -7179,26 +7185,28 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
+
         } else {
           data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
           if(type == TSDB_DATA_TYPE_JSON){
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
               tagJsonElementData = calloc(bytes, 1);
-              findTagValue(data, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData);
+              findTagValue(data, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes);
               *dst = SELECT_ELEMENT_JSON_TAG;   // select tag->element
               dst++;
+              assert(varDataTLen(tagJsonElementData) < bytes);
+              doSetTagValueToResultBuf(dst, tagJsonElementData, type, bytes - 1);
+              tfree(tagJsonElementData);
             }else{
               *dst = SELECT_ALL_JSON_TAG;   // select tag
               dst++;
+              assert(kvRowLen(data) < bytes);
+              doSetTagValueToResultBuf(dst, data, type, bytes - 1);
             }
+            continue;
           }
         }
-        if(tagJsonElementData != NULL){
-          doSetTagValueToResultBuf(dst, tagJsonElementData, type, bytes);
-          tfree(tagJsonElementData);
-        }else{
-          doSetTagValueToResultBuf(dst, data, type, bytes);
-        }
+        doSetTagValueToResultBuf(dst, data, type, bytes);
       }
 
       count += 1;

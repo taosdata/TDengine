@@ -5178,7 +5178,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-void findTagValue(void* data, char* key, int32_t keyLen, char* out){
+void findTagValue(void* data, char* key, int32_t keyLen, char* out, int16_t len){
   int16_t nCols = kvRowNCols(data);
 
   bool found = false;
@@ -5205,21 +5205,30 @@ void findTagValue(void* data, char* key, int32_t keyLen, char* out){
       found = true;
     } else {  // json value
       if (!found) continue;
-
+      char* realData = POINTER_SHIFT(result, CHAR_BYTES);
       if (*(char*)result == cJSON_String) {
-        char    tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
-        int32_t length = taosUcs4ToMbs(varDataVal(POINTER_SHIFT(result, CHAR_BYTES)),
-                                       varDataLen(POINTER_SHIFT(result, CHAR_BYTES)), tagJsonValue);
-        if (length == 0) {
-          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                   (char*)result);
-        }else{
-          varDataSetLen(out, length);
-          memcpy(varDataVal(out), tagJsonValue, length);
+
+        if (JSON_TYPE_BINARY){
+          assert(varDataLen(realData) <= len);
+          memcpy(varDataVal(out), varDataVal(realData), varDataLen(realData));
+          varDataSetLen(out, varDataLen(realData));
+        } else if(JSON_TYPE_NCHAR) {
+          char    tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
+          int32_t length = taosUcs4ToMbs(varDataVal(realData),
+                                         varDataLen(realData), tagJsonValue);
+          if (length == 0) {
+            tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                     (char*)result);
+          } else {
+            assert(length <= len);
+            varDataSetLen(out, length);
+            memcpy(varDataVal(out), tagJsonValue, length);
+          }
         }
       } else if (*(char*)result == cJSON_Number) {
-        double jsonVd = *(double*)(POINTER_SHIFT(result, CHAR_BYTES));
+        double jsonVd = *(double*)(realData);
         sprintf(varDataVal(out), "%.9lf", jsonVd);
+        assert(strlen(varDataVal(out)) <= len);
         varDataSetLen(out, strlen(varDataVal(out)));
       } else {
         tscError("unsupportted json value");

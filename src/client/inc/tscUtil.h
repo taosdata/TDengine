@@ -377,7 +377,7 @@ char* cloneCurrentDBName(SSqlObj* pSql);
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId);
 char* parseTagDatatoJson(void *p);
-void findTagValue(void* data, char* key, int32_t keyLen, char* out);
+void findTagValue(void* data, char* key, int32_t keyLen, char* out, int16_t len);
 
 #ifdef __cplusplus
 }

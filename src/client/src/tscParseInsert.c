@@ -388,7 +388,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
       break;
 
     case TSDB_DATA_TYPE_JSON:
-      if (pToken->n > TSDB_MAX_TAGS_LEN) {
+      if (pToken->n >= pSchema->bytes) {    // reserve 1 byte for select
         return tscInvalidOperationMsg(msg, "json tag length too long", pToken->z);
       }
       if (pToken->type == TK_NULL) {
@@ -1111,7 +1111,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     if (pInsertParam->tagData.dataLen <= 0){
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "tag value expected", NULL);
     }
-    
+    // encode json tag string
+    if(spd.numOfBound == 1 && pTagSchema[spd.boundedColumns[0]].type == TSDB_DATA_TYPE_JSON){
+      if(kvRowLen(row) >= pTagSchema[spd.boundedColumns[0]].bytes){   // reserve 1 byte for select
+        char tmp[128]= {0};
+        sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagSchema[spd.boundedColumns[0]].bytes);
+        return tscSQLSyntaxErrMsg(pInsertParam->msg, tmp, NULL);
+      }
+    }
     char* pTag = realloc(pInsertParam->tagData.data, pInsertParam->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;

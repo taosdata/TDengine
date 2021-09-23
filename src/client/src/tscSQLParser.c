@@ -6131,6 +6131,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
       tdSortKVRowByColIdx(row);
+      if(kvRowLen(row) >= pTagsSchema->bytes){    // reserve 1 byte for select
+        char tmp[128]= {0};
+        sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagsSchema->bytes);
+        return invalidOperationMsg(pMsg, tmp);
+      }
+
       kvRowCpy(pUpdateMsg->data + schemaLen, row);
       free(row);
     }else{
@@ -7707,7 +7713,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
             pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
           }
         } else if (pSchema->type == TSDB_DATA_TYPE_JSON) {
-          if (pItem->pVar.nLen > TSDB_MAX_TAGS_LEN) {
+          if (pItem->pVar.nLen > pSchema->bytes) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
@@ -7759,6 +7765,14 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     }
     tdSortKVRowByColIdx(row);
     pTag->dataLen = kvRowLen(row);
+    if(schemaSize == 1 && pTagSchema[0].type == TSDB_DATA_TYPE_JSON){
+      if(kvRowLen(row) >= pTagSchema[0].bytes){   // reserve 1 byte for select
+        char tmp[128]= {0};
+        sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagSchema[0].bytes);
+        free(row);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
+      }
+    }
 
     if (pTag->data == NULL) {
       pTag->data = malloc(pTag->dataLen);
