@@ -52,11 +52,10 @@ class TDTestCase:
         return buildPath
 
     def run(self):
+        if not os.path.exists("./taosdumptest"):
+            os.makedirs("./taosdumptest")
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/tmp1")
-        else:
-            print("path has already existed")
-
         if not os.path.exists("./taosdumptest/tmp2"):
             os.makedirs("./taosdumptest/tmp2")
         if not os.path.exists("./taosdumptest/tmp3"):
@@ -83,7 +82,9 @@ class TDTestCase:
         tdSql.execute("create table  if not exists gt1 (ts timestamp, c0 int, c1 double)  ")
         tdSql.execute("insert into gt0 values(1614218412000,637,8.861)")
         tdSql.execute("insert into gt1 values(1614218413000,638,8.862)")
-        # create db1 , three stables  ; create general tables
+        # create db1 , three stables:stb0,include ctables stb0_0 \ stb0_1,stb1 include ctables stb1_0 and stb1_1 
+        # \stb3,include ctables stb3_0 and stb3_1 
+        # ; create general three tables gt0 gt1 gt2
         tdSql.execute("create database if not  exists dp2")
         tdSql.execute("use dp2")
         tdSql.execute("create stable st0(ts timestamp, c01 int, c02 nchar(10)) tags(t1 int)")
@@ -110,11 +111,14 @@ class TDTestCase:
         os.system("rm -rf ./taosdumptest/tmp2/*")
         os.system("rm -rf ./taosdumptest/tmp3/*")
         os.system("rm -rf ./taosdumptest/tmp4/*")
-        #  taosdump stable and  general table
-        os.system("%staosdump  -o ./taosdumptest/tmp1 -D dp1 dp2  " % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp2 dp1 st0 gt0  " % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0" % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp4 dp2 st0 st2 gt0 gt2" % binPath)
+        # #  taosdump stable and  general table
+        # os.system("%staosdump  -o ./taosdumptest/tmp1 -D dp1 dp2  " % binPath)
+        # os.system("%staosdump  -o ./taosdumptest/tmp2 dp1 st0 gt0  " % binPath)
+        # os.system("%staosdump  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0" % binPath)
+        # os.system("%staosdump  -o ./taosdumptest/tmp4 dp2 st0 st2 gt0 gt2" % binPath)、
+        # verify -D:--database
+        # os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0" % binPath)
+        # os.system("%staosdump --databases dp1,dp2 -o ./taosdumptest/tmp3 " % binPath)
 
         # #check taosdumptest/tmp1
         # tdSql.execute("drop database  dp1")
