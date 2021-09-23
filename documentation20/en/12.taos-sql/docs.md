@@ -75,7 +75,7 @@ Note:
 2. UPDATE marks the database support updating the same timestamp data;
 3. Maximum length of the database name is 33;
 4. Maximum length of a SQL statement is 65480 characters;
-5.  Database has more storage-related configuration parameters, see [Server-side Configuration](https://www.taosdata.com/en/documentation/administrator#config) .
+5. Database has more storage-related configuration parameters, see [Server-side Configuration](https://www.taosdata.com/en/documentation/administrator#config) .
 
 - **Show current system parameters**
 
