@@ -20,6 +20,47 @@
 extern "C" {
 #endif
 
+struct SRpcMsg;
+
+/**
+ * Deploy Mnode instances in Dnode.
+ * 
+ * @return Error Code.
+ */
+int32_t mnodeDeploy();
+
+/**
+ * Delete the Mnode instance deployed in Dnode.
+ */
+void mnodeUnDeploy();
+
+/**
+ * Start Mnode service.
+ * 
+ * @return Error Code.
+ */
+int32_t mnodeStart();
+
+/**
+ * Stop Mnode service.
+ */
+int32_t mnodeStop();
+
+/**
+ * Interface for processing messages.
+ * 
+ * @param pMsg Message to be processed.
+ * @return Error code
+ */
+int32_t mnodeProcessMsg(SRpcMsg *pMsg);
+
+/**
+ * Whether the Mnode is in service.
+ * 
+ * @return Server status.
+ */
+bool mnodeIsServing();
+
 #ifdef __cplusplus
 }
 #endif
