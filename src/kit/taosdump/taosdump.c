@@ -346,7 +346,7 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
         TAOS* taos, char* dbName,
         int precision,
         char *jsonAvroSchema);
-static int taosCheckParam(struct arguments *arguments);
+static int checkParam();
 static void taosFreeDbInfos();
 
 struct arguments g_args = {
@@ -2178,17 +2178,23 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
     return totalRows;
 }
 
-static int taosCheckParam(struct arguments *arguments) {
+static int checkParam() {
     if (g_args.all_databases && g_args.databases) {
-        fprintf(stderr, "conflict option --all-databases and --databases\n");
+        errorPrint("%s", "conflict option --all-databases and --databases\n");
         return -1;
     }
 
     if (g_args.start_time > g_args.end_time) {
-        fprintf(stderr, "start time is larger than end time\n");
+        errorPrint("%s", "start time is larger than end time\n");
         return -1;
     }
 
+    if (g_args.arg_list_len == 0) {
+        if ((!g_args.all_databases) && (!g_args.databases) && (!g_args.isDumpIn)) {
+            errorPrint("%s", "taosdump requires parameters\n");
+            return -1;
+        }
+    }
     /*
        if (g_args.isDumpIn && (strcmp(g_args.outpath, DEFAULT_DUMP_FILE) != 0)) {
        fprintf(stderr, "duplicate parameter input and output file path\n");
@@ -2768,7 +2774,7 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("==============================\n");
-    if (taosCheckParam(&g_args) < 0) {
+    if (checkParam(&g_args) < 0) {
         exit(EXIT_FAILURE);
     }
 

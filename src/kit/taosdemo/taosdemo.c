@@ -6717,7 +6717,7 @@ static int generateSampleFromRand(
 
                 case TSDB_DATA_TYPE_NCHAR:
                     dataLen = (columns)?columns[c].dataLen:g_args.binwidth;
-                    rand_string(data, dataLen);
+                    rand_string(data, dataLen - 1);
                     pos += sprintf(buff + pos, "%s,", data);
                     break;
 
