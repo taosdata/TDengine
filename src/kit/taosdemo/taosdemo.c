@@ -4271,6 +4271,10 @@ static int createSuperTable(
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "BIGINT UNSIGNED");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "TIMESTAMP");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + TIMESTAMP_BUFF_LEN;
         } else {
             taos_close(taos);
             free(command);
