@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tfs.h"
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -86,6 +87,7 @@ static void  monSaveClusterInfo();
 static void  monSaveDnodesInfo();
 static void  monSaveVgroupsInfo();
 static void  monSaveSlowQueryInfo();
+static void  monSaveDisksInfo();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
 extern int32_t (*monStartSystemFp)();
@@ -769,23 +771,20 @@ static int32_t monBuildDnodeDiskSql(char *sql) {
 
 static int32_t monBuildDiskTierSql(char *sql) {
   const int8_t numTiers = 3;
+  const double unit = 1024 * 1024 * 1024;
   SFSMeta      fsMeta;
   STierMeta* tierMetas = calloc(numTiers, sizeof(STierMeta));
   tfsUpdateInfo(&fsMeta, tierMetas, numTiers);
   int32_t pos = 0;
 
   for (int i = 0; i < numTiers; ++i) {
-    pos += sprintf(sql + pos, ", datadir_l%d_used %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
-    char* keyDataDirLevelUsed = "datadir_used";
-    char* keyDataDirLevelTotal = "datadir_total";
-    httpJsonPairInt64Val(jsonBuf, keyDataDirLevelUsed, (int32_t)strlen(keyDataDirLevelUsed), tierMetas[i].used);
-    httpJsonPairInt64Val(jsonBuf, keyDataDirLevelTotal, (int32_t)strlen(keyDataDirLevelTotal), tierMetas[i].size);
-  
+    pos += sprintf(sql + pos, ", %f, %f", (float)(tierMetas[i].used / unit), (float)(tierMetas[i].size / unit));
   }
+  pos += sprintf(sql + pos, ")"); 
 
   free(tierMetas);
 
-  return sprintf(sql, ", %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
+  return pos;
 }
 
 static void monSaveClusterInfo() {
