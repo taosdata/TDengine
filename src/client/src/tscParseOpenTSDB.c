@@ -311,7 +311,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
   return ret;
 }
 
-int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
+static int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
   const char* index = line;
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -354,7 +354,7 @@ int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData, SSmlL
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, SArray* failedLines, SSmlLinesInfo* info) {
+static int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, SArray* failedLines, SSmlLinesInfo* info) {
   for (int32_t i = 0; i < numLines; ++i) {
     TAOS_SML_DATA_POINT point = {0};
     int32_t code = tscParseTelnetLine(lines[i], &point, info);
@@ -438,7 +438,7 @@ int taos_telnet_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
 
 
 /* telnet style API parser */
-int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
+static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
   cJSON *metric = cJSON_GetObjectItem(root, "metric");
   if (!cJSON_IsString(metric)) {
     return  TSDB_CODE_TSC_INVALID_JSON;
@@ -474,7 +474,7 @@ int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
 
 }
 
-int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* info) {
+static int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* info) {
   int32_t size = cJSON_GetArraySize(root);
   if (size != OTD_JSON_SUB_FIELDS_NUM) {
     return TSDB_CODE_TSC_INVALID_JSON;
@@ -526,7 +526,7 @@ int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesInfo* in
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSmlLinesInfo* info) {
+static int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSmlLinesInfo* info) {
   //Timestamp must be the first KV to parse
   assert(*num_kvs == 0);
   int64_t tsVal;
@@ -567,7 +567,7 @@ int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_kvs, SSm
 
 }
 
-int32_t convertJSONBool(TAOS_SML_KV *pVal, char* typeStr, int64_t valueInt, SSmlLinesInfo* info) {
+static int32_t convertJSONBool(TAOS_SML_KV *pVal, char* typeStr, int64_t valueInt, SSmlLinesInfo* info) {
   if (strcasecmp(typeStr, "bool") != 0) {
     tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON Bool", info->id, typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
@@ -580,7 +580,7 @@ int32_t convertJSONBool(TAOS_SML_KV *pVal, char* typeStr, int64_t valueInt, SSml
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
+static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
   //tinyint
   if (strcasecmp(typeStr, "i8") == 0 ||
       strcasecmp(typeStr, "tinyint") == 0) {
@@ -665,7 +665,7 @@ int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   return TSDB_CODE_TSC_INVALID_JSON_TYPE;
 }
 
-int32_t convertJSONString(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
+static int32_t convertJSONString(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLinesInfo* info) {
   if (strcasecmp(typeStr, "binary") == 0) {
     pVal->type = TSDB_DATA_TYPE_BINARY;
   } else if (strcasecmp(typeStr, "nchar") == 0) {
@@ -680,7 +680,7 @@ int32_t convertJSONString(TAOS_SML_KV *pVal, char* typeStr, cJSON *value, SSmlLi
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) {
+static int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
   int32_t size = cJSON_GetArraySize(root);
 
@@ -728,7 +728,7 @@ int32_t parseValueFromJSONObj(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* inf
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) {
+static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) {
   int type = root->type;
 
   switch (type) {
@@ -790,7 +790,7 @@ int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo* info) 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, SSmlLinesInfo* info) {
+static int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, SSmlLinesInfo* info) {
   //skip timestamp
   TAOS_SML_KV *pVal = *pKVs + 1;
   char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
@@ -814,7 +814,8 @@ int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
 }
 
 
-int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **childTableName, SHashObj *pHash, SSmlLinesInfo* info) {
+static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **childTableName,
+                                 SHashObj *pHash, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   cJSON *tags = cJSON_GetObjectItem(root, "tags");
@@ -878,7 +879,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
 
 }
 
-int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
+static int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   if (!cJSON_IsObject(root)) {
@@ -931,7 +932,7 @@ int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* info) {
+static int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLinesInfo* info) {
   int32_t payloadNum, ret;
   ret = TSDB_CODE_SUCCESS;
 
