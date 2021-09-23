@@ -181,7 +181,7 @@ static void *monThreadFunc(void *param) {
     }
 
     if (tsMonitor.state == MON_STATE_INITED) {
-      if (accessTimes % tsMonitorInterval == 0) {
+      if (accessTimes % tsMonitorInterval == 0 || accessTimes == 1) {
         monSaveSystemInfo();
         monSaveClusterInfo();
       }
@@ -408,6 +408,17 @@ static void monSaveSystemInfo() {
   }
 }
 
+static int32_t monGetRowElemCharLen(TAOS_FIELD field, char *rowElem) {
+  int32_t charLen = varDataLen(rowElem - VARSTR_HEADER_SIZE);
+  if (field.type == TSDB_DATA_TYPE_BINARY) {
+    assert(charLen <= field.bytes && charLen >= 0);
+  } else {
+    assert(charLen <= field.bytes * TSDB_NCHAR_SIZE && charLen >= 0);
+  }
+
+  return charLen;
+}
+
 static int32_t monBuildFirstEpSql(char *sql) {
   return sprintf(sql, ", \"%s\"", tsFirst);
 }
@@ -417,7 +428,26 @@ static int32_t monBuildVersionSql(char *sql) {
 }
 
 static int32_t monBuildMasterUptimeSql(char *sql) {
-  return sprintf(sql, ", %d", 0);
+  int64_t masterUptime = 0;
+  TAOS_RES *result = taos_query(tsMonitor.conn, "show mnodes");
+
+  TAOS_ROW row;
+  int32_t  num_fields = taos_num_fields(result);
+  TAOS_FIELD *fields = taos_fetch_fields(result);
+
+  while ((row = taos_fetch_row(result))) {
+    for (int i = 0; i < num_fields; ++i) {
+      if (strcmp(fields[i].name, "role_time") == 0) {
+        int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+        //master uptime in seconds
+        masterUptime = (now - *(int64_t *)row[i]) / 1000;
+      }
+    }
+  }
+
+  taos_free_result(result);
+
+  return sprintf(sql, ", %" PRId64, masterUptime);
 }
 
 static int32_t monBuildMonIntervalSql(char *sql) {
@@ -436,12 +466,7 @@ static int32_t monBuildDnodesTotalSql(char *sql) {
     totalDnodes++;
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "status") == 0) {
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], "ready", charLen) == 0)  {
           totalDnodesAlive++;
           printf("Gavin0- row:%s, charLen:%d\n", (char *)row[i], charLen);
@@ -459,16 +484,29 @@ static int32_t monBuildDnodesTotalSql(char *sql) {
 static int32_t monBuildMnodesTotalSql(char *sql) {
   int32_t totalMnodes = 0, totalMnodesAlive= 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show mnodes");
+
   TAOS_ROW row;
+  int32_t     num_fields = taos_num_fields(result);
+  TAOS_FIELD *fields = taos_fetch_fields(result);
 
   while ((row = taos_fetch_row(result))) {
     totalMnodes++;
+    for (int i = 0; i < num_fields; ++i) {
+      if (strcmp(fields[i].name, "role") == 0) {
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        if (strncmp((char *)row[i], "master", charLen) == 0 ||
+            strncmp((char *)row[i], "slave", charLen) == 0)  {
+          totalMnodesAlive += 1;
+        }
+      }
+    }
   }
 
   taos_free_result(result);
 
   return sprintf(sql, ", %d, %d", totalMnodes, totalMnodesAlive);
 }
+
 
 static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
                                            int32_t *totalVgroupsAlive) {
@@ -485,13 +523,7 @@ static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
     *totalVgroups += 1;
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "status") == 0) {
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
-
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], "ready", charLen) == 0)  {
           *totalVgroupsAlive += 1;
         }
@@ -515,12 +547,6 @@ static int32_t monBuildVgroupsTotalSql(char *sql) {
     for (int i = 0; i < num_fields; ++i) {
       //database name
       if (strcmp(fields[i].name, "name") == 0) {
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
         monGetVgroupsTotalStats((char *)row[i], &totalVgroups, &totalVgroupsAlive);
       }
     }
@@ -535,8 +561,8 @@ static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
                                            int32_t *totalVnodesAlive) {
   char subsql[TSDB_EP_LEN + 15];
   memset(subsql, 0, sizeof(subsql));
-  //sprintf(subsql, "show vnodes \"%s\"", ep);
-  TAOS_RES *result = taos_query(tsMonitor.conn, "show vnodes 'ubuntu:6030'");
+  sprintf(subsql, "show vnodes \"%s\"", ep);
+  TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -546,13 +572,7 @@ static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
     *totalVnodes += 1;
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "status") == 0) {
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
-
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], "master", charLen) == 0 ||
             strncmp((char *)row[i], "slave", charLen) == 0)  {
           *totalVnodesAlive += 1;
@@ -577,12 +597,6 @@ static int32_t monBuildVnodesTotalSql(char *sql) {
     for (int i = 0; i < num_fields; ++i) {
       //database name
       if (strcmp(fields[i].name, "end_point") == 0) {
-        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
-        } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
-        }
         monGetVnodesTotalStats((char *)row[i], &totalVnodes, &totalVnodesAlive);
       }
     }
@@ -594,7 +608,16 @@ static int32_t monBuildVnodesTotalSql(char *sql) {
 }
 
 static int32_t monBuildConnsTotalSql(char *sql) {
-  return sprintf(sql, ", %d)", 0);
+  int32_t totalConns = 0;
+  TAOS_RES *result = taos_query(tsMonitor.conn, "show connections");
+  TAOS_ROW    row;
+
+  while ((row = taos_fetch_row(result))) {
+    totalConns++;
+  }
+
+  taos_free_result(result);
+  return sprintf(sql, ", %d)", totalConns);
 }
 
 static void monSaveClusterInfo() {
