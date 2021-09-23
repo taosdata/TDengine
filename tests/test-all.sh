@@ -536,9 +536,10 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
   echo "### run setconfig tests ###"
 
   stopTaosd
-
-  cd ..
-  cd ..
+  
+  cd $tests_dir
+  echo "current dir: "
+  pwd
   cd script/api
   make > /dev/null
 
