@@ -68,12 +68,13 @@ typedef struct {
   int8_t    cmdIndex;
   int8_t    state;
   int8_t    start;   // enable/disable by mnode
-  int8_t    quiting; // taosd is quiting 
+  int8_t    quiting; // taosd is quiting
   char      sql[SQL_LENGTH + 1];
 } SMonConn;
 
 static SMonConn tsMonitor = {0};
 static void  monSaveSystemInfo();
+static void  monSaveClusterInfo();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
 extern int32_t (*monStartSystemFp)();
@@ -139,7 +140,7 @@ static void *monThreadFunc(void *param) {
     if (tsMonitor.start == 0) {
       continue;
     }
-    
+
     if (dnodeGetDnodeId() <= 0) {
       monDebug("dnode not initialized, waiting for 3000 ms to start monitor module");
       continue;
@@ -181,6 +182,7 @@ static void *monThreadFunc(void *param) {
     if (tsMonitor.state == MON_STATE_INITED) {
       if (accessTimes % tsMonitorInterval == 0) {
         monSaveSystemInfo();
+        monSaveClusterInfo();
       }
     }
   }
@@ -402,6 +404,114 @@ static void monSaveSystemInfo() {
     monError("failed to save system info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
   } else {
     monDebug("successfully to save system info, sql:%s", tsMonitor.sql);
+  }
+}
+
+static int32_t monBuildFirstEpSql(char *sql) {
+  return sprintf(sql, ", \"%s\"", tsFirst);
+}
+
+static int32_t monBuildVersionSql(char *sql) {
+  return sprintf(sql, ", \"%s\"", version);
+}
+
+static int32_t monBuildMasterUptimeSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildMonIntervalSql(char *sql) {
+  return sprintf(sql, ", %d", tsMonitorInterval);
+}
+
+static int32_t monBuildDnodesTotalSql(char *sql) {
+  int32_t totalDnodes = 0, totalDnodesAlive = 0;
+  TAOS_RES *result = taos_query(tsMonitor.conn, "show dnodes");
+
+  TAOS_ROW    row;
+  int32_t     num_fields = taos_num_fields(result);
+  TAOS_FIELD *fields = taos_fetch_fields(result);
+
+  // fetch the records row by row
+  while ((row = taos_fetch_row(result))) {
+    totalDnodes++;
+    for (int i = 0; i < num_fields; ++i) {
+      if (strcmp(fields[i].name, "status") == 0) {
+        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
+          assert(charLen <= fields[i].bytes && charLen >= 0);
+        } else {
+          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
+        }
+        if (strncmp((char *)row[i], "ready", charLen) == 0)  {
+          totalDnodesAlive++;
+          printf("Gavin0- row:%s, charLen:%d\n", (char *)row[i], charLen);
+        }
+      }
+      printf("Gavin- name:%s, type:%u\n", fields[i].name, fields[i].type);
+    }
+  }
+
+  taos_free_result(result);
+
+  return sprintf(sql, ", %d, %d", totalDnodes, totalDnodesAlive);
+}
+
+static int32_t monBuildMnodesTotalSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildMnodesAliveSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildVgroupsTotalSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildVgroupsAliveSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildVnodesTotalSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildVnodesAliveSql(char *sql) {
+  return sprintf(sql, ", %d", 0);
+}
+
+static int32_t monBuildConnsTotalSql(char *sql) {
+  return sprintf(sql, ", %d)", 0);
+}
+
+static void monSaveClusterInfo() {
+  int64_t ts = taosGetTimestampUs();
+  char *  sql = tsMonitor.sql;
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.cluster_info values(%" PRId64, tsMonitorDbName, ts);
+
+  pos += monBuildFirstEpSql(sql + pos);
+  pos += monBuildVersionSql(sql + pos);
+  pos += monBuildMasterUptimeSql(sql + pos);
+  pos += monBuildMonIntervalSql(sql + pos);
+  pos += monBuildDnodesTotalSql(sql + pos);
+  pos += monBuildMnodesTotalSql(sql + pos);
+  pos += monBuildMnodesAliveSql(sql + pos);
+  pos += monBuildVgroupsTotalSql(sql + pos);
+  pos += monBuildVgroupsAliveSql(sql + pos);
+  pos += monBuildVnodesTotalSql(sql + pos);
+  pos += monBuildVnodesAliveSql(sql + pos);
+  pos += monBuildConnsTotalSql(sql + pos);
+
+  monError("sql:%s", sql);
+
+  void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to save cluster info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
+  } else {
+    monDebug("successfully to save cluster info, sql:%s", tsMonitor.sql);
   }
 }
 
