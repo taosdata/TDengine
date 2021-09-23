@@ -813,7 +813,8 @@ int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
 
 }
 
-int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **childTableName, SSmlLinesInfo* info) {
+
+int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **childTableName, SHashObj *pHash, SSmlLinesInfo* info) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   cJSON *tags = cJSON_GetObjectItem(root, "tags");
@@ -832,7 +833,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
     *childTableName = tcalloc(idLen + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
 
-    //If there's duplicate ID fields in tags return error
+    //check duplicate IDs
     cJSON_DeleteItemFromObject(tags, "ID");
     id = cJSON_GetObjectItem(tags, "ID");
     if (id != NULL) {
@@ -855,6 +856,10 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
     if (tag == NULL) {
       return TSDB_CODE_TSC_INVALID_JSON;
     }
+    //check duplicate keys
+    if (checkDuplicateKey(tag->string, pHash, info)) {
+      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+    }
     //key
     size_t keyLen = strlen(tag->string);
     pkv->key = tcalloc(keyLen + 1, sizeof(char));
@@ -866,6 +871,7 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
     }
     *num_kvs += 1;
     pkv++;
+
   }
 
   return ret;
@@ -912,12 +918,15 @@ int32_t tscParseJSONPayload(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlLinesInf
   tscDebug("OTD:0x%"PRIx64" Parse metric value from JSON payload finished", info->id);
 
   //Parse tags
-  ret = parseTagsFromJSON(root, &pSml->tags, &pSml->tagNum, &pSml->childTableName, info);
+  SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+  ret = parseTagsFromJSON(root, &pSml->tags, &pSml->tagNum, &pSml->childTableName, keyHashTable, info);
   if (ret) {
     tscError("OTD:0x%"PRIx64" Unable to parse tags from JSON payload", info->id);
+    taosHashCleanup(keyHashTable);
     return ret;
   }
   tscDebug("OTD:0x%"PRIx64" Parse tags from JSON payload finished", info->id);
+  taosHashCleanup(keyHashTable);
 
   return TSDB_CODE_SUCCESS;
 }
