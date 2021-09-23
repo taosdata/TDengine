@@ -30,11 +30,6 @@ extern "C" {
 #include "tsclient.h"
 #include "tglobal.h"
 
-#define JSON_TYPE_BINARY (strcasecmp(tsDefaultJSONStrType, "binary") == 0)
-#define JSON_TYPE_NCHAR (strcasecmp(tsDefaultJSONStrType, "nchar") == 0)
-#define SELECT_ALL_JSON_TAG 1
-#define SELECT_ELEMENT_JSON_TAG 2
-
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 

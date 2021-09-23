@@ -4,6 +4,7 @@
 #include "tname.h"
 #include "ttoken.h"
 #include "tvariant.h"
+#include "tglobal.h"
 
 #define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -198,11 +199,11 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
     }
 
     // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || (pSchema[i].type == TSDB_DATA_TYPE_JSON && JSON_TYPE_BINARY)) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         return false;
       }
-    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || (pSchema[i].type == TSDB_DATA_TYPE_JSON && JSON_TYPE_BINARY)) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         return false;
       }

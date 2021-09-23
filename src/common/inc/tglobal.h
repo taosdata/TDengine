@@ -229,6 +229,8 @@ extern int8_t tsDeadLockKillQuery;
 
 // schemaless
 extern char tsDefaultJSONStrType[];
+#define JSON_TYPE_BINARY (strcasecmp(tsDefaultJSONStrType, "binary") == 0)
+#define JSON_TYPE_NCHAR (strcasecmp(tsDefaultJSONStrType, "nchar") == 0)
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

@@ -17,6 +17,9 @@
 
 #include "tbuffer.h"
 
+#define SELECT_ALL_JSON_TAG 1
+#define SELECT_ELEMENT_JSON_TAG 2
+
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
     assert(sizeof(_uid) == sizeof(uint64_t));        \
