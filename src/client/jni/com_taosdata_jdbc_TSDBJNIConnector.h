@@ -43,6 +43,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    setConfigImp
+ * Signature: (Ljava/lang/String;)Lcom/taosdata/jdbc/TSDBException;
+ */
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfigImp
+  (JNIEnv *, jclass, jstring);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    getTsCharset
  * Signature: ()Ljava/lang/String;
  */
