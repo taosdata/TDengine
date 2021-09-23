@@ -124,6 +124,7 @@ sql select spread(ts )/(1000*3600*24) from $stb interval(1y)
 sql_error select first(c1, c2) - last(c1, c2) from $stb interval(1y)
 sql_error select first(ts) - last(ts) from $stb interval(1y)
 sql_error select top(c1, 2) - last(c1) from $stb;
+sql_error select sample(c1, 2) - last(c1) from $stb;
 sql_error select stddev(c1) - last(c1) from $stb;
 sql_error select diff(c1) - last(c1) from $stb;
 sql_error select csum(c1) - last(c1) from $stb;

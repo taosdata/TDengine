@@ -186,6 +186,7 @@ typedef struct  {
   int16_t colBytes;
   char *values;
   int64_t *timeStamps;
+  char  *taglists;
 } SSampleFuncInfo;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
@@ -323,7 +324,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = (int16_t)(sizeof(SSampleFuncInfo) + dataBytes *  param + sizeof(int64_t) * param);
+      *bytes = (int16_t)(sizeof(SSampleFuncInfo) + dataBytes*param + sizeof(int64_t)*param + extLength*param);
       *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
@@ -438,7 +439,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = (int16_t)dataType;
       *bytes = (int16_t)dataBytes;
-      size_t size = sizeof(SSampleFuncInfo) + sizeof(dataBytes) *  param + sizeof(int64_t) * param;
+      size_t size = sizeof(SSampleFuncInfo) + dataBytes*param + sizeof(int64_t)*param + extLength*param;
       *interBytes = (int32_t)size;
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
@@ -4684,21 +4685,38 @@ static SSampleFuncInfo* getSampleFuncOutputInfo(SQLFunctionCtx *pCtx) {
   }
 }
 
-static void assignResultSample(SSampleFuncInfo *pInfo, int32_t index, int64_t ts, void *pData, uint16_t type, int16_t bytes) {
+static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t index, int64_t ts, void *pData, uint16_t type, int16_t bytes, char *inputTags) {
   assignVal(pInfo->values + index*bytes, pData, bytes, type);
   *(pInfo->timeStamps + index) = ts;
-  return;
+
+  SExtTagsInfo* pTagInfo = &pCtx->tagInfo;
+  int32_t posTag = 0;
+  char* tags = pInfo->taglists + pTagInfo->tagsLen;
+  if (pCtx->currentStage == MERGE_STAGE) {
+    memcpy(tags, inputTags, (size_t)pTagInfo->tagsLen);
+  } else {
+    for (int32_t i = 0; i < pTagInfo->numOfTagCols; ++i) {
+      SQLFunctionCtx* ctx = pTagInfo->pTagCtxList[i];
+      if (ctx->functionId == TSDB_FUNC_TS_DUMMY) {
+        ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+        ctx->tag.i64 = ts;
+      }
+
+      tVariantDump(&ctx->tag, tags + posTag, ctx->tag.nType, true);
+      posTag += pTagInfo->pTagCtxList[i]->outputBytes;
+    }
+  }
 }
 
-static void do_reservoir_sample(SSampleFuncInfo *pInfo, int32_t samplesK, int64_t ts, void *pData,  uint16_t type, int16_t bytes) {
+static void do_reservoir_sample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t samplesK, int64_t ts, void *pData,  uint16_t type, int16_t bytes) {
   pInfo->totalPoints++;
   if (pInfo->numSampled < samplesK) {
-    assignResultSample(pInfo, pInfo->numSampled, ts, pData, type, bytes);
+    assignResultSample(pCtx, pInfo, pInfo->numSampled, ts, pData, type, bytes, NULL);
     pInfo->numSampled++;
   } else {
     int32_t j = rand() % (pInfo->totalPoints);
     if (j < samplesK) {
-      assignResultSample(pInfo, j, ts, pData, type, bytes);
+      assignResultSample(pCtx, pInfo, j, ts, pData, type, bytes, NULL);
     }
   }
 }
@@ -4712,11 +4730,25 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
   for (int32_t i = 0; i < pRes->numSampled; ++i) {
     assignVal(pOutput, pRes->values + i*pRes->colBytes, pRes->colBytes, type);
     *pTimestamp = *(pRes->timeStamps + i);
-
     pOutput += pCtx->outputBytes;
     pTimestamp++;
   }
 
+  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+  for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
+    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
+  }
+
+  for (int32_t i = 0; i < pRes->numSampled; ++i) {
+    int16_t tagOffset = 0;
+    for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+      memcpy(pData[j], pRes->taglists + i*pCtx->tagInfo.tagsLen + tagOffset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+      tagOffset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+      pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+    }
+  }
+
+  tfree(pData);
 }
 
 static bool sample_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
@@ -4732,6 +4764,7 @@ static bool sample_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   pRes->values = ((char*)pRes + sizeof(SSampleFuncInfo));
   pRes->colBytes = (pCtx->currentStage != MERGE_STAGE) ? pCtx->inputBytes : pCtx->outputBytes;
   pRes->timeStamps = (int64_t *)((char *)pRes->values + pRes->colBytes * pCtx->param[0].i64);
+  pRes->taglists = (char*)pRes->timeStamps + sizeof(int64_t) * pCtx->param[0].i64;
   return true;
 }
 
@@ -4744,6 +4777,7 @@ static void sample_function(SQLFunctionCtx *pCtx) {
   if (pRes->values !=  ((char*)pRes + sizeof(SSampleFuncInfo))) {
     pRes->values =  ((char*)pRes + sizeof(SSampleFuncInfo));
     pRes->timeStamps = (int64_t*)((char*)pRes->values + pRes->colBytes * pCtx->param[0].i64);
+    pRes->taglists = (char*)pRes->timeStamps + sizeof(int64_t) * pCtx->param[0].i64;
   }
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
@@ -4755,7 +4789,7 @@ static void sample_function(SQLFunctionCtx *pCtx) {
     notNullElems++;
 
     TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
-    do_reservoir_sample(pRes, (int32_t)pCtx->param[0].i64, ts, data, pCtx->inputType, pRes->colBytes);
+    do_reservoir_sample(pCtx, pRes, (int32_t)pCtx->param[0].i64, ts, data, pCtx->inputType, pRes->colBytes);
   }
 
   if (!pCtx->hasNull) {
@@ -4774,13 +4808,15 @@ static void sample_func_merge(SQLFunctionCtx *pCtx) {
   SSampleFuncInfo* pInput = (SSampleFuncInfo*)GET_INPUT_DATA_LIST(pCtx);
   pInput->values = ((char*)pInput + sizeof(SSampleFuncInfo));
   pInput->timeStamps = (int64_t*)((char*)pInput->values + pInput->colBytes * pCtx->param[0].i64);
+  pInput->taglists = (char*)pInput->timeStamps + sizeof(int64_t)*pCtx->param[0].i64;
 
   SSampleFuncInfo *pOutput = getSampleFuncOutputInfo(pCtx);
   pOutput->totalPoints = pInput->totalPoints;
   pOutput->numSampled = pInput->numSampled;
   for (int32_t i = 0; i < pInput->numSampled; ++i) {
-    assignResultSample(pOutput, i, pInput->timeStamps[i],
-                       pInput->values + i * pInput->colBytes, pCtx->outputType, pInput->colBytes);
+    assignResultSample(pCtx, pOutput, i, pInput->timeStamps[i],
+                       pInput->values + i * pInput->colBytes, pCtx->outputType, pInput->colBytes,
+                       pInput->taglists + i*pCtx->tagInfo.tagsLen);
   }
 
   SET_VAL(pCtx, pInput->numSampled, pOutput->numSampled);

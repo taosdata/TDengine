@@ -121,6 +121,7 @@ if $data31 != 4 then
   return -1
 endi
 
+sql_error select sample(f1,2) from st2 group by f1 having count(f2) > 0;
 sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
 
 sql select last(f1) from st2 group by f1 having count(f2) > 0;
@@ -140,9 +141,12 @@ if $data30 != 4 then
   return -1
 endi
 
-sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
-sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
-sql_error select top(f1,2) from st2 group by f1 having avg(f1) > 0;
+sql_error select sample(f1,2) from st2 group by f1 having count(f2) > 0;
+sql_error select sample(f1,2) from st2 group by f1 having count(f2) > 0;
+sql_error select sample(f1,2) from st2 group by f1 having avg(f1) > 0;
+sql_error select sample(f1,2) from st2 group by f1 having count(f2) > 0;
+sql_error select sample(f1,2) from st2 group by f1 having count(f2) > 0;
+sql_error select sample(f1,2) from st2 group by f1 having avg(f1) > 0;
 
 sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2;
 if $rows != 2 then
@@ -1059,6 +1063,13 @@ if $data26 != 4 then
 endi  
 
 
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1) from st2 group by f1 having sample(f1,1);
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1) from st2 group by f1 having sample(f1,1) > 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1),sample(f1,1) from st2 group by f1 having sum(f1) > 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1),sample(f1,1),bottom(f1,1) from st2 group by f1 having bottom(f1,1) > 1;
 
 sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1) from st2 group by f1 having top(f1,1);
 
@@ -1840,6 +1851,7 @@ if $data04 != 1 then
   return -1
 endi
 
+sql_error select sample(f1,2) from tb1 group by f1 having count(f1) > 0;
 sql_error select top(f1,2) from tb1 group by f1 having count(f1) > 0;
 sql_error select count(*) from tb1 group by f1 having last(*) > 0;
 

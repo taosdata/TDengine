@@ -296,6 +296,7 @@ sql_error select last(t1) from group_mt0;
 sql_error select min(t1) from group_mt0;
 sql_error select max(t1) from group_mt0;
 sql_error select top(t1, 20) from group_mt0;
+sql_error select sample(t1, 20) from group_mt0;
 sql_error select bottom(t1, 20) from group_mt0;
 sql_error select avg(t1) from group_mt0;
 sql_error select percentile(t1, 50) from group_mt0;

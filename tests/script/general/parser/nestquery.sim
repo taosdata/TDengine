@@ -335,6 +335,8 @@ if $data12 != 71680.000000000 then
   return -1
 endi
 
+sql select sample(x, 20) from (select c1 x from nest_tb0);
+
 sql select top(x, 20) from (select c1 x from nest_tb0);
 
 sql select bottom(x, 20) from (select c1 x from nest_tb0)
