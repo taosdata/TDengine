@@ -53,6 +53,7 @@ void    moduleStop() {}
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
+static int32_t tsDnodeErrors;
 
 static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();
@@ -221,6 +222,14 @@ SRunStatus dnodeGetRunStatus() {
 
 static void dnodeSetRunStatus(SRunStatus status) {
   tsRunStatus = status;
+}
+
+int32_t dnodeGetDnodeError() {
+  return tsDnodeErrors;
+}
+
+void dnodeIncDnodeError() {
+  atomic_add_fetch_32(&tsDnodeErrors, 1);
 }
 
 static void dnodeCheckDataDirOpenned(char *dir) {

@@ -686,7 +686,7 @@ static int32_t monBuildReqRateSql(char *sql) {
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {
-  int32_t dnode_err = 0;
+  int32_t dnode_err = dnodeGetDnodeError();
   return sprintf(sql, ", %d", dnode_err);
 }
 
