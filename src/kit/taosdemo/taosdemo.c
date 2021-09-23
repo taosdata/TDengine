@@ -804,7 +804,7 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
             "Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.");
     printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
-            "The data_type of columns, By default use: FLOAT, INT, FLOAT.");
+            "The data_type of columns, By default use: FLOAT,INT,FLOAT. NCHAR and BINARY can also use custom length. Eg: NCAHR(16),BINARAY(8)");
     printf("%s%s%s%s%d\n", indent, "-w, --binwidth=WIDTH", "\t\t",
             "The width of data_type 'BINARY' or 'NCHAR'. By default use ",
             g_args.binwidth);
