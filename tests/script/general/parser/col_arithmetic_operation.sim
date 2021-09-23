@@ -126,6 +126,7 @@ sql_error select first(ts) - last(ts) from $stb interval(1y)
 sql_error select top(c1, 2) - last(c1) from $stb;
 sql_error select stddev(c1) - last(c1) from $stb;
 sql_error select diff(c1) - last(c1) from $stb;
+sql_error select csum(c1) - last(c1) from $stb;
 sql_error select first(c7) - last(c7) from $stb;
 sql_error select first(c8) - last(c8) from $stb;
 sql_error select first(c9) - last(c9) from $stb;

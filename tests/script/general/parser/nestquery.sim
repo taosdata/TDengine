@@ -186,6 +186,7 @@ sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
 sql_error select twa(c1) from (select c1 from nest_tb0);
 sql_error select irate(c1) from (select c1 from nest_tb0);
 sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
+sql_error select csum(c1), twa(c1) from (select * from nest_tb0);
 sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
 
 sql select apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
@@ -271,6 +272,10 @@ endi
 
 sql select diff(c1) from (select * from nest_tb0);
 if $rows != 9999 then
+  return -1
+endi
+sql select csum(c1) from (select * from nest_tb0);
+if $rows != 10000 then
   return -1
 endi
 
@@ -417,6 +422,23 @@ if $data00 != @70-01-01 08:00:00.000@ then
 endi
 
 if $data01 != 1 then
+  return -1
+endi
+
+sql select csum(val) from (select c1 val from nest_tb0);
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data41 != 10 then
   return -1
 endi
 

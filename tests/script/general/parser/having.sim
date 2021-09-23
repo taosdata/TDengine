@@ -1149,6 +1149,12 @@ sql_error select avg(f1),diff(f1) from st2 group by f1 having avg(f1) > 0;
 
 sql_error select avg(f1),diff(f1) from st2 group by f1 having spread(f2) > 0;
 
+sql_error select avg(f1) from st2 group by f1 having csum(f1) > 0;
+
+sql_error select avg(f1),csum(f1) from st2 group by f1 having avg(f1) > 0;
+
+sql_error select avg(f1),csum(f1) from st2 group by f1 having spread(f2) > 0;
+
 sql select avg(f1) from st2 group by f1 having spread(f2) > 0;
 if $rows != 0 then
   return -1

@@ -471,6 +471,48 @@ if $data81 != -9 then
   return -1
 endi
 
+sql select csum(c1) from $tb
+$res = $rowNum 
+if $rows != $res then
+  return -1
+endi
+
+sql select csum(c1) from $tb where c1 > 5 limit 2 offset 1
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @18-09-17 10:10:00.000@ then
+  return -1
+endi
+if $data01 != 13 then
+  return -1
+endi
+if $data10 != @18-09-17 10:20:00.000@ then
+  return -1
+endi
+if $data11 != 21 then
+  return -1
+endi
+$limit = $rowNum / 2
+$offset = $limit - 1
+sql select csum(c1) from $tb where c1 >= 0 limit $limit offset $offset
+if $rows != $limit then
+  return -1
+endi
+$limit = $rowNum / 2
+$offset = $limit + 1
+$val = $limit - 1
+sql select csum(c1) from $tb where c1 >= 0 limit $limit offset $offset
+if $rows != $val then
+  return -1
+endi
+if $data01 != 22501 then
+  return -1
+endi
+if $data81 != 22545 then
+  return -1
+endi
+
 ### aggregation + limit offset (with interval)
 sql select max(c1), max(c2), max(c3), max(c4), max(c5), max(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) limit 5
 if $rows != 5 then 
