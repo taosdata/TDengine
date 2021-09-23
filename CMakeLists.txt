@@ -20,17 +20,17 @@ set(DEPS_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
 ## googletest
-option(BUILD_TEST "If build unit tests using googletest" ON)
+option(BUILD_TEST "If build unit tests using googletest" OFF)
 
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_TEST})
 
-## cJson
-cat("${CMAKE_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${DEPS_TMP_FILE})
-
 ## lz4
 cat("${CMAKE_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+
+## cJson
+cat("${CMAKE_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
 ## download dependencies
 configure_file(${DEPS_TMP_FILE} "${CMAKE_SOURCE_DIR}/deps/deps-download/CMakeLists.txt")
