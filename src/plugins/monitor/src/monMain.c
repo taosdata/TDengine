@@ -33,10 +33,12 @@
 #define monDebug(...) { if (monDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 #define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 
-#define SQL_LENGTH     1030
-#define LOG_LEN_STR    512
-#define IP_LEN_STR     TSDB_EP_LEN
-#define CHECK_INTERVAL 1000
+#define SQL_LENGTH        1030
+#define LOG_LEN_STR       512
+#define IP_LEN_STR        TSDB_EP_LEN
+#define VGROUP_STATUS_LEN 512
+#define DNODE_INFO_LEN    128
+#define CHECK_INTERVAL    1000
 
 typedef enum {
   MON_CMD_CREATE_DB,
@@ -46,6 +48,11 @@ typedef enum {
   MON_CMD_CREATE_TB_DN,
   MON_CMD_CREATE_TB_ACCT_ROOT,
   MON_CMD_CREATE_TB_SLOWQUERY,
+  //followings are extension for taoskeeper
+  MON_CMD_CREATE_TB_CLUSTER,
+  MON_CMD_CREATE_MT_DNODES,
+  MON_CMD_CREATE_MT_DISKS,
+  MON_CMD_CREATE_MT_VGROUPS,
   MON_CMD_MAX
 } EMonCmd;
 
@@ -239,6 +246,53 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              "create table if not exists %s.log(ts timestamp, level tinyint, "
              "content binary(%d), ipaddr binary(%d))",
              tsMonitorDbName, LOG_LEN_STR, IP_LEN_STR);
+  } else if (cmd == MON_CMD_CREATE_TB_CLUSTER) {
+    snprintf(sql, SQL_LENGTH,
+             "create table if not exists %s.cluster_info(ts timestamp"
+             ", first_ep binary(%d), version binary(%d)"
+             ", master_uptime float, monitor_interval int"
+             ", dnodes_total int, dnodes_alive int"
+             ", mnodes_total int, mnodes_alive int"
+             ", vgroups_total int, vgroups_alive int"
+             ", vnodes_total int, vnodes_alive int"
+             ", connections_total int)",
+             tsMonitorDbName, TSDB_EP_LEN, TSDB_VERSION_LEN);
+  } else if (cmd == MON_CMD_CREATE_MT_DNODES) {
+    snprintf(sql, SQL_LENGTH,
+             "create table if not exists %s.dnodes_info(ts timestamp"
+             ", uptime float"
+             ", cpu_engine float, cpu_system float, cpu_cores int"
+             ", mem_engine float, mem_system float, mem_total float"
+             ", disk_engine float, disk_used float, disk_total float"
+             ", net_in float, net_out float"
+             ", io_read float, io_write float"
+             ", req_http int, req_http_rate float"
+             ", req_select int, req_select_rate float"
+             ", req_insert int, req_insert_rate float"
+             ", errors int"
+             ", vnodes_num int"
+             ", masters int"
+             ", has_mnode bool"
+             ") tags (dnode_id int, dnode_ep binary(%d))",
+             tsMonitorDbName, TSDB_EP_LEN);
+  } else if (cmd == MON_CMD_CREATE_MT_DISKS) {
+    snprintf(sql, SQL_LENGTH,
+             "create table if not exists %s.disks_info(ts timestamp"
+             ", datadir_l0_used float, datadir_l0_total float"
+             ", datadir_l1_used float, datadir_l1_total float"
+             ", datadir_l2_used float, datadir_l2_total float"
+             ") tags (dnode_id int, dnode_ep binary(%d))",
+             tsMonitorDbName, TSDB_EP_LEN);
+  } else if (cmd == MON_CMD_CREATE_MT_VGROUPS) {
+    snprintf(sql, SQL_LENGTH,
+             "create table if not exists %s.vgroups_info(ts timestamp"
+             ", database_name binary(%d), is_mnode bool"
+             ", tables_num int, status binary(%d)"
+             ", online_vnodes tinyint"
+             ", dnode_ids binary(%d), dnode_roles binary(%d)"
+             ") tags (vgroup_id int)",
+             tsMonitorDbName, TSDB_DB_NAME_LEN, VGROUP_STATUS_LEN,
+             DNODE_INFO_LEN, DNODE_INFO_LEN);
   }
 
   sql[SQL_LENGTH] = 0;
