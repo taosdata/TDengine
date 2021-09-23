@@ -1098,17 +1098,17 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       sToken.z[sToken.n] = tmp;
     }
 
-    tscDestroyBoundColumnInfo(&spd);
-
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
+      tscDestroyBoundColumnInfo(&spd);
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "tag value expected", NULL);
     }
     tdSortKVRowByColIdx(row);
 
     pInsertParam->tagData.dataLen = kvRowLen(row);
     if (pInsertParam->tagData.dataLen <= 0){
+      tscDestroyBoundColumnInfo(&spd);
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "tag value expected", NULL);
     }
     // encode json tag string
@@ -1116,9 +1116,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       if(kvRowLen(row) >= pTagSchema[spd.boundedColumns[0]].bytes){   // reserve 1 byte for select
         char tmp[128]= {0};
         sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagSchema[spd.boundedColumns[0]].bytes);
+        tscDestroyBoundColumnInfo(&spd);
         return tscSQLSyntaxErrMsg(pInsertParam->msg, tmp, NULL);
       }
     }
+    tscDestroyBoundColumnInfo(&spd);
+
     char* pTag = realloc(pInsertParam->tagData.data, pInsertParam->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
