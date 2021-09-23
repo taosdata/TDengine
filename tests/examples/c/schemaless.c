@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
 
   printf("%s\n", "begin taos_insert_lines");
   int64_t  begin = getTimeInUs();
-  int32_t code = taos_insert_lines(taos, lines, numSuperTables * numChildTables * numRowsPerChildTable);
+  int32_t code = taos_insert_lines(taos, lines, numSuperTables * numChildTables * numRowsPerChildTable, 0);
   int64_t end = getTimeInUs();
   printf("code: %d, %s. time used: %"PRId64"\n", code, tstrerror(code), end-begin);
 

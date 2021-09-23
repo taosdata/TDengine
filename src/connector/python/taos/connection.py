@@ -117,9 +117,10 @@ class TaosConnection(object):
         stream = taos_open_stream(self._conn, sql, callback, stime, param, callback2)
         return TaosStream(stream)
 
-    def insert_lines(self, lines):
+    def insert_lines(self, lines, protocol):
         # type: (list[str]) -> None
-        """Line protocol and schemaless support
+        """
+        1.Line protocol and schemaless support
 
         ## Example
 
@@ -134,28 +135,13 @@ class TaosConnection(object):
         conn.insert_lines(lines)
         ```
 
-        ## Exception
-
-        ```python
-        try:
-            conn.insert_lines(lines)
-        except SchemalessError as err:
-            print(err)
-        ```
-        """
-        return taos_insert_lines(self._conn, lines)
-
-    def insert_telnet_lines(self, lines):
-        """OpenTSDB telnet style API format support
+        2.OpenTSDB telnet style API format support
 
         ## Example
         cpu_load 1626056811855516532ns 2.0f32 id="tb1",host="host0",interface="eth0"
 
-        """
-        return taos_insert_telnet_lines(self._conn, lines)
 
-    def insert_json_payload(self, payload):
-        """OpenTSDB HTTP JSON format support
+        3.OpenTSDB HTTP JSON format support
 
         ## Example
         "{
@@ -170,8 +156,18 @@ class TaosConnection(object):
                 }
         }"
 
+        ## Exception
+
+        ```python
+        try:
+            conn.insert_lines(lines)
+        except SchemalessError as err:
+            print(err)
+        ```
+
         """
-        return taos_insert_json_payload(self._conn, payload)
+        return taos_insert_lines(self._conn, lines, protocol)
+
 
     def cursor(self):
         # type: () -> TaosCursor

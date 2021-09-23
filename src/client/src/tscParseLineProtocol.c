@@ -2127,7 +2127,7 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
+int taos_insert_sml_lines(TAOS* taos, char* lines[], int numLines) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -2184,3 +2184,22 @@ cleanup:
   return code;
 }
 
+int taos_insert_lines(TAOS* taos, char* lines[], int numLines, int protocol) {
+  int code;
+  switch (protocol) {
+    case SML_LINE_PROTOCOL:
+      code = taos_insert_sml_lines(taos, lines, numLines);
+      break;
+    case SML_TELNET_PROTOCOL:
+      code = taos_insert_telnet_lines(taos, lines, numLines);
+      break;
+    case SML_JSON_PROTOCOL:
+      code = taos_insert_json_payload(taos, *lines);
+      break;
+    default:
+      code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
+      break;
+  }
+
+  return code;
+}
