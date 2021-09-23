@@ -36,6 +36,10 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # deps
 add_subdirectory(deps)
 
+# api
+aux_source_directory(include/client API_SRC)
+add_library(api INTERFACE ${API_SRC})
+
 # src
 add_subdirectory(source)
 
