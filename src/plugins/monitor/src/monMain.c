@@ -77,7 +77,9 @@ typedef struct {
 } SMonConn;
 
 static SMonConn tsMonitor = {0};
-static bool  monHasMnodeMaster = false;
+static int32_t  monQueryReqNum = 0, monSubmitReqNum = 0;
+static bool     monHasMnodeMaster = false;
+
 static void  monSaveSystemInfo();
 static void  monSaveClusterInfo();
 static void  monSaveDnodesInfo();
@@ -396,7 +398,8 @@ static int32_t monBuildBandSql(char *sql) {
 }
 
 static int32_t monBuildReqSql(char *sql) {
-  SStatisInfo info = dnodeGetStatisInfo();
+  //SStatisInfo info = dnodeGetStatisInfo();
+  SStatisInfo info = {0};
   return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
@@ -429,6 +432,7 @@ static void monSaveSystemInfo() {
   if (code != 0) {
     monError("failed to save system info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
   } else {
+    monIncSubmitReqCnt();
     monDebug("successfully to save system info, sql:%s", tsMonitor.sql);
   }
 }
@@ -685,8 +689,8 @@ static int32_t monBuildReqRateSql(char *sql) {
   float queryReqRate = info.queryReqNum / interval;
   float submitReqRate = info.submitReqNum / interval;
   return sprintf(sql, ", %d, %f, %d, %f, %d, %f", info.httpReqNum, httpReqRate,
-                                                   info.queryReqNum, queryReqRate,
-                                                   info.submitReqNum, submitReqRate);
+                                                   info.queryReqNum - monFetchQueryReqCnt(), queryReqRate,
+                                                   info.submitReqNum - monFetchSubmitReqCnt(), submitReqRate);
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {
@@ -782,6 +786,7 @@ static void monSaveClusterInfo() {
   if (code != 0) {
     monError("failed to save cluster info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
   } else {
+    monIncSubmitReqCnt();
     monDebug("successfully to save cluster info, sql:%s", tsMonitor.sql);
   }
 }
@@ -811,6 +816,7 @@ static void monSaveDnodesInfo() {
   if (code != 0) {
     monError("failed to save dnode_%d info, reason:%s, sql:%s", dnodeGetDnodeId(), tstrerror(code), tsMonitor.sql);
   } else {
+    monIncSubmitReqCnt();
     monDebug("successfully to save dnode_%d info, sql:%s", dnodeGetDnodeId(), tsMonitor.sql);
   }
 }
@@ -893,6 +899,7 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
     if (code != 0) {
       monError("failed to save vgroup_%d info, reason:%s, sql:%s", vgId, tstrerror(code), tsMonitor.sql);
     } else {
+      monIncSubmitReqCnt();
       monDebug("successfully to save vgroup_%d info, sql:%s", vgId, tsMonitor.sql);
     }
   }
@@ -968,9 +975,9 @@ static void monSaveSlowQueryInfo() {
   if (code != 0) {
     monError("failed to save slowquery info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
   } else {
+    monIncSubmitReqCnt();
     monDebug("successfully to save slowquery info, sql:%s", tsMonitor.sql);
   }
-
 
 }
 
@@ -979,6 +986,7 @@ static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
   if (c != TSDB_CODE_SUCCESS) {
     monError("save %s failed, reason:%s", (char *)param, tstrerror(c));
   } else {
+    monIncSubmitReqCnt();
     int32_t rows = taos_affected_rows(result);
     monDebug("save %s succ, rows:%d", (char *)param, rows);
   }
@@ -1077,4 +1085,20 @@ void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void
 
   monDebug("execute sql:%s", sql);
   taos_query_a(tsMonitor.conn, sql, callback, param);
+}
+
+void monIncQueryReqCnt() {
+  atomic_fetch_add_32(&monQueryReqNum, 1);
+}
+
+void monIncSubmitReqCnt() {
+  atomic_fetch_add_32(&monSubmitReqNum, 1);
+}
+
+int32_t monFetchQueryReqCnt() {
+  return atomic_exchange_32(&monQueryReqNum, 0);
+}
+
+int32_t monFetchSubmitReqCnt() {
+  return atomic_exchange_32(&monSubmitReqNum, 0);
 }

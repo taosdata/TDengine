@@ -62,6 +62,10 @@ void    monSaveDnodeLog(int32_t level, const char *const format, ...);
 void    monExecuteSQL(char *sql);
 typedef void (*MonExecuteSQLCbFP)(void *param, TAOS_RES *, int code);
 void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void* param);
+void    monIncQueryReqCnt();
+void    monIncSubmitReqCnt();
+int32_t monFetchQueryReqCnt();
+int32_t monFetchSubmitReqCnt();
 #ifdef __cplusplus
 }
 #endif
