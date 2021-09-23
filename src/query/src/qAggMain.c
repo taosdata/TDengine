@@ -4698,7 +4698,7 @@ static void do_reservoir_sample(SSampleFuncInfo *pInfo, int32_t samplesK, int64_
   } else {
     int32_t j = rand() % (pInfo->totalPoints);
     if (j < samplesK) {
-      assignResultSample(pInfo, j, ts, pData, bytes, type);
+      assignResultSample(pInfo, j, ts, pData, type, bytes);
     }
   }
 }
