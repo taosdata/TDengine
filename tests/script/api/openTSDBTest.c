@@ -411,30 +411,6 @@ void verify_json_insert(TAOS* taos) {
   free(payload_str);
   cJSON_Delete(payload);
 
-  //ID
-  payload = cJSON_CreateObject();
-  cJSON_AddStringToObject(payload, "metric", "stb0_5");
-  cJSON_AddNumberToObject(payload, "timestamp", 0);
-  cJSON_AddNumberToObject(payload, "value", 123);
-  tags = cJSON_CreateObject();
-  cJSON_AddStringToObject(tags, "ID", "tb0_5");
-  cJSON_AddTrueToObject(tags, "t1");
-  cJSON_AddStringToObject(tags, "iD", "tb000");
-  cJSON_AddFalseToObject(tags, "t2");
-  cJSON_AddNumberToObject(tags, "t3", 10);
-  cJSON_AddStringToObject(tags, "t4", "123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>");
-  cJSON_AddStringToObject(tags, "id", "tb555");
-  cJSON_AddItemToObject(payload, "tags", tags);
-  payload_str = cJSON_Print(payload);
-  //printf("%s\n", payload_str);
-
-  code = taos_insert_json_payload(taos, payload_str);
-  if (code) {
-    printf("payload0_5 code: %d, %s.\n", code, tstrerror(code));
-  }
-  free(payload_str);
-  cJSON_Delete(payload);
-
   /* Nested format */
   //timestamp
   cJSON *timestamp;

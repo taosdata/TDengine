@@ -189,29 +189,6 @@ class TDTestCase:
 
 
         print("============= step3 : test tags  ================")
-        ### ID ###
-        payload = '''
-        {
-	    "metric":	"stb0_7",
-	    "timestamp":	0,
-	    "value":	123,
-	    "tags":	{
-		"ID":	"tb0_7",
-		"t1":	true,
-		"iD":	"tb000",
-		"t2":	false,
-		"t3":	10,
-		"t4":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>",
-		"id":	"tb555"
-	    }
-        }
-        '''
-        code = self._conn.insert_json_payload(payload)
-        print("insert_json_payload result {}".format(code))
-
-        tdSql.query("select tbname from stb0_7")
-        tdSql.checkData(0, 0, "tb0_7")
-
         ### Default tag numeric types ###
         payload = '''
         {
