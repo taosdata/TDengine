@@ -34,6 +34,7 @@ bool taosReadProcIO(int64_t* rchars, int64_t* wchars);
 bool taosGetProcIO(float *readKB, float *writeKB);
 bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes);
 bool taosGetBandSpeed(float *bandSpeedKb);
+bool taosGetNetworkIO(float *netInKb, float *netOutKb);
 void taosGetDisk();
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) ;
 bool taosGetProcMemory(float *memoryUsedMB) ;

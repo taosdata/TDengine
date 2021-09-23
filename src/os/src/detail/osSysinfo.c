@@ -333,7 +333,9 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
 }
 
 bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
-  *bytes = 0;
+  if (bytes) *bytes = 0;
+  if (rbytes) *rbytes = 0;
+  if (tbytes) *tbytes = 0;
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsSysNetFile);
@@ -348,7 +350,7 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
     memset(line, 0, len);
 
     int64_t o_rbytes = 0;
-    int64_t rpackts = 0;
+    int64_t rpackets = 0;
     int64_t o_tbytes = 0;
     int64_t tpackets = 0;
     int64_t nouse1 = 0;
@@ -374,10 +376,10 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
     sscanf(line,
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
-           nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
+           nouse0, &o_rbytes, &rpackets, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
     if (rbytes) *rbytes = o_rbytes;
     if (tbytes) *tbytes = o_tbytes;
-    *bytes += (o_rbytes + o_tbytes);
+    if (bytes)  *bytes += (o_rbytes + o_tbytes);
   }
 
   tfree(line);
@@ -418,6 +420,45 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
 
   lastTime = curTime;
   lastBytes = curBytes;
+
+  return true;
+}
+
+bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
+  static int64_t lastBytesIn = 0, lastBytesOut = 0;
+  static time_t  lastTimeIO = 0;
+  int64_t        curBytesIn = 0, curBytesOut = 0;
+  time_t         curTime = time(NULL);
+
+  if (!taosGetCardInfo(NULL, &curBytesIn, &curBytesOut)) {
+    return false;
+  }
+
+  if (lastTimeIO == 0 || lastBytesIn == 0 || lastBytesOut == 0) {
+    lastTimeIO = curTime;
+    lastBytesIn = curBytesIn; lastBytesOut = curBytesOut;
+    *netInKb = 0;
+    *netOutKb = 0;
+    return true;
+  }
+
+  if (lastTimeIO >= curTime || lastBytesIn > curBytesIn || lastBytesOut > curBytesOut) {
+    lastTimeIO = curTime;
+    lastBytesIn = curBytesIn; lastBytesOut = curBytesOut;
+    *netInKb = 0;
+    *netOutKb = 0;
+    return true;
+  }
+
+  double totalBytesIn = (double)(curBytesIn - lastBytesIn) / 1024 * 8;  // Kb
+  *netInKb = (float)(totalBytesIn / (double)(curTime - lastTimeIO));
+
+  double totalBytesOut = (double)(curBytesOut - lastBytesOut) / 1024 * 8;  // Kb
+  *netOutKb = (float)(totalBytesOut / (double)(curTime - lastTimeIO));
+
+  lastTimeIO = curTime;
+  lastBytesIn = curBytesIn;
+  lastBytesOut = curBytesOut;
 
   return true;
 }
