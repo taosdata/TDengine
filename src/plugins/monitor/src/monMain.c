@@ -77,6 +77,7 @@ typedef struct {
 } SMonConn;
 
 static SMonConn tsMonitor = {0};
+static bool  monHasMnodeMaster = false;
 static void  monSaveSystemInfo();
 static void  monSaveClusterInfo();
 static void  monSaveDnodesInfo();
@@ -190,8 +191,11 @@ static void *monThreadFunc(void *param) {
     if (tsMonitor.state == MON_STATE_INITED) {
       if (accessTimes % tsMonitorInterval == 0 || accessTimes == 1) {
         monSaveSystemInfo();
-        monSaveClusterInfo();
         monSaveDnodesInfo();
+        if (monHasMnodeMaster) {
+          //taosd only has mnode master will write cluster info
+          monSaveClusterInfo();
+        }
         monSaveVgroupsInfo();
         monSaveSlowQueryInfo();
       }
@@ -718,7 +722,7 @@ static int32_t monBuildDnodeVnodesSql(char *sql) {
 }
 
 static int32_t monBuildDnodeMnodeSql(char *sql) {
-  bool has_mnode = false;
+  bool has_mnode = false, has_mnode_row;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show mnodes");
 
   TAOS_ROW    row;
@@ -726,11 +730,20 @@ static int32_t monBuildDnodeMnodeSql(char *sql) {
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
   while ((row = taos_fetch_row(result))) {
+    has_mnode_row = false;
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "end_point") == 0) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], tsLocalEp, charLen) == 0)  {
           has_mnode = true;
+          has_mnode_row = true;
+        }
+      } else if (strcmp(fields[i].name, "role") == 0) {
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        if (strncmp((char *)row[i], "master", charLen) == 0)  {
+          if (has_mnode_row) {
+            monHasMnodeMaster = true;
+          }
         }
       }
     }
