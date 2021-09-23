@@ -54,6 +54,7 @@ typedef enum {
   MON_CMD_CREATE_MT_DNODES,
   MON_CMD_CREATE_TB_DNODE,
   MON_CMD_CREATE_MT_DISKS,
+  MON_CMD_CREATE_TB_DISKS,
   MON_CMD_CREATE_MT_VGROUPS,
   MON_CMD_CREATE_MT_LOGS,
   MON_CMD_CREATE_TB_DNODE_LOG,
@@ -195,11 +196,12 @@ static void *monThreadFunc(void *param) {
         monSaveSystemInfo();
         monSaveDnodesInfo();
         if (monHasMnodeMaster) {
-          //taosd only has mnode master will write cluster info
+          //only mnode master will write cluster info
           monSaveClusterInfo();
         }
         monSaveVgroupsInfo();
         monSaveSlowQueryInfo();
+        monSaveDisksInfo();
       }
     }
   }
@@ -305,6 +307,9 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", datadir_l2_used float, datadir_l2_total float"
              ") tags (dnode_id int, dnode_ep binary(%d))",
              tsMonitorDbName, TSDB_EP_LEN);
+  } else if (cmd == MON_CMD_CREATE_TB_DISKS) {
+    snprintf(sql, SQL_LENGTH, "create table if not exists %s.disks_%d using %s.disks_info tags(%d, '%s')", tsMonitorDbName,
+             dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);
   } else if (cmd == MON_CMD_CREATE_MT_VGROUPS) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.vgroups_info(ts timestamp"
@@ -762,6 +767,27 @@ static int32_t monBuildDnodeDiskSql(char *sql) {
   return sprintf(sql, ", %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
 }
 
+static int32_t monBuildDiskTierSql(char *sql) {
+  const int8_t numTiers = 3;
+  SFSMeta      fsMeta;
+  STierMeta* tierMetas = calloc(numTiers, sizeof(STierMeta));
+  tfsUpdateInfo(&fsMeta, tierMetas, numTiers);
+  int32_t pos = 0;
+
+  for (int i = 0; i < numTiers; ++i) {
+    pos += sprintf(sql + pos, ", datadir_l%d_used %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
+    char* keyDataDirLevelUsed = "datadir_used";
+    char* keyDataDirLevelTotal = "datadir_total";
+    httpJsonPairInt64Val(jsonBuf, keyDataDirLevelUsed, (int32_t)strlen(keyDataDirLevelUsed), tierMetas[i].used);
+    httpJsonPairInt64Val(jsonBuf, keyDataDirLevelTotal, (int32_t)strlen(keyDataDirLevelTotal), tierMetas[i].size);
+  
+  }
+
+  free(tierMetas);
+
+  return sprintf(sql, ", %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
+}
+
 static void monSaveClusterInfo() {
   int64_t ts = taosGetTimestampUs();
   char *  sql = tsMonitor.sql;
@@ -979,6 +1005,27 @@ static void monSaveSlowQueryInfo() {
     monDebug("successfully to save slowquery info, sql:%s", tsMonitor.sql);
   }
 
+}
+
+static void monSaveDisksInfo() {
+  int64_t ts = taosGetTimestampUs();
+  char *  sql = tsMonitor.sql;
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.disks_%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
+
+  monBuildDiskTierSql(sql + pos);
+
+  monError("sql:%s", sql);
+
+  void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to save disks_%d info, reason:%s, sql:%s", dnodeGetDnodeId(), tstrerror(code), tsMonitor.sql);
+  } else {
+    monIncSubmitReqCnt();
+    monDebug("successfully to save disks_%d info, sql:%s", dnodeGetDnodeId(), tsMonitor.sql);
+  }
 }
 
 static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
