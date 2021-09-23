@@ -67,8 +67,8 @@ typedef struct {
   TSKEY   keyLast
 
 /**
- * aggrStat;   // 0 - no aggr part in .data/.last/.sma, 1 - has aggr in .sma
- * blkVer;     // 0 - original block, 1 - block since importing .sma
+ * aggrStat;   // only valid when blkVer > 0. 0 - no aggr part in .data/.last/.smad/.smal, 1 - has aggr in .smad/.smal
+ * blkVer;     // 0 - original block, 1 - block since importing .smad/.smal
  * aggrOffset; // only valid when blkVer > 0 and aggrStat > 0
  */
 #define SBlockFieldsP1     \
