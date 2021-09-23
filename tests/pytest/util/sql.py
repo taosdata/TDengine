@@ -1,4 +1,4 @@
-﻿###################################################################
+###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
@@ -222,6 +222,36 @@ class TDSql:
         else:
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
                        (self.sql, row, col, self.queryResult[row][col], data))
+
+    def checkDeviaRation(self, row, col, data, deviation=0.001):
+        self.checkRowCol(row, col)
+        if data is None:
+            self.checkData(row, col, None)
+            return
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        if data is not None and len(self.queryResult)==0:
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, data:{data}, "
+                       f"expect result is not None but it is")
+        args = (
+            caller.filename, caller.lineno, self.sql, data, type(data),
+            deviation, type(deviation), self.queryResult[row][col], type(self.queryResult[row][col])
+        )
+
+        if not(isinstance(data,int) or isinstance(data, float)):
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, data:{args[3]}, "
+                       f"expect type: int or float, actual type: {args[4]}")
+        if not(isinstance(deviation,int) or isinstance(deviation, float)) or  type(data)==type(True):
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, deviation:{args[5]}, "
+                       f"expect type: int or float, actual type: {args[6]}")
+        if not(isinstance(self.queryResult[row][col], int) or isinstance(self.queryResult[row][col], float)):
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, result:{args[7]}, "
+                       f"expect type: int or float, actual type: {args[8]}")
+
+        devia = abs((data - self.queryResult[row][col])/data)
+        if devia <= deviation:
+            tdLog.info(f"sql:{self.sql}, result data:{self.queryResult[row][col]}, expect data:{data}, "
+                       f"actual deviation:{devia} <= expect deviation:{deviation}")
+        pass
 
     def getData(self, row, col):
         self.checkRowCol(row, col)
