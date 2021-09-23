@@ -88,7 +88,7 @@ Note:
     ```mysql
     USE db_name;
     ```
-    Use/switch database
+    Use/switch database (Invalid when accessing through RESTful connection)
 
 - **Drop a database**
     ```mysql
