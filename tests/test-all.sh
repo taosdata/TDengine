@@ -539,7 +539,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
 
   cd ..
   cd ..
-  cd scrpt/api
+  cd script/api
   make > /dev/null
 
   ./clientcfgtest
