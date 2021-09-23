@@ -1,0 +1,12 @@
+
+# lz4
+ExternalProject_Add(lz4
+        GIT_REPOSITORY git@github.com:taosdata-contrib/lz4.git
+        GIT_TAG v1.9.3
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/lz4"
+        BINARY_DIR "${CMAKE_BINARY_DIR}/lz4-build"
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )

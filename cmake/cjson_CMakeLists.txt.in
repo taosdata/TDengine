@@ -1,0 +1,12 @@
+
+# cjson
+ExternalProject_Add(cjson
+        GIT_REPOSITORY git@github.com:taosdata-contrib/cJSON.git
+        GIT_TAG v1.7.15
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/cJson"
+        BINARY_DIR "${CMAKE_BINARY_DIR}/cJson-build"
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )
