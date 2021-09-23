@@ -831,10 +831,12 @@ int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, char **
     }
     *childTableName = tcalloc(idLen + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
-    //remove all ID fields from tags list no case sensitive
-    while (id != NULL) {
-      cJSON_DeleteItemFromObject(tags, "ID");
-      id = cJSON_GetObjectItem(tags, "ID");
+
+    //If there's duplicate ID fields in tags return error
+    cJSON_DeleteItemFromObject(tags, "ID");
+    id = cJSON_GetObjectItem(tags, "ID");
+    if (id != NULL) {
+      return TSDB_CODE_TSC_DUP_TAG_NAMES;
     }
   }
 
