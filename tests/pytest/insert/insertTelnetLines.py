@@ -36,13 +36,14 @@ class TDTestCase:
                         "stb0_0 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                         "stb0_1 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                         "stb0_2 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
+                        ".stb0.3. 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                    ]
 
         code = self._conn.insert_telnet_lines(lines0)
         print("insert_telnet_lines result {}".format(code))
 
         tdSql.query("show stables")
-        tdSql.checkRows(3)
+        tdSql.checkRows(4)
 
         tdSql.query("describe stb0_0")
         tdSql.checkRows(4)
@@ -51,6 +52,9 @@ class TDTestCase:
         tdSql.checkRows(4)
 
         tdSql.query("describe stb0_2")
+        tdSql.checkRows(4)
+
+        tdSql.query("describe _stb0_3_")
         tdSql.checkRows(4)
 
         ### timestamp ###
@@ -122,14 +126,15 @@ class TDTestCase:
         #bigint
         lines2_3 = [
                         "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
-                        "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
+                        "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\"",
+                        "stb2_3 1626006833662ms 9223372036854775807 host=\"host0\""
                      ]
 
         code = self._conn.insert_telnet_lines(lines2_3)
         print("insert_telnet_lines result {}".format(code))
 
         tdSql.query("select * from stb2_3")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
         tdSql.query("describe stb2_3")
         tdSql.checkRows(3)
@@ -145,7 +150,6 @@ class TDTestCase:
                         "stb2_4 1626006833660ms -3.4e10f32 host=\"host0\"",
                         "stb2_4 1626006833670ms 3.4E+2f32 host=\"host0\"",
                         "stb2_4 1626006833680ms -3.4e-2f32 host=\"host0\"",
-                        "stb2_4 1626006833690ms 3.15 host=\"host0\"",
                         "stb2_4 1626006833700ms 3.4E38f32 host=\"host0\"",
                         "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
                      ]
@@ -154,7 +158,7 @@ class TDTestCase:
         print("insert_telnet_lines result {}".format(code))
 
         tdSql.query("select * from stb2_4")
-        tdSql.checkRows(11)
+        tdSql.checkRows(10)
 
         tdSql.query("describe stb2_4")
         tdSql.checkRows(3)
@@ -171,14 +175,15 @@ class TDTestCase:
                         "stb2_5 1626006833670ms 3.4E+2f64 host=\"host0\"",
                         "stb2_5 1626006833680ms -3.4e-2f64 host=\"host0\"",
                         "stb2_5 1626006833690ms 1.7E308f64 host=\"host0\"",
-                        "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\""
+                        "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\"",
+                        "stb2_5 1626006833710ms 3.15 host=\"host0\""
                      ]
 
         code = self._conn.insert_telnet_lines(lines2_5)
         print("insert_telnet_lines result {}".format(code))
 
         tdSql.query("select * from stb2_5")
-        tdSql.checkRows(10)
+        tdSql.checkRows(11)
 
         tdSql.query("describe stb2_5")
         tdSql.checkRows(3)

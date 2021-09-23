@@ -273,6 +273,7 @@ python3 ./test.py -f query/queryCnameDisplay.py
 # python3 ./test.py -f query/operator_cost.py
 # python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
+python3 ./test.py -f query/bug6586.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -391,7 +392,7 @@ python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
-python3 ./test.py -f insert/schemalessInsert.py
+#python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py

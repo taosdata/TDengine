@@ -7,6 +7,7 @@
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 English | [简体中文](./README-CN.md) 
+We are hiring, check [here](https://www.taosdata.com/en/careers/)
 
 # What is TDengine？
 
