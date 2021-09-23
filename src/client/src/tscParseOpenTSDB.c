@@ -462,7 +462,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
   }
 
   //convert dot to underscore for now, will be removed once dot is allowed in tbname.
-  for (int i = 0; i < strlen(metric->valuestring); ++i) {
+  for (int i = 0; i < stableLen; ++i) {
     if (metric->valuestring[i] == '.') {
       metric->valuestring[i] = '_';
     }
