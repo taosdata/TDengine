@@ -283,7 +283,7 @@ char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESS
 int8_t tsDeadLockKillQuery = 0;
 
 // default JSON string type
-char tsDefaultJSONStrType[7] = "binary";
+char tsDefaultJSONStrType[7] = "nchar";
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;

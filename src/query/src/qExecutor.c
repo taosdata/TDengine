@@ -32,6 +32,7 @@
 #include "tscLog.h"
 #include "cJSON.h"
 #include "tsdbMeta.h"
+#include "tscUtil.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -7174,24 +7175,30 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         type  = pExprInfo[j].base.resType;
         bytes = pExprInfo[j].base.resBytes;
 
+        char* tagJsonElementData = NULL;
+        dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
         } else {
           data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
-          if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
-            STSchema *pSchema = tsdbGetTableTagSchema((STable*) item->pTable);
-            STColumn *pCol = tdGetColOfID(pSchema, pExprInfo[j].base.colInfo.colId);
-            if (pCol == NULL) {
-              continue;  // No matched tag volumn
-            }
-            if(pCol->type == TSDB_DATA_TYPE_JSON){
-
+          if(type == TSDB_DATA_TYPE_JSON){
+            if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
+              tagJsonElementData = calloc(bytes, 1);
+              findTagValue(data, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData);
+              *dst = SELECT_ELEMENT_JSON_TAG;   // select tag->element
+              dst++;
+            }else{
+              *dst = SELECT_ALL_JSON_TAG;   // select tag
+              dst++;
             }
           }
         }
-
-        dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
-        doSetTagValueToResultBuf(dst, data, type, bytes);
+        if(tagJsonElementData != NULL){
+          doSetTagValueToResultBuf(dst, tagJsonElementData, type, bytes);
+          tfree(tagJsonElementData);
+        }else{
+          doSetTagValueToResultBuf(dst, data, type, bytes);
+        }
       }
 
       count += 1;

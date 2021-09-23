@@ -22,6 +22,7 @@
 #include "ttype.h"
 #include "tutil.h"
 #include "tvariant.h"
+#include "tscUtil.h"
 
 #define SET_EXT_INFO(converted, res, minv, maxv, exti) do {                                                       \
                                                         if (converted == NULL || exti == NULL || *converted == false) { break; }  \
@@ -105,6 +106,10 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
  * @param type
  */
 void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type) {
+  if(type == TSDB_DATA_TYPE_JSON){
+    if(JSON_TYPE_BINARY) type = TSDB_DATA_TYPE_BINARY;
+    else if(JSON_TYPE_NCHAR) type = TSDB_DATA_TYPE_NCHAR;
+  }
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
@@ -167,8 +172,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       
       break;
     }
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_JSON:{  // todo refactor, extract a method
+    case TSDB_DATA_TYPE_BINARY:{
       pVar->pz = calloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
