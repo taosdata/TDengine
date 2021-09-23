@@ -334,16 +334,15 @@ static int taosDumpIn();
 static void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty,
         FILE *fp);
 //static int taosDumpDb(SDbInfo *dbInfo, FILE *fp, TAOS *taos);
-static int dumpStable(char *table, FILE *fp, TAOS* taos,
-        SDbInfo *dbInfo);
-static int taosDumpCreateTableClause(STableDef *tableDes, int numOfCols,
+static int dumpStable(char *table, FILE *fp, SDbInfo *dbInfo);
+static int dumpCreateTableClause(STableDef *tableDes, int numOfCols,
         FILE *fp, char* dbName);
 static void taosDumpCreateMTableClause(STableDef *tableDes, char *stable,
         int numOfCols, FILE *fp, char* dbName);
 static int64_t taosDumpTable(char *tbName, char *stable,
-        FILE *fp, TAOS* taos, char* dbName, int precision);
-static int64_t taosDumpTableData(FILE *fp, char *tbName,
-        TAOS* taos, char* dbName,
+        FILE *fp, char* dbName, int precision);
+static int64_t dumpTableData(FILE *fp, char *tbName,
+        char* dbName,
         int precision,
         char *jsonAvroSchema);
 static int checkParam();
@@ -758,9 +757,16 @@ static void taosFreeDbInfos() {
 }
 
 // check table is normal table or super table
-static int taosGetTableRecordInfo(
+static int getTableRecordInfo(
         char *dbName,
-        char *table, TableRecordInfo *pTableRecordInfo, TAOS *taos) {
+        char *table, TableRecordInfo *pTableRecordInfo) {
+    TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
+            dbName, g_args.port);
+    if (taos == NULL) {
+        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        return -1;
+    }
+
     TAOS_ROW row = NULL;
     bool isSet = false;
     TAOS_RES *result     = NULL;
@@ -893,6 +899,7 @@ static int getDumpDbCount()
     if (0 != code) {
         errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
                 __func__, __LINE__, command, taos_errstr(result));
+        taos_close(taos);
         return 0;
     }
 
@@ -925,10 +932,11 @@ static int getDumpDbCount()
         errorPrint("%d databases valid to dump\n", count);
     }
 
+    taos_close(taos);
     return count;
 }
 
-static int64_t dumpNormalTableWithoutStb(TAOS *taos, SDbInfo *dbInfo, char *ntbName)
+static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
 {
     int64_t count = 0;
 
@@ -951,7 +959,7 @@ static int64_t dumpNormalTableWithoutStb(TAOS *taos, SDbInfo *dbInfo, char *ntbN
     }
 
     count = taosDumpTable(ntbName, NULL,
-        fp, taos, dbInfo->name, getPrecisionByString(dbInfo->precision));
+        fp, dbInfo->name, getPrecisionByString(dbInfo->precision));
 
     fclose(fp);
     return count;
@@ -963,7 +971,7 @@ static int64_t dumpNormalTable(FILE *fp, TAOS *taos, char *dbName, char *tbName,
 {
     int64_t count = 0;
     count = taosDumpTable(tbName, stbName,
-        fp, taos, dbName, precision);
+        fp, dbName, precision);
 
     return count;
 }
@@ -1061,7 +1069,7 @@ static void *dumpNormalTablesOfStb(void *arg) {
                 pThreadInfo->taos,
                 pThreadInfo->dbName,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
-                (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
+                pThreadInfo->stbName,
                 pThreadInfo->precision);
     }
 
@@ -1139,8 +1147,15 @@ static int64_t dumpNtbOfDbByThreads(
     return 0;
 }
 
-static int64_t getNtbCountOfStb(TAOS *taos, char *dbName, char *stbName)
+static int64_t getNtbCountOfStb(char *dbName, char *stbName)
 {
+    TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
+            dbName, g_args.port);
+    if (taos == NULL) {
+        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        return -1;
+    }
+
     int64_t count = 0;
 
     char command[COMMAND_SIZE];
@@ -1153,6 +1168,7 @@ static int64_t getNtbCountOfStb(TAOS *taos, char *dbName, char *stbName)
         errorPrint("%s() LN%d, failed to run command <%s>. reason: %s\n",
                 __func__, __LINE__, command, taos_errstr(res));
         taos_free_result(res);
+        taos_close(taos);
         return -1;
     }
 
@@ -1162,14 +1178,14 @@ static int64_t getNtbCountOfStb(TAOS *taos, char *dbName, char *stbName)
         count = *(int64_t*)row[TSDB_SHOW_TABLES_NAME_INDEX];
     }
 
+    taos_close(taos);
     return count;
 }
 
 static int64_t dumpNtbOfStbByThreads(
-        TAOS *taos,
         SDbInfo *dbInfo, char *stbName)
 {
-    int64_t ntbCount = getNtbCountOfStb(taos, dbInfo->name, stbName);
+    int64_t ntbCount = getNtbCountOfStb(dbInfo->name, stbName);
 
     if (ntbCount <= 0) {
         return 0;
@@ -1227,7 +1243,6 @@ static int64_t dumpNtbOfStbByThreads(
         pthread_join(pids[i], NULL);
     }
 
-
     int64_t records = 0;
     for (int64_t i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
@@ -1270,7 +1285,7 @@ static int64_t dumpCreateSTableClauseOfDb(
 
     int64_t superTblCnt = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
-        if (0 == dumpStable(row[TSDB_SHOW_TABLES_NAME_INDEX], fp, taos, dbInfo)) {
+        if (0 == dumpStable(row[TSDB_SHOW_TABLES_NAME_INDEX], fp, dbInfo)) {
             superTblCnt ++;
         }
     }
@@ -1519,6 +1534,8 @@ static int taosDumpOut() {
         goto _exit_failure;
     }
 
+    taos_close(taos);
+
     if (g_args.databases || g_args.all_databases) { // case: taosdump --databases dbx,dby ...   OR  taosdump --all-databases
         for (int i = 0; i < count; i++) {
             int64_t records = 0;
@@ -1541,9 +1558,9 @@ static int taosDumpOut() {
 
         int superTblCnt = 0 ;
         for (int i = 1; g_args.arg_list[i]; i++) {
-            if (taosGetTableRecordInfo(g_dbInfos[0]->name,
+            if (getTableRecordInfo(g_dbInfos[0]->name,
                         g_args.arg_list[i],
-                        &tableRecordInfo, taos) < 0) {
+                        &tableRecordInfo) < 0) {
                 errorPrint("input the invalid table %s\n",
                         g_args.arg_list[i]);
                 continue;
@@ -1553,13 +1570,13 @@ static int taosDumpOut() {
             if (tableRecordInfo.isStable) {  // dump all table of this stable
                 int ret = dumpStable(
                         tableRecordInfo.tableRecord.stable,
-                        fp, taos, g_dbInfos[0]);
+                        fp, g_dbInfos[0]);
                 if (ret >= 0) {
                     superTblCnt++;
-                    records = dumpNtbOfStbByThreads(taos, g_dbInfos[0], g_args.arg_list[i]);
+                    records = dumpNtbOfStbByThreads(g_dbInfos[0], g_args.arg_list[i]);
                 }
             } else {
-                records = dumpNormalTableWithoutStb(taos, g_dbInfos[0], g_args.arg_list[i]);
+                records = dumpNormalTableWithoutStb(g_dbInfos[0], g_args.arg_list[i]);
             }
 
             if (records >= 0) {
@@ -1571,7 +1588,6 @@ static int taosDumpOut() {
 
     /* Close the handle and return */
     fclose(fp);
-    taos_close(taos);
     taos_free_result(result);
     taosFreeDbInfos();
     fprintf(stderr, "dump out rows: %" PRId64 "\n", g_totalDumpOutRows);
@@ -1586,12 +1602,21 @@ _exit_failure:
     return -1;
 }
 
-static int taosGetTableDes(
+static int getTableDes(
         char* dbName, char *table,
-        STableDef *stableDes, TAOS* taos, bool isSuperTable) {
+        STableDef *stableDes, bool isSuperTable) {
     TAOS_ROW row = NULL;
     TAOS_RES* res = NULL;
     int colCount = 0;
+
+    TAOS *taos = taos_connect(g_args.host,
+            g_args.user, g_args.password, dbName, g_args.port);
+    if (NULL == taos) {
+        errorPrint(
+                "Failed to connect to TDengine server %s by specified database %s\n",
+                g_args.host, dbName);
+        return -1;
+    }
 
     char sqlstr[COMMAND_SIZE];
     sprintf(sqlstr, "describe %s.%s;", dbName, table);
@@ -1602,6 +1627,7 @@ static int taosGetTableDes(
         errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
                 __func__, __LINE__, sqlstr, taos_errstr(res));
         taos_free_result(res);
+        taos_close(taos);
         return -1;
     }
 
@@ -1646,6 +1672,7 @@ static int taosGetTableDes(
             errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
                     __func__, __LINE__, sqlstr, taos_errstr(res));
             taos_free_result(res);
+            taos_close(taos);
             return -1;
         }
 
@@ -1656,6 +1683,7 @@ static int taosGetTableDes(
             errorPrint("%s() LN%d, fetch failed to run command <%s>, reason:%s\n",
                     __func__, __LINE__, sqlstr, taos_errstr(res));
             taos_free_result(res);
+            taos_close(taos);
             return -1;
         }
 
@@ -1663,6 +1691,7 @@ static int taosGetTableDes(
             sprintf(stableDes->cols[i].note, "%s", "NULL");
             taos_free_result(res);
             res = NULL;
+            taos_close(taos);
             continue;
         }
 
@@ -1731,9 +1760,9 @@ static int taosGetTableDes(
         }
 
         taos_free_result(res);
-        res = NULL;
     }
 
+    taos_close(taos);
     return colCount;
 }
 
@@ -1746,7 +1775,7 @@ static int convertSchemaToAvroSchema(STableDef *stableDes, char **avroSchema)
 
 static int64_t taosDumpTable(
         char *tbName, char *stable,
-        FILE *fp, TAOS* taos, char* dbName, int precision) {
+        FILE *fp, char* dbName, int precision) {
     int colCount = 0;
 
     STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef)
@@ -1754,19 +1783,19 @@ static int64_t taosDumpTable(
 
     if (stable != NULL && stable[0] != '\0') {  // dump table schema which is created by using super table
         /*
-           colCount = taosGetTableDes(stable, tableDes, taos);
+           colCount = getTableDes(stable, tableDes, taos);
 
            if (count < 0) {
            free(tableDes);
            return -1;
            }
 
-           taosDumpCreateTableClause(tableDes, count, fp);
+           dumpCreateTableClause(tableDes, count, fp);
 
            memset(tableDes, 0, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
            */
 
-        colCount = taosGetTableDes(dbName, tbName, tableDes, taos, false);
+        colCount = getTableDes(dbName, tbName, tableDes, false);
 
         if (colCount < 0) {
             free(tableDes);
@@ -1777,7 +1806,7 @@ static int64_t taosDumpTable(
         taosDumpCreateMTableClause(tableDes, stable, colCount, fp, dbName);
 
     } else {  // dump table definition
-        colCount = taosGetTableDes(dbName, tbName, tableDes, taos, false);
+        colCount = getTableDes(dbName, tbName, tableDes, false);
 
         if (colCount < 0) {
             free(tableDes);
@@ -1785,7 +1814,7 @@ static int64_t taosDumpTable(
         }
 
         // create normal-table or super-table
-        taosDumpCreateTableClause(tableDes, colCount, fp, dbName);
+        dumpCreateTableClause(tableDes, colCount, fp, dbName);
     }
 
     char *jsonAvroSchema = NULL;
@@ -1797,7 +1826,7 @@ static int64_t taosDumpTable(
 
     int64_t ret = 0;
     if (!g_args.schemaonly) {
-        ret = taosDumpTableData(fp, tbName, taos, dbName, precision,
+        ret = dumpTableData(fp, tbName, dbName, precision,
             jsonAvroSchema);
     }
 
@@ -1826,10 +1855,8 @@ static void taosDumpCreateDbClause(
     fprintf(fp, "%s\n\n", sqlstr);
 }
 
-static int dumpStable(char *stbName, FILE *fp,
-        TAOS* taos, SDbInfo *dbInfo)
+static int dumpStable(char *stbName, FILE *fp, SDbInfo *dbInfo)
 {
-
     uint64_t sizeOfTableDes =
         (uint64_t)(sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
 
@@ -1840,8 +1867,8 @@ static int dumpStable(char *stbName, FILE *fp,
         exit(-1);
     }
 
-    int colCount = taosGetTableDes(dbInfo->name,
-            stbName, stableDes, taos, true);
+    int colCount = getTableDes(dbInfo->name,
+            stbName, stableDes, true);
 
     if (colCount < 0) {
         free(stableDes);
@@ -1850,13 +1877,13 @@ static int dumpStable(char *stbName, FILE *fp,
         exit(-1);
     }
 
-    taosDumpCreateTableClause(stableDes, colCount, fp, dbInfo->name);
+    dumpCreateTableClause(stableDes, colCount, fp, dbInfo->name);
     free(stableDes);
 
     return 0;
 }
 
-static int taosDumpCreateTableClause(STableDef *tableDes, int numOfCols,
+static int dumpCreateTableClause(STableDef *tableDes, int numOfCols,
         FILE *fp, char* dbName) {
     int counter = 0;
     int count_temp = 0;
@@ -2124,8 +2151,8 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
     return 0;
 }
 
-static int64_t taosDumpTableData(FILE *fp, char *tbName,
-        TAOS* taos, char* dbName, int precision,
+static int64_t dumpTableData(FILE *fp, char *tbName,
+        char* dbName, int precision,
         char *jsonAvroSchema) {
     int64_t    totalRows     = 0;
 
@@ -2158,12 +2185,22 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
             "select * from %s.%s where _c0 >= %" PRId64 " and _c0 <= %" PRId64 " order by _c0 asc;",
             dbName, tbName, start_time, end_time);
 
+    TAOS *taos = taos_connect(g_args.host,
+            g_args.user, g_args.password, dbName, g_args.port);
+    if (NULL == taos) {
+        errorPrint(
+                "Failed to connect to TDengine server %s by specified database %s\n",
+                g_args.host, dbName);
+        return -1;
+    }
+
     TAOS_RES* res = taos_query(taos, sqlstr);
     int32_t code = taos_errno(res);
     if (code != 0) {
         errorPrint("failed to run command %s, reason: %s\n",
                 sqlstr, taos_errstr(res));
         taos_free_result(res);
+        taos_close(taos);
         return -1;
     }
 
@@ -2175,6 +2212,7 @@ static int64_t taosDumpTableData(FILE *fp, char *tbName,
     }
 
     taos_free_result(res);
+    taos_close(taos);
     return totalRows;
 }
 
