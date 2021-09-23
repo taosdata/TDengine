@@ -4,10 +4,12 @@
 ROOT=./
 TARGET=exe
 LFLAGS = '-Wl,-rpath,/usr/local/taos/driver/' -ltaos -lpthread -lm -lrt
-CFLAGS = -O0 -g -Wall -Wno-deprecated -fPIC -Wno-unused-result -Wconversion \
+CFLAGS = -O3 -g -Wall -Wno-deprecated -fPIC -Wno-unused-result -Wconversion \
 	-Wno-char-subscripts -D_REENTRANT -Wno-format -D_REENTRANT -DLINUX \
 	-Wno-unused-function -D_M_X64 -I/usr/local/taos/include -std=gnu99 \
-	-fsanitize=address
+	-I../../../deps/cJson/inc\
+	-I../../../src/os/inc/ -I../../../src/inc -I../../../src/util/inc \
+	-I../../../src/common/inc
 
 all: $(TARGET)
 
@@ -16,9 +18,11 @@ exe:
 	gcc $(CFLAGS) ./stmtBatchTest.c -o $(ROOT)stmtBatchTest $(LFLAGS)
 	gcc $(CFLAGS) ./stmtTest.c -o $(ROOT)stmtTest $(LFLAGS)
 	gcc $(CFLAGS) ./stmt_function.c -o $(ROOT)stmt_function $(LFLAGS)
+	gcc $(CFLAGS) ./clientcfgtest.c -o $(ROOT)clientcfgtest $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
 	rm $(ROOT)stmtBatchTest
 	rm $(ROOT)stmtTest
 	rm $(ROOT)stmt_function
+	rm $(ROOT)clientcfgtest
