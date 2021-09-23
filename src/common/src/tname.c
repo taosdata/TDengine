@@ -151,6 +151,39 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
+
+char *tableNameGetPosition(SStrToken* pToken, char target) {
+  bool inEscape = false;
+  bool inQuota = false;
+  char quotaStr = 0;
+  
+  for (uint32_t i = 0; i < pToken->n; ++i) {
+    if (*(pToken->z + i) == target && (!inEscape) && (!inQuota)) {
+      return pToken->z + i;
+    }
+  
+    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
+      if (!inQuota) {
+        inEscape = !inEscape;
+      }
+    }
+  
+    if (*(pToken->z + i) == '\'' || *(pToken->z + i) == '"') {
+      if (!inEscape) {
+        if (!inQuota) {
+          quotaStr = *(pToken->z + i);
+          inQuota = !inQuota;
+        } else if (quotaStr == *(pToken->z + i)) {
+          inQuota = !inQuota;
+        }          
+      }
+    }
+  }
+
+  return NULL;
+}
+
+
 /*
  * tablePrefix.columnName
  * extract table name and save it in pTable, with only column name in pToken
@@ -162,12 +195,17 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
     return;
   }
 
-  char* r = strnchr(pToken->z, sep, pToken->n, false);
+  char* r = tableNameGetPosition(pToken, sep);  
 
-  if (r != NULL) {  // record the table name token
-    pTable->n = (uint32_t)(r - pToken->z);
-    pTable->z = pToken->z;
-
+  if (r != NULL) {  // record the table name token    
+    if (pToken->z[0] == TS_ESCAPE_CHAR && *(r - 1) == TS_ESCAPE_CHAR) {
+      pTable->n = (uint32_t)(r - pToken->z - 2);
+      pTable->z = pToken->z + 1;
+    } else {
+      pTable->n = (uint32_t)(r - pToken->z);
+      pTable->z = pToken->z;
+    }
+    
     r += 1;
     pToken->n -= (uint32_t)(r - pToken->z);
     pToken->z = r;

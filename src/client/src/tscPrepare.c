@@ -1585,9 +1585,10 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
   SSqlObj* pSql = pStmt->pSql;
   SSqlCmd* pCmd = &pSql->cmd;
+  uint32_t nameLen = (uint32_t)strlen(name);
 
-  if (name == NULL) {
-    tscError("0x%"PRIx64" name is NULL", pSql->self);
+  if (name == NULL || nameLen <= 0) {
+    tscError("0x%"PRIx64" tbname is NULL", pSql->self);
     STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "name is NULL"));
   }
 
@@ -1602,6 +1603,19 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   }
 
   pStmt->last = STMT_SETTBNAME;
+
+  SStrToken tname = {0};
+  tname.type = TK_STRING;
+  tname.z = (char *)name;
+  tname.n = (uint32_t)strlen(name);
+
+  bool dbIncluded = false;
+  
+  // Check if the table name available or not
+  if (tscValidateName(&tname, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    tscError("0x%"PRIx64" tbname[%s] is invalid", pSql->self, name);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "name is invalid"));
+  }
 
   uint64_t* uid = (uint64_t*)taosHashGet(pStmt->mtb.pTableHash, name, strlen(name));
   if (uid != NULL) {
@@ -1632,13 +1646,9 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     char sTableName[TSDB_TABLE_FNAME_LEN] = {0};
     tstrncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
-
-    SStrToken tname = {0};
-    tname.type = TK_STRING;
-    tname.z = (char *)name;
-    tname.n = (uint32_t)strlen(name);
     SName fullname = {0};
-    tscSetTableFullName(&fullname, &tname, pSql);
+
+    tscSetTableFullName(&fullname, &tname, pSql, dbIncluded);
 
     memcpy(&pTableMetaInfo->name, &fullname, sizeof(fullname));
 

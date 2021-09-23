@@ -142,6 +142,8 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static tSqlExpr* extractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* pQueryInfo, int32_t tableIndex);
 
+int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded);
+
 static bool isTimeWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0;
 }
@@ -568,7 +570,9 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       SStrToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
       bool escapeEnabled = (pInfo->type == TSDB_SQL_DROP_TABLE) ? true: false;
-      if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (tscValidateName(pzName, escapeEnabled) != TSDB_CODE_SUCCESS)) {
+      
+      bool dbIncluded = false;
+      if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (tscValidateName(pzName, escapeEnabled, &dbIncluded) != TSDB_CODE_SUCCESS)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -582,7 +586,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
         assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
 
-        code = tscSetTableFullName(&pTableMetaInfo->name, pzName, pSql);
+        code = tscSetTableFullName(&pTableMetaInfo->name, pzName, pSql, dbIncluded);
         if(code != TSDB_CODE_SUCCESS) {
           return code; 
         }
@@ -606,7 +610,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg = "invalid db name";
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
-      if (tscValidateName(pToken, false) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pToken, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
 
@@ -653,7 +657,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char buf[TSDB_DB_NAME_LEN] = {0};
       SStrToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
 
-      if (tscValidateName(&token, false) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(&token, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -700,7 +704,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
-      if (tscValidateName(pName, false) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pName, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -722,11 +726,13 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg1 = "invalid table name";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      if (tscValidateName(pToken, true) != TSDB_CODE_SUCCESS) {
+      bool dbIncluded = false;
+      
+      if (tscValidateName(pToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
       // additional msg has been attached already
-      code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
+      code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql, dbIncluded);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -738,11 +744,13 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg1 = "invalid table name";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      if (tscValidateName(pToken, true) != TSDB_CODE_SUCCESS) {
+      
+      bool dbIncluded = false;
+      if (tscValidateName(pToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
+      code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql, dbIncluded);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -753,7 +761,8 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg1 = "invalid database name";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      if (tscValidateName(pToken, false) != TSDB_CODE_SUCCESS) {
+      
+      if (tscValidateName(pToken, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -817,7 +826,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
-      if (tscValidateName(pName, false) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pName, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -1337,7 +1346,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql) {
+int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql, bool dbIncluded) {
   const char* msg1 = "name too long";
   const char* msg2 = "acctId too long";
   const char* msg3 = "no acctId";
@@ -1346,7 +1355,12 @@ int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql) 
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  idx  = getDelimiterIndex(pTableName);
+  int32_t  idx = -1;
+  
+  if (dbIncluded) {
+    idx  = getDelimiterIndex(pTableName);
+  }
+  
   if (idx != -1) { // db has been specified in sql string so we ignore current db path
     char* acctId = getAccountId(pSql);
     if (acctId == NULL || strlen(acctId) <= 0) {
@@ -3206,8 +3220,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pDbPrefixToken->n <= 0) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
-
-      if (tscValidateName(pDbPrefixToken, false) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pDbPrefixToken, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -5866,12 +5879,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, DEFAULT_TABLE_INDEX);
+  bool dbIncluded = false;
 
-  if (tscValidateName(&(pAlterSQL->name, true)) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(&(pAlterSQL->name), true, &dbIncluded) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  code = tscSetTableFullName(&pTableMetaInfo->name, &(pAlterSQL->name), pSql);
+  code = tscSetTableFullName(&pTableMetaInfo->name, &(pAlterSQL->name), pSql, dbIncluded);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -7421,12 +7435,13 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
 
   // if sql specifies db, use it, otherwise use default db
   SStrToken* pzTableName = &(pCreateTable->name);
-
-  if (tscValidateName(pzTableName, true) != TSDB_CODE_SUCCESS) {
+  
+  bool dbIncluded = false;
+  if (tscValidateName(pzTableName, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  int32_t code = tscSetTableFullName(&pTableMetaInfo->name, pzTableName, pSql);
+  int32_t code = tscSetTableFullName(&pTableMetaInfo->name, pzTableName, pSql, dbIncluded);
   if(code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -7486,11 +7501,13 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
     SStrToken* pToken = &pCreateTableInfo->stableName;
-    if (tscValidateName(pToken, true) != TSDB_CODE_SUCCESS) {
+    
+    bool dbIncluded = false;
+    if (tscValidateName(pToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    int32_t code = tscSetTableFullName(&pStableMetaInfo->name, pToken, pSql);
+    int32_t code = tscSetTableFullName(&pStableMetaInfo->name, pToken, pSql, dbIncluded);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -7659,14 +7676,15 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
     kvRowCpy(pTag->data, row);
     free(row);
-
+    
+    bool dbIncluded2 = false;
     // table name
-    if (tscValidateName(&(pCreateTableInfo->name, true)) != TSDB_CODE_SUCCESS) {
+    if (tscValidateName(&(pCreateTableInfo->name), true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-    ret = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql);
+    ret = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql, dbIncluded2);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -7703,8 +7721,9 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   // if sql specifies db, use it, otherwise use default db
   SStrToken* pName = &(pCreateTable->name);
   SSqlNode* pSqlNode = pCreateTable->pSelect;
+  bool dbIncluded1 = false;
 
-  if (tscValidateName(pName, true) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(pName, true, &dbIncluded1) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
   
@@ -7719,11 +7738,13 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
 
   SRelElementPair* p1 = taosArrayGet(pFromInfo->list, 0);
   SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = TK_STRING};
-  if (tscValidateName(&srcToken, true) != TSDB_CODE_SUCCESS) {
+  
+  bool dbIncluded2 = false;
+  if (tscValidateName(&srcToken, true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  int32_t code = tscSetTableFullName(&pTableMetaInfo->name, &srcToken, pSql);
+  int32_t code = tscSetTableFullName(&pTableMetaInfo->name, &srcToken, pSql, dbIncluded2);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -7765,7 +7786,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // set the created table[stream] name
-  code = tscSetTableFullName(&pTableMetaInfo->name, pName, pSql);
+  code = tscSetTableFullName(&pTableMetaInfo->name, pName, pSql, dbIncluded1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -8156,14 +8177,18 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
     if (t->type == TK_INTEGER || t->type == TK_FLOAT) {
       return invalidOperationMsg(msgBuf, msg1);
     }
-
-    tscDequoteAndTrimToken(t);
-    if (tscValidateName(t, true) != TSDB_CODE_SUCCESS) {
+    
+    bool dbIncluded = false;
+    char      buf[TSDB_TABLE_FNAME_LEN];
+    SStrToken sTblToken;
+    sTblToken.z = buf;
+    
+    if (validateTableName(t->z, t->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(msgBuf, msg1);
     }
 
     SName name = {0};
-    int32_t code = tscSetTableFullName(&name, t, pSql);
+    int32_t code = tscSetTableFullName(&name, &sTblToken, pSql, dbIncluded);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -8418,12 +8443,14 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     }
 
     tscDequoteAndTrimToken(oriName);
-    if (tscValidateName(oriName, true) != TSDB_CODE_SUCCESS) {
+    
+    bool dbIncluded = false;
+    if (tscValidateName(oriName, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-    code = tscSetTableFullName(&pTableMetaInfo->name, oriName, pSql);
+    code = tscSetTableFullName(&pTableMetaInfo->name, oriName, pSql, dbIncluded);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -8435,7 +8462,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       }
 
       tscDequoteAndTrimToken(aliasName);
-      if (tscValidateName(aliasName, false) != TSDB_CODE_SUCCESS || aliasName->n >= TSDB_TABLE_NAME_LEN) {
+      if (tscValidateName(aliasName, false, NULL) != TSDB_CODE_SUCCESS || aliasName->n >= TSDB_TABLE_NAME_LEN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 

@@ -898,6 +898,18 @@ static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char 
   return TSDB_CODE_SUCCESS;
 }
 
+
+int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded) {
+  tstrncpy(psTblToken->z, tblName, TSDB_TABLE_FNAME_LEN);
+
+  psTblToken->n    = len;
+  psTblToken->type = TK_ID;
+  tGetToken(psTblToken->z, &psTblToken->type);
+
+  return tscValidateName(psTblToken, true, dbIncluded);
+}
+
+
 static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundColumn) {
   int32_t   index = 0;
   SStrToken sToken = {0};
@@ -960,13 +972,27 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     sToken = tStrGetToken(sql, &index, false);
     sql += index;
 
+    if (sToken.type == TK_ILLEGAL) {
+      return tscSQLSyntaxErrMsg(pCmd->payload, NULL, sql);
+    }
+
     //the source super table is moved to the secondary position of the pTableMetaInfo list
     if (pQueryInfo->numOfTables < 2) {
       tscAddEmptyMetaInfo(pQueryInfo);
     }
+    
+    bool dbIncluded1 = false;
+    char      buf[TSDB_TABLE_FNAME_LEN];
+    SStrToken sTblToken;
+    sTblToken.z = buf;
+
+    code = validateTableName(sToken.z, sToken.n, &sTblToken, &dbIncluded1);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    code = tscSetTableFullName(&pSTableMetaInfo->name, &sToken, pSql);
+    code = tscSetTableFullName(&pSTableMetaInfo->name, &sTblToken, pSql, dbIncluded1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -980,7 +1006,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMetaInfo)) {
-      return tscInvalidOperationMsg(pInsertParam->msg, "create table only from super table is allowed", sToken.z);
+      return tscInvalidOperationMsg(pInsertParam->msg, "create table only from super table is allowed", sTblToken.z);
     }
 
     SSchema *pTagSchema = tscGetTableTagSchema(pSTableMetaInfo->pTableMeta);
@@ -1136,12 +1162,16 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     sql = sToken.z;
+    bool dbIncluded2 = false;
 
-    if (tscValidateName(&tableToken, true) != TSDB_CODE_SUCCESS) {
+    sTblToken.z = buf;
+
+    code = validateTableName(tableToken.z, tableToken.n, &sTblToken, &dbIncluded2);
+    if (code != TSDB_CODE_SUCCESS) {
       return tscInvalidOperationMsg(pInsertParam->msg, "invalid table name", *sqlstr);
     }
 
-    int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &tableToken, pSql);
+    int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded2);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1169,16 +1199,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
   *sqlstr = sql;
   return code;
-}
-
-int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
-  tstrncpy(psTblToken->z, tblName, TSDB_TABLE_FNAME_LEN);
-
-  psTblToken->n    = len;
-  psTblToken->type = TK_ID;
-  tGetToken(psTblToken->z, &psTblToken->type);
-
-  return tscValidateName(psTblToken, true);
 }
 
 static int32_t validateDataSource(SInsertStatementParam *pInsertParam, int32_t type, const char *sql) {
@@ -1401,13 +1421,14 @@ int tsParseInsertSql(SSqlObj *pSql) {
     char      buf[TSDB_TABLE_FNAME_LEN];
     SStrToken sTblToken;
     sTblToken.z = buf;
+    bool dbIncluded = false;
     // Check if the table name available or not
-    if (validateTableName(sToken.z, sToken.n, &sTblToken) != TSDB_CODE_SUCCESS) {
+    if (validateTableName(sToken.z, sToken.n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
       code = tscInvalidOperationMsg(pInsertParam->msg, "table name invalid", sToken.z);
       goto _clean;
     }
 
-    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
 

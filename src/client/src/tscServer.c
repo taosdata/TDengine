@@ -2869,7 +2869,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfTable; ++i) {
     char* name = taosArrayGetP(pNameList, i);
     if (i < numOfTable - 1 || numOfVgroupList > 0 || numOfUdf > 0) {
-      len = sprintf(start, "%s,", name);
+      len = sprintf(start, "%s·", name);
     } else {
       len = sprintf(start, "%s", name);
     }
@@ -2880,7 +2880,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pVgroupNameList, i);
     if (i < numOfVgroupList - 1 || numOfUdf > 0) {
-      len = sprintf(start, "%s,", name);
+      len = sprintf(start, "%s·", name);
     } else {
       len = sprintf(start, "%s", name);
     }
@@ -2891,7 +2891,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfUdf; ++i) {
     SUdfInfo * u = taosArrayGet(pUdfList, i);
     if (i < numOfUdf - 1) {
-      len = sprintf(start, "%s,", u->name);
+      len = sprintf(start, "%s·", u->name);
     } else {
       len = sprintf(start, "%s", u->name);
     }

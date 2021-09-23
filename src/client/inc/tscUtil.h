@@ -169,7 +169,7 @@ bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);
 SExprInfo* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
                                        SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType, int16_t colId);
 
-int32_t tscSetTableFullName(SName* pName, SStrToken* pzTableName, SSqlObj* pSql);
+int32_t tscSetTableFullName(SName* pName, SStrToken* pzTableName, SSqlObj* pSql, bool dbIncluded);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
@@ -240,7 +240,7 @@ void tscColumnListCopyAll(SArray* dst, const SArray* src);
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
-int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled);
+int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded);
 
 void tscIncStreamExecutionCount(void* pStream);
 

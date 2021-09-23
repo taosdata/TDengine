@@ -694,6 +694,8 @@ expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToke
 expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(&X, TK_ID);}
 expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
 expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ALL);}
+expr(A) ::= ESCAPE(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
+expr(A) ::= ESCAPE(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ALL);}
 
 expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
