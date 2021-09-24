@@ -4558,7 +4558,7 @@ static void csum_function(SQLFunctionCtx *pCtx) {
 
   int32_t notNullElems = 0;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  int32_t i = (pCtx->order = TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
 
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
   TSKEY* tsList = GET_TS_LIST(pCtx);
@@ -4623,7 +4623,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
 
   int32_t notNullElems = 0;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  int32_t i = (pCtx->order = TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
 
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
   char* pOutput = pCtx->pOutput;
