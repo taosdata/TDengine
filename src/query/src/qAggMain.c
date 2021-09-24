@@ -4691,10 +4691,12 @@ static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int
 
   SExtTagsInfo* pTagInfo = &pCtx->tagInfo;
   int32_t posTag = 0;
-  char* tags = pInfo->taglists + pTagInfo->tagsLen;
+  char* tags = pInfo->taglists + index*pTagInfo->tagsLen;
   if (pCtx->currentStage == MERGE_STAGE) {
+    assert(inputTags != NULL);
     memcpy(tags, inputTags, (size_t)pTagInfo->tagsLen);
   } else {
+    assert(inputTags == NULL);
     for (int32_t i = 0; i < pTagInfo->numOfTagCols; ++i) {
       SQLFunctionCtx* ctx = pTagInfo->pTagCtxList[i];
       if (ctx->functionId == TSDB_FUNC_TS_DUMMY) {
@@ -4734,21 +4736,21 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
     pTimestamp++;
   }
 
-  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+  char **tagOutputs = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
-    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
+    tagOutputs[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
   for (int32_t i = 0; i < pRes->numSampled; ++i) {
     int16_t tagOffset = 0;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-      memcpy(pData[j], pRes->taglists + i*pCtx->tagInfo.tagsLen + tagOffset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+      memcpy(tagOutputs[j], pRes->taglists + i*pCtx->tagInfo.tagsLen + tagOffset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
       tagOffset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
-      pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+      tagOutputs[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
     }
   }
 
-  tfree(pData);
+  tfree(tagOutputs);
 }
 
 static bool sample_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
