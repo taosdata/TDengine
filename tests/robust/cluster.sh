@@ -23,7 +23,9 @@ menu(){
     echo "=============================="
     echo "3 arbitrator"
     echo "=============================="
-    echo "4 exit"
+    echo "4 alter replica"
+    echo "=============================="
+    echo "5 exit"
     echo "=============================="
 }
 
@@ -310,6 +312,7 @@ do
         2)
             var=`ps -ef | grep tarbitrator | awk '{print $2}' | head -n 1`
             kill -9 $var
+            echo -e "\033[32mSuccessfully stop arbitrator $3 \033[0m"
             break
         ;;
         3)
@@ -318,6 +321,13 @@ do
         esac
     ;;
     4)
+        read -p "Enter replica number: " rep
+        read -p "Enter database name: " db
+        taos -s "alter database $db replica $rep"
+        echo -e "\033[32mSuccessfully change $db's replica to $rep \033[0m"
+        break
+    ;;
+    5)
         break
     ;;
     esac

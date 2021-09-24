@@ -80,6 +80,7 @@ typedef struct tVariantListItem {
 } tVariantListItem;
 
 typedef struct SIntervalVal {
+  int32_t            token;
   SStrToken          interval;
   SStrToken          offset;
 } SIntervalVal;
@@ -254,7 +255,7 @@ typedef struct tSqlExpr {
     struct SArray   *paramList;      // function parameters list
   } Expr;
 
-  uint32_t           functionId;  // function id, todo remove it
+  int32_t            functionId;  // function id, todo remove it
   SStrToken          columnName;  // table column info
   tVariant           value;       // the use input value
   SStrToken          exprToken;   // original sql expr string

@@ -34,6 +34,7 @@ extern "C" {
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+#define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
@@ -83,9 +84,13 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "powerdb"
 #elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
+#elif (_TD_PRO_ == true)
+#define TSDB_DEFAULT_PASS               "prodb"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
+
+#define SHELL_MAX_PASSWORD_LEN          20
 
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
@@ -161,6 +166,9 @@ do { \
 #define TSDB_RELATION_OR          12
 #define TSDB_RELATION_NOT         13
 
+#define TSDB_RELATION_MATCH       14
+#define TSDB_RELATION_NMATCH      15
+
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
 #define TSDB_BINARY_OP_MULTIPLY   32
@@ -223,6 +231,7 @@ do { \
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_STEP_NAME_LEN        32
@@ -273,6 +282,7 @@ do { \
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
 #define TSDB_TABLES_STEP                1000
+#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
@@ -307,7 +317,7 @@ do { \
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_DB_UPDATE              0
-#define TSDB_MAX_DB_UPDATE              1
+#define TSDB_MAX_DB_UPDATE              2
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
@@ -365,6 +375,7 @@ do { \
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
 #define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
+#define TSDB_QUERY_TYPE_NEST_SUBQUERY          0x1000u   // nested sub query
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)          ((x) |= (_type))
@@ -434,6 +445,12 @@ typedef enum {
   TSDB_CHECK_ITEM_DATAFILE,
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
+
+typedef enum {
+  TD_ROW_DISCARD_UPDATE   = 0,
+  TD_ROW_OVERWRITE_UPDATE = 1,
+  TD_ROW_PARTIAL_UPDATE   = 2
+} TDUpdateConfig;
 
 extern char *qtypeStr[];
 

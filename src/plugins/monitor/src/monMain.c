@@ -34,7 +34,7 @@
 #define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 
 #define SQL_LENGTH     1030
-#define LOG_LEN_STR    100
+#define LOG_LEN_STR    512
 #define IP_LEN_STR     TSDB_EP_LEN
 #define CHECK_INTERVAL 1000
 
@@ -114,7 +114,7 @@ int32_t monStartSystem() {
 
 static void *monThreadFunc(void *param) {
   monDebug("starting to initialize monitor module ...");
-  setThreadName("monThrd");
+  setThreadName("monitor");
 
   while (1) {
     static int32_t accessTimes = 0;

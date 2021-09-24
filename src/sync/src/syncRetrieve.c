@@ -415,7 +415,6 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRetrieveData(void *param) {
-  setThreadName("syncRetrievData");
   int64_t    rid = (int64_t)param;
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) {

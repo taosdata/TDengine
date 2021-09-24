@@ -14,6 +14,8 @@
  */
 #include "tsdbint.h"
 
+extern int32_t tsTsdbMetaCompactRatio;
+
 #define TSDB_MAX_SUBBLOCKS 8
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
@@ -55,8 +57,9 @@ typedef struct {
 #define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static int  tsdbCommitMeta(STsdbRepo *pRepo);
-static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen);
+static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact);
 static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
+static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
 static int  tsdbCommitTSData(STsdbRepo *pRepo);
 static void tsdbStartCommit(STsdbRepo *pRepo);
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
@@ -261,6 +264,35 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 
 
 // =================== Commit Meta Data
+static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile* pMf, bool open) {
+  STsdbFS *  pfs = REPO_FS(pRepo);
+  SMFile *   pOMFile = pfs->cstatus->pmf;
+  SDiskID    did;
+
+  // Create/Open a meta file or open the existing file
+  if (pOMFile == NULL) {
+    // Create a new meta file
+    did.level = TFS_PRIMARY_LEVEL;
+    did.id = TFS_PRIMARY_ID;
+    tsdbInitMFile(pMf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+
+    if (open && tsdbCreateMFile(pMf, true) < 0) {
+      tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d meta file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMf));
+  } else {
+    tsdbInitMFileEx(pMf, pOMFile);
+    if (open && tsdbOpenMFile(pMf, O_WRONLY) < 0) {
+      tsdbError("vgId:%d failed to open META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 static int tsdbCommitMeta(STsdbRepo *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SMemTable *pMem = pRepo->imem;
@@ -269,34 +301,25 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   SActObj *  pAct = NULL;
   SActCont * pCont = NULL;
   SListNode *pNode = NULL;
-  SDiskID    did;
 
   ASSERT(pOMFile != NULL || listNEles(pMem->actList) > 0);
 
   if (listNEles(pMem->actList) <= 0) {
     // no meta data to commit, just keep the old meta file
     tsdbUpdateMFile(pfs, pOMFile);
+    if (tsTsdbMetaCompactRatio > 0) {
+      if (tsdbInitCommitMetaFile(pRepo, &mf, false) < 0) {
+        return -1;
+      }
+      int ret = tsdbCompactMetaFile(pRepo, pfs, &mf);
+      if (ret < 0) tsdbError("compact meta file error");
+
+      return ret;
+    }
     return 0;
   } else {
-    // Create/Open a meta file or open the existing file
-    if (pOMFile == NULL) {
-      // Create a new meta file
-      did.level = TFS_PRIMARY_LEVEL;
-      did.id = TFS_PRIMARY_ID;
-      tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
-
-      if (tsdbCreateMFile(&mf, true) < 0) {
-        tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
-
-      tsdbInfo("vgId:%d meta file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
-    } else {
-      tsdbInitMFileEx(&mf, pOMFile);
-      if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
-        tsdbError("vgId:%d failed to open META file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
+    if (tsdbInitCommitMetaFile(pRepo, &mf, true) < 0) {
+      return -1;
     }
   }
 
@@ -305,7 +328,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
     pAct = (SActObj *)pNode->data;
     if (pAct->act == TSDB_UPDATE_META) {
       pCont = (SActCont *)POINTER_SHIFT(pAct, sizeof(SActObj));
-      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
+      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len, false) < 0) {
         tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                   tstrerror(terrno));
         tsdbCloseMFile(&mf);
@@ -337,6 +360,10 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   TSDB_FILE_FSYNC(&mf);
   tsdbCloseMFile(&mf);
   tsdbUpdateMFile(pfs, &mf);
+
+  if (tsTsdbMetaCompactRatio > 0 && tsdbCompactMetaFile(pRepo, pfs, &mf) < 0) {
+    tsdbError("compact meta file error");
+  }
 
   return 0;
 }
@@ -375,7 +402,7 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
 
-static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
+static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact) {
   char      buf[64] = "\0";
   void *    pBuf = buf;
   SKVRecord rInfo;
@@ -401,13 +428,18 @@ static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void
   }
 
   tsdbUpdateMFileMagic(pMFile, POINTER_SHIFT(cont, contLen - sizeof(TSCKSUM)));
-  SKVRecord *pRecord = taosHashGet(pfs->metaCache, (void *)&uid, sizeof(uid));
+
+  SHashObj* cache = compact ? pfs->metaCacheComp : pfs->metaCache;
+
+  pMFile->info.nRecords++;
+
+  SKVRecord *pRecord = taosHashGet(cache, (void *)&uid, sizeof(uid));
   if (pRecord != NULL) {
     pMFile->info.tombSize += (pRecord->size + sizeof(SKVRecord));
   } else {
     pMFile->info.nRecords++;
   }
-  taosHashPut(pfs->metaCache, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
+  taosHashPut(cache, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
 
   return 0;
 }
@@ -440,6 +472,129 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 
   taosHashRemove(pfs->metaCache, (void *)(&uid), sizeof(uid));
   return 0;
+}
+
+static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
+  float delPercent = (float)(pMFile->info.nDels) / (float)(pMFile->info.nRecords);
+  float tombPercent = (float)(pMFile->info.tombSize) / (float)(pMFile->info.size);
+  float compactRatio = (float)(tsTsdbMetaCompactRatio)/100;
+
+  if (delPercent < compactRatio && tombPercent < compactRatio) {
+    return 0;
+  }
+
+  if (tsdbOpenMFile(pMFile, O_RDONLY) < 0) {
+    tsdbError("open meta file %s compact fail", pMFile->f.rname);
+    return -1;
+  }
+
+  tsdbInfo("begin compact tsdb meta file, ratio:%d, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
+    tsTsdbMetaCompactRatio, pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
+
+  SMFile mf;
+  SDiskID did;
+
+  // first create tmp meta file
+  did.level = TFS_PRIMARY_LEVEL;
+  did.id = TFS_PRIMARY_ID;
+  tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)) + 1);
+
+  if (tsdbCreateMFile(&mf, true) < 0) {
+    tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d meta file %s is created to compact meta data", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
+
+  // second iterator metaCache
+  int code = -1;
+  int64_t maxBufSize = 1024;
+  SKVRecord *pRecord;
+  void *pBuf = NULL;
+
+  pBuf = malloc((size_t)maxBufSize);
+  if (pBuf == NULL) {
+    goto _err;
+  }
+
+  // init Comp
+  assert(pfs->metaCacheComp == NULL);
+  pfs->metaCacheComp = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pfs->metaCacheComp == NULL) {
+    goto _err;
+  }
+
+  pRecord = taosHashIterate(pfs->metaCache, NULL);
+  while (pRecord) {
+    if (tsdbSeekMFile(pMFile, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
+      tsdbError("vgId:%d failed to seek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+                tstrerror(terrno));
+      goto _err;
+    }
+    if (pRecord->size > maxBufSize) {
+      maxBufSize = pRecord->size;
+      void* tmp = realloc(pBuf, (size_t)maxBufSize);
+      if (tmp == NULL) {
+        goto _err;
+      }
+      pBuf = tmp;
+    }
+    int nread = (int)tsdbReadMFile(pMFile, pBuf, pRecord->size);
+    if (nread < 0) {
+      tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+        tstrerror(terrno));
+      goto _err;
+    }
+
+    if (nread < pRecord->size) {
+      tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRId64 " actual read:%d",
+                REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), pRecord->size, nread);
+      goto _err;
+    }
+
+    if (tsdbUpdateMetaRecord(pfs, &mf, pRecord->uid, pBuf, (int)pRecord->size, true) < 0) {
+      tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pRecord->uid,
+                tstrerror(terrno));
+      goto _err;
+    }
+
+    pRecord = taosHashIterate(pfs->metaCache, pRecord);
+  }
+  code = 0;
+
+_err:
+  if (code == 0) TSDB_FILE_FSYNC(&mf);
+  tsdbCloseMFile(&mf);
+  tsdbCloseMFile(pMFile);
+
+  if (code == 0) {
+    // rename meta.tmp -> meta
+    tsdbInfo("vgId:%d meta file rename %s -> %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf), TSDB_FILE_FULL_NAME(pMFile));
+    taosRename(mf.f.aname,pMFile->f.aname);
+    tstrncpy(mf.f.aname, pMFile->f.aname, TSDB_FILENAME_LEN);
+    tstrncpy(mf.f.rname, pMFile->f.rname, TSDB_FILENAME_LEN);
+    // update current meta file info
+    pfs->nstatus->pmf = NULL;
+    tsdbUpdateMFile(pfs, &mf);
+
+    taosHashCleanup(pfs->metaCache);
+    pfs->metaCache = pfs->metaCacheComp;
+    pfs->metaCacheComp = NULL;
+  } else {
+    // remove meta.tmp file
+    remove(mf.f.aname);
+    taosHashCleanup(pfs->metaCacheComp);
+    pfs->metaCacheComp = NULL;
+  }
+
+  tfree(pBuf);
+
+  ASSERT(mf.info.nDels == 0);
+  ASSERT(mf.info.tombSize == 0);
+
+  tsdbInfo("end compact tsdb meta file,code:%d,nRecords:%" PRId64 ",size:%" PRId64,
+    code,mf.info.nRecords,mf.info.size);
+  return code;
 }
 
 // =================== Commit Time-Series Data
@@ -722,7 +877,7 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
     return -1;
   }
 
-  pCommith->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pCommith->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pCommith->pDataCols == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyCommitH(pCommith);
@@ -920,7 +1075,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
     SDataCol * pDataCol = pDataCols->cols + ncol;
     SBlockCol *pBlockCol = pBlockData->cols + nColsNotAllNull;
 
-    // if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
     }
@@ -1264,19 +1418,18 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
-    bool isRowDel = false;
     SMemRow row = tsdbNextIterRow(pCommitIter->pIter);
     if (row == NULL || memRowKey(row) > maxKey) {
       key2 = INT64_MAX;
     } else {
       key2 = memRowKey(row);
-      isRowDel = memRowDeleted(row);
     }
 
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
 
     if (key1 < key2) {
       for (int i = 0; i < pDataCols->numOfCols; i++) {
+        //TODO: dataColAppendVal may fail
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                          pTarget->maxPoints);
       }
@@ -1284,35 +1437,33 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       pTarget->numOfRows++;
       (*iter)++;
     } else if (key1 > key2) {
-      if (!isRowDel) {
+      if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+        ASSERT(pSchema != NULL);
+      }
+
+      tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
+
+      tSkipListIterNext(pCommitIter->pIter);
+    } else {
+      if (update != TD_ROW_OVERWRITE_UPDATE) {
+        //copy disk data
+        for (int i = 0; i < pDataCols->numOfCols; i++) {
+          //TODO: dataColAppendVal may fail
+          dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
+                           pTarget->maxPoints);
+        }
+
+        if(update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
+      }
+      if (update != TD_ROW_DISCARD_UPDATE) {
+        //copy mem data
         if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
           pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
           ASSERT(pSchema != NULL);
         }
 
-        tdAppendMemRowToDataCol(row, pSchema, pTarget);
-      }
-
-      tSkipListIterNext(pCommitIter->pIter);
-    } else {
-      if (update) {
-        if (!isRowDel) {
-          if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-            pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
-            ASSERT(pSchema != NULL);
-          }
-
-          tdAppendMemRowToDataCol(row, pSchema, pTarget);
-        }
-      } else {
-        ASSERT(!isRowDel);
-
-        for (int i = 0; i < pDataCols->numOfCols; i++) {
-          dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
-                           pTarget->maxPoints);
-        }
-
-        pTarget->numOfRows++;
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
       }
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);

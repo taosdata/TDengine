@@ -16,14 +16,16 @@ import static org.junit.Assert.assertEquals;
 public class StableTest {
 
     private static Connection connection;
-    private static String dbName = "test";
-    private static String stbName = "st";
-    private static String host = "127.0.0.1";
+    private static final String dbName = "test";
+    private static final String stbName = "st";
+    private static final String host = "127.0.0.1";
 
     @BeforeClass
     public static void createDatabase() {
         try {
             Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");

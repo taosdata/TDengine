@@ -1231,7 +1231,9 @@ static int32_t mnodeAddSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, add tag result:%s, numOfTags:%d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
           tstrerror(code), pStable->numOfTags);
-
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1287,6 +1289,9 @@ static int32_t mnodeDropSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, drop tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
           tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1321,6 +1326,9 @@ static int32_t mnodeModifySuperTableTagNameCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, modify tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1376,6 +1384,9 @@ static int32_t mnodeAddSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, add column result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
           tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1444,6 +1455,9 @@ static int32_t mnodeDropSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, delete column result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1489,6 +1503,9 @@ static int32_t mnodeChangeSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, change column result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = mnodeGetSuperTableMeta(pMsg);
+  }
   return code;
 }
 
@@ -1518,6 +1535,13 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg) {
   // update
   SSchema *schema = (SSchema *) (pStable->schema + col);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
+
+  if (pAlter->schema[0].bytes <= schema->bytes) {
+    mError("msg:%p, app:%p stable:%s, modify column len. column:%s, len from %d to %d", pMsg, pMsg->rpcMsg.ahandle,
+           pStable->info.tableId, name, schema->bytes, pAlter->schema[0].bytes);
+    return TSDB_CODE_MND_INVALID_COLUMN_LENGTH;
+  }
+
   schema->bytes = pAlter->schema[0].bytes;
   pStable->sversion++;
   mInfo("msg:%p, app:%p stable %s, start to modify column %s len to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
@@ -1548,6 +1572,12 @@ static int32_t mnodeChangeSuperTableTag(SMnodeMsg *pMsg) {
   // update
   SSchema *schema = (SSchema *) (pStable->schema + col + pStable->numOfColumns);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
+  if (pAlter->schema[0].bytes <= schema->bytes) {
+    mError("msg:%p, app:%p stable:%s, modify tag len. tag:%s, len from %d to %d", pMsg, pMsg->rpcMsg.ahandle,
+           pStable->info.tableId, name, schema->bytes, pAlter->schema[0].bytes);
+    return TSDB_CODE_MND_INVALID_TAG_LENGTH;
+  }
+
   schema->bytes = pAlter->schema[0].bytes;
   pStable->tversion++;
   mInfo("msg:%p, app:%p stable %s, start to modify tag len %s to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
@@ -1812,12 +1842,8 @@ static int32_t getVgroupInfoLength(SSTableVgroupMsg* pInfo, int32_t numOfTable) 
 }
 
 static char* serializeVgroupInfo(SSTableObj *pTable, char* name, char* msg, SMnodeMsg* pMsgBody, void* handle) {
-  SName sn = {0};
-  tNameFromString(&sn, name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  const char* tableName = tNameGetTableName(&sn);
-
-  strncpy(msg, tableName, TSDB_TABLE_NAME_LEN);
-  msg += TSDB_TABLE_NAME_LEN;
+  strncpy(msg, name, TSDB_TABLE_FNAME_LEN);
+  msg += TSDB_TABLE_FNAME_LEN;
 
   if (pTable->vgHash == NULL) {
     mDebug("msg:%p, app:%p stable:%s, no vgroup exist while get stable vgroup info", pMsgBody, handle, name);
@@ -2925,10 +2951,11 @@ static SMultiTableMeta* ensureMsgBufferSpace(SMultiTableMeta *pMultiMeta, SArray
       (*totalMallocLen) *= 2;
     }
 
-    pMultiMeta = realloc(pMultiMeta, *totalMallocLen);
-    if (pMultiMeta == NULL) {
+    SMultiTableMeta* pMultiMeta1 = realloc(pMultiMeta, *totalMallocLen);
+    if (pMultiMeta1 == NULL) {
       return NULL;
     }
+    pMultiMeta = pMultiMeta1;
   }
 
   return pMultiMeta;

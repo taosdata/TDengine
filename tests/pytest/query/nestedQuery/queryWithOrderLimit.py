@@ -29,7 +29,6 @@ class TDTestCase:
         self.tables = 10
         self.rowsPerTable = 100
 
-
     def run(self):
         # tdSql.execute("drop database db ")
         tdSql.prepare()
@@ -69,6 +68,14 @@ class TDTestCase:
 
         tdSql.query("select * from (select avg(value), sum(value) from st group by tbname slimit 5 soffset 7)")
         tdSql.checkRows(3)
+
+        # https://jira.taosdata.com:18080/browse/TD-5497
+        tdSql.execute("create table tt(ts timestamp ,i int)")
+        tdSql.execute("insert into tt values(now, 11)(now + 1s, -12)")
+        tdSql.query("select * from (select max(i),0-min(i) from tt)")
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, 11);
+        tdSql.checkData(0, 1, 12.0);
 
     def stop(self):
         tdSql.close()

@@ -22,7 +22,7 @@ public class TimestampPrecisionInNanoInJniTest {
     private static final long timestamp3 = (timestamp1 + 10) * 1000_000 + 123456;
     private static final Format format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     private static final String date1 = format.format(new Date(timestamp1));
-    private static final String date4 = format.format(new Date(timestamp1 + 10l));
+    private static final String date4 = format.format(new Date(timestamp1 + 10L));
     private static final String date2 = date1 + "123455";
     private static final String date3 = date4 + "123456";
     

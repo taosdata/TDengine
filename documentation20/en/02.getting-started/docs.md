@@ -10,15 +10,15 @@ Please visit our [TDengine github page](https://github.com/taosdata/TDengine) fo
 
 ### Install from Docker Container
 
-Please visit our [TDengine Official Docker Image: Distribution, Downloading, and Usage](https://www.taosdata.com/blog/2020/05/13/1509.html).
+For the time being, it is not recommended to use Docker to deploy the client or server side of TDengine in production environments, but it is convenient to use Docker to deploy in development environments or when trying it for the first time. In particular, with Docker, it is easy to try TDengine in Mac OS X and Windows environments.
+
+Please refer to the detailed operation in [Quickly experience TDengine through Docker](https://www.taosdata.com/en/documentation/getting-started/docker).
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
-It’s extremely easy to install for TDengine, which takes only a few seconds from downloaded to successful installed. The server installation package includes clients and connectors. We provide 3 installation packages, which you can choose according to actual needs:
+Three different packages for TDengine server are provided, please pick up the one you like. (Lite packages only have execution files and connector of C/C++, but standard packages support connectors of nearly all programming languages.) Beta version has more features, but we suggest you to install stable version for production or testing.
 
-Click [here](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85) to download the install package.
-
-For more about installation process, please refer [TDengine Installation Packages: Install and Uninstall](https://www.taosdata.com/blog/2019/08/09/566.html), and [Video Tutorials](https://www.taosdata.com/blog/2020/11/11/1941.html).
+Click [here](https://www.taosdata.com/en/getting-started/#Install-from-Package) to download the install package.
 
 ## <a class="anchor" id="start"></a>Quick Launch
 
@@ -131,7 +131,7 @@ After starting the TDengine server, you can execute the command `taosdemo` in th
 $ taosdemo
 ```
 
-Using this command, a STable named `meters` will be created in the database `test` There are 10k tables under this stable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
+Using this command, a STable named `meters` will be created in the database `test`. There are 10k tables under this STable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
 
 It takes about 10 minutes to execute this command. Once finished, 1 billion rows of records will be inserted.
 
@@ -188,22 +188,20 @@ List of platforms supported by TDengine server
 |                    | **CentOS 6/7/8** | **Ubuntu 16/18/20** | **Other Linux** | UnionTech UOS | NeoKylin | LINX V60/V80 |
 | ------------------ | ---------------- | ------------------- | --------------- | ------------- | -------- | ------------ |
 | X64                | ●                | ●                   |                 | ○             | ●        | ●            |
-| Raspberry ARM32    |                  | ●                   | ●               |               |          |              |
 | Loongson MIPS64    |                  |                     | ●               |               |          |              |
 | Kunpeng ARM64      |                  | ○                   | ○               |               | ●        |              |
 | SWCPU Alpha64      |                  |                     | ○               | ●             |          |              |
 | FT ARM64           |                  | ○Ubuntu Kylin       |                 |               |          |              |
 | Hygon X64          | ●                | ●                   | ●               | ○             | ●        | ●            |
-| Rockchip ARM64/32  |                  |                     | ○               |               |          |              |
-| Allwinner ARM64/32 |                  |                     | ○               |               |          |              |
-| Actions ARM64/32   |                  |                     | ○               |               |          |              |
-| TI ARM32           |                  |                     | ○               |               |          |              |
+| Rockchip ARM64     |                  |                     | ○               |               |          |              |
+| Allwinner ARM64    |                  |                     | ○               |               |          |              |
+| Actions ARM64      |                  |                     | ○               |               |          |              |
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests. 
 
 List of platforms supported by TDengine client and connectors
 
-At the moment, TDengine connectors can support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32.
+At the moment, TDengine connectors can support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and operating system such as Linux/Win64/Win32.
 
 Comparison matrix as following:
 
@@ -220,4 +218,4 @@ Comparison matrix as following:
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests.
 
-Please visit [Connectors](https://www.taosdata.com/en/documentation/connector) section for more detailed information.
+Please visit Connectors section for more detailed information.

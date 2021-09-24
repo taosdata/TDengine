@@ -264,35 +264,43 @@ void httpJsonUInt64(JsonBuf* buf, uint64_t num) {
 
 void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
   char       ts[35] = {0};
-  struct tm* ptm;
-
+  
   int32_t fractionLen;
   char* format = NULL;
   time_t quot = 0;
-  long mod = 0;
+  int64_t mod = 0;
 
   switch (timePrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
+      mod = ((t) % 1000 + 1000) % 1000;
+      if (t < 0 && mod != 0) {
+        t -= 1000;
+      }
       quot = t / 1000;
       fractionLen = 5;
       format = ".%03" PRId64;
-      mod = t % 1000;
       break;
     }
 
     case TSDB_TIME_PRECISION_MICRO: {
+      mod = ((t) % 1000000 + 1000000) % 1000000;
+      if (t < 0 && mod != 0) {
+        t -= 1000000;
+      }
       quot = t / 1000000;
       fractionLen = 8;
       format = ".%06" PRId64;
-      mod = t % 1000000;
       break;
     }
 
     case TSDB_TIME_PRECISION_NANO: {
+      mod = ((t) % 1000000000 + 1000000000) % 1000000000;
+      if (t < 0 && mod != 0) {
+        t -= 1000000000;
+      }
       quot = t / 1000000000;
       fractionLen = 11;
       format = ".%09" PRId64;
-      mod = t % 1000000000;
       break;
     }
 
@@ -301,8 +309,9 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
       assert(false);
   }
 
-  ptm = localtime(&quot);
-  int32_t length = (int32_t)strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  struct tm ptm = {0};
+  localtime_r(&quot, &ptm);
+  int32_t length = (int32_t)strftime(ts, 35, "%Y-%m-%d %H:%M:%S", &ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
 
   httpJsonString(buf, ts, length);
@@ -319,26 +328,35 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
 
   switch (timePrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
+      mod = ((t) % 1000 + 1000) % 1000;
+      if (t < 0 && mod != 0) {
+        t -= 1000;
+      }
       quot = t / 1000;
       fractionLen = 5;
       format = ".%03" PRId64;
-      mod = t % 1000;
       break;
     }
 
     case TSDB_TIME_PRECISION_MICRO: {
+      mod = ((t) % 1000000 + 1000000) % 1000000;
+      if (t < 0 && mod != 0) {
+        t -= 1000000;
+      }
       quot = t / 1000000;
       fractionLen = 8;
       format = ".%06" PRId64;
-      mod = t % 1000000;
       break;
     }
 
     case TSDB_TIME_PRECISION_NANO: {
+      mod = ((t) % 1000000000 + 1000000000) % 1000000000;
+      if (t < 0 && mod != 0) {
+        t -= 1000000000;
+      }
       quot = t / 1000000000;
       fractionLen = 11;
       format = ".%09" PRId64;
-      mod = t % 1000000000;
       break;
     }
 

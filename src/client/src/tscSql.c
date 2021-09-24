@@ -196,6 +196,11 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
+      if (terrno ==TSDB_CODE_RPC_FQDN_ERROR) {
+        printf("taos connect failed, reason: %s\n\n", taos_errstr(pSql));
+      } else {
+        printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+      }
       taos_free_result(pSql);
       taos_close(pObj);
       return NULL;
@@ -643,7 +648,7 @@ char *taos_errstr(TAOS_RES *tres) {
     return (char*) tstrerror(terrno);
   }
 
-  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd)) {
+  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd) || pSql->res.code == TSDB_CODE_RPC_FQDN_ERROR) {
     return pSql->cmd.payload;
   } else {
     return (char*)tstrerror(pSql->res.code);
@@ -887,7 +892,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tfree(pSql);
@@ -963,8 +970,14 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   strtolower(str, tableNameList);
   SArray* plist = taosArrayInit(4, POINTER_BYTES);
+  if (plist == NULL) {
+    tfree(str);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
-  if (plist == NULL || vgroupList == NULL) {
+  if (vgroupList == NULL) {
+    taosArrayDestroy(plist);
     tfree(str);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -980,6 +993,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
+    taosArrayDestroyEx(plist, freeElem);
+    taosArrayDestroyEx(vgroupList, freeElem);
     return code;
   }
 

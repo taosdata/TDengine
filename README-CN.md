@@ -7,6 +7,7 @@
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 简体中文 | [English](./README.md) 
+很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/) 
 
 # TDengine 简介
 
@@ -105,6 +106,12 @@ Go 连接器和 Grafana 插件在其他独立仓库，如果安装它们的话�
 
 ```bash
 git submodule update --init --recursive
+```
+
+如果使用 https 协议下载比较慢，可以通过修改 ~/.gitconfig 文件添加以下两行设置使用 ssh 协议下载。需要首先上传 ssh 密钥到 GitHub，详细方法请参考 GitHub 官方文档。
+```
+[url "git@github.com:"]
+    insteadOf = https://github.com/
 ```
 
 ## 构建 TDengine
