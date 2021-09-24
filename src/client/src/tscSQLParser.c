@@ -2410,7 +2410,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg10 = "derivative duration should be greater than 1 Second";
   const char* msg11 = "third parameter in derivative should be 0 or 1";
   const char* msg12 = "parameter is out of range [1, 100]";
-  const char* msg13 = "third parameter should be 0 or 1";
+  const char* msg13 = "third parameter algorithm must be 'default' or 't-digest'";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2807,6 +2807,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       SExprInfo* pExpr = NULL;
       if (functionId == TSDB_FUNC_PERCT || functionId == TSDB_FUNC_APERCT) {
         // param1 double 
+        if(pVariant->nType != TSDB_DATA_TYPE_DOUBLE && pVariant->nType != TSDB_DATA_TYPE_BIGINT){
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+        }
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
         double dp = GET_DOUBLE_VAL(val);
         if (dp < 0 || dp > TOP_BOTTOM_QUERY_LIMIT) {
@@ -2828,12 +2831,22 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         if (taosArrayGetSize(pItem->pNode->Expr.paramList) == 3) {
           if (pParamElem[2].pNode != NULL) {
             pVariant = &pParamElem[2].pNode->value;
-            tVariantDump(pVariant, val, TSDB_DATA_TYPE_INT, true);
-            int32_t algo = GET_INT32_VAL(val);
-            if(algo < 0 || algo >1 ) {
+            // check type must string
+            if(pVariant->nType != TSDB_DATA_TYPE_BINARY || pVariant->pz == NULL){
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);
             }
-            tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+            char* pzAlgo = pVariant->pz;
+            int32_t algo = 0;
+
+            if(strcasecmp(pzAlgo, "t-digest") == 0) {
+              algo = 1;
+            } else if(strcasecmp(pzAlgo, "default") == 0){
+              algo = 0;
+            } else {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);
+            }
+            // append algo int32_t
+            tscExprAddParams(&pExpr->base, (char*)&algo, TSDB_DATA_TYPE_INT, sizeof(int32_t));
           }
         }
 
