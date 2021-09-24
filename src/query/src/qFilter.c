@@ -1477,7 +1477,7 @@ int32_t filterTreeToGroup(tExprNode* tree, SFilterInfo *info, SArray* group) {
     return TSDB_CODE_SUCCESS;
   }
 
-  code = filterAddGroupUnitFromNode(info, tree, group);  
+  code = filterAddGroupUnitFromNode(info, tree, group);
 
 
 _return:
@@ -1531,7 +1531,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
           SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
           char *data = right->data;
-          if (IS_VAR_DATA_TYPE(type)) {
+          if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_JSON) {
             tlen = varDataLen(data);
             data += VARSTR_HEADER_SIZE;
           }
@@ -1548,7 +1548,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
             SFilterField *right = FILTER_UNIT_RIGHT2_FIELD(info, unit);
             char *data = right->data;
-            if (IS_VAR_DATA_TYPE(type)) {
+            if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_JSON) {
               tlen = varDataLen(data);
               data += VARSTR_HEADER_SIZE;
             }

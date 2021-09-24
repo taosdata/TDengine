@@ -4619,7 +4619,10 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       //                ret = setExprToCond(pCmd, &pCondExpr->pTagCond,
       //                *pExpr, NULL, parentOptr);
       tSqlExpr *rexpr = NULL;
-      if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY && pSchema->type != TSDB_DATA_TYPE_NCHAR && pSchema->type != TSDB_DATA_TYPE_BOOL)) {
+      if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY
+                                         && pSchema->type != TSDB_DATA_TYPE_NCHAR
+                                         && pSchema->type != TSDB_DATA_TYPE_BOOL
+                                         && pSchema->type != TSDB_DATA_TYPE_JSON)) {
         handleNeOptr(&rexpr, *pExpr);
         *pExpr = rexpr;
       }
@@ -6060,10 +6063,6 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SSchema* pTagsSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
 
     if (IS_VAR_DATA_TYPE(pTagsSchema->type) && (pItem->pVar.nLen > pTagsSchema->bytes)) {
-      return invalidOperationMsg(pMsg, msg14);
-    }
-
-    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON && (pItem->pVar.nLen > TSDB_MAX_TAGS_LEN)) {
       return invalidOperationMsg(pMsg, msg14);
     }
 
