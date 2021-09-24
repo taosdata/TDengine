@@ -563,12 +563,12 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
 }
 
 // ============== Operations on SDFileSet
-void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver) {
+void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t nFiles) {
   pSet->fid = fid;
   pSet->state = 0;
-  pSet->nFiles = TSDB_FILE_MAX;
+  pSet->nFiles = nFiles;
 
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < nFiles; ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
     tsdbInitDFile(pDFile, did, vid, fid, ver, ftype);
   }
@@ -651,7 +651,7 @@ int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
 }
 
 int tsdbCreateDFileSet(SDFileSet *pSet, bool updateHeader) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
     if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype), updateHeader, ftype) < 0) {
       tsdbCloseDFileSet(pSet);
       tsdbRemoveDFileSet(pSet);

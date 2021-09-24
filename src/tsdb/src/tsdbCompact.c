@@ -197,7 +197,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       }
 
       tsdbInitDFileSet(TSDB_COMPACT_WSET(pComph), did, REPO_ID(pRepo), TSDB_FSET_FID(pSet),
-                      FS_TXN_VERSION(REPO_FS(pRepo)));
+                      FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_MAX);
       if (tsdbCreateDFileSet(TSDB_COMPACT_WSET(pComph), true) < 0) {
         tsdbError("vgId:%d failed to compact FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
         tsdbCompactFSetEnd(pComph);

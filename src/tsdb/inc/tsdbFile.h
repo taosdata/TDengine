@@ -324,7 +324,7 @@ typedef struct {
     }                                                                        \
   } while (0);
 
-void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver);
+void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t nFiles);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet, uint32_t sfver);
