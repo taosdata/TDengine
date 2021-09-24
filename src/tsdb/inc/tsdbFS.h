@@ -17,8 +17,9 @@
 #define _TD_TSDB_FS_H_
 
 /**
- * 1. The fileset .head/.data/.last/.sma use the same fver 0 before 2021.09.05.
- * 2. .head fver is 1 when extract aggregate block data from .data file and save to separate .sma file since 2021.09.05
+ * 1. The fileset .head/.data/.last use the same fver 0 before 2021.10.10.
+ * 2. .head fver is 1 when extract aggregate block data from .data/.last file and save to separate .smad/.smal file
+ * since 2021.10.10
  * // TODO update date and add release version.
  */
 typedef enum {

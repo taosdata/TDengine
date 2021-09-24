@@ -457,8 +457,6 @@ typedef enum {
   TSDB_STATIS_NONE = 1,  // statis part not exist
 } ETsdbStatisStatus;
 
-#define __TD_6117__
-
 extern char *qtypeStr[];
 
 #ifdef __cplusplus

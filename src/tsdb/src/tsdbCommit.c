@@ -1055,9 +1055,7 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
     return 0;
   }
 }
-static int  originalDataFileSize = 0;
-static int  originalLastFileSize = 0;
-static char latestLastFile[TSDB_FILENAME_LEN] = {0};
+
 int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
                        SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
   STsdbCfg *  pCfg = REPO_CFG(pRepo);
@@ -1065,11 +1063,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   SAggrBlkData *pAggrBlkData = NULL;
   int64_t     offset = 0, offsetAggr = 0;
   int         rowsToWrite = pDataCols->numOfRows;
-
-  int blkSizeBefore = 0;
-  int blkSizeAfter = 0;
-  int aggrSizeBefore = 0;
-  int aggrSizeAfter = 0;
 
   ASSERT(rowsToWrite > 0 && rowsToWrite <= pCfg->maxRowsPerFileBlock);
   ASSERT((!isLast) || rowsToWrite < pCfg->minRowsPerFileBlock);
@@ -1190,17 +1183,14 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   taosCalcChecksumAppend(0, (uint8_t *)pBlockData, tsize);
   tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(pBlockData, tsize - sizeof(TSCKSUM)));
-  blkSizeBefore = pDFile->info.size;
   // Write the whole block to file
   if (tsdbAppendDFile(pDFile, (void *)pBlockData, lsize, &offset) < lsize) {
     return -1;
   }
-  blkSizeAfter = pDFile->info.size;
-#ifdef __TD_6117__
+
   // pAggrBlkData->delimiter = TSDB_FILE_DELIMITER;
   // pAggrBlkData->uid = TABLE_UID(pTable);
   int aggrStatus = ((aggrNum > 0) && (rowsToWrite > 5)) ? 1 : 0;  // TODO: How to make the decision?
-  aggrSizeBefore = pDFileAggr->info.size;
   if (aggrStatus > 0) {
     pAggrBlkData->numOfCols = nColsNotAllNull;
 
@@ -1212,8 +1202,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
       return -1;
     }
   }
-#endif
-  aggrSizeAfter = pDFileAggr->info.size;
 
   // Update pBlock membership vairables
   pBlock->last = isLast;
@@ -1226,40 +1214,16 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   pBlock->numOfCols = nColsNotAllNull;
   pBlock->keyFirst = dataColsKeyFirst(pDataCols);
   pBlock->keyLast = dataColsKeyLast(pDataCols);
-#ifdef __TD_6117__
+  // since blkVer1
   pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = offsetAggr;
   pBlock->aggrLen = tsizeAggr;
-#endif
-
-#ifndef __TD_6117__
-  tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
-            " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
-            REPO_ID(pRepo), TABLE_TID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
-            pBlock->numOfCols, pBlock->keyFirst, pBlock->keyLast);
-#else
-  if (isLast) {
-    if (strncmp(TSDB_FILE_FULL_NAME(pDFile), latestLastFile, TSDB_FILENAME_LEN) == 0) {
-      originalLastFileSize += tsizeV0;
-    } else {
-      originalLastFileSize = tsizeV0;
-      strncpy(latestLastFile, TSDB_FILE_FULL_NAME(pDFile), TSDB_FILENAME_LEN);
-    }
-  } else {
-    originalDataFileSize += tsizeV0;
-  }
 
   tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
             REPO_ID(pRepo), TABLE_TID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
             pBlock->numOfCols, pBlock->keyFirst, pBlock->keyLast);
-  tsdbDebug(
-      "prop:vgId:%d tid:%d a block of data is written to file %s(len:%d, size: %d -> %d), SMA (len:%d, size: %d -> "
-      "%d), .lastSize = %d, .dataSize = %d",
-      REPO_ID(pRepo), TABLE_TID(pTable), TSDB_FILE_FULL_NAME(pDFile), pBlock->len, blkSizeBefore, blkSizeAfter,
-      pBlock->aggrLen, aggrSizeBefore, aggrSizeAfter, originalLastFileSize, originalDataFileSize);
-#endif
 
   return 0;
 }

@@ -1123,7 +1123,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
   char         bname[TSDB_FILENAME_LEN];
   TDIR *       tdir = NULL;
   const TFILE *pf = NULL;
-  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last|sma)(-ver[0-9]+)?$";
+  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last|smad|smal)(-ver[0-9]+)?$";
   regex_t      regex;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
