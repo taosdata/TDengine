@@ -1214,6 +1214,31 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
         DUPATE_DATA_WITHOUT_TS(pCtx, *(int64_t *)output, v, notNullElems, isMin);
         break;
       }
+
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t v = GET_UINT8_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint8_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t v = GET_UINT16_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint16_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t v = GET_UINT32_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint32_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t v = GET_UINT64_VAL(input);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(uint64_t *)output, v, notNullElems, isMin);
+        break;
+      }
+
       default:
         break;
     }
@@ -3709,6 +3734,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         }
       }
     } else {
+      if (GET_RES_INFO(pCtx)->numOfRes > 0) {
+        return;
+      }
+    
       // no data generated yet
       if (pCtx->size < 1) {
         return;
@@ -3738,11 +3767,15 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
           if (pCtx->size > 1) {
             ekey = GET_TS_DATA(pCtx, 1);
             if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
+              setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
+              SET_VAL(pCtx, 1, 1);
               return;
             }
 
             val = ((char*)pCtx->pInput) + pCtx->inputBytes;            
           } else {
+            setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
+            SET_VAL(pCtx, 1, 1);
             return;
           }
         } else {
@@ -3787,7 +3820,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
 }
 
-static void interp_function(SQLFunctionCtx *pCtx) {
+static void interp_function(SQLFunctionCtx *pCtx) {  
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
     bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);

@@ -1,4 +1,4 @@
-﻿###################################################################
+###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
@@ -14,6 +14,7 @@
 import random
 import string
 from util.sql import tdSql
+from util.dnodes import tdDnodes
 
 class TDCom:
     def init(self, conn, logSql):
@@ -46,6 +47,11 @@ class TDCom:
         else:
             chars = ''.join(random.choice(string.ascii_letters.lower() + string.digits) for i in range(len))
         return chars
+
+    def restartTaosd(self, index=1, db_name="db"):
+        tdDnodes.stop(index)
+        tdDnodes.startWithoutSleep(index)
+        tdSql.execute(f"use {db_name}")
 
     def close(self):
         self.cursor.close()
