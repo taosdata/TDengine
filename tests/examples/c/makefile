@@ -18,8 +18,6 @@ exe:
 	gcc $(CFLAGS) ./subscribe.c -o $(ROOT)subscribe $(LFLAGS)
 	gcc $(CFLAGS) ./apitest.c -o $(ROOT)apitest $(LFLAGS)
 
-
-
 clean:
 	rm $(ROOT)asyncdemo
 	rm $(ROOT)demo
@@ -29,4 +27,6 @@ clean:
 	rm $(ROOT)subscribe
 	rm $(ROOT)apitest
 
+
 	
+

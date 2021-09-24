@@ -539,12 +539,12 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
 
   cd $tests_dir
   echo "current dir: "
+  
   pwd
+  
   cd script/api
-  echo "current dir: "
-  pwd
+  echo "building setcfgtest"
   make > /dev/null
-
   ./clientcfgtest
   if [ $? != "0" ]; then
     echo "clientcfgtest failed"

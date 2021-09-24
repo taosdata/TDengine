@@ -398,6 +398,7 @@ python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
+
 python3 ./test.py -f query/queryRegex.py
 #======================p4-end===============
 
