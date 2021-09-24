@@ -7185,7 +7185,6 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
-
         } else {
           data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
           if(type == TSDB_DATA_TYPE_JSON){

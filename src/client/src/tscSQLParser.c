@@ -1862,7 +1862,6 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
     assert(right != NULL && right->type == SQL_NODE_VALUE);
     tVariantAssign(&(pExpr->base.param[pExpr->base.numOfParams]), &right->value);
     pExpr->base.numOfParams++;
-    pExpr->base.resType = TSDB_DATA_TYPE_BINARY;     // tag-> operation transform result type
     assert(pExpr->base.numOfParams <= 3);
   }
 
@@ -2264,8 +2263,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       pToken = &left->columnName;
 
       tSqlExpr* right = pItem->pNode->pRight;
-      assert(right != NULL && right->type == SQL_NODE_VALUE);
-      if(right->tokenId != TK_STRING){
+      if(right != NULL || right->type != SQL_NODE_VALUE || right->tokenId != TK_STRING){
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
     }else {
