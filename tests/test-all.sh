@@ -537,9 +537,12 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
 
   stopTaosd
 
-  cd ..
-  cd ..
-  cd scrpt/api
+  cd $tests_dir
+  echo "current dir: "
+  pwd
+  cd script/api
+  echo "current dir: "
+  pwd
   make > /dev/null
 
   ./clientcfgtest
