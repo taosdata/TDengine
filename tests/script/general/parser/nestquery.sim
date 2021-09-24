@@ -186,6 +186,7 @@ sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
 sql_error select twa(c1) from (select c1 from nest_tb0);
 sql_error select irate(c1) from (select c1 from nest_tb0);
 sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
+sql_error select mavg(c1,2), twa(c1) from (select * from nest_tb0);
 sql_error select csum(c1), twa(c1) from (select * from nest_tb0);
 sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
 
@@ -271,6 +272,10 @@ if $data11 != 0.016666667 then
 endi
 
 sql select diff(c1) from (select * from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
+sql select mavg(c1,2) from (select * from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
@@ -424,6 +429,18 @@ if $data00 != @70-01-01 08:00:00.000@ then
 endi
 
 if $data01 != 1 then
+  return -1
+endi
+
+sql select mavg(val, 2) from (select c1 val from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:00:00.000@ then
+  return -1
+endi
+if $data01 != 0.500000000 then
   return -1
 endi
 

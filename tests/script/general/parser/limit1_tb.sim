@@ -471,6 +471,50 @@ if $data81 != -9 then
   return -1
 endi
 
+sql select mavg(c1,2) from $tb
+$res = $rowNum - 1
+if $rows != $res then
+  return -1
+endi
+
+sql select mavg(c1,2) from $tb where c1 > 5 limit 2 offset 1
+print $rows , $data00 , $data01 , $data10 , $data11
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @18-09-17 10:20:00.000@ then
+  return -1
+endi
+if $data01 != 7.500000000 then
+  return -1
+endi
+if $data10 != @18-09-17 10:30:00.000@ then
+  return -1
+endi
+if $data11 !=  8.500000000 then
+  return -1
+endi
+$limit = $rowNum / 2
+$offset = $limit - 1
+sql select mavg(c1,2) from $tb where c1 >= 0 limit $limit offset $offset
+if $rows != $limit then
+  return -1
+endi
+$limit = $rowNum / 2
+$offset = $limit + 1
+$val = $limit - 2
+sql select mavg(c1,2) from $tb where c1 >= 0 limit $limit offset $offset
+print $rows , $data01 , $data81 
+if $rows != $val then
+  return -1
+endi
+if $data01 != 1.500000000 then
+  return -1
+endi
+if $data81 != 4.500000000 then
+  return -1
+endi
+
 sql select csum(c1) from $tb
 $res = $rowNum 
 if $rows != $res then

@@ -394,6 +394,25 @@ if $data21 != -1 then
    return -1
 endi
 
+sql select mavg(k,3) from tm0
+print ====> $rows , $data21
+if $row != 2 then
+   return -1
+endi
+if $data11 != 2.333333333 then
+   return -1
+endi
+
+sql select csum(k) from tm0
+print ====> $rows , $data21
+if $row != 4 then
+   return -1
+endi
+
+if $data21 != 6 then
+   return -1
+endi
+
 #error sql
 sql_error select * from 1;
 #sql_error select 1;  // equals to select server_status();

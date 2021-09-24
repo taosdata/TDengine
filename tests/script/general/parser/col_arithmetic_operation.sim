@@ -127,6 +127,7 @@ sql_error select top(c1, 2) - last(c1) from $stb;
 sql_error select sample(c1, 2) - last(c1) from $stb;
 sql_error select stddev(c1) - last(c1) from $stb;
 sql_error select diff(c1) - last(c1) from $stb;
+sql_error select mavg(c1, 2) - last(c1) from $stb;
 sql_error select csum(c1) - last(c1) from $stb;
 sql_error select first(c7) - last(c7) from $stb;
 sql_error select first(c8) - last(c8) from $stb;

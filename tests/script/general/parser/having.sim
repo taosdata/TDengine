@@ -1160,6 +1160,12 @@ sql_error select avg(f1),diff(f1) from st2 group by f1 having avg(f1) > 0;
 
 sql_error select avg(f1),diff(f1) from st2 group by f1 having spread(f2) > 0;
 
+sql_error select avg(f1) from st2 group by f1 having mavg(f1, 2) > 0;
+
+sql_error select avg(f1),mavg(f1, 3) from st2 group by f1 having avg(f1) > 0;
+
+sql_error select avg(f1),mavg(f1, 4) from st2 group by f1 having spread(f2) > 0;
+
 sql_error select avg(f1) from st2 group by f1 having csum(f1) > 0;
 
 sql_error select avg(f1),csum(f1) from st2 group by f1 having avg(f1) > 0;
