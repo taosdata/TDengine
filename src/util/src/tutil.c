@@ -84,6 +84,20 @@ int32_t strRmquote(char *z, int32_t len){
     return len - 2 - cnt;
 }
 
+int32_t strRmquoteEscape(char *z, int32_t len) {
+  if (len <= 0) return len;
+  
+  if (z[0] == '\'' || z[0] == '\"') {
+    return strRmquote(z, len);
+  } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
+    memmove(z, z + 1, len - 2);
+    return len - 2;
+  }
+
+  return len;
+}
+
+
 
 size_t strtrim(char *z) {
   int32_t i = 0;

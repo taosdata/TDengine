@@ -91,10 +91,12 @@ dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 cpxName(A) ::= .             {A.n = 0;  }
 cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 
-cmd ::= SHOW CREATE TABLE ftblname(X).    {
+cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
-}    
-cmd ::= SHOW CREATE STABLE ftblname(X).   {
+}
+cmd ::= SHOW CREATE STABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &X);
 }    
 
@@ -106,7 +108,7 @@ cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) TABLES LIKE tblname(Y).         {
+cmd ::= SHOW dbPrefix(X) TABLES LIKE ids(Y).         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, &Y);
 }
 
@@ -114,7 +116,7 @@ cmd ::= SHOW dbPrefix(X) STABLES.      {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) STABLES LIKE tblname(Y).      {
+cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
     SStrToken token;
     tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
@@ -133,12 +135,14 @@ cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
 }
 
 //drop configure for tables
-cmd ::= DROP TABLE ifexists(Y) ftblname(X).   {
+cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
+    X.n += Z.n;
     setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, -1, -1);
 }
 
 //drop stable
-cmd ::= DROP STABLE ifexists(Y) ftblname(X).   {
+cmd ::= DROP STABLE ifexists(Y) ids(X) cpxName(Z).   {
+    X.n += Z.n;
     setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, -1, TSDB_SUPER_TABLE);
 }
 
@@ -154,10 +158,13 @@ cmd ::= DROP ACCOUNT ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_DROP_ACCT, 1, 
 cmd ::= USE ids(X).              { setDCLSqlElems(pInfo, TSDB_SQL_USE_DB, 1, &X);}
 
 /////////////////////////////////THE DESCRIBE STATEMENT/////////////////////////////////////
-cmd ::= DESCRIBE ftblname(X). {
+cmd ::= DESCRIBE ids(X) cpxName(Y). {
+    X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
-cmd ::= DESC ftblname(X). {
+
+cmd ::= DESC ids(X) cpxName(Y). {
+    X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
@@ -191,14 +198,6 @@ ifexists(X) ::= .                   { X.n = 0;}
 %type ifnotexists {SStrToken}
 ifnotexists(X) ::= IF NOT EXISTS.   { X.n = 1;}
 ifnotexists(X) ::= .                { X.n = 0;}
-
-%type tblname {SStrToken}
-tblname(A) ::= ids(X).         {A = X; }
-tblname(A) ::= ESCAPE(X).      {A = X; }
-
-%type ftblname {SStrToken}
-ftblname(A) ::= tblname(X).     {A = X; }
-ftblname(A) ::= ids(X) DOT tblname(Y).   {A = X; A.n += 1 + Y.n;    }
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
@@ -379,30 +378,36 @@ create_table_list(A) ::= create_table_list(X) create_from_stable(Z). {
 }
 
 %type create_table_args{SCreateTableSql*}
-create_table_args(A) ::= ifnotexists(U) ftblname(V) LP columnlist(X) RP. {
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
   A = tSetCreateTableInfo(X, NULL, NULL, TSQL_CREATE_TABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
+  V.n += Z.n;
   setCreatedTableName(pInfo, &V, &U);
 }
 
 // create super table
 %type create_stable_args{SCreateTableSql*}
-create_stable_args(A) ::= ifnotexists(U) ftblname(V) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
+create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
   A = tSetCreateTableInfo(X, Y, NULL, TSQL_CREATE_STABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
+  V.n += Z.n;
   setCreatedTableName(pInfo, &V, &U);
 }
 
 // create table by using super table
 // create table table_name using super_table_name tags(tag_values1, tag_values2)
 %type create_from_stable{SCreatedTableInfo}
-create_from_stable(A) ::= ifnotexists(U) ftblname(V) USING ftblname(X) TAGS LP tagitemlist(Y) RP.  {
+create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) TAGS LP tagitemlist(Y) RP.  {
+  X.n += F.n;
+  V.n += Z.n;
   A = createNewChildTableInfo(&X, NULL, Y, &V, &U);
 }
 
-create_from_stable(A) ::= ifnotexists(U) ftblname(V) USING ftblname(X) LP tagNamelist(P) RP TAGS LP tagitemlist(Y) RP.  {
+create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) LP tagNamelist(P) RP TAGS LP tagitemlist(Y) RP.  {
+  X.n += F.n;
+  V.n += Z.n;
   A = createNewChildTableInfo(&X, P, Y, &V, &U);
 }
 
@@ -413,10 +418,11 @@ tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SSt
 
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
-create_table_args(A) ::= ifnotexists(U) ftblname(V) AS select(S). {
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
   A = tSetCreateTableInfo(NULL, NULL, S, TSQL_CREATE_STREAM);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
+  V.n += Z.n;
   setCreatedTableName(pInfo, &V, &U);
 }
 
@@ -543,19 +549,23 @@ sub(A)  ::= sub(X) COMMA LP union(Y) RP ids(Z).{A = addSubqueryElem(X, Y, &Z);}
 
 %type tablelist {SRelationInfo*}
 %destructor tablelist {destroyRelationInfo($$);}
-tablelist(A) ::= ftblname(X).                     {
+tablelist(A) ::= ids(X) cpxName(Y).                     {
+  X.n += Y.n;
   A = setTableNameList(NULL, &X, NULL);
 }
 
-tablelist(A) ::= ftblname(X) ids(Z).             {
+tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
+  X.n += Y.n;
   A = setTableNameList(NULL, &X, &Z);
 }
 
-tablelist(A) ::= tablelist(Y) COMMA ftblname(X).  {
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
+  X.n += Z.n;
   A = setTableNameList(Y, &X, NULL);
 }
 
-tablelist(A) ::= tablelist(Y) COMMA ftblname(X) ids(F). {
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
+  X.n += Z.n;
   A = setTableNameList(Y, &X, &F);
 }
 
@@ -694,8 +704,6 @@ expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToke
 expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(&X, TK_ID);}
 expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
 expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ALL);}
-expr(A) ::= ESCAPE(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
-expr(A) ::= ESCAPE(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ALL);}
 
 expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
@@ -769,12 +777,15 @@ cmd ::= RESET QUERY CACHE.  { setDCLSqlElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
 cmd ::= SYNCDB ids(X) REPLICA.{ setDCLSqlElems(pInfo, TSDB_SQL_SYNC_DB_REPLICA, 1, &X);}
 
 ///////////////////////////////////ALTER TABLE statement//////////////////////////////////
-cmd ::= ALTER TABLE ftblname(X) ADD COLUMN columnlist(A).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
+    X.n += F.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ftblname(X) DROP COLUMN ids(A).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
+    X.n += F.n;
+
     toTSDBType(A.type);
     SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
@@ -782,17 +793,21 @@ cmd ::= ALTER TABLE ftblname(X) DROP COLUMN ids(A).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ftblname(X) MODIFY COLUMN columnlist(A).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) MODIFY COLUMN columnlist(A).     {
+    X.n += F.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
-cmd ::= ALTER TABLE ftblname(X) ADD TAG columnlist(A).        {
+cmd ::= ALTER TABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
+    X.n += Y.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-cmd ::= ALTER TABLE ftblname(X) DROP TAG ids(Y).          {
+cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
+    X.n += Z.n;
+
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
@@ -800,7 +815,8 @@ cmd ::= ALTER TABLE ftblname(X) DROP TAG ids(Y).          {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ftblname(X) CHANGE TAG ids(Y) ids(Z). {
+cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
+    X.n += F.n;
 
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
@@ -812,7 +828,8 @@ cmd ::= ALTER TABLE ftblname(X) CHANGE TAG ids(Y) ids(Z). {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ftblname(X) SET TAG ids(Y) EQ tagitem(Z).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
+    X.n += F.n;
 
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
@@ -822,18 +839,21 @@ cmd ::= ALTER TABLE ftblname(X) SET TAG ids(Y) EQ tagitem(Z).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ftblname(X) MODIFY TAG columnlist(A).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) MODIFY TAG columnlist(A).     {
+    X.n += F.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 ///////////////////////////////////ALTER STABLE statement//////////////////////////////////
-cmd ::= ALTER STABLE ftblname(X) ADD COLUMN columnlist(A).     {
+cmd ::= ALTER STABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
+    X.n += F.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER STABLE ftblname(X) DROP COLUMN ids(A).     {
+cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
+    X.n += F.n;
 
     toTSDBType(A.type);
     SArray* K = tVariantListAppendToken(NULL, &A, -1);
@@ -842,17 +862,20 @@ cmd ::= ALTER STABLE ftblname(X) DROP COLUMN ids(A).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER STABLE ftblname(X) MODIFY COLUMN columnlist(A).     {
+cmd ::= ALTER STABLE ids(X) cpxName(F) MODIFY COLUMN columnlist(A).     {
+    X.n += F.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
-cmd ::= ALTER STABLE ftblname(X) ADD TAG columnlist(A).        {
+cmd ::= ALTER STABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
+    X.n += Y.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-cmd ::= ALTER STABLE ftblname(X) DROP TAG ids(Y).          {
+cmd ::= ALTER STABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
+    X.n += Z.n;
 
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
@@ -861,7 +884,8 @@ cmd ::= ALTER STABLE ftblname(X) DROP TAG ids(Y).          {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER STABLE ftblname(X) CHANGE TAG ids(Y) ids(Z). {
+cmd ::= ALTER STABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
+    X.n += F.n;
 
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
@@ -873,7 +897,8 @@ cmd ::= ALTER STABLE ftblname(X) CHANGE TAG ids(Y) ids(Z). {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER STABLE ftblname(X) SET TAG ids(Y) EQ tagitem(Z).     {
+cmd ::= ALTER STABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
+    X.n += F.n;
 
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
@@ -883,7 +908,8 @@ cmd ::= ALTER STABLE ftblname(X) SET TAG ids(Y) EQ tagitem(Z).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER STABLE ftblname(X) MODIFY TAG columnlist(A).     {
+cmd ::= ALTER STABLE ids(X) cpxName(F) MODIFY TAG columnlist(A).     {
+    X.n += F.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }

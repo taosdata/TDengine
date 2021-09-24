@@ -2973,7 +2973,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t num      = 0;
   int32_t code     = TSDB_CODE_SUCCESS;
   char*   str      = strndup(pInfo->tableNames, contLen);
-  char**  nameList = strsplit(str, "·", &num);
+  char**  nameList = strsplit(str, "`", &num);
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
 
   SMultiTableMeta *pMultiMeta = NULL;

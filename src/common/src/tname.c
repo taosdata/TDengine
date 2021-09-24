@@ -154,33 +154,57 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 char *tableNameGetPosition(SStrToken* pToken, char target) {
   bool inEscape = false;
-  bool inQuota = false;
+  bool inQuote = false;
   char quotaStr = 0;
   
   for (uint32_t i = 0; i < pToken->n; ++i) {
-    if (*(pToken->z + i) == target && (!inEscape) && (!inQuota)) {
+    if (*(pToken->z + i) == target && (!inEscape) && (!inQuote)) {
       return pToken->z + i;
     }
   
     if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
-      if (!inQuota) {
+      if (!inQuote) {
         inEscape = !inEscape;
       }
     }
   
     if (*(pToken->z + i) == '\'' || *(pToken->z + i) == '"') {
       if (!inEscape) {
-        if (!inQuota) {
+        if (!inQuote) {
           quotaStr = *(pToken->z + i);
-          inQuota = !inQuota;
+          inQuote = !inQuote;
         } else if (quotaStr == *(pToken->z + i)) {
-          inQuota = !inQuota;
+          inQuote = !inQuote;
         }          
       }
     }
   }
 
   return NULL;
+}
+
+char *tableNameToStr(char *dst, char *src, char quote) {
+  *dst = 0;
+
+  if (src == NULL) {
+    return NULL;
+  }
+  
+  int32_t len = (int32_t)strlen(src);
+  if (len <= 0) {
+    return NULL;
+  }
+
+  int32_t j = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    if (*(src + i) == quote) {
+      *(dst + j++) = '\\';
+    }
+
+    *(dst + j++) = *(src + i);
+  }
+
+  return dst;
 }
 
 

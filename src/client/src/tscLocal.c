@@ -465,7 +465,7 @@ int32_t tscRebuildCreateTableStatement(void *param,char *result) {
 
   code = tscGetTableTagValue(builder, buf);
   if (code == TSDB_CODE_SUCCESS) {
-    snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE TABLE %s USING %s TAGS %s", builder->buf, builder->sTableName, buf);
+    snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE TABLE `%s` USING `%s` TAGS %s", builder->buf, builder->sTableName, buf);
     code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_TABLE, builder->buf, result);    
   }  
   free(buf);
@@ -574,12 +574,14 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
   }
 
   char fullName[TSDB_TABLE_FNAME_LEN * 2] = {0};
+  char tblName[TSDB_TABLE_NAME_LEN + 1] = {0};
   tNameGetDbName(&pTableMetaInfo->name, fullName);
 
   extractTableName(pMeta->sTableName, param->sTableName);
-  snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".%s", param->sTableName);
+  snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".`%s`", param->sTableName);
 
   strncpy(param->buf, tNameGetTableName(&pTableMetaInfo->name), TSDB_TABLE_NAME_LEN);
+  tableNameToStr(tblName, param->buf, '\'');
 
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
@@ -602,7 +604,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
     return code;
   }
 
-  snprintf(query + strlen(query), TSDB_MAX_BINARY_LEN - strlen(query), "SELECT %s FROM %s WHERE TBNAME IN(\'%s\')", columns, fullName, param->buf);
+  snprintf(query + strlen(query), TSDB_MAX_BINARY_LEN - strlen(query), "SELECT %s FROM %s WHERE TBNAME IN(\'%s\')", columns, fullName, tblName);
   doAsyncQuery(pSql->pTscObj, pInterSql, tscSCreateCallBack, param, query, strlen(query));
   free(query);
   free(columns);
@@ -619,7 +621,7 @@ static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName,
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
   char *result = ddl;
-  sprintf(result, "create table %s (", tableName);
+  sprintf(result, "create table `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -646,7 +648,7 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
   int32_t totalRows = numOfRows + tscGetNumOfTags(pMeta);
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
-  sprintf(result, "create table %s (", tableName);
+  sprintf(result, "create table `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {

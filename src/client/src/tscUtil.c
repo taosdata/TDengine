@@ -2835,9 +2835,14 @@ void tscRmEscapeAndTrimToken(SStrToken* pToken) {
 
 int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
   if (pToken == NULL || pToken->z == NULL 
-     || (escapeEnabled && pToken->type != TK_STRING && pToken->type != TK_ID && pToken->type != TK_ESCAPE)
-     || ((!escapeEnabled) && pToken->type != TK_STRING && pToken->type != TK_ID)) {
+     || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  if ((!escapeEnabled) && pToken->type == TK_ID) {
+    if (pToken->z[0] == TS_ESCAPE_CHAR) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
   }
 
   char* sep = NULL;
@@ -2870,13 +2875,13 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
 
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
-    } else if (escapeEnabled && pToken->type == TK_ESCAPE) {
+    } else if (pToken->type == TK_ID) {
       tscRmEscapeAndTrimToken(pToken);
-      return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_SUCCESS;      
     } else {
       if (isNumber(pToken)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
+      }      
     }
   } else {  // two part
     int32_t oldLen = pToken->n;
@@ -2912,8 +2917,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     pToken->z = sep + 1;
     pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
     int32_t len = tGetToken(pToken->z, &pToken->type);
-    if (len != pToken->n || (escapeEnabled && pToken->type != TK_STRING && pToken->type != TK_ID && pToken->type != TK_ESCAPE)
-       || ((!escapeEnabled) && pToken->type != TK_STRING && pToken->type != TK_ID)) {
+    if (len != pToken->n || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
@@ -2925,7 +2929,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       }
     }
 
-    if (escapeEnabled && pToken->type == TK_ESCAPE) {
+    if (escapeEnabled && pToken->type == TK_ID) {
       tscRmEscapeAndTrimToken(pToken);
     }
 
