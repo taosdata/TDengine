@@ -29,6 +29,9 @@ endif(${BUILD_TEST})
 ## lz4
 cat("${CMAKE_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
+## zlib
+cat("${CMAKE_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+
 ## cJson
 cat("${CMAKE_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 

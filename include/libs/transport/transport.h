@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_ASVC_H_
-#define _TD_ASVC_H_
+#ifndef _TD_TRANSPORT_H_
+#define _TD_TRANSPORT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ extern "C" {
 }
 #endif
 
-#endif /*_TD_ASVC_H_*/
+#endif /*_TD_TRANSPORT_H_*/
