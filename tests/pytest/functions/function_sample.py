@@ -40,7 +40,7 @@ class TDTestCase:
                         % (self.ts + i, i, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
                      
 
-        print("begin sampling")
+        print("begin sampling. sql: select sample(col1, 2) from test1")
         freqDict = collections.defaultdict(int)
         for i in range(self.sample_times):
             tdSql.query('select sample(col1, 2) from test1')
@@ -48,18 +48,18 @@ class TDTestCase:
             res2 = tdSql.getData(1, 1);
             freqDict[res1] = freqDict[res1] + 1
             freqDict[res2] = freqDict[res2] + 1
-        print("end sampling")
+        print("end sampling.")
 
         lower_bound = self.sample_times/5 - self.sample_times/50;
         upper_bound = self.sample_times/5 + self.sample_times/50;
         for i in range(self.rowNum):
-            print("{} are sampled in {} times", i, freqDict[i])
+            print("{} are sampled in {} times".format(i, freqDict[i]))
 
-            if not (freqDict[i]>lower_bound and freqDict[i]<upper_bound):
-                print("run it aggain, if it keeps appearing, sample function bug")
+            if not (freqDict[i]>=lower_bound and freqDict[i]<=upper_bound):
+                print("run it aggain. if it keeps appearing, sample function bug")
                 caller = inspect.getframeinfo(inspect.stack()[0][0])
                 args = (caller.filename, caller.lineno-2)
-                tdLog.exit("{}({}) failred. sample function failure".format(args[0], args[1]))
+                tdLog.exit("{}({}) failed. sample function failure".format(args[0], args[1]))
                    
     def stop(self):
         tdSql.close()
