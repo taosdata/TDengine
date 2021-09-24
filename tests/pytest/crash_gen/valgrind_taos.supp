@@ -18214,3 +18214,20 @@
    fun:PyVectorcall_Call
    fun:_PyEval_EvalFrameDefault
 }
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:_buffer_get_info
+   fun:array_getbuffer
+   fun:__Pyx__GetBufferAndValidate.constprop.64
+   fun:__pyx_f_5numpy_6random_13bit_generator_12SeedSequence_mix_entropy
+   fun:__pyx_pw_5numpy_6random_13bit_generator_12SeedSequence_1__init__
+   obj:/usr/bin/python3.8
+   fun:__Pyx__PyObject_CallOneArg
+   fun:__Pyx_PyObject_CallOneArg
+   fun:__pyx_pw_5numpy_6random_13bit_generator_12BitGenerator_1__init__
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+}
