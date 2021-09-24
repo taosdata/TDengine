@@ -3418,7 +3418,7 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
     }
   }
 
-  if (tscIsTWAQuery(pQueryInfo) || tscIsDiffDerivQuery(pQueryInfo) || tscIsIrateQuery(pQueryInfo) ||
+  if (tscIsTWAQuery(pQueryInfo) || tscIsDiffDerivLikeQuery(pQueryInfo) || tscIsIrateQuery(pQueryInfo) ||
       tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_SAMPLE)) {
     if (pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -7060,7 +7060,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
 
       int32_t f = TSDB_FUNC_TAG;
-      if (tscIsDiffDerivQuery(pQueryInfo)) {
+      if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
         f = TSDB_FUNC_TAGPRJ;
       }
 
@@ -7224,7 +7224,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
     }
 
     // projection query on super table does not compatible with "group by" syntax
-    if (tscIsProjectionQuery(pQueryInfo) && !(tscIsDiffDerivQuery(pQueryInfo))) {
+    if (tscIsProjectionQuery(pQueryInfo) && !(tscIsDiffDerivLikeQuery(pQueryInfo))) {
       return invalidOperationMsg(msg, msg3);
     }
 

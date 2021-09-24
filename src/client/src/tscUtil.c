@@ -320,7 +320,9 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
   return true;
 }
 
-bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
+// these functions diff/derivative/csum/mavg will return the result computed on current row and history row/rows
+// as the result for current row
+bool tscIsDiffDerivLikeQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
@@ -605,7 +607,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscIsDiffDerivQuery(pQueryInfo)) {
+  if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
     return false;
   }
 
@@ -4852,7 +4854,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = tscIsDiffDerivQuery(pQueryInfo);
+  pQueryAttr->diffQuery         = tscIsDiffDerivLikeQuery(pQueryInfo);
   pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
