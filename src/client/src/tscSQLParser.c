@@ -2263,8 +2263,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       pToken = &left->columnName;
 
       tSqlExpr* right = pItem->pNode->pRight;
-      assert(right != NULL && right->type == SQL_NODE_VALUE);
-      if(right->tokenId != TK_STRING){
+      if(right != NULL || right->type != SQL_NODE_VALUE || right->tokenId != TK_STRING){
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
     }else {

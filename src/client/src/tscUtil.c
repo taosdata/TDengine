@@ -5187,20 +5187,19 @@ void findTagValue(void* data, char* key, int32_t keyLen, char* out, int16_t len)
     void*    result = kvRowColVal(data, pColIdx);
 
     if (k % 2 != 0) {  // json key
-      char    tagJsonKey[TSDB_MAX_TAGS_LEN] = {0};
       if (JSON_TYPE_BINARY){
         if (keyLen != varDataLen(result)) continue;
         if (memcmp(varDataVal(result), key, keyLen) != 0) continue;
       } else if(JSON_TYPE_NCHAR){
+        char    tagJsonKey[TSDB_MAX_TAGS_LEN] = {0};
         int32_t length = taosUcs4ToMbs(varDataVal(result), varDataLen(result), tagJsonKey);
         if (length == 0) {
           tscError("charset:%s to %s. val:%s convert json key failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
                    (char*)result);
           continue;
         }
-        if (strncmp(key, tagJsonKey, keyLen) != 0) {
-          continue;
-        }
+        if (keyLen != length) continue;
+        if (strncmp(key, tagJsonKey, keyLen) != 0) continue;
       }
       found = true;
     } else {  // json value
