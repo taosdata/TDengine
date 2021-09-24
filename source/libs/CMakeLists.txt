@@ -1,4 +1,4 @@
-add_subdirectory(asvc)
+add_subdirectory(transport)
 add_subdirectory(raft)
 add_subdirectory(tkv)
 add_subdirectory(index)
