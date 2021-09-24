@@ -84,6 +84,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "powerdb"
 #elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
+#elif (_TD_PRO_ == true)
+#define TSDB_DEFAULT_PASS               "prodb"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
@@ -163,6 +165,9 @@ do { \
 #define TSDB_RELATION_AND         11
 #define TSDB_RELATION_OR          12
 #define TSDB_RELATION_NOT         13
+
+#define TSDB_RELATION_MATCH       14
+#define TSDB_RELATION_NMATCH      15
 
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31

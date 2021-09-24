@@ -35,6 +35,7 @@ int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
  
 #define TSDB_CODE_SUCCESS                   0
+#define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
 // rpc
 #define TSDB_CODE_RPC_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0001)  //"Action in progress")
@@ -103,6 +104,14 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_FILE_EMPTY                TAOS_DEF_ERROR_CODE(0, 0x021A)  //"File is empty")
 #define TSDB_CODE_TSC_LINE_SYNTAX_ERROR         TAOS_DEF_ERROR_CODE(0, 0x021B)  //"Syntax error in Line")
 #define TSDB_CODE_TSC_NO_META_CACHED            TAOS_DEF_ERROR_CODE(0, 0x021C)  //"No table meta cached")
+#define TSDB_CODE_TSC_DUP_COL_NAMES             TAOS_DEF_ERROR_CODE(0, 0x021D)  //"duplicated column names")
+#define TSDB_CODE_TSC_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021E)  //"Invalid tag length")
+#define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid column length")
+#define TSDB_CODE_TSC_DUP_TAG_NAMES             TAOS_DEF_ERROR_CODE(0, 0x0220)  //"duplicated tag names")
+#define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid JSON format")
+#define TSDB_CODE_TSC_INVALID_JSON_TYPE         TAOS_DEF_ERROR_CODE(0, 0x0222)  //"Invalid JSON data type")
+#define TSDB_CODE_TSC_INVALID_JSON_CONFIG       TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Invalid JSON configuration")
+#define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0224)  //"Value out of range")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
@@ -184,6 +193,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_FUNC_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0373)  //"Func already exists")
 #define TSDB_CODE_MND_INVALID_FUNC              TAOS_DEF_ERROR_CODE(0, 0x0374)  //"Invalid func")
 #define TSDB_CODE_MND_INVALID_FUNC_BUFSIZE      TAOS_DEF_ERROR_CODE(0, 0x0375)  //"Invalid func bufSize")
+
+#define TSDB_CODE_MND_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x0376)  //"invalid tag length")
+#define TSDB_CODE_MND_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x0377)   //"invalid column length")
 
 #define TSDB_CODE_MND_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0380)  //"Database not specified or available")
 #define TSDB_CODE_MND_DB_ALREADY_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0381)  //"Database already exists")

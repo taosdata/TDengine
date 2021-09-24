@@ -1418,13 +1418,11 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
-    bool isRowDel = false;
     SMemRow row = tsdbNextIterRow(pCommitIter->pIter);
     if (row == NULL || memRowKey(row) > maxKey) {
       key2 = INT64_MAX;
     } else {
       key2 = memRowKey(row);
-      isRowDel = memRowDeleted(row);
     }
 
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
@@ -1439,36 +1437,33 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       pTarget->numOfRows++;
       (*iter)++;
     } else if (key1 > key2) {
-      if (!isRowDel) {
-        if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
-          ASSERT(pSchema != NULL);
-        }
-
-        tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
+      if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+        ASSERT(pSchema != NULL);
       }
+
+      tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
-      if (update) {
-        if (!isRowDel) {
-          if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-            pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
-            ASSERT(pSchema != NULL);
-          }
-
-          tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
-        }
-      } else {
-        ASSERT(!isRowDel);
-
+      if (update != TD_ROW_OVERWRITE_UPDATE) {
+        //copy disk data
         for (int i = 0; i < pDataCols->numOfCols; i++) {
           //TODO: dataColAppendVal may fail
           dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                            pTarget->maxPoints);
         }
 
-        pTarget->numOfRows++;
+        if(update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
+      }
+      if (update != TD_ROW_DISCARD_UPDATE) {
+        //copy mem data
+        if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+          ASSERT(pSchema != NULL);
+        }
+
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
       }
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);

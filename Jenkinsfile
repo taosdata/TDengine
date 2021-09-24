@@ -234,11 +234,29 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
+              node test1970.js
+	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+	      npm install td2.0-connector > /dev/null 2>&1
+              node nanosecondTest.js
+
               '''
+
+              sh '''
+              cd ${WKC}/src/connector/node-rest/
+              npm install
+              npm run build 
+              npm run build:test
+              npm run test
+
+              '''
+
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
                 mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo
+                echo '' |./taosdemo -c /etc/taos
+                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
+                mcs -out:nano *.cs > /dev/null 2>&1
+                echo '' |./nano
               '''
               sh '''
                 cd ${WKC}/tests/gotest
@@ -256,21 +274,19 @@ pipeline {
           
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                timeout(time: 60, unit: 'MINUTES'){
-                  sh '''
-                  cd ${WKC}/tests/pytest
-                  ./crash_gen.sh -a -p -t 4 -s 2000
-                  '''
-                }
+            timeout(time: 60, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests/pytest
+              ./crash_gen.sh -a -p -t 4 -s 2000
+              '''
             }
             timeout(time: 60, unit: 'MINUTES'){
-              // sh '''
-              // cd ${WKC}/tests/pytest
-              // rm -rf /var/lib/taos/*
-              // rm -rf /var/log/taos/*
-              // ./handle_crash_gen_val_log.sh
-              // '''
+              sh '''
+              cd ${WKC}/tests/pytest
+              rm -rf /var/lib/taos/*
+              rm -rf /var/log/taos/*
+              ./handle_crash_gen_val_log.sh
+              '''
               sh '''
               cd ${WKC}/tests/pytest
               rm -rf /var/lib/taos/*

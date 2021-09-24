@@ -586,6 +586,130 @@ public class TSDBPreparedStatementTest {
         Assert.assertEquals(numOfRows, rows);
     }
 
+    @Test
+    public void bindDataQueryTest() throws SQLException {
+        Statement stmt = conn.createStatement();
+
+        stmt.execute("drop table if exists weather_test");
+        stmt.execute("create table weather_test(ts timestamp, f1 nchar(10), f2 binary(10)) tags (t1 int, t2 binary(10))");
+
+        int numOfRows = 1;
+
+        TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags(?,?) (ts, f2) values(?, ?)");
+        s.setTableName("w2");
+        s.setTagInt(0, 1);
+        s.setTagString(1, "test");
+
+
+        ArrayList<Long> ts = new ArrayList<>();
+        for (int i = 0; i < numOfRows; i++) {
+            ts.add(System.currentTimeMillis() + i);
+        }
+        s.setTimestamp(0, ts);
+
+        ArrayList<String> s2 = new ArrayList<>();
+        for (int i = 0; i < numOfRows; i++) {
+            s2.add("test" + i % 4);
+        }
+        s.setString(1, s2, 10);
+
+        s.columnDataAddBatch();
+        s.columnDataExecuteBatch();
+        s.columnDataCloseBatch();
+
+        String sql = "select * from weather_test where t1 >= ? and t1 <= ?";
+        TSDBPreparedStatement s1 = (TSDBPreparedStatement) conn.prepareStatement(sql);
+        s1.setInt(1, 0);
+        s1.setInt(2, 10);
+
+        ResultSet rs = s1.executeQuery();
+        int rows = 0;
+        while (rs.next()) {
+            rows++;
+        }
+        Assert.assertEquals(numOfRows, rows);
+    }
+
+    @Test
+    public void setTagNullTest()throws SQLException {
+        Statement stmt = conn.createStatement();
+
+        stmt.execute("drop table if exists weather_test");
+        stmt.execute("create table weather_test(ts timestamp, c1 int) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 bool, t8 binary(10), t9 nchar(10))");
+
+        int numOfRows = 1;
+
+        TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags(?,?,?,?,?,?,?,?,?) values(?, ?)");
+        s.setTableName("w3");
+        s.setTagNull(0, TSDBConstants.TSDB_DATA_TYPE_TINYINT);
+        s.setTagNull(1, TSDBConstants.TSDB_DATA_TYPE_SMALLINT);
+        s.setTagNull(2, TSDBConstants.TSDB_DATA_TYPE_INT);
+        s.setTagNull(3, TSDBConstants.TSDB_DATA_TYPE_BIGINT);
+        s.setTagNull(4, TSDBConstants.TSDB_DATA_TYPE_FLOAT);
+        s.setTagNull(5, TSDBConstants.TSDB_DATA_TYPE_DOUBLE);
+        s.setTagNull(6, TSDBConstants.TSDB_DATA_TYPE_BOOL);
+        s.setTagNull(7, TSDBConstants.TSDB_DATA_TYPE_BINARY);
+        s.setTagNull(8, TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        
+        ArrayList<Long> ts = new ArrayList<>();
+        for (int i = 0; i < numOfRows; i++) {
+            ts.add(System.currentTimeMillis() + i);
+        }
+        s.setTimestamp(0, ts);
+
+        ArrayList<Integer> s2 = new ArrayList<>();
+        for (int i = 0; i < numOfRows; i++) {
+            s2.add(i);
+        }
+        s.setInt(1, s2);
+
+        s.columnDataAddBatch();
+        s.columnDataExecuteBatch();
+        s.columnDataCloseBatch();
+    }
+
+    private String stringGenerator(int length) {
+        String source = "abcdefghijklmnopqrstuvwxyz";
+        StringBuilder sb = new StringBuilder();
+        Random rand = new Random();
+        for(int i = 0; i < length; i++) {
+            sb.append(source.charAt(rand.nextInt(26)));
+        }
+        return sb.toString();
+    }
+
+    @Test(expected = SQLException.class)
+    public void setMaxTableNameTest()throws SQLException {
+        Statement stmt = conn.createStatement();
+
+        stmt.execute("drop table if exists weather_test");
+        stmt.execute("create table weather_test(ts timestamp, c1 int) tags (t1 int)");
+
+        TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags(?) values(?, ?)");
+        String tbname = stringGenerator(193);
+        s.setTableName(tbname);
+        s.setTagInt(0, 1);
+
+        int numOfRows = 1;
+
+        ArrayList<Long> ts = new ArrayList<>();
+        for (int i = 0; i < numOfRows; i++) {
+            ts.add(System.currentTimeMillis() + i);
+        }
+        s.setTimestamp(0, ts);
+
+        ArrayList<Integer> s2 = new ArrayList<>();
+        for (int i = 0; i < numOfRows; i++) {
+            s2.add(i);
+        }
+        s.setInt(1, s2);
+
+        s.columnDataAddBatch();
+        s.columnDataExecuteBatch();
+        s.columnDataCloseBatch();        
+    }
+
+    
     @Test(expected = SQLException.class)
     public void createTwoSameDbTest() throws SQLException {
         // when

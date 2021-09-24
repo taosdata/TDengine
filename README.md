@@ -7,6 +7,7 @@
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 English | [简体中文](./README-CN.md) 
+We are hiring, check [here](https://www.taosdata.com/en/careers/)
 
 # What is TDengine？
 
@@ -99,6 +100,12 @@ The connectors for go & grafana have been moved to separated repositories,
 so you should run this command in the TDengine directory to install them:
 ```bash
 git submodule update --init --recursive
+```
+
+You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
+```
+[url "git@github.com:"]
+    insteadOf = https://github.com/
 ```
 
 ## Build TDengine

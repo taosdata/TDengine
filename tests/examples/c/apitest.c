@@ -1,11 +1,14 @@
 // sample code to verify all TDengine API
 // to compile: gcc -o apitest apitest.c -ltaos
 
+#include "taoserror.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>
 #include <unistd.h>
+
 
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
@@ -1034,7 +1037,6 @@ int main(int argc, char *argv[]) {
   printf("************  verify schema-less  *************\n");
   verify_schema_less(taos);
 
-
   printf("************  verify query  *************\n");
   verify_query(taos);
 
@@ -1051,7 +1053,7 @@ int main(int argc, char *argv[]) {
   verify_prepare2(taos);
   printf("************ verify prepare3 *************\n");
   verify_prepare3(taos);
-  
+
   printf("************ verify stream  *************\n");
   verify_stream(taos);
   printf("done\n");
