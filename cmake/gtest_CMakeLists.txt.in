@@ -4,7 +4,7 @@ ExternalProject_Add(googletest
         GIT_REPOSITORY git@github.com:taosdata-contrib/googletest.git
         GIT_TAG release-1.11.0
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/googletest"
-        BINARY_DIR "${CMAKE_BINARY_DIR}/googletest-build"
+        BINARY_DIR ""
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""

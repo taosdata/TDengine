@@ -1,0 +1,13 @@
+
+# zlib
+ExternalProject_Add(zlib
+        GIT_REPOSITORY git@github.com:taosdata-contrib/zlib.git
+        GIT_TAG v1.2.11
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/zlib"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)
