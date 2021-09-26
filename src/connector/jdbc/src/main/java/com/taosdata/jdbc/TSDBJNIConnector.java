@@ -368,5 +368,44 @@ public class TSDBJNIConnector {
 
     private native int insertLinesImp(String[] lines, long conn);
 
+    /**
+     * insert openTSDB data with telnet api format
+     * e.g. sys.if.bytes.out      1479496100       1.3E3       host=web01       interface=eth0     ID=tablename_1
+     *
+     * @param lines data array
+     * @throws SQLException execute insert error
+     */
+    public void insertTelnetLines(String[] lines) throws SQLException {
+        int code = insertTelnetLinesImp(lines, lines.length, this.taos);
+        if (TSDBConstants.JNI_SUCCESS != code) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertTelnetLines");
+        }
+    }
 
+    private native int insertTelnetLinesImp(String[] lines, int numOfRows, long conn);
+
+    /**
+     * insert openTSDB data with json format
+     * e.g.,
+     * {
+     *     "metric": "sys.cpu.nice",
+     *     "timestamp": 1346846400,
+     *     "value": 18,
+     *     "tags": {
+     *        "host": "web01",
+     *        "dc": "lga"
+     *     }
+     * }
+     *
+     * @param payload json format string
+     * @throws SQLException execute insert error
+     */
+    public void insertJsonPayload(String payload) throws SQLException {
+        int code = insertJsonPayloadImp(payload, this.taos);
+        if (TSDBConstants.JNI_SUCCESS != code) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertJsonPayload");
+        }
+    }
+
+    private native int insertJsonPayloadImp(String payload, long conn);
 }
