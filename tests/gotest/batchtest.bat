@@ -9,7 +9,7 @@ if "%severIp%"=="" (set severIp=127.0.0.1)
 if "%serverPort%"=="" (set serverPort=6030)
 
 go env -w GO111MODULE=on
-go env -w GOPROXY=https://goproxy.io,direct
+go env -w GOPROXY=https://goproxy.cn,direct
 
 cd case001
 case001.bat %severIp% %serverPort%  

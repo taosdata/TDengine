@@ -233,6 +233,7 @@ totalPyFailed=0
 totalJDBCFailed=0
 totalUnitFailed=0
 totalExampleFailed=0
+totalApiFailed=0
 
 if [ "${OS}" == "Linux" ]; then
     corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
@@ -532,7 +533,28 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo "demo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
+  echo "### run setconfig tests ###"
+
+  stopTaosd
+
+  cd $tests_dir
+  echo "current dir: "
   
+  pwd
+  
+  cd script/api
+  echo "building setcfgtest"
+  make > /dev/null
+  ./clientcfgtest
+  if [ $? != "0" ]; then
+    echo "clientcfgtest failed"
+    totalExampleFailed=`expr $totalExampleFailed + 1`    
+  else
+    echo "clientcfgtest pass"
+    totalExamplePass=`expr $totalExamplePass + 1`
+  fi
+
+
   if [ "$totalExamplePass" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalExamplePass examples succeed! ### ${NC}"
   fi
@@ -544,7 +566,13 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
   if [ "${OS}" == "Linux" ]; then
     dohavecore 1
   fi
+
+  
+
+
+
 fi
+
 
 
 exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed + $totalExampleFailed))
