@@ -46,6 +46,7 @@ class TDTestCase:
         except Exception as result3:
             if result3 ==1:
                 tdLog.exit('the shell"taos -n fqdn" is wrong')
+                
 
     
     def stop(self):
