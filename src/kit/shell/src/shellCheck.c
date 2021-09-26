@@ -193,9 +193,11 @@ void shellCheck(TAOS *con, SShellArguments *_args) {
     return;
   }
 
-  fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, _args->threadNum);
-  shellRunCheckThreads(con, _args);
-
+  if (tbNum > 0) {
+    fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, _args->threadNum);
+    shellRunCheckThreads(con, _args);
+  }
+  
   int64_t end = taosGetTimestampMs();
   fprintf(stdout, "total %d tables checked, failed:%d, time spent %.2f seconds\n", checkedNum, errorNum,
           (end - start) / 1000.0);
