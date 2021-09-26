@@ -1536,11 +1536,11 @@ class TDTestCase:
         # self.td6068()
 
         # develop branch
-        # self.td4097()
-        # self.td4889()
+        self.td4097()
+        self.td4889()
         # self.td5168()
-        # self.td5798()
-        # self.td5433()
+        self.td5798()
+        self.td5433()
         self.td6108()
 
     def stop(self):
