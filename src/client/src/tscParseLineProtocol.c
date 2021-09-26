@@ -1917,7 +1917,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     if (*cur == '\\') {
       escapeSpecialCharacter(1, &cur);
     }
-    pSml->stableName[len] = *cur;
+    pSml->stableName[len] = tolower(*cur);
     cur++;
     len++;
   }
@@ -1981,6 +1981,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       }
       smlData->childTableName = malloc( pkv->length + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
+      strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
       smlData->childTableName[pkv->length] = '\0';
       free(pkv->key);
       free(pkv->value);

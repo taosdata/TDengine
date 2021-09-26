@@ -62,7 +62,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
     if (*cur == '.') {
       pSml->stableName[len] = '_';
     } else {
-      pSml->stableName[len] = *cur;
+      pSml->stableName[len] = tolower(*cur);
     }
 
     cur++;
@@ -283,6 +283,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       *childTableName = malloc(pkv->length + 1);
       memcpy(*childTableName, pkv->value, pkv->length);
       (*childTableName)[pkv->length] = '\0';
+      strntolower_s(*childTableName, *childTableName, (int32_t)pkv->length);
       tfree(pkv->key);
       tfree(pkv->value);
     } else {
@@ -469,6 +470,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
   }
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
+  strntolower_s(pSml->stableName, pSml->stableName, stableLen);
 
   return TSDB_CODE_SUCCESS;
 
@@ -847,6 +849,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     }
     *childTableName = tcalloc(idLen + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
+    strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
 
     //check duplicate IDs
     cJSON_DeleteItemFromObject(tags, "ID");
