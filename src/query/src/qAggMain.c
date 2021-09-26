@@ -2502,18 +2502,17 @@ static void tdigest_merge(SQLFunctionCtx *pCtx) {
   SAPercentileInfo *pInput = (SAPercentileInfo *)GET_INPUT_DATA_LIST(pCtx);
   assert(pInput->pTDigest);
   pInput->pTDigest = (TDigest*)((char*)pInput + sizeof(SAPercentileInfo));
-  pInput->pTDigest->centroids = (SCentroid*)((char*)pInput + sizeof(SAPercentileInfo) + sizeof(TDigest));
+  tdigestAutoFill(pInput->pTDigest, COMPRESSION);
 
   // input merge no elements , no need merge
-  if(pInput->pTDigest->num_centroids == 0) {
+  if(pInput->pTDigest->num_centroids == 0 && pInput->pTDigest->num_buffered_pts == 0) {
     return ;
   }
 
   SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
-  TDigest* pTDigest = pOutput->pTDigest;
-  if(pTDigest->num_centroids == 0) {
-    memcpy(pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
-    tdigestAutoFill(pTDigest, COMPRESSION);
+  if(pOutput->pTDigest->num_centroids == 0) {
+    memcpy(pOutput->pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
+    tdigestAutoFill(pOutput->pTDigest, COMPRESSION);
   } else {
     tdigestMerge(pOutput->pTDigest, pInput->pTDigest);
   }

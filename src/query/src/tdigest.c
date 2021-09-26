@@ -77,7 +77,7 @@ static void mergeCentroid(SMergeArgs *args, SCentroid *merge) {
 
     args->weight_so_far += merge->weight;
     k2 = INTEGRATED_LOCATION(args->t->size,
-            args->weight_so_far / (args->t->total_weight + merge->weight));
+            args->weight_so_far / args->t->total_weight);
     //idx++
     if(k2 - args->k1 > 1 && c->weight > 0) {
         if(args->idx + 1 < args->t->size
