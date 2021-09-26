@@ -1299,6 +1299,17 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 }
 #endif
 
+// update the function if the DFileSet definition updates
+static bool tsdbIsDFileSetValid(int nFiles) {
+  switch (nFiles) {
+    case TSDB_FILE_MIN:
+    case TSDB_FILE_MAX:
+      return true;
+    default:
+      return false;
+  }
+}
+
 #if 1
 static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   const TFILE *pf = NULL;
@@ -1359,13 +1370,13 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         ++nDFiles;
         pDFile->f = *pf;
         // (1) the array ends
-        if ((index == fArraySize - 1) && (nDFiles >= TSDB_FILE_MIN)) {
+        if ((index == fArraySize - 1) && tsdbIsDFileSetValid(nDFiles)) {
           tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
           isOneFSetFinish = true;
         }
       } else {
         // (2) encounter different fid
-        if (nDFiles >= TSDB_FILE_MIN) {
+        if (tsdbIsDFileSetValid(nDFiles)) {
           tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
           isOneFSetFinish = true;
         } else {
