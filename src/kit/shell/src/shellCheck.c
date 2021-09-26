@@ -111,6 +111,7 @@ static void *shellCheckThreadFp(void *arg) {
   int32_t start = pThread->threadIndex * interval;
   int32_t end = (pThread->threadIndex + 1) * interval;
 
+  if (start >= tbNum) return NULL;
   if (end > tbNum) end = tbNum + 1;
 
   char file[32] = {0};
