@@ -11,8 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-
-
 import taos
 import subprocess
 
