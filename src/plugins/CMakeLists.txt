@@ -23,7 +23,6 @@ endif()
 
 ADD_SUBDIRECTORY(monitor)
 
-
 IF (TD_BUILD_HTTP)
   MESSAGE("")
   MESSAGE("${Yellow} use original embedded httpd ${ColourReset}")
