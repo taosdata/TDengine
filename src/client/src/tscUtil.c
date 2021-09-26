@@ -5330,6 +5330,12 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json inner error", NULL);
       goto end;
     }
+    if(strlen(item->string) >= TSDB_COL_NAME_LEN){
+      tscError("json key too long error");
+      retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, exceed 64", NULL);
+      goto end;
+    }
+
     char tagVal[TSDB_MAX_TAGS_LEN] = {0};
     int32_t outLen = 0;
     if (JSON_TYPE_BINARY){

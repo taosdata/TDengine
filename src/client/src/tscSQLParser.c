@@ -4249,7 +4249,7 @@ static void exchangeExpr(tSqlExpr* pExpr) {
   tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
-  if (pRight->tokenId == TK_ID && (pLeft->tokenId == TK_INTEGER || pLeft->tokenId == TK_FLOAT ||
+  if ((pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW) && (pLeft->tokenId == TK_INTEGER || pLeft->tokenId == TK_FLOAT ||
                                     pLeft->tokenId == TK_STRING || pLeft->tokenId == TK_BOOL)) {
     /*
      * exchange value of the left handside and the value of the right-handside
@@ -4487,6 +4487,8 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg2 = "illegal column name";
   const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
+  const char* msg6 = "not support json tag column filter";
+  const char* msg7 = "tag json key is too long, exceed to 64";
 
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
@@ -4603,6 +4605,15 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && pLeft != NULL && (pLeft->tokenId == TK_ID)){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    }
+
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && pLeft != NULL && (pLeft->tokenId == TK_ARROW)){
+      if(pLeft->pRight && pLeft->pRight->value.nLen >= TSDB_COL_NAME_LEN)
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
+
     if (pRight != NULL && pRight->tokenId == TK_ID) {  // join on tag columns for stable query
       if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -4621,8 +4632,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       tSqlExpr *rexpr = NULL;
       if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY
                                          && pSchema->type != TSDB_DATA_TYPE_NCHAR
-                                         && pSchema->type != TSDB_DATA_TYPE_BOOL
-                                         && pSchema->type != TSDB_DATA_TYPE_JSON)) {
+                                         && pSchema->type != TSDB_DATA_TYPE_BOOL)) {
         handleNeOptr(&rexpr, *pExpr);
         *pExpr = rexpr;
       }

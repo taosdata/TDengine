@@ -3648,6 +3648,70 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   return pTableGroup;
 }
 
+//bool checkJsonKey(STable* pTable, tVariant* key){
+//  void* data = taosHashGet(pTable->jsonKeyMap, key->pz, key->nLen);
+//  if(data == NULL) return false;
+//  else return true;
+//}
+//
+//int32_t dealWithTree(STable* pTable, tExprNode* expr){
+//  STSchema* pTagSchema = tsdbGetTableTagSchema(pTable);
+//  if(pTagSchema->columns->type != TSDB_DATA_TYPE_JSON){
+//    return TSDB_CODE_SUCCESS;
+//  }
+//
+//  if (expr->nodeType != TSQL_NODE_EXPR) {
+//    tsdbError("invalid nodeType:%d", expr->nodeType);
+//    return TSDB_CODE_QRY_APP_ERROR;
+//  }
+//
+//  if (tree->_node.optr == TSDB_RELATION_AND) {
+//    leftGroup = taosArrayInit(4, sizeof(SFilterGroup));
+//    rightGroup = taosArrayInit(4, sizeof(SFilterGroup));
+//    ERR_JRET(filterTreeToGroup(tree->_node.pLeft, info, leftGroup));
+//    ERR_JRET(filterTreeToGroup(tree->_node.pRight, info, rightGroup));
+//
+//    ERR_JRET(filterDetachCnfGroups(group, leftGroup, rightGroup));
+//
+//    taosArrayDestroyEx(leftGroup, filterFreeGroup);
+//    taosArrayDestroyEx(rightGroup, filterFreeGroup);
+//
+//    return TSDB_CODE_SUCCESS;
+//  }
+//
+//  if (tree->_node.optr == TSDB_RELATION_OR) {
+//    ERR_RET(filterTreeToGroup(tree->_node.pLeft, info, group));
+//    ERR_RET(filterTreeToGroup(tree->_node.pRight, info, group));
+//
+//    return TSDB_CODE_SUCCESS;
+//  }
+//
+//  tExprNode* tLeft = expr->_node.pLeft;
+//
+//  tVariant* var = tree->_node.pRight->pVal;
+//  int32_t type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
+//  int32_t len = 0;
+//  uint16_t uidx = 0;
+//
+//
+//  assert(tLeft->nodeType == TSQL_NODE_EXPR);
+//
+//  if (tLeft->_node.optr == TSDB_RELATION_ARROW) {
+//    if(!checkJsonKey(pTable, tLeft->_node.pRight->pVal)){
+//      tsdbError("no key in json:%d", expr->nodeType);
+//      return TSDB_CODE_QRY_APP_ERROR;
+//    }
+//
+//    tExprTreeDestroy(tLeft, NULL);
+//
+//    expr->_node.pLeft = calloc(1, sizeof(tExprNode));
+//
+//    expr->_node.pLeft->nodeType = TSQL_NODE_COL;
+//    expr->_node.pLeft->pSchema = calloc(1, sizeof(SSchema));
+//  }
+//  return 0;
+//}
+
 int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len, 
                                  STableGroupInfo* pGroupInfo, SColIndex* pColIndex, int32_t numOfCols) {
   SArray* res = NULL;
@@ -3711,7 +3775,6 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   } END_TRY
 
   void *filterInfo = NULL;
-  
   ret = filterInitFromTree(expr, &filterInfo, 0);
   if (ret != TSDB_CODE_SUCCESS) {
     terrno = ret;
@@ -4001,18 +4064,51 @@ static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray*
   tSkipListDestroyIter(iter);
 }
 
+static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, void **data) {
+  JsonMapValue* jsonMapV = (JsonMapValue*)(param);
+  STable* pTable = (STable*)(jsonMapV->table);
+
+  if (id == TSDB_TBNAME_COLUMN_INDEX) {
+    *data = TABLE_NAME(pTable);
+  } else {
+    *data = tdGetKVRowValOfCol(pTable->tagVal, jsonMapV->colId + 1);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void queryByJsonTag(SArray* pTableList, void* filterInfo, SArray* res){
+  int32_t size = taosArrayGetSize(pTableList);
+  int8_t *addToResult = NULL;
+  for(int i = 0; i < size; i++){
+    JsonMapValue* data = taosArrayGet(pTableList, i);
+    filterSetColFieldData(filterInfo, data, tsdbGetJsonTagDataFromId);
+    bool all = filterExecute(filterInfo, 1, &addToResult, NULL, 0);
+
+    if (all || (addToResult && *addToResult)) {
+      STableKeyInfo info = {.pTable = (void*)(data->table), .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(res, &info);
+    }
+  }
+  tfree(addToResult);
+}
 
 static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo) {
   STSchema*   pTSSchema = pTable->tagSchema;
-  bool indexQuery = false;
-  SSkipList *pSkipList = pTable->pIndex;
-  
-  filterIsIndexedColumnQuery(filterInfo, pTSSchema->columns->colId, &indexQuery);
-  
-  if (indexQuery) {
-    queryIndexedColumn(pSkipList, filterInfo, pRes);
-  } else {
-    queryIndexlessColumn(pSkipList, filterInfo, pRes);
+
+  if(pTSSchema->columns->type == TSDB_DATA_TYPE_JSON){
+    queryByJsonTag(pTable, filterInfo, pRes);
+  }else{
+    bool indexQuery = false;
+    SSkipList *pSkipList = pTable->pIndex;
+
+    filterIsIndexedColumnQuery(filterInfo, pTSSchema->columns->colId, &indexQuery);
+
+    if (indexQuery) {
+      queryIndexedColumn(pSkipList, filterInfo, pRes);
+    } else {
+      queryIndexlessColumn(pSkipList, filterInfo, pRes);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

@@ -473,7 +473,9 @@ bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
          (pExpr->tokenId == TK_ID) ||
          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
          (pExpr->tokenId == TK_NULL) ||
-         (pExpr->tokenId == TK_SET));
+         (pExpr->tokenId == TK_SET) ||
+         (pExpr->tokenId == TK_ARROW)||
+         (pExpr->tokenId == TK_QUESTION));
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {

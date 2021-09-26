@@ -117,6 +117,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
     doExprTreeDestroy(&pNode, fp);
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy(pNode->pVal);
+    tfree(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     tfree(pNode->pSchema);
   }

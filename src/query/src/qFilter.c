@@ -42,7 +42,12 @@ static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const v
   const SSchema *sch1 = desc1;
   const SSchema *sch2 = desc2;
 
-  return sch1->colId != sch2->colId;
+  if(sch1->type == TSDB_DATA_TYPE_JSON && sch2->type == TSDB_DATA_TYPE_JSON){
+    return strcmp(sch1->name, sch2->name);
+  }
+  else{
+    return sch1->colId != sch2->colId;
+  }
 }
 
 static FORCE_INLINE int32_t filterFieldValDescCompare(const void *desc1, const void *desc2) {
@@ -849,21 +854,27 @@ static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilte
 
 int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldId *fid) {
   CHK_LRET(node == NULL, TSDB_CODE_QRY_APP_ERROR, "empty node");
-  CHK_RET(node->nodeType != TSQL_NODE_COL && node->nodeType != TSQL_NODE_VALUE, TSDB_CODE_QRY_APP_ERROR);
-  
+
   int32_t type;
   void *v;
-
-  if (node->nodeType == TSQL_NODE_COL) {
+  if(node->nodeType == TSQL_NODE_EXPR && node->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     type = FLD_TYPE_COLUMN;
+    assert(node->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
+    strncpy(node->_node.pLeft->pSchema->name, node->_node.pRight->pVal->pz, node->_node.pRight->pVal->nLen);
     v = node->pSchema;
     node->pSchema = NULL;
-  } else {
-    type = FLD_TYPE_VALUE;
-    v = node->pVal;
-    node->pVal = NULL;
+  }else{
+    CHK_RET(node->nodeType != TSQL_NODE_COL && node->nodeType != TSQL_NODE_VALUE, TSDB_CODE_QRY_APP_ERROR);
+    if (node->nodeType == TSQL_NODE_COL) {
+      type = FLD_TYPE_COLUMN;
+      v = node->pSchema;
+      node->pSchema = NULL;
+    } else {
+      type = FLD_TYPE_VALUE;
+      v = node->pVal;
+      node->pVal = NULL;
+    }
   }
-
   filterAddField(info, v, NULL, type, fid, 0, true);
   
   return TSDB_CODE_SUCCESS;
@@ -1531,7 +1542,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
           SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
           char *data = right->data;
-          if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_JSON) {
+          if (IS_VAR_DATA_TYPE(type) {
             tlen = varDataLen(data);
             data += VARSTR_HEADER_SIZE;
           }
@@ -1548,7 +1559,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
             SFilterField *right = FILTER_UNIT_RIGHT2_FIELD(info, unit);
             char *data = right->data;
-            if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_JSON) {
+            if (IS_VAR_DATA_TYPE(type)) {
               tlen = varDataLen(data);
               data += VARSTR_HEADER_SIZE;
             }
