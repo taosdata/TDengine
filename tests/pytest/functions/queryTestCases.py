@@ -1122,7 +1122,7 @@ class TDTestCase:
         tdSql.error("select ts as t, top(t1, 3) from t1 order by c3")
         pass
 
-    def apercentile_query_form(self, col="c1", p=0, com=',', algo=1, alias="", table_expr="t1", condition=""):
+    def apercentile_query_form(self, col="c1", p=0, com=',', algo="'t-digest'", alias="", table_expr="t1", condition=""):
 
         '''
         apercentile function:
@@ -1141,7 +1141,7 @@ class TDTestCase:
         else:
             return f"select apercentile({col}, {p}{com} {algo})  from {table_expr} {condition}"
 
-    def checkapert(self,col="c1", p=0, com=',', algo=1, alias="", table_expr="t1", condition="" ):
+    def checkapert(self,col="c1", p=0, com=',', algo='"t-digest"', alias="", table_expr="t1", condition="" ):
 
         tdSql.query(f"select count({col})  from {table_expr} {condition}")
         if tdSql.queryRows == 0:
@@ -1150,15 +1150,6 @@ class TDTestCase:
             ))
             tdSql.checkRows(0)
             return
-
-        # if 'stb' in table_expr or '(' in table_expr:
-        #     tdSql.query(f"select {col} from {table_expr} {condition}")
-        #     query_result = tdSql.queryResult
-        #     tdSql.query(self.apercentile_query_form(
-        #         col=col, p=p, com=com, algo=algo, alias=alias, table_expr=table_expr, condition=condition
-        #     ))
-        #     tdSql.checkDeviaRation(0, 0, np.percentile(query_result, p), p)
-        #     return
 
         tdSql.query(f"select {col} from {table_expr} {condition}")
         query_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
@@ -1170,9 +1161,9 @@ class TDTestCase:
             ))
 
             tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.001)
-            if algo == 1:
+            if algo == '"t-digest"':
                 tdSql.query(self.apercentile_query_form(
-                    col=col, p=pi, com=com, algo=0, alias=alias, table_expr=table_expr, condition=condition
+                    col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
                 ))
                 tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.001)
 
@@ -1226,12 +1217,12 @@ class TDTestCase:
         case11 = {'com':'', 'algo': ''}
         self.checkapert(**case11)
 
-        # case12~14: p/algorithm : bin/oct/hex
+        # case12~14: p: bin/oct/hex
         case12 = {'p': 0b1100100}
         self.checkapert(**case12)
-        case13 = {'algo':0o1}
+        case13 = {'algo':'"T-DIGEST"'}
         self.checkapert(**case13)
-        case14 = {'p':0x32, 'algo':0o0}
+        case14 = {'p':0x32, 'algo':'"DEFAULT"'}
         self.checkapert(**case14)
 
         # case15~21: mix with aggregate function
@@ -1261,7 +1252,7 @@ class TDTestCase:
         self.checkapert(**case25)
         case26 = {'alias':', percentile(c1, 0)'}
         self.checkapert(**case26)
-        case27 = {'alias':', apercentile(c1, 0, 0)'}
+        case27 = {'alias':', apercentile(c1, 0, "t-digest")'}
         self.checkapert(**case27)
 
         # case28: mix with computing function
@@ -1291,7 +1282,7 @@ class TDTestCase:
         case37 = {'col':'t1.c1','table_expr':'t1, t2 ','condition':'where t1.ts=t2.ts'}
         self.checkapert(**case37)
         case38 = {'col':'stb1.c1', 'table_expr':'stb1, stb2', 'condition':'where stb1.ts=stb2.ts and stb1.st1=stb2.st2'}
-        # self.checkapert(**case38)
+        self.checkapert(**case38)
 
         # case39: with group by
         tdSql.query('select min(c1) from stb1 group by tbname')
@@ -1299,65 +1290,65 @@ class TDTestCase:
         min_len = tdSql.queryRows
         tdSql.query('select max(c1) from stb1 group by tbname')
         max_result = tdSql.queryResult
-        tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname', p=0))
+        tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname', p=0))
         tdSql.checkRows(min_len)
         for i in range(min_len):
             tdSql.checkDeviaRation(i, 0, min_result[i][0])
 
-        # tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname', p=0))
-        # tdSql.checkRows(min_len)
-        # for i in range(min_len):
-        #     tdSql.checkDeviaRation(i, 0, min_result[i][0])
+        tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname', p=0))
+        tdSql.checkRows(min_len)
+        for i in range(min_len):
+            tdSql.checkDeviaRation(i, 0, min_result[i][0])
 
-        tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname', p=100))
+        tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname', p=100))
         tdSql.checkRows(min_len)
         for i in range(min_len):
             tdSql.checkDeviaRation(i, 0, max_result[i][0])
 
-        # tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname', p=100))
-        # tdSql.checkRows(min_len)
-        # for i in range(min_len):
-        #     tdSql.checkDeviaRation(i, 0, max_result[i][0])
+        tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname', p=100))
+        tdSql.checkRows(min_len)
+        for i in range(min_len):
+            tdSql.checkDeviaRation(i, 0, max_result[i][0])
 
         # case40: with slimit
         if min_len == 0:
             tdSql.query(
-                self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname slimit 1', p=0))
+                self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=0))
             tdSql.checkRows(0)
 
             tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=0))
             tdSql.checkRows(0)
 
-            tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname slimit 1', p=100))
+            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=100))
             tdSql.checkRows(0)
 
             tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
             tdSql.checkRows(0)
         else:
-            tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname slimit 1', p=0))
+            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=0))
             tdSql.checkRows(1)
             tdSql.checkDeviaRation(0, 0, min_result[0][0])
 
-            # tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=0))
-            # tdSql.checkRows(1)
-            # tdSql.checkDeviaRation(0, 0, min_result[0][0])
+            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=0))
+            tdSql.checkRows(1)
+            tdSql.checkDeviaRation(0, 0, min_result[0][0])
 
-            tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname slimit 1', p=100))
+            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=100))
             tdSql.checkRows(1)
             tdSql.checkDeviaRation(0, 0, max_result[0][0])
 
-            # tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
-            # tdSql.checkRows(1)
-            # tdSql.checkDeviaRation(0, 0, max_result[0][0])
+            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
+            tdSql.checkRows(1)
+            tdSql.checkDeviaRation(0, 0, max_result[0][0])
 
             # case41: with soffset
-            tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname slimit 1 soffset 1', p=0))
+            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1 soffset 1', p=0))
             tdSql.checkRows(1)
             tdSql.checkDeviaRation(0, 0, min_result[1][0])
 
-        # tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
-        # tdSql.checkRows(1)
-        # tdSql.checkDeviaRation(0, 0, max_result[1][0])
+            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
+            tdSql.checkRows(1)
+            tdSql.checkDeviaRation(0, 0, max_result[1][0])
 
         # case42: with order by
         case42 = {'table_expr':'stb1' ,'condition':'order by ts'}
@@ -1366,13 +1357,13 @@ class TDTestCase:
         self.checkapert(**case43)
 
         # case43: with limit offset
-        tdSql.query(self.apercentile_query_form(algo=0, table_expr='stb1', condition='group by tbname limit 1 ', p=0))
+        tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname limit 1 ', p=0))
         tdSql.checkRows(min_len)
         if min_len != 0:
             tdSql.checkDeviaRation(0, 0, min_result[1][0])
 
-        # tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname limit 1 offset 1', p=100))
-        # tdSql.checkRows(0)
+        tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname limit 1 offset 1', p=100))
+        tdSql.checkRows(0)
         pass
 
     def error_apercentile(self):
@@ -1386,29 +1377,27 @@ class TDTestCase:
         tdSql.error(self.apercentile_query_form(col="",com='',algo='')) # no col , no algorithm
         tdSql.error(self.apercentile_query_form(col=""))                # no col , algorithm
         tdSql.error(self.apercentile_query_form(p='',com='',algo=''))   # no p , no algorithm
-        # tdSql.error(self.apercentile_query_form(p=''))                  # no p , algorithm
-        # tdSql.error(self.apercentile_query_form(algo=''))               # no algorithm
+        tdSql.error(self.apercentile_query_form(p=''))                  # no p , algorithm
         tdSql.error("apercentile( c1, 100) from t1")                    # no select
         tdSql.error("select apercentile from t1")                       # no algorithm condition
         tdSql.error("select apercentile c1,0 from t1")                  # no brackets
-        # tdSql.error("select apercentile (c1,0) from t1")                # space betweem appercentile and left bracket
         tdSql.error("select apercentile (c1,0)  t1")                    # no from
         tdSql.error(self.apercentile_query_form(col='(c1,0)',p='',com='',algo=''))   # no p , no algorithm
         tdSql.error("select apercentile( (c1,0) )  from t1")            # no table_expr
         tdSql.error("select apercentile{ (c1,0) } from t1")             # sql form error 1
         tdSql.error("select apercentile[ (c1,0) ] from t1")             # sql form error 2
         tdSql.error("select [apercentile(c1,0) ] from t1")              # sql form error 3
-        # tdSql.error("select (apercentile(c1,0) ) from t1")              # sql form error 4
-        tdSql.error("select apercentile((c1, 0), 1)  from t1")          # sql form error 5
-        tdSql.error("select apercentile(c1, (0, 1))  from t1")          # sql form error 6
-        # tdSql.error("select apercentile(c1, (0), 1)  from t1")          # sql form error 7
-        tdSql.error("select apercentile([c1, 0], 0)  from t1")          # sql form error 8
-        tdSql.error("select apercentile(c1, [0, 0])  from t1")          # sql form error 9
-        tdSql.error("select apercentile(c1, {0, 0})  from t1")          # sql form error 10
+        tdSql.error("select apercentile((c1, 0), 'default')  from t1")          # sql form error 5
+        tdSql.error("select apercentile(c1, (0, 'default'))  from t1")          # sql form error 6
+        tdSql.error("select apercentile(c1, (0), 1)  from t1")          # sql form error 7
+        tdSql.error("select apercentile([c1, 0], 'default')  from t1")          # sql form error 8
+        tdSql.error("select apercentile(c1, [0, 'default'])  from t1")          # sql form error 9
+        tdSql.error("select apercentile(c1, {0, 'default'})  from t1")          # sql form error 10
         tdSql.error("select apercentile([c1, 0])  from t1")             # sql form error 11
         tdSql.error("select apercentile({c1, 0})  from t1")             # sql form error 12
         tdSql.error("select apercentile(c1)  from t1")                  # agrs: 1
-        tdSql.error("select apercentile(c1, 0, 0, 0)  from t1")         # agrs: 4
+        tdSql.error("select apercentile(c1, 0, 'default', 0)  from t1")         # agrs: 4
+        tdSql.error("select apercentile(c1, 0, 0, 'default')  from t1")         # agrs: 4
         tdSql.error("select apercentile()  from t1")                    # agrs: null 1
         tdSql.error("select apercentile  from t1")                      # agrs: null 2
         tdSql.error("select apercentile( , , )  from t1")               # agrs: null 3
@@ -1423,37 +1412,38 @@ class TDTestCase:
         tdSql.error(self.apercentile_query_form(col="c4"))              # col-type: binary
         tdSql.error(self.apercentile_query_form(col="c6"))              # col-type: bool
         tdSql.error(self.apercentile_query_form(col="c10"))             # col-type: nchar
-        # tdSql.error(self.apercentile_query_form(p=True))                # p:bool
+        tdSql.error(self.apercentile_query_form(p=True))                # p:bool
         tdSql.error(self.apercentile_query_form(p='a'))                 # p:str
-        # tdSql.error(self.apercentile_query_form(p=0x32))                # p:hex
-        # tdSql.error(self.apercentile_query_form(p=0b1100100))           # p:bin
-        # tdSql.error(self.apercentile_query_form(p=0o144))               # p:oct
         tdSql.error(self.apercentile_query_form(p='last(*)'))           # p:expr
         tdSql.error(self.apercentile_query_form(p="2021-08-01 00:00:00.000"))   # p:timestamp
-        # tdSql.error(self.apercentile_query_form(algo='"tdigest"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='t-digest'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t_digest"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest0"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest."'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest%"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest*"'))    # algorithm:str
         tdSql.error(self.apercentile_query_form(algo='tdigest'))        # algorithm:str
         tdSql.error(self.apercentile_query_form(algo=2.0))              # algorithm:float
-        # tdSql.error(self.apercentile_query_form(algo=1.9999))         # algorithm:float
-        # tdSql.error(self.apercentile_query_form(algo=-0.9999))        # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=1.9999))         # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=-0.9999))        # algorithm:float
         tdSql.error(self.apercentile_query_form(algo=-1.0))             # algorithm:float
-        # tdSql.error(self.apercentile_query_form(algo=0b1))            # algorithm:float
-        # tdSql.error(self.apercentile_query_form(algo=0x1))            # algorithm:float
-        # tdSql.error(self.apercentile_query_form(algo=0o1))            # algorithm:float
-        # tdSql.error(self.apercentile_query_form(algo=True))           # algorithm:bool
-        # tdSql.error(self.apercentile_query_form(algo="True"))         # algorithm:bool
+        tdSql.error(self.apercentile_query_form(algo=0b1))            # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=0x1))            # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=0o1))            # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=True))           # algorithm:bool
+        tdSql.error(self.apercentile_query_form(algo="True"))         # algorithm:bool
         tdSql.error(self.apercentile_query_form(algo='2021-08-01 00:00:00.000'))     # algorithm:timestamp
-        # tdSql.error(self.apercentile_query_form(algo=""))             # algorithm:""
         tdSql.error(self.apercentile_query_form(algo='last(c1)'))       # algorithm:expr
 
         # boundary test
         tdSql.error(self.apercentile_query_form(p=-1))                  # p left out of [0, 100]
-        # tdSql.error(self.apercentile_query_form(p=-9223372036854775809))    # p left out of bigint
+        tdSql.error(self.apercentile_query_form(p=-9223372036854775809))    # p left out of bigint
         tdSql.error(self.apercentile_query_form(p=100.1))               # p right out of [0, 100]
-        # tdSql.error(self.apercentile_query_form(p=18446744073709551616))    # p right out of unsigned-bigint
+        tdSql.error(self.apercentile_query_form(p=18446744073709551616))    # p right out of unsigned-bigint
         tdSql.error(self.apercentile_query_form(algo=-1))           # algorithm left out of [0, 1]
-        # tdSql.error(self.apercentile_query_form(algo=-9223372036854775809)) # algorithm left out of unsigned-bigint
+        tdSql.error(self.apercentile_query_form(algo=-9223372036854775809)) # algorithm left out of unsigned-bigint
         tdSql.error(self.apercentile_query_form(algo=2))            # algorithm right out of [0, 1]
-        # tdSql.error(self.apercentile_query_form(algo=18446744073709551616)) # algorithm right out of unsigned-bigint
+        tdSql.error(self.apercentile_query_form(algo=18446744073709551616)) # algorithm right out of unsigned-bigint
 
         # mix function test
         tdSql.error(self.apercentile_query_form(alias=', top(c1,1)'))   # mix with top function
@@ -1468,7 +1458,6 @@ class TDTestCase:
         tdSql.error(self.apercentile_query_form(alias='+ c1)'))     # mix with  four operation
 
     def apercentile_data(self, basetime):
-        # nowtime = int(round(time.time() * 1000))
         for i in range(10):
             for j in range(10):
                 tdSql.execute(

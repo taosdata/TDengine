@@ -184,7 +184,11 @@ class TDSql:
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
                 # suppose user want to check nanosecond timestamp if a longer data passed
-                if (len(data) >= 28):
+                if isinstance(data, int) or isinstance(data, float):
+                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
+                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
+                            (self.sql, row, col, self.queryResult[row][col], data))
+                elif (len(data) >= 28):
                     if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
                         tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
