@@ -1115,7 +1115,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   // Compress the data if neccessary
   int      tcol = 0;  // counter of not all NULL and written columns
   uint32_t toffset = 0;
-  int32_t  tsizeV0 = (int32_t)tsdbBlockStatisSize(nColsNotAllNull, TSDB_SBLK_VER_0);
   int32_t  tsize = (int32_t)tsdbBlockStatisSize(nColsNotAllNull, SBlockVerLatest);
   int32_t  lsize = tsize;
   int32_t  keyLen = 0;
@@ -1174,7 +1173,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
     toffset += flen;
     lsize += flen;
-    tsizeV0 += flen;
   }
 
   pBlockData->delimiter = TSDB_FILE_DELIMITER;

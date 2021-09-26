@@ -188,7 +188,6 @@ typedef struct {
   TFILE   f;
   int     fd;
   uint8_t state;
-
 } SDFile;
 
 void  tsdbInitDFile(SDFile* pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype);
