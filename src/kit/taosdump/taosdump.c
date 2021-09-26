@@ -38,8 +38,8 @@
 
 static int  converStringToReadable(char *str, int size, char *buf, int bufsize);
 static int  convertNCharToReadable(char *str, int size, char *buf, int bufsize);
-static void taosDumpCharset(FILE *fp);
-static void taosLoadFileCharset(FILE *fp, char *fcharset);
+static void dumpCharset(FILE *fp);
+static void loadFileCharset(FILE *fp, char *fcharset);
 
 typedef struct {
   short bytes;
@@ -159,7 +159,8 @@ typedef struct {
 } TableRecord;
 
 typedef struct {
-    bool isStable;
+    bool isStb;
+    bool belongStb;
     int64_t dumpNtbCount;
     TableRecord **dumpNtbInfos;
     TableRecord tableRecord;
@@ -329,18 +330,19 @@ static resultStatistics g_resultStatistics = {0};
 static FILE *g_fpOfResult = NULL;
 static int g_numOfCores = 1;
 
-static int taosDumpOut();
-static int taosDumpIn();
-static void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty,
+static int dumpOut();
+static int dumpIn();
+static void dumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty,
         FILE *fp);
-//static int taosDumpDb(SDbInfo *dbInfo, FILE *fp, TAOS *taos);
-static int dumpStable(char *table, FILE *fp, SDbInfo *dbInfo);
+//static int dumpDb(SDbInfo *dbInfo, FILE *fp, TAOS *taos);
+static int dumpStableClasuse(SDbInfo *dbInfo, char *table, FILE *fp);
 static int dumpCreateTableClause(STableDef *tableDes, int numOfCols,
         FILE *fp, char* dbName);
-static void taosDumpCreateMTableClause(STableDef *tableDes, char *stable,
+static void dumpCreateMTableClause(STableDef *tableDes, char *stable,
         int numOfCols, FILE *fp, char* dbName);
-static int64_t taosDumpTable(char *tbName, char *stable,
-        FILE *fp, char* dbName, int precision);
+static int getTableDes(
+        char* dbName, char *table,
+        STableDef *stableDes, bool isSuperTable);
 static int64_t dumpTableData(FILE *fp, char *tbName,
         char* dbName,
         int precision,
@@ -815,15 +817,20 @@ static int getTableRecordInfo(
 
     while ((row = taos_fetch_row(result)) != NULL) {
         isSet = true;
-        pTableRecordInfo->isStable = false;
+        pTableRecordInfo->isStb = false;
         tstrncpy(pTableRecordInfo->tableRecord.name,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 min(TSDB_TABLE_NAME_LEN,
                     fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes + 1));
-        tstrncpy(pTableRecordInfo->tableRecord.stable,
-                (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
-                min(TSDB_TABLE_NAME_LEN,
-                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes + 1));
+        if (strlen((char *)row[TSDB_SHOW_TABLES_METRIC_INDEX]) > 0) {
+            pTableRecordInfo->belongStb = true;
+            tstrncpy(pTableRecordInfo->tableRecord.stable,
+                    (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
+                    min(TSDB_TABLE_NAME_LEN,
+                        fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes + 1));
+        } else {
+            pTableRecordInfo->belongStb = false;
+        }
         break;
     }
 
@@ -848,7 +855,7 @@ static int getTableRecordInfo(
 
     while ((row = taos_fetch_row(result)) != NULL) {
         isSet = true;
-        pTableRecordInfo->isStable = true;
+        pTableRecordInfo->isStb = true;
         tstrncpy(pTableRecordInfo->tableRecord.stable, table,
                 TSDB_TABLE_NAME_LEN);
         break;
@@ -951,6 +958,98 @@ static int getDumpDbCount()
     return count;
 }
 
+static int convertSchemaToAvroSchema(STableDef *stableDes, char **avroSchema)
+{
+    errorPrint("%s() LN%d TODO: covert table schema to avro schema\n",
+            __func__, __LINE__);
+    return 0;
+}
+
+static int64_t dumpNormalTable(
+        char *dbName,
+        char *stable,
+        char *tbName,
+        int precision,
+        FILE *fp
+        ) {
+    int colCount = 0;
+
+    STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef)
+            + sizeof(SColDes) * TSDB_MAX_COLUMNS);
+
+    if (stable != NULL && stable[0] != '\0') {  // dump table schema which is created by using super table
+        colCount = getTableDes(dbName, tbName, tableDes, false);
+
+        if (colCount < 0) {
+            errorPrint("%s", "getTableDes() failed\n");
+            free(tableDes);
+            return -1;
+        }
+
+        // create child-table using super-table
+        dumpCreateMTableClause(tableDes, stable, colCount, fp, dbName);
+    } else {  // dump table definition
+        colCount = getTableDes(dbName, tbName, tableDes, false);
+
+        if (colCount < 0) {
+            free(tableDes);
+            return -1;
+        }
+
+        // create normal-table or super-table
+        dumpCreateTableClause(tableDes, colCount, fp, dbName);
+    }
+
+    char *jsonAvroSchema = NULL;
+    if (g_args.avro) {
+        convertSchemaToAvroSchema(tableDes, &jsonAvroSchema);
+    }
+
+    free(tableDes);
+
+    int64_t ret = 0;
+    if (!g_args.schemaonly) {
+        ret = dumpTableData(fp, tbName, dbName, precision,
+            jsonAvroSchema);
+    }
+
+    return ret;
+}
+
+static int64_t dumpNormalTableBelongStb(
+        SDbInfo *dbInfo, char *stbName, char *ntbName)
+{
+    int64_t count = 0;
+
+    char tmpBuf[4096] = {0};
+    FILE *fp = NULL;
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%s.sql",
+                g_args.outpath, dbInfo->name, ntbName);
+    } else {
+        sprintf(tmpBuf, "%s.%s.sql",
+                dbInfo->name, ntbName);
+    }
+
+    fp = fopen(tmpBuf, "w");
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return -1;
+    }
+
+    count = dumpNormalTable(
+            dbInfo->name,
+            stbName,
+            ntbName,
+            getPrecisionByString(dbInfo->precision),
+            fp);
+
+    fclose(fp);
+    return count;
+}
+
 static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
 {
     int64_t count = 0;
@@ -973,21 +1072,14 @@ static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
         return -1;
     }
 
-    count = taosDumpTable(ntbName, NULL,
-        fp, dbInfo->name, getPrecisionByString(dbInfo->precision));
+    count = dumpNormalTable(
+            dbInfo->name,
+            NULL,
+            ntbName,
+            getPrecisionByString(dbInfo->precision),
+            fp);
 
     fclose(fp);
-    return count;
-}
-
-static int64_t dumpNormalTable(FILE *fp, TAOS *taos, char *dbName, char *tbName,
-        char *stbName,
-        int precision)
-{
-    int64_t count = 0;
-    count = taosDumpTable(tbName, stbName,
-        fp, dbName, precision);
-
     return count;
 }
 
@@ -1021,12 +1113,12 @@ static void *dumpNtbOfDb(void *arg) {
         debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
                 pThreadInfo->threadIndex, i,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
-        dumpNormalTable(fp,
-                pThreadInfo->taos,
+        dumpNormalTable(
                 pThreadInfo->dbName,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
-                pThreadInfo->precision);
+                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
+                pThreadInfo->precision,
+                fp);
     }
 
     fclose(fp);
@@ -1080,12 +1172,12 @@ static void *dumpNormalTablesOfStb(void *arg) {
         debugPrint("[%d] sub table %"PRId64": name: %s\n",
                 pThreadInfo->threadIndex, i++, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
 
-        dumpNormalTable(fp,
-                pThreadInfo->taos,
+        dumpNormalTable(
                 pThreadInfo->dbName,
-                (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 pThreadInfo->stbName,
-                pThreadInfo->precision);
+                (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
+                pThreadInfo->precision,
+                fp);
     }
 
     fclose(fp);
@@ -1300,7 +1392,7 @@ static int64_t dumpCreateSTableClauseOfDb(
 
     int64_t superTblCnt = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
-        if (0 == dumpStable(row[TSDB_SHOW_TABLES_NAME_INDEX], fp, dbInfo)) {
+        if (0 == dumpStableClasuse(dbInfo, row[TSDB_SHOW_TABLES_NAME_INDEX], fp)) {
             superTblCnt ++;
         }
     }
@@ -1382,7 +1474,7 @@ static int64_t dumpNTablesOfDb(SDbInfo *dbInfo)
 
 static int64_t dumpWholeDatabase(SDbInfo *dbInfo, FILE *fp)
 {
-    taosDumpCreateDbClause(dbInfo, g_args.with_property, fp);
+    dumpCreateDbClause(dbInfo, g_args.with_property, fp);
 
     fprintf(g_fpOfResult, "\n#### database:                       %s\n",
             dbInfo->name);
@@ -1393,14 +1485,13 @@ static int64_t dumpWholeDatabase(SDbInfo *dbInfo, FILE *fp)
     return dumpNTablesOfDb(dbInfo);
 }
 
-static int taosDumpOut() {
+static int dumpOut() {
     TAOS     *taos       = NULL;
     TAOS_RES *result     = NULL;
 
     TAOS_ROW row;
     FILE *fp = NULL;
     int32_t count = 0;
-    TableRecordInfo tableRecordInfo;
 
     char tmpBuf[4096] = {0};
     if (g_args.outpath[0] != 0) {
@@ -1446,7 +1537,7 @@ static int taosDumpOut() {
     /* --------------------------------- Main Code -------------------------------- */
     /* if (g_args.databases || g_args.all_databases) { // dump part of databases or all databases */
     /*  */
-    taosDumpCharset(fp);
+    dumpCharset(fp);
 
     sprintf(command, "show databases");
     result = taos_query(taos, command);
@@ -1568,11 +1659,13 @@ static int taosDumpOut() {
                 g_totalDumpOutRows += records;
             }
         } else {
-            taosDumpCreateDbClause(g_dbInfos[0], g_args.with_property, fp);
+            dumpCreateDbClause(g_dbInfos[0], g_args.with_property, fp);
         }
 
         int superTblCnt = 0 ;
         for (int i = 1; g_args.arg_list[i]; i++) {
+            TableRecordInfo tableRecordInfo;
+
             if (getTableRecordInfo(g_dbInfos[0]->name,
                         g_args.arg_list[i],
                         &tableRecordInfo) < 0) {
@@ -1582,14 +1675,24 @@ static int taosDumpOut() {
             }
 
             int64_t records = 0;
-            if (tableRecordInfo.isStable) {  // dump all table of this stable
-                int ret = dumpStable(
+            if (tableRecordInfo.isStb) {  // dump all table of this stable
+                int ret = dumpStableClasuse(
+                        g_dbInfos[0],
                         tableRecordInfo.tableRecord.stable,
-                        fp, g_dbInfos[0]);
+                        fp);
                 if (ret >= 0) {
                     superTblCnt++;
                     records = dumpNtbOfStbByThreads(g_dbInfos[0], g_args.arg_list[i]);
                 }
+            } else if (tableRecordInfo.belongStb){
+                dumpStableClasuse(
+                        g_dbInfos[0],
+                        tableRecordInfo.tableRecord.stable,
+                        fp);
+                records = dumpNormalTableBelongStb(
+                        g_dbInfos[0],
+                        tableRecordInfo.tableRecord.stable,
+                        g_args.arg_list[i]);
             } else {
                 records = dumpNormalTableWithoutStb(g_dbInfos[0], g_args.arg_list[i]);
             }
@@ -1781,74 +1884,7 @@ static int getTableDes(
     return colCount;
 }
 
-static int convertSchemaToAvroSchema(STableDef *stableDes, char **avroSchema)
-{
-    errorPrint("%s() LN%d TODO: covert table schema to avro schema\n",
-            __func__, __LINE__);
-    return 0;
-}
-
-static int64_t taosDumpTable(
-        char *tbName, char *stable,
-        FILE *fp, char* dbName, int precision) {
-    int colCount = 0;
-
-    STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef)
-            + sizeof(SColDes) * TSDB_MAX_COLUMNS);
-
-    if (stable != NULL && stable[0] != '\0') {  // dump table schema which is created by using super table
-        /*
-           colCount = getTableDes(stable, tableDes, taos);
-
-           if (count < 0) {
-           free(tableDes);
-           return -1;
-           }
-
-           dumpCreateTableClause(tableDes, count, fp);
-
-           memset(tableDes, 0, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
-           */
-
-        colCount = getTableDes(dbName, tbName, tableDes, false);
-
-        if (colCount < 0) {
-            free(tableDes);
-            return -1;
-        }
-
-        // create child-table using super-table
-        taosDumpCreateMTableClause(tableDes, stable, colCount, fp, dbName);
-
-    } else {  // dump table definition
-        colCount = getTableDes(dbName, tbName, tableDes, false);
-
-        if (colCount < 0) {
-            free(tableDes);
-            return -1;
-        }
-
-        // create normal-table or super-table
-        dumpCreateTableClause(tableDes, colCount, fp, dbName);
-    }
-
-    char *jsonAvroSchema = NULL;
-    if (g_args.avro) {
-        convertSchemaToAvroSchema(tableDes, &jsonAvroSchema);
-    }
-
-    free(tableDes);
-
-    int64_t ret = 0;
-    if (!g_args.schemaonly) {
-        ret = dumpTableData(fp, tbName, dbName, precision,
-            jsonAvroSchema);
-    }
-
-    return ret;
-}
-
-static void taosDumpCreateDbClause(
+static void dumpCreateDbClause(
         SDbInfo *dbInfo, bool isDumpProperty, FILE *fp) {
     char sqlstr[TSDB_MAX_SQL_LEN] = {0};
 
@@ -1870,7 +1906,7 @@ static void taosDumpCreateDbClause(
     fprintf(fp, "%s\n\n", sqlstr);
 }
 
-static int dumpStable(char *stbName, FILE *fp, SDbInfo *dbInfo)
+static int dumpStableClasuse(SDbInfo *dbInfo, char *stbName, FILE *fp)
 {
     uint64_t sizeOfTableDes =
         (uint64_t)(sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
@@ -1949,7 +1985,7 @@ static int dumpCreateTableClause(STableDef *tableDes, int numOfCols,
     return fprintf(fp, "%s\n\n", sqlstr);
 }
 
-static void taosDumpCreateMTableClause(STableDef *tableDes, char *stable,
+static void dumpCreateMTableClause(STableDef *tableDes, char *stable,
         int numOfCols, FILE *fp, char* dbName) {
     int counter = 0;
     int count_temp = 0;
@@ -2386,7 +2422,7 @@ static int convertNCharToReadable(char *str, int size, char *buf, int bufsize) {
     return 0;
 }
 
-static void taosDumpCharset(FILE *fp) {
+static void dumpCharset(FILE *fp) {
     char charsetline[256];
 
     (void)fseek(fp, 0, SEEK_SET);
@@ -2394,7 +2430,7 @@ static void taosDumpCharset(FILE *fp) {
     (void)fwrite(charsetline, strlen(charsetline), 1, fp);
 }
 
-static void taosLoadFileCharset(FILE *fp, char *fcharset) {
+static void loadFileCharset(FILE *fp, char *fcharset) {
     char * line = NULL;
     size_t line_size = 0;
 
@@ -2526,7 +2562,7 @@ static void taosMallocDumpFiles()
     }
 }
 
-static void taosFreeDumpFiles()
+static void freeDumpFiles()
 {
     for (int i = 0; i < g_tsSqlFileNum; i++) {
         tfree(g_tsDumpInSqlFiles[i]);
@@ -2594,7 +2630,7 @@ static FILE* taosOpenDumpInFile(char *fptr) {
     return f;
 }
 
-static int taosDumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
+static int dumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
         char* encode, char* fileName) {
     int       read_len = 0;
     char *    cmd      = NULL;
@@ -2651,7 +2687,7 @@ static int taosDumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
     return 0;
 }
 
-static void* taosDumpInWorkThreadFp(void *arg)
+static void* dumpInWorkThreadFp(void *arg)
 {
     threadInfo *pThread = (threadInfo*)arg;
     setThreadName("dumpInWorkThrd");
@@ -2665,14 +2701,14 @@ static void* taosDumpInWorkThreadFp(void *arg)
             }
             fprintf(stderr, ", Success Open input file: %s\n",
                     SQLFileName);
-            taosDumpInOneFile(pThread->taos, fp, g_tsCharset, g_args.encode, SQLFileName);
+            dumpInOneFile(pThread->taos, fp, g_tsCharset, g_args.encode, SQLFileName);
         }
     }
 
     return NULL;
 }
 
-static void taosStartDumpInWorkThreads()
+static void startDumpInWorkThreads()
 {
     pthread_attr_t  thattr;
     threadInfo *pThread;
@@ -2704,7 +2740,7 @@ static void taosStartDumpInWorkThreads()
         pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
         if (pthread_create(&(pThread->threadID), &thattr,
-                    taosDumpInWorkThreadFp, (void*)pThread) != 0) {
+                    dumpInWorkThreadFp, (void*)pThread) != 0) {
             errorPrint("%s() LN%d, thread:%d failed to start\n",
                     __func__, __LINE__, pThread->threadIndex);
             exit(0);
@@ -2721,7 +2757,7 @@ static void taosStartDumpInWorkThreads()
     free(threadObj);
 }
 
-static int taosDumpIn() {
+static int dumpIn() {
     assert(g_args.isDumpIn);
 
     TAOS     *taos    = NULL;
@@ -2750,19 +2786,19 @@ static int taosDumpIn() {
         }
         fprintf(stderr, "Success Open input file: %s\n", g_tsDbSqlFile);
 
-        taosLoadFileCharset(fp, g_tsCharset);
+        loadFileCharset(fp, g_tsCharset);
 
-        taosDumpInOneFile(taos, fp, g_tsCharset, g_args.encode,
+        dumpInOneFile(taos, fp, g_tsCharset, g_args.encode,
                 g_tsDbSqlFile);
     }
 
     taos_close(taos);
 
     if (0 != tsSqlFileNumOfTbls) {
-        taosStartDumpInWorkThreads();
+        startDumpInWorkThreads();
     }
 
-    taosFreeDumpFiles();
+    freeDumpFiles();
     return 0;
 }
 
@@ -2883,7 +2919,7 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "# DumpIn start time:                   %d-%02d-%02d %02d:%02d:%02d\n",
                 tm.tm_year + 1900, tm.tm_mon + 1,
                 tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        if (taosDumpIn() < 0) {
+        if (dumpIn() < 0) {
             ret = -1;
         }
     } else {
@@ -2891,7 +2927,7 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "# DumpOut start time:                   %d-%02d-%02d %02d:%02d:%02d\n",
                 tm.tm_year + 1900, tm.tm_mon + 1,
                 tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        if (taosDumpOut() < 0) {
+        if (dumpOut() < 0) {
             ret = -1;
         } else {
             fprintf(g_fpOfResult, "\n============================== TOTAL STATISTICS ============================== \n");
