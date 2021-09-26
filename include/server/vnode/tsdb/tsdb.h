@@ -24,15 +24,31 @@ extern "C" {
 
 typedef struct STsdb STsdb;
 typedef struct {
+  int32_t id; // TODO: use a global definition
+  int32_t days;
+  int32_t keep;
+  int32_t keep1;
+  int32_t keep2;
+  int32_t minRows;
+  int32_t maxRows;
+  int8_t  precision;
+  int8_t  update;
 } STsdbCfg;
 
-int    tsdbInit(int nthreads);
-int    tsdbClear();
+// Module init and clear
+int tsdbInit();
+int tsdbClear();
+
+// Repository operations
 int    tsdbCreateRepo(int id);
 int    tsdbDropRepo(int id);
 STsdb *tsdbOpenRepo(STsdbCfg *pCfg);
 int    tsdbCloseRepo(STsdb *pTsdb);
 int    tsdbForceCloseRepo(STsdb *pTsdb);
+
+// Data commit
+int tsdbInsert(STsdb *pTsdb, SSubmitMsg *pMsg);
+int tsdbCommit(STsdb *pTsdb);
 
 #ifdef __cplusplus
 }
