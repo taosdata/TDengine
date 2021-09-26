@@ -563,22 +563,22 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
 }
 
 // ============== Operations on SDFileSet
-void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t nFiles) {
+void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t fsetVer) {
   pSet->fid = fid;
   pSet->state = 0;
-  pSet->nFiles = nFiles;
+  pSet->ver = fsetVer;
 
-  for (TSDB_FILE_T ftype = 0; ftype < nFiles; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
     tsdbInitDFile(pDFile, did, vid, fid, ver, ftype);
   }
 }
 
 void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
-  ASSERT(TSDB_FSET_NFILES_VALID(pOSet));
+  ASSERT_TSDB_FSET_NFILES_VALID(pOSet);
   pSet->fid = pOSet->fid;
-  pSet->nFiles = pOSet->nFiles;
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  pSet->ver = pOSet->ver;
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     tsdbInitDFileEx(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOSet, ftype));
   }
 }
@@ -587,8 +587,8 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
   tlen += taosEncodeFixedI32(buf, pSet->fid);
-  tlen += taosEncodeFixedU8(buf, pSet->nFiles);
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  tlen += taosEncodeFixedU8(buf, pSet->ver);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
 
@@ -603,11 +603,11 @@ void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet, uint32_t sfver) {
   pSet->fid = fid;
 
   if (sfver > TSDB_FS_VER_0) {
-    buf = taosDecodeFixedU8(buf, &(pSet->nFiles));
+    buf = taosDecodeFixedU8(buf, &(pSet->ver));
   }
 
-  ASSERT(TSDB_FSET_NFILES_VALID(pSet));
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  ASSERT_TSDB_FSET_NFILES_VALID(pSet);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype), sfver);
   }
   return buf;
@@ -617,8 +617,8 @@ int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
   tlen += taosEncodeFixedI32(buf, pSet->fid);
-  tlen += taosEncodeFixedU8(buf, pSet->nFiles);
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  tlen += taosEncodeFixedU8(buf, pSet->ver);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     tlen += tsdbEncodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
 
@@ -629,17 +629,17 @@ void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
   int32_t fid;
 
   buf = taosDecodeFixedI32(buf, &(fid));
-  buf = taosDecodeFixedU8(buf, &(pSet->nFiles));
+  buf = taosDecodeFixedU8(buf, &(pSet->ver));
   pSet->fid = fid;
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     buf = tsdbDecodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
   return buf;
 }
 
 int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
-  ASSERT(from == NULL || TSDB_FSET_NFILES_VALID(from));
-  for (TSDB_FILE_T ftype = 0; ftype < from->nFiles; ftype++) {
+  uint8_t nDFiles = (from == NULL) ? TSDB_FILE_MAX : tsdbGetNFiles(from);
+  for (TSDB_FILE_T ftype = 0; ftype < nDFiles; ftype++) {
     SDFile *pDFileFrom = (from) ? TSDB_DFILE_IN_SET(from, ftype) : NULL;
     SDFile *pDFileTo = (to) ? TSDB_DFILE_IN_SET(to, ftype) : NULL;
     if (tsdbApplyDFileChange(pDFileFrom, pDFileTo) < 0) {
@@ -651,7 +651,7 @@ int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
 }
 
 int tsdbCreateDFileSet(SDFileSet *pSet, bool updateHeader) {
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype), updateHeader, ftype) < 0) {
       tsdbCloseDFileSet(pSet);
       tsdbRemoveDFileSet(pSet);
@@ -663,7 +663,7 @@ int tsdbCreateDFileSet(SDFileSet *pSet, bool updateHeader) {
 }
 
 int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     if (tsdbUpdateDFileHeader(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       return -1;
     }
@@ -672,8 +672,8 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
 }
 
 int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
-  ASSERT(TSDB_FSET_NFILES_VALID(pSet));
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  ASSERT_TSDB_FSET_NFILES_VALID(pSet);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     if (tsdbScanAndTryFixDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       return -1;
     }

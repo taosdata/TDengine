@@ -139,7 +139,7 @@ int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
 
   if (did.level > TSDB_FSET_LEVEL(pSet)) {
     // Need to move the FSET to higher level
-    tsdbInitDFileSet(&nSet, did, REPO_ID(pRepo), pSet->fid, FS_TXN_VERSION(pfs), TSDB_FILE_MAX);
+    tsdbInitDFileSet(&nSet, did, REPO_ID(pRepo), pSet->fid, FS_TXN_VERSION(pfs), pSet->ver);
 
     if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
       tsdbError("vgId:%d failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
@@ -1562,7 +1562,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
   // Set and open commit FSET
   if (pSet == NULL || did.level > TSDB_FSET_LEVEL(pSet)) {
     // Create a new FSET to write data
-    tsdbInitDFileSet(pWSet, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_MAX);
+    tsdbInitDFileSet(pWSet, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_LATEST_FSET_VER);
 
     if (tsdbCreateDFileSet(pWSet, true) < 0) {
       tsdbError("vgId:%d failed to create FSET %d at level %d disk id %d since %s", REPO_ID(pRepo),
@@ -1583,8 +1583,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
     pCommith->wSet.fid = fid;
     pCommith->wSet.state = 0;
-    pCommith->wSet.nFiles = TSDB_FILE_MAX;
-  
+    pCommith->wSet.ver = TSDB_LATEST_FSET_VER;
+
     // TSDB_FILE_HEAD
     SDFile *pWHeadf = TSDB_COMMIT_HEAD_FILE(pCommith);
     tsdbInitDFile(pWHeadf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
@@ -1685,7 +1685,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     }
 
     // TSDB_FILE_SMAL
-    ASSERT(pWSet->nFiles >= TSDB_FILE_SMAL);
+    ASSERT(tsdbGetNFiles(pWSet) >= TSDB_FILE_SMAL);
     SDFile *pRSmalF = TSDB_READ_SMAL_FILE(&(pCommith->readh));
     SDFile *pWSmalF = TSDB_COMMIT_SMAL_FILE(pCommith);
     

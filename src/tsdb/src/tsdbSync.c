@@ -466,7 +466,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
           return -1;
         }
 
-        tsdbInitDFileSet(&fset, did, REPO_ID(pRepo), pSynch->pdf->fid, FS_TXN_VERSION(pfs), pSynch->pdf->nFiles);
+        tsdbInitDFileSet(&fset, did, REPO_ID(pRepo), pSynch->pdf->fid, FS_TXN_VERSION(pfs), pSynch->pdf->ver);
 
         // Create new FSET
         if (tsdbCreateDFileSet(&fset, false) < 0) {
@@ -474,7 +474,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
           return -1;
         }
 
-        for (TSDB_FILE_T ftype = 0; ftype < pSynch->pdf->nFiles; ftype++) {
+        for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSynch->pdf); ftype++) {
           SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);         // local file
           SDFile *pRDFile = TSDB_DFILE_IN_SET(pSynch->pdf, ftype);  // remote file
 
@@ -550,10 +550,10 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
 }
 
 static bool tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2) {
-  if (pSet1->nFiles != pSet2->nFiles) {
+  if (pSet1->ver != pSet2->ver) {
     return false;
   }
-  for (TSDB_FILE_T ftype = 0; ftype < pSet1->nFiles; ftype++) {
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet1); ftype++) {
     SDFile *pDFile1 = TSDB_DFILE_IN_SET(pSet1, ftype);
     SDFile *pDFile2 = TSDB_DFILE_IN_SET(pSet2, ftype);
 
@@ -595,7 +595,7 @@ static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
   if (toSend) {
     tsdbInfo("vgId:%d, fileset:%d will be sent", REPO_ID(pRepo), pSet->fid);
 
-    for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+    for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
       SDFile df = *TSDB_DFILE_IN_SET(pSet, ftype);
       
       if (tsdbOpenDFile(&df, O_RDONLY) < 0) {

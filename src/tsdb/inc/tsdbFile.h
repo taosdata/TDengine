@@ -37,7 +37,11 @@
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
-#define TSDB_FSET_NFILES_VALID(s) (((s)->nFiles >= TSDB_FILE_MIN) && ((s)->nFiles <= TSDB_FILE_MAX))
+#define ASSERT_TSDB_FSET_NFILES_VALID(s)                                    \
+  do {                                                                \
+    uint8_t nDFiles = tsdbGetNFiles(s);                               \
+    ASSERT((nDFiles >= TSDB_FILE_MIN) && (nDFiles <= TSDB_FILE_MAX)); \
+  } while (0)
 typedef enum {
   TSDB_FILE_HEAD = 0,
   TSDB_FILE_DATA,
@@ -297,9 +301,27 @@ static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
 typedef struct {
   int     fid;
   int     state;
-  uint8_t nFiles;
+  uint8_t ver;  // fset version
   SDFile  files[TSDB_FILE_MAX];
 } SDFileSet;
+
+typedef enum {
+  TSDB_FSET_VER_0,  // .head/.data/.last
+  TSDB_FSET_VER_1,  // .head/.data/.last/.smad/.smal
+} ETsdbFSetVer;
+
+#define TSDB_LATEST_FSET_VER TSDB_FSET_VER_1
+
+// get nDFiles in SDFileSet
+static FORCE_INLINE uint8_t tsdbGetNFiles(SDFileSet* pSet) {
+  switch (pSet->ver) {
+    case TSDB_FSET_VER_0:
+      return TSDB_FILE_MIN;
+    case TSDB_FSET_VER_1:
+    default:
+      return TSDB_FILE_MAX;
+  }
+}
 
 #define TSDB_FSET_FID(s) ((s)->fid)
 #define TSDB_DFILE_IN_SET(s, t) ((s)->files + (t))
@@ -311,20 +333,20 @@ typedef struct {
       TSDB_FILE_SET_CLOSED(TSDB_DFILE_IN_SET(s, ftype));                       \
     }                                                                          \
   } while (0);
-#define TSDB_FSET_SET_CLOSED(s)                                              \
-  do {                                                                       \
-    for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < (s)->nFiles; ftype++) { \
-      TSDB_FILE_SET_CLOSED(TSDB_DFILE_IN_SET(s, ftype));                     \
-    }                                                                        \
+#define TSDB_FSET_SET_CLOSED(s)                                                   \
+  do {                                                                            \
+    for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < tsdbGetNFiles(s); ftype++) { \
+      TSDB_FILE_SET_CLOSED(TSDB_DFILE_IN_SET(s, ftype));                          \
+    }                                                                             \
   } while (0);
-#define TSDB_FSET_FSYNC(s)                                                   \
-  do {                                                                       \
-    for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < (s)->nFiles; ftype++) { \
-      TSDB_FILE_FSYNC(TSDB_DFILE_IN_SET(s, ftype));                          \
-    }                                                                        \
+#define TSDB_FSET_FSYNC(s)                                                        \
+  do {                                                                            \
+    for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < tsdbGetNFiles(s); ftype++) { \
+      TSDB_FILE_FSYNC(TSDB_DFILE_IN_SET(s, ftype));                               \
+    }                                                                             \
   } while (0);
 
-void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t nFiles);
+void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t fsetVer);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet, uint32_t sfver);
@@ -336,15 +358,15 @@ int   tsdbUpdateDFileSetHeader(SDFileSet* pSet);
 int   tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet* pSet);
 
 static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet* pSet) {
-  ASSERT(pSet->nFiles <= TSDB_FILE_MAX);
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  ASSERT(tsdbGetNFiles(pSet) <= TSDB_FILE_MAX);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     tsdbCloseDFile(TSDB_DFILE_IN_SET(pSet, ftype));
   }
 }
 
 static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet* pSet, int flags) {
-  ASSERT(TSDB_FSET_NFILES_VALID(pSet));
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  ASSERT_TSDB_FSET_NFILES_VALID(pSet);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     if (tsdbOpenDFile(TSDB_DFILE_IN_SET(pSet, ftype), flags) < 0) {
       tsdbCloseDFileSet(pSet);
       return -1;
@@ -354,15 +376,15 @@ static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet* pSet, int flags) {
 }
 
 static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet* pSet) {
-  ASSERT(TSDB_FSET_NFILES_VALID(pSet));
-  for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+  ASSERT_TSDB_FSET_NFILES_VALID(pSet);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
   }
 }
 
 static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet* pSrc, SDFileSet* pDest) {
-  ASSERT(TSDB_FSET_NFILES_VALID(pSrc));
-  for (TSDB_FILE_T ftype = 0; ftype < pSrc->nFiles; ftype++) {
+  ASSERT_TSDB_FSET_NFILES_VALID(pSrc);
+  for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSrc); ftype++) {
     if (tsdbCopyDFile(TSDB_DFILE_IN_SET(pSrc, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
       tsdbRemoveDFileSet(pDest);
       return -1;

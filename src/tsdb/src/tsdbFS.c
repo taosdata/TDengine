@@ -93,7 +93,7 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
 static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, SFSHeader *pSFSHeader) {
   uint64_t  nset;
   SDFileSet dset;
-  dset.nFiles = TSDB_FILE_MIN;  // default value: .head/.data/.last
+  dset.ver = TSDB_FSET_VER_0;  // default value
 
   taosArrayClear(pArray);
 
@@ -986,7 +986,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
   SDFileSet *pSet;
 
   while ((pSet = tsdbFSIterNext(&fsiter))) {
-    for (TSDB_FILE_T ftype = 0; ftype < pSet->nFiles; ftype++) {
+    for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
       if (tfsIsSameFile(pf, TSDB_FILE_F(pDFile))) {
         return true;
@@ -1288,7 +1288,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
     }
 
     tsdbInfo("vgId:%d FSET %d is restored", REPO_ID(pRepo), fset.fid);
-    fset.nFiles = 3;
+    fset.ver = TSDB_LATEST_FSET_VER;
     taosArrayPush(pfs->cstatus->df, &fset);
   }
 
@@ -1323,6 +1323,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
   // Loop to recover each file set
   SDFileSet fset = {0};
+  uint8_t   nDFiles = 0;
   bool      isOneFSetFinish = true;
   int       lastFType = -1;
   // one fileset ends when (1) the array ends or (2) encounter different fid
@@ -1349,29 +1350,29 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
     if (index == 0) {
       memset(&fset, 0, sizeof(SDFileSet));
       TSDB_FSET_SET_INIT(&fset);
-      fset.nFiles = 1;
+      nDFiles = 1;
       fset.fid = tfid;
       pDFile->f = *pf;
       isOneFSetFinish = false;
     } else {
       if (fset.fid == tfid) {
-        ++fset.nFiles;
+        ++nDFiles;
         pDFile->f = *pf;
         // (1) the array ends
-        if ((index == fArraySize - 1) && (fset.nFiles >= TSDB_FILE_MIN)) {
-          tsdbInfo("vgId:%d DFileSet %d is fetched, nFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, fset.nFiles);
+        if ((index == fArraySize - 1) && (nDFiles >= TSDB_FILE_MIN)) {
+          tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
           isOneFSetFinish = true;
         }
       } else {
         // (2) encounter different fid
-        if (fset.nFiles >= TSDB_FILE_MIN) {
-          tsdbInfo("vgId:%d DFileSet %d is fetched, nFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, fset.nFiles);
+        if (nDFiles >= TSDB_FILE_MIN) {
+          tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
           isOneFSetFinish = true;
         } else {
           // next FSet
           memset(&fset, 0, sizeof(SDFileSet));
           TSDB_FSET_SET_INIT(&fset);
-          fset.nFiles = 1;
+          nDFiles = 1;
           fset.fid = tfid;
           pDFile->f = *pf;
           isOneFSetFinish = false;
@@ -1381,7 +1382,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
     }
 
     if (isOneFSetFinish) {
-      for (TSDB_FILE_T ftype = 0; ftype < fset.nFiles; ++ftype) {
+      for (TSDB_FILE_T ftype = 0; ftype < nDFiles; ++ftype) {
         SDFile * pDFile1 = TSDB_DFILE_IN_SET(&fset, ftype);
         if (tsdbOpenDFile(pDFile1, O_RDONLY) < 0) {
           tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile1),
@@ -1418,12 +1419,20 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         tsdbCloseDFile(pDFile1);
       }
       tsdbInfo("vgId:%d FSET %d is restored", REPO_ID(pRepo), fset.fid);
+
+      // TODO: update the logic when TSDB_FSET_VER definition update.
+      if (nDFiles == TSDB_FILE_MIN) {
+        fset.ver = TSDB_FSET_VER_0;
+      } else {
+        fset.ver = TSDB_LATEST_FSET_VER;
+      }
+
       taosArrayPush(pfs->cstatus->df, &fset);
 
       // next FSet
       memset(&fset, 0, sizeof(SDFileSet));
       TSDB_FSET_SET_INIT(&fset);
-      fset.nFiles = 1;
+      nDFiles = 1;
       fset.fid = tfid;
       pDFile->f = *pf;
       isOneFSetFinish = false;
@@ -1512,7 +1521,7 @@ static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired) {
       continue;
     }
 
-    for (TSDB_FILE_T ftype = 0; ftype < fset.nFiles; ftype++) {
+    for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(&fset); ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
 
       if ((tsdbLoadDFileHeader(pDFile, &info) < 0) || pDFile->info.size != info.size ||
