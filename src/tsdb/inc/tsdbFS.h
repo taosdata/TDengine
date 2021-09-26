@@ -23,7 +23,7 @@
  * // TODO update date and add release version.
  */
 typedef enum {
-  TSDB_FS_VER_0,
+  TSDB_FS_VER_0 = 0,
   TSDB_FS_VER_1,
 } ETsdbFsVer;
 

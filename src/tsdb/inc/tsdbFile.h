@@ -37,7 +37,7 @@
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
-#define ASSERT_TSDB_FSET_NFILES_VALID(s)                                    \
+#define ASSERT_TSDB_FSET_NFILES_VALID(s)                              \
   do {                                                                \
     uint8_t nDFiles = tsdbGetNFiles(s);                               \
     ASSERT((nDFiles >= TSDB_FILE_MIN) && (nDFiles <= TSDB_FILE_MAX)); \
@@ -306,8 +306,8 @@ typedef struct {
 } SDFileSet;
 
 typedef enum {
-  TSDB_FSET_VER_0,  // .head/.data/.last
-  TSDB_FSET_VER_1,  // .head/.data/.last/.smad/.smal
+  TSDB_FSET_VER_0 = 0,  // .head/.data/.last
+  TSDB_FSET_VER_1,      // .head/.data/.last/.smad/.smal
 } ETsdbFSetVer;
 
 #define TSDB_LATEST_FSET_VER TSDB_FSET_VER_1
