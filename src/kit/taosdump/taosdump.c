@@ -485,7 +485,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
 
             uint64_t port = atoi(arg);
-            if (port > 655325) {
+            if (port > 65535) {
                 errorWrongValue("taosdump", "-P or --port", arg);
                 exit(EXIT_FAILURE);
             }
