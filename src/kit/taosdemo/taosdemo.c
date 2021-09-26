@@ -10302,7 +10302,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         b = ntables % threads;
     }
 
-    if (g_args.iface == REST_IFACE) {
+    if (g_args.iface == REST_IFACE || 
+       ((stbInfo) && (stbInfo->iface == REST_IFACE)) ) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
             ERROR_EXIT("convert host to server address");
