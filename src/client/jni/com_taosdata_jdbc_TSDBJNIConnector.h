@@ -239,6 +239,22 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsImp
     (JNIEnv *, jobject, jlong, jstring, jint, jbyteArray, jbyteArray, jbyteArray, jbyteArray, jlong);
 
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    insertTelnetLinesImp
+ * Signature: ([Ljava/lang/String;J)I
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertTelnetLinesImp
+  (JNIEnv *, jobject, jobjectArray, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    insertJsonPayloadImp
+ * Signature: (Ljava/lang/String;J)I
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertJsonPayloadImp
+  (JNIEnv *, jobject, jstring, jlong);
+  
 #ifdef __cplusplus
 }
 #endif

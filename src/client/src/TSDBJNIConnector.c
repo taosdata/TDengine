@@ -98,6 +98,7 @@ jmethodID g_blockdataSetNumOfColsFp;
 #define JNI_SQL_NULL -5
 #define JNI_FETCH_END -6
 #define JNI_OUT_OF_MEMORY -7
+#define JNI_PARAMETER_NULL -8
 
 static void jniGetGlobalMethod(JNIEnv *env) {
   // make sure init function executed once
@@ -1078,6 +1079,70 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
   }
 
   tfree(c_lines);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
+
+    return JNI_TDENGINE_ERROR;
+  }
+  return code;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertTelnetLinesImp(JNIEnv *env, jobject jobj,
+                                                                               jobjectArray lines, jlong conn) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  int numLines = (*env)->GetArrayLength(env, lines);
+  char **c_lines = calloc(numLines, sizeof(char *));
+  if (c_lines == NULL) {
+    jniError("c_lines:%p, alloc memory failed", c_lines);
+    return JNI_OUT_OF_MEMORY;
+  }
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
+  }
+
+  int code = taos_insert_telnet_lines(taos, c_lines, numLines);
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
+  }
+
+  tfree(c_lines);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
+
+    return JNI_TDENGINE_ERROR;
+  }
+  return code;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertJsonPayloadImp(JNIEnv *env, jobject jobj, jstring jsonString, jlong conn){
+
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+  
+  char *payload = NULL;
+  if (jsonString != NULL) {
+    payload = (char *)(*env)->GetStringUTFChars(env, jsonString, NULL);
+  }
+  
+  if (payload == NULL) {
+    jniDebug("jobj:%p, invalid argument: opentsdb insert json is NULL", jobj);
+    return JNI_PARAMETER_NULL;
+  }
+  
+  int code = taos_insert_json_payload(taos, payload);
+
+  (*env)->ReleaseStringUTFChars(env, jsonString, payload);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
 

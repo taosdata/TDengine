@@ -376,13 +376,13 @@ public class TSDBJNIConnector {
      * @throws SQLException execute insert error
      */
     public void insertTelnetLines(String[] lines) throws SQLException {
-        int code = insertTelnetLinesImp(lines, lines.length, this.taos);
+        int code = insertTelnetLinesImp(lines, this.taos);
         if (TSDBConstants.JNI_SUCCESS != code) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertTelnetLines");
         }
     }
 
-    private native int insertTelnetLinesImp(String[] lines, int numOfRows, long conn);
+    private native int insertTelnetLinesImp(String[] lines, long conn);
 
     /**
      * insert openTSDB data with json format
