@@ -2184,6 +2184,27 @@ cleanup:
   return code;
 }
 
+/**
+ * taos_insert lines() parse and insert data points into database according to
+ * different protocol.
+ *
+ * @param $lines input array may contain multiple lines, each line indicates a data point.
+ *               If protocol=2 is used input array should contain single JSON
+ *               string(e.g. char *lines[] = {"$JSON_string"}). If need to insert
+ *               multiple data points in JSON format, should include them in $JSON_string
+ *               as a JSON array.
+ * @param $numLines indicates how many data points in $lines.
+ *                  If protocol = 2 is used this param will be ignored as $lines should
+ *                  contain single JSON string.
+ * @param $protocol indicates which protocol to use for parsing:
+ *                  0 - influxDB line protocol
+ *                  1 - OpenTSDB telnet line protocol
+ *                  2 - OpenTSDB JSON format protocol
+ * @return return zero for successful insertion. Otherwise return none-zero error code of
+ *         failure reason.
+ *
+ */
+
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines, int protocol) {
   int code;
   switch (protocol) {
