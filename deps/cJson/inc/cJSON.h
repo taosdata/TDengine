@@ -73,7 +73,7 @@ typedef struct cJSON
     char *string;
 
     //Keep the original string of number
-    char numberstring[22]; /* change this to 22 bytes to accommodate LLONG_MAX and LLONG_MINX*/
+    char numberstring[64];
 } cJSON;
 
 typedef struct cJSON_Hooks
