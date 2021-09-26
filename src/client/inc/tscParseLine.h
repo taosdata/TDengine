@@ -63,7 +63,7 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
 bool isValidInteger(char *str);
 bool isValidFloat(char *str);
 
-int32_t isValidChildTableName(const char *pTbName, int16_t len);
+int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* info);
 
 bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
                          uint16_t len, SSmlLinesInfo* info);
