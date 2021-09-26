@@ -623,14 +623,19 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
   //bigint
   if (strcasecmp(typeStr, "i64") == 0 ||
       strcasecmp(typeStr, "bigint") == 0) {
-    if (!IS_VALID_BIGINT(value->valueint)) {
-      tscError("OTD:0x%"PRIx64" JSON value(%"PRId64") cannot fit in type(bigint)", info->id, value->valueint);
-      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-    }
     pVal->type = TSDB_DATA_TYPE_BIGINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
-    *(int64_t *)(pVal->value) = (int64_t)(value->valueint);
+    /* cJSON conversion of legit BIGINT may overflow,
+     * use original string to do the conversion.
+     */
+    errno = 0;
+    int64_t val = (int64_t)strtoll(value->numberstring, NULL, 10);
+    if (errno == ERANGE || !IS_VALID_BIGINT(val)) {
+      tscError("OTD:0x%"PRIx64" JSON value(%s) cannot fit in type(bigint)", info->id, value->numberstring);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    *(int64_t *)(pVal->value) = val;
     return TSDB_CODE_SUCCESS;
   }
   //float
@@ -746,7 +751,16 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
         pVal->type = TSDB_DATA_TYPE_BIGINT;
         pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
         pVal->value = tcalloc(pVal->length, 1);
-        *(int64_t *)(pVal->value) = (int64_t)(root->valuedouble);
+        /* cJSON conversion of legit BIGINT may overflow,
+         * use original string to do the conversion.
+         */
+        errno = 0;
+        int64_t val = (int64_t)strtoll(root->numberstring, NULL, 10);
+        if (errno == ERANGE || !IS_VALID_BIGINT(val)) {
+          tscError("OTD:0x%"PRIx64" JSON value(%s) cannot fit in type(bigint)", info->id, root->numberstring);
+          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+        }
+        *(int64_t *)(pVal->value) = val;
       } else if (isValidFloat(root->numberstring)) {
         pVal->type = TSDB_DATA_TYPE_DOUBLE;
         pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
