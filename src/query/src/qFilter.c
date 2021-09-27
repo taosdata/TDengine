@@ -862,8 +862,8 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldI
     assert(node->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
     memset(node->_node.pLeft->pSchema->name, 0, TSDB_COL_NAME_LEN);
     strncpy(node->_node.pLeft->pSchema->name, node->_node.pRight->pVal->pz, node->_node.pRight->pVal->nLen);
-    v = node->pSchema;
-    node->pSchema = NULL;
+    v = node->_node.pLeft->pSchema;
+    node->_node.pLeft->pSchema = NULL;
   }else{
     CHK_RET(node->nodeType != TSQL_NODE_COL && node->nodeType != TSQL_NODE_VALUE, TSDB_CODE_QRY_APP_ERROR);
     if (node->nodeType == TSQL_NODE_COL) {

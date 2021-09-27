@@ -122,7 +122,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
     tfree(pNode->pSchema);
   }
 
-  free(pNode);
+  tfree(pNode);
 }
 
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
@@ -139,12 +139,12 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     }
   } else if ((*pExpr)->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy((*pExpr)->pVal);
-    free((*pExpr)->pVal);
+    tfree((*pExpr)->pVal);
   } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
-    free((*pExpr)->pSchema);
+    tfree((*pExpr)->pSchema);
   }
 
-  free(*pExpr);
+  tfree(*pExpr);
   *pExpr = NULL;
 }
 
