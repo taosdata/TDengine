@@ -73,7 +73,6 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON:
       if (bufSize < 0) {
         tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -5271,10 +5270,11 @@ char* parseTagDatatoJson(void *p){
     }else{  // json value
       char tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
       char* realData = POINTER_SHIFT(val, CHAR_BYTES);
-      if(*(char*)val == cJSON_String){
-        if (JSON_TYPE_BINARY){
+      char type = *(char*)val;
+      if(IS_VAR_DATA_TYPE(type)){
+        if (type == TSDB_DATA_TYPE_BINARY){
           strncpy(tagJsonValue, varDataVal(realData), varDataLen(realData));
-        } else if(JSON_TYPE_NCHAR) {
+        } else if(type == TSDB_DATA_TYPE_NCHAR) {
           int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
           if (length == 0) {
             tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
@@ -5288,7 +5288,7 @@ char* parseTagDatatoJson(void *p){
           goto end;
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
-      }else if(*(char*)val == cJSON_Number){
+      }else if(type == TSDB_DATA_TYPE_DOUBLE){
         double jsonVd = *(double*)(realData);
         cJSON* value = cJSON_CreateNumber(jsonVd);
         if (value == NULL)
@@ -5296,7 +5296,16 @@ char* parseTagDatatoJson(void *p){
           goto end;
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
-      }else{
+      }else if(type == TSDB_DATA_TYPE_BIGINT){
+        int64_t jsonVd = *(int64_t*)(realData);
+        cJSON* value = cJSON_CreateNumber(jsonVd);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }
+      else{
         tscError("unsupportted json value");
       }
     }
@@ -5355,7 +5364,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     memset(tagVal, 0, TSDB_MAX_TAGS_LEN);
     if(item->type == cJSON_String){     // add json value  format: type|data
       outLen = 0;
-      *tagVal = item->type;     // type
+      *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       if (JSON_TYPE_BINARY){
         strncpy(tagVal, item->valuestring, strlen(item->valuestring));
@@ -5372,7 +5381,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       varDataSetLen(tagData, outLen);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
     }else if(item->type == cJSON_Number){
-      *tagVal = item->type;    // type
+      *tagVal = jsonType2DbType(item->valuedouble, item->type);    // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       *((double *)tagData) = item->valuedouble;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal, true);
@@ -5386,3 +5395,46 @@ end:
   cJSON_Delete(root);
   return retCode;
 }
+
+int8_t jsonType2DbType(double data, int jsonType){
+  switch(jsonType){
+    case cJSON_Number:
+      if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
+    case cJSON_String:
+      if (JSON_TYPE_NCHAR) return TSDB_DATA_TYPE_NCHAR; else return TSDB_DATA_TYPE_BINARY;
+  }
+  return TSDB_DATA_TYPE_NULL;
+}
+
+void* getJsonTagValue(STable* pTable, char* key){
+  int32_t outLen = 0;
+  if(JSON_TYPE_NCHAR){
+    char tagKey[256] = {0};
+    if (!taosMbsToUcs4(key, strlen(key), tagKey, 256, &outLen)) {
+      tscError("json key to ucs4 error:%s|%s", strerror(errno), key);
+      return NULL;
+    }
+    key = tagKey;
+  }else{
+    outLen = strlen(key);
+  }
+  if(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE){
+    STable* superTable= pTable->pSuper;
+    SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, outLen);
+    if(data == NULL) return NULL;
+    JsonMapValue jmvalue = {pTable, 0};
+    JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+    if (p == NULL) return NULL;
+    int16_t valId = p->colId + 1;
+    return POINTER_SHIFT(kvRowValues(pTable->tagVal), valId);
+  }else if(TABLE_TYPE(pTable) == TSDB_SUPER_TABLE){
+    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
+    if(data == NULL) return NULL;
+    if(taosArrayGetSize(*data) == 0) return NULL;
+    JsonMapValue* p = taosArrayGet(*data, 0);
+    int16_t valId = p->colId + 1;
+    return POINTER_SHIFT(kvRowValues(((STable*)p->table)->tagVal), valId);
+  }
+  return NULL;
+}
+

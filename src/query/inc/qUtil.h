@@ -109,5 +109,4 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t* offset);
 
 int32_t initUdfInfo(SUdfInfo* pUdfInfo);
-
 #endif  // TDENGINE_QUERYUTIL_H

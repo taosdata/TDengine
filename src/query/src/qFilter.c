@@ -18,6 +18,7 @@
 #include "tcompare.h"
 #include "hash.h"
 #include "tscUtil.h"
+#include "tsdbMeta.h"
 
 OptrStr gOptrStr[] = {
   {TSDB_RELATION_INVALID,                  "invalid"},
@@ -3174,21 +3175,31 @@ int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_
 }
 
 // convert json type for next compare and so on
-void filterJsonTypeConvert(SFilterInfo* info) {
-  uint8_t type = 0;
-  if(JSON_TYPE_NCHAR){ type = TSDB_DATA_TYPE_NCHAR;} else {type = TSDB_DATA_TYPE_BINARY;}
-  for(int i = 0; i < info->unitNum; i++){
-    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON){
-      info->units[i].compare.type= type;
-    }
-  }
-
+int filterJsonTypeConvert(SFilterInfo* info) {
   for(int i = 0; i < info->fields[FLD_TYPE_COLUMN].num; i++) {
     SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
     if(schema->type == TSDB_DATA_TYPE_JSON){
+
+      void* data = getJsonTagValue(info->pTable, schema->name);
+      if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
+      int8_t type = *(char*)data;
+      assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON);
       schema->type = type;
     }
   }
+  for(int i = 0; i < info->unitNum; i++){
+    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON){
+      SFilterField *colLeft = FILTER_UNIT_LEFT_FIELD(info, &info->units[i]);
+      info->units[i].compare.type = FILTER_GET_COL_FIELD_TYPE(colLeft);
+
+      SFilterField *colRight = FILTER_UNIT_RIGHT_FIELD(info, &info->units[i]);
+      tVariant* var = colRight->desc;
+      if(!tVariantTypeMatch(var, info->units[i].compare.type))
+        return TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
@@ -3211,7 +3222,11 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
 
   code = filterTreeToGroup(tree, info, group);
   ERR_JRET(code);
-  filterJsonTypeConvert(info);
+
+  if(info->pTable){
+    code = filterJsonTypeConvert(info);
+    ERR_JRET(code);
+  }
 
   filterConvertGroupFromArray(info, group);
 

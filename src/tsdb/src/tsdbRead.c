@@ -26,6 +26,7 @@
 #include "tsdbint.h"
 #include "texpr.h"
 #include "qFilter.h"
+#include "tscUtil.h"
 
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
@@ -2685,7 +2686,7 @@ static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
       SArray* tallistOld = *pRecord;
       for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {
         void* p = taosArrayGet(tallistOld, i);
-        void* pFind = taosArraySearch(tablist, p, tscCompareJsonMapValue, TD_EQ);
+        void* pFind = taosArraySearch(tablist, p, tsdbCompareJsonMapValue, TD_EQ);
         if(pFind == NULL){
           taosArrayPush(tablist, p);
         }
@@ -3774,9 +3775,11 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
     // TODO: more error handling
   } END_TRY
 
-  void *filterInfo = NULL;
+  void *filterInfo = calloc(1, sizeof(SFilterInfo));
+  ((SFilterInfo*)filterInfo)->pTable = pTable;
   ret = filterInitFromTree(expr, &filterInfo, 0);
   if (ret != TSDB_CODE_SUCCESS) {
+    filterFreeInfo(filterInfo);
     terrno = ret;
     goto _error;
   }
@@ -3799,6 +3802,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   return ret;
 
   _error:
+
   taosArrayDestroy(res);
   return terrno;
 }
@@ -4064,30 +4068,6 @@ static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray*
   tSkipListDestroyIter(iter);
 }
 
-void* getJsonTagValue(STable* pTable, char* key){
-  assert(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE);
-  int32_t outLen = 0;
-  if(JSON_TYPE_NCHAR){
-    char tagKey[256] = {0};
-    if (!taosMbsToUcs4(key, strlen(key), tagKey, 256, &outLen)) {
-      tsdbError("json key to ucs4 error:%s|%s", strerror(errno), key);
-      return NULL;
-    }
-    key = tagKey;
-  }else{
-    outLen = strlen(key);
-  }
-  STable* superTable = pTable->pSuper;
-  SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, outLen);
-  if(data == NULL) return NULL;
-  JsonMapValue jmvalue = {pTable, 0};
-  JsonMapValue* p = taosArraySearch(*data, &jmvalue, tscCompareJsonMapValue, TD_EQ);
-  if (p == NULL) return NULL;
-  int16_t valId = p->colId + 1;
-  return POINTER_SHIFT(kvRowValues(pTable->tagVal), valId);
-}
-
-
 static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, char* name, void **data) {
   JsonMapValue* jsonMapV = (JsonMapValue*)(param);
   STable* pTable = (STable*)(jsonMapV->table);
@@ -4095,7 +4075,9 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
-    *data = getJsonTagValue(pTable, name);
+    void* jsonData = getJsonTagValue(pTable, name);
+    if (jsonData != NULL) jsonData += CHAR_BYTES;   // jump type
+    *data = jsonData;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4129,9 +4111,9 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     }else{
       for(int j = 0; j < taosArrayGetSize(*data); j++){
         void* element = taosArrayGet(*data, j);
-        void* p = taosArraySearch(tabList, element, tscCompareJsonMapValue, TD_EQ);
+        void* p = taosArraySearch(tabList, element, tsdbCompareJsonMapValue, TD_EQ);
         if (p == NULL) {
-          p = taosArraySearch(tabList, element, tscCompareJsonMapValue, TD_GE);
+          p = taosArraySearch(tabList, element, tsdbCompareJsonMapValue, TD_GE);
           if(p == NULL){
             taosArrayPush(tabList, tabList);
           }else{

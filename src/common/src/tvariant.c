@@ -22,7 +22,6 @@
 #include "ttype.h"
 #include "tutil.h"
 #include "tvariant.h"
-#include "tscUtil.h"
 
 #define SET_EXT_INFO(converted, res, minv, maxv, exti) do {                                                       \
                                                         if (converted == NULL || exti == NULL || *converted == false) { break; }  \
@@ -210,6 +209,36 @@ void tVariantDestroy(tVariant *pVar) {
 bool tVariantIsValid(tVariant *pVar) {
   assert(pVar != NULL);
   return isValidDataType(pVar->nType);
+}
+
+bool tVariantTypeMatch(tVariant *pVar, int8_t dbType){
+  switch (dbType) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      if(pVar->nType != TSDB_DATA_TYPE_BINARY && pVar->nType != TSDB_DATA_TYPE_NCHAR){
+        return false;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:{
+      if(pVar->nType == TSDB_DATA_TYPE_BINARY && pVar->nType == TSDB_DATA_TYPE_NCHAR){
+        return false;
+      }
+      break;
+    }
+  }
+  return true;
 }
 
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {

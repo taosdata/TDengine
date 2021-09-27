@@ -23,8 +23,8 @@
 #include "tlosertree.h"
 #include "queryLog.h"
 #include "tscompression.h"
-#include "tsdbMeta.h"
 #include "tscUtil.h"
+#include "cJSON.h"
 
 typedef struct SCompSupporter {
   STableQueryInfo **pTableQueryInfo;

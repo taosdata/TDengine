@@ -5110,7 +5110,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
     ret = exprTreeFromSqlExpr(pCmd, &p, p1, pQueryInfo, colList, NULL);
     //if (ret == TSDB_CODE_SUCCESS) {
-    //  ret = filterInitFromTree(p, &pQueryInfo->tagFilter, (int32_t)taosArrayGetSize(colList));
+    //  ret = filterInitFromTree(p, &pQueryInfo->tagFilter, (int32_t)taosArrayGetSize(colList), NULL);
     //}
     
     SBufferWriter bw = tbufInitWriter(NULL, false);

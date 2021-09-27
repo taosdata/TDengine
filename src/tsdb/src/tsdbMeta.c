@@ -1141,9 +1141,9 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         }
       }
       JsonMapValue jmvalue = {pTable, pColIdx->colId};
-      void* p = taosArraySearch(tablistNew, &jmvalue, tscCompareJsonMapValue, TD_EQ);
+      void* p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
-        p = taosArraySearch(tablistNew, &jmvalue, tscCompareJsonMapValue, TD_GE);
+        p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_GE);
         if(p == NULL){
           taosArrayPush(tablistNew, &jmvalue);
         }else{
@@ -1188,7 +1188,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
       }
 
       JsonMapValue jmvalue = {pTable, pColIdx->colId};
-      void* p = taosArraySearch(*tablist, &jmvalue, tscCompareJsonMapValue, TD_EQ);
+      void* p = taosArraySearch(*tablist, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
         tsdbError("json tag no tableid error,%d", j);
         continue;

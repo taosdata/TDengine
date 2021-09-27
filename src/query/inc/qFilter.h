@@ -245,7 +245,8 @@ typedef struct SFilterInfo {
   uint16_t          blkGroupNum;
   uint16_t         *blkUnits;
   int8_t           *blkUnitRes;
-  
+  void             *pTable;
+
   SFilterPCtx       pctx;
 } SFilterInfo;
 

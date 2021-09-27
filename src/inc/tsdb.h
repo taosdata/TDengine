@@ -418,6 +418,7 @@ int tsdbCompact(STsdbRepo *pRepo);
 // no problem return true
 bool tsdbNoProblem(STsdbRepo* pRepo);
 
+
 #ifdef __cplusplus
 }
 #endif
