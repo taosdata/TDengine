@@ -51,10 +51,11 @@ typedef struct {
 tkv_db_t *       tkvOpenDB(char *dir, tkv_db_option_t *);
 int              tkvCloseDB(tkv_db_t *);
 int              tkvPut(tkv_db_t *, tkv_obj_t *);
-int              tkvPutBatch(tkv_db_t *, tkv_obj_t **, int);
+int              tkvPutBatch(tkv_db_t *, tkv_obj_t **, int);  // TODO: use array here
 const tkv_obj_t *tkvGet(tkv_key_t *);
-int              tkvGetBatch(tkv_db_t *, tkv_key_t **, int, tkv_obj_t **);
+int              tkvGetBatch(tkv_db_t *, tkv_key_t **, int, tkv_obj_t **);  // TODO: use array here
 int              tkvDrop(tkv_db_t *, tkv_key_t *);
+int              tkvDropBatch(tkv_db_t *, tkv_key_t **, int);  // TODO: use array here
 int              tkvCommit(tkv_db_t *, void * /*TODO*/);
 
 typedef struct {
