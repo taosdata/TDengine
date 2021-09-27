@@ -5427,14 +5427,14 @@ void* getJsonTagValue(STable* pTable, char* key){
     JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
     if (p == NULL) return NULL;
     int16_t colId = p->colId + 1;
-    return tdGetKVRowValOfCol(pTable, colId);
+    return tdGetKVRowValOfCol(pTable->tagVal, colId);
   }else if(TABLE_TYPE(pTable) == TSDB_SUPER_TABLE){
     SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
     if(data == NULL) return NULL;
     if(taosArrayGetSize(*data) == 0) return NULL;
     JsonMapValue* p = taosArrayGet(*data, 0);
     int16_t colId = p->colId + 1;
-    return tdGetKVRowValOfCol((STable*)(p->table), colId);
+    return tdGetKVRowValOfCol(((STable*)(p->table))->tagVal, colId);
   }
   return NULL;
 }
