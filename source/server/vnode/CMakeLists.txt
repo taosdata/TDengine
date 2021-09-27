@@ -14,6 +14,7 @@ target_link_libraries(
     PUBLIC meta
     PUBLIC tq
     PUBLIC tsdb
-    PRIVATE os
-    PRIVATE common
+    PUBLIC os
+    PUBLIC common
+    PUBLIC util
 )

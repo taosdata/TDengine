@@ -20,14 +20,14 @@ int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
 
 #if 1
   void *pMem = NULL;
-  if ((pMem = aMalloc(pVnode->allocator, REQ_SIZE(pReq))) == NULL) {
+  if ((pMem = amalloc(pVnode->allocator, REQ_SIZE(pReq))) == NULL) {
     // No more memory to allocate, schedule an async commit
     // and continue
     vnodeAsyncCommit(pVnode);
 
     // Reset allocator and allocat more
     vnodeResetAllocator(pVnode);
-    pMem = aMalloc(pVnode->allocator, REQ_SIZE(pReq));
+    pMem = amalloc(pVnode->allocator, REQ_SIZE(pReq));
     if (pMem == NULL) {
       // TODO: handle the error
     }
@@ -43,7 +43,7 @@ int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
   SSubmitReqReader reader;
   taosInitSubmitReqReader(&reader, (SSubmitReq *)pMem);
 
-  if (tsdbInsertData((SSubmitReq *)pMem) < 0) {
+  if (tsdbInsert(pVnode->pTsdb, (SSubmitReq *)pMem) < 0) {
     // TODO: handler error
   }
 

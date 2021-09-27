@@ -71,7 +71,7 @@ typedef void (*_ref_fn_t)(const void* pObj);
 
 
 // single writer multiple reader lock
-typedef int32_t SRWLatch;
+typedef volatile int32_t SRWLatch;
 
 void taosInitRWLatch(SRWLatch *pLatch);
 void taosWLockLatch(SRWLatch *pLatch);

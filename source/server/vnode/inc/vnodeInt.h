@@ -16,6 +16,7 @@
 #ifndef _TD_VNODE_INT_H_
 #define _TD_VNODE_INT_H_
 
+#include "amalloc.h"
 #include "tq.h"
 #include "tsdb.h"
 #include "meta.h"
@@ -25,10 +26,10 @@ extern "C" {
 #endif
 
 typedef struct SVnode {
-  SMeta *pMeta;
-  STsdb *pTsdb;
-  STQ *  pTQ;
-  void * allocator; // TODO
+  SMeta *        pMeta;
+  STsdb *        pTsdb;
+  STQ *          pTQ;
+  SMemAllocator *allocator;
 } SVnode;
 
 #ifdef __cplusplus
