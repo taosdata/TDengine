@@ -4064,33 +4064,90 @@ static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray*
   tSkipListDestroyIter(iter);
 }
 
-static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, void **data) {
+void* getJsonTagValue(STable* pTable, char* key){
+  assert(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE);
+  int32_t outLen = 0;
+  if(JSON_TYPE_NCHAR){
+    char tagKey[256] = {0};
+    if (!taosMbsToUcs4(key, strlen(key), tagKey, 256, &outLen)) {
+      tsdbError("json key to ucs4 error:%s|%s", strerror(errno), key);
+      return NULL;
+    }
+    key = tagKey;
+  }else{
+    outLen = strlen(key);
+  }
+  STable* superTable = pTable->pSuper;
+  SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, outLen);
+  if(data == NULL) return NULL;
+  JsonMapValue jmvalue = {pTable, 0};
+  JsonMapValue* p = taosArraySearch(*data, &jmvalue, tscCompareJsonMapValue, TD_EQ);
+  if (p == NULL) return NULL;
+  int16_t valId = p->colId + 1;
+  return POINTER_SHIFT(kvRowValues(pTable->tagVal), valId);
+}
+
+
+static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, char* name, void **data) {
   JsonMapValue* jsonMapV = (JsonMapValue*)(param);
   STable* pTable = (STable*)(jsonMapV->table);
 
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
-    *data = tdGetKVRowValOfCol(pTable->tagVal, jsonMapV->colId + 1);
+    *data = getJsonTagValue(pTable, name);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-static void queryByJsonTag(SArray* pTableList, void* filterInfo, SArray* res){
-  int32_t size = taosArrayGetSize(pTableList);
+static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
+  // get all table in fields, and dumplicate it
+  SArray* tabList = NULL;
+  SFilterInfo* info = (SFilterInfo*)filterInfo;
+  for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
+    SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
+    SSchema*      sch = fi->desc;
+    if (sch-> colId == TSDB_TBNAME_COLUMN_INDEX) continue;
+    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, sch->name, strlen(sch->name));
+    if(data == NULL) continue;
+    if(tabList == NULL) {
+      tabList = taosArrayDup(*data);
+    }else{
+      for(int j = 0; j < taosArrayGetSize(*data); j++){
+        void* element = taosArrayGet(*data, j);
+        void* p = taosArraySearch(tabList, element, tscCompareJsonMapValue, TD_EQ);
+        if (p == NULL) {
+          p = taosArraySearch(tabList, element, tscCompareJsonMapValue, TD_GE);
+          if(p == NULL){
+            taosArrayPush(tabList, tabList);
+          }else{
+            taosArrayInsert(tabList, TARRAY_ELEM_IDX(tabList, p), tabList);
+          }
+        }
+      }
+    }
+  }
+  if(tabList == NULL || taosArrayGetSize(tabList) == 0){
+    tsdbError("json key not exist");
+    terrno = TSDB_CODE_TDB_NO_JSON_TAG_KEY;
+    taosArrayDestroy(tabList);
+    return;
+  }
+  int32_t size = taosArrayGetSize(tabList);
   int8_t *addToResult = NULL;
   for(int i = 0; i < size; i++){
-    JsonMapValue* data = taosArrayGet(pTableList, i);
-    filterSetColFieldData(filterInfo, data, tsdbGetJsonTagDataFromId);
+    JsonMapValue* data = taosArrayGet(tabList, i);
+    filterSetJsonColFieldData(filterInfo, data, tsdbGetJsonTagDataFromId);
     bool all = filterExecute(filterInfo, 1, &addToResult, NULL, 0);
 
     if (all || (addToResult && *addToResult)) {
-      STableKeyInfo info = {.pTable = (void*)(data->table), .lastKey = TSKEY_INITIAL_VAL};
-      taosArrayPush(res, &info);
+      STableKeyInfo kInfo = {.pTable = (void*)(data->table), .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(res, &kInfo);
     }
   }
   tfree(addToResult);
+  taosArrayDestroy(tabList);
 }
 
 static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo) {

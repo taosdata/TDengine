@@ -113,6 +113,7 @@ typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const v
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SDataStatis *, int16_t);
 typedef int32_t (*filer_get_col_from_id)(void *, int32_t, void **);
+typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char*, void **);
 
 typedef struct SFilterRangeCompare {
   int64_t s;
@@ -333,6 +334,7 @@ typedef struct SFilterInfo {
 extern int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols);
 extern int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp);
+extern int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_from_name fp);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);

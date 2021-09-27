@@ -1542,7 +1542,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
           SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
           char *data = right->data;
-          if (IS_VAR_DATA_TYPE(type) {
+          if (IS_VAR_DATA_TYPE(type)) {
             tlen = varDataLen(data);
             data += VARSTR_HEADER_SIZE;
           }
@@ -3152,6 +3152,43 @@ int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_from_name fp) {
+  CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "info NULL");
+  CHK_LRET(info->fields[FLD_TYPE_COLUMN].num <= 0, TSDB_CODE_QRY_APP_ERROR, "no column fileds");
+
+  if (FILTER_ALL_RES(info) || FILTER_EMPTY_RES(info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
+    SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
+    SSchema* sch = fi->desc;
+
+    (*fp)(param, sch->colId, sch->name, &fi->data);
+  }
+
+  filterUpdateComUnits(info);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// convert json type for next compare and so on
+void filterJsonTypeConvert(SFilterInfo* info) {
+  uint8_t type = 0;
+  if(JSON_TYPE_NCHAR){ type = TSDB_DATA_TYPE_NCHAR;} else {type = TSDB_DATA_TYPE_BINARY;}
+  for(int i = 0; i < info->unitNum; i++){
+    if(info->units[info->unitNum].compare.type == TSDB_DATA_TYPE_JSON){
+      info->units[info->unitNum].compare.type= type;
+    }
+  }
+
+  for(int i = 0; i < info->fields[FLD_TYPE_COLUMN].num; i++) {
+    SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
+    if(schema->type == TSDB_DATA_TYPE_JSON){
+      schema->type = type;
+    }
+  }
+}
 
 int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3172,8 +3209,8 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   filterInitUnitsFields(info);
 
   code = filterTreeToGroup(tree, info, group);
-
   ERR_JRET(code);
+  filterJsonTypeConvert(info);
 
   filterConvertGroupFromArray(info, group);
 

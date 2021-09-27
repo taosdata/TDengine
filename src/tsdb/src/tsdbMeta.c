@@ -1127,12 +1127,30 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
       }else{
         tablistNew = *tablist;
       }
+
+      if(taosArrayGetSize(tablistNew) > 0){
+        // validate type
+        JsonMapValue* tmp = taosArrayGet(tablistNew, 0);
+        void* data1 = tdGetKVRowValOfCol(((STable *)(tmp->table))->tagVal, tmp->colId + 1);
+        SColIdx * pInsertColIdx = kvRowColIdxAt(pTable->tagVal, j + 1);
+        void* data2 = (kvRowColVal(pTable->tagVal, pInsertColIdx));
+        if(*(char*)data1 != *(char*)data2){
+          terrno = TSDB_CODE_TDB_IVLD_SAME_JSON_VALUE;
+          tsdbError("invalidate same json tag value");
+          return -1;
+        }
+      }
       JsonMapValue jmvalue = {pTable, pColIdx->colId};
       void* p = taosArraySearch(tablistNew, &jmvalue, tscCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
-        taosArrayPush(tablistNew, &jmvalue);
+        p = taosArraySearch(tablistNew, &jmvalue, tscCompareJsonMapValue, TD_GE);
+        if(p == NULL){
+          taosArrayPush(tablistNew, &jmvalue);
+        }else{
+          taosArrayInsert(tablistNew, TARRAY_ELEM_IDX(tablistNew, p), &jmvalue);
+        }
       }else{
-        taosArrayInsert(tablistNew, TARRAY_ELEM_IDX(tablistNew, p), &jmvalue);
+        tsdbError("insert dumplicate");
       }
     }
   }else{
