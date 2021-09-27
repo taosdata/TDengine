@@ -4109,7 +4109,20 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema*      sch = fi->desc;
     if (sch-> colId == TSDB_TBNAME_COLUMN_INDEX) continue;
-    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, sch->name, strlen(sch->name));
+    int32_t outLen = 0;
+    char* key = NULL;
+    if(JSON_TYPE_NCHAR){
+      char tagKey[256] = {0};
+      if (!taosMbsToUcs4(sch->name, strlen(sch->name), tagKey, 256, &outLen)) {
+        tsdbError("json key to ucs4 error:%s|%s", strerror(errno), sch->name);
+        return;
+      }
+      key = tagKey;
+    }else{
+      key = sch->name;
+      outLen = strlen(sch->name);
+    }
+    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
     if(data == NULL) continue;
     if(tabList == NULL) {
       tabList = taosArrayDup(*data);

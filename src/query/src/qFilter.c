@@ -860,6 +860,7 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldI
   if(node->nodeType == TSQL_NODE_EXPR && node->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     type = FLD_TYPE_COLUMN;
     assert(node->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
+    memset(node->_node.pLeft->pSchema->name, 0, TSDB_COL_NAME_LEN);
     strncpy(node->_node.pLeft->pSchema->name, node->_node.pRight->pVal->pz, node->_node.pRight->pVal->nLen);
     v = node->pSchema;
     node->pSchema = NULL;
