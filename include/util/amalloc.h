@@ -35,10 +35,14 @@ typedef struct {
   SMemAllocatorIf interface;
 } SMemAllocator;
 
-#define amalloc(allocator, size) (*((allocator)->interface.malloc))((allocator)->impl, size)
-#define acalloc(allocator, nmemb, size) (*((allocator)->interface.calloc))((allocator)->impl, nmemb, size)
-#define arealloc(allocator, ptr, size) (*((allocator)->interface.realloc))((allocator)->impl, ptr, size)
-#define afree(allocator, ptr, size) (*((allocator)->interface.free))((allocator)->impl, ptr, size)
+#define amalloc(allocator, size) \
+  ((allocator) ? (*((allocator)->interface.malloc))((allocator)->impl, (size)) : malloc(size))
+#define acalloc(allocator, nmemb, size) \
+  ((allocator) ? (*((allocator)->interface.calloc))((allocator)->impl, (nmemb), (size)) : calloc((nmemb), (size)))
+#define arealloc(allocator, ptr, size) \
+  ((allocator) ? (*((allocator)->interface.realloc))((allocator)->impl, (ptr), (size)) : realloc((ptr), (size)))
+#define afree(allocator, ptr, size) \
+  ((allocator) ? (*((allocator)->interface.free))((allocator)->impl, (ptr), (size)) : free(ptr))
 
 #ifdef __cplusplus
 }
