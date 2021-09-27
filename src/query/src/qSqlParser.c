@@ -468,14 +468,14 @@ void tSqlExprCompact(tSqlExpr** pExpr) {
 }
 
 bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
-  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
+  return ((pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
          (pExpr->tokenId == 0 ||
          (pExpr->tokenId == TK_ID) ||
          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
          (pExpr->tokenId == TK_NULL) ||
-         (pExpr->tokenId == TK_SET) ||
+         (pExpr->tokenId == TK_SET))) ||
          (pExpr->tokenId == TK_ARROW)||
-         (pExpr->tokenId == TK_QUESTION));
+         (pExpr->tokenId == TK_QUESTION);
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
