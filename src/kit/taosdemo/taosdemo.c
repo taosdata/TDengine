@@ -2664,8 +2664,7 @@ static int printfInsertMeta() {
         }
 
 
-        if (g_args.use_metric)
-        {
+        if (g_args.use_metric) {
             printf("  super table count:     \033[33m%"PRIu64"\033[0m\n",
                 g_Dbs.db[i].superTblCount);
             for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
@@ -2777,9 +2776,7 @@ static int printfInsertMeta() {
                 }
                 printf("\n");
             }
-        }
-        else
-        {
+        } else {
             printf("  childTblCount:     \033[33m%"PRId64"\033[0m\n",
                         g_args.ntables);
             printf("  insertRows:        \033[33m%"PRId64"\033[0m\n",
@@ -10302,8 +10299,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         b = ntables % threads;
     }
 
-    if (g_args.iface == REST_IFACE || 
-       ((stbInfo) && (stbInfo->iface == REST_IFACE)) ) {
+    if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
             ERROR_EXIT("convert host to server address");
