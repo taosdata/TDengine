@@ -39,13 +39,15 @@ typedef void (*tkv_get_key_fn_t)(const tkv_obj_t *, tkv_key_t *);
 typedef int (*tkv_obj_encode_fn_t)(void **buf, void *pObj);
 typedef void *(*tkv_obj_decode_fn_t)(void *buf, void **pObj);
 typedef int (*tkv_obj_comp_fn_t)(const tkv_obj_t *, const tkv_obj_t *);
+typedef void (*tkv_obj_destroy_fn_t)(void *);
 
 typedef struct {
-  uint64_t            memLimit;
-  tkv_get_key_fn_t    getKey;
-  tkv_obj_encode_fn_t encode;
-  tkv_obj_decode_fn_t decode;
-  tkv_obj_comp_fn_t   compare;
+  uint64_t             memLimit;
+  tkv_get_key_fn_t     getKey;
+  tkv_obj_encode_fn_t  encode;
+  tkv_obj_decode_fn_t  decode;
+  tkv_obj_comp_fn_t    compare;
+  tkv_obj_destroy_fn_t destroy;
 } tkv_db_option_t;
 
 tkv_db_t *       tkvOpenDB(char *dir, tkv_db_option_t *);
