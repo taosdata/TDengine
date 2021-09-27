@@ -1081,7 +1081,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   tsdbUnRefTable(pTable);
 }
 
-int tscCompareJsonMapValue(const void* a, const void* b) {
+int tsdbCompareJsonMapValue(const void* a, const void* b) {
   const JsonMapValue* x = (const JsonMapValue*)a;
   const JsonMapValue* y = (const JsonMapValue*)b;
   if (x->table > y->table) return 1;
