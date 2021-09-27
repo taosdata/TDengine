@@ -422,16 +422,16 @@ static void printVersion() {
     }
 }
 
-UNUSED_FUNC void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
+void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
 {
     fprintf(stderr, "%s %s: %s is an invalid value\n", program, wrong_arg, wrong_value);
-    fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+    fprintf(stderr, "Try `taosdump --help' or `taosdump --usage' for more information.\n");
 }
 
 static void errorUnrecognized(char *program, char *wrong_arg)
 {
     fprintf(stderr, "%s: unrecognized options '%s'\n", program, wrong_arg);
-    fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+    fprintf(stderr, "Try `taosdump --help' or `taosdump --usage' for more information.\n");
 }
 
 static void errorPrintReqArg(char *program, char *wrong_arg)
@@ -440,7 +440,7 @@ static void errorPrintReqArg(char *program, char *wrong_arg)
             "%s: option requires an argument -- '%s'\n",
             program, wrong_arg);
     fprintf(stderr,
-            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
 }
 
 static void errorPrintReqArg2(char *program, char *wrong_arg)
@@ -449,7 +449,7 @@ static void errorPrintReqArg2(char *program, char *wrong_arg)
             "%s: option requires a number argument '-%s'\n",
             program, wrong_arg);
     fprintf(stderr,
-            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
 }
 
 static void errorPrintReqArg3(char *program, char *wrong_arg)
@@ -458,7 +458,7 @@ static void errorPrintReqArg3(char *program, char *wrong_arg)
             "%s: option '%s' requires an argument\n",
             program, wrong_arg);
     fprintf(stderr,
-            "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
+            "Try `taosdump --help' or `taosdump --usage' for more information.\n");
 }
 
 /* Parse a single option. */
@@ -485,7 +485,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 errorPrintReqArg2("taosdump", "P");
                 exit(EXIT_FAILURE);
             }
-            g_args.port = atoi(arg);
+
+            uint64_t port = atoi(arg);
+            if (port > 65535) {
+                errorWrongValue("taosdump", "-P or --port", arg);
+                exit(EXIT_FAILURE);
+            }
+            g_args.port = (uint16_t)port;
+
             break;
         case 'q':
             g_args.mysqlFlag = atoi(arg);
