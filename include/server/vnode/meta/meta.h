@@ -16,12 +16,17 @@
 #ifndef _TD_META_H_
 #define _TD_META_H_
 
+#include "taosMsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SMeta SMeta;
 
+int metaCreateTable(SMeta *pMeta, SCreateTableReq *pReq);
+int metaDropTable(SMeta *pMeta, SDropTableReq *pReq);
+int metaAlterTable(SMeta *pMeta, SAlterTableReq *pReq);
 int metaCommit(SMeta *pMeta);
 
 #ifdef __cplusplus

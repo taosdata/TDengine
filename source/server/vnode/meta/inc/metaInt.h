@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+struct {
+  tkv_db_t db;
+} SMeta;
+
 #ifdef __cplusplus
 }
 #endif

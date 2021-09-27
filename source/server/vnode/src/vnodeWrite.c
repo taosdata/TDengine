@@ -18,7 +18,6 @@
 int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
   // TODO: Check inputs
 
-#if 1
   void *pMem = NULL;
   if ((pMem = amalloc(pVnode->allocator, REQ_SIZE(pReq))) == NULL) {
     // No more memory to allocate, schedule an async commit
@@ -47,8 +46,6 @@ int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
     // TODO: handler error
   }
 
-#endif
-
   return 0;
 }
 
@@ -62,7 +59,7 @@ int vnodeProcessDropTableReq(SVnode *pVnode, SDropTableReq *pReq, SDropTableRsp 
   return 0;
 }
 
-int vnodeProcessAlterTableReq(SVnode *pVnode, SDropTableReq *pReq, SDropTableRsp *pRsp) {
+int vnodeProcessAlterTableReq(SVnode *pVnode, SAlterTableReq *pReq, SAlterTableRsp *pRsp) {
   // TODO
   return 0;
 }
