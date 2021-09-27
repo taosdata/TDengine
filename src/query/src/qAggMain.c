@@ -326,8 +326,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_APERCT) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interBytes =
-        sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1);
+    int16_t bytesHist = sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1);
+    int16_t bytesDigest = (int16_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
+    *interBytes = MAX(bytesHist, bytesDigest);
     return TSDB_CODE_SUCCESS;
   } else if (functionId == TSDB_FUNC_TWA) {
     *type = TSDB_DATA_TYPE_DOUBLE;

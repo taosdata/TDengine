@@ -1926,7 +1926,7 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
 
   // in the reverse table scan, only the following functions need to be executed
   if (IS_REVERSE_SCAN(pRuntimeEnv) ||
-      (pRuntimeEnv->scanFlag == REPEAT_SCAN && functionId != TSDB_FUNC_STDDEV && functionId != TSDB_FUNC_PERCT)) {
+      (pRuntimeEnv->scanFlag == REPEAT_SCAN && functionId != TSDB_FUNC_STDDEV && functionId != TSDB_FUNC_PERCT && functionId != TSDB_FUNC_APERCT)) {
     return false;
   }
 
