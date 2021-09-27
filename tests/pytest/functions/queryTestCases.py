@@ -1151,21 +1151,39 @@ class TDTestCase:
             tdSql.checkRows(0)
             return
 
-        tdSql.query(f"select {col} from {table_expr} {condition}")
-        query_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
-        pset = [0, 50,100]
+        pset = [0, 40, 50, 60, 100]
 
         for pi in pset:
-            tdSql.query(self.apercentile_query_form(
-                col=col, p=pi, com=com, algo=algo, alias=alias, table_expr=table_expr, condition=condition
-            ))
-
-            tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.001)
-            if algo == '"t-digest"':
+            if "group" in condition:
                 tdSql.query(self.apercentile_query_form(
                     col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
                 ))
+                print(tdSql.sql)
+                print(tdSql.queryResult)
+                print(tdSql.queryRows)
+                query_result = tdSql.queryResult
+                query_rows = tdSql.queryRows
+                tdSql.query(self.apercentile_query_form(
+                    col=col, p=pi, com=com, algo='"t-digest"', alias=alias, table_expr=table_expr, condition=condition
+                ))
+                print(tdSql.sql)
+                print(tdSql.queryResult)
+                print(tdSql.queryRows)
+                for i in range(query_rows):
+                    tdSql.checkDeviaRation(i, 0, query_result[i][0], 0.001)
+            else:
+                tdSql.query(f"select {col} from {table_expr} {condition}")
+                query_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+                tdSql.query(self.apercentile_query_form(
+                    col=col, p=pi, com=com, algo=algo, alias=alias, table_expr=table_expr, condition=condition
+                ))
+
                 tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.001)
+                if algo == '"t-digest"':
+                    tdSql.query(self.apercentile_query_form(
+                        col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
+                    ))
+                    tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.001)
 
     def apercentile_query(self):
 
@@ -1255,14 +1273,14 @@ class TDTestCase:
         case27 = {'alias':', apercentile(c1, 0, "t-digest")'}
         self.checkapert(**case27)
 
-        # case28: mix with computing function
+        # case28~29: mix with computing function
         case28 = {'alias':', spread(c1)'}
         self.checkapert(**case28)
         # case29: mix with four operation
         case29 = {'alias':'+ spread(c1)'}
         self.checkapert(**case29)
 
-        # case30~35: with condition
+        # case30~36: with condition
         case30 = {'condition':'where ts > now'}
         self.checkapert(**case30)
         case31 = {'condition':'where c1 between 1 and 200'}
@@ -1285,70 +1303,16 @@ class TDTestCase:
         self.checkapert(**case38)
 
         # case39: with group by
-        tdSql.query('select min(c1) from stb1 group by tbname')
-        min_result = tdSql.queryResult
-        min_len = tdSql.queryRows
-        tdSql.query('select max(c1) from stb1 group by tbname')
-        max_result = tdSql.queryResult
-        tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname', p=0))
-        tdSql.checkRows(min_len)
-        for i in range(min_len):
-            tdSql.checkDeviaRation(i, 0, min_result[i][0])
-
-        tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname', p=0))
-        tdSql.checkRows(min_len)
-        for i in range(min_len):
-            tdSql.checkDeviaRation(i, 0, min_result[i][0])
-
-        tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname', p=100))
-        tdSql.checkRows(min_len)
-        for i in range(min_len):
-            tdSql.checkDeviaRation(i, 0, max_result[i][0])
-
-        tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname', p=100))
-        tdSql.checkRows(min_len)
-        for i in range(min_len):
-            tdSql.checkDeviaRation(i, 0, max_result[i][0])
+        case39 = {'table_expr':'stb1', 'condition':'group by tbname'}
+        self.checkapert(**case39)
 
         # case40: with slimit
-        if min_len == 0:
-            tdSql.query(
-                self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=0))
-            tdSql.checkRows(0)
+        case40 = {'table_expr':'stb1', 'condition':'group by tbname slimit 1'}
+        self.checkapert(**case40)
 
-            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=0))
-            tdSql.checkRows(0)
-
-            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=100))
-            tdSql.checkRows(0)
-
-            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
-            tdSql.checkRows(0)
-        else:
-            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=0))
-            tdSql.checkRows(1)
-            tdSql.checkDeviaRation(0, 0, min_result[0][0])
-
-            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=0))
-            tdSql.checkRows(1)
-            tdSql.checkDeviaRation(0, 0, min_result[0][0])
-
-            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1', p=100))
-            tdSql.checkRows(1)
-            tdSql.checkDeviaRation(0, 0, max_result[0][0])
-
-            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
-            tdSql.checkRows(1)
-            tdSql.checkDeviaRation(0, 0, max_result[0][0])
-
-            # case41: with soffset
-            tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname slimit 1 soffset 1', p=0))
-            tdSql.checkRows(1)
-            tdSql.checkDeviaRation(0, 0, min_result[1][0])
-
-            tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname slimit 1', p=100))
-            tdSql.checkRows(1)
-            tdSql.checkDeviaRation(0, 0, max_result[1][0])
+        # case41: with soffset
+        case41 = {'table_expr':'stb1', 'condition':'group by tbname slimit 1 soffset 1'}
+        self.checkapert(**case41)
 
         # case42: with order by
         case42 = {'table_expr':'stb1' ,'condition':'order by ts'}
@@ -1356,14 +1320,12 @@ class TDTestCase:
         case43 = {'table_expr':'t1' ,'condition':'order by ts'}
         self.checkapert(**case43)
 
-        # case43: with limit offset
-        tdSql.query(self.apercentile_query_form(algo='"default"', table_expr='stb1', condition='group by tbname limit 1 ', p=0))
-        tdSql.checkRows(min_len)
-        if min_len != 0:
-            tdSql.checkDeviaRation(0, 0, min_result[1][0])
+        # case44: with limit offset
+        case44 = {'table_expr':'stb1', 'condition':'group by tbname limit 1'}
+        self.checkapert(**case44)
+        case45 = {'table_expr':'stb1', 'condition':'group by tbname limit 1 offset 1'}
+        self.checkapert(**case45)
 
-        tdSql.query(self.apercentile_query_form(table_expr='stb1', condition='group by tbname limit 1 offset 1', p=100))
-        tdSql.checkRows(0)
         pass
 
     def error_apercentile(self):
