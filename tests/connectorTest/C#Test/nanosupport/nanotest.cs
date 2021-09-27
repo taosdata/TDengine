@@ -29,21 +29,7 @@ namespace TDengineDriver
         private string password="taosdata";
         private short port = 0;
 
-        //sql parameters
-        private string dbName;
-        private string tbName;
-        private string precision;
-
-        private bool isInsertData;
-        private bool isQueryData;
-
-        private long tableCount;
-        private long totalRows;
-        private long batchRows;
-        private long beginTimestamp = 1551369600000L;
-
         private IntPtr conn = IntPtr.Zero;
-        private long rowsInserted = 0;
 
         static void Main(string[] args)
         {
@@ -72,15 +58,6 @@ namespace TDengineDriver
             Console.WriteLine("expect data is ");
 
             tester.executeQuery("select * from tb;");
-
-            // Console.WriteLine("expected is : {0}", width);
-            // tdSql.checkData(0,0,"2021-06-10 0:00:00.100000001");
-            // tdSql.checkData(1,0,"2021-06-10 0:00:00.150000000");
-            // tdSql.checkData(2,0,"2021-06-10 0:00:00.299999999");
-            // tdSql.checkData(3,1,3);
-            // tdSql.checkData(4,1,5);
-            // tdSql.checkData(5,1,7);
-            // tdSql.checkRows(6);
 
             tester.executeQuery("select count(*) from tb where ts > 1623254400100000000 and ts < 1623254400100000002;");
             Console.WriteLine("expected is : 1 " );
@@ -271,8 +248,8 @@ namespace TDengineDriver
             // tdSql.checkData(0,0,1623258000123456789);
            
             
-        
             Console.WriteLine("usdb" );
+            tester.execute("drop database if exists usdb;");
             tester.execute("create database usdb precision 'us';");
             tester.execute("use usdb;");
             tester.execute("create stable st (ts timestamp ,speed float ) tags(time timestamp ,id int);");
@@ -289,16 +266,12 @@ namespace TDengineDriver
             tester.execute("insert into tb1 using st tags('2021-06-10 0:00:00.123' , 1 ) values('2021-06-10T0:00:00.123+07:00' , 1.0);" );
             tester.executeQuery("select first(*) from tb1;");
             Console.WriteLine("expected is : 1623258000123 " );
-        
-
-
+            
             tester.CloseConnection();
             tester.cleanup();
-
-
         }
 		
-		 public void InitTDengine()
+		public void InitTDengine()
         {
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, this.configDir);
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
@@ -307,7 +280,7 @@ namespace TDengineDriver
             Console.WriteLine("get connection starting...");
         }
 		
-		 public void ConnectTDengine()
+		public void ConnectTDengine()
         {
             string db = "";
             this.conn = TDengine.Connect(this.host, this.user, this.password, db, this.port);
@@ -321,13 +294,13 @@ namespace TDengineDriver
                 Console.WriteLine("[ OK ] Connection established.");
             }
         }
-		//EXECUTE SQL
-		 public void execute(string sql)
+		
+        //EXECUTE SQL
+		public void execute(string sql)
         {
             DateTime dt1 = DateTime.Now;
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
             DateTime dt2 = DateTime.Now;
-            TimeSpan span = dt2 - dt1;
 
             if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
@@ -345,7 +318,7 @@ namespace TDengineDriver
             TDengine.FreeResult(res);
         }
 		//EXECUTE QUERY 
-		 public void executeQuery(string sql)
+		public void executeQuery(string sql)
         {
 
             DateTime dt1 = DateTime.Now;
@@ -454,7 +427,7 @@ namespace TDengineDriver
 
         }
 	
-		  public void CloseConnection()
+		public void CloseConnection()
         {
             if (this.conn != IntPtr.Zero)
             {
@@ -481,22 +454,15 @@ namespace TDengineDriver
             switch(psc)
             {
                 case 0:
-                    Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"millisecond");
+                    Console.WriteLine("db：[{0:G}]'s precision is {1:G} millisecond");
                     break;
                 case 1:
-                    Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"microsecond");
+                    Console.WriteLine("db：[{0:G}]'s precision is {1:G} microsecond");
                     break;
                 case 2:
-                    Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"nanosecond");
+                    Console.WriteLine("db：[{0:G}]'s precision is {1:G} nanosecond");
                     break;
             }
-
-        }
-		
-		// public void checkData(int x ,int y , long ts ){
-			
-		// }
-		
+        }		
 	}
 }
-
