@@ -13,19 +13,43 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_H_
-#define _TD_META_H_
+#ifndef _TD_TAOS_MSG_H_
+#define _TD_TAOS_MSG_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+  /* data */
+} SSubmitReq;
 
-typedef struct SMeta SMeta;
+typedef struct {
+  /* data */
+} SSubmitRsp;
 
-int metaCommit(SMeta *pMeta);
+typedef struct {
+  /* data */
+} SSubmitReqReader;
 
-#ifdef __cplusplus
-}
-#endif
+typedef struct {
+  /* data */
+} SCreateTableReq;
 
-#endif /*_TD_META_H_*/
+typedef struct {
+  /* data */
+} SCreateTableRsp;
+
+typedef struct {
+  /* data */
+} SDropTableReq;
+
+typedef struct {
+  /* data */
+} SDropTableRsp;
+
+typedef struct {
+  /* data */
+} SAlterTableReq;
+
+typedef struct {
+  /* data */
+} SAlterTableRsp;
+
+#endif /*_TD_TAOS_MSG_H_*/

@@ -13,19 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_H_
-#define _TD_META_H_
+#ifndef _TD_VNODE_WRITE_H_
+#define _TD_VNODE_WRITE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp);
 
-typedef struct SMeta SMeta;
-
-int metaCommit(SMeta *pMeta);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_META_H_*/
+#endif /*_TD_VNODE_WRITE_H_*/

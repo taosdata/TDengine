@@ -13,19 +13,41 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_H_
-#define _TD_META_H_
+#include "vnodeInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+static int vnodeStartCommit(SVnode *pVnode);
+static int vnodeEndCommit(SVnode *pVnode);
 
-typedef struct SMeta SMeta;
+int vnodeAsyncCommit(SVnode *pVnode) {
+  if (vnodeStartCommit(pVnode) < 0) {
+    // TODO
+  }
 
-int metaCommit(SMeta *pMeta);
+  if (tqCommit(pVnode->pTQ) < 0) {
+    // TODO
+  }
 
-#ifdef __cplusplus
+  if (metaCommit(pVnode->pMeta) < 0) {
+    // TODO
+  }
+
+  if (tsdbCommit(pVnode->pTsdb) < 0) {
+    // TODO
+  }
+
+  if (vnodeEndCommit(pVnode) < 0) {
+    // TODO
+  }
+
+  return 0;
 }
-#endif
 
-#endif /*_TD_META_H_*/
+static int vnodeStartCommit(SVnode *pVnode) {
+  // TODO
+  return 0;
+}
+
+static int vnodeEndCommit(SVnode *pVnode) {
+  // TODO
+  return 0;
+}

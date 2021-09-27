@@ -9,9 +9,11 @@ target_include_directories(
     PUBLIC "${CMAKE_SOURCE_DIR}/include/server/vnode"
     private "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-target_include_directories(
+target_link_libraries(
     vnode
-    PRIVATE meta
-    PRIVATE tq
-    PRIVATE tsdb
+    PUBLIC meta
+    PUBLIC tq
+    PUBLIC tsdb
+    PRIVATE os
+    PRIVATE common
 )

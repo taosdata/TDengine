@@ -16,9 +16,20 @@
 #ifndef _TD_VNODE_INT_H_
 #define _TD_VNODE_INT_H_
 
+#include "tq.h"
+#include "tsdb.h"
+#include "meta.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct SVnode {
+  SMeta *pMeta;
+  STsdb *pTsdb;
+  STQ *  pTQ;
+  void * allocator; // TODO
+} SVnode;
 
 #ifdef __cplusplus
 }

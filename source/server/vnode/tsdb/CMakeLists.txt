@@ -8,4 +8,5 @@ target_include_directories(
 target_include_directories(
     tsdb
     PRIVATE os
+    PRIVATE common
 )

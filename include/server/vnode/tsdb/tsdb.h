@@ -17,6 +17,7 @@
 #define _TD_TSDB_H_
 
 #include "os.h"
+#include "taosMsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,7 +48,7 @@ int    tsdbCloseRepo(STsdb *pTsdb);
 int    tsdbForceCloseRepo(STsdb *pTsdb);
 
 // Data commit
-int tsdbInsert(STsdb *pTsdb, SSubmitMsg *pMsg);
+int tsdbInsert(STsdb *pTsdb, SSubmitReq *pMsg);
 int tsdbCommit(STsdb *pTsdb);
 
 #ifdef __cplusplus
