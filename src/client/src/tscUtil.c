@@ -5426,15 +5426,15 @@ void* getJsonTagValue(STable* pTable, char* key){
     JsonMapValue jmvalue = {pTable, 0};
     JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
     if (p == NULL) return NULL;
-    int16_t valId = p->colId + 1;
-    return POINTER_SHIFT(kvRowValues(pTable->tagVal), valId);
+    int16_t colId = p->colId + 1;
+    return tdGetKVRowValOfCol(pTable, colId);
   }else if(TABLE_TYPE(pTable) == TSDB_SUPER_TABLE){
     SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
     if(data == NULL) return NULL;
     if(taosArrayGetSize(*data) == 0) return NULL;
     JsonMapValue* p = taosArrayGet(*data, 0);
-    int16_t valId = p->colId + 1;
-    return POINTER_SHIFT(kvRowValues(((STable*)p->table)->tagVal), valId);
+    int16_t colId = p->colId + 1;
+    return tdGetKVRowValOfCol((STable*)(p->table), colId);
   }
   return NULL;
 }
