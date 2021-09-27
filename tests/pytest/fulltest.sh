@@ -257,6 +257,7 @@ python3 ./test.py -f query/query1970YearsAf.py
 python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
 python3 ./test.py -f query/queryJoin10tables.py
+python3 ./test.py -f query/udf.py
 python3 ./test.py -f query/queryStddevWithGroupby.py
 python3 ./test.py -f query/querySecondtscolumnTowherenow.py
 python3 ./test.py -f query/queryFilterTswithDateUnit.py
