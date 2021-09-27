@@ -56,7 +56,13 @@ const tkv_obj_t *tkvGet(tkv_key_t *);
 int              tkvGetBatch(tkv_db_t *, tkv_key_t **, int, tkv_obj_t **);
 int              tkvDrop(tkv_db_t *, tkv_key_t *);
 int              tkvCommit(tkv_db_t *, void * /*TODO*/);
-// TODO: iter function
+
+typedef struct {
+} tkv_db_iter_t;
+
+tkv_db_iter_t *  tkvIterNew(tkv_db_t *);
+void             tkvIterFree(tkv_db_iter_t *);
+const tkv_obj_t *tkvIterNext(tkv_db_iter_t *);
 
 #ifdef __cplusplus
 }
