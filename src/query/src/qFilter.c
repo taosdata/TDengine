@@ -3178,8 +3178,8 @@ void filterJsonTypeConvert(SFilterInfo* info) {
   uint8_t type = 0;
   if(JSON_TYPE_NCHAR){ type = TSDB_DATA_TYPE_NCHAR;} else {type = TSDB_DATA_TYPE_BINARY;}
   for(int i = 0; i < info->unitNum; i++){
-    if(info->units[info->unitNum].compare.type == TSDB_DATA_TYPE_JSON){
-      info->units[info->unitNum].compare.type= type;
+    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON){
+      info->units[i].compare.type= type;
     }
   }
 
