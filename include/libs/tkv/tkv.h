@@ -22,7 +22,6 @@ extern "C" {
 
 typedef struct tkv_db_s tkv_db_t;
 
-
 typedef struct {
   /* data */
 } tkv_key_t;
@@ -31,29 +30,33 @@ typedef struct {
   bool    pinned;
   int64_t ref;  // TODO: use util library
                 // TODO: add a RW latch here
-  void *pObj;
+  uint64_t offset;
+  void *   pObj;
 } tkv_obj_t;
-
 
 typedef int (*tkv_key_comp_fn_t)(const tkv_key_t *, const tkv_key_t *);
 typedef void (*tkv_get_key_fn_t)(const tkv_obj_t *, tkv_key_t *);
 typedef int (*tkv_obj_encode_fn_t)(void **buf, void *pObj);
 typedef void *(*tkv_obj_decode_fn_t)(void *buf, void **pObj);
+typedef int (*tkv_obj_comp_fn_t)(const tkv_obj_t *, const tkv_obj_t *);
 
 typedef struct {
-  uint64_t            memLimit : 63;
+  uint64_t            memLimit;
   tkv_get_key_fn_t    getKey;
   tkv_obj_encode_fn_t encode;
   tkv_obj_decode_fn_t decode;
+  tkv_obj_comp_fn_t   compare;
 } tkv_db_option_t;
 
-tkv_db_t * tkvOpenDB(char *dir, tkv_db_option_t *);
-int        tkvCloseDB(tkv_db_t *);
-int        tkvPut(tkv_db_t *, tkv_obj_t *);
-int        tkvPutBatch(tkv_db_t *, tkv_obj_t **, int);
-tkv_obj_t *tkvGet(tkv_key_t *);
-int        tkvGetBatch(tkv_db_t *, tkv_key_t **, int, tkv_obj_t **);
-int        tkvCommit(tkv_db_t *, void * /*TODO*/);
+tkv_db_t *       tkvOpenDB(char *dir, tkv_db_option_t *);
+int              tkvCloseDB(tkv_db_t *);
+int              tkvPut(tkv_db_t *, tkv_obj_t *);
+int              tkvPutBatch(tkv_db_t *, tkv_obj_t **, int);
+const tkv_obj_t *tkvGet(tkv_key_t *);
+int              tkvGetBatch(tkv_db_t *, tkv_key_t **, int, tkv_obj_t **);
+int              tkvDrop(tkv_db_t *, tkv_key_t *);
+int              tkvCommit(tkv_db_t *, void * /*TODO*/);
+// TODO: iter function
 
 #ifdef __cplusplus
 }
