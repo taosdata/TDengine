@@ -4509,6 +4509,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
   pTableMeta->tableInfo.numOfTags = pChild->numOfTags;
   pTableMeta->tableInfo.numOfColumns = pChild->numOfColumns;
   pTableMeta->tableInfo.precision = pChild->precision;
+  pTableMeta->tableInfo.update = pChild->update;
 
   pTableMeta->id.tid = 0;
   pTableMeta->id.uid = pChild->suid;
