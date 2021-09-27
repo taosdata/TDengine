@@ -4495,9 +4495,9 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
   SStrToken* colName = NULL;
   if(pLeft->tokenId == TK_ARROW || pLeft->tokenId == TK_QUESTION){
-    colName = pLeft->pLeft->columnName;
+    colName = &(pLeft->pLeft->columnName);
   }else{
-    colName = pLeft->columnName;
+    colName = &(pLeft->columnName);
   }
   int32_t ret = TSDB_CODE_SUCCESS;
 
