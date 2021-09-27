@@ -473,7 +473,7 @@ static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
 }
 
 static FORCE_INLINE void *tdGetKVRowValOfCol(SKVRow row, int16_t colId) {
-  void *ret = taosbsearch(&colId, kvRowColIdx(row), p (row), sizeof(SColIdx), comparTagId, TD_EQ);
+  void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
   if (ret == NULL) return NULL;
   return kvRowColVal(row, (SColIdx *)ret);
 }
