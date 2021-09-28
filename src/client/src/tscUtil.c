@@ -73,6 +73,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       if (bufSize < 0) {
         tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;

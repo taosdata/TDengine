@@ -3193,17 +3193,20 @@ int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_
 int filterJsonTypeConvert(SFilterInfo* info) {
   for(int i = 0; i < info->fields[FLD_TYPE_COLUMN].num; i++) {
     SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
-    if(schema->type == TSDB_DATA_TYPE_JSON && schema->colId != 0){ // schema->colId != 0 means not ? operation
-
-      void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name));
-      if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
-      int8_t type = *(char*)data;
-      assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON);
-      schema->type = type;
+    if(schema->type == TSDB_DATA_TYPE_JSON){
+      if(schema->colId != 0){           // schema->colId != 0 means not ? operation
+        void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name));
+        if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
+        int8_t type = *(char*)data;
+        assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON);
+        schema->type = type;
+      }else{
+        schema->type = TSDB_DATA_TYPE_BINARY;
+      }
     }
   }
   for(int i = 0; i < info->unitNum; i++){
-    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON && info->units[i].compare.optr == TSDB_RELATION_ARROW){
+    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON){
       SFilterField *colLeft = FILTER_UNIT_LEFT_FIELD(info, &info->units[i]);
       info->units[i].compare.type = FILTER_GET_COL_FIELD_TYPE(colLeft);
 
@@ -3239,7 +3242,7 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   ERR_JRET(code);
 
   if(info->pTable){
-    code = filterJsonTypeConvert(info);
+    code = filterJsonTypeConvert(info); // convert json type to other type to prepare for th next defination of compare function
     ERR_JRET(code);
   }
 
