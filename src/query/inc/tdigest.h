@@ -26,6 +26,8 @@
 #define M_PI        3.14159265358979323846264338327950288   /* pi             */
 #endif
 
+#define DOUBLE_MAX 1.79e+308
+
 #define ADDITION_CENTROID_NUM 2
 #define COMPRESSION 400
 #define GET_CENTROID(compression)  (ceil(compression * M_PI / 2) + 1 + ADDITION_CENTROID_NUM)

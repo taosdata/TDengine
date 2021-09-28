@@ -2442,8 +2442,6 @@ static SAPercentileInfo *getAPerctInfo(SQLFunctionCtx *pCtx) {
   } else {
     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   }
-
-  buildHistogramInfo(pInfo);
   return pInfo;
 }
 
@@ -2572,6 +2570,7 @@ static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo*
   }
   
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  buildHistogramInfo(pInfo);
   
   char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
   pInfo->pHisto = tHistogramCreateFrom(tmp, MAX_HISTOGRAM_BIN);
@@ -2588,6 +2587,7 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
   
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  buildHistogramInfo(pInfo);
 
   assert(pInfo->pHisto->elems != NULL);
   
@@ -2631,6 +2631,7 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
   }
   
   SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
+  buildHistogramInfo(pOutput);
   SHistogramInfo  *pHisto = pOutput->pHisto;
   
   if (pHisto->numOfElems <= 0) {
