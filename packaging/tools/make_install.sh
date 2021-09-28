@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-set -x
+# set -x
 
 # -----------------------Variables definition
 source_dir=$1
