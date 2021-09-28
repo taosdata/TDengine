@@ -87,7 +87,7 @@ IF (TD_ARM_64)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "arm64 is defined")
   SET(COMMON_FLAGS "-Wall -Werror -fPIC -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
-  
+
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 

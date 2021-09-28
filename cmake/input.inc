@@ -102,10 +102,10 @@ IF (${MEMORY_SANITIZER} MATCHES "true")
 ENDIF ()
 
 IF (${TSZ_ENABLED} MATCHES "true")
-  # define add 
+  # define add
   MESSAGE(STATUS "build with TSZ enabled")
   ADD_DEFINITIONS(-DTD_TSZ)
   set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
 ELSE()
   set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
-ENDIF()  
+ENDIF()
