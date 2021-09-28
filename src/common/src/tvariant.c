@@ -232,7 +232,7 @@ bool tVariantTypeMatch(tVariant *pVar, int8_t dbType){
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:{
-      if(pVar->nType == TSDB_DATA_TYPE_BINARY && pVar->nType == TSDB_DATA_TYPE_NCHAR){
+      if(pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR){
         return false;
       }
       break;

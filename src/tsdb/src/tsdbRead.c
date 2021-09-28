@@ -3779,8 +3779,8 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   ((SFilterInfo*)filterInfo)->pTable = pTable;
   ret = filterInitFromTree(expr, &filterInfo, 0);
   if (ret != TSDB_CODE_SUCCESS) {
-    filterFreeInfo(filterInfo);
     terrno = ret;
+    tsdbUnlockRepoMeta(tsdb);
     goto _error;
   }
   

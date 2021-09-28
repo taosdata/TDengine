@@ -564,6 +564,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
   if (tlen > pBuilder->alloc - pBuilder->size) {
     while (tlen > pBuilder->alloc - pBuilder->size) {
+      assert(pBuilder->alloc > 0);
       pBuilder->alloc *= 2;
     }
     void* buf = realloc(pBuilder->buf, pBuilder->alloc);
