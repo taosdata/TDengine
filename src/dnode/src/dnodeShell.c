@@ -240,7 +240,9 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
 SStatisInfo dnodeGetStatisInfo() {
   SStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
+#ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();
+#endif
     info.queryReqNum  = atomic_exchange_32(&tsQueryReqNum, 0);
     info.submitReqNum = atomic_exchange_32(&tsSubmitReqNum, 0);
   }
