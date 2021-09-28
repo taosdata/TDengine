@@ -42,12 +42,22 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1")
         tdSql.checkRows(1)
 
-        tdSql.query("select jtag from db_json_tag_test.jsons1_1")
-        tdSql.checkRows(1)
-
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
 
-        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select jtag->'location' from db_json_tag_test.jsons1_2")
+        tdSql.checkData(0, 0, "beijing")
+
+
+        tdSql.query("select jtag->'num' from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
+        tdSql.checkData(0, 0, 5)
+
+        tdSql.query("select jtag->'location' from db_json_tag_test.jsons1")
+        tdSql.checkRows(2)
+
+        tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkRows(1)
 
         print("==============step3")
@@ -59,7 +69,7 @@ class TDTestCase:
         tdSql.error("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag=4")
 
         tdSql.execute("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35}'")
-        tdSql.query("select jtag from db_json_tag_test.jsons1_1    ")
+        tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkData(0, 0, "{\"sex\":\"femail\",\"age\":35}")
     def stop(self):
         tdSql.close()

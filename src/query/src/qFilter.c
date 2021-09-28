@@ -37,6 +37,7 @@ OptrStr gOptrStr[] = {
   {TSDB_RELATION_NOT,                      "not"},
   {TSDB_RELATION_MATCH,                    "match"},
   {TSDB_RELATION_NMATCH,                   "nmatch"},
+  {TSDB_RELATION_QUESTION,                 "?"},
 };
 
 static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const void *desc2) {
@@ -44,7 +45,7 @@ static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const v
   const SSchema *sch2 = desc2;
 
   if(sch1->type == TSDB_DATA_TYPE_JSON && sch2->type == TSDB_DATA_TYPE_JSON){
-    return strcmp(sch1->name, sch2->name);
+    return !(strcmp(sch1->name, sch2->name) == 0 && sch1->colId == sch2->colId);
   }
   else{
     return sch1->colId != sch2->colId;
@@ -164,7 +165,8 @@ int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
 __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val, compareInt64Val, compareFloatVal,
   compareDoubleVal, compareLenPrefixedStr, compareStrPatternComp, compareFindItemInSet, compareWStrPatternComp, 
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
-  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8, compareStrRegexCompMatch, compareStrRegexCompNMatch
+  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8, compareStrRegexCompMatch,
+  compareStrRegexCompNMatch, comparreStrContainJson
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -207,6 +209,8 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = 20;
+      } else if (optr == TSDB_RELATION_QUESTION) {
+        comparFn = 21;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = 7;
       } else if (optr == TSDB_RELATION_IN) {
@@ -223,6 +227,8 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = 20;
+      } else if (optr == TSDB_RELATION_QUESTION) {
+        comparFn = 21;
       } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = 9;
       } else if (optr == TSDB_RELATION_IN) {
@@ -853,7 +859,7 @@ static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilte
 }
 
 
-int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldId *fid) {
+int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode* parent, tExprNode *node, SFilterFieldId *fid) {
   CHK_LRET(node == NULL, TSDB_CODE_QRY_APP_ERROR, "empty node");
 
   int32_t type;
@@ -870,6 +876,12 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldI
     if (node->nodeType == TSQL_NODE_COL) {
       type = FLD_TYPE_COLUMN;
       v = node->pSchema;
+      if(parent->nodeType == TSDB_RELATION_QUESTION){
+        node->pSchema->colId = 0;  // ? operation make colId=0 to make different with -> operation to eliminate repetition and don not convert type
+        assert(parent->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
+        memset(node->pSchema->name, 0, TSDB_COL_NAME_LEN);
+        strncpy(node->pSchema->name, parent->_node.pRight->pVal->pz, parent->_node.pRight->pVal->nLen);
+      }
       node->pSchema = NULL;
     } else {
       type = FLD_TYPE_VALUE;
@@ -1165,7 +1177,7 @@ _return:
 int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *group) {
   SFilterFieldId left = {0}, right = {0};
 
-  filterAddFieldFromNode(info, tree->_node.pLeft, &left);  
+  filterAddFieldFromNode(info, tree, tree->_node.pLeft, &left);
 
   tVariant* var = tree->_node.pRight->pVal;
   int32_t type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
@@ -1220,9 +1232,9 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
 
     taosHashCleanup(data);
   } else {
-    filterAddFieldFromNode(info, tree->_node.pRight, &right);  
+    filterAddFieldFromNode(info, tree, tree->_node.pRight, &right);
     
-    filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);  
+    filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);
 
     SFilterGroup fgroup = {0};
     filterAddUnitToGroup(&fgroup, uidx);
@@ -1889,6 +1901,9 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
       return ret == 0;
     }
     case TSDB_RELATION_MATCH: {
+      return ret == 0;
+    }
+    case TSDB_RELATION_QUESTION: {
       return ret == 0;
     }
     case TSDB_RELATION_NMATCH: {
@@ -2643,9 +2658,9 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
       }
     }
 
-    if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL 
+    if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL
      || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE || cunit->optr == TSDB_RELATION_MATCH
-     || cunit->optr == TSDB_RELATION_NOT_EQUAL) {
+     || cunit->optr == TSDB_RELATION_NOT_EQUAL || cunit->optr == TSDB_RELATION_QUESTION) {
       continue;
     }
 
@@ -3178,7 +3193,7 @@ int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_
 int filterJsonTypeConvert(SFilterInfo* info) {
   for(int i = 0; i < info->fields[FLD_TYPE_COLUMN].num; i++) {
     SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
-    if(schema->type == TSDB_DATA_TYPE_JSON){
+    if(schema->type == TSDB_DATA_TYPE_JSON && schema->colId != 0){ // schema->colId != 0 means not ? operation
 
       void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name));
       if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
@@ -3188,7 +3203,7 @@ int filterJsonTypeConvert(SFilterInfo* info) {
     }
   }
   for(int i = 0; i < info->unitNum; i++){
-    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON){
+    if(info->units[i].compare.type == TSDB_DATA_TYPE_JSON && info->units[i].compare.optr == TSDB_RELATION_ARROW){
       SFilterField *colLeft = FILTER_UNIT_LEFT_FIELD(info, &info->units[i]);
       info->units[i].compare.type = FILTER_GET_COL_FIELD_TYPE(colLeft);
 
@@ -3502,7 +3517,7 @@ int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res) 
   int32_t optr = FILTER_UNIT_OPTR(info->units);
   
   CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN || optr == TSDB_RELATION_MATCH 
-       || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL);
+       || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL || optr == TSDB_RELATION_QUESTION);
 
   *res = true;
 

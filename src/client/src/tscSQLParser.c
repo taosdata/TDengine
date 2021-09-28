@@ -4417,6 +4417,37 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 }
 
 // check for match expression
+static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
+  const char* msg1 = "not support json tag column filter";
+  const char* msg2 = "tag json key is too long, exceed to 64";
+  const char* msg3 = "tag json key must be string";
+
+  tSqlExpr* pLeft = pExpr->pLeft;
+  tSqlExpr* pRight = pExpr->pRight;
+
+  if (pExpr->tokenId == TK_QUESTION) {
+    if (pRight != NULL && !IS_VAR_DATA_TYPE(pRight->value.nType))
+      return invalidOperationMsg(msgBuf, msg3);
+
+    if (pRight != NULL && pRight->value.nLen >= TSDB_COL_NAME_LEN)
+      return invalidOperationMsg(msgBuf, msg2);
+  } else {
+    if (pLeft != NULL && (pLeft->tokenId == TK_ID)) {
+      return invalidOperationMsg(msgBuf, msg1);
+    }
+
+    if (pLeft != NULL && (pLeft->tokenId == TK_ARROW)) {
+      if (pLeft->pRight && !IS_VAR_DATA_TYPE(pLeft->pRight->value.nType))
+        return invalidOperationMsg(msgBuf, msg3);
+      if (pLeft->pRight && pLeft->pRight->value.nLen >= TSDB_COL_NAME_LEN)
+        return invalidOperationMsg(msgBuf, msg2);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// check for match expression
 static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg1 = "regular expression string should be less than %d characters";
   const char* msg2 = "illegal column type for match/nmatch";
@@ -4487,14 +4518,12 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg2 = "illegal column name";
   const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
-  const char* msg6 = "not support json tag column filter";
-  const char* msg7 = "tag json key is too long, exceed to 64";
 
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
   SStrToken* colName = NULL;
-  if(pLeft->tokenId == TK_ARROW || pLeft->tokenId == TK_QUESTION){
+  if(pLeft->tokenId == TK_ARROW){
     colName = &(pLeft->pLeft->columnName);
   }else{
     colName = &(pLeft->columnName);
@@ -4611,13 +4640,12 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && pLeft != NULL && (pLeft->tokenId == TK_ID)){
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-    }
-
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && pLeft != NULL && (pLeft->tokenId == TK_ARROW)){
-      if(pLeft->pRight && pLeft->pRight->value.nLen >= TSDB_COL_NAME_LEN)
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    // check for json tag operation -> and ?
+    if (pSchema->type == TSDB_DATA_TYPE_JSON){
+      code = validateJsonTagExpr(*pExpr, tscGetErrorMsgPayload(pCmd));
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
 
     if (pRight != NULL && pRight->tokenId == TK_ID) {  // join on tag columns for stable query
@@ -4639,7 +4667,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY
                                          && pSchema->type != TSDB_DATA_TYPE_NCHAR
                                          && pSchema->type != TSDB_DATA_TYPE_BOOL)) {
-        handleNeOptr(&rexpr, *pExpr);
+        handleNeOptr(&rexpr, *pExpr);     //todo json check
         *pExpr = rexpr;
       }
       

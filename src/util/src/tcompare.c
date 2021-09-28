@@ -404,6 +404,12 @@ int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   return result;
 }
 
+int32_t comparreStrContainJson(const void* pLeft, const void* pRight) {
+  if(pLeft) return 0;
+  return 1;
+}
+
+
 int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* x = *(const char**)a;
   const char* y = *(const char**)b;
@@ -471,6 +477,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
         comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
+      } else if (optr == TSDB_RELATION_QUESTION) {
+        comparFn = comparreStrContainJson;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;
       } else { /* normal relational comparFn */
@@ -485,6 +493,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
         comparFn = compareStrRegexCompMatch;
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = compareStrRegexCompNMatch;
+      } else if (optr == TSDB_RELATION_QUESTION) {
+        comparFn = comparreStrContainJson;
       } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {

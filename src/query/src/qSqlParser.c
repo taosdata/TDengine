@@ -328,7 +328,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pRSub->Expr.paramList = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
-  } else if (optrType == TK_ARROW) {
+  } else if (optrType == TK_ARROW || optrType == TK_QUESTION) {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
     pExpr->pRight = pRight;
@@ -474,8 +474,7 @@ bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
          (pExpr->tokenId == TK_NULL) ||
          (pExpr->tokenId == TK_SET))) ||
-         (pExpr->tokenId == TK_ARROW)||
-         (pExpr->tokenId == TK_QUESTION);
+         (pExpr->tokenId == TK_ARROW);
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
