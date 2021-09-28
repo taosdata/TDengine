@@ -14,7 +14,7 @@ if [ ! -n "$serverPort" ]; then
 fi
 
 go env -w GO111MODULE=on
-go env -w GOPROXY=https://goproxy.io,direct
+go env -w GOPROXY=https://goproxy.cn,direct
 
 bash ./case001/case001.sh $severIp $serverPort
 bash ./case002/case002.sh $severIp $serverPort
