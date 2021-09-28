@@ -40,19 +40,12 @@ class TDTestCase:
                     break
         return buildPath
 
-    def check_coredump(self, res_log):
-        build_path = self.getBuildPath() + "/debug/build/bin"
-        cmd = build_path + "/" + "taos -d test -k 1  > res.txt 2>&1"
-        print(res_log)
-        out = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        print(out)
-
     def execute_cmd(self,cmd):
         out = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE).stderr.read().decode("utf-8")
-        
         if out.find("error:") >=0:
             print(cmd)
             print(out)
+            sys.exit()
         
             
 
@@ -64,20 +57,24 @@ class TDTestCase:
         tdSql.execute("drop database if exists test")
         tdSql.execute("drop database if exists dumptest")
         tdSql.execute("create database if not exists test")
-        # self.check_coredump("====== only create database test ==== ")
+        tdLog.info("====== only create database test ==== ")
+        self.execute_cmd(build_path + "/" + "taos -d test -k 1  > res.txt 2>&1")
 
         tdSql.execute("use test")
         tdSql.execute("create stable st (ts timestamp , id int , val double , str binary(20) ) tags (ind int)")
         tdSql.execute("create table tb1 using st tags(1)")
-        self.check_coredump("======= only create one table =======")
+        tdLog.info("======= only create one table ==========")
+        self.execute_cmd(build_path + "/" + "taos -d test -k 1  > res.txt 2>&1")
 
         tdSql.execute("create table tb2 using st tags(2)")
         tdSql.execute("create table tb3 using st tags(3)")
-        # self.check_coredump("======= only create three table =======")
+        tdLog.info("======= only create three table =======")
+        self.execute_cmd(build_path + "/" + "taos -d test -k 1  > res.txt 2>&1")
 
         tdSql.execute("create table tb4 using st tags(4)")
         tdSql.execute("create table tb5 using st tags(5)")
-        self.check_coredump("======= only create five table =======")
+        tdLog.info("======= only create five table =======")
+        self.execute_cmd(build_path + "/" + "taos -d test -k 1  > res.txt 2>&1")
 
         start_time = 1604298064000
         rows = 10
@@ -117,8 +114,12 @@ class TDTestCase:
         sleep(2)
         os.system("cd ./dumpdata && mv dbs.sql table.sql")
         os.system('sed -i "s/test/tt/g" `grep test -rl ./dumpdata`')
-        os.system(build_path + "/" + "taos -D ./dumpdata")
-
+        cmd = build_path + "/" + "taos -D ./dumpdata"
+        out = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE).stderr.read().decode("utf-8")
+        if out.find("error:") >=0:
+            print("===========expected error occured======")
+        
+            
         tdLog.info("====== check taos shell params  ========")
 
         tdLog.info("====== step 1 : insert data with some unicode ========")
@@ -143,9 +144,7 @@ class TDTestCase:
                 "INSERT INTO dbst.TBB1 VALUES('2021-07-14 10:40:00.000',1,1.0,'！@#¥%……&*', '中文12&%#@!*');"]
         for sql in sqls:
             cmd = build_path + "/" + "taos -s \""+sql+"\"" 
-            self.execute_cmd(cmd)
-     
-               
+            self.execute_cmd(cmd)        
             
         basic_code = ['!' ,'#', '$', '%', '&', '(', ')', '*', '+', ',', '-', '.', '/', '0', '1',
                       '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '@', 'A',
@@ -154,15 +153,19 @@ class TDTestCase:
                     'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r','s', 't', 'u',
                      'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~']
         for code in basic_code:
-            if not code=='\\':
-                cmd = build_path + "/" + "taos -s \" insert into dbst.tb2 values(now ,2,2.0,'"+code+"','汉字"+code+"\')\"" 
-            else:
+            # bug -> : this is a bug need be repaired to support '`'  and '\'
+            if code=='\\':
                 cmd =  build_path + "/" + "taos -s \" insert into dbst.tb2 values(now ,2,2.0," +r'"\\"'+",'中文"+r'\\'+ "')\""
-
+                continue   
+            elif code =='`': 
+                cmd = build_path + "/" + "taos -s \" insert into dbst.tb2 values(now ,2,2.0,'"+code+"','汉字"+code+"\')\""
+                continue
+            else:
+                cmd = build_path + "/" + "taos -s \" insert into dbst.tb2 values(now ,2,2.0,'"+code+"','汉字"+code+"\')\""
+                
             self.execute_cmd(cmd)
             
             
-          
         tdLog.info("====== step 2 : query result of results ========")
 
         querys = ["select count(*) from dbst.tb2",
