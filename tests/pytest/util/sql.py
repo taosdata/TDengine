@@ -251,13 +251,16 @@ class TDSql:
             tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, result:{args[7]}, "
                        f"expect type: int or float, actual type: {args[8]}")
 
-        devia = abs((data - self.queryResult[row][col])/data)
+        if data == 0:
+            devia = abs(self.queryResult[row][col])
+        else:
+            devia = abs((data - self.queryResult[row][col])/data)
         if devia <= deviation:
             tdLog.info(f"sql:{args[2]}, result data:{args[7]}, expect data:{args[3]}, "
                        f"actual deviation:{devia} <= expect deviation:{args[5]}")
         else:
             tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, result data:{args[7]}, expect data:{args[3]},"
-                       f"actual deviation:{devia} <= expect deviation:{args[5]}")
+                       f"actual deviation:{devia} > expect deviation:{args[5]}")
         pass
 
     def getData(self, row, col):
