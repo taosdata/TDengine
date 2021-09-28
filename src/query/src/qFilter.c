@@ -3180,7 +3180,7 @@ int filterJsonTypeConvert(SFilterInfo* info) {
     SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
     if(schema->type == TSDB_DATA_TYPE_JSON){
 
-      void* data = getJsonTagValue(info->pTable, schema->name);
+      void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name));
       if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
       int8_t type = *(char*)data;
       assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON);

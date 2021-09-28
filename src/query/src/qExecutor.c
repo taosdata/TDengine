@@ -7186,23 +7186,24 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
         } else {
-          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
           if(type == TSDB_DATA_TYPE_JSON){
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
               tagJsonElementData = calloc(bytes, 1);
-              findTagValue(data, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes);
+              findTagValue(item->pTable, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes);
               *dst = SELECT_ELEMENT_JSON_TAG;   // select tag->element
               dst++;
               assert(varDataTLen(tagJsonElementData) < bytes);
-              doSetTagValueToResultBuf(dst, tagJsonElementData, type, bytes - 1);
+              doSetTagValueToResultBuf(dst, tagJsonElementData, type, bytes - CHAR_BYTES);
               tfree(tagJsonElementData);
             }else{
               *dst = SELECT_ALL_JSON_TAG;   // select tag
               dst++;
               assert(kvRowLen(data) < bytes);
-              doSetTagValueToResultBuf(dst, data, type, bytes - 1);
+              doSetTagValueToResultBuf(dst, data, type, bytes - CHAR_BYTES);
             }
             continue;
+          }else{
+            data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
           }
         }
         doSetTagValueToResultBuf(dst, data, type, bytes);

@@ -45,6 +45,11 @@ class TDTestCase:
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkRows(1)
 
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
+
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
+        tdSql.checkRows(1)
+
         print("==============step3")
         tdLog.info("alter stable add tag")
         tdSql.error("ALTER STABLE db_json_tag_test.jsons1 add tag tag2 nchar(20)")
