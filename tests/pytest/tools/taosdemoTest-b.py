@@ -23,8 +23,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.numberOfTables = 100
-        self.numberOfRecords = 100
+        self.numberOfTables = 10
+        self.numberOfRecords = 10
     
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -50,7 +50,7 @@ class TDTestCase:
             tdLog.info("taosdemo found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
-        os.system("%staosdemo -d test002 -y -t %d -n %d -b INT,nchar\\(8\\),binary\\(16\\)" %
+        os.system("%staosdemo -d test002 -y -t %d -n %d -b INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
         
         tdSql.execute('use test002')
@@ -60,15 +60,31 @@ class TDTestCase:
         tdSql.query("select * from meters")
         tdSql.checkRows(self.numberOfTables * self.numberOfRecords)
         
-        tdLog.info('insert into d1 values(now,100,"abcd1234","abcdefgh12345678")')
-        tdSql.execute('insert into d1 values(now,100,"abcd1234","abcdefgh12345678")')
+        tdLog.info('insert into d1 values(now,100,"abcd1234","abcdefgh12345678","abcdefgh","abcdefgh")')
+        tdSql.execute('insert into d1 values(now,100,"abcd1234","abcdefgh12345678","abcdefgh","abcdefgh")')
         tdSql.query("select * from meters")
-        tdSql.checkRows(10001)
+        tdSql.checkRows(101)
 
         tdSql.error('insert into d1 values(now,100,"abcd","abcd"')
+        tdSql.error('insert into d1 values(now,100,100,100)')
+
+        os.system("%staosdemo -d test002 -y -t %d -n %d --data-type INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+                  (binPath, self.numberOfTables, self.numberOfRecords))
+
+        tdSql.execute('use test002')
+        tdSql.query("select count(*) from meters")
+        tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
 
+        os.system("%staosdemo -d test002 -y -t %d -n %d -bINT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+                  (binPath, self.numberOfTables, self.numberOfRecords))
 
+        tdSql.execute('use test002')
+        tdSql.query("select count(*) from meters")
+        tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
+
+
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
