@@ -112,6 +112,13 @@ if [ "$osType" != "Darwin" ]; then
     fi
 fi
 
+function kill_blm() {
+    pid=$(ps -ef | grep "blm_demo" | grep -v "grep" | awk '{print $2}')
+    if [ -n "$pid" ]; then
+        ${csudo} kill -9 $pid   || :
+    fi
+}
+
 function kill_taosd() {
     pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
@@ -138,6 +145,7 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
+    ${csudo} rm -f ${bin_link_dir}/blm_demo || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
 
@@ -162,7 +170,7 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
     [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
-    [ -x ${install_main_dir}/bin/blm_demo ]     && ${csudo} ln -s ${install_main_dir}/bin/blm_demo ${bin_link_dir}/blm_demo || :
+    [ -x ${install_main_dir}/bin/blm_demo ]  && ${csudo} ln -s ${install_main_dir}/bin/blm_demo ${bin_link_dir}/blm_demo || :
     [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
 
@@ -418,6 +426,7 @@ function install_service() {
         install_service_on_sysvinit
     else
         # must manual stop taosd
+        kill_blm
         kill_taosd
     fi
 }
@@ -433,6 +442,7 @@ function update_TDengine() {
         elif ((${service_mod}==1)); then
             ${csudo} service taosd stop || :
         else
+            kill_blm
             kill_taosd
         fi
         sleep 1
@@ -489,7 +499,7 @@ function install_TDengine() {
     else
         echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
     fi
-    
+
     install_main_path
 
     install_data
@@ -499,11 +509,11 @@ function install_TDengine() {
     install_connector
     install_examples
     install_bin
-    
+
     if [ "$osType" != "Darwin" ]; then
         install_service
     fi
-    
+
     install_config
 
     if [ "$osType" != "Darwin" ]; then

@@ -37,7 +37,7 @@ ELSE ()
   ExternalProject_Add(blm3
     PREFIX        "blm3"
     SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/blm3
-    BUILD_ALWAYS         on
+    BUILD_ALWAYS         off
     DEPENDS             taos
     BUILD_IN_SOURCE     1
     CONFIGURE_COMMAND cmake -E echo "blm3 no need cmake to config"
