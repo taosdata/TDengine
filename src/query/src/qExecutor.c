@@ -7187,6 +7187,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
           data = tsdbGetTableName(item->pTable);
         } else {
           if(type == TSDB_DATA_TYPE_JSON){
+            data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
               tagJsonElementData = calloc(bytes, 1);
               findTagValue(item->pTable, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes);
@@ -7202,8 +7203,6 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
               doSetTagValueToResultBuf(dst, data, type, bytes - CHAR_BYTES);
             }
             continue;
-          }else{
-            data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
           }
         }
         doSetTagValueToResultBuf(dst, data, type, bytes);
