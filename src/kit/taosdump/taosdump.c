@@ -2005,7 +2005,7 @@ static int getTableDes(
         }
 
         if (row[TSDB_SHOW_TABLES_NAME_INDEX] == NULL) {
-            sprintf(tableDes->cols[i].note, "%s", "NULL");
+            sprintf(tableDes->cols[i].note, "%s", "NUL");
             taos_free_result(res);
             res = NULL;
             taos_close(taos);
