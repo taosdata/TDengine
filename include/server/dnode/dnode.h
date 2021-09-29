@@ -21,53 +21,53 @@ extern "C" {
 #endif
 
 /**
- * Initialize and start the dnode module
+ * Initialize and start the dnode module.
  *
- * @return Instance of dnode module
+ * @return Instance of dnode module.
  */
 struct Dnode *dnodeCreateInstance();
 
 /**
- * Stop and cleanup dnode module
+ * Stop and cleanup dnode module.
  *
- * @param dnode Instance of dnode module
+ * @param dnode, instance of dnode module.
  */
 void dnodeCleanupInstance(struct Dnode *dnode);
 
 /**
  * Send messages to other dnodes, such as create vnode message.
  *
- * @param dnode The instance of Dnode module
- * @param epSet The endpoint list of the dnodes.
- * @param rpcMsg Message to be sent.
+ * @param dnode, the instance of Dnode module.
+ * @param epSet, the endpoint list of the dnodes.
+ * @param rpcMsg, message to be sent.
  */
 void dnodeSendMsgToDnode(struct Dnode *dnode, struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 
 /**
  * Send messages to mnode, such as config message.
  *
- * @param dnode The instance of dnode module
- * @param rpcMsg Message to be sent.
+ * @param dnode, the instance of dnode module.
+ * @param rpcMsg, message to be sent.
  */
 void dnodeSendMsgToMnode(struct Dnode *dnode, struct SRpcMsg *rpcMsg);
 
 /**
  * Send redirect message to dnode or shell.
  *
- * @param dnode The instance of dnode module
- * @param rpcMsg Message to be sent.
- * @param forShell Used to identify whether to send to shell or dnode.
+ * @param dnode, the instance of dnode module.
+ * @param rpcMsg, message to be sent.
+ * @param forShell, used to identify whether to send to shell or dnode.
  */
 void dnodeSendRedirectMsg(struct Dnode *dnode, struct SRpcMsg *rpcMsg, bool forShell);
 
 /**
  * Get the corresponding endpoint information from dnodeId.
  *
- * @param dnode The instance of Dnode module
- * @param dnodeId The id ot dnode
- * @param ep The endpoint of dnode
- * @param fqdn The fqdn of dnode
- * @param port The port of dnode
+ * @param dnode, the instance of dnode module.
+ * @param dnodeId, the id ot dnode.
+ * @param ep, the endpoint of dnode.
+ * @param fqdn, the fqdn of dnode.
+ * @param port, the port of dnode.
  */
 void dnodeGetDnodeEp(struct Dnode *dnode, int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
