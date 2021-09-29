@@ -986,36 +986,55 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->performance_print = true;
         } else if ((0 == strncmp(argv[i], "-P", strlen("-P")))
                 || (0 == strncmp(argv[i], "--port", strlen("--port")))) {
+            uint64_t port;
+            char strPort[BIGINT_BUFF_LEN];
+
             if (2 == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg(argv[0], "P");
                     exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
+                } else if (isStringNumber(argv[i+1])) {
+                    tstrncpy(strPort, argv[++i], BIGINT_BUFF_LEN);
+                } else {
                     errorPrintReqArg2(argv[0], "P");
                     exit(EXIT_FAILURE);
                 }
-                arguments->port = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--port=", strlen("--port="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--port=")))) {
-                    arguments->port = atoi((char *)(argv[i]+strlen("--port=")));
+                    tstrncpy(strPort, (char *)(argv[i]+strlen("--port=")), BIGINT_BUFF_LEN);
+                } else {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-P", strlen("-P"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-P")))) {
-                    arguments->port = atoi((char *)(argv[i]+strlen("-P")));
+                    tstrncpy(strPort, (char *)(argv[i]+strlen("-P")), BIGINT_BUFF_LEN);
+                } else {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
                 }
             } else if (strlen("--port") == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg3(argv[0], "--port");
                     exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
+                } else if (isStringNumber(argv[i+1])) {
+                    tstrncpy(strPort, argv[++i], BIGINT_BUFF_LEN);
+                } else {
                     errorPrintReqArg2(argv[0], "--port");
                     exit(EXIT_FAILURE);
                 }
-                arguments->port = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+
+            port = atoi(strPort);
+            if (port > 65535) {
+                errorWrongValue("taosdump", "-P or --port", strPort);
+                exit(EXIT_FAILURE);
+            }
+            arguments->port = (uint16_t)port;
+
         } else if ((0 == strncmp(argv[i], "-I", strlen("-I")))
                 || (0 == strncmp(argv[i], "--interface", strlen("--interface")))) {
             if (2 == strlen(argv[i])) {
@@ -1581,7 +1600,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         && strcasecmp(dataType, "BIGINT")
                         && strcasecmp(dataType, "DOUBLE")
                         && strcasecmp(dataType, "TIMESTAMP")
-                        && !regexMatch(dataType, "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))?$", REG_ICASE | REG_EXTENDED)
+                        && !regexMatch(dataType,
+                            "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)
                         && strcasecmp(dataType, "UTINYINT")
                         && strcasecmp(dataType, "USMALLINT")
                         && strcasecmp(dataType, "UINT")
@@ -1603,11 +1624,13 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_FLOAT;
                 } else if (0 == strcasecmp(dataType, "DOUBLE")) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_DOUBLE;
-                } else if (1 == regexMatch(dataType, "^BINARY(\\([1-9][0-9]*\\))?$", REG_ICASE | 
-                    REG_EXTENDED)) {
+                } else if (1 == regexMatch(dataType,
+                            "^BINARY(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_BINARY;
-                } else if (1 == regexMatch(dataType, "^NCHAR(\\([1-9][0-9]*\\))?$", REG_ICASE | 
-                    REG_EXTENDED)) {
+                } else if (1 == regexMatch(dataType,
+                            "^NCHAR(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_NCHAR;
                 } else if (0 == strcasecmp(dataType, "BOOL")) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_BOOL;
@@ -10280,7 +10303,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 &stbInfo->childTblName, &childTblCount,
                 limit,
                 offset);
-        ntables = childTblCount; // CBD
+        ntables = childTblCount;
     } else {
         ntables = g_args.ntables;
         tableFrom = 0;
@@ -11833,7 +11856,7 @@ static void setParaFromArg() {
             g_Dbs.db[0].superTbls[0].columns[i].data_type = data_type[i];
             tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                     dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
-            if (1 == regexMatch(dataType[i], "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$", REG_ICASE | 
+            if (1 == regexMatch(dataType[i], "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$", REG_ICASE |
                     REG_EXTENDED)) {
                 sscanf(dataType[i], "%[^(](%[^)]", type, length);
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = atoi(length);
@@ -11842,7 +11865,7 @@ static void setParaFromArg() {
             } else {
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-                    dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1)); 
+                    dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
             }
             g_Dbs.db[0].superTbls[0].columnCount++;
         }
