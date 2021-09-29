@@ -14,7 +14,7 @@
 import traceback
 import random
 import string
-from taos.error import LinesError
+from taos.error import SchemalessError
 import datetime
 import time
 from copy import deepcopy
@@ -172,28 +172,28 @@ class TDTestCase:
     def perfTableInsert(self):
         table_generator = self.tableGenerator()
         for input_sql in table_generator:
-            self._conn.insert_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 0)
             # for i in range(10):
-            #     self._conn.insert_lines([input_sql])
+            #     self._conn.schemaless_insert([input_sql], 0)
 
     def perfDataInsert(self, count=4):
         table_generator = self.tableGenerator(count=count)
         ts = int(time.time())
         for input_sql in table_generator:
             print("input_sql-----------", input_sql)
-            self._conn.insert_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 0)
             for i in range(100000):
                 ts -= 1
                 input_sql_new = self.replaceLastStr(input_sql, str(ts)) + 's'
                 print("input_sql_new---------", input_sql_new)
-                self._conn.insert_lines([input_sql_new])
+                self._conn.schemaless_insert([input_sql_new], 0)
 
     def batchInsertTable(self, batch_list):
         for insert_list in batch_list:
             print(threading.current_thread().name, "length=", len(insert_list))
             print(threading.current_thread().name, 'firstline', insert_list[0])
             print(threading.current_thread().name, 'lastline:', insert_list[-1])
-            self._conn.insert_lines(insert_list)
+            self._conn.schemaless_insert(insert_list, 0)
             print(threading.current_thread().name, 'end')
 
     def genTableThread(self, thread_count=10):
@@ -218,7 +218,7 @@ class TDTestCase:
 
     def createStb(self, count=4):
         input_sql = self.getPerfSql(count=count, init=True)
-        self._conn.insert_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 0)
 
     def threadInsertTable(self, end_list, thread_count=10):
         threads = list()
@@ -238,7 +238,7 @@ class TDTestCase:
     # def createTb(self, count=4):
     #     input_sql = self.getPerfSql(count=count)
     #     for i in range(10000):
-    #         self._conn.insert_lines([input_sql])
+    #         self._conn.schemaless_insert([input_sql], 0)
 
     # def createTb1(self, count=4):
     #     start_time = time.time()
@@ -273,8 +273,8 @@ class TDTestCase:
     # def test(self):
     #     sql1 = 'stb,id="init",t0=14865i32,t1="tvnqbjuqck" c0=37i32,c1=217i32,c2=3i32,c3=88i32 1626006833640ms'
     #     sql2 = 'stb,id="init",t0=14865i32,t1="tvnqbjuqck" c0=38i32,c1=217i32,c2=3i32,c3=88i32 1626006833641ms'
-    #     self._conn.insert_lines([sql1])
-    #     self._conn.insert_lines([sql2])
+    #     self._conn.schemaless_insert([sql1], 0)
+    #     self._conn.schemaless_insert([sql2], 0)
 
     def run(self):
         print("running {}".format(__file__))

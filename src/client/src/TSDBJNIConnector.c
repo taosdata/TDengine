@@ -1070,7 +1070,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
     c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
   }
 
-  int code = taos_insert_lines(taos, c_lines, numLines, 0);
+  int code = taos_schemaless_insert(taos, c_lines, numLines, 0);
 
   for (int i = 0; i < numLines; ++i) {
     jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));

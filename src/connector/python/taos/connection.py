@@ -117,7 +117,7 @@ class TaosConnection(object):
         stream = taos_open_stream(self._conn, sql, callback, stime, param, callback2)
         return TaosStream(stream)
 
-    def insert_lines(self, lines, protocol):
+    def schemaless_insert(self, lines, protocol):
         # type: (list[str]) -> None
         """
         1.Line protocol and schemaless support
@@ -132,7 +132,7 @@ class TaosConnection(object):
         lines = [
             'ste,t2=5,t3=L"ste" c1=true,c2=4,c3="string" 1626056811855516532',
         ]
-        conn.insert_lines(lines)
+        conn.schemaless_insert(lines)
         ```
 
         2.OpenTSDB telnet style API format support
@@ -160,13 +160,13 @@ class TaosConnection(object):
 
         ```python
         try:
-            conn.insert_lines(lines)
+            conn.schemaless_insert(lines)
         except SchemalessError as err:
             print(err)
         ```
 
         """
-        return taos_insert_lines(self._conn, lines, protocol)
+        return taos_schemaless_insert(self._conn, lines, protocol)
 
 
     def cursor(self):

@@ -2132,7 +2132,7 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_sml_lines(TAOS* taos, char* lines[], int numLines) {
+int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -2190,7 +2190,7 @@ cleanup:
 }
 
 /**
- * taos_insert lines() parse and insert data points into database according to
+ * taos_schemaless_insert() parse and insert data points into database according to
  * different protocol.
  *
  * @param $lines input array may contain multiple lines, each line indicates a data point.
@@ -2210,11 +2210,11 @@ cleanup:
  *
  */
 
-int taos_insert_lines(TAOS* taos, char* lines[], int numLines, int protocol) {
+int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol) {
   int code;
   switch (protocol) {
     case SML_LINE_PROTOCOL:
-      code = taos_insert_sml_lines(taos, lines, numLines);
+      code = taos_insert_lines(taos, lines, numLines);
       break;
     case SML_TELNET_PROTOCOL:
       code = taos_insert_telnet_lines(taos, lines, numLines);
