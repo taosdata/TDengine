@@ -4115,9 +4115,9 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
         if (p == NULL) {
           p = taosArraySearch(tabList, element, tsdbCompareJsonMapValue, TD_GE);
           if(p == NULL){
-            taosArrayPush(tabList, tabList);
+            taosArrayPush(tabList, element);
           }else{
-            taosArrayInsert(tabList, TARRAY_ELEM_IDX(tabList, p), tabList);
+            taosArrayInsert(tabList, TARRAY_ELEM_IDX(tabList, p), element);
           }
         }
       }
