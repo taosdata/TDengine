@@ -4091,6 +4091,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
 static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
   // get all table in fields, and dumplicate it
   SArray* tabList = NULL;
+  bool needQueryAll = false;
   SFilterInfo* info = (SFilterInfo*)filterInfo;
   for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
@@ -4098,12 +4099,12 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     if (sch->colId == TSDB_TBNAME_COLUMN_INDEX) {
       tabList = taosArrayInit(32, sizeof(JsonMapValue));
       getAllTableList(pTable, tabList);   // query all table
+      needQueryAll = true;
       break;
     }
   }
   for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
-    if(tabList != NULL) break;      // query all table
-
+    if (needQueryAll) break;    // query all table
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema*      sch = fi->desc;
     int32_t outLen = 0;
@@ -4139,7 +4140,7 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     }
   }
   if(tabList == NULL || taosArrayGetSize(tabList) == 0){
-    tsdbError("json key not exist");
+    tsdbError("json key not exist, no candidate table");
     terrno = TSDB_CODE_TDB_NO_JSON_TAG_KEY;
     taosArrayDestroy(tabList);
     return;
