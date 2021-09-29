@@ -56,7 +56,9 @@ TDigest *tdigestNewFrom(void* pBuf, int32_t compression) {
     t->compression = compression;
     t->size = (int64_t)GET_CENTROID(compression);
     t->threshold = (int32_t)GET_THRESHOLD(compression);
-    t->min = INFINITY;
+    t->min = DOUBLE_MAX;
+    t->max = -DOUBLE_MAX;
+
     return t;
 }
 
@@ -128,7 +130,8 @@ void tdigestCompress(TDigest *t) {
     memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));
 
     args.t = t;
-    args.min = INFINITY;
+    args.min = DOUBLE_MAX;
+    args.max = -DOUBLE_MAX;
 
     i = 0;
     j = 0;
