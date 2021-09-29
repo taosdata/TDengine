@@ -29,6 +29,12 @@
 #include "tutil.h"
 #include <avro.h>
 
+#define AVRO_SUPPORT    0
+
+#if AVRO_SUPPORT == 1
+#include <avro.h>
+#endif
+
 #define TSDB_SUPPORT_NANOSECOND 1
 
 #define MAX_FILE_NAME_LEN       256             // max file name length on linux is 255
@@ -708,7 +714,7 @@ static void parse_args(
                 exit(EXIT_FAILURE);
             }
             g_args.databases = true;
-        } else if (0 == strncmp(argv[i], "--version", strlen("--version")) || 
+        } else if (0 == strncmp(argv[i], "--version", strlen("--version")) ||
             0 == strncmp(argv[i], "-V", strlen("-V"))) {
                 printVersion();
                 exit(EXIT_SUCCESS);
@@ -2000,7 +2006,7 @@ static int getTableDes(
         }
 
         if (row[TSDB_SHOW_TABLES_NAME_INDEX] == NULL) {
-            sprintf(tableDes->cols[i].note, "%s", "NULL");
+            sprintf(tableDes->cols[i].note, "%s", "NUL");
             taos_free_result(res);
             res = NULL;
             taos_close(taos);

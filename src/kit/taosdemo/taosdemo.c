@@ -986,36 +986,55 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->performance_print = true;
         } else if ((0 == strncmp(argv[i], "-P", strlen("-P")))
                 || (0 == strncmp(argv[i], "--port", strlen("--port")))) {
+            uint64_t port;
+            char strPort[BIGINT_BUFF_LEN];
+
             if (2 == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg(argv[0], "P");
                     exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
+                } else if (isStringNumber(argv[i+1])) {
+                    tstrncpy(strPort, argv[++i], BIGINT_BUFF_LEN);
+                } else {
                     errorPrintReqArg2(argv[0], "P");
                     exit(EXIT_FAILURE);
                 }
-                arguments->port = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--port=", strlen("--port="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--port=")))) {
-                    arguments->port = atoi((char *)(argv[i]+strlen("--port=")));
+                    tstrncpy(strPort, (char *)(argv[i]+strlen("--port=")), BIGINT_BUFF_LEN);
+                } else {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-P", strlen("-P"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-P")))) {
-                    arguments->port = atoi((char *)(argv[i]+strlen("-P")));
+                    tstrncpy(strPort, (char *)(argv[i]+strlen("-P")), BIGINT_BUFF_LEN);
+                } else {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
                 }
             } else if (strlen("--port") == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg3(argv[0], "--port");
                     exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
+                } else if (isStringNumber(argv[i+1])) {
+                    tstrncpy(strPort, argv[++i], BIGINT_BUFF_LEN);
+                } else {
                     errorPrintReqArg2(argv[0], "--port");
                     exit(EXIT_FAILURE);
                 }
-                arguments->port = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+
+            port = atoi(strPort);
+            if (port > 65535) {
+                errorWrongValue("taosdump", "-P or --port", strPort);
+                exit(EXIT_FAILURE);
+            }
+            arguments->port = (uint16_t)port;
+
         } else if ((0 == strncmp(argv[i], "-I", strlen("-I")))
                 || (0 == strncmp(argv[i], "--interface", strlen("--interface")))) {
             if (2 == strlen(argv[i])) {
@@ -1581,7 +1600,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         && strcasecmp(dataType, "BIGINT")
                         && strcasecmp(dataType, "DOUBLE")
                         && strcasecmp(dataType, "TIMESTAMP")
-                        && !regexMatch(dataType, "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))?$", REG_ICASE | REG_EXTENDED)
+                        && !regexMatch(dataType,
+                            "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)
                         && strcasecmp(dataType, "UTINYINT")
                         && strcasecmp(dataType, "USMALLINT")
                         && strcasecmp(dataType, "UINT")
@@ -1603,11 +1624,13 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_FLOAT;
                 } else if (0 == strcasecmp(dataType, "DOUBLE")) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_DOUBLE;
-                } else if (1 == regexMatch(dataType, "^BINARY(\\([1-9][0-9]*\\))?$", REG_ICASE | 
-                    REG_EXTENDED)) {
+                } else if (1 == regexMatch(dataType,
+                            "^BINARY(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_BINARY;
-                } else if (1 == regexMatch(dataType, "^NCHAR(\\([1-9][0-9]*\\))?$", REG_ICASE | 
-                    REG_EXTENDED)) {
+                } else if (1 == regexMatch(dataType,
+                            "^NCHAR(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_NCHAR;
                 } else if (0 == strcasecmp(dataType, "BOOL")) {
                     arguments->data_type[0] = TSDB_DATA_TYPE_BOOL;
@@ -2663,117 +2686,127 @@ static int printfInsertMeta() {
             }
         }
 
-        printf("  super table count:     \033[33m%"PRIu64"\033[0m\n",
+
+        if (g_args.use_metric) {
+            printf("  super table count:     \033[33m%"PRIu64"\033[0m\n",
                 g_Dbs.db[i].superTblCount);
-        for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-            printf("  super table[\033[33m%"PRIu64"\033[0m]:\n", j);
+            for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+                printf("  super table[\033[33m%"PRIu64"\033[0m]:\n", j);
 
-            printf("      stbName:           \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].stbName);
+                printf("      stbName:           \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].stbName);
 
-            if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
-                printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
-            } else if (AUTO_CREATE_SUBTBL ==
-                    g_Dbs.db[i].superTbls[j].autoCreateTable) {
-                printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "yes");
-            } else {
-                printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "error");
-            }
-
-            if (TBL_NO_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
-                printf("      childTblExists:    \033[33m%s\033[0m\n",  "no");
-            } else if (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
-                printf("      childTblExists:    \033[33m%s\033[0m\n",  "yes");
-            } else {
-                printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
-            }
-
-            printf("      childTblCount:     \033[33m%"PRId64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].childTblCount);
-            printf("      childTblPrefix:    \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].childTblPrefix);
-            printf("      dataSource:        \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].dataSource);
-            printf("      iface:             \033[33m%s\033[0m\n",
-                    (g_Dbs.db[i].superTbls[j].iface==TAOSC_IFACE)?"taosc":
-                    (g_Dbs.db[i].superTbls[j].iface==REST_IFACE)?"rest":"stmt");
-            if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
-                printf("      childTblLimit:     \033[33m%"PRId64"\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].childTblLimit);
-            }
-            if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
-                printf("      childTblOffset:    \033[33m%"PRIu64"\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].childTblOffset);
-            }
-            printf("      insertRows:        \033[33m%"PRId64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].insertRows);
-            /*
-               if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
-               printf("      multiThreadWriteOneTbl:  \033[33m no\033[0m\n");
-               }else {
-               printf("      multiThreadWriteOneTbl:  \033[33m yes\033[0m\n");
-               }
-               */
-            printf("      interlaceRows:     \033[33m%u\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].interlaceRows);
-
-            if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-                printf("      stable insert interval:   \033[33m%"PRIu64"\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].insertInterval);
-            }
-
-            printf("      disorderRange:     \033[33m%d\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].disorderRange);
-            printf("      disorderRatio:     \033[33m%d\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].disorderRatio);
-            printf("      maxSqlLen:         \033[33m%"PRIu64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].maxSqlLen);
-            printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].timeStampStep);
-            printf("      startTimestamp:    \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].startTimestamp);
-            printf("      sampleFormat:      \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].sampleFormat);
-            printf("      sampleFile:        \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].sampleFile);
-            printf("      tagsFile:          \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].tagsFile);
-            printf("      columnCount:       \033[33m%d\033[0m\n        ",
-                    g_Dbs.db[i].superTbls[j].columnCount);
-            for (int k = 0; k < g_Dbs.db[i].superTbls[j].columnCount; k++) {
-                //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].columns[k].dataType, g_Dbs.db[i].superTbls[j].columns[k].dataLen);
-                if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
-                                "binary", 6))
-                        || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
-                                "nchar", 5))) {
-                    printf("column[%d]:\033[33m%s(%d)\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].columns[k].dataType,
-                            g_Dbs.db[i].superTbls[j].columns[k].dataLen);
+                if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
+                    printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
+                } else if (AUTO_CREATE_SUBTBL ==
+                        g_Dbs.db[i].superTbls[j].autoCreateTable) {
+                    printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "yes");
                 } else {
-                    printf("column[%d]:\033[33m%s\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].columns[k].dataType);
+                    printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "error");
                 }
-            }
-            printf("\n");
 
-            printf("      tagCount:            \033[33m%d\033[0m\n        ",
-                    g_Dbs.db[i].superTbls[j].tagCount);
-            for (int k = 0; k < g_Dbs.db[i].superTbls[j].tagCount; k++) {
-                //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].tags[k].dataType, g_Dbs.db[i].superTbls[j].tags[k].dataLen);
-                if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
-                                "binary", strlen("binary")))
-                        || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
-                                "nchar", strlen("nchar")))) {
-                    printf("tag[%d]:\033[33m%s(%d)\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].tags[k].dataType,
-                            g_Dbs.db[i].superTbls[j].tags[k].dataLen);
+                if (TBL_NO_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+                    printf("      childTblExists:    \033[33m%s\033[0m\n",  "no");
+                } else if (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+                    printf("      childTblExists:    \033[33m%s\033[0m\n",  "yes");
                 } else {
-                    printf("tag[%d]:\033[33m%s\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].tags[k].dataType);
+                    printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
                 }
+
+                printf("      childTblCount:     \033[33m%"PRId64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].childTblCount);
+                printf("      childTblPrefix:    \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].childTblPrefix);
+                printf("      dataSource:        \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].dataSource);
+                printf("      iface:             \033[33m%s\033[0m\n",
+                        (g_Dbs.db[i].superTbls[j].iface==TAOSC_IFACE)?"taosc":
+                        (g_Dbs.db[i].superTbls[j].iface==REST_IFACE)?"rest":"stmt");
+                if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
+                    printf("      childTblLimit:     \033[33m%"PRId64"\033[0m\n",
+                            g_Dbs.db[i].superTbls[j].childTblLimit);
+                }
+                if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
+                    printf("      childTblOffset:    \033[33m%"PRIu64"\033[0m\n",
+                            g_Dbs.db[i].superTbls[j].childTblOffset);
+                }
+                printf("      insertRows:        \033[33m%"PRId64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].insertRows);
+                /*
+                if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
+                printf("      multiThreadWriteOneTbl:  \033[33m no\033[0m\n");
+                }else {
+                printf("      multiThreadWriteOneTbl:  \033[33m yes\033[0m\n");
+                }
+                */
+                printf("      interlaceRows:     \033[33m%u\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].interlaceRows);
+
+                if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
+                    printf("      stable insert interval:   \033[33m%"PRIu64"\033[0m\n",
+                            g_Dbs.db[i].superTbls[j].insertInterval);
+                }
+
+                printf("      disorderRange:     \033[33m%d\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].disorderRange);
+                printf("      disorderRatio:     \033[33m%d\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].disorderRatio);
+                printf("      maxSqlLen:         \033[33m%"PRIu64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].maxSqlLen);
+                printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].timeStampStep);
+                printf("      startTimestamp:    \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].startTimestamp);
+                printf("      sampleFormat:      \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].sampleFormat);
+                printf("      sampleFile:        \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].sampleFile);
+                printf("      tagsFile:          \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].tagsFile);
+                printf("      columnCount:       \033[33m%d\033[0m\n        ",
+                        g_Dbs.db[i].superTbls[j].columnCount);
+                for (int k = 0; k < g_Dbs.db[i].superTbls[j].columnCount; k++) {
+                    //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].columns[k].dataType, g_Dbs.db[i].superTbls[j].columns[k].dataLen);
+                    if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
+                                    "binary", 6))
+                            || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
+                                    "nchar", 5))) {
+                        printf("column[%d]:\033[33m%s(%d)\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].columns[k].dataType,
+                                g_Dbs.db[i].superTbls[j].columns[k].dataLen);
+                    } else {
+                        printf("column[%d]:\033[33m%s\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].columns[k].dataType);
+                    }
+                }
+                printf("\n");
+
+                printf("      tagCount:            \033[33m%d\033[0m\n        ",
+                        g_Dbs.db[i].superTbls[j].tagCount);
+                for (int k = 0; k < g_Dbs.db[i].superTbls[j].tagCount; k++) {
+                    //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].tags[k].dataType, g_Dbs.db[i].superTbls[j].tags[k].dataLen);
+                    if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                                    "binary", strlen("binary")))
+                            || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                                    "nchar", strlen("nchar")))) {
+                        printf("tag[%d]:\033[33m%s(%d)\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                                g_Dbs.db[i].superTbls[j].tags[k].dataLen);
+                    } else {
+                        printf("tag[%d]:\033[33m%s\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].tags[k].dataType);
+                    }
+                }
+                printf("\n");
             }
-            printf("\n");
+        } else {
+            printf("  childTblCount:     \033[33m%"PRId64"\033[0m\n",
+                        g_args.ntables);
+            printf("  insertRows:        \033[33m%"PRId64"\033[0m\n",
+                        g_args.insertRows);
         }
+        
+        
         printf("\n");
     }
 
@@ -10270,7 +10303,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 &stbInfo->childTblName, &childTblCount,
                 limit,
                 offset);
-        ntables = childTblCount; // CBD
+        ntables = childTblCount;
     } else {
         ntables = g_args.ntables;
         tableFrom = 0;
@@ -10289,8 +10322,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         b = ntables % threads;
     }
 
-    if ((stbInfo)
-            && (stbInfo->iface == REST_IFACE)) {
+    if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
             ERROR_EXIT("convert host to server address");
@@ -11824,7 +11856,7 @@ static void setParaFromArg() {
             g_Dbs.db[0].superTbls[0].columns[i].data_type = data_type[i];
             tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                     dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
-            if (1 == regexMatch(dataType[i], "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$", REG_ICASE | 
+            if (1 == regexMatch(dataType[i], "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$", REG_ICASE |
                     REG_EXTENDED)) {
                 sscanf(dataType[i], "%[^(](%[^)]", type, length);
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = atoi(length);
@@ -11833,7 +11865,7 @@ static void setParaFromArg() {
             } else {
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-                    dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1)); 
+                    dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
             }
             g_Dbs.db[0].superTbls[0].columnCount++;
         }
