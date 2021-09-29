@@ -492,7 +492,7 @@ static int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesI
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  *tsVal = value->valueint;
+  *tsVal = strtoll(value->numberstring, NULL, 10);
   //if timestamp value is 0 use current system time
   if (*tsVal == 0) {
     *tsVal = taosGetTimestampNs();
@@ -540,7 +540,8 @@ static int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_k
     if (timestamp->valueint == 0) {
       tsVal = taosGetTimestampNs();
     } else {
-      tsVal = convertTimePrecision(timestamp->valueint, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
+      tsVal = strtoll(timestamp->numberstring, NULL, 10);
+      tsVal = convertTimePrecision(tsVal, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
     }
   } else if (cJSON_IsObject(timestamp)) {
     int32_t ret = parseTimestampFromJSONObj(timestamp, &tsVal, info);
