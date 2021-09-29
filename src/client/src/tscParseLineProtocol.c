@@ -1811,8 +1811,8 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
-    if (len > TSDB_COL_NAME_LEN - 1) {
-      tscError("SML:0x%"PRIx64" Key field cannot exceeds 64 characters", info->id);
+    if (len >= TSDB_COL_NAME_LEN - 1) {
+      tscError("SML:0x%"PRIx64" Key field cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     //unescaped '=' identifies a tag key
@@ -1898,8 +1898,8 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   }
 
   while (*cur != '\0') {
-    if (len > TSDB_TABLE_NAME_LEN - 1) {
-      tscError("SML:0x%"PRIx64" Measurement field cannot exceeds 192 characters", info->id);
+    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+      tscError("SML:0x%"PRIx64" Measurement field cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       free(pSml->stableName);
       pSml->stableName = NULL;
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
@@ -1931,7 +1931,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 //Table name can only contain digits(0-9),alphebet(a-z),underscore(_)
 int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* info) {
   if (len > TSDB_TABLE_NAME_LEN - 1) {
-    tscError("SML:0x%"PRIx64" child table name cannot exceeds 192 characters", info->id);
+    tscError("SML:0x%"PRIx64" child table name cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
   const char *cur = pTbName;

@@ -48,8 +48,8 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   }
 
   while (*cur != '\0') {
-    if (len > TSDB_TABLE_NAME_LEN - 1) {
-      tscError("OTD:0x%"PRIx64" Metric cannot exceeds 192 characters", info->id);
+    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+      tscError("OTD:0x%"PRIx64" Metric cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       tfree(pSml->stableName);
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     }
@@ -180,8 +180,8 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
-    if (len > TSDB_COL_NAME_LEN - 1) {
-      tscError("OTD:0x%"PRIx64" Tag key cannot exceeds 64 characters", info->id);
+    if (len >= TSDB_COL_NAME_LEN - 1) {
+      tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     if (*cur == ' ') {
@@ -447,7 +447,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
 
   size_t stableLen = strlen(metric->valuestring);
   if (stableLen > TSDB_TABLE_NAME_LEN - 1) {
-      tscError("OTD:0x%"PRIx64" Metric cannot exceeds 192 characters in JSON", info->id);
+      tscError("OTD:0x%"PRIx64" Metric cannot exceeds %d characters in JSON", info->id, TSDB_TABLE_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
@@ -882,7 +882,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     //key
     size_t keyLen = strlen(tag->string);
     if (keyLen > TSDB_COL_NAME_LEN - 1) {
-      tscError("OTD:0x%"PRIx64" Tag key cannot exceeds 64 characters in JSON", info->id);
+      tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters in JSON", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     pkv->key = tcalloc(keyLen + 1, sizeof(char));

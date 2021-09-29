@@ -27,13 +27,13 @@ def test_schemaless_insert(conn):
             'st,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns',
             'stf,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000ns',
         ]
-        conn.schemaless_insert(lines)
+        conn.schemaless_insert(lines, 0)
         print("inserted")
 
         lines = [
             'stf,t1=5i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000ns',
         ]
-        conn.schemaless_insert(lines)
+        conn.schemaless_insert(lines, 0)
         print("inserted")
         result = conn.query("select * from st")
         print(*result.fields)
