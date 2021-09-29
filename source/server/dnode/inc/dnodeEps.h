@@ -33,7 +33,7 @@ typedef struct DnEps {
 } DnEps;
 
 int32_t dnodeInitEps(Dnode *dnode, DnEps **eps);
-void    dnodeCleanupEps(Dnode *dnode, DnEps **eps);
+void    dnodeCleanupEps(DnEps **eps);
 void    dnodeUpdateEps(DnEps *eps, SDnodeEps *data);
 bool    dnodeIsDnodeEpChanged(DnEps *eps, int32_t dnodeId, char *epstr);
 void    dnodeGetDnodeEp(Dnode *dnode, int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);

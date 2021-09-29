@@ -26,7 +26,7 @@ typedef struct DnCheck {
 } DnCheck;
 
 int32_t dnodeInitCheck(Dnode *dnode, DnCheck **check);
-void    dnodeCleanupCheck(Dnode *dnode, DnCheck **check);
+void    dnodeCleanupCheck(DnCheck **check);
 
 #ifdef __cplusplus
 }

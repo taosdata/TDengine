@@ -87,14 +87,6 @@ typedef struct {
 int32_t vnodeGetStatistics(struct Vnode *vnode, SVnodeStat *stat);
 
 /**
- * Interface for processing messages.
- *
- * @param vnode, instance of vnode module.
- * @param msg, message to be processed.
- */
-void vnodeProcessMsg(struct Vnode *vnode, SRpcMsg *msg);
-
-/**
  * Get the status of all vnodes.
  *
  * @param vnode, instance of vnode module.
@@ -110,6 +102,14 @@ void vnodeGetStatus(struct Vnode *vnode, struct SStatusMsg *status);
  * @param numOfVnodes, the size of vnodes.
  */
 void vnodeSetAccess(struct Vnode *vnode, struct SVgroupAccess *access, int32_t numOfVnodes);
+
+/**
+ * Interface for processing messages.
+ *
+ * @param vnode, instance of vnode module.
+ * @param msg, message to be processed.
+ */
+void vnodeProcessMsg(struct Vnode *vnode, SRpcMsg *msg);
 
 #ifdef __cplusplus
 }

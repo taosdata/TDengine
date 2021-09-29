@@ -31,7 +31,7 @@ typedef struct DnCfg {
 } DnCfg;
 
 int32_t dnodeInitCfg(Dnode *dnode, DnCfg **cfg);
-void    dnodeCleanupCfg(Dnode *dnode, DnCfg **cfg);
+void    dnodeCleanupCfg(DnCfg **cfg);
 void    dnodeUpdateCfg(DnCfg *cfg, SDnodeCfg *data);
 int32_t dnodeGetDnodeId(DnCfg *cfg);
 void    dnodeGetClusterId(DnCfg *cfg, char *clusterId);

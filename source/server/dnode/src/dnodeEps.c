@@ -204,7 +204,7 @@ int32_t dnodeInitEps(Dnode *dnode, DnEps **out) {
   return ret;
 }
 
-void dnodeCleanupEps(Dnode *dnode, DnEps **out) {
+void dnodeCleanupEps(DnEps **out) {
   DnEps *eps = *out;
   *out = NULL;
 

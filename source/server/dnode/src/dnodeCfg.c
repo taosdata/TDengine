@@ -128,7 +128,7 @@ int32_t dnodeInitCfg(Dnode *dnode, DnCfg **out) {
   return ret;
 }
 
-void dnodeCleanupCfg(Dnode *dnode, DnCfg **out) {
+void dnodeCleanupCfg(DnCfg **out) {
   DnCfg* cfg = *out;
   *out = NULL;
 

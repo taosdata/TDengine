@@ -194,7 +194,7 @@ int32_t dnodeInitCheck(Dnode *dnode, DnCheck **out) {
   return 0;
 }
 
-void dnodeCleanupCheck(Dnode *dnode, DnCheck **out) {
+void dnodeCleanupCheck(DnCheck **out) {
   DnCheck *check = *out;
   *out = NULL;
 
