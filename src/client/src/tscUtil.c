@@ -29,7 +29,10 @@
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
+
+#ifdef HTTP_EMBEDDED
 #include "httpInt.h"
+#endif
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 
@@ -5118,11 +5121,14 @@ void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id) {
 
 char* cloneCurrentDBName(SSqlObj* pSql) {
   char        *p = NULL;
+#ifdef HTTP_EMBEDDED
   HttpContext *pCtx = NULL;
+#endif
 
   pthread_mutex_lock(&pSql->pTscObj->mutex);
   STscObj *pTscObj = pSql->pTscObj;
   switch (pTscObj->from) {
+#ifdef HTTP_EMBEDDED
   case TAOS_REQ_FROM_HTTP:
     pCtx = pSql->param;
     if (pCtx && pCtx->db[0] != '\0') {
@@ -5133,6 +5139,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
       p = strdup(db);
     }
     break;
+#endif
   default:
     break;
   }
