@@ -876,7 +876,7 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode* parent, tExprNode *
     if (node->nodeType == TSQL_NODE_COL) {
       type = FLD_TYPE_COLUMN;
       v = node->pSchema;
-      if(parent->nodeType == TSDB_RELATION_QUESTION){
+      if(parent->_node.optr == TSDB_RELATION_QUESTION){
         node->pSchema->colId = 0;  // ? operation make colId=0 to make different with -> operation to eliminate repetition and don not convert type
         assert(parent->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
         memset(node->pSchema->name, 0, TSDB_COL_NAME_LEN);
