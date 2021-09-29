@@ -101,15 +101,6 @@ int32_t mnodeDeploy(struct Mnode *mnode, struct SMInfos *minfos);
 void mnodeUnDeploy(struct Mnode *mnode);
 
 /**
- * Interface for processing messages.
- *
- * @param mnode, instance of mnode module.
- * @param rpcMsg, message to be processed.
- * @return Error code.
- */
-void mnodeProcessMsg(struct Mnode *mnode, SRpcMsg *rpcMsg);
-
-/**
  * Whether the mnode is in service.
  *
  * @param mnode, instance of mnode module.
@@ -151,6 +142,15 @@ int32_t mnodeGetStatistics(struct Mnode *mnode, SMnodeStat *stat);
  * @return Error Code.
  */
 int32_t mnodeRetriveAuth(struct Mnode *mnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
+/**
+ * Interface for processing messages.
+ *
+ * @param mnode, instance of mnode module.
+ * @param rpcMsg, message to be processed.
+ * @return Error code.
+ */
+void mnodeProcessMsg(struct Mnode *mnode, SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }
