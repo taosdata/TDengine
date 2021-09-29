@@ -11480,14 +11480,16 @@ static int insertTestProcess() {
                     if (stbInfo->schemaless) {
                         fprintf(stderr,
                                 "start schemaless insert into %" PRId64
-                                " table(s) for %ld records each with %d "
+                                " table(s) for %" PRId64
+                                " records each with %d "
                                 "thread(s)\n\n",
                                 g_totalChildTables, stbInfo->insertRows,
                                 g_Dbs.threadCount);
                         if (g_fpOfInsertResult) {
                             fprintf(g_fpOfInsertResult,
                                     "start schemaless insert into %" PRId64
-                                    " table(s) for %ld records each with %d "
+                                    " table(s) for %" PRId64
+                                    " records each with %d "
                                     "thread(s)\n\n",
                                     g_totalChildTables, stbInfo->insertRows,
                                     g_Dbs.threadCount);
