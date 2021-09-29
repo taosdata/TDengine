@@ -4,7 +4,7 @@
 
 The taos-jdbcdriver is implemented in two forms: JDBC-JNI and JDBC-RESTful (supported from taos-jdbcdriver-2.0.18). JDBC-JNI is implemented by calling the local methods of libtaos.so (or taos.dll) on the client, while JDBC-RESTful encapsulates the RESTful interface implementation internally.
 
-![tdengine-connector](page://images/tdengine-jdbc-connector.png)
+![tdengine-connector](../../images/tdengine-jdbc-connector.png)
 
 The figure above shows the three ways Java applications can access the TDengine:
 
@@ -69,18 +69,18 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 The TDengine supports the following data types and Java data types:
 
-| TDengine DataType | Java DataType      |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte[]             |
-| NCHAR             | java.lang.String   |
+| TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
+| ----------------- | ------------------ | ------------------ |
+| TIMESTAMP         | java.lang.Long     | java.sql.Timestamp |
+| INT               | java.lang.Integer  | java.lang.Integer  |
+| BIGINT            | java.lang.Long     | java.lang.Long     |
+| FLOAT             | java.lang.Float    | java.lang.Float    |
+| DOUBLE            | java.lang.Double   | java.lang.Double   |
+| SMALLINT          | java.lang.Short    | java.lang.Short    |
+| TINYINT           | java.lang.Byte     | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  | java.lang.Boolean  |
+| BINARY            | java.lang.String   | byte array         |
+| NCHAR             | java.lang.String   | java.lang.String   |
 
 ## Install Java connector
 

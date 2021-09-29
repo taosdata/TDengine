@@ -101,7 +101,7 @@ typedef struct SMergeTsCtx {
 }SMergeTsCtx;
 
 typedef struct SVgroupTableInfo {
-  SVgroupInfo vgInfo;
+  SVgroupMsg  vgInfo;
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
@@ -184,7 +184,9 @@ void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
 
-int tscAllocPayload(SSqlCmd* pCmd, int size);
+// the memory is not reset in case of fast allocate payload function
+int32_t tscAllocPayloadFast(SSqlCmd *pCmd, size_t size);
+int32_t tscAllocPayload(SSqlCmd* pCmd, int size);
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes);
 
@@ -298,7 +300,11 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
+
+#if 0
 void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
+#endif
+
 /**
  * The create object function must be successful expect for the out of memory issue.
  *
@@ -328,6 +334,7 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex, SSqlC
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId);
+int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries);
 
 void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex);
 

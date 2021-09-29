@@ -52,6 +52,7 @@ int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
+static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
@@ -300,6 +301,8 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
+  pthread_mutex_destroy(&setConfMutex);
+
   if (tscEmbedded == 0) {
     rpcCleanup();
     taosCloseLog();
@@ -487,5 +490,68 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   int ret = taos_options_imp(option, (const char*)arg);
 
   atomic_store_32(&lock, 0);
+  return ret;
+}
+
+#include "cJSON.h"
+static setConfRet taos_set_config_imp(const char *config){
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+  static bool setConfFlag = false;
+  if (setConfFlag) {
+    ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
+    strcpy(ret.retMsg, "configuration can only set once");
+    return ret;
+  }
+  taosInitGlobalCfg();
+  cJSON *root = cJSON_Parse(config);
+  if (root == NULL){
+    ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
+    strcpy(ret.retMsg, "parse json error");
+    return ret;
+  }
+
+  int size = cJSON_GetArraySize(root);
+  if(!cJSON_IsObject(root) || size == 0) {
+    ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
+    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    return ret;
+  }
+
+  if(size >= 1000) {
+    ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
+    strcpy(ret.retMsg, "json object size is too long");
+    return ret;
+  }
+
+  for(int i = 0; i < size; i++){
+    cJSON *item = cJSON_GetArrayItem(root, i);
+    if(!item) {
+      ret.retCode = SET_CONF_RET_ERR_INNER;
+      strcpy(ret.retMsg, "inner error");
+      return ret;
+    }
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
+      ret.retCode = SET_CONF_RET_ERR_PART;
+      if (strlen(ret.retMsg) == 0){
+        snprintf(ret.retMsg, RET_MSG_LENGTH, "part error|%s", item->string);
+      }else{
+        int tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+        size_t leftSize = tmp >= 0 ? tmp : 0;
+        strncat(ret.retMsg, "|",  leftSize);
+        tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+        leftSize = tmp >= 0 ? tmp : 0;
+        strncat(ret.retMsg, item->string, leftSize);
+      }
+    }
+  }
+  cJSON_Delete(root);
+  setConfFlag = true;
+  return ret;
+}
+
+setConfRet taos_set_config(const char *config){
+  pthread_mutex_lock(&setConfMutex);
+  setConfRet ret = taos_set_config_imp(config);
+  pthread_mutex_unlock(&setConfMutex);
   return ret;
 }

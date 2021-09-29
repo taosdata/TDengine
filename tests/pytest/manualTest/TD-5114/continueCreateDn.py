@@ -42,7 +42,7 @@ class TwoClients:
 
         tdSql.execute("drop database if exists db3")
 
-        # insert data with taosc 
+        # insert data with c connector 
         for i in range(10):
             os.system("taosdemo -f manualTest/TD-5114/insertDataDb3Replica2.json -y ")
         # # check data correct 

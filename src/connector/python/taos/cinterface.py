@@ -827,6 +827,22 @@ def taos_insert_lines(connection, lines):
     if errno != 0:
         raise LinesError("insert lines error", errno)
 
+def taos_insert_telnet_lines(connection, lines):
+    # type: (c_void_p, list[str] | tuple(str)) -> None
+    num_of_lines = len(lines)
+    lines = (c_char_p(line.encode("utf-8")) for line in lines)
+    lines_type = ctypes.c_char_p * num_of_lines
+    p_lines = lines_type(*lines)
+    errno = _libtaos.taos_insert_telnet_lines(connection, p_lines, num_of_lines)
+    if errno != 0:
+        raise TelnetLinesError("insert telnet lines error", errno)
+
+def taos_insert_json_payload(connection, payload):
+    # type: (c_void_p, list[str] | tuple(str)) -> None
+    payload = payload.encode("utf-8")
+    errno = _libtaos.taos_insert_json_payload(connection, payload)
+    if errno != 0:
+        raise JsonPayloadError("insert json payload error", errno)
 
 class CTaosInterface(object):
     def __init__(self, config=None):

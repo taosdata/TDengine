@@ -1491,7 +1491,6 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->signature = pSql;
   pSql->pTscObj   = pObj;
   pSql->maxRetry  = TSDB_MAX_REPLICA;
-  pSql->isBind    = true;
   pStmt->pSql     = pSql;
   pStmt->last     = STMT_INIT;
 

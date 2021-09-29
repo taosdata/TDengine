@@ -39,6 +39,14 @@ void osInit() {
   strcpy(tsDataDir, "C:/TQ/data");
   strcpy(tsLogDir, "C:/TQ/log");
   strcpy(tsScriptDir, "C:/TQ/script");
+#elif (_TD_PRO_ == true)
+  if (configDir[0] == 0) {
+    strcpy(configDir, "C:/ProDB/cfg");
+  }
+  strcpy(tsVnodeDir, "C:/ProDB/data");
+  strcpy(tsDataDir, "C:/ProDB/data");
+  strcpy(tsLogDir, "C:/ProDB/log");
+  strcpy(tsScriptDir, "C:/ProDB/script");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "C:/TDengine/cfg");

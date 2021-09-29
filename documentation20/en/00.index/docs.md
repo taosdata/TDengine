@@ -1,6 +1,6 @@
 # TDengine Documentation
 
-TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Model and Data Modeling sections. In addition to this document, you should also download and read our technology white paper. For the older TDengine version 1.6 documentation, please click here.
+TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper. For the older TDengine version 1.6 documentation, please click [here](https://www.taosdata.com/en/documentation16/).
 
 ## [TDengine Introduction](/evaluation)
 
@@ -10,28 +10,41 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## [Getting Started](/getting-started)
 
-* [Quickly Install](/getting-started#install): install via source code/package / Docker within seconds
-
-- [Easy to Launch](/getting-started#start): start / stop TDengine with systemctl
-- [Command-line](/getting-started#console) : an easy way to access TDengine server
-- [Experience Lightning Speed](/getting-started#demo): running a demo, inserting/querying data to experience faster speed
-- [List of Supported Platforms](/getting-started#platforms): a list of platforms supported by TDengine server and client
-- [Deploy to Kubernetes](https://taosdata.github.io/TDengine-Operator/en/index.html)：a detailed guide for TDengine deployment in Kubernetes environment
+* [Quick Install](/getting-started#install): install via source code/package / Docker within seconds
+* [Quick Launch](/getting-started#start): start / stop TDengine quickly with systemctl
+* [Command-line](/getting-started#console) : an easy way to access TDengine server
+* [Experience Lightning Speed](/getting-started#demo): running a demo, inserting/querying data to experience faster speed
+* [List of Supported Platforms](/getting-started#platforms): a list of platforms supported by TDengine server and client
+* [Deploy to Kubernetes](https://taosdata.github.io/TDengine-Operator/en/index.html)：a detailed guide for TDengine deployment in Kubernetes environment
 
 ## [Overall Architecture](/architecture)
 
-- [Data Model](/architecture#model): relational database model, but one table for one device with static tags
-- [Cluster and Primary Logical Unit](/architecture#cluster): Take advantage of NoSQL, support scale-out and high-reliability
-- [Storage Model and Data Partitioning/Sharding](/architecture#sharding): tag data will be separated from time-series data, segmented by vnode and time
-- [Data Writing and Replication Process](/architecture#replication): records received are written to WAL, cached, with acknowledgement is sent back to client, while supporting multi-replicas
+- [Data Model](/architecture#model): relational database model, but one table for one data collection point with static tags
+- [Cluster and Primary Logical Unit](/architecture#cluster): Take advantage of NoSQL architecture, high availability and horizontal scalability
+- [Storage Model and Data Partitioning/Sharding](/architecture#sharding): tag data is separated from time-series data, sharded by vnodes and partitioned by time 
+- [Data Writing and Replication Process](/architecture#replication): records received are written to WAL, cached, with acknowledgement sent back to client, while supporting data replications
 - [Caching and Persistence](/architecture#persistence): latest records are cached in memory, but are written in columnar format with an ultra-high compression ratio
-- [Data Query](/architecture#query): support various functions, time-axis aggregation, interpolation, and multi-table aggregation
+- [Data Query](/architecture#query): support various SQL functions, downsampling, interpolation, and multi-table aggregation
 
 ## [Data Modeling](/model)
 
-- [Create a Database](/model#create-db): create a database for all data collection points with similar features
+- [Create a Database](/model#create-db): create a database for all data collection points with similar data characteristics
 - [Create a Super Table(STable)](/model#create-stable): create a STable for all data collection points with the same type
-- [Create a Table](/model#create-table): use STable as the template, to create a table for each data collecting point
+- [Create a Table](/model#create-table): use STable as the template to create a table for each data collecting point
+
+## [Efficient Data Ingestion](/insert)
+
+- [Data Writing via SQL](/insert#sql): write one or multiple records into one or multiple tables via SQL insert command
+- [Data Writing via Prometheus](/insert#prometheus): Configure Prometheus to write data directly without any code
+- [Data Writing via Telegraf](/insert#telegraf): Configure Telegraf to write collected data directly without any code
+- [Data Writing via EMQ X](/insert#emq): Configure EMQ X to write MQTT data directly without any code
+- [Data Writing via HiveMQ Broker](/insert#hivemq): Configure HiveMQ to write MQTT data directly without any code
+
+## [Efficient Data Querying](/queries)
+
+- [Major Features](/queries#queries): support various standard query functions, setting filter conditions, and querying per time segment
+- [Multi-table Aggregation](/queries#aggregation): use STable and set tag filter conditions to perform efficient aggregation
+- [Downsampling](/queries#sampling): aggregate data in successive time windows, support interpolation
 
 ## [TAOS SQL](/taos-sql)
 
@@ -40,26 +53,12 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Table Management](/taos-sql#table): add, drop, check, alter tables
 - [STable Management](/taos-sql#super-table): add, drop, check, alter STables
 - [Tag Management](/taos-sql#tags): add, drop, alter tags
-- [Inserting Records](/taos-sql#insert): support to write single/multiple items per table, multiple items across tables, and support to write historical data
+- [Inserting Records](/taos-sql#insert): write single/multiple records a table, multiple records across tables, and historical data
 - [Data Query](/taos-sql#select): support time segment, value filtering, sorting, manual paging of query results, etc
 - [SQL Function](/taos-sql#functions): support various aggregation functions, selection functions, and calculation functions, such as avg, min, diff, etc
-- [Time Dimensions Aggregation](/taos-sql#aggregation): aggregate and reduce the dimension after cutting table data by time segment
+- [Cutting and Aggregation](/taos-sql#aggregation): aggregate and reduce the dimension after cutting table data by time segment
 - [Boundary Restrictions](/taos-sql#limitation): restrictions for the library, table, SQL, and others
 - [Error Code](/taos-sql/error-code): TDengine 2.0 error codes and corresponding decimal codes
-
-## [Efficient Data Ingestion](/insert)
-
-- [SQL Ingestion](/insert#sql): write one or multiple records into one or multiple tables via SQL insert command
-- [Prometheus Ingestion](/insert#prometheus): Configure Prometheus to write data directly without any code
-- [Telegraf Ingestion](/insert#telegraf): Configure Telegraf to write collected data directly without any code
-- [EMQ X Broker](/insert#emq): Configure EMQ X to write MQTT data directly without any code
-- [HiveMQ Broker](/insert#hivemq): Configure HiveMQ to write MQTT data directly without any code
-
-## [Efficient Data Querying](/queries)
-
-- [Main Query Features](/queries#queries): support various standard functions, setting filter conditions, and querying per time segment
-- [Multi-table Aggregation Query](/queries#aggregation): use STable and set tag filter conditions to perform efficient aggregation queries
-- [Downsampling to Query Value](/queries#sampling): aggregate data in successive time windows, support interpolation
 
 ## [Advanced Features](/advanced-features)
 
@@ -88,12 +87,12 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## [Installation and Management of TDengine Cluster](/cluster)
 
-- [Preparation](/cluster#prepare): important considerations before deploying TDengine for production usage
-- [Create Your First Node](/cluster#node-one): simple to follow the quick setup
+- [Preparation](/cluster#prepare): important steps before deploying TDengine for production usage
+- [Create the First Node](/cluster#node-one): just follow the steps in quick start 
 - [Create Subsequent Nodes](/cluster#node-other): configure taos.cfg for new nodes to add more to the existing cluster
 - [Node Management](/cluster#management): add, delete, and check nodes in the cluster
-- [High-availability of Vnode](/cluster#high-availability): implement high-availability of Vnode through multi-replicas
-- [Mnode Management](/cluster#mnode): automatic system creation without any manual intervention
+- [High-availability of Vnode](/cluster#high-availability): implement high-availability of Vnode through replicas
+- [Mnode Management](/cluster#mnode): mnodes are created automatically without any manual intervention
 - [Load Balancing](/cluster#load-balancing): automatically performed once the number of nodes or load changes
 - [Offline Node Processing](/cluster#offline): any node that offline for more than a certain period will be removed from the cluster
 - [Arbitrator](/cluster#arbitrator): used in the case of an even number of replicas to prevent split-brain
@@ -108,27 +107,14 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Export Data](/administrator#export): export data either from TDengine shell or from the taosdump tool
 - [System Monitor](/administrator#status): monitor the system connections, queries, streaming calculation, logs, and events
 - [File Directory Structure](/administrator#directories): directories where TDengine data files and configuration files located
-- [Parameter Restrictions and Reserved Keywords](/administrator#keywords): TDengine’s list of parameter restrictions and reserved keywords
-
-## TDengine Technical Design
-
-- [System Module]: taosd functions and modules partitioning
-- [Data Replication]: support real-time synchronous/asynchronous replication, to ensure high-availability of the system
-- [Technical Blog](https://www.taosdata.com/cn/blog/?categories=3): More technical analysis and architecture design articles
-
-## Common Tools
-
-- [TDengine sample import tools](https://www.taosdata.com/blog/2020/01/18/1166.html)
-- [TDengine performance comparison test tools](https://www.taosdata.com/blog/2020/01/18/1166.html)
-- [Use TDengine visually through IDEA Database Management Tool](https://www.taosdata.com/blog/2020/08/27/1767.html)
+- [Parameter Limitss and Reserved Keywords](/administrator#keywords): TDengine’s list of parameter limits and reserved keywords
 
 ## Performance: TDengine vs Others
 
-- [Performance: TDengine vs InfluxDB with InfluxDB’s open-source performance testing tool](https://www.taosdata.com/blog/2020/01/13/1105.html)
-- [Performance: TDengine vs OpenTSDB](https://www.taosdata.com/blog/2019/08/21/621.html)
-- [Performance: TDengine vs Cassandra](https://www.taosdata.com/blog/2019/08/14/573.html)
-- [Performance: TDengine vs InfluxDB](https://www.taosdata.com/blog/2019/07/19/419.html)
-- [Performance Test Reports of TDengine vs InfluxDB/OpenTSDB/Cassandra/MySQL/ClickHouse](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)
+- [Performance: TDengine vs OpenTSDB](https://www.taosdata.com/blog/2019/09/12/710.html)
+- [Performance: TDengine vs Cassandra](https://www.taosdata.com/blog/2019/09/12/708.html)
+- [Performance: TDengine vs InfluxDB](https://www.taosdata.com/blog/2019/09/12/706.html)
+- [Performance Test Reports of TDengine vs InfluxDB/OpenTSDB/Cassandra/MySQL/ClickHouse](https://www.taosdata.com/downloads/TDengine_Testing_Report_en.pdf)
 
 ## More on IoT Big Data
 
@@ -136,6 +122,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Features and Functions of IoT Big Data platforms](https://www.taosdata.com/blog/2019/07/29/542.html)
 - [Why don’t General Big Data Platforms Fit IoT Scenarios?](https://www.taosdata.com/blog/2019/07/09/why-does-the-general-big-data-platform-not-fit-iot-data-processing/)
 - [Why TDengine is the best choice for IoT, Internet of Vehicles, and Industry Internet Big Data platforms?](https://www.taosdata.com/blog/2019/07/09/why-tdengine-is-the-best-choice-for-iot-big-data-processing/)
+- [Technical Blog](https://www.taosdata.com/cn/blog/?categories=3): More technical analysis and architecture design articles
 
 ## FAQ
 
