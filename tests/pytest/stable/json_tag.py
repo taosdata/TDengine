@@ -94,6 +94,20 @@ class TDTestCase:
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'num'=5 or jtag?'sex'")
         tdSql.checkRows(2)
 
+        # test with tbname
+        tdSql.query("select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' or jtag?'num'")
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' and jtag?'num'")
+        tdSql.checkRows(0)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' or jtag->'num'=5")
+        tdSql.checkRows(2)
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

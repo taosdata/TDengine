@@ -4464,7 +4464,9 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((pLeft->tokenId != TK_ARROW) && (!isTablenameToken(&pLeft->columnName)) && (pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
+    if ((pLeft->tokenId != TK_ARROW) && (!isTablenameToken(&pLeft->columnName))
+        && (pSchema[index].type != TSDB_DATA_TYPE_BINARY)
+        && (pSchema[index].type == TSDB_DATA_TYPE_JSON && !JSON_TYPE_BINARY)) {
       return invalidOperationMsg(msgBuf, msg2);
     }
 
