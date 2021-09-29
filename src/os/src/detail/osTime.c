@@ -343,10 +343,40 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
   assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
          toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
-  static double factors[3][3] = { {1.,            1000.,            1000000.},
-                                  {1.0 / 1000,    1.,               1000.},
-                                  {1.0 / 1000000, 1.0 / 1000,       1.} };
-  return (int64_t)((double)time * factors[fromPrecision][toPrecision]);
+  switch(fromPrecision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      switch (toPrecision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          return time;
+        case TSDB_TIME_PRECISION_MICRO:
+          return time * 1000;
+        case TSDB_TIME_PRECISION_NANO:
+          return time * 1000000;
+      }
+    } // end from milli
+    case TSDB_TIME_PRECISION_MICRO: {
+      switch (toPrecision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          return time / 1000;
+        case TSDB_TIME_PRECISION_MICRO:
+          return time;
+        case TSDB_TIME_PRECISION_NANO:
+          return time * 1000;
+      }
+    } //end from micro
+    case TSDB_TIME_PRECISION_NANO: {
+      switch (toPrecision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          return time / 1000000;
+        case TSDB_TIME_PRECISION_MICRO:
+          return time / 1000;
+        case TSDB_TIME_PRECISION_NANO:
+          return time;
+      }
+    } //end from nano
+    default:
+      assert(0);
+  } //end switch fromPrecision
 }
 
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
