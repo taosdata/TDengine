@@ -4740,7 +4740,7 @@ static void *insertSchemaless(void *sargs) {
                             "%s,id=\"%s%ld\"", stbInfo->stbName,
                             stbInfo->childTblPrefix,
                             t + pThreadInfo->start_table_from);
-        for (uint64_t j = 0; j < stbInfo->tagCount; j++) {
+        for (int j = 0; j < stbInfo->tagCount; j++) {
             tstrncpy(smlHead[t] + dataLen, ",", 2);
             dataLen += 1;
             switch (stbInfo->tags[j].data_type) {
@@ -4752,57 +4752,57 @@ static void *insertSchemaless(void *sargs) {
                 case TSDB_DATA_TYPE_BOOL:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%s", j, rand_bool_str());
+                                 "T%d=%s", j, rand_bool_str());
                     break;
                 case TSDB_DATA_TYPE_TINYINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%si8", j, rand_tinyint_str());
+                                 "T%d=%si8", j, rand_tinyint_str());
                     break;
                 case TSDB_DATA_TYPE_UTINYINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%su8", j, rand_utinyint_str());
+                                 "T%d=%su8", j, rand_utinyint_str());
                     break;
                 case TSDB_DATA_TYPE_SMALLINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%si16", j, rand_smallint_str());
+                                 "T%d=%si16", j, rand_smallint_str());
                     break;
                 case TSDB_DATA_TYPE_USMALLINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%su16", j, rand_usmallint_str());
+                                 "T%d=%su16", j, rand_usmallint_str());
                     break;
                 case TSDB_DATA_TYPE_INT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%si32", j, rand_int_str());
+                                 "T%d=%si32", j, rand_int_str());
                     break;
                 case TSDB_DATA_TYPE_UINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%su32", j, rand_uint_str());
+                                 "T%d=%su32", j, rand_uint_str());
                     break;
                 case TSDB_DATA_TYPE_BIGINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%si64", j, rand_bigint_str());
+                                 "T%d=%si64", j, rand_bigint_str());
                     break;
                 case TSDB_DATA_TYPE_UBIGINT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%su64", j, rand_ubigint_str());
+                                 "T%d=%su64", j, rand_ubigint_str());
                     break;
                 case TSDB_DATA_TYPE_FLOAT:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%sf32", j, rand_float_str());
+                                 "T%d=%sf32", j, rand_float_str());
                     break;
                 case TSDB_DATA_TYPE_DOUBLE:
                     dataLen +=
                         snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                                 "t%ld=%sf64", j, rand_double_str());
+                                 "T%d=%sf64", j, rand_double_str());
                     break;
                 case TSDB_DATA_TYPE_BINARY:
                 case TSDB_DATA_TYPE_NCHAR:
@@ -4822,11 +4822,11 @@ static void *insertSchemaless(void *sargs) {
                     if (stbInfo->tags[j].data_type == TSDB_DATA_TYPE_BINARY) {
                         dataLen += snprintf(smlHead[t] + dataLen,
                                             MAX_DATA_SIZE - dataLen,
-                                            "t%ld=\"%s\"", j, buf);
+                                            "T%d=\"%s\"", j, buf);
                     } else {
                         dataLen += snprintf(smlHead[t] + dataLen,
                                             MAX_DATA_SIZE - dataLen,
-                                            "t%ld=L\"%s\"", j, buf);
+                                            "T%d=L\"%s\"", j, buf);
                     }
                     tmfree(buf);
                     break;
@@ -6035,7 +6035,8 @@ static bool getMetaFromInsertJsonFile(cJSON *root) {
         }
 
         // cJSON* maxtablesPerVnode= cJSON_GetObjectItem(dbinfo,
-        // "maxtablesPerVnode"); if (maxtablesPerVnode && maxtablesPerVnode->type
+        // "maxtablesPerVnode"); if (maxtablesPerVnode &&
+        // maxtablesPerVnode->type
         // == cJSON_Number) {
         //  g_Dbs.db[i].dbCfg.maxtablesPerVnode = maxtablesPerVnode->valueint;
         //} else if (!maxtablesPerVnode) {
@@ -6889,7 +6890,8 @@ static bool getMetaFromQueryJsonFile(cJSON *root) {
         }
 
         // cJSON* subTblCnt = cJSON_GetObjectItem(superQuery,
-        // "childtable_count"); if (subTblCnt && subTblCnt->type == cJSON_Number)
+        // "childtable_count"); if (subTblCnt && subTblCnt->type ==
+        // cJSON_Number)
         // {
         //  g_queryInfo.superQueryInfo.childTblCount = subTblCnt->valueint;
         //} else if (!subTblCnt) {
