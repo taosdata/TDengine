@@ -4472,7 +4472,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     if(pLeft->tokenId == TK_ARROW && pSchema[index].type == TSDB_DATA_TYPE_JSON && !JSON_TYPE_BINARY){
       return invalidOperationMsg(msgBuf, msg2);
     }
-    
+
     if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
       return invalidOperationMsg(msgBuf, msg3);
     }
@@ -9230,6 +9230,9 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         colType = TSDB_DATA_TYPE_BIGINT;
       } else if (colType == TSDB_DATA_TYPE_FLOAT || colType == TSDB_DATA_TYPE_DOUBLE) {
         colType = TSDB_DATA_TYPE_DOUBLE;
+      } else if (colType == TSDB_DATA_TYPE_JSON){
+        if (JSON_TYPE_NCHAR) colType = TSDB_DATA_TYPE_NCHAR;
+        else colType = TSDB_DATA_TYPE_BINARY;
       }
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx);
       STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);

@@ -37,7 +37,7 @@ class TDTestCase:
         tdSql.error("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags(3)")
         tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 1, 'json1')")
         tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 3, 'json3')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"beijing\",\"name\":\"name4\"}') values (now, 4, 'json4')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"shanghai\",\"name\":\"name4\"}') values (now, 4, 'json4')")
 
         print("==============step2")
         tdLog.info("alter stable add tag")
@@ -57,17 +57,18 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1")
         tdSql.checkRows(4)
 
+        # error test
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->location='beijing'")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'")
+        tdSql.error("select jtag->location from db_json_tag_test.jsons1")
+        tdSql.error("select jtag?location from db_json_tag_test.jsons1")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag?location")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag?'location'='beijing'")
 
-        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
-        tdSql.checkRows(3)
-
+        # test select condition
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1_2")
         tdSql.checkData(0, 0, "beijing")
-
-
-        tdSql.query("select jtag->'num' from db_json_tag_test.jsons1 where jtag->'level'='l1'")
-        tdSql.checkData(0, 0, 34)
 
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1")
         tdSql.checkRows(4)
@@ -75,6 +76,24 @@ class TDTestCase:
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkRows(1)
 
+        # test json string value
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
+        tdSql.checkRows(2)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'!='beijing'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select jtag->'num' from db_json_tag_test.jsons1 where jtag->'level'='l1'")
+        tdSql.checkData(0, 0, 34)
+
+        # test json number value
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'class'>5 and jtag->'class'<9")
+        tdSql.checkRows(0)
+
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'class'>5 and jtag->'class'<92")
+        tdSql.checkRows(1)
+
+        # test where condition
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
         tdSql.checkRows(3)
 
@@ -106,6 +125,22 @@ class TDTestCase:
 
         tdSql.query("select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' or jtag->'num'=5")
         tdSql.checkRows(2)
+
+        # test where condition like
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%'")
+        tdSql.checkRows(2)
+
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' and jtag->'location'='beijin'")
+        tdSql.checkRows(0)
+
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' or jtag->'location'='beijin'")
+        tdSql.checkRows(2)
+
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' and jtag->'num'=34")
+        tdSql.checkRows(1)
+
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34)) and jtag->'class'=55")
+        tdSql.checkRows(1)
 
 
     def stop(self):
