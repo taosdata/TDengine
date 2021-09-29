@@ -209,7 +209,7 @@ char* strtolower(char *dst, const char *src) {
 }
 
 char* strntolower(char *dst, const char *src, int32_t n) {
-  int esc = 0;
+  int esc = 0, inEsc = 0;
   char quote = 0, *p = dst, c;
 
   assert(dst != NULL);
@@ -226,10 +226,16 @@ char* strntolower(char *dst, const char *src, int32_t n) {
       } else if (c == quote) {
         quote = 0;
       }
+    } else if (inEsc) {
+      if (c == '`') {
+        inEsc = 0;
+      }
     } else if (c >= 'A' && c <= 'Z') {
       c -= 'A' - 'a';
-    } else if (c == '\'' || c == '"') {
+    } else if (inEsc == 0 && (c == '\'' || c == '"')) {
       quote = c;
+    } else if (c == '`' && quote == 0) {
+      inEsc = 1;
     }
     *p++ = c;
   }
