@@ -278,6 +278,10 @@ do { \
 #define TSDB_MAX_TOTAL_BLOCKS           10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
+#define TSDB_MIN_WAL_FLUSH_SIZE         0
+#define TSDB_MAX_WAL_FLUSH_SIZE         10000000
+#define TSDB_DEFAULT_WAL_FLUSH_SIZE     1024 // 1024MB
+
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
