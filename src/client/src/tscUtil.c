@@ -4561,6 +4561,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta **ppChild, const char *name,
   }
 
   if (NULL == taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
+    tscDebug("free table meta buffer, name: %s", name);
     tfree(p);
     p = NULL;
   }
