@@ -19,3 +19,4 @@ go env -w GOPROXY=https://goproxy.cn,direct
 bash ./case001/case001.sh $severIp $serverPort
 bash ./case002/case002.sh $severIp $serverPort
 #bash ./case003/case003.sh $severIp $serverPort
+bash ./nanosupport/nanoCase.sh $severIp $serverPort
