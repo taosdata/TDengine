@@ -470,7 +470,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
   }
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
-  strntolower_s(pSml->stableName, pSml->stableName, stableLen);
+  strntolower_s(pSml->stableName, pSml->stableName, (int32_t)stableLen);
 
   return TSDB_CODE_SUCCESS;
 
