@@ -2685,10 +2685,15 @@ static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
     while(pRecord){
       SArray* tallistOld = *pRecord;
       for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {
-        void* p = taosArrayGet(tallistOld, i);
-        void* pFind = taosArraySearch(tablist, p, tsdbCompareJsonMapValue, TD_EQ);
+        void* element = taosArrayGet(tallistOld, i);
+        void* pFind = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_EQ);
         if(pFind == NULL){
-          taosArrayPush(tablist, p);
+          void* p = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_GE);
+          if(p == NULL){
+            taosArrayPush(tablist, element);
+          }else{
+            taosArrayInsert(tablist, TARRAY_ELEM_IDX(tablist, p), element);
+          }
         }
       }
       pRecord = taosHashIterate(pSuperTable->jsonKeyMap, pRecord);

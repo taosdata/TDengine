@@ -56,7 +56,7 @@ class TDTestCase:
 
         tdSql.query("select * from db_json_tag_test.jsons1")
         tdSql.checkRows(4)
-        
+
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
@@ -87,6 +87,7 @@ class TDTestCase:
         tdSql.query("select jtag->'sex' from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
         tdSql.checkData(0, 0, "femail")
         tdSql.checkRows(3)
+
 
 
     def stop(self):
