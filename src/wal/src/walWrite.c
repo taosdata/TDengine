@@ -411,7 +411,6 @@ static int walSMemRowCheck(SWalHead *pHead) {
       pWalHead->len = pWalHead->len + lenExpand;
     }
 
-    ASSERT((sizeof(SWalHead) + pWalHead->len) <= WAL_MAX_SIZE);
     memcpy(pHead, pWalHead, sizeof(SWalHead) + pWalHead->len);
     tfree(pWalHead);
   }

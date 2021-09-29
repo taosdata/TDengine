@@ -391,9 +391,6 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       pTh->bindex = *(pReadH->pBlkIdx);
       pTh->pBlkIdx = &(pTh->bindex);
 
-      // if (tsdbMakeRoom((void **)(&(pTh->pInfo)), pTh->pBlkIdx->len) < 0) {
-      //   return -1;
-      // }
       uint32_t originLen = 0;
       if (tsdbLoadBlockInfo(pReadH, (void **)(&(pTh->pInfo)), &originLen) < 0) {
         return -1;

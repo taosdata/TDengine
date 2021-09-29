@@ -343,7 +343,7 @@ static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
 static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   char *aname;
   // The sync module would send DFileSet with latest verion.
-  buf = tsdbDecodeDFInfo(buf, &(pDFile->info), tsdbGetSFSVersion());
+  buf = tsdbDecodeDFInfo(buf, &(pDFile->info), TSDB_LATEST_SFS_VER);
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pDFile);
@@ -431,7 +431,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_LATEST_FVER);
+  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_LATEST_FVER);  // only makesure the paramter sfver > 0
   return 0;
 }
 
@@ -638,10 +638,11 @@ void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
 }
 
 int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
-  uint8_t nDFiles = (from == NULL) ? TSDB_FILE_MAX : tsdbGetNFiles(from);
-  for (TSDB_FILE_T ftype = 0; ftype < nDFiles; ftype++) {
-    SDFile *pDFileFrom = (from) ? TSDB_DFILE_IN_SET(from, ftype) : NULL;
-    SDFile *pDFileTo = (to) ? TSDB_DFILE_IN_SET(to, ftype) : NULL;
+  uint8_t nFilesFrom = from ? tsdbGetNFiles(from) : 0;
+  uint8_t nFilesTo = to ? tsdbGetNFiles(to) : 0;
+  for (TSDB_FILE_T ftype = 0; ftype < MAX(nFilesFrom, nFilesTo); ftype++) {
+    SDFile *pDFileFrom = ftype < nFilesFrom ? TSDB_DFILE_IN_SET(from, ftype) : NULL;
+    SDFile *pDFileTo = ftype < nFilesTo ? TSDB_DFILE_IN_SET(to, ftype) : NULL;
     if (tsdbApplyDFileChange(pDFileFrom, pDFileTo) < 0) {
       return -1;
     }

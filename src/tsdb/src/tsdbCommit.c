@@ -1080,9 +1080,9 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   // Get # of cols not all NULL(not including key column)
   int nColsNotAllNull = 0;
-  int aggrNum = 0;
+  int nAggrCols = 0;
   for (int ncol = 1; ncol < pDataCols->numOfCols; ncol++) {  // ncol from 1, we skip the timestamp column
-    SDataCol * pDataCol = pDataCols->cols + ncol;
+    SDataCol *   pDataCol = pDataCols->cols + ncol;
     SBlockCol *  pBlockCol = pBlockData->cols + nColsNotAllNull;
     SAggrBlkCol *pAggrBlkCol = pAggrBlkData->cols + nColsNotAllNull;
 
@@ -1095,17 +1095,18 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
     pBlockCol->colId = pDataCol->colId;
     pBlockCol->type = pDataCol->type;
-
     pAggrBlkCol->colId = pDataCol->colId;
 
     if (tDataTypes[pDataCol->type].statisFunc) {
-      // (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
-      //                                          &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
-      //                                          &(pBlockCol->numOfNull));
+#if 0
+      (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
+                                               &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
+                                               &(pBlockCol->numOfNull));
+#endif
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pAggrBlkCol->min), &(pAggrBlkCol->max),
                                                &(pAggrBlkCol->sum), &(pAggrBlkCol->minIndex), &(pAggrBlkCol->maxIndex),
                                                &(pAggrBlkCol->numOfNull));
-      ++aggrNum;
+      ++nAggrCols;
     }
     nColsNotAllNull++;
   }
@@ -1119,14 +1120,14 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   int32_t  lsize = tsize;
   int32_t  keyLen = 0;
 
-  int32_t tsizeAggr = (int32_t)tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
+  uint32_t tsizeAggr = (uint32_t)tsdbBlockAggrSize(nColsNotAllNull, SBlockVerLatest);
 
   for (int ncol = 0; ncol < pDataCols->numOfCols; ncol++) {
     // All not NULL columns finish
     if (ncol != 0 && tcol >= nColsNotAllNull) break;
 
-    SDataCol *   pDataCol = pDataCols->cols + ncol;
-    SBlockCol *  pBlockCol = pBlockData->cols + tcol;
+    SDataCol * pDataCol = pDataCols->cols + ncol;
+    SBlockCol *pBlockCol = pBlockData->cols + tcol;
 
     if (ncol != 0 && (pDataCol->colId != pBlockCol->colId)) continue;
 
@@ -1181,14 +1182,13 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   taosCalcChecksumAppend(0, (uint8_t *)pBlockData, tsize);
   tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(pBlockData, tsize - sizeof(TSCKSUM)));
+
   // Write the whole block to file
   if (tsdbAppendDFile(pDFile, (void *)pBlockData, lsize, &offset) < lsize) {
     return -1;
   }
 
-  // pAggrBlkData->delimiter = TSDB_FILE_DELIMITER;
-  // pAggrBlkData->uid = TABLE_UID(pTable);
-  int aggrStatus = ((aggrNum > 0) && (rowsToWrite > 5)) ? 1 : 0;  // TODO: How to make the decision?
+  uint32_t aggrStatus = ((nAggrCols > 0) && (rowsToWrite > 10)) ? 1 : 0;  // TODO: How to make the decision?
   if (aggrStatus > 0) {
     pAggrBlkData->numOfCols = nColsNotAllNull;
 
@@ -1201,7 +1201,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
     }
   }
 
-  // Update pBlock membership vairables
+  // Update pBlock membership variables
   pBlock->last = isLast;
   pBlock->offset = offset;
   pBlock->algorithm = pCfg->compression;
@@ -1215,7 +1215,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   // since blkVer1
   pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
-  pBlock->aggrOffset = offsetAggr;
+  pBlock->aggrOffset = (uint64_t)offsetAggr;
   pBlock->aggrLen = tsizeAggr;
 
   tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
@@ -1573,6 +1573,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
     pCommith->isDFileSame = false;
     pCommith->isLFileSame = false;
+
     tsdbDebug("vgId:%d FSET %d at level %d disk id %d is created to commit", REPO_ID(pRepo), TSDB_FSET_FID(pWSet),
               TSDB_FSET_LEVEL(pWSet), TSDB_FSET_ID(pWSet));
   } else {
@@ -1679,14 +1680,14 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
           tsdbCloseAndUnsetFSet(&(pCommith->readh));
           return -1;
         }
-      } 
+      }
     }
 
     // TSDB_FILE_SMAL
     ASSERT(tsdbGetNFiles(pWSet) >= TSDB_FILE_SMAL);
     SDFile *pRSmalF = TSDB_READ_SMAL_FILE(&(pCommith->readh));
     SDFile *pWSmalF = TSDB_COMMIT_SMAL_FILE(pCommith);
-    
+
     if ((pCommith->isLFileSame) && access(TSDB_FILE_FULL_NAME(pRSmalF), F_OK) == 0) {
       tsdbInitDFileEx(pWSmalF, pRSmalF);
       if (tsdbOpenDFile(pWSmalF, O_RDWR) < 0) {
@@ -1699,7 +1700,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
           tsdbCloseAndUnsetFSet(&(pCommith->readh));
           return -1;
         }
-      } 
+      }
     } else {
       tsdbDebug("vgId:%d create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmalF));
       tsdbInitDFile(pWSmalF, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_SMAL);

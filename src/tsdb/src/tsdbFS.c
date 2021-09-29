@@ -342,6 +342,7 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     return -1;
   }
 
+  // TODO: seems not need, remove this logic. 2021-09-29 13:00
   if (tsdbEnableUpgradeFile && tsdbRefactorFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to refactor FS since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
@@ -432,7 +433,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
     return -1;
   }
 
-  fsheader.version = tsdbGetSFSVersion();
+  fsheader.version = TSDB_LATEST_SFS_VER;
   if (pStatus->pmf == NULL) {
     ASSERT(taosArrayGetSize(pStatus->df) == 0);
     fsheader.len = 0;

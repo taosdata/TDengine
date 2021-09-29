@@ -252,8 +252,9 @@ static FORCE_INLINE int32_t tsdbGetSBlockVer(int32_t fver) {
     case TSDB_FS_VER_0:
       return TSDB_SBLK_VER_0;
     case TSDB_FS_VER_1:
-    default:
       return TSDB_SBLK_VER_1;
+    default:
+      return SBlockVerLatest;
   }
 }
 
@@ -268,9 +269,9 @@ static FORCE_INLINE size_t tsdbSizeOfSBlock(int32_t sBlkVer) {
   }
 }
 
-static int tsdbHeadRefactor(SDFile *pHeadf, SBlockInfo **pDstBlkInfo, SBlockIdx *pBlkIdx, uint32_t *dstBlkInfoLen) {
+static int tsdbSBlkInfoRefactor(SDFile *pHeadf, SBlockInfo **pDstBlkInfo, SBlockIdx *pBlkIdx, uint32_t *dstBlkInfoLen) {
   int sBlkVer = tsdbGetSBlockVer(pHeadf->info.fver);
-  if (sBlkVer == SBlockVerLatest) {
+  if (sBlkVer > TSDB_SBLK_VER_0) {
     *dstBlkInfoLen = pBlkIdx->len;
     return TSDB_CODE_SUCCESS;
   }
@@ -346,7 +347,7 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void **pTarget, uint32_t *extendedLen) {
   ASSERT(pBlkIdx->tid == pReadh->pBlkInfo->tid && pBlkIdx->uid == pReadh->pBlkInfo->uid);
 
   uint32_t dstBlkInfoLen = 0;
-  if (tsdbHeadRefactor(pHeadf, &(pReadh->pBlkInfo), pBlkIdx, &dstBlkInfoLen) < 0) {
+  if (tsdbSBlkInfoRefactor(pHeadf, &(pReadh->pBlkInfo), pBlkIdx, &dstBlkInfoLen) < 0) {
     return -1;
   }
 
@@ -425,7 +426,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
 static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
-    tsdbError("vgId:%d failed to load block aggr part while seek file %s to offset %" PRId64 " since %s",
+    tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
     return -1;
   }
@@ -435,14 +436,14 @@ static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
 
   int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load block aggr part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
+    tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset, size);
     return -1;
   }
 
   if (nread < size) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block aggr part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
+    tsdbError("vgId:%d block statis part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
               " read bytes: %" PRId64,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size, nread);
     return -1;
@@ -450,7 +451,7 @@ static int tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock) {
 
   if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkData), (uint32_t)size)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block aggr part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
+    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size);
     return -1;
   }
@@ -462,8 +463,8 @@ static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
   SDFile *pDFileAggr = pBlock->last ? TSDB_READ_SMAL_FILE(pReadh) : TSDB_READ_SMAD_FILE(pReadh);
 
   if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
-    tsdbError("vgId:%d failed to load block aggr part while seek file %s to offset %" PRId64 " since %s",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset,
+    tsdbError("vgId:%d failed to load block aggr part while seek file %s to offset %" PRIu64 " since %s",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset,
               tstrerror(terrno));
     return -1;
   }
@@ -473,25 +474,25 @@ static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
 
   int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
   if (nreadAggr < 0) {
-    tsdbError("vgId:%d failed to load block aggr part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
+    tsdbError("vgId:%d failed to load block aggr part while read file %s since %s, offset:%" PRIu64 " len :%" PRIzu,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), tstrerror(terrno),
-              (int64_t)pBlock->aggrOffset, sizeAggr);
+              (uint64_t)pBlock->aggrOffset, sizeAggr);
     return -1;
   }
 
   if (nreadAggr < sizeAggr) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block aggr part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
+    tsdbError("vgId:%d block aggr part in file %s is corrupted, offset:%" PRIu64 " expected bytes:%" PRIzu
               " read bytes: %" PRId64,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset, sizeAggr,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset, sizeAggr,
               nreadAggr);
     return -1;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pAggrBlkData), (uint32_t)sizeAggr)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block aggr part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (int64_t)pBlock->aggrOffset, sizeAggr);
+    tsdbError("vgId:%d block aggr part in file %s is corrupted since wrong checksum, offset:%" PRIu64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset, sizeAggr);
     return -1;
   }
   return 0;
@@ -667,6 +668,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
   int ccol = 0;  // loop iter for SBlockCol object
   int dcol = 0;  // loop iter for SDataCols object
   SBlockCol blockCol = {0};
+  SBlockCol *pBlockCol = &blockCol;
   while (dcol < pDataCols->numOfCols) {
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
     if (dcol != 0 && ccol >= pBlockData->numOfCols) {
@@ -680,20 +682,12 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     uint32_t toffset = TSDB_KEY_COL_OFFSET;
     int32_t  tlen = pBlock->keyLen;
 
+
     if (dcol != 0) {
-      if (pBlock->blkVer == SBlockVerLatest) {
-        SBlockCol *pBlockCol = &(pBlockData->cols[ccol]);
-        tcolId = pBlockCol->colId;
-        toffset = tsdbGetBlockColOffset(pBlockCol);
-        tlen = pBlockCol->len;
-      } else {
-        SBlockColV0 *pBlockCol = (SBlockColV0 *)(pBlockData->cols) + ccol;
-        tcolId = pBlockCol->colId;
-        blockCol.offset = pBlockCol->offset;
-        blockCol.offsetH = pBlockCol->offsetH;
-        toffset = tsdbGetBlockColOffset(&blockCol);
-        tlen = pBlockCol->len;
-      }
+      tsdbGetSBlockCol(pBlock, &pBlockCol, pBlockData->cols, ccol);
+      tcolId = pBlockCol->colId;
+      toffset = tsdbGetBlockColOffset(pBlockCol);
+      tlen = pBlockCol->len;
     } else {
       ASSERT(pDataCol->colId == tcolId);
     }
@@ -814,17 +808,8 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
           break;
         }
 
-        if (pBlock->blkVer == SBlockVerLatest) {
-          pBlockCol = &(pReadh->pBlkData->cols[ccol]);
-        } else {
-          SBlockColV0 *pBlkCol = ((SBlockColV0 *)(pReadh->pBlkData->cols)) + ccol;
-          blockCol.colId = pBlkCol->colId;
-          blockCol.len = pBlkCol->len;
-          blockCol.type = pBlkCol->type;
-          blockCol.offset = pBlkCol->offset;
-          blockCol.offsetH = pBlkCol->offsetH;
-          pBlockCol = &blockCol;
-        }
+        pBlockCol = &blockCol;
+        tsdbGetSBlockCol(pBlock, &pBlockCol, pReadh->pBlkData->cols, ccol);
 
         if (pBlockCol->colId > colId) {
           pBlockCol = NULL;

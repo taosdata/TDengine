@@ -1090,22 +1090,8 @@ static int32_t loadBlockInfo(STsdbQueryHandle * pQueryHandle, int32_t index, int
 
   assert(compIndex->len > 0);
 
-  // if (pCheckInfo->compSize < (int32_t)compIndex->len) {
-  //   assert(compIndex->len > 0);
-
-  //   char* t = realloc(pCheckInfo->pCompInfo, compIndex->len);
-  //   if (t == NULL) {
-  //     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-  //     code = TSDB_CODE_TDB_OUT_OF_MEMORY;
-  //     return code;
-  //   }
-
-  //   pCheckInfo->pCompInfo = (SBlockInfo*)t;
-  //   pCheckInfo->compSize = compIndex->len;
-  // }
-
-  if (tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void**)(&pCheckInfo->pCompInfo), (uint32_t*)(&pCheckInfo->compSize)) <
-      0) {
+  if (tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void**)(&pCheckInfo->pCompInfo),
+                        (uint32_t*)(&pCheckInfo->compSize)) < 0) {
     return terrno;
   }
   SBlockInfo* pCompInfo = pCheckInfo->pCompInfo;

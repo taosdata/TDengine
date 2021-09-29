@@ -71,11 +71,11 @@ typedef struct {
  * blkVer;     // 0 - original block, 1 - block since importing .smad/.smal
  * aggrOffset; // only valid when blkVer > 0 and aggrStat > 0
  */
-#define SBlockFieldsP1     \
-  int64_t aggrStat : 3;    \
-  int64_t blkVer : 5;      \
-  int64_t aggrOffset : 56; \
-  int32_t aggrLen
+#define SBlockFieldsP1      \
+  uint64_t aggrStat : 3;    \
+  uint64_t blkVer : 5;      \
+  uint64_t aggrOffset : 56; \
+  uint32_t aggrLen
 
 typedef struct {
   SBlockFieldsP0;
@@ -87,13 +87,12 @@ typedef struct {
 } SBlockV1;
 
 typedef enum {
-  TSDB_SBLK_VER_0,
+  TSDB_SBLK_VER_0 = 0,
   TSDB_SBLK_VER_1,
 } ESBlockVer;
 
 #define SBlockVerLatest TSDB_SBLK_VER_1
 
-#define SBlockBase SBlockV0  // base SBlock definition
 #define SBlock SBlockV1      // latest SBlock definition
 
 // lastest SBlockInfo definition
@@ -162,9 +161,7 @@ typedef struct {
   SBlockCol cols[];
 } SBlockData;
 typedef struct {
-  // int32_t     delimiter;  // For recovery usage
   int32_t     numOfCols;  // For recovery usage
-  // uint64_t    uid;        // For recovery usage
   SAggrBlkCol cols[];
 } SAggrBlkData;
 
@@ -258,6 +255,23 @@ static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
   }
 
   return 0;
+}
+
+static FORCE_INLINE SBlockCol *tsdbGetSBlockCol(SBlock *pBlock, SBlockCol **pDestBlkCol, SBlockCol *pBlkCols,
+                                                int colIdx) {
+  if (pBlock->blkVer == SBlockVerLatest) {
+    *pDestBlkCol = pBlkCols + colIdx;
+    return *pDestBlkCol;
+  }
+  if (pBlock->blkVer == TSDB_SBLK_VER_0) {
+    SBlockColV0 *pBlkCol = (SBlockColV0 *)pBlkCols + colIdx;
+    (*pDestBlkCol)->colId = pBlkCol->colId;
+    (*pDestBlkCol)->len = pBlkCol->len;
+    (*pDestBlkCol)->type = pBlkCol->type;
+    (*pDestBlkCol)->offset = pBlkCol->offset;
+    (*pDestBlkCol)->offsetH = pBlkCol->offsetH;
+  }
+  return *pDestBlkCol;
 }
 
 #endif /*_TD_TSDB_READ_IMPL_H_*/

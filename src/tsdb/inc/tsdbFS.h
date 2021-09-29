@@ -28,7 +28,8 @@ typedef enum {
 } ETsdbFsVer;
 
 #define TSDB_FVER_TYPE uint32_t
-#define TSDB_LATEST_FVER TSDB_FS_VER_1
+#define TSDB_LATEST_FVER TSDB_FS_VER_1     // latest version for DFile
+#define TSDB_LATEST_SFS_VER TSDB_FS_VER_1  // latest version for 'current' file
 
 static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest version for DFile
   switch (fType) {
@@ -38,8 +39,6 @@ static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest v
       return TSDB_FS_VER_0;
   }
 }
-
-static FORCE_INLINE uint32_t tsdbGetSFSVersion() { return TSDB_FS_VER_1; }  // latest version for current
 
 int tsdbRefactorFS(STsdbRepo *pRepo);
 
