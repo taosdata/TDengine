@@ -72,13 +72,12 @@ public class OpenTSDBMigrateTest {
         while (rs.next()) {
             Assert.assertEquals(jObject.getString("metric").replaceAll("\\.", "_"), rs.getString(1));
         }
-        statement.execute("drop table " + jObject.getString("metric").replaceAll("\\.", "_"));
         rs.close();
         statement.close();
     }
 
-    @BeforeClass
-    public static void beforeClass() {
+    @Before
+    public void beforeClass() {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         try {
             conn = (TSDBConnection) DriverManager.getConnection(url);
@@ -91,8 +90,8 @@ public class OpenTSDBMigrateTest {
         }
     }
 
-    @AfterClass
-    public static void afterClass() {
+    @After
+    public void afterClass() {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists " + dbname);
             stmt.close();
