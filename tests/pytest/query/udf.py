@@ -81,10 +81,12 @@ class TDTestCase:
         tdSql.execute("create aggregate function abs_max as '/tmp/abs_max.so' outputtype bigint bufsize 128;")
         tdSql.execute("create aggregate function sum_double as '/tmp/sum_double.so' outputtype int bufsize 128;")
 
-        # UDF bug -> follow 3 cases about this bug ;
+        # UDF bug no 1 -> follow 3 cases about this bug ;
         # tdSql.error("create aggregate function max as '/tmp/abs_max.so' outputtype bigint bufsize 128;")
         # tdSql.error("create aggregate function avg as '/tmp/abs_max.so' outputtype bigint bufsize 128;")  
         # tdSql.error("create aggregate function dbs as '/tmp/abs_max.so' outputtype bigint bufsize 128;")
+
+    
 
         tdSql.execute("drop database if exists test")
         tdSql.execute("create database test")
@@ -155,12 +157,15 @@ class TDTestCase:
                 tdLog.info(" ====== unexpected error occured about UDF function =====")
                 sys.exit()
 
-        # UDF bug -> values of abs_max not inconsistent from common table and stable.
+        # UDF bug no 2 -> values of abs_max not inconsistent from common table and stable.
         # tdSql.query("select abs_max(val) from st") # result is 0 rows
         # tdSql.query("select abs_max(val) from tb1")
         # tdSql.checkData(0,0,0)  # this is error result
+        # tdSql.query("select sum_double(val) from st") # result is 0 rows
+        # tdSql.query("select sum_double(val) from tb1")
+        # tdSql.checkData(0,0,0)  # this is error result
   
-        # UDF bug -> values of abs_max will error for boundary number 
+        # UDF bug no 3 -> values of abs_max will error for boundary number 
 
         # check super table calculation results
         # tdSql.query("select abs_max(number) from st")
@@ -184,7 +189,7 @@ class TDTestCase:
         tdSql.query("select sum_double(id) from tb1")
         tdSql.checkData(0,0,20)
 
-        # UDF bug -> values error while two function work : it is limit that udf can't work with build-in functions.
+        # UDF bug no 4 -> values error while two function work : it is limit that udf can't work with build-in functions.
         # tdSql.query("select sum_double(id) , abs_max(number) from tb1")
         # tdSql.checkData(0,0,20)
         # tdSql.checkData(0,0,400)
@@ -210,16 +215,11 @@ class TDTestCase:
         tdSql.error("select abs_max(number) + max(id) from st")
         tdSql.error("select abs_max(number)*abs_max(val) from st")     
 
-        # UDF bug -> values of sum_double not inconsistent from common table and stable.
-        # tdSql.query("select sum_double(val) from st") # result is 0 rows
-        # tdSql.query("select sum_double(val) from tb1")
-        # tdSql.checkData(0,0,0)  # this is error result
-
         tdLog.info("======= UDF Nested query test =======")
         tdSql.query("select sum(id) from (select id from st)")
         tdSql.checkData(0,0,22)
 
-        #UDF bug -> not support Nested query
+        #UDF bug no 5 -> not support Nested query
 
         # tdSql.query("select abs_max(number) from (select number from st)")
         # tdSql.checkData(0,0,9223372036854775807)
@@ -230,6 +230,19 @@ class TDTestCase:
         # tdSql.query("select sum_double(id) from (select id from tb1)")
         # tdSql.checkData(0,0,10)
 
+        # UDF bug no 6 -> group by work error
+        tdLog.info("======= UDF work with group by =======")
+
+        # tdSql.query("select sum_double(id) from st group by tbname;")
+        # tdSql.checkData(0,0,6)
+        # tdSql.checkData(0,1,'tb1')
+        # tdSql.checkData(1,0,2)
+        # tdSql.checkData(1,1,'tb2')
+        # tdSql.query("select sum_double(id) from st group by id;")
+        # tdSql.checkRows(2)
+        # tdSql.query("select sum_double(id) from st group by tbname order by ts asc;")
+
+
         tdSql.query("select sum_double(id) from st where ts < now and ind =1 interval(1s)")
         tdSql.checkData(0,1,20)
         tdSql.error("select sum_double(id) from st session(ts, 1s) interval (10s,1s) sliding(10s) fill (NULL) ")
@@ -237,7 +250,7 @@ class TDTestCase:
         tdSql.query("select sum_double(id) from tb1 session(ts, 1s)")
         tdSql.checkData(0,1,20)
 
-        # UDF -> bug : intervals sliding values calculation error
+        # UDF -> bug no 7 : intervals sliding values calculation error
         # tdSql.query("select sum_double(id) from st where ts < now and ind =1 interval(3s) sliding (1s) limit 2")
         # tdSql.checkData(0,1,20)
         # tdSql.checkData(1,1,20)
@@ -254,16 +267,16 @@ class TDTestCase:
         tdSql.execute("create aggregate function error_use1 as '/tmp/abs_max.so' outputtype bigint bufsize 128")
         tdSql.error("select error_use1(number) from st")
 
-        # UDF -> bug : error return values when create aggregate functions as an scalar_function
+        # UDF -> bug no 8: error return values when create aggregate functions as an scalar_function
         # with no aggregate
-        # tdSql.execute("create  function abs_max as '/tmp/abs_max.so' outputtype bigint bufsize 128")
+        # tdSql.execute("create function abs_max as '/tmp/abs_max.so' outputtype bigint bufsize 128")
         # tdSql.query("select abs_max(number) from st")    # this bug will return 3 rows
         # tdSql.checkRows(1)
         # tdSql.execute("create function sum_double as '/tmp/sum_double.so' outputtype bigint bufsize 128")
         # tdSql.execute("select sum_double(id) from st")    
         # tdSql.checkRows(1)
         
-        # UDF -> bug : give bufsize for scalar_function add_one;
+        # UDF -> bug  no 9: give bufsize for scalar_function add_one;
         # UDF -> need improve : when outputtype is not match datatype which is defined in function codes 
         tdSql.execute("create function add_one as '/tmp/add_one.so' outputtype bigint bufsize 128")
         # tdSql.error("select add_one(val) from st")  # it should return error not [] for not match col datatype
@@ -289,11 +302,11 @@ class TDTestCase:
         tdSql.query("select abs_max(number) from tb1")
         tdSql.checkData(0,0,400)
 
-        #UDF bug -> create function datatype of outputtype not match col datatype
+        #UDF bug no 10 -> create function datatype of outputtype not match col datatype
         tdSql.execute("drop function abs_max")
         tdSql.execute("drop function sum_double")
         tdSql.execute("drop function add_one")
-        tdSql.execute("create function add_one as '/tmp/add_one.so' outputtype bigint")
+        tdSql.execute("create function add_one as '/tmp/add_one.so' outputtype bigint;")
         tdSql.execute("create aggregate function abs_max as '/tmp/abs_max.so' outputtype int bufsize 128;")
         tdSql.execute("create aggregate function sum_double as '/tmp/sum_double.so' outputtype double bufsize 128;")
         # tdSql.query("select sum_double(id) from st")   this bug will return 0.000000
@@ -314,19 +327,21 @@ class TDTestCase:
         tdSql.query("select abs_max(number) from tb1")       # it seems work well
         tdSql.checkData(0,0,400)     
 
-        # UDF bug -> follow test case will coredump for taosd  and let data lost
+
+
+        # UDF bug no 11 -> follow test case will coredump for taosd  and let data lost
         # tdSql.query("select add_one(id) from st group by tbname")
 
-        # UDF -> bug : give aggregate for scalar_function add_one ,it will let taosd coredump as data lost
+        # UDF -> bug  no 12: give aggregate for scalar_function add_one ,it will let taosd coredump as data lost
         # tdSql.execute("drop function add_one")
         # tdSql.execute("create  aggregate function add_one as '/tmp/add_one.so' outputtype bigint bufsize 128")
         # tdSql.query("select add_one(id) from st")
 
-        # UDF bug -> follow test case will coredump for taosc
+        # UDF bug no 13 -> follow test case will coredump for taosc
         # tdSql.query("select add_one(*) from st ")
         # tdSql.query("select add_one(*) from tb1 ")
 
-        # UDF bug -> follow test case will coredump for taosc
+        # UDF bug no 14 -> follow test case will coredump for taosc
         # tdSql.query("select abs_max(id),abs_max(number) from st ")
         # tdSql.query("select abs_max(number),abs_max(number) from st ")
         # tdSql.query("select sum_double(id),sum_double(id) from st ")
