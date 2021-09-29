@@ -56,7 +56,7 @@ class TDTestCase:
 
         tdSql.query("select * from db_json_tag_test.jsons1")
         tdSql.checkRows(4)
-
+        
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
