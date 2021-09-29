@@ -203,13 +203,16 @@ taos
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 ## Install TDengine by apt-get
+
+If you use Debian or Ubuntu system, you can use 'apt-get' command to intall TDengine from official repository. Please use following commands to setup:
+
 ```
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 [Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
-sudo apt update
-apt policy tdengine
-sudo apt install tdengine
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
 ```
 
 ## Quick Run
