@@ -33,9 +33,11 @@ class TDTestCase:
         tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64))")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
-        tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 1, 'sss')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, 'json2')")
         tdSql.error("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags(3)")
-        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 33, '3ininw')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 1, 'json1')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 3, 'json3')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"beijing\",\"name\":\"name4\"}') values (now, 4, 'json4')")
 
         print("==============step2")
         tdLog.info("alter stable add tag")
@@ -53,28 +55,28 @@ class TDTestCase:
         tdLog.info("select table")
 
         tdSql.query("select * from db_json_tag_test.jsons1")
-        tdSql.checkRows(1)
+        tdSql.checkRows(4)
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
-        tdSql.checkRows(1)
+        tdSql.checkRows(3)
 
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1_2")
         tdSql.checkData(0, 0, "beijing")
 
 
-        tdSql.query("select jtag->'num' from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
-        tdSql.checkData(0, 0, 5)
+        tdSql.query("select jtag->'num' from db_json_tag_test.jsons1 where jtag->'level'='l1'")
+        tdSql.checkData(0, 0, 34)
 
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkRows(1)
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'numww'")
         tdSql.checkRows(1)
@@ -84,7 +86,7 @@ class TDTestCase:
 
         tdSql.query("select jtag->'sex' from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
         tdSql.checkData(0, 0, "femail")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
 
     def stop(self):
