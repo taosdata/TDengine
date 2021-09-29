@@ -8283,6 +8283,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (NULL == taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity)) {
       // not found
       tfree(pTableMeta);
+      pTableMeta = NULL;
     }
 
     if (pTableMeta && pTableMeta->id.uid > 0) {
