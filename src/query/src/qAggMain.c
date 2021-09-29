@@ -4952,3 +4952,15 @@ SAggFunctionInfo aAggs[] = {{
                               noop1,
                               dataBlockRequired
                           }};
+
+
+bool isBuildinFunc(const char *funcName, int32_t len) {
+  for (int i = 0; i < sizeof(aAggs)/sizeof(aAggs[0]); i++) {
+    if (strlen(aAggs[i].name) == len && strncasecmp(aAggs[i].name, funcName, len) == 0) {
+      return true;
+    }
+  } 
+  return false;
+}
+
+

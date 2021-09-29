@@ -269,6 +269,9 @@ static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bu
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 
+// funcName is conflicted with build-in function  
+extern bool isBuildinFunc(const char *funcName, int32_t len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -438,6 +438,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
   const char *msg4 = "invalid script";
+  const char *msg5 = "UDF name is conflicted with build-in function";
   SSqlCmd *pCmd = &pSql->cmd;
 
   switch (pInfo->type) {
@@ -459,6 +460,10 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       if (strlen(createInfo->name.z) >= TSDB_FUNC_NAME_LEN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
+      if (isBuildinFunc(createInfo->name.z, strlen(createInfo->name.z))) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
       createInfo->path.z[createInfo->path.n] = 0;
