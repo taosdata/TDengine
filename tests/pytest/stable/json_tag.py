@@ -88,7 +88,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, "femail")
         tdSql.checkRows(3)
 
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
+        tdSql.checkRows(3)
 
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'num'=5 or jtag?'sex'")
+        tdSql.checkRows(2)
 
     def stop(self):
         tdSql.close()

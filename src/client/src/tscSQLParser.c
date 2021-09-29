@@ -4408,7 +4408,7 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
+    if ((pLeft->tokenId != TK_ARROW) && (!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
       return invalidOperationMsg(msgBuf, msg2);
     }
   }
@@ -4464,7 +4464,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
+    if ((pLeft->tokenId != TK_ARROW) && (!isTablenameToken(&pLeft->columnName)) && (pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
       return invalidOperationMsg(msgBuf, msg2);
     }
 

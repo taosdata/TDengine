@@ -2684,7 +2684,7 @@ static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
 
     while(pRecord){
       SArray* tallistOld = *pRecord;
-      for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {
+      for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {    // sort to elimate dumplicate
         void* element = taosArrayGet(tallistOld, i);
         void* pFind = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_EQ);
         if(pFind == NULL){
