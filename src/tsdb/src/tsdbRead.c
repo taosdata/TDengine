@@ -4095,7 +4095,17 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
   for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema*      sch = fi->desc;
-    if (sch->colId == TSDB_TBNAME_COLUMN_INDEX) continue;
+    if (sch->colId == TSDB_TBNAME_COLUMN_INDEX) {
+      tabList = taosArrayInit(32, sizeof(JsonMapValue));
+      getAllTableList(pTable, tabList);   // query all table
+      break;
+    }
+  }
+  for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
+    if(tabList != NULL) break;      // query all table
+
+    SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
+    SSchema*      sch = fi->desc;
     int32_t outLen = 0;
     char* key = NULL;
     if(JSON_TYPE_NCHAR){
