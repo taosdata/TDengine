@@ -35,8 +35,21 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
         tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 1, 'sss')")
         tdSql.error("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags(3)")
+        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 33, '3ininw')")
 
         print("==============step2")
+        tdLog.info("alter stable add tag")
+        tdSql.error("ALTER STABLE db_json_tag_test.jsons1 add tag tag2 nchar(20)")
+
+        tdSql.error("ALTER STABLE db_json_tag_test.jsons1 drop tag jtag")
+
+        tdSql.error("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag=4")
+
+        tdSql.execute("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35}'")
+        tdSql.query("select jtag from db_json_tag_test.jsons1_1")
+        tdSql.checkData(0, 0, "{\"sex\":\"femail\",\"age\":35}")
+
+        print("==============step3")
         tdLog.info("select table")
 
         tdSql.query("select * from db_json_tag_test.jsons1")
@@ -60,17 +73,20 @@ class TDTestCase:
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkRows(1)
 
-        print("==============step3")
-        tdLog.info("alter stable add tag")
-        tdSql.error("ALTER STABLE db_json_tag_test.jsons1 add tag tag2 nchar(20)")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
+        tdSql.checkRows(2)
 
-        tdSql.error("ALTER STABLE db_json_tag_test.jsons1 drop tag jtag")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'numww'")
+        tdSql.checkRows(1)
 
-        tdSql.error("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag=4")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag?'sex' and jtag?'num'")
+        tdSql.checkRows(0)
 
-        tdSql.execute("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35}'")
-        tdSql.query("select jtag from db_json_tag_test.jsons1_1")
-        tdSql.checkData(0, 0, "{\"sex\":\"femail\",\"age\":35}")
+        tdSql.query("select jtag->'sex' from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
+        tdSql.checkData(0, 0, "femail")
+        tdSql.checkRows(2)
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
