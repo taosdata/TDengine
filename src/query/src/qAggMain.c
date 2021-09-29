@@ -178,6 +178,7 @@ typedef struct {
   double sum;
   int32_t numPointsK;
   double* points;
+  bool    kPointsMeet;
 } SMovingAvgInfo;
 
 typedef struct  {
@@ -4611,6 +4612,7 @@ static bool mavg_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
 
   SMovingAvgInfo* mavgInfo = GET_ROWCELL_INTERBUF(pResInfo);
   mavgInfo->pos = 0;
+  mavgInfo->kPointsMeet = false;
   mavgInfo->sum = 0;
   mavgInfo->numPointsK = (int32_t)pCtx->param[0].i64;
   mavgInfo->points = (double*)((char*)mavgInfo + sizeof(SMovingAvgInfo));
@@ -4639,18 +4641,17 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
-    if (mavgInfo->pos < mavgInfo->numPointsK - 1) {
+    if (!mavgInfo->kPointsMeet && mavgInfo->pos < mavgInfo->numPointsK - 1) {
       mavgInfo->points[mavgInfo->pos] = v;
       mavgInfo->sum += v;
     } else {
-      int32_t pos = mavgInfo->pos % mavgInfo->numPointsK;
-      if (mavgInfo->pos != mavgInfo->numPointsK -1) {
-        mavgInfo->sum = mavgInfo->sum + v - mavgInfo->points[pos];
-      } else {
+      if (!mavgInfo->kPointsMeet && mavgInfo->pos == mavgInfo->numPointsK - 1){
         mavgInfo->sum += v;
+        mavgInfo->kPointsMeet = true;
+      } else {
+        mavgInfo->sum = mavgInfo->sum + v - mavgInfo->points[mavgInfo->pos];
       }
-
-      mavgInfo->points[pos] = v;
+      mavgInfo->points[mavgInfo->pos] = v;
 
       *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
       SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPointsK)
@@ -4661,6 +4662,9 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
     }
 
     ++mavgInfo->pos;
+    if (mavgInfo->pos == mavgInfo->numPointsK) {
+      mavgInfo->pos = 0;
+    }
   }
 
   if (notNullElems <= 0) {
