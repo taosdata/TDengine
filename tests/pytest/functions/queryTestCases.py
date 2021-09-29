@@ -1137,10 +1137,7 @@ class TDTestCase:
         :return:            apercentile query statement,default: select apercentile(c1, 0, 1) from t1
         '''
 
-        if alias:
-            return f"select apercentile({col}, {p}{com} {algo})  {alias}  from {table_expr} {condition}"
-        else:
-            return f"select apercentile({col}, {p}{com} {algo})  from {table_expr} {condition}"
+        return f"select apercentile({col}, {p}{com} {algo})  {alias}  from {table_expr} {condition}"
 
     def checkapert(self,col="c1", p=0, com=',', algo='"t-digest"', alias="", table_expr="t1", condition="" ):
 
@@ -1165,27 +1162,53 @@ class TDTestCase:
         for pi in pset:
 
             if "group" in condition:
-                tdSql.query(self.apercentile_query_form(
-                    col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
-                ))
+                tdSql.query(f"select last_row({col}) from {table_expr} {condition}")
                 query_result = tdSql.queryResult
                 query_rows = tdSql.queryRows
-                tdSql.query(self.apercentile_query_form(
-                    col=col, p=pi, com=com, algo='"t-digest"', alias=alias, table_expr=table_expr, condition=condition
-                ))
                 for i in range(query_rows):
+                    pre_condition = condition.replace("slimit",'limit').replace("group by tbname", "").split("soffset")[0]
+                    tbname = query_result[i][-1]
+                    tdSql.query(f"select percentile({col}, {pi}) {alias} from {tbname} {pre_condition}")
+                    print(tdSql.sql)
+                    pre_data = tdSql.getData(0, 0)
+                    tdSql.query(self.apercentile_query_form(
+                        col=col, p=pi, com=com, algo='"t-digest"', alias=alias, table_expr=table_expr, condition=condition
+                    ))
                     if abs(tdSql.getData(i, 0)) >= (spread_num*0.02):
-                        tdSql.checkDeviaRation(i, 0, query_result[i][0], 0.1)
+                        tdSql.checkDeviaRation(i, 0, pre_data, 0.1)
                     else:
-                        devia = abs((tdSql.getData(i, 0) - query_result[i][0]) / (spread_num * 0.02))
+                        devia = abs((tdSql.getData(i, 0) - pre_data) / (spread_num * 0.02))
                         if devia < 0.5:
-                            tdLog.info(f"sql:{tdSql.sql}, result data:{tdSql.getData(i, 0)}, expect data:{tdSql.queryResult[i][0]}, "
+                            tdLog.info(f"sql:{tdSql.sql}, result data:{tdSql.getData(i, 0)}, expect data:{pre_data}, "
                                            f"actual deviation:{devia} <= expect deviation: 0.01")
                         else:
                             tdLog.exit(
                                     f"[{inspect.getframeinfo(inspect.stack()[1][0]).lineno}],check failed:sql:{tdSql.sql}, "
-                                    f"result data:{tdSql.getData(i, 0)}, expect data:{tdSql.queryResult[i][0]}, "
+                                    f"result data:{tdSql.getData(i, 0)}, expect data:{pre_data}, "
                                     f"actual deviation:{devia} > expect deviation: 0.01")
+
+            # if "group" in condition:
+            #     tdSql.query(self.apercentile_query_form(
+            #         col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
+            #     ))
+            #     query_result = tdSql.queryResult
+            #     query_rows = tdSql.queryRows
+            #     tdSql.query(self.apercentile_query_form(
+            #         col=col, p=pi, com=com, algo='"t-digest"', alias=alias, table_expr=table_expr, condition=condition
+            #     ))
+            #     for i in range(query_rows):
+            #         if abs(tdSql.getData(i, 0)) >= (spread_num*0.02):
+            #             tdSql.checkDeviaRation(i, 0, query_result[i][0], 0.1)
+            #         else:
+            #             devia = abs((tdSql.getData(i, 0) - query_result[i][0]) / (spread_num * 0.02))
+            #             if devia < 0.5:
+            #                 tdLog.info(f"sql:{tdSql.sql}, result data:{tdSql.getData(i, 0)}, expect data:{tdSql.queryResult[i][0]}, "
+            #                                f"actual deviation:{devia} <= expect deviation: 0.01")
+            #             else:
+            #                 tdLog.exit(
+            #                         f"[{inspect.getframeinfo(inspect.stack()[1][0]).lineno}],check failed:sql:{tdSql.sql}, "
+            #                         f"result data:{tdSql.getData(i, 0)}, expect data:{tdSql.queryResult[i][0]}, "
+            #                         f"actual deviation:{devia} > expect deviation: 0.01")
 
             else:
                 if ',' in alias or not alias:
@@ -1215,11 +1238,6 @@ class TDTestCase:
                             f"result data:{tdSql.getData(0, 0)}, expect data:{np.percentile(query_result, pi)}, "
                             f"actual deviation:{devia} > expect deviation: 0.01")
 
-                # if algo == '"t-digest"':
-                #     tdSql.query(self.apercentile_query_form(
-                #         col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
-                #     ))
-                #     tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.1)
 
     def apercentile_query(self):
 
@@ -1504,7 +1522,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data test:")
         nowtime = int(round(time.time() * 1000))
-        per_table_rows = 100
+        per_table_rows = 1000
         self.apercentile_data(tbnum, per_table_rows, nowtime)
         self.apercentile_query()
         self.error_apercentile()
