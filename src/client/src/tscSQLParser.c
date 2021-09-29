@@ -3011,7 +3011,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
-      if (taosArrayGetSize(pItem->pNode->Expr.paramList) <= 0) {
+      if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) <= 0) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);        
       }
       

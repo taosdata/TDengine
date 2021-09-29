@@ -43,8 +43,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
-	db.Exec("drop database if exists  test")
-	db.Exec("create database if not exists test")
+	db.Exec("drop database if exists test")
+	db.Exec("create database if not exists test ")
 	db.Exec("use test")
 	db.Exec("create table test (ts timestamp ,level int)")
 	for i := 0; i < 10; i++ {
