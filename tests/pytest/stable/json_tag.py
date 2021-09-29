@@ -70,7 +70,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 34)
 
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1")
-        tdSql.checkRows(3)
+        tdSql.checkRows(4)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkRows(1)
