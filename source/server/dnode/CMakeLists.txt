@@ -3,7 +3,7 @@ add_library(dnode ${DNODE_SRC})
 target_link_libraries(
     dnode
     PUBLIC os
-    PUBLIC cJson
+    PUBLIC cJSON
 )
 target_include_directories(
     dnode
