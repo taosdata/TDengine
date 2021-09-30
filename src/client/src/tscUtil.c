@@ -1421,6 +1421,7 @@ void destroyTableNameList(SInsertStatementParam* pInsertParam) {
 }
 
 void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
+  SSqlObj *pSql = (SSqlObj*)taosAcquireRef(tscObjRef, id);
   pCmd->command   = 0;
   pCmd->numOfCols = 0;
   pCmd->count     = 0;
@@ -1429,13 +1430,14 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   pCmd->insertParam.sql = NULL;
   destroyTableNameList(&pCmd->insertParam);
 
-  pCmd->insertParam.pTableBlockHashList = tscDestroyBlockHashTable(pCmd->insertParam.pTableBlockHashList, clearCachedMeta);
-  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.pTableBlockHashList = tscDestroyBlockHashTable(pSql, pCmd->insertParam.pTableBlockHashList, clearCachedMeta);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
   tfree(pCmd->insertParam.tagData.data);
   pCmd->insertParam.tagData.dataLen = 0;
 
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
   pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
+  taosReleaseRef(tscObjRef, id); 
 }
 
 void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
@@ -1571,7 +1573,7 @@ void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo) {
   tfree(pColInfo->colIdxInfo);
 }
 
-void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
+void tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta) {
   if (pDataBlock == NULL) {
     return;
   }
@@ -1582,7 +1584,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pDataBlock->tableName, name);
 
-    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(UTIL_GET_TABLEMETA(pSql), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
   if (!pDataBlock->cloned) {
@@ -1623,7 +1625,7 @@ SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint
   return param;
 }
 
-void*  tscDestroyBlockArrayList(SArray* pDataBlockList) {
+void*  tscDestroyBlockArrayList(SSqlObj *pSql, SArray* pDataBlockList) {
   if (pDataBlockList == NULL) {
     return NULL;
   }
@@ -1631,7 +1633,7 @@ void*  tscDestroyBlockArrayList(SArray* pDataBlockList) {
   size_t size = taosArrayGetSize(pDataBlockList);
   for (int32_t i = 0; i < size; i++) {
     void* d = taosArrayGetP(pDataBlockList, i);
-    tscDestroyDataBlock(d, false);
+    tscDestroyDataBlock(pSql, d, false);
   }
 
   taosArrayDestroy(pDataBlockList);
@@ -1679,14 +1681,14 @@ void*  tscDestroyUdfArrayList(SArray* pUdfList) {
 
 
 
-void* tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta) {
+void* tscDestroyBlockHashTable(SSqlObj *pSql, SHashObj* pBlockHashTable, bool removeMeta) {
   if (pBlockHashTable == NULL) {
     return NULL;
   }
 
   STableDataBlocks** p = taosHashIterate(pBlockHashTable, NULL);
   while(p) {
-    tscDestroyDataBlock(*p, removeMeta);
+    tscDestroyDataBlock(pSql, *p, removeMeta);
     p = taosHashIterate(pBlockHashTable, p);
   }
 
@@ -1927,7 +1929,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   return result;
 }
 
-static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
+static void extractTableNameList(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);
   if (pInsertParam->pTableNameList == NULL) {
     pInsertParam->pTableNameList = malloc(pInsertParam->numOfTables * POINTER_BYTES);
@@ -1944,11 +1946,11 @@ static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeB
   }
 
   if (freeBlockMap) {
-    pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pInsertParam->pTableBlockHashList, false);
+    pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pSql, pInsertParam->pTableBlockHashList, false);
   }
 }
 
-int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
+int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(pInsertParam->payloadType);
@@ -1973,7 +1975,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       if (ret != TSDB_CODE_SUCCESS) {
         tscError("0x%"PRIx64" failed to prepare the data block buffer for merging table data, code:%d", pInsertParam->objectId, ret);
         taosHashCleanup(pVnodeDataBlockHashList);
-        tscDestroyBlockArrayList(pVnodeDataBlockList);
+        tscDestroyBlockArrayList(pSql, pVnodeDataBlockList);
         tfree(blkKeyInfo.pKeyTuple);
         return ret;
       }
@@ -1992,7 +1994,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
           tscError("0x%"PRIx64" failed to allocate memory for merging submit block, size:%d", pInsertParam->objectId, dataBuf->nAllocSize);
 
           taosHashCleanup(pVnodeDataBlockHashList);
-          tscDestroyBlockArrayList(pVnodeDataBlockList);
+          tscDestroyBlockArrayList(pSql, pVnodeDataBlockList);
           tfree(dataBuf->pData);
           tfree(blkKeyInfo.pKeyTuple);
 
@@ -2010,7 +2012,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       } else {
         if ((code = tscSortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0) {
           taosHashCleanup(pVnodeDataBlockHashList);
-          tscDestroyBlockArrayList(pVnodeDataBlockList);
+          tscDestroyBlockArrayList(pSql, pVnodeDataBlockList);
           tfree(dataBuf->pData);
           tfree(blkKeyInfo.pKeyTuple);
           return code;
@@ -2057,7 +2059,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
     pOneTableBlock = *p;
   }
 
-  extractTableNameList(pInsertParam, freeBlockMap);
+  extractTableNameList(pSql, pInsertParam, freeBlockMap);
 
   // free the table data blocks;
   pInsertParam->pDataBlocks = pVnodeDataBlockList;
@@ -2077,6 +2079,7 @@ void tscCloseTscObj(void *param) {
   tfree(pObj->tscCorMgmtEpSet);
   tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
+  tscReleaseClusterInfo(pObj->clusterId);
 
   tfree(pObj);
 }
@@ -4550,7 +4553,7 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta**ppSTable) {
+int32_t tscCreateTableMetaFromSTableMeta(SSqlObj *pSql, STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta**ppSTable) {
   assert(*ppChild != NULL);
   STableMeta* p      = *ppSTable;
   STableMeta* pChild = *ppChild;
@@ -4560,11 +4563,10 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     memset((char *)p, 0, sz);
   }
 
-  if (NULL == taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
+  if (NULL == taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
     tfree(p);
-  } else {
-    *ppSTable = p;
-  }
+  }   
+  *ppSTable = p;
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
@@ -4586,7 +4588,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     *ppChild = pChild;
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
-    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(UTIL_GET_TABLEMETA(pSql), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     return -1;
   }
 }
@@ -5105,18 +5107,20 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id) {
   char fname[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameExtractFullName(&pTableMetaInfo->name, fname);
+  SSqlObj *p = (SSqlObj *)taosAcquireRef(tscObjRef, id); 
 
+  tNameExtractFullName(&pTableMetaInfo->name, fname);
   int32_t len = (int32_t) strnlen(fname, TSDB_TABLE_FNAME_LEN);
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, fname, len);
+    void* pv = taosCacheAcquireByKey(UTIL_GET_VGROUPLIST(p), fname, len);
     if (pv != NULL) {
-      taosCacheRelease(tscVgroupListBuf, &pv, true);
+      taosCacheRelease(UTIL_GET_VGROUPLIST(p), &pv, true);
     }
   }
 
-  taosHashRemove(tscTableMetaMap, fname, len);
-  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
+  taosHashRemove(UTIL_GET_TABLEMETA(p), fname, len);
+  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(UTIL_GET_TABLEMETA(p)));
+  taosReleaseRef(tscObjRef, id); 
 }
 
 char* cloneCurrentDBName(SSqlObj* pSql) {
