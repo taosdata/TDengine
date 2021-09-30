@@ -162,6 +162,7 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
 
   tSqlExpr* item = ((tSqlExprItem*)(taosArrayGet(pList, 0)))->pNode;
   int32_t firstVarType = item->value.nType;
+  if(colType == TSDB_DATA_TYPE_JSON)  colType = firstVarType;
 
   SBufferWriter bw = tbufInitWriter( NULL, false);
   tbufEnsureCapacity(&bw, 512);
@@ -9230,9 +9231,6 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
         colType = TSDB_DATA_TYPE_BIGINT;
       } else if (colType == TSDB_DATA_TYPE_FLOAT || colType == TSDB_DATA_TYPE_DOUBLE) {
         colType = TSDB_DATA_TYPE_DOUBLE;
-      } else if (colType == TSDB_DATA_TYPE_JSON){
-        if (JSON_TYPE_NCHAR) colType = TSDB_DATA_TYPE_NCHAR;
-        else colType = TSDB_DATA_TYPE_BINARY;
       }
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx);
       STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
