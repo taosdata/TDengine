@@ -1793,6 +1793,7 @@ static int32_t mnodeDoGetSuperTableMeta(SMnodeMsg *pMsg, STableMetaMsg* pMeta) {
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->tversion     = htons(pTable->tversion);
   pMeta->precision    = pMsg->pDb->cfg.precision;
+  pMeta->update       = pMsg->pDb->cfg.update;
   pMeta->numOfTags    = (uint8_t)pTable->numOfTags;
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
   pMeta->tableType    = pTable->info.type;
@@ -2510,6 +2511,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->uid       = htobe64(pTable->uid);
   pMeta->tid       = htonl(pTable->tid);
   pMeta->precision = pDb->cfg.precision;
+  pMeta->update    = pDb->cfg.update;
   pMeta->tableType = pTable->info.type;
   tstrncpy(pMeta->tableFname, pTable->info.tableId, TSDB_TABLE_FNAME_LEN);
 

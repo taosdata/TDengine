@@ -84,6 +84,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
   pTableMeta->tableInfo = (STableComInfo) {
       .numOfTags    = pTableMetaMsg->numOfTags,
       .precision    = pTableMetaMsg->precision,
+      .update       = pTableMetaMsg->update,
       .numOfColumns = pTableMetaMsg->numOfColumns,
   };
 
