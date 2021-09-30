@@ -4,7 +4,7 @@ endif(${BUILD_TEST})
 
 add_subdirectory(cJson)
 target_include_directories(
-    cJSON
+    cjson
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cJson
 )
 add_subdirectory(lz4/build/cmake)
