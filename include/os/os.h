@@ -21,22 +21,29 @@ extern "C" {
 #endif
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
+#include <float.h>
 #include <inttypes.h>
-#include <sched.h>
+#include <locale.h>
+#include <math.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include<sys/time.h>
+// #include <arpa/inet.h>
+// #include <fcntl.h>
+// #include <pthread.h>
+// // #include <sched.h>
+// 
+// #include <signal.h>
+// #include <sys/time.h>
+// #include <unistd.h>
 
 #include "osAtomic.h"
 #include "osDef.h"
@@ -48,7 +55,9 @@ extern "C" {
 #include "osSemaphore.h"
 #include "osSocket.h"
 #include "osString.h"
+#include "osSleep.h"
 #include "osTime.h"
+#include "osThread.h"
 
 #ifdef __cplusplus
 }

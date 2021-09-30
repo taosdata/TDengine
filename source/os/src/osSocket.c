@@ -15,7 +15,26 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+
+void taosShutDownSocketRD(SOCKET fd) {
+#ifdef WINDOWS
+  closesocket(fd);
+#elif __APPLE__
+  close(fd);
+#else
+  shutdown(fd, SHUT_RD);
+#endif
+}
+
+void taosShutDownSocketWR(SOCKET fd) {
+#ifdef WINDOWS
+  closesocket(fd);
+#elif __APPLE__
+  close(fd);
+#else
+  shutdown(fd, SHUT_WR);
+#endif
+}
 
 #if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 
@@ -86,5 +105,20 @@ uint32_t taosInetAddr(char *ipAddr) {
 const char *taosInetNtoa(struct in_addr ipInt) {
   return inet_ntoa(ipInt);
 }
+
+#else
+
+const char *taosInetNtoa(struct in_addr ipInt) {
+  // not thread safe, only for debug usage while print log
+  static char tmpDstStr[16];
+  return inet_ntop(AF_INET, &ipInt, tmpDstStr, INET6_ADDRSTRLEN);
+}
+
+#endif
+
+
+#if defined(_TD_GO_DLL_)
+
+uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
 
 #endif

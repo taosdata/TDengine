@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include <semaphore.h>
+
 #if defined (_TD_DARWIN_64)
   typedef struct tsem_s *tsem_t;
   int tsem_init(tsem_t *sem, int pshared, unsigned int value);

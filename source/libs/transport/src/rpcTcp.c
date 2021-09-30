@@ -22,6 +22,9 @@
 #include "rpcHead.h"
 #include "rpcTcp.h"
 
+
+#include <sys/epoll.h>
+
 typedef struct SFdObj {
   void              *signature;
   SOCKET             fd;          // TCP socket FD
@@ -195,16 +198,7 @@ void taosStopTcpServer(void *handle) {
   pServerObj->stop = 1;
 
   if (pServerObj->fd >= 0) {
-#ifdef WINDOWS
-    closesocket(pServerObj->fd);
-#elif defined(__APPLE__)
-    if (pServerObj->fd!=-1) {
-      close(pServerObj->fd);
-      pServerObj->fd = -1;
-    }
-#else
-    shutdown(pServerObj->fd, SHUT_RD);
-#endif
+    taosShutDownSocketRD(pServerObj->fd);
   }
   if (taosCheckPthreadValid(pServerObj->thread)) {
     if (taosComparePthread(pServerObj->thread, pthread_self())) {
@@ -267,8 +261,8 @@ static void *taosAcceptTcpConnection(void *arg) {
     int32_t ret = taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
     if (ret != 0) {
       taosCloseSocket(connFd);
-      tError("%s failed to set recv timeout fd(%s)for connection from:%s:%hu", pServerObj->label, strerror(errno),
-             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
+      tError("%s failed to set recv timeout fd(%s)for connection from:%hu", pServerObj->label, strerror(errno),
+             htons(caddr.sin_port));
       continue;
     }
 
@@ -280,12 +274,12 @@ static void *taosAcceptTcpConnection(void *arg) {
     if (pFdObj) {
       pFdObj->ip = caddr.sin_addr.s_addr;
       pFdObj->port = htons(caddr.sin_port);
-      tDebug("%s new TCP connection from %s:%hu, fd:%d FD:%p numOfFds:%d", pServerObj->label,
-              taosInetNtoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
+      tDebug("%s new TCP connection from %hu, fd:%d FD:%p numOfFds:%d", pServerObj->label,
+              pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
     } else {
       taosCloseSocket(connFd);
-      tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
-             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
+      tError("%s failed to malloc FdObj(%s) for connection from:%hu", pServerObj->label, strerror(errno),
+             htons(caddr.sin_port));
     }
 
     // pick up next thread for next connection
@@ -436,7 +430,7 @@ void taosCloseTcpConnection(void *chandle) {
 
   // pFdObj->thandle = NULL;
   pFdObj->closedByApp = 1;
-  shutdown(pFdObj->fd, SHUT_WR);
+  taosShutDownSocketWR(pFdObj->fd);
 }
 
 int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle) {
@@ -456,7 +450,7 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
 
   // notify the upper layer, so it will clean the associated context
   if (pFdObj->closedByApp == 0) {
-    shutdown(pFdObj->fd, SHUT_WR);
+    taosShutDownSocketWR(pFdObj->fd);
 
     SRecvInfo recvInfo;
     recvInfo.msg = NULL;

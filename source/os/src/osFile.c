@@ -13,24 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobal.h"
-#include "tulog.h"
 
-void taosClose(FileFd fd) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#else
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/sendfile.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
+void taosCloseFile(FileFd fd) {
   close(fd);
   fd = FD_INITIALIZER;
 }
 
+void taosGetTmpfilePath(const char * inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-
-void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char *tdengineTmpFileNamePrefix = "tdengine-";
   char        tmpPath[PATH_MAX];
 
-  int32_t len = (int32_t)strlen(tsTempDir);
-  memcpy(tmpPath, tsTempDir, len);
+  int32_t len = (int32_t)strlen(inputTmpDir);
+  memcpy(tmpPath, inputTmpDir, len);
 
   if (tmpPath[len - 1] != '/' && tmpPath[len - 1] != '\\') {
     tmpPath[len++] = '\\';
@@ -46,16 +51,14 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
-}
 
 #else
 
-void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char *tdengineTmpFileNamePrefix = "tdengine-";
 
-  char    tmpPath[PATH_MAX];
-  int32_t len = strlen(tsTempDir);
-  memcpy(tmpPath, tsTempDir, len);
+  char tmpPath[PATH_MAX];
+  int32_t len = strlen(inputTmpDir);
+  memcpy(tmpPath, inputTmpDir, len);
   static uint64_t seqId = 0;
 
   if (tmpPath[len - 1] != '/') {
@@ -73,11 +76,11 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
-}
 
 #endif
+}
 
-int64_t taosRead(FileFd fd, void *buf, int64_t count) {
+int64_t taosReadFile(FileFd fd, void *buf, int64_t count) {
   int64_t leftbytes = count;
   int64_t readbytes;
   char *  tbuf = (char *)buf;
@@ -101,7 +104,7 @@ int64_t taosRead(FileFd fd, void *buf, int64_t count) {
   return count;
 }
 
-int64_t taosWrite(FileFd fd, void *buf, int64_t n) {
+int64_t taosWriteFile(FileFd fd, void *buf, int64_t n) {
   int64_t nleft = n;
   int64_t nwritten = 0;
   char *  tbuf = (char *)buf;
@@ -121,42 +124,46 @@ int64_t taosWrite(FileFd fd, void *buf, int64_t n) {
   return n;
 }
 
-int64_t taosLSeek(FileFd fd, int64_t offset, int32_t whence) { return (int64_t)lseek(fd, (long)offset, whence); }
+int64_t taosLSeekFile(FileFd fd, int64_t offset, int32_t whence) { return (int64_t)lseek(fd, (long)offset, whence); }
 
-int64_t taosCopy(char *from, char *to) {
+int64_t taosCopyFile(char *from, char *to) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
   char    buffer[4096];
   int     fidto = -1, fidfrom = -1;
   int64_t size = 0;
   int64_t bytes;
 
-  fidfrom = open(from, O_RDONLY | O_BINARY);
+  fidfrom = open(from, O_RDONLY);
   if (fidfrom < 0) goto _err;
 
-  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0755);
+  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
   if (fidto < 0) goto _err;
 
   while (true) {
-    bytes = taosRead(fidfrom, buffer, sizeof(buffer));
+    bytes = taosReadFile(fidfrom, buffer, sizeof(buffer));
     if (bytes < 0) goto _err;
     if (bytes == 0) break;
 
     size += bytes;
 
-    if (taosWrite(fidto, (void *)buffer, bytes) < bytes) goto _err;
+    if (taosWriteFile(fidto, (void *)buffer, bytes) < bytes) goto _err;
     if (bytes < sizeof(buffer)) break;
   }
 
-  taosFsync(fidto);
+  taosFsyncFile(fidto);
 
-  taosClose(fidfrom);
-  taosClose(fidto);
+  taosCloseFile(fidfrom);
+  taosCloseFile(fidto);
   return size;
 
 _err:
-  if (fidfrom >= 0) taosClose(fidfrom);
-  if (fidto >= 0) taosClose(fidto);
+  if (fidfrom >= 0) taosCloseFile(fidfrom);
+  if (fidto >= 0) taosCloseFile(fidto);
   remove(to);
   return -1;
+#endif
 }
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -306,9 +313,8 @@ int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size
 
 #endif
 
+int32_t taosFtruncateFile(FileFd fd, int64_t l_size) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-
-int32_t taosFtruncate(int32_t fd, int64_t l_size) {
   if (fd < 0) {
     errno = EBADF;
     uError("%s\n", "fd arg was negative");
@@ -357,9 +363,13 @@ int32_t taosFtruncate(int32_t fd, int64_t l_size) {
   }
 
   return 0;
+#else
+  return ftruncate(fd, l_size);
+#endif
 }
 
-int32_t taosFsync(FileFd fd) {
+int32_t taosFsyncFile(FileFd fd) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   if (fd < 0) {
     errno = EBADF;
     uError("%s\n", "fd arg was negative");
@@ -369,33 +379,126 @@ int32_t taosFsync(FileFd fd) {
   HANDLE h = (HANDLE)_get_osfhandle(fd);
 
   return FlushFileBuffers(h);
+#else
+  return fsync(fd);
+#endif
 }
 
-int32_t taosRename(char *oldName, char *newName) {
+int32_t taosRenameFile(char *oldName, char *newName) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
   if (code < 0) {
-    uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
-  } else {
-    uTrace("successfully to rename file %s to %s", oldName, newName);
+    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   }
 
   return code;
-}
-
 #else
-
-int32_t taosFtruncate(FileFd fd, int64_t length) { return ftruncate(fd, length); }
-int32_t taosFsync(FileFd fd) { return fsync(fd); }
-
-int32_t taosRename(char *oldName, char *newName) {
   int32_t code = rename(oldName, newName);
   if (code < 0) {
-    uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
-  } else {
-    uTrace("successfully to rename file %s to %s", oldName, newName);
+    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   }
 
   return code;
+#endif
 }
 
+
+int32_t taosLockFile(int32_t fd) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return (int32_t)flock(fd, LOCK_EX | LOCK_NB);
 #endif
+}
+
+int32_t taosUnLockFile(int32_t fd) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return (int32_t)flock(fd, LOCK_UN | LOCK_NB);
+#endif
+}
+
+int32_t taosUmaskFile(int32_t val) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return umask(val);
+#endif
+}
+
+int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  struct stat fileStat;
+  int32_t     code = stat(path, &fileStat);
+  if (code < 0) {
+    return code;
+  }
+
+  if (size != NULL) {
+    *size = fileStat.st_size;
+  }
+
+  if (mtime != NULL) {
+    *mtime = fileStat.st_mtime;
+  }
+
+  return 0;
+#endif
+}
+
+int32_t taosFStatFile(int32_t fd, int64_t *size, int32_t *mtime) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  struct stat fileStat;
+  int32_t     code = fstat(fd, &fileStat);
+  if (code < 0) {
+    return code;
+  }
+
+  if (size != NULL) {
+    *size = fileStat.st_size;
+  }
+
+  if (mtime != NULL) {
+    *mtime = fileStat.st_mtime;
+  }
+
+  return 0;
+#endif
+}
+
+int32_t taosOpenFileWrite(const char *path) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
+#endif
+}
+
+FileFd taosOpenFileRead(const char *path) {
+  #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_RDONLY);
+#endif
+}
+
+int32_t taosOpenFileCreateWrite(const char *path) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+#endif
+}
+
+int32_t taosOpenFileTruncCreateWrite(const char *path) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+#endif
+}

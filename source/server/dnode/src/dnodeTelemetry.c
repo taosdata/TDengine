@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-// #include "osTime.h"
 #include "tbuffer.h"
 #include "tglobal.h"
 #include "tsocket.h"
@@ -255,16 +254,16 @@ static void* dnodeTelemThreadFp(void* param) {
 }
 
 static void dnodeGetEmail(DnTelem* telem, char* filepath) {
-  int32_t fd = open(filepath, O_RDONLY);
+  int32_t fd = taosOpenFileRead(filepath);
   if (fd < 0) {
     return;
   }
 
-  if (taosRead(fd, (void*)telem->email, TSDB_FQDN_LEN) < 0) {
+  if (taosReadFile(fd, (void*)telem->email, TSDB_FQDN_LEN) < 0) {
     dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
   }
 
-  taosClose(fd);
+  taosCloseFile(fd);
 }
 
 int32_t dnodeInitTelemetry(Dnode* dnode, DnTelem** out) {

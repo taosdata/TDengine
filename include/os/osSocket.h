@@ -21,6 +21,19 @@ extern "C" {
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #include "winsock2.h"
+  #include <WS2tcpip.h>
+  #include <winbase.h>
+  #include <Winsock2.h>
+#else
+  #include <netinet/in.h>
+  #include <netinet/ip.h>
+  #include <netinet/tcp.h>
+  #include <netinet/udp.h>
+  #include <unistd.h>
+#endif
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   #define taosSend(sockfd, buf, len, flags) send((SOCKET)sockfd, buf, len, flags)
   #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto((SOCKET)sockfd, buf, len, flags, dest_addr, addrlen)
   #define taosWriteSocket(fd, buf, len) send((SOCKET)fd, buf, len, 0)
@@ -35,50 +48,20 @@ extern "C" {
   #define taosCloseSocketNoCheck(x) close(x)
   #define taosCloseSocket(x) \
     {                        \
-      if (FD_VALID(x)) {     \
+      if ((x) > -1) {        \
         close(x);            \
         x = FD_INITIALIZER;  \
       }                      \
     }
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  #define TAOS_EPOLL_WAIT_TIME 100
-  typedef SOCKET eventfd_t; 
-  #define eventfd(a, b) -1
-  typedef SOCKET EpollFd; 
-  #define EpollClose(pollFd) epoll_close(pollFd) 
-  #ifndef EPOLLWAKEUP
-    #define EPOLLWAKEUP (1u << 29)
-  #endif
-#elif defined(_TD_DARWIN_64)
-  #define TAOS_EPOLL_WAIT_TIME 500
-  typedef int32_t SOCKET;
-  typedef SOCKET EpollFd;
-  #define EpollClose(pollFd) epoll_close(pollFd)
-#else
-  #define TAOS_EPOLL_WAIT_TIME 500 
-  typedef int32_t SOCKET;
-  typedef SOCKET EpollFd;
-  #define EpollClose(pollFd) taosCloseSocket(pollFd)
-#endif  
+#define TAOS_EPOLL_WAIT_TIME 500 
+typedef int32_t SOCKET;
+typedef SOCKET EpollFd;
+#define EpollClose(pollFd) taosCloseSocket(pollFd)
 
-#ifdef TAOS_RANDOM_NETWORK_FAIL
-  #ifdef TAOS_RANDOM_NETWORK_FAIL_TEST
-    int64_t taosSendRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags);
-    int64_t taosSendToRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-    int64_t taosReadSocketRandomFail(int32_t fd, void *buf, size_t count);
-    int64_t taosWriteSocketRandomFail(int32_t fd, const void *buf, size_t count);
-    #undef taosSend
-    #undef taosSendto
-    #undef taosReadSocket
-    #undef taosWriteSocket
-    #define taosSend(sockfd, buf, len, flags) taosSendRandomFail(sockfd, buf, len, flags)
-    #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) taosSendToRandomFail(sockfd, buf, len, flags, dest_addr, addrlen)
-    #define taosReadSocket(fd, buf, len) taosReadSocketRandomFail(fd, buf, len)
-    #define taosWriteSocket(fd, buf, len) taosWriteSocketRandomFail(fd, buf, len)
-  #endif  
-#endif
+void taosShutDownSocketRD(SOCKET fd);
+void taosShutDownSocketWR(SOCKET fd);
 
 int32_t taosSetNonblocking(SOCKET sock, int32_t on);
 void    taosIgnSIGPIPE();
@@ -88,9 +71,7 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
 int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen);
 
 uint32_t    taosInetAddr(char *ipAddr);
-#if 0
 const char *taosInetNtoa(struct in_addr ipInt);
-#endif
 
 #if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
   #define htobe64 htonll

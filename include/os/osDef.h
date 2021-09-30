@@ -29,11 +29,6 @@ extern "C" {
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
 
-#ifndef PATH_MAX
-  #define PATH_MAX 1024
-#endif
-
-
 #if defined(_TD_LINUX_64) || defined(_TD_LINUX_32) || defined(_TD_MIPS_64)  || defined(_TD_ARM_32) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
   #if defined(_TD_DARWIN_64)
     // MacOS
@@ -52,6 +47,16 @@ extern "C" {
   #define setThreadName(name)
 #endif
 
+
+
+// TODO: replace and remove code below
+#define CHAR_BYTES    sizeof(char)
+#define SHORT_BYTES   sizeof(int16_t)
+#define INT_BYTES     sizeof(int32_t)
+#define LONG_BYTES    sizeof(int64_t)
+#define FLOAT_BYTES   sizeof(float)
+#define DOUBLE_BYTES  sizeof(double)
+#define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
 #ifdef __cplusplus
 }

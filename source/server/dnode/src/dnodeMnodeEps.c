@@ -82,7 +82,7 @@ static int32_t dnodeWriteMnodeEps(DnMnEps *meps) {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  taosFsync(fileno(fp));
+  taosFsyncFile(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

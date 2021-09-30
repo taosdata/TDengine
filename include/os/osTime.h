@@ -20,20 +20,22 @@
 extern "C" {
 #endif
 
+int32_t taosGetTimeOfDay(struct timeval *tv);
+
 //@return timestamp in second
 int32_t taosGetTimestampSec();
 
 //@return timestamp in millisecond
 static FORCE_INLINE int64_t taosGetTimestampMs() {
   struct timeval systemTime;
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000L + (int64_t)systemTime.tv_usec / 1000;
 }
 
 //@return timestamp in microsecond
 static FORCE_INLINE int64_t taosGetTimestampUs() {
   struct timeval systemTime;
-  gettimeofday(&systemTime, NULL);
+  taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
 }
 
