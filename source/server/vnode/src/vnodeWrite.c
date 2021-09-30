@@ -18,6 +18,7 @@
 int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
   // TODO: Check inputs
 
+#if 0
   void *pMem = NULL;
   if ((pMem = amalloc(pVnode->allocator, REQ_SIZE(pReq))) == NULL) {
     // No more memory to allocate, schedule an async commit
@@ -45,6 +46,7 @@ int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
   if (tsdbInsert(pVnode->pTsdb, (SSubmitReq *)pMem) < 0) {
     // TODO: handler error
   }
+#endif
 
   return 0;
 }
