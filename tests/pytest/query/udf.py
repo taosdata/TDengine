@@ -78,13 +78,13 @@ class TDTestCase:
     def test_udf_values(self):
         tdSql.execute("drop function abs_max")        
         tdSql.execute("create function add_one as '/tmp/add_one.so' outputtype int")
-        tdSql.execute("create aggregate function abs_max as '/tmp/abs_max.so' outputtype bigint bufsize 128;")
+        tdSql.execute("create aggregate function abs_max as '/tmp/abs_max.so' outputtype bigint;")
         tdSql.execute("create aggregate function sum_double as '/tmp/sum_double.so' outputtype int bufsize 128;")
 
         # UDF bug no 1 -> follow 3 cases about this bug ;
-        # tdSql.error("create aggregate function max as '/tmp/abs_max.so' outputtype bigint bufsize 128;")
-        # tdSql.error("create aggregate function avg as '/tmp/abs_max.so' outputtype bigint bufsize 128;")  
-        # tdSql.error("create aggregate function dbs as '/tmp/abs_max.so' outputtype bigint bufsize 128;")
+        # tdSql.error("create aggregate function max as '/tmp/abs_max.so' outputtype bigint ;")
+        # tdSql.error("create aggregate function avg as '/tmp/abs_max.so' outputtype bigint ;")  
+        # tdSql.error("create aggregate function dbs as '/tmp/abs_max.so' outputtype bigint ;")
 
     
 
@@ -264,7 +264,7 @@ class TDTestCase:
         tdSql.execute("drop function abs_max")
         tdSql.execute("drop function sum_double")
 
-        tdSql.execute("create aggregate function error_use1 as '/tmp/abs_max.so' outputtype bigint bufsize 128")
+        tdSql.execute("create aggregate function error_use1 as '/tmp/abs_max.so' outputtype bigint ")
         tdSql.error("select error_use1(number) from st")
 
         # UDF -> bug no 8: error return values when create aggregate functions as an scalar_function
