@@ -4955,7 +4955,7 @@ static void *insertSchemaless(void *sargs) {
             }
             dataLen += snprintf(
                 lines[count] + dataLen, MAX_LINE_SIZE - dataLen,
-                " %" PRId64 "% s ", timestamp,
+                " %" PRId64 "%s ", timestamp,
                 pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI
                     ? "ms"
                     : (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO
