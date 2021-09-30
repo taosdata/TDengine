@@ -281,8 +281,8 @@ void taosArrayClear(SArray* pArray) {
 
 void* taosArrayDestroy(SArray* pArray) {
   if (pArray) {
-    free(pArray->pData);
-    free(pArray);
+    tfree(pArray->pData);
+    tfree(pArray);
   }
 
   return NULL;

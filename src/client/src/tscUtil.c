@@ -5325,7 +5325,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     char tagVal[TSDB_MAX_TAGS_LEN] = {0};
     int32_t outLen = 0;
     if (JSON_TYPE_BINARY){
-      strncpy(tagVal, item->string, strlen(item->string));
+      strncpy(varDataVal(tagVal), item->string, strlen(item->string));
       outLen = strlen(item->string);
     }else if(JSON_TYPE_NCHAR){
       if (!taosMbsToUcs4(item->string, strlen(item->string), varDataVal(tagVal), TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE, &outLen)) {
@@ -5344,7 +5344,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       if (JSON_TYPE_BINARY){
-        strncpy(tagVal, item->valuestring, strlen(item->valuestring));
+        strncpy(varDataVal(tagData), item->valuestring, strlen(item->valuestring));
         outLen = strlen(item->valuestring);
       }else if(JSON_TYPE_NCHAR) {
         if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagData),

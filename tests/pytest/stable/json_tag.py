@@ -142,6 +142,18 @@ class TDTestCase:
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34) and jtag->'class'=55")
         tdSql.checkRows(0)
 
+        # test where condition in
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' in ('beijing')")
+        tdSql.checkRows(2)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num' in (5,34)")
+        tdSql.checkRows(2)
+
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' in ('5',34)")
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' in ('shanghai') and jtag->'class'=55")
+        tdSql.checkRows(1)
+
 
     def stop(self):
         tdSql.close()
