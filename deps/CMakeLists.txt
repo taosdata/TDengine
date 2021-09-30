@@ -3,6 +3,11 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 add_subdirectory(cJson)
+target_include_directories(
+    cjson
+    # see https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cJson>
+)
 add_subdirectory(lz4/build/cmake)
 add_subdirectory(zlib)
 target_include_directories(
