@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_ATOMIC_H
-#define TDENGINE_OS_ATOMIC_H
+#ifndef _TD_OS_ATOMIC_H_
+#define _TD_OS_ATOMIC_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -355,4 +355,4 @@ extern "C" {
 }
 #endif
 
-#endif
+#endif /*_TD_OS_ATOMIC_H_*/

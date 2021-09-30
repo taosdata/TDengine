@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_DIR_H
-#define TDENGINE_OS_DIR_H
+#ifndef _TD_OS_DIR_H_
+#define _TD_OS_DIR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,4 +31,4 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName);
 }
 #endif
 
-#endif
+#endif /*_TD_OS_DIR_H_*/

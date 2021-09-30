@@ -13,19 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_RAND_H_
-#define _TD_OS_RAND_H_
+#ifndef _TD_OS_SIGNAL_H_
+#define _TD_OS_SIGNAL_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-uint32_t taosRand(void);
-void     taosRandStr(char* str, int32_t size);
-uint32_t taosSafeRand(void);
+int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
+void    taosUninitTimer();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_RAND_H_*/
+#endif  /*_TD_OS_SIGNAL_H_*/

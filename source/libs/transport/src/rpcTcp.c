@@ -22,9 +22,6 @@
 #include "rpcHead.h"
 #include "rpcTcp.h"
 
-
-#include <sys/epoll.h>
-
 typedef struct SFdObj {
   void              *signature;
   SOCKET             fd;          // TCP socket FD

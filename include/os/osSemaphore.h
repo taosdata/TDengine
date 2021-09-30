@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_SEMAPHORE_H
-#define TDENGINE_OS_SEMAPHORE_H
+#ifndef _TD_OS_SEMPHONE_H_
+#define _TD_OS_SEMPHONE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,4 +63,4 @@ int32_t taosGetCurrentAPPName(char* name, int32_t* len);
 }
 #endif
 
-#endif
+#endif /*_TD_OS_SEMPHONE_H_*/

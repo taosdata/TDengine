@@ -30,6 +30,7 @@ extern "C" {
   #include <netinet/ip.h>
   #include <netinet/tcp.h>
   #include <netinet/udp.h>
+  #include <sys/epoll.h>
   #include <unistd.h>
 #endif
 

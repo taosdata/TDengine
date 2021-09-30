@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_STRING_H
-#define TDENGINE_OS_STRING_H
+#ifndef _TD_OS_STRING_H_
+#define _TD_OS_STRING_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,4 +51,4 @@ char *  taosCharsetReplace(char *charsetstr);
 }
 #endif
 
-#endif
+#endif /*_TD_OS_STRING_H_*/

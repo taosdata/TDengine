@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_TIME_H
-#define TDENGINE_OS_TIME_H
+#ifndef _TD_OS_TIME_H_
+#define _TD_OS_TIME_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,4 +55,4 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
 }
 #endif
 
-#endif  // TDENGINE_TTIME_H
+#endif  /*_TD_OS_TIME_H_*/
