@@ -403,7 +403,7 @@ python3 ./test.py -f query/queryDiffColsOr.py
 python3 ./test.py -f client/nettest.py
 
 python3 ./test.py -f query/queryRegex.py
-
+python3 ./test.py -f tools/taosdemoTestdatatype.py
 #======================p4-end===============
 
 
