@@ -771,6 +771,10 @@ void tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
       TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
 
       if (ti == tj) {
+        if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
+          memmove(pBlockData + dataBuf->rowSize * i, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
+        }
+
         ++j;
         continue;
       }
@@ -841,6 +845,10 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
       TSKEY tj = (pBlkKeyTuple + j)->skey;
 
       if (ti == tj) {
+        if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
+          memmove(pBlkKeyTuple + i, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+        }
+
         ++j;
         continue;
       }
