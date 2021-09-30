@@ -7181,7 +7181,6 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         type  = pExprInfo[j].base.resType;
         bytes = pExprInfo[j].base.resBytes;
 
-        char* tagJsonElementData = NULL;
         dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
@@ -7189,7 +7188,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
           if(type == TSDB_DATA_TYPE_JSON){
             data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
-              tagJsonElementData = calloc(bytes, 1);
+              char* tagJsonElementData = calloc(bytes, 1);
               findTagValue(item->pTable, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes);
               *dst = SELECT_ELEMENT_JSON_TAG;   // select tag->element
               dst++;
