@@ -3783,17 +3783,18 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   void *filterInfo = calloc(1, sizeof(SFilterInfo));
   ((SFilterInfo*)filterInfo)->pTable = pTable;
   ret = filterInitFromTree(expr, &filterInfo, 0);
+  tExprTreeDestroy(expr, NULL);
+
   if (ret != TSDB_CODE_SUCCESS) {
     terrno = ret;
     tsdbUnlockRepoMeta(tsdb);
+    filterFreeInfo(filterInfo);
     goto _error;
   }
   
   tsdbQueryTableList(pTable, res, filterInfo);
 
   filterFreeInfo(filterInfo);
-
-  tExprTreeDestroy(expr, NULL);
   
   pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
   pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);

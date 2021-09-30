@@ -1188,7 +1188,8 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   tExprNode* pLeft = tree->_node.pLeft;
   if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     assert(info->pTable != NULL);
-    void* data = getJsonTagValue(info->pTable, pLeft->_node.pLeft->pSchema->name, strlen(pLeft->_node.pLeft->pSchema->name));
+    SSchema* schema = FILTER_GET_COL_FIELD_DESC(FILTER_GET_FIELD(info, left));
+    void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name));
     if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
     type = *(char*)data;
     assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON);
