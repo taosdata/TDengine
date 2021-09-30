@@ -1606,7 +1606,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
   SStrToken tname = {0};
   tname.type = TK_STRING;
-  tname.z = (char *)name;
+  tname.z = (char *)strdup(name);
   tname.n = (uint32_t)strlen(name);
 
   bool dbIncluded = false;
@@ -1614,6 +1614,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   // Check if the table name available or not
   if (tscValidateName(&tname, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" tbname[%s] is invalid", pSql->self, name);
+    free(tname.z);
     STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "name is invalid"));
   }
 
@@ -1624,6 +1625,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pStmt->mtb.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
     if (t1 == NULL) {
       tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pSql->self, pStmt->mtb.currentUid);
+      free(tname.z);
       STMT_RET(TSDB_CODE_TSC_APP_ERROR);
     }
 
@@ -1638,6 +1640,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     taosHashPut(pCmd->insertParam.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)t1, POINTER_BYTES);
 
     tscDebug("0x%"PRIx64" table:%s is already prepared, uid:%" PRIu64, pSql->self, name, pStmt->mtb.currentUid);
+    free(tname.z);
     STMT_RET(TSDB_CODE_SUCCESS);
   }
 
@@ -1649,6 +1652,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     SName fullname = {0};
 
     tscSetTableFullName(&fullname, &tname, pSql, dbIncluded);
+    free(tname.z);
 
     memcpy(&pTableMetaInfo->name, &fullname, sizeof(fullname));
 
@@ -1681,6 +1685,8 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     
     STMT_RET(TSDB_CODE_SUCCESS);
   }
+
+  free(tname.z);
 
   if (pStmt->mtb.tagSet) {
     pStmt->mtb.tbname = tscReplaceStrToken(&pSql->sqlstr, &pStmt->mtb.tbname, name);
