@@ -13,16 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _BSD_SOURCE
+
+#ifdef DARWIN
+#define _XOPEN_SOURCE
+#else
+#define _XOPEN_SOURCE 500
+#endif
+
+#define _DEFAULT_SOURCE
+
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-#include <winsock2.h>
-#else
-#endif
+/*
+ * windows implementation
+ */
 
-FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-    time_t t;
+#include <time.h>  
+#include <winsock2.h>
+
+int taosGetTimeOfDay(struct timeval *tv, struct timezone *tz) {
+  time_t t;
   t = time(NULL);
   SYSTEMTIME st;
   GetLocalTime(&st);
@@ -31,7 +43,23 @@ FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
   tv->tv_usec = st.wMilliseconds * 1000;
 
   return 0;
-#else
-  return gettimeofday(tv, NULL);
-#endif
 }
+
+struct tm *localtime_r(const time_t *timep, struct tm *result) {
+  localtime_s(result, timep);
+  return result;
+}
+
+#else
+
+/*
+ * linux and darwin implementation
+ */
+
+#include <sys/time.h>
+
+FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
+  return gettimeofday(tv, NULL);
+}
+
+#endif

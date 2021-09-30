@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_COMMON_GLOBAL_H
-#define TDENGINE_COMMON_GLOBAL_H
-
-#include "taosdef.h"
+#ifndef _TD_COMMON_GLOBAL_H
+#define _TD_COMMON_GLOBAL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,9 +50,6 @@ extern float    tsNumOfThreadsPerCore;
 extern int32_t  tsNumOfCommitThreads;
 extern float    tsRatioOfQueryCores;
 extern int8_t   tsDaylight;
-extern char     tsTimezone[];
-extern char     tsLocale[];
-extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
@@ -151,24 +146,14 @@ extern int8_t tsEnableStream;
 // internal
 extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;
-extern char    configDir[];
 extern char    tsVnodeDir[];
-extern char    tsDnodeDir[];
 extern char    tsMnodeDir[];
 extern char    tsMnodeBakDir[];
 extern char    tsMnodeTmpDir[];
-extern char    tsDataDir[];
-extern char    tsLogDir[];
-extern char    tsScriptDir[];
 extern int64_t tsTickPerDay[3];
 extern int32_t tsTopicBianryLen;
 
 // system info
-extern char    tsOsName[];
-extern int64_t tsPageSize;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
 extern float   tsTotalLogDirGB;
 extern float   tsTotalTmpDirGB;
 extern float   tsTotalDataDirGB;
@@ -179,7 +164,6 @@ extern float   tsUsedDataDirGB;
 extern float   tsMinimalLogDirGB;
 extern float   tsReservedTmpDirectorySpace;
 extern float   tsMinimalDataDirGB;
-extern int32_t tsTotalMemoryMB;
 extern uint32_t tsVersion;
 
 // build info
@@ -188,28 +172,6 @@ extern char compatible_version[];
 extern char gitinfo[];
 extern char gitinfoOfInternal[];
 extern char buildinfo[];
-
-// log
-extern int8_t  tsAsyncLog;
-extern int32_t tsNumOfLogLines;
-extern int32_t tsLogKeepDays;
-extern int32_t dDebugFlag;
-extern int32_t vDebugFlag;
-extern int32_t mDebugFlag;
-extern uint32_t cDebugFlag;
-extern int32_t jniDebugFlag;
-extern int32_t tmrDebugFlag;
-extern int32_t sdbDebugFlag;
-extern int32_t httpDebugFlag;
-extern int32_t mqttDebugFlag;
-extern int32_t monDebugFlag;
-extern int32_t uDebugFlag;
-extern int32_t rpcDebugFlag;
-extern int32_t odbcDebugFlag;
-extern uint32_t qDebugFlag;
-extern int32_t wDebugFlag;
-extern int32_t cqDebugFlag;
-extern int32_t debugFlag;
 
 #ifdef TD_TSZ
 // lossy 
@@ -224,7 +186,7 @@ extern char Compressor[];
 extern int8_t tsDeadLockKillQuery;
 
 typedef struct {
-  char dir[TSDB_FILENAME_LEN];
+  char dir[128];
   int  level;
   int  primary;
 } SDiskCfg;
@@ -235,7 +197,6 @@ extern SDiskCfg tsDiskCfg[];
 
 void    taosInitGlobalCfg();
 int32_t taosCheckGlobalCfg();
-void    taosSetAllDebugFlag();
 bool    taosCfgDynamicOptions(char *msg);
 int     taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);

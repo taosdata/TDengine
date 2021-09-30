@@ -19,6 +19,7 @@
 #include "tlog.h"
 #include "tnote.h"
 #include "tutil.h"
+#include "zlib.h"
   
 #define MAX_LOGLINE_SIZE              (1000)
 #define MAX_LOGLINE_BUFFER_SIZE       (MAX_LOGLINE_SIZE + 10)
@@ -75,21 +76,33 @@ float   tsMinimalLogDirGB = 1.0f;
 int64_t asyncLogLostLines = 0;
 int32_t writeInterval = DEFAULT_LOG_INTERVAL;
 
+// log
+int32_t tsNumOfLogLines = 10000000;
+int32_t mDebugFlag = 131;
+int32_t sdbDebugFlag = 131;
+int32_t dDebugFlag = 135;
+int32_t vDebugFlag = 135;
+int32_t cDebugFlag = 131;
+int32_t jniDebugFlag = 131;
+int32_t odbcDebugFlag = 131;
+int32_t httpDebugFlag = 131;
+int32_t mqttDebugFlag = 131;
+int32_t monDebugFlag = 131;
+int32_t qDebugFlag = 131;
+int32_t rpcDebugFlag = 131;
+int32_t uDebugFlag = 131;
+int32_t debugFlag = 0;
+int32_t sDebugFlag = 135;
+int32_t wDebugFlag = 135;
+int32_t tsdbDebugFlag = 131;
+int32_t cqDebugFlag = 131;
+int32_t fsDebugFlag = 135;
+
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
 int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
-
-#ifdef _TD_POWER_
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
-#elif (_TD_TQ_ == true)
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
-#elif (_TD_PRO_ == true)
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/ProDB";
-#else
-char    tsLogDir[PATH_MAX] = "/var/log/taos";
-#endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
 static void *    taosAsyncOutputLog(void *param);
@@ -98,6 +111,7 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(int32_t oldFd);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
 extern void      taosPrintGlobalCfg();
+static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
 static int32_t taosStartLog() {
   pthread_attr_t threadAttr;
@@ -164,7 +178,7 @@ static void taosKeepOldLog(char *oldName) {
   char    fileName[LOG_FILE_NAME_LEN + 20];
   snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
 
-  taosRename(oldName, fileName);
+  taosRenameFile(oldName, fileName);
   if (tsLogKeepDays < 0) {
     char compressFileName[LOG_FILE_NAME_LEN + 20];
     snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
@@ -173,7 +187,7 @@ static void taosKeepOldLog(char *oldName) {
     }
   }
 
-  taosRemoveOldLogFiles(tsLogDir, ABS(tsLogKeepDays));
+  taosRemoveOldFiles(tsLogDir, ABS(tsLogKeepDays));
 }
 
 static void *taosThreadToOpenNewFile(void *param) {
@@ -701,4 +715,63 @@ static void *taosAsyncOutputLog(void *param) {
   }
 
   return NULL;
+}
+
+int32_t taosCompressFile(char *srcFileName, char *destFileName) {
+  int32_t compressSize = 163840;
+  int32_t ret = 0;
+  int32_t len = 0;
+  char *  data = malloc(compressSize);
+  FILE *  srcFp = NULL;
+  gzFile  dstFp = NULL;
+
+  srcFp = fopen(srcFileName, "r");
+  if (srcFp == NULL) {
+    ret = -1;
+    goto cmp_end;
+  }
+
+  int32_t fd = taosOpenFileTruncCreateWrite(destFileName);
+  if (fd < 0) {
+    ret = -2;
+    goto cmp_end;
+  }
+
+  dstFp = gzdopen(fd, "wb6f");
+  if (dstFp == NULL) {
+    ret = -3;
+    close(fd);
+    goto cmp_end;
+  }
+
+  while (!feof(srcFp)) {
+    len = (int32_t)fread(data, 1, compressSize, srcFp);
+    (void)gzwrite(dstFp, data, len);
+  }
+
+cmp_end:
+  if (srcFp) {
+    fclose(srcFp);
+  }
+  if (dstFp) {
+    gzclose(dstFp);
+  }
+  free(data);
+
+  return ret;
+}
+
+void taosPrintOsInfo() {
+  SysNameInfo info = taosGetSysNameInfo();
+
+  uInfo(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
+  uInfo(" os openMax:             %" PRId64, tsOpenMax);
+  uInfo(" os streamMax:           %" PRId64, tsStreamMax);
+  uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+  uInfo(" os sysname:             %s", info.sysname);
+  uInfo(" os nodename:            %s", info.nodename);
+  uInfo(" os release:             %s", info.release);
+  uInfo(" os version:             %s", info.version);
+  uInfo(" os machine:             %s", info.machine);
 }

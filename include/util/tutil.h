@@ -53,11 +53,6 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
   memcpy(target, context.digest, keylen);
 }
 
-#ifdef tListLen
-#undefine tListLen
-#endif
-#define tListLen(x) (sizeof(x) / sizeof((x)[0]))
-
 #ifdef __cplusplus
 }
 #endif

@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#define MSECONDS_PER_TICK 5
+
 int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
 void    taosUninitTimer();
 

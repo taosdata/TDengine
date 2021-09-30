@@ -402,7 +402,6 @@ int32_t taosRenameFile(char *oldName, char *newName) {
 #endif
 }
 
-
 int32_t taosLockFile(int32_t fd) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;

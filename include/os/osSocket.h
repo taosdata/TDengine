@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_SOCKET_H
-#define TDENGINE_OS_SOCKET_H
+#ifndef _TD_OS_SOCKET_H_
+#define _TD_OS_SOCKET_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,4 +89,4 @@ const char *taosInetNtoa(struct in_addr ipInt);
 }
 #endif
 
-#endif
+#endif /*_TD_OS_SOCKET_H_*/

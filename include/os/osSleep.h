@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_SLEEP_H
-#define TDENGINE_OS_SLEEP_H
+#ifndef _TD_OS_SLEEP_H_
+#define _TD_OS_SLEEP_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,4 +26,4 @@ void taosMsleep(int32_t ms);
 }
 #endif
 
-#endif
+#endif /*_TD_OS_SLEEP_H_*/

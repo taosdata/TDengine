@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "taosdef.h"
 #include "tglobal.h"
 #include "tmempool.h"
 #include "ttimer.h"

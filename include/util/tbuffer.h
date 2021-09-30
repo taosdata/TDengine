@@ -13,11 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TBUFFER_H
-#define TDENGINE_TBUFFER_H
-
-#include <stdint.h>
-#include <stdbool.h>
+#ifndef _TD_UTIL_BUFFER_H
+#define _TD_UTIL_BUFFER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -175,4 +172,4 @@ void tbufWriteDoubleAt( SBufferWriter* buf, size_t pos, double data );
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_BUFFER_H*/

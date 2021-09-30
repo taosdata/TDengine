@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TCACHE_H
-#define TDENGINE_TCACHE_H
+#ifndef _TD_UTIL_CACHE_H
+#define _TD_UTIL_CACHE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -188,4 +188,4 @@ void taosStopCacheRefreshWorker();
 }
 #endif
 
-#endif  // TDENGINE_TCACHE_H
+#endif  /*_TD_UTIL_CACHE_H*/

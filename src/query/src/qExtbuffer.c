@@ -398,7 +398,7 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       if (len1 != len2) {
         return len1 > len2 ? 1 : -1;
       } else {
-        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1);
+        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1, TSDB_NCHAR_SIZE);
         if (ret == 0) {
           return 0;
         }

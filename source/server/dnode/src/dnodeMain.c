@@ -28,7 +28,7 @@
 #include "mnode.h"
 
 static int32_t dnodeCreateDir(const char *dir) {
-  if (taosMkDir(dir, 0755) != 0 && errno != EEXIST) {
+  if (!taosMkDir(dir, 0755) && errno != EEXIST) {
     return -1;
   }
 
@@ -55,6 +55,14 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 #endif
 }
 
+void dnodePrintDiskInfo() {
+  dInfo("==================================");
+  dInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  dInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
+  dInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
+  dInfo("==================================");
+}
+
 int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
   DnMain* main = calloc(1, sizeof(DnMain));
   if (main == NULL) return -1;
@@ -76,7 +84,7 @@ int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
 #if 0  
-  taosSetCoreDump();
+  taosSetCoreDump(tsEnableCoreFile);
 #endif  
 
   if (dnodeCreateDir(tsLogDir) < 0) {
@@ -182,7 +190,7 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
   dnodeCheckDataDirOpenned(tsDnodeDir);
 
   taosGetDisk();
-  taosPrintDiskInfo();
+  dnodePrintDiskInfo();
 #endif  
 
   dInfo("dnode storage is initialized at %s", tsDnodeDir);

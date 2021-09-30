@@ -9,43 +9,6 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 
-// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
-typedef int32_t  VarDataOffsetT;
-typedef int16_t  VarDataLenT;  // maxVarDataLen: 32767
-typedef uint16_t TDRowLenT;    // not including overhead: 0 ~ 65535
-typedef uint32_t TDRowTLenT;   // total length, including overhead
-
-typedef struct tstr {
-  VarDataLenT len;
-  char        data[];
-} tstr;
-
-#pragma pack(push, 1)
-typedef struct {
-  VarDataLenT len;
-  uint8_t     data;
-} SBinaryNullT;
-
-typedef struct {
-  VarDataLenT len;
-  uint32_t    data;
-} SNCharNullT;
-#pragma pack(pop)
-
-#define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
-
-#define varDataLen(v)       ((VarDataLenT *)(v))[0]
-#define varDataTLen(v)      (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataVal(v)       ((void *)((char *)v + VARSTR_HEADER_SIZE))
-#define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
-#define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
-#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
-#define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
-
-#define varDataNetLen(v)       (htons(((VarDataLenT *)(v))[0]))
-#define varDataNetTLen(v)      (sizeof(VarDataLenT) + varDataNetLen(v))
-
-
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_POINTER_ARRAY      (1000)
 #define TSDB_DATA_TYPE_VALUE_ARRAY      (1001)

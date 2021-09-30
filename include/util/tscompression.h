@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "taosdef.h"
+#include "tdef.h"
 #include "tutil.h"
 
 #define COMP_OVERFLOW_BYTES 2

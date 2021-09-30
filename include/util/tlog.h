@@ -13,12 +13,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TLOG_H
-#define TDENGINE_TLOG_H
+#ifndef _TD_UTIL_LOG_H
+#define _TD_UTIL_LOG_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+// log
+extern int8_t  tsAsyncLog;
+extern int32_t tsNumOfLogLines;
+extern int32_t tsLogKeepDays;
+extern int32_t dDebugFlag;
+extern int32_t vDebugFlag;
+extern int32_t mDebugFlag;
+extern int32_t cDebugFlag;
+extern int32_t jniDebugFlag;
+extern int32_t tmrDebugFlag;
+extern int32_t sdbDebugFlag;
+extern int32_t httpDebugFlag;
+extern int32_t mqttDebugFlag;
+extern int32_t monDebugFlag;
+extern int32_t uDebugFlag;
+extern int32_t rpcDebugFlag;
+extern int32_t odbcDebugFlag;
+extern int32_t qDebugFlag;
+extern int32_t wDebugFlag;
+extern int32_t sDebugFlag;
+extern int32_t tsdbDebugFlag;
+extern int32_t cqDebugFlag;
+extern int32_t debugFlag;
 
 #define DEBUG_FATAL 1U
 #define DEBUG_ERROR DEBUG_FATAL
@@ -53,4 +78,4 @@ void taosDumpData(unsigned char *msg, int32_t len);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_LOG_H*/

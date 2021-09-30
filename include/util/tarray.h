@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TAOSARRAY_H
-#define TDENGINE_TAOSARRAY_H
+#ifndef _TD_UTIL_ARRAY_H
+#define _TD_UTIL_ARRAY_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -228,6 +228,4 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void *par
 }
 #endif
 
-
-
-#endif  // TDENGINE_TAOSARRAY_H
+#endif  /*_TD_UTIL_ARRAY_H*/

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HASH_H
-#define TDENGINE_HASH_H
+#ifndef _TD_UTIL_HASH_H
+#define _TD_UTIL_HASH_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -178,4 +178,4 @@ uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data);
 }
 #endif
 
-#endif  // TDENGINE_HASH_H
+#endif  /*_TD_UTIL_HASH_H*/

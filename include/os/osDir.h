@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-void    taosRemoveDir(char *rootDir);
-bool    taosDirExist(const char* dirname);
-int32_t taosMkDir(const char *pathname, mode_t mode);
-void    taosRemoveOldLogFiles(char *rootDir, int32_t keepDays);
-int32_t taosRename(char *oldName, char *newName);
-int32_t taosCompressFile(char *srcFileName, char *destFileName);
+void taosRemoveDir(char *dirname);
+bool taosDirExist(char *dirname);
+bool taosMkDir(char *dirname, mode_t mode);
+void taosRemoveOldFiles(char *dirname, int32_t keepDays);
+bool taosExpandDir(char *dirname, char *outname, int32_t maxlen);
+bool taosRealPath(char *dirname, int32_t maxlen);
 
 #ifdef __cplusplus
 }

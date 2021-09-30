@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
 #include "dnodeCfg.h"

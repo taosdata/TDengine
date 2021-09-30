@@ -20,6 +20,21 @@
 extern "C" {
 #endif
 
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #ifdef _TD_GO_DLL_
+    #define MILLISECOND_PER_SECOND (1000LL)
+  #else
+    #define MILLISECOND_PER_SECOND (1000i64)
+  #endif
+#else
+  #define MILLISECOND_PER_SECOND ((int64_t)1000L)
+#endif
+
+#define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
+#define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
+#define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
+#define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
+
 int32_t taosGetTimeOfDay(struct timeval *tv);
 
 //@return timestamp in second
@@ -45,11 +60,6 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
   clock_gettime(CLOCK_REALTIME, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000000000L + (int64_t)systemTime.tv_nsec;
 }
-
-int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
-void    deltaToUtcInitOnce();
-
-int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
 
 #ifdef __cplusplus
 }

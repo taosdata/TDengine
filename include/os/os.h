@@ -27,20 +27,26 @@ extern "C" {
 #include <inttypes.h>
 #include <locale.h>
 #include <math.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <wctype.h>
+#include <wchar.h>
 
 #include "osAtomic.h"
 #include "osDef.h"
 #include "osDir.h"
 #include "osEndian.h"
+#include "osEnv.h"
 #include "osFile.h"
+#include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
 #include "osRand.h"
@@ -49,9 +55,13 @@ extern "C" {
 #include "osSleep.h"
 #include "osSocket.h"
 #include "osString.h"
+#include "osSysinfo.h"
+#include "osSystem.h"
 #include "osThread.h"
 #include "osTime.h"
 #include "osTimer.h"
+
+void osInit();
 
 #ifdef __cplusplus
 }

@@ -139,7 +139,7 @@ void walClose(void *handle) {
 }
 
 static int32_t walInitObj(SWal *pWal) {
-  if (taosMkDir(pWal->path, 0755) != 0) {
+  if (!taosMkDir(pWal->path, 0755)) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }

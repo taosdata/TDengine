@@ -20,8 +20,34 @@
 extern "C" {
 #endif
 
-int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
-void    taosUninitTimer();
+#ifndef SIGALRM
+  #define SIGALRM 1234
+#endif
+
+#ifndef SIGHUP
+  #define SIGHUP 1230
+#endif
+
+#ifndef SIGCHLD
+  #define SIGCHLD 1234
+#endif
+
+#ifndef SIGUSR1
+  #define SIGUSR1 1234
+#endif
+
+#ifndef SIGUSR2
+  #define SIGUSR2 1234
+#endif
+
+#ifndef SIGBREAK
+  #define SIGBREAK 1234
+#endif
+
+typedef void (*FSignalHandler)(int32_t signum, void *sigInfo, void *context);
+void taosSetSignal(int32_t signum, FSignalHandler sigfp);
+void taosIgnSignal(int32_t signum);
+void taosDflSignal(int32_t signum);
 
 #ifdef __cplusplus
 }
