@@ -1184,6 +1184,16 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   int32_t len = 0;
   uint16_t uidx = 0;
 
+  // if has json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next
+  tExprNode* pLeft = tree->_node.pLeft;
+  if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
+    assert(info->pTable != NULL);
+    void* data = getJsonTagValue(info->pTable, pLeft->_node.pLeft->pSchema->name, strlen(pLeft->_node.pLeft->pSchema->name));
+    if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
+    type = *(char*)data;
+    assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON);
+  }
+
   if (tree->_node.optr == TSDB_RELATION_IN && (!IS_VAR_DATA_TYPE(type))) {
     void *data = NULL;
     filterConvertSetFromBinary((void **)&data, var->pz, var->nLen, type, false);
@@ -1205,18 +1215,10 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
     while(p) {
       void *key = taosHashGetDataKey((SHashObj *)data, p);
       void *fdata = NULL;
-    
-      if (IS_VAR_DATA_TYPE(type)) {
-        len = (int32_t)taosHashGetDataKeyLen((SHashObj *)data, p);
-        fdata = malloc(len + VARSTR_HEADER_SIZE);
-        varDataLen(fdata) = len;
-        memcpy(varDataVal(fdata), key, len);
-        len += VARSTR_HEADER_SIZE;
-      } else {
-        fdata = malloc(sizeof(int64_t));
-        SIMPLE_COPY_VALUES(fdata, key);
-        len = tDataTypes[type].bytes;
-      }
+
+      fdata = malloc(sizeof(int64_t));
+      SIMPLE_COPY_VALUES(fdata, key);
+      len = tDataTypes[type].bytes;
       
       filterAddField(info, NULL, &fdata, FLD_TYPE_VALUE, &right, len, true);
 
@@ -3210,10 +3212,10 @@ int filterJsonTypeConvert(SFilterInfo* info) {
       SFilterField *colLeft = FILTER_UNIT_LEFT_FIELD(info, &info->units[i]);
       info->units[i].compare.type = FILTER_GET_COL_FIELD_TYPE(colLeft);
 
-      SFilterField *colRight = FILTER_UNIT_RIGHT_FIELD(info, &info->units[i]);
-      tVariant* var = colRight->desc;
-      if(!tVariantTypeMatch(var, info->units[i].compare.type))
-        return TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR;
+//      SFilterField *colRight = FILTER_UNIT_RIGHT_FIELD(info, &info->units[i]);
+//      tVariant* var = colRight->desc;
+//      if(!tVariantTypeMatch(var, info->units[i].compare.type))
+//        return TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR;
     }
   }
 
