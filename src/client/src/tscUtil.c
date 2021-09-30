@@ -271,6 +271,8 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_DIFF &&
         functionId != TSDB_FUNC_DERIVATIVE &&
+        functionId != TSDB_FUNC_MAVG &&
+        functionId != TSDB_FUNC_CSUM &&
         functionId != TSDB_FUNC_TS_DUMMY &&
         functionId != TSDB_FUNC_TID_TAG &&
         functionId != TSDB_FUNC_CEIL &&
@@ -321,7 +323,9 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
   return true;
 }
 
-bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
+// these functions diff/derivative/csum/mavg will return the result computed on current row and history row/rows
+// as the result for current row
+bool tscIsDiffDerivLikeQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
@@ -330,7 +334,8 @@ bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG) {
       return true;
     }
   }
@@ -551,6 +556,22 @@ bool tscIsIrateQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscQueryContainsFunction(SQueryInfo* pQueryInfo, int16_t functionId) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == functionId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->sessionWindow.gap > 0;
 }
@@ -589,7 +610,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscIsDiffDerivQuery(pQueryInfo)) {
+  if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
     return false;
   }
 
@@ -615,7 +636,9 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     }
 
     if ((!IS_MULTIOUTPUT(aAggs[functionId].status)) ||
-        (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_TS_COMP)) {
+        (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
+         functionId == TSDB_FUNC_TS_COMP ||
+         functionId == TSDB_FUNC_SAMPLE)) {
       return true;
     }
   }
@@ -4836,7 +4859,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = tscIsDiffDerivQuery(pQueryInfo);
+  pQueryAttr->diffQuery         = tscIsDiffDerivLikeQuery(pQueryInfo);
   pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
