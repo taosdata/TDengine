@@ -108,7 +108,7 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
 
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'num'=5 or jtag?'sex'")
         tdSql.checkRows(2)
@@ -139,8 +139,8 @@ class TDTestCase:
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' and jtag->'num'=34")
         tdSql.checkRows(1)
 
-        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34)) and jtag->'class'=55")
-        tdSql.checkRows(1)
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34) and jtag->'class'=55")
+        tdSql.checkRows(0)
 
 
     def stop(self):
