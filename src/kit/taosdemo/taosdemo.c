@@ -4737,7 +4737,7 @@ static void *insertSchemaless(void *sargs) {
             exit(EXIT_FAILURE);
         }
         dataLen += snprintf(smlHead[t] + dataLen, MAX_LINE_SIZE - dataLen,
-                            "%s,id=\"%s%ld\"", stbInfo->stbName,
+                            "%s,id=\"%s%" PRIu64 "\"", stbInfo->stbName,
                             stbInfo->childTblPrefix,
                             t + pThreadInfo->start_table_from);
         for (int j = 0; j < stbInfo->tagCount; j++) {
@@ -4954,8 +4954,8 @@ static void *insertSchemaless(void *sargs) {
                 }
             }
             dataLen += snprintf(
-                lines[count] + dataLen, MAX_LINE_SIZE - dataLen, " %ld%s",
-                timestamp,
+                lines[count] + dataLen, MAX_LINE_SIZE - dataLen,
+                " %" PRId64 "% s ", timestamp,
                 pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI
                     ? "ms"
                     : (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO
