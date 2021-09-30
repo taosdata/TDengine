@@ -3697,7 +3697,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
 
   bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
 
-  if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
+  if (pCtx->colId == 0 && pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
     *(TSKEY *)pCtx->pOutput = pCtx->startTs;
   } else if (type == TSDB_FILL_NULL) {
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
