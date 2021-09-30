@@ -553,21 +553,21 @@ endi
 sql_error select first(c6) - last(c6) *12 / count(*) from $stb group by c3;
 
 sql select first(c6) - last(c6) *12 / count(*) from $stb group by c5;
-if $rows != 10 then
+if $rows != 11 then
   return -1
 endi
 
-if $data00 != 0.000000000 then
+if $data10 != 0.000000000 then
   return -1
 endi
 
-if $data10 != 0.997600000 then
+if $data20 != 0.997600000 then
   return -1
 endi
 
-if $data90 != 8.978400000 then
-  return -1
-endi
+#if $data100 != 8.978400000 then
+#  return -1
+#endi
 
 # limit offset [d.10]===============================================================
 sql select first(c6) - sum(c6) + 12 from $stb limit 12 offset 0;
