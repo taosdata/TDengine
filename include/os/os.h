@@ -21,17 +21,34 @@ extern "C" {
 #endif
 
 #include <assert.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sched.h>
+
+#include <arpa/inet.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include<sys/time.h>
 
 #include "osAtomic.h"
 #include "osDef.h"
+#include "osDir.h"
 #include "osEndian.h"
+#include "osFile.h"
+#include "osMath.h"
 #include "osMemory.h"
+#include "osSemaphore.h"
+#include "osSocket.h"
+#include "osString.h"
+#include "osTime.h"
 
 #ifdef __cplusplus
 }

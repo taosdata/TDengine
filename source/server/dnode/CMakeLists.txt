@@ -4,6 +4,11 @@ target_link_libraries(
     dnode
     PUBLIC os
     PUBLIC cjson
+    PUBLIC util
+    PUBLIC common
+    PUBLIC transport
+    PUBLIC mnode
+    PUBLIC vnode
 )
 target_include_directories(
     dnode

@@ -51,6 +51,78 @@ extern "C" {
     memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
+// ----------------- TSDB COLUMN DEFINITION
+typedef struct {
+  int8_t   type;    // Column type
+  int16_t  colId;   // column ID
+  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
+  uint16_t offset;  // point offset in SDataRow after the header part.
+} STColumn;
+
+#define colType(col) ((col)->type)
+#define colColId(col) ((col)->colId)
+#define colBytes(col) ((col)->bytes)
+#define colOffset(col) ((col)->offset)
+
+#define colSetType(col, t) (colType(col) = (t))
+#define colSetColId(col, id) (colColId(col) = (id))
+#define colSetBytes(col, b) (colBytes(col) = (b))
+#define colSetOffset(col, o) (colOffset(col) = (o))
+
+// ----------------- TSDB SCHEMA DEFINITION
+typedef struct {
+  int      version;    // version
+  int      numOfCols;  // Number of columns appended
+  int      tlen;       // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
+  uint16_t flen;       // First part length in a SDataRow after the header part
+  uint16_t vlen;       // pure value part length, excluded the overhead (bytes only)
+  STColumn columns[];
+} STSchema;
+
+#define schemaNCols(s) ((s)->numOfCols)
+#define schemaVersion(s) ((s)->version)
+#define schemaTLen(s) ((s)->tlen)
+#define schemaFLen(s) ((s)->flen)
+#define schemaVLen(s) ((s)->vlen)
+#define schemaColAt(s, i) ((s)->columns + i)
+#define tdFreeSchema(s) tfree((s))
+
+STSchema *tdDupSchema(STSchema *pSchema);
+int       tdEncodeSchema(void **buf, STSchema *pSchema);
+void *    tdDecodeSchema(void *buf, STSchema **pRSchema);
+
+static FORCE_INLINE int comparColId(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 > ((STColumn *)key2)->colId) {
+    return 1;
+  } else if (*(int16_t *)key1 < ((STColumn *)key2)->colId) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
+  void *ptr = bsearch(&colId, (void *)pSchema->columns, schemaNCols(pSchema), sizeof(STColumn), comparColId);
+  if (ptr == NULL) return NULL;
+  return (STColumn *)ptr;
+}
+
+// ----------------- SCHEMA BUILDER DEFINITION
+typedef struct {
+  int       tCols;
+  int       nCols;
+  int       tlen;
+  uint16_t  flen;
+  uint16_t  vlen;
+  int       version;
+  STColumn *columns;
+} STSchemaBuilder;
+
+int       tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
+void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
+int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes);
+STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
 typedef uint64_t TKEY;
@@ -134,7 +206,7 @@ SDataRow tdDataRowDup(SDataRow row);
 // offset here not include dataRow header length
 static FORCE_INLINE int tdAppendDataColVal(SDataRow row, const void *value, bool isCopyVarData, int8_t type,
                                            int32_t offset) {
-  ASSERT(value != NULL);
+  assert(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
 
   if (IS_VAR_DATA_TYPE(type)) {
@@ -145,7 +217,7 @@ static FORCE_INLINE int tdAppendDataColVal(SDataRow row, const void *value, bool
     dataRowLen(row) += varDataTLen(value);
   } else {
     if (offset == 0) {
-      ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
+      assert(type == TSDB_DATA_TYPE_TIMESTAMP);
       TKEY tvalue = tdGetTKEY(*(TSKEY *)value);
       memcpy(POINTER_SHIFT(row, toffset), (const void *)(&tvalue), TYPE_BYTES[type]);
     } else {
@@ -199,7 +271,7 @@ static FORCE_INLINE void tdSetColOfRowNullBySchema(SDataRow row, STSchema *pSche
 
 static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSchema, int dstIdx, SDataRow src, STSchema *pSrcSchema, int srcIdx) {
   int8_t type = pDstSchema->columns[dstIdx].type;
-  ASSERT(type == pSrcSchema->columns[srcIdx].type);
+  assert(type == pSrcSchema->columns[srcIdx].type);
   void *pData = tdGetPtrToCol(dst, pDstSchema, dstIdx);
   void *value = tdGetPtrToCol(src, pSrcSchema, srcIdx);
 
@@ -285,7 +357,7 @@ static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
 }
 
 static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
-  ASSERT(rows > 0);
+  assert(rows > 0);
 
   if (IS_VAR_DATA_TYPE(pDataCol->type)) {
     return pDataCol->dataOff[rows - 1] + varDataTLen(tdGetColDataOfRow(pDataCol, rows - 1));
@@ -315,7 +387,7 @@ static FORCE_INLINE TKEY dataColsTKeyFirst(SDataCols *pCols) {
 }
 
 static FORCE_INLINE TSKEY dataColsKeyAtRow(SDataCols *pCols, int row) {
-  ASSERT(row < pCols->numOfRows);
+  assert(row < pCols->numOfRows);
   return dataColsKeyAt(pCols, row);
 }
 
@@ -413,7 +485,7 @@ static FORCE_INLINE void *tdGetKVRowIdxOfCol(SKVRow row, int16_t colId) {
 // offset here not include kvRow header length
 static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, bool isCopyValData, int16_t colId, int8_t type,
                                          int32_t offset) {
-  ASSERT(value != NULL);
+  assert(value != NULL);
   int32_t  toffset = offset + TD_KV_ROW_HEAD_SIZE;
   SColIdx *pColIdx = (SColIdx *)POINTER_SHIFT(row, toffset);
   char *   ptr = (char *)POINTER_SHIFT(row, kvRowLen(row));
@@ -428,7 +500,7 @@ static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, bool isC
     kvRowLen(row) += varDataTLen(value);
   } else {
     if (offset == 0) {
-      ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
+      assert(type == TSDB_DATA_TYPE_TIMESTAMP);
       TKEY tvalue = tdGetTKEY(*(TSKEY *)value);
       memcpy(ptr, (void *)(&tvalue), TYPE_BYTES[type]);
     } else {

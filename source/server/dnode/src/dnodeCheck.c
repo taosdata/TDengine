@@ -99,6 +99,7 @@ static int32_t dnodeCheckNetwork() {
 }
 
 static int32_t dnodeCheckMem() {
+#if 0  
   float memoryUsedMB;
   float memoryAvailMB;
   if (true != taosGetSysMemory(&memoryUsedMB)) {
@@ -112,11 +113,12 @@ static int32_t dnodeCheckMem() {
     dError("available memory %fMB less than the threshold %dMB", memoryAvailMB, MIN_AVAIL_MEMORY_MB);
     return -1;
   }
-
+#endif
   return 0;
 }
 
 static int32_t dnodeCheckDisk() {
+#if 0  
   taosGetDisk();
 
   if (tsAvailDataDirGB < tsMinimalDataDirGB) {
@@ -133,7 +135,7 @@ static int32_t dnodeCheckDisk() {
     dError("tmpDir disk size:%fGB less than threshold %fGB", tsAvailTmpDirectorySpace, tsReservedTmpDirectorySpace);
     return -1;
   }
-
+#endif
   return 0;
 }
 

@@ -25,7 +25,6 @@ extern "C" {
 
 #include "taosdef.h"
 #include "taoserror.h"
-#include "trpc.h"
 #include "tdataformat.h"
 
 // message type
@@ -339,6 +338,13 @@ typedef struct {
   int32_t pid;
 } SConnectMsg;
 
+typedef struct SEpSet {
+  int8_t    inUse; 
+  int8_t    numOfEps;
+  uint16_t  port[TSDB_MAX_REPLICA];
+  char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
+} SEpSet;
+
 typedef struct {
   char      acctId[TSDB_ACCT_ID_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
@@ -348,7 +354,7 @@ typedef struct {
   int8_t    reserved1;
   int8_t    reserved2;
   int32_t   connId;
-  SRpcEpSet epSet;
+  SEpSet    epSet;
 } SConnectRsp;
 
 typedef struct {
@@ -465,6 +471,21 @@ typedef struct {
   int32_t     tsOrder;          // ts comp block order
 } STsBufInfo;
 
+typedef struct SInterval {
+  int32_t tz;            // query client timezone
+  char    intervalUnit;
+  char    slidingUnit;
+  char    offsetUnit;
+  int64_t interval;
+  int64_t sliding;
+  int64_t offset;
+} SInterval;
+
+typedef struct SSessionWindow {
+  int64_t gap;             // gap between two session window(in microseconds)
+  int32_t primaryColId;    // primary timestamp column
+} SSessionWindow;
+
 typedef struct {
   SMsgHead    head;
   char        version[TSDB_VERSION_LEN];
@@ -492,7 +513,6 @@ typedef struct {
   SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
   uint16_t    colCondLen;       // column length in current query
-  uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -502,7 +522,6 @@ typedef struct {
   int64_t     offset;
   uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
-  int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     fillType;         // interpolate type
   uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
@@ -631,7 +650,7 @@ typedef struct {
   char    reserved[64];
 } SVnodeStatisticInfo;
 
-typedef struct {
+typedef struct SVgroupAccess {
   int32_t  vgId;
   int8_t   accessState;
 } SVgroupAccess;
@@ -660,7 +679,7 @@ typedef struct {
   char    mnodeEp[TSDB_EP_LEN];
 } SMInfo;
 
-typedef struct {
+typedef struct SMInfos {
   int8_t inUse;
   int8_t mnodeNum;
   SMInfo mnodeInfos[TSDB_MAX_REPLICA];
@@ -686,7 +705,7 @@ typedef struct {
   int8_t   reserved[4];
 } SClusterCfg;
 
-typedef struct {
+typedef struct SStatusMsg {
   uint32_t    version;
   int32_t     dnodeId;
   char        dnodeEp[TSDB_EP_LEN];
@@ -904,7 +923,7 @@ typedef struct {
   uint32_t  onlineDnodes;
   uint32_t  connId;
   int8_t    killConnection;
-  SRpcEpSet epSet;
+  SEpSet    epSet;
 } SHeartBeatRsp;
 
 typedef struct {

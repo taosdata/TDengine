@@ -17,16 +17,18 @@
 #include "os.h"
 #include "tcache.h"
 #include "tconfig.h"
+#if 0
 #include "tfs.h"
-#include "tnote.h"
+#endif
 #include "tscompression.h"
+#include "tnote.h"
 #include "ttimer.h"
 #include "dnodeCfg.h"
 #include "dnodeMain.h"
 #include "mnode.h"
 
 static int32_t dnodeCreateDir(const char *dir) {
-  if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+  if (taosMkDir(dir, 0755) != 0 && errno != EEXIST) {
     return -1;
   }
 
@@ -34,6 +36,7 @@ static int32_t dnodeCreateDir(const char *dir) {
 }
 
 static void dnodeCheckDataDirOpenned(char *dir) {
+#if 0
   char filepath[256] = {0};
   snprintf(filepath, sizeof(filepath), "%s/.running", dir);
 
@@ -49,6 +52,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
     close(fd);
     exit(0);
   }
+#endif
 }
 
 int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
@@ -71,7 +75,9 @@ int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
   taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
+#if 0  
   taosSetCoreDump();
+#endif  
 
   if (dnodeCreateDir(tsLogDir) < 0) {
    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
@@ -125,11 +131,14 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
     return -1;
   }
 
+#if 0
   if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;
   }
+
   strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
+#endif    
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
@@ -144,6 +153,7 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
     return -1;
   }
 
+#if 0
   if (tfsMkdir("vnode") < 0) {
     dError("failed to create vnode dir since %s", tstrerror(terrno));
     return -1;
@@ -153,6 +163,7 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
     dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
     return -1;
   }
+
 
   TDIR *tdir = tfsOpendir("vnode_bak/.staging");
   bool  stagingNotEmpty = tfsReaddir(tdir) != NULL;
@@ -172,12 +183,14 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
 
   taosGetDisk();
   taosPrintDiskInfo();
+#endif  
 
   dInfo("dnode storage is initialized at %s", tsDnodeDir);
   return 0;
 }
 
 void dnodeCleanupStorage(void **m) {
+#if 0  
   // storage destroy
   tfsDestroy();
 
@@ -185,6 +198,7 @@ void dnodeCleanupStorage(void **m) {
   // compress destroy
   tsCompressExit();
  #endif
+#endif
 }
 
 void dnodeReportStartup(Dnode *dnode, char *name, char *desc) {

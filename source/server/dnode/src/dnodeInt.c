@@ -15,11 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#if 0
 #include "qScript.h"
 #include "tfile.h"
-#include "tstep.h"
 #include "tsync.h"
 #include "twal.h"
+#endif
+#include "tstep.h"
 #include "dnodeCfg.h"
 #include "dnodeCheck.h"
 #include "dnodeEps.h"
@@ -31,16 +33,18 @@
 #include "mnode.h"
 #include "vnode.h"
 
-static int32_t dnodeInitTfsEnv(Dnode *dnode, void **unUsed) { return tfInit(); }
-static void    dnodeCleanupTfsEnv(void **unUsed) { tfCleanup(); }
 static int32_t dnodeInitRpcEnv(Dnode *dnode, void **unUsed) { return rpcInit(); }
 static void    dnodeCleanupRpcEnv(void **unUsed) { rpcCleanup(); }
+#if 0
+static int32_t dnodeInitTfsEnv(Dnode *dnode, void **unUsed) { return tfInit(); }
+static void    dnodeCleanupTfsEnv(void **unUsed) { tfCleanup(); }
 static int32_t dnodeInitScriptEnv(Dnode *dnode, void **unUsed) { return scriptEnvPoolInit(); }
 static void    dnodeCleanupScriptEnv(void **unUsed) { scriptEnvPoolCleanup(); }
 static int32_t dnodeInitWalEnv(Dnode *dnode, void **unUsed) { return walInit(); }
 static void    dnodeCleanupWalEnv(void **unUsed) { walCleanUp(); }
 static int32_t dnodeInitSyncEnv(Dnode *dnode, void **unUsed) { return syncInit(); }
 static void    dnodeCleanupSyncEnv(void **unUsed) { syncCleanUp(); }
+#endif
 
 static int32_t dnodeInitVnodeModule(Dnode *dnode, struct Vnode** out) {
   SVnodePara para;
@@ -117,11 +121,13 @@ Dnode *dnodeCreateInstance() {
   step.reportFp = (FnReportProgress)dnodeReportStartup;
   taosStepAdd(steps, &step);
 
+#if 0
   step.name = "dnode-tfs-env";
   step.self = NULL;
   step.initFp = (FnInitObj)dnodeInitTfsEnv;
   step.cleanupFp = (FnCleanupObj)dnodeCleanupTfsEnv;
   taosStepAdd(steps, &step);
+#endif  
 
   step.name = "dnode-rpc-env";
   step.self = NULL;
@@ -153,6 +159,7 @@ Dnode *dnodeCreateInstance() {
   step.cleanupFp = (FnCleanupObj)dnodeCleanupMnodeEps;
   taosStepAdd(steps, &step);
 
+#if 0
   step.name = "dnode-wal";
   step.self = NULL;
   step.initFp = (FnInitObj)dnodeInitWalEnv;
@@ -164,6 +171,7 @@ Dnode *dnodeCreateInstance() {
   step.initFp = (FnInitObj)dnodeInitSyncEnv;
   step.cleanupFp = (FnCleanupObj)dnodeCleanupSyncEnv;
   taosStepAdd(steps, &step);
+#endif  
 
   step.name = "dnode-vnode";
   step.self = (void **)&dnode->vnode;
@@ -195,11 +203,13 @@ Dnode *dnodeCreateInstance() {
   step.cleanupFp = (FnCleanupObj)dnodeCleanupTelemetry;
   taosStepAdd(steps, &step);
 
+#if 0
   step.name = "dnode-script";
   step.self = NULL;
   step.initFp = (FnInitObj)dnodeInitScriptEnv;
   step.cleanupFp = (FnCleanupObj)dnodeCleanupScriptEnv;
   taosStepAdd(steps, &step);
+#endif
 
   dnode->steps = steps;
   taosStepExec(dnode->steps);

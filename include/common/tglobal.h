@@ -36,12 +36,9 @@ extern int32_t  tsStatusInterval;
 extern int32_t  tsNumOfMnodes;
 extern int8_t   tsEnableVnodeBak;
 extern int8_t   tsEnableTelemetryReporting;
-extern char     tsEmail[];
 extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
-extern int32_t  tsDnodeId;
-extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
@@ -152,7 +149,6 @@ extern int32_t tsMonitorInterval;
 extern int8_t tsEnableStream;
 
 // internal
-extern int8_t  tsCompactMnodeWal;
 extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;
 extern char    configDir[];

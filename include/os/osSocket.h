@@ -88,7 +88,9 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
 int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen);
 
 uint32_t    taosInetAddr(char *ipAddr);
+#if 0
 const char *taosInetNtoa(struct in_addr ipInt);
+#endif
 
 #if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
   #define htobe64 htonll
