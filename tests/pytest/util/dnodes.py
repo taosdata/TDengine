@@ -43,6 +43,7 @@ class TDSimClient:
             "qdebugFlag": "135",
             "telemetryReporting": "0",
             "enableCoreFile": "1",
+            "defaultJSONStrType": "binary",
         }
 
     def getLogDir(self):
