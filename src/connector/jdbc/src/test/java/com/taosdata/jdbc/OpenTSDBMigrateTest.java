@@ -85,6 +85,7 @@ public class OpenTSDBMigrateTest {
             stmt.execute("drop database if exists " + dbname);
             stmt.execute("create database if not exists " + dbname + " precision 'ns'");
             stmt.execute("use " + dbname);
+            stmt.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -94,7 +95,6 @@ public class OpenTSDBMigrateTest {
     public void afterClass() {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists " + dbname);
-            stmt.close();
             conn.close();
         } catch (SQLException e) {
             e.printStackTrace();
