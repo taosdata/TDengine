@@ -4453,6 +4453,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
   const char* msg1 = "regular expression string should be less than %d characters";
   const char* msg2 = "illegal column type for match/nmatch";
   const char* msg3 = "invalid regular expression";
+  const char* msg4 = "json column type must encode by binary for match/nmatch";
 
   tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
@@ -4471,7 +4472,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     }
 
     if(pLeft->tokenId == TK_ARROW && pSchema[index].type == TSDB_DATA_TYPE_JSON && !JSON_TYPE_BINARY){
-      return invalidOperationMsg(msgBuf, msg2);
+      return invalidOperationMsg(msgBuf, msg4);
     }
 
     if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {

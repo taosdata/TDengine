@@ -296,6 +296,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range 
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_NOT_EXIST,       "json tag key not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR,      "json tag key type not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR,   "json tag key must be string in match/nmatch")
+
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          "DNode creation limited by licence")

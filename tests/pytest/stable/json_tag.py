@@ -154,7 +154,15 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' in ('shanghai') and jtag->'class'=55")
         tdSql.checkRows(1)
 
+        # test where condition match
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin$'")
+        tdSql.checkRows(0)
 
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin'")
+        tdSql.checkRows(2)
+
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

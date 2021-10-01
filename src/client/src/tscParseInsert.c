@@ -1117,7 +1117,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         char tmp[128]= {0};
         sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagSchema[spd.boundedColumns[0]].bytes);
         tscDestroyBoundColumnInfo(&spd);
-        return tscSQLSyntaxErrMsg(pInsertParam->msg, tmp, NULL);
+        return tscInvalidOperationMsg(pInsertParam->msg, tmp, NULL);
       }
     }
     tscDestroyBoundColumnInfo(&spd);

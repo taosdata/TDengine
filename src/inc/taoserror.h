@@ -290,6 +290,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070E)  //"System error")
 #define TSDB_CODE_QRY_JSON_KEY_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x070F)  //"json tag key not exist")
 #define TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR       TAOS_DEF_ERROR_CODE(0, 0x0710)  //"json tag key type not match")
+#define TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR    TAOS_DEF_ERROR_CODE(0, 0x0711)  //"json tag key must be string in match/nmatch")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired")

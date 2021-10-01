@@ -3213,6 +3213,9 @@ int filterJsonTypeConvert(SFilterInfo* info) {
       SFilterField *colLeft = FILTER_UNIT_LEFT_FIELD(info, &info->units[i]);
       info->units[i].compare.type = FILTER_GET_COL_FIELD_TYPE(colLeft);
 
+      if((info->units[i].compare.optr == TSDB_RELATION_MATCH || info->units[i].compare.optr == TSDB_RELATION_NMATCH)
+          && info->units[i].compare.type != TSDB_DATA_TYPE_BINARY)
+        return TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR;
 //      SFilterField *colRight = FILTER_UNIT_RIGHT_FIELD(info, &info->units[i]);
 //      tVariant* var = colRight->desc;
 //      if(!tVariantTypeMatch(var, info->units[i].compare.type))
