@@ -505,7 +505,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 typedef struct SHashTravSupp {
   SCacheObj* pCacheObj;
   int64_t    time;
-  __cache_free_fn_t fp;
+  __cache_trav_fn_t fp;
+  void* param1;
 } SHashTravSupp;
 
 static bool travHashTableEmptyFn(void* param, void* data) {
@@ -645,7 +646,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
   // todo memory leak if there are object with refcount greater than 0 in hash table?
   taosHashCleanup(pCacheObj->pHashTable);
-  taosTrashcanEmpty(pCacheObj, false);
+  taosTrashcanEmpty(pCacheObj, true);
 
   __cache_lock_destroy(pCacheObj);
   
@@ -667,17 +668,17 @@ bool travHashTableFn(void* param, void* data) {
   }
 
   if (ps->fp) {
-    (ps->fp)(pNode->data);
+    (ps->fp)(pNode->data, ps->param1);
   }
 
   // do not remove element in hash table
   return true;
 }
 
-static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_trav_fn_t fp, void* param1) {
   assert(pCacheObj != NULL);
 
-  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time};
+  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time, .param1 = param1};
   taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
 }
 
@@ -748,7 +749,7 @@ void* taosCacheTimedRefresh(void *handle) {
       // refresh data in hash table
       if (elemInHash > 0) {
         int64_t now = taosGetTimestampMs();
-        doCacheRefresh(pCacheObj, now, NULL);
+        doCacheRefresh(pCacheObj, now, NULL, NULL);
       }
 
       taosTrashcanEmpty(pCacheObj, false);
@@ -766,13 +767,13 @@ void* taosCacheTimedRefresh(void *handle) {
   return NULL;
 }
 
-void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void* param1) {
   if (pCacheObj == NULL) {
     return;
   }
 
   int64_t now = taosGetTimestampMs();
-  doCacheRefresh(pCacheObj, now, fp);
+  doCacheRefresh(pCacheObj, now, fp, param1);
 }
 
 void taosStopCacheRefreshWorker(void) {

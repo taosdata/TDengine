@@ -102,6 +102,12 @@ elif  echo $osinfo | grep -qwi "centos" ; then
 elif echo $osinfo | grep -qwi "fedora" ; then
 #  echo "This is fedora system"
   os_type=2
+elif echo $osinfo | grep -qwi "Linx" ; then
+#  echo "This is Linx system"
+  os_type=1
+  service_mod=0
+  initd_mod=0
+  service_config_dir="/etc/systemd/system"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"

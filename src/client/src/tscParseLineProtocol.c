@@ -17,6 +17,7 @@
 #include "tscLog.h"
 
 #include "taos.h"
+#include "tscParseLine.h"
 
 typedef struct  {
   char sTableName[TSDB_TABLE_NAME_LEN];
@@ -26,38 +27,6 @@ typedef struct  {
   SArray* fields; //SArray<SSchema>
   uint8_t precision;
 } SSmlSTableSchema;
-
-typedef struct {
-  char* key;
-  uint8_t type;
-  int16_t length;
-  char* value;
-} TAOS_SML_KV;
-
-typedef struct {
-  char* stableName;
-
-  char* childTableName;
-  TAOS_SML_KV* tags;
-  int32_t tagNum;
-
-  // first kv must be timestamp
-  TAOS_SML_KV* fields;
-  int32_t fieldNum;
-} TAOS_SML_DATA_POINT;
-
-typedef enum {
-  SML_TIME_STAMP_NOW,
-  SML_TIME_STAMP_SECONDS,
-  SML_TIME_STAMP_MILLI_SECONDS,
-  SML_TIME_STAMP_MICRO_SECONDS,
-  SML_TIME_STAMP_NANO_SECONDS
-} SMLTimeStampType;
-
-typedef struct {
-  uint64_t id;
-  SHashObj* smlDataToSchema;
-} SSmlLinesInfo;
 
 //=================================================================================================
 
@@ -605,10 +574,10 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
     memset(fullTableName, 0, tListLen(fullTableName));
     tNameExtractFullName(&sname, fullTableName);
-    tscFreeRegisteredSqlObj(pSql);
 
     size_t size = 0;
-    taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    tscFreeRegisteredSqlObj(pSql);
   }
 
   if (tableMeta != NULL) {
@@ -1168,7 +1137,7 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-static bool isValidInteger(char *str) {
+bool isValidInteger(char *str) {
   char *c = str;
   if (*c != '+' && *c != '-' && !isdigit(*c)) {
     return false;
@@ -1183,7 +1152,7 @@ static bool isValidInteger(char *str) {
   return true;
 }
 
-static bool isValidFloat(char *str) {
+bool isValidFloat(char *str) {
   char *c = str;
   uint8_t has_dot, has_exp, has_sign;
   has_dot = 0;
@@ -1243,7 +1212,7 @@ static bool isTinyInt(char *pVal, uint16_t len) {
   if (len <= 2) {
     return false;
   }
-  if (!strcmp(&pVal[len - 2], "i8")) {
+  if (!strcasecmp(&pVal[len - 2], "i8")) {
     //printf("Type is int8(%s)\n", pVal);
     return true;
   }
@@ -1257,7 +1226,7 @@ static bool isTinyUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (!strcmp(&pVal[len - 2], "u8")) {
+  if (!strcasecmp(&pVal[len - 2], "u8")) {
     //printf("Type is uint8(%s)\n", pVal);
     return true;
   }
@@ -1268,7 +1237,7 @@ static bool isSmallInt(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (!strcmp(&pVal[len - 3], "i16")) {
+  if (!strcasecmp(&pVal[len - 3], "i16")) {
     //printf("Type is int16(%s)\n", pVal);
     return true;
   }
@@ -1282,7 +1251,7 @@ static bool isSmallUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "u16") == 0) {
+  if (strcasecmp(&pVal[len - 3], "u16") == 0) {
     //printf("Type is uint16(%s)\n", pVal);
     return true;
   }
@@ -1293,7 +1262,7 @@ static bool isInt(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "i32") == 0) {
+  if (strcasecmp(&pVal[len - 3], "i32") == 0) {
     //printf("Type is int32(%s)\n", pVal);
     return true;
   }
@@ -1307,7 +1276,7 @@ static bool isUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "u32") == 0) {
+  if (strcasecmp(&pVal[len - 3], "u32") == 0) {
     //printf("Type is uint32(%s)\n", pVal);
     return true;
   }
@@ -1318,7 +1287,7 @@ static bool isBigInt(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "i64") == 0) {
+  if (strcasecmp(&pVal[len - 3], "i64") == 0) {
     //printf("Type is int64(%s)\n", pVal);
     return true;
   }
@@ -1332,7 +1301,7 @@ static bool isBigUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "u64") == 0) {
+  if (strcasecmp(&pVal[len - 3], "u64") == 0) {
     //printf("Type is uint64(%s)\n", pVal);
     return true;
   }
@@ -1343,7 +1312,7 @@ static bool isFloat(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "f32") == 0) {
+  if (strcasecmp(&pVal[len - 3], "f32") == 0) {
     //printf("Type is float(%s)\n", pVal);
     return true;
   }
@@ -1354,7 +1323,7 @@ static bool isDouble(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "f64") == 0) {
+  if (strcasecmp(&pVal[len - 3], "f64") == 0) {
     //printf("Type is double(%s)\n", pVal);
     return true;
   }
@@ -1362,34 +1331,24 @@ static bool isDouble(char *pVal, uint16_t len) {
 }
 
 static bool isBool(char *pVal, uint16_t len, bool *bVal) {
-  if ((len == 1) &&
-      (pVal[len - 1] == 't' ||
-       pVal[len - 1] == 'T')) {
+  if ((len == 1) && !strcasecmp(&pVal[len - 1], "t")) {
     //printf("Type is bool(%c)\n", pVal[len - 1]);
     *bVal = true;
     return true;
   }
 
-  if ((len == 1) &&
-      (pVal[len - 1] == 'f' ||
-       pVal[len - 1] == 'F')) {
+  if ((len == 1) && !strcasecmp(&pVal[len - 1], "f")) {
     //printf("Type is bool(%c)\n", pVal[len - 1]);
     *bVal = false;
     return true;
   }
 
-  if((len == 4) &&
-     (!strcmp(&pVal[len - 4], "true") ||
-      !strcmp(&pVal[len - 4], "True") ||
-      !strcmp(&pVal[len - 4], "TRUE"))) {
+  if((len == 4) && !strcasecmp(&pVal[len - 4], "true")) {
     //printf("Type is bool(%s)\n", &pVal[len - 4]);
     *bVal = true;
     return true;
   }
-  if((len == 5) &&
-     (!strcmp(&pVal[len - 5], "false") ||
-      !strcmp(&pVal[len - 5], "False") ||
-      !strcmp(&pVal[len - 5], "FALSE"))) {
+  if((len == 5) && !strcasecmp(&pVal[len - 5], "false")) {
     //printf("Type is bool(%s)\n", &pVal[len - 5]);
     *bVal = false;
     return true;
@@ -1415,7 +1374,7 @@ static bool isNchar(char *pVal, uint16_t len) {
   if (len < 3) {
     return false;
   }
-  if (pVal[0] == 'L' && pVal[1] == '"' && pVal[len - 1] == '"') {
+  if ((pVal[0] == 'l' || pVal[0] == 'L')&& pVal[1] == '"' && pVal[len - 1] == '"') {
     //printf("Type is nchar(%s)\n", pVal);
     return true;
   }
@@ -1465,7 +1424,7 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType) {
   return false;
 }
 
-static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str, SSmlLinesInfo* info) {
+static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info) {
   errno = 0;
   uint8_t type = pVal->type;
   int16_t length = pVal->length;
@@ -1473,6 +1432,7 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str, SSmlLinesInfo* info)
   uint64_t val_u;
   double val_d;
 
+  strntolower_s(str, str, (int32_t)strlen(str));
   if (IS_FLOAT_TYPE(type)) {
     val_d = strtod(str, NULL);
   } else {
@@ -1565,8 +1525,8 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str, SSmlLinesInfo* info)
   return true;
 }
 //len does not include '\0' from value.
-static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
-                                uint16_t len, SSmlLinesInfo* info) {
+bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
+                         uint16_t len, SSmlLinesInfo* info) {
   if (len <= 0) {
     return false;
   }
@@ -1690,9 +1650,19 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     memcpy(pVal->value, &bVal, pVal->length);
     return true;
   }
-  //Handle default(no appendix) as float
-  if (isValidInteger(value) || isValidFloat(value)) {
-    pVal->type = TSDB_DATA_TYPE_FLOAT;
+  //Handle default(no appendix) interger type as BIGINT
+  if (isValidInteger(value)) {
+    pVal->type = TSDB_DATA_TYPE_BIGINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    if (!convertStrToNumber(pVal, value, info)) {
+      return false;
+    }
+    return true;
+  }
+
+  //Handle default(no appendix) floating number type as DOUBLE
+  if (isValidFloat(value)) {
+    pVal->type = TSDB_DATA_TYPE_DOUBLE;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     if (!convertStrToNumber(pVal, value, info)) {
       return false;
@@ -1708,7 +1678,7 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
   if (len >= 2) {
     for (int i = 0; i < len - 2; ++i) {
       if(!isdigit(value[i])) {
-        return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
     }
   }
@@ -1743,20 +1713,21 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
       break;
     }
     default: {
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
-                                   uint16_t len, SSmlLinesInfo* info) {
+int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
+                            uint16_t len, SSmlLinesInfo* info) {
   int32_t ret;
   SMLTimeStampType type;
   int64_t tsVal;
 
+  strntolower_s(value, value, len);
   if (!isTimeStamp(value, len, &type)) {
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
   }
 
   ret = getTimeStampValue(value, len, type, &tsVal);
@@ -1805,7 +1776,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index, SSmlLine
   return ret;
 }
 
-static bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
+bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   char *val = NULL;
   char *cur = key;
   char keyLower[TSDB_COL_NAME_LEN];
@@ -1842,7 +1813,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
   while (*cur != '\0') {
     if (len > TSDB_COL_NAME_LEN) {
       tscError("SML:0x%"PRIx64" Key field cannot exceeds 65 characters", info->id);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     //unescaped '=' identifies a tag key
     if (*cur == '=' && *(cur - 1) != '\\') {
@@ -1902,7 +1873,7 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     free(pKV->key);
     pKV->key = NULL;
     free(value);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
   free(value);
 
@@ -1931,7 +1902,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
       tscError("SML:0x%"PRIx64" Measurement field cannot exceeds 193 characters", info->id);
       free(pSml->stableName);
       pSml->stableName = NULL;
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     }
     //first unescaped comma or space identifies measurement
     //if space detected first, meaning no tag in the input
@@ -1958,7 +1929,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 }
 
 //Table name can only contain digits(0-9),alphebet(a-z),underscore(_)
-static int32_t isValidChildTableName(const char *pTbName, int16_t len) {
+int32_t isValidChildTableName(const char *pTbName, int16_t len) {
   const char *cur = pTbName;
   for (int i = 0; i < len; ++i) {
     if(!isdigit(cur[i]) && !isalpha(cur[i]) && (cur[i] != '_')) {
@@ -2146,24 +2117,25 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
     if (code != TSDB_CODE_SUCCESS) {
       tscError("SML:0x%"PRIx64" data point line parse failed. line %d : %s", info->id, i, lines[i]);
       destroySmlDataPoint(&point);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return code;
     } else {
       tscDebug("SML:0x%"PRIx64" data point line parse success. line %d", info->id, i);
     }
 
     taosArrayPush(points, &point);
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   int32_t code = 0;
 
-  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
+  SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genLinesSmlId();
 
   if (numLines <= 0 || numLines > 65536) {
     tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
+    tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
@@ -2171,7 +2143,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   for (int i = 0; i < numLines; ++i) {
     if (lines[i] == NULL) {
       tscError("SML:0x%"PRIx64" taos_insert_lines line %d is NULL", info->id, i);
-      free(info);
+      tfree(info);
       code = TSDB_CODE_TSC_APP_ERROR;
       return code;
     }
@@ -2180,7 +2152,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
   if (lpPoints == NULL) {
     tscError("SML:0x%"PRIx64" taos_insert_lines failed to allocate memory", info->id);
-    free(info);
+    tfree(info);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -2208,7 +2180,7 @@ cleanup:
 
   taosArrayDestroy(lpPoints);
 
-  free(info);
+  tfree(info);
   return code;
 }
 

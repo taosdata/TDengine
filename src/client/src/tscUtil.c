@@ -29,7 +29,10 @@
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
+
+#ifdef HTTP_EMBEDDED
 #include "httpInt.h"
+#endif
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 
@@ -268,8 +271,13 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_DIFF &&
         functionId != TSDB_FUNC_DERIVATIVE &&
+        functionId != TSDB_FUNC_MAVG &&
+        functionId != TSDB_FUNC_CSUM &&
         functionId != TSDB_FUNC_TS_DUMMY &&
-        functionId != TSDB_FUNC_TID_TAG) {
+        functionId != TSDB_FUNC_TID_TAG &&
+        functionId != TSDB_FUNC_CEIL &&
+        functionId != TSDB_FUNC_FLOOR &&
+        functionId != TSDB_FUNC_ROUND) {
       return false;
     }
   }
@@ -315,7 +323,9 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
   return true;
 }
 
-bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
+// these functions diff/derivative/csum/mavg will return the result computed on current row and history row/rows
+// as the result for current row
+bool tscIsDiffDerivLikeQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
@@ -324,7 +334,8 @@ bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG) {
       return true;
     }
   }
@@ -545,6 +556,22 @@ bool tscIsIrateQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscQueryContainsFunction(SQueryInfo* pQueryInfo, int16_t functionId) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == functionId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->sessionWindow.gap > 0;
 }
@@ -583,7 +610,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscIsDiffDerivQuery(pQueryInfo)) {
+  if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
     return false;
   }
 
@@ -609,7 +636,9 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     }
 
     if ((!IS_MULTIOUTPUT(aAggs[functionId].status)) ||
-        (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_TS_COMP)) {
+        (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
+         functionId == TSDB_FUNC_TS_COMP ||
+         functionId == TSDB_FUNC_SAMPLE)) {
       return true;
     }
   }
@@ -811,7 +840,7 @@ typedef struct SDummyInputInfo {
   SSDataBlock     *block;
   STableQueryInfo *pTableQueryInfo;
   SSqlObj         *pSql;  // refactor: remove it
-  SFilterInfo     *pFilterInfo;
+  void            *pFilterInfo;
 } SDummyInputInfo;
 
 typedef struct SJoinStatus {
@@ -827,7 +856,7 @@ typedef struct SJoinOperatorInfo {
   SRspResultInfo resultInfo;  // todo refactor, add this info for each operator
 } SJoinOperatorInfo;
 
-static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SFilterInfo* pFilterInfo) {
+static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterInfo) {
   int32_t offset = 0;
   char* pData = pRes->data;
 
@@ -844,8 +873,9 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SFilterInfo* p
 
   // filter data if needed
   if (pFilterInfo) {
-    //doSetFilterColumnInfo(pFilterInfo, numOfFilterCols, pBlock); 
-    filterSetColFieldData(pFilterInfo, pBlock->info.numOfCols, pBlock->pDataBlock);
+    SColumnDataParam param = {.numOfCols = pBlock->info.numOfCols, .pDataBlock = pBlock->pDataBlock};
+    filterSetColFieldData(pFilterInfo, &param, getColumnDataFromId);
+    
     bool gotNchar = false;
     filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
@@ -1108,7 +1138,7 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
-SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols, SFilterInfo* pFilters) {
+SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols, void* pFilters) {
   assert(numOfCols > 0);
   STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
@@ -1250,7 +1280,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     // if it is a join query, create join operator here
     int32_t numOfCol1 = pTableMeta->tableInfo.numOfColumns;
 
-    SFilterInfo     *pFilters = NULL;
+    void *pFilters = NULL;
     STblCond *pCond = NULL;
     if (px->colCond) {
       pCond = tsGetTableFilter(px->colCond, pTableMeta->id.uid, 0);
@@ -1277,7 +1307,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       for(int32_t i = 1; i < px->numOfTables; ++i) {
         STableMeta* pTableMeta1 = tscGetMetaInfo(px, i)->pTableMeta;
         numOfCol1 = pTableMeta1->tableInfo.numOfColumns;
-        SFilterInfo     *pFilters1 = NULL;
+        void *pFilters1 = NULL;
 
         SSchema* pSchema1 = tscGetTableSchema(pTableMeta1);
         int32_t n = pTableMeta1->tableInfo.numOfColumns;
@@ -1347,14 +1377,7 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   tfree(pRes->buffer);
   tfree(pRes->urow);
 
-  tfree(pRes->pGroupRec);
   tfree(pRes->pColumnIndex);
-
-  if (pRes->pArithSup != NULL) {
-    tfree(pRes->pArithSup->data);
-    tfree(pRes->pArithSup);
-  }
-
   tfree(pRes->final);
 
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
@@ -1421,6 +1444,7 @@ void destroyTableNameList(SInsertStatementParam* pInsertParam) {
 }
 
 void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
+  SSqlObj *pSql = (SSqlObj*)taosAcquireRef(tscObjRef, id);
   pCmd->command   = 0;
   pCmd->numOfCols = 0;
   pCmd->count     = 0;
@@ -1429,13 +1453,14 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   pCmd->insertParam.sql = NULL;
   destroyTableNameList(&pCmd->insertParam);
 
-  pCmd->insertParam.pTableBlockHashList = tscDestroyBlockHashTable(pCmd->insertParam.pTableBlockHashList, clearCachedMeta);
-  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.pTableBlockHashList = tscDestroyBlockHashTable(pSql, pCmd->insertParam.pTableBlockHashList, clearCachedMeta);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
   tfree(pCmd->insertParam.tagData.data);
   pCmd->insertParam.tagData.dataLen = 0;
 
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
   pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
+  taosReleaseRef(tscObjRef, id); 
 }
 
 void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
@@ -1472,7 +1497,12 @@ void tscFreeSubobj(SSqlObj* pSql) {
   tscDebug("0x%"PRIx64" start to free sub SqlObj, numOfSub:%d", pSql->self, pSql->subState.numOfSub);
 
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    tscDebug("0x%"PRIx64" free sub SqlObj:0x%"PRIx64", index:%d", pSql->self, pSql->pSubs[i]->self, i);
+    if (pSql->pSubs[i] != NULL) {
+      tscDebug("0x%"PRIx64" free sub SqlObj:0x%"PRIx64", index:%d", pSql->self, pSql->pSubs[i]->self, i);
+    } else {
+      /* just for python error test case */
+      tscDebug("0x%"PRIx64" free sub SqlObj:0x0, index:%d", pSql->self, i);
+    }
     taos_free_result(pSql->pSubs[i]);
     pSql->pSubs[i] = NULL;
   }
@@ -1566,7 +1596,7 @@ void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo) {
   tfree(pColInfo->colIdxInfo);
 }
 
-void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
+void tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta) {
   if (pDataBlock == NULL) {
     return;
   }
@@ -1577,7 +1607,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pDataBlock->tableName, name);
 
-    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(UTIL_GET_TABLEMETA(pSql), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
   if (!pDataBlock->cloned) {
@@ -1618,7 +1648,7 @@ SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint
   return param;
 }
 
-void*  tscDestroyBlockArrayList(SArray* pDataBlockList) {
+void*  tscDestroyBlockArrayList(SSqlObj *pSql, SArray* pDataBlockList) {
   if (pDataBlockList == NULL) {
     return NULL;
   }
@@ -1626,7 +1656,7 @@ void*  tscDestroyBlockArrayList(SArray* pDataBlockList) {
   size_t size = taosArrayGetSize(pDataBlockList);
   for (int32_t i = 0; i < size; i++) {
     void* d = taosArrayGetP(pDataBlockList, i);
-    tscDestroyDataBlock(d, false);
+    tscDestroyDataBlock(pSql, d, false);
   }
 
   taosArrayDestroy(pDataBlockList);
@@ -1674,14 +1704,14 @@ void*  tscDestroyUdfArrayList(SArray* pUdfList) {
 
 
 
-void* tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta) {
+void* tscDestroyBlockHashTable(SSqlObj *pSql, SHashObj* pBlockHashTable, bool removeMeta) {
   if (pBlockHashTable == NULL) {
     return NULL;
   }
 
   STableDataBlocks** p = taosHashIterate(pBlockHashTable, NULL);
   while(p) {
-    tscDestroyDataBlock(*p, removeMeta);
+    tscDestroyDataBlock(pSql, *p, removeMeta);
     p = taosHashIterate(pBlockHashTable, p);
   }
 
@@ -1922,7 +1952,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   return result;
 }
 
-static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
+static void extractTableNameList(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);
   if (pInsertParam->pTableNameList == NULL) {
     pInsertParam->pTableNameList = malloc(pInsertParam->numOfTables * POINTER_BYTES);
@@ -1939,11 +1969,11 @@ static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeB
   }
 
   if (freeBlockMap) {
-    pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pInsertParam->pTableBlockHashList, false);
+    pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pSql, pInsertParam->pTableBlockHashList, false);
   }
 }
 
-int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
+int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(pInsertParam->payloadType);
@@ -1968,7 +1998,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       if (ret != TSDB_CODE_SUCCESS) {
         tscError("0x%"PRIx64" failed to prepare the data block buffer for merging table data, code:%d", pInsertParam->objectId, ret);
         taosHashCleanup(pVnodeDataBlockHashList);
-        tscDestroyBlockArrayList(pVnodeDataBlockList);
+        tscDestroyBlockArrayList(pSql, pVnodeDataBlockList);
         tfree(blkKeyInfo.pKeyTuple);
         return ret;
       }
@@ -1987,7 +2017,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
           tscError("0x%"PRIx64" failed to allocate memory for merging submit block, size:%d", pInsertParam->objectId, dataBuf->nAllocSize);
 
           taosHashCleanup(pVnodeDataBlockHashList);
-          tscDestroyBlockArrayList(pVnodeDataBlockList);
+          tscDestroyBlockArrayList(pSql, pVnodeDataBlockList);
           tfree(dataBuf->pData);
           tfree(blkKeyInfo.pKeyTuple);
 
@@ -2005,7 +2035,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       } else {
         if ((code = tscSortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0) {
           taosHashCleanup(pVnodeDataBlockHashList);
-          tscDestroyBlockArrayList(pVnodeDataBlockList);
+          tscDestroyBlockArrayList(pSql, pVnodeDataBlockList);
           tfree(dataBuf->pData);
           tfree(blkKeyInfo.pKeyTuple);
           return code;
@@ -2052,7 +2082,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
     pOneTableBlock = *p;
   }
 
-  extractTableNameList(pInsertParam, freeBlockMap);
+  extractTableNameList(pSql, pInsertParam, freeBlockMap);
 
   // free the table data blocks;
   pInsertParam->pDataBlocks = pVnodeDataBlockList;
@@ -2072,6 +2102,7 @@ void tscCloseTscObj(void *param) {
   tfree(pObj->tscCorMgmtEpSet);
   tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
+  tscReleaseClusterInfo(pObj->clusterId);
 
   tfree(pObj);
 }
@@ -2087,32 +2118,35 @@ bool tscIsInsertData(char* sqlstr) {
   } while (1);
 }
 
-int tscAllocPayload(SSqlCmd* pCmd, int size) {
+int32_t tscAllocPayloadFast(SSqlCmd *pCmd, size_t size) {
   if (pCmd->payload == NULL) {
     assert(pCmd->allocSize == 0);
 
-    pCmd->payload = (char*)calloc(1, size);
-    if (pCmd->payload == NULL) {
+    pCmd->payload = malloc(size);
+    pCmd->allocSize = (uint32_t) size;
+  } else if (pCmd->allocSize < size) {
+    char* tmp = realloc(pCmd->payload, size);
+    if (tmp == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
-    pCmd->allocSize = size;
-  } else {
-    if (pCmd->allocSize < (uint32_t)size) {
-      char* b = realloc(pCmd->payload, size);
-      if (b == NULL) {
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
-      }
+    pCmd->payload = tmp;
+    pCmd->allocSize = (uint32_t) size;
+  }
 
-      pCmd->payload = b;
-      pCmd->allocSize = size;
-    }
+  assert(pCmd->allocSize >= size);
+  return TSDB_CODE_SUCCESS;
+}
 
+int32_t tscAllocPayload(SSqlCmd* pCmd, int size) {
+  assert(size > 0);
+
+  int32_t code = tscAllocPayloadFast(pCmd, (size_t) size);
+  if (code == TSDB_CODE_SUCCESS) {
     memset(pCmd->payload, 0, pCmd->allocSize);
   }
 
-  assert(pCmd->allocSize >= (uint32_t)size && size > 0);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
@@ -2902,16 +2936,6 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t 
 int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   memset(dest, 0, sizeof(STagCond));
 
-  if (src->tbnameCond.cond != NULL) {
-    dest->tbnameCond.cond = strdup(src->tbnameCond.cond);
-    if (dest->tbnameCond.cond == NULL) {
-      return -1;
-    }
-  }
-
-  dest->tbnameCond.uid = src->tbnameCond.uid;
-  dest->tbnameCond.len = src->tbnameCond.len;
-
   dest->joinInfo.hasJoin = src->joinInfo.hasJoin;
 
   for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
@@ -2929,9 +2953,6 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
       }
     }
   }
-
-
-  dest->relType = src->relType;
 
   if (src->pCond == NULL) {
     return 0;
@@ -3022,8 +3043,6 @@ void tscColCondRelease(SArray** pCond) {
 
 
 void tscTagCondRelease(STagCond* pTagCond) {
-  free(pTagCond->tbnameCond.cond);
-
   if (pTagCond->pCond != NULL) {
     size_t s = taosArrayGetSize(pTagCond->pCond);
     for (int32_t i = 0; i < s; ++i) {
@@ -3369,11 +3388,11 @@ void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
   size_t num = taosArrayGetSize(pVgroupTables);
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
-
+#if 0
     for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
       tfree(pInfo->vgInfo.epAddr[j].fqdn);
     }
-
+#endif
     taosArrayDestroy(pInfo->itemList);
   }
 
@@ -3387,9 +3406,9 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   assert(size > index);
 
   SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTable, index);
-  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-    tfree(pInfo->vgInfo.epAddr[j].fqdn);
-  }
+//  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+//    tfree(pInfo->vgInfo.epAddr[j].fqdn);
+//  }
 
   taosArrayDestroy(pInfo->itemList);
   taosArrayRemove(pVgroupTable, index);
@@ -3399,9 +3418,12 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
   memset(info, 0, sizeof(SVgroupTableInfo));
 
   info->vgInfo = pInfo->vgInfo;
+
+#if 0
   for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
     info->vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
   }
+#endif
 
   if (pInfo->itemList) {
     info->itemList = taosArrayDup(pInfo->itemList);
@@ -3464,13 +3486,9 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
-  if (pTableMetaInfo->pTableMeta == NULL) {
-    pTableMetaInfo->tableMetaSize = 0;
-  } else {
-    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
-  }
+  pTableMetaInfo->tableMetaSize = (pTableMetaInfo->pTableMeta == NULL)? 0:tscGetTableMetaSize(pTableMeta);
+
   pTableMetaInfo->tableMetaCapacity = (size_t)(pTableMetaInfo->tableMetaSize);
-  
 
   if (vgroupList != NULL) {
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
@@ -3718,8 +3736,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
       terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
     }
-    pNewQueryInfo->numOfFillVal = pQueryInfo->fieldsInfo.numOfOutput;
 
+    pNewQueryInfo->numOfFillVal = pQueryInfo->fieldsInfo.numOfOutput;
     memcpy(pNewQueryInfo->fillVal, pQueryInfo->fillVal, pQueryInfo->fieldsInfo.numOfOutput * sizeof(int64_t));
   }
 
@@ -3760,7 +3778,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, &pTableMetaInfo->name, pTableMeta, pTableMetaInfo->vgroupList,
                                      pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
-
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, 0);
     if (pPrevInfo->pTableMeta && pPrevInfo->pTableMeta->tableType < 0) {
@@ -3770,8 +3787,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
     STableMeta*  pPrevTableMeta = tscTableMetaDup(pPrevInfo->pTableMeta);
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
-    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, &pTableMetaInfo->name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList,
-        pTableMetaInfo->pVgroupTables);
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, &pTableMetaInfo->name, pPrevTableMeta, pVgroupsInfo,
+                                     pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
   }
 
   // this case cannot be happened
@@ -3944,6 +3961,21 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
 
+int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
+  assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);
+  pSql->subState.numOfSub = numOfSubqueries;
+
+  pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
+  pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
+
+  int32_t code = pthread_mutex_init(&pSql->subState.mutex, NULL);
+  if (pSql->pSubs == NULL || pSql->subState.states == NULL || code != 0) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // do execute the query according to the query execution plan
 void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3959,16 +3991,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   }
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
-    assert(pSql->subState.numOfSub == 0);
-    pSql->subState.numOfSub = (int32_t) taosArrayGetSize(pQueryInfo->pUpstream);
-    assert(pSql->pSubs == NULL);
-    pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
-    assert(pSql->subState.states == NULL);
-    pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
-    code = pthread_mutex_init(&pSql->subState.mutex, NULL);
-
-    if (pSql->pSubs == NULL || pSql->subState.states == NULL || code != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = doInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
+    if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 
@@ -4315,7 +4339,9 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   }
 
   tfree(pSql->pSubs);
+  tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+  pthread_mutex_destroy(&pSql->subState.mutex);
 
   pSql->fp = fp;
 
@@ -4406,8 +4432,8 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
     return NULL;
   }
 
-  size_t size = sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupList->numOfVgroups;
-  SVgroupsInfo* pNew = calloc(1, size);
+  size_t size = sizeof(SVgroupsInfo) + sizeof(SVgroupMsg) * vgroupList->numOfVgroups;
+  SVgroupsInfo* pNew = malloc(size);
   if (pNew == NULL) {
     return NULL;
   }
@@ -4415,15 +4441,15 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
   pNew->numOfVgroups = vgroupList->numOfVgroups;
 
   for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SVgroupInfo* pNewVInfo = &pNew->vgroups[i];
+    SVgroupMsg* pNewVInfo = &pNew->vgroups[i];
 
-    SVgroupInfo* pvInfo = &vgroupList->vgroups[i];
+    SVgroupMsg* pvInfo = &vgroupList->vgroups[i];
     pNewVInfo->vgId = pvInfo->vgId;
     pNewVInfo->numOfEps = pvInfo->numOfEps;
 
     for(int32_t j = 0; j < pvInfo->numOfEps; ++j) {
-      pNewVInfo->epAddr[j].fqdn = strdup(pvInfo->epAddr[j].fqdn);
       pNewVInfo->epAddr[j].port = pvInfo->epAddr[j].port;
+      tstrncpy(pNewVInfo->epAddr[j].fqdn, pvInfo->epAddr[j].fqdn, TSDB_FQDN_LEN);
     }
   }
 
@@ -4435,8 +4461,9 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
     return NULL;
   }
 
+#if 0
   for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
+    SVgroupMsg* pVgroupInfo = &vgroupList->vgroups[i];
 
     for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
       tfree(pVgroupInfo->epAddr[j].fqdn);
@@ -4447,10 +4474,11 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
     }
   }
 
+#endif
   tfree(vgroupList);
   return NULL;
 }
-
+# if 0
 void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
   dst->vgId = src->vgId;
   dst->numOfEps = src->numOfEps;
@@ -4462,6 +4490,8 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
     dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
   }
 }
+
+#endif
 
 char* serializeTagData(STagData* pTagData, char* pMsg) {
   int32_t n = (int32_t) strlen(pTagData->name);
@@ -4505,6 +4535,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
   pTableMeta->tableInfo.numOfTags = pChild->numOfTags;
   pTableMeta->tableInfo.numOfColumns = pChild->numOfColumns;
   pTableMeta->tableInfo.precision = pChild->precision;
+  pTableMeta->tableInfo.update = pChild->update;
 
   pTableMeta->id.tid = 0;
   pTableMeta->id.uid = pChild->suid;
@@ -4546,7 +4577,7 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta**ppSTable) {
+int32_t tscCreateTableMetaFromSTableMeta(SSqlObj *pSql, STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta**ppSTable) {
   assert(*ppChild != NULL);
   STableMeta* p      = *ppSTable;
   STableMeta* pChild = *ppChild;
@@ -4556,11 +4587,10 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     memset((char *)p, 0, sz);
   }
 
-  if (NULL == taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
+  if (NULL == taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz)) {
     tfree(p);
-  } else {
-    *ppSTable = p;
-  }
+  }   
+  *ppSTable = p;
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
@@ -4582,7 +4612,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     *ppChild = pChild;
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
-    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(UTIL_GET_TABLEMETA(pSql), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     return -1;
   }
 }
@@ -4603,11 +4633,12 @@ STableMeta* tscTableMetaDup(STableMeta* pTableMeta) {
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo) {
   assert(pVgroupsInfo != NULL);
 
-  size_t size = sizeof(SVgroupInfo) * pVgroupsInfo->numOfVgroups + sizeof(SVgroupsInfo);
+  size_t size = sizeof(SVgroupMsg) * pVgroupsInfo->numOfVgroups + sizeof(SVgroupsInfo);
   SVgroupsInfo* pInfo = calloc(1, size);
   pInfo->numOfVgroups = pVgroupsInfo->numOfVgroups;
   for (int32_t m = 0; m < pVgroupsInfo->numOfVgroups; ++m) {
-    tscSVgroupInfoCopy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m]);
+    memcpy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m], sizeof(SVgroupMsg));
+//    tscSVgroupInfoCopy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m]);
   }
   return pInfo;
 }
@@ -4829,7 +4860,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = tscIsDiffDerivQuery(pQueryInfo);
+  pQueryAttr->diffQuery         = tscIsDiffDerivLikeQuery(pQueryInfo);
   pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
@@ -5100,27 +5131,32 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id) {
   char fname[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameExtractFullName(&pTableMetaInfo->name, fname);
+  SSqlObj *p = (SSqlObj *)taosAcquireRef(tscObjRef, id); 
 
+  tNameExtractFullName(&pTableMetaInfo->name, fname);
   int32_t len = (int32_t) strnlen(fname, TSDB_TABLE_FNAME_LEN);
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, fname, len);
+    void* pv = taosCacheAcquireByKey(UTIL_GET_VGROUPLIST(p), fname, len);
     if (pv != NULL) {
-      taosCacheRelease(tscVgroupListBuf, &pv, true);
+      taosCacheRelease(UTIL_GET_VGROUPLIST(p), &pv, true);
     }
   }
 
-  taosHashRemove(tscTableMetaMap, fname, len);
-  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
+  taosHashRemove(UTIL_GET_TABLEMETA(p), fname, len);
+  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(UTIL_GET_TABLEMETA(p)));
+  taosReleaseRef(tscObjRef, id); 
 }
 
 char* cloneCurrentDBName(SSqlObj* pSql) {
   char        *p = NULL;
+#ifdef HTTP_EMBEDDED
   HttpContext *pCtx = NULL;
+#endif
 
   pthread_mutex_lock(&pSql->pTscObj->mutex);
   STscObj *pTscObj = pSql->pTscObj;
   switch (pTscObj->from) {
+#ifdef HTTP_EMBEDDED
   case TAOS_REQ_FROM_HTTP:
     pCtx = pSql->param;
     if (pCtx && pCtx->db[0] != '\0') {
@@ -5131,6 +5167,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
       p = strdup(db);
     }
     break;
+#endif
   default:
     break;
   }

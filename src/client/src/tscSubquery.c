@@ -623,13 +623,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-#ifndef _TD_NINGSI_60
-      pExpr->base.param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
-#else
-      pExpr->base.param[0].i64 = colId;
-      pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
-      pExpr->base.param[0].nLen = sizeof(int64_t);
-#endif
+      tVariant* pVariant = &pExpr->base.param[0];
+
+      pVariant->i64   = colId;
+      pVariant->nType = TSDB_DATA_TYPE_BIGINT;
+      pVariant->nLen  = sizeof(int64_t);
+
       pExpr->base.numOfParams = 1;
     }
 
@@ -748,10 +747,11 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
       SVgroupTableInfo info = {{0}};
       for (int32_t m = 0; m < pvg->numOfVgroups; ++m) {
         if (tt->vgId == pvg->vgroups[m].vgId) {
-          tscSVgroupInfoCopy(&info.vgInfo, &pvg->vgroups[m]);
+          memcpy(&info.vgInfo, &pvg->vgroups[m], sizeof(info.vgInfo));
           break;
         }
       }
+
       assert(info.vgInfo.numOfEps != 0);
 
       vgTables = taosArrayInit(4, sizeof(STableIdInfo));
@@ -1347,7 +1347,11 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     pCmd->command = TSDB_SQL_SELECT;
     tscResetForNextRetrieve(&pSql->res);
 
-    assert(pSupporter->f == NULL);
+    if (pSupporter->f != NULL) {
+      fclose(pSupporter->f);
+      pSupporter->f = NULL;
+    }
+    
     taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure
@@ -2459,11 +2463,48 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   tfree(p);
 }
 
+static void doConcurrentlySendSubQueries(SSqlObj* pSql) {
+  SSubqueryState *pState = &pSql->subState;
+
+  // concurrently sent the query requests.
+  const int32_t MAX_REQUEST_PER_TASK = 4;
+
+  int32_t numOfTasks = (pState->numOfSub + MAX_REQUEST_PER_TASK - 1)/MAX_REQUEST_PER_TASK;
+  assert(numOfTasks >= 1);
+
+  int32_t num;
+  if (pState->numOfSub / numOfTasks == MAX_REQUEST_PER_TASK) {
+    num = MAX_REQUEST_PER_TASK;
+  } else {
+    num = pState->numOfSub / numOfTasks + 1;
+  }
+  tscDebug("0x%"PRIx64 " query will be sent by %d threads", pSql->self, numOfTasks);
+
+  for(int32_t j = 0; j < numOfTasks; ++j) {
+    SSchedMsg schedMsg = {0};
+    schedMsg.fp      = doSendQueryReqs;
+    schedMsg.ahandle = (void*)pSql;
+
+    schedMsg.thandle = NULL;
+    SPair* p = calloc(1, sizeof(SPair));
+    p->first  = j * num;
+
+    if (j == numOfTasks - 1) {
+      p->second = pState->numOfSub;
+    } else {
+      p->second = (j + 1) * num;
+    }
+
+    schedMsg.msg = p;
+    taosScheduleTask(tscQhandle, &schedMsg);
+  }
+}
+
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
-  // pRes->code check only serves in launching metric sub-queries
+  // pRes->code check only serves in launching super table sub-queries
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
     pCmd->command = TSDB_SQL_RETRIEVE_GLOBALMERGE;  // enable the abort of kill super table function.
     return pRes->code;
@@ -2474,22 +2515,23 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   pRes->qId = 0x1;  // hack the qhandle check
 
-  const uint32_t nBufferSize = (1u << 18u);  // 256KB
+  const uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
 
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
   SSubqueryState *pState = &pSql->subState;
 
-  pState->numOfSub = 0;
-  if (pTableMetaInfo->pVgroupTables == NULL) {
-    pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
-  } else {
-    pState->numOfSub = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+  int32_t numOfSub = (pTableMetaInfo->pVgroupTables == NULL) ? pTableMetaInfo->vgroupList->numOfVgroups
+                                                             : (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+
+  int32_t ret = doInitSubState(pSql, numOfSub);
+  if (ret != 0) {
+    tscAsyncResultOnError(pSql);
+    return ret;
   }
 
-  assert(pState->numOfSub > 0);
-  
-  int32_t ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
+  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
   if (ret != 0) {
     pRes->code = ret;
     tscAsyncResultOnError(pSql);
@@ -2499,32 +2541,6 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   }
 
   tscDebug("0x%"PRIx64" retrieved query data from %d vnode(s)", pSql->self, pState->numOfSub);
-  pSql->pSubs = calloc(pState->numOfSub, POINTER_BYTES);
-  if (pSql->pSubs == NULL) {
-    tfree(pSql->pSubs);
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc,pState->numOfSub);
-
-    tscAsyncResultOnError(pSql);
-    return ret;
-  }
-
-  if (pState->states == NULL) {
-    pState->states = calloc(pState->numOfSub, sizeof(*pState->states));
-    if (pState->states == NULL) {
-      pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc,pState->numOfSub);
-
-      tscAsyncResultOnError(pSql);
-      return ret;
-    }
-
-    pthread_mutex_init(&pState->mutex, NULL);
-  }
-
-  memset(pState->states, 0, sizeof(*pState->states) * pState->numOfSub);
-  tscDebug("0x%"PRIx64" reset all sub states to 0", pSql->self);
-  
   pRes->code = TSDB_CODE_SUCCESS;
   
   int32_t i = 0;
@@ -2538,15 +2554,16 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->pExtMemBuffer = pMemoryBuf;
     trs->pOrderDescriptor = pDesc;
 
-    trs->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
+    trs->localBuffer = (tFilePage *)malloc(nBufferSize + sizeof(tFilePage));
     if (trs->localBuffer == NULL) {
       tscError("0x%"PRIx64" failed to malloc buffer for local buffer, orderOfSub:%d, reason:%s", pSql->self, i, strerror(errno));
       tfree(trs);
       break;
     }
-    
-    trs->subqueryIndex  = i;
-    trs->pParentSql     = pSql;
+
+    trs->localBuffer->num = 0;
+    trs->subqueryIndex = i;
+    trs->pParentSql    = pSql;
 
     SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL);
     if (pNew == NULL) {
@@ -2582,39 +2599,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return pRes->code;
   }
 
-  // concurrently sent the query requests.
-  const int32_t MAX_REQUEST_PER_TASK = 8;
-
-  int32_t numOfTasks = (pState->numOfSub + MAX_REQUEST_PER_TASK - 1)/MAX_REQUEST_PER_TASK;
-  assert(numOfTasks >= 1);
-
-  int32_t num;
-  if (pState->numOfSub / numOfTasks == MAX_REQUEST_PER_TASK) {
-    num = MAX_REQUEST_PER_TASK;
-  } else {
-    num = pState->numOfSub / numOfTasks + 1;
-  }
-  tscDebug("0x%"PRIx64 " query will be sent by %d threads", pSql->self, numOfTasks);
-
-  for(int32_t j = 0; j < numOfTasks; ++j) {
-    SSchedMsg schedMsg = {0};
-    schedMsg.fp      = doSendQueryReqs;
-    schedMsg.ahandle = (void*)pSql;
-
-    schedMsg.thandle = NULL;
-    SPair* p = calloc(1, sizeof(SPair));
-    p->first  = j * num;
-
-    if (j == numOfTasks - 1) {
-      p->second = pState->numOfSub;
-    } else {
-      p->second = (j + 1) * num;
-    }
-
-    schedMsg.msg = p;
-    taosScheduleTask(tscQhandle, &schedMsg);
-  }
-
+  doConcurrentlySendSubQueries(pSql);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2671,7 +2656,7 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
   int32_t  subqueryIndex = trsupport->subqueryIndex;
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  SVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
+  SVgroupMsg* pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
 
   tExtMemBufferClear(trsupport->pExtMemBuffer[subqueryIndex]);
 
@@ -2899,7 +2884,6 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   pParentSql->res.precision = pSql->res.precision;
   pParentSql->res.numOfRows = 0;
   pParentSql->res.row = 0;
-  pParentSql->res.numOfGroups = 0;
 
   tscFreeRetrieveSup(pSql);
 
@@ -2950,7 +2934,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SSubqueryState* pState = &pParentSql->subState;
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  SVgroupInfo  *pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
+  SVgroupMsg  *pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -3078,7 +3062,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   assert(pQueryInfo->numOfTables == 1);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  SVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[trsupport->subqueryIndex];
+  SVgroupMsg* pVgroup = &pTableMetaInfo->vgroupList->vgroups[trsupport->subqueryIndex];
 
   // stable query killed or other subquery failed, all query stopped
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -3229,7 +3213,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     for(int32_t i = 0; i < pParentObj->cmd.insertParam.numOfTables; ++i) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(pParentObj->cmd.insertParam.pTableNameList[i], name);
-      taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+      taosHashRemove(UTIL_GET_TABLEMETA(pParentObj), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
@@ -3374,7 +3358,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     goto _error;
   }
 
-  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
 
   // use the local variable
   for (int32_t j = 0; j < numOfSub; ++j) {
@@ -3424,7 +3408,6 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     return;
   }
 
-//  tscRestoreFuncForSTableQuery(pQueryInfo);
   int32_t rowSize = tscGetResRowLength(pQueryInfo->exprList);
 
   assert(numOfRes * rowSize > 0);

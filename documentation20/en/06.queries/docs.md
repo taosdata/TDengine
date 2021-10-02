@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="queries"></a> Main Query Features
 
-TDengine uses SQL as the query language. Applications can send SQL statements through C/C++, Java, Go, Python connectors, and users can manually execute SQL Ad-Hoc Query through the Command Line Interface (CLI) tool TAOS Shell provided by TDengine. TDengine supports the following query functions:
+TDengine uses SQL as the query language. Applications can send SQL statements through C/C++, Java, Go, C#, Python, Node.js connectors, and users can manually execute SQL Ad-Hoc Query through the Command Line Interface (CLI) tool TAOS Shell provided by TDengine. TDengine supports the following query functions:
 
 - Single-column and multi-column data query
 - Multiple filters for tags and numeric values: >, <, =, < >, like, etc
@@ -28,7 +28,7 @@ For specific query syntax, please see the [Data Query section of TAOS SQL](https
 
 ## <a class="anchor" id="aggregation"></a> Multi-table Aggregation Query
 
-In an IoT scenario, there are often multiple data collection points in a same type. TDengine uses the concept of STable to describe a certain type of data collection point, and an ordinary table to describe a specific data collection point. At the same time, TDengine uses tags to describe the statical attributes of data collection points. A given data collection point has a specific tag value. By specifying the filters of tags, TDengine provides an efficient method to aggregate and query the sub-tables of STables (data collection points of a certain type). Aggregation functions and most operations on ordinary tables are applicable to STables, and the syntax is exactly the same.
+In an IoT scenario, there are often multiple data collection points in a same type. TDengine uses the concept of STable to describe a certain type of data collection point, and an ordinary table to describe a specific data collection point. At the same time, TDengine uses tags to describe the static attributes of data collection points. A given data collection point has a specific tag value. By specifying the filters of tags, TDengine provides an efficient method to aggregate and query the sub-tables of STables (data collection points of a certain type). Aggregation functions and most operations on ordinary tables are applicable to STables, and the syntax is exactly the same.
 
 **Example 1**: In TAOS Shell, look up the average voltages collected by all smart meters in Beijing and group them by location
 
@@ -55,7 +55,7 @@ TDengine only allows aggregation queries between tables belonging to a same STab
 
 ## <a class="anchor" id="sampling"></a> Down Sampling Query, Interpolation
 
-In a scenario of IoT, it is often necessary to aggregate the collected data by intervals through down sampling. TDengine provides a simple keyword interval, which makes query operations according to time windows extremely simple. For example, the current values collected by smart meter d1001 are summed every 10 seconds.
+In a scenario of IoT, it is often necessary to aggregate the collected data by intervals through down sampling. TDengine provides a simple keyword `interval`, which makes query operations according to time windows extremely simple. For example, the current values collected by smart meter d1001 are summed every 10 seconds.
 
 ```mysql
 taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
@@ -94,6 +94,6 @@ taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
 Query OK, 5 row(s) in set (0.001521s)
 ```
 
-In a scenario of IoT, it is difficult to synchronize the time stamp of collected data at each point, but many analysis algorithms (such as FFT) need to align the collected data strictly at equal intervals of time. In many systems, it’s required to write their own programs to process, but the down sampling operation of TDengine can be easily solved. If there is no collected data in an interval, TDengine also provides interpolation calculation function.
+In IoT scenario, it is difficult to synchronize the time stamp of collected data at each point, but many analysis algorithms (such as FFT) need to align the collected data strictly at equal intervals of time. In many systems, it’s required to write their own programs to process, but the down sampling operation of TDengine can be used to solve the problem easily. If there is no collected data in an interval, TDengine also provides interpolation calculation function.
 
 For details of syntax rules, please refer to the [Time-dimension Aggregation section of TAOS SQL](https://www.taosdata.com/en/documentation/taos-sql#aggregation).
