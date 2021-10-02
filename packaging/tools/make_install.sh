@@ -243,10 +243,12 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
-        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver || ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_2_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/* || ${csudo} chmod 777 ${install_main_2_dir}/driver/*
+  
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${install_main_dir}/driver/libtaos.1.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.* ${install_main_2_dir}/driver/libtaos.1.dylib   || :
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${install_main_dir}/driver/libtaos.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.1.dylib ${install_main_2_dir}/driver/libtaos.dylib   || :
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib ${lib_link_dir}/libtaos.1.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.${verNumber}.dylib ${lib_link_dir}/libtaos.1.dylib   || :
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib   || :
     fi
     
     install_jemalloc
