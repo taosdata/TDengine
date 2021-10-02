@@ -53,6 +53,7 @@ typedef struct SGroupbyExpr {
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
+  uint8_t update;
   int16_t numOfColumns;
   int32_t rowSize;
 } STableComInfo;
@@ -84,6 +85,7 @@ typedef struct STableMetaInfo {
   SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
+  int32_t       joinTagNum;
 } STableMetaInfo;
 
 struct   SQInfo;      // global merge operator
@@ -108,6 +110,7 @@ typedef struct SQueryInfo {
 
   SOrderVal        order;
   int16_t          numOfTables;
+  int16_t          curTableIdx;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
 

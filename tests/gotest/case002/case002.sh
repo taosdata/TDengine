@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "==== start run cases001.go"
+echo "==== start run cases002.go"
 
 set +e
 #set -x

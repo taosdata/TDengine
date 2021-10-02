@@ -288,8 +288,6 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
       STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
 
       STableCheckInfo info = { .lastKey = pKeyInfo->lastKey, .pTableObj = pKeyInfo->pTable };
-      info.tableId = ((STable*)(pKeyInfo->pTable))->tableId;
-
       assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
                                         info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));
 
@@ -655,55 +653,8 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle) {
   return res;
 }
 
-// leave only one table for each group
-static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGroupList) {
-  assert(pGroupList);
-  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
-
-  STableGroupInfo* pNew = calloc(1, sizeof(STableGroupInfo));
-  pNew->pGroupList = taosArrayInit(numOfGroup, POINTER_BYTES);
-
-  for(int32_t i = 0; i < numOfGroup; ++i) {
-    SArray* oneGroup = taosArrayGetP(pGroupList->pGroupList, i);
-    size_t numOfTables = taosArrayGetSize(oneGroup);
-
-    SArray* px = taosArrayInit(4, sizeof(STableKeyInfo));
-    for (int32_t j = 0; j < numOfTables; ++j) {
-      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(oneGroup, j);
-      if (window->skey <= pInfo->lastKey && ((STable*)pInfo->pTable)->lastKey != TSKEY_INITIAL_VAL) {
-        taosArrayPush(px, pInfo);
-        pNew->numOfTables += 1;
-        break;
-      }
-    }
-
-    // there are no data in this group
-    if (taosArrayGetSize(px) == 0) {
-      taosArrayDestroy(px);
-    } else {
-      taosArrayPush(pNew->pGroupList, &px);
-    }
-  }
-
-  return pNew;
-}
-
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pRef) {
-  STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
-
-  if (pNew->numOfTables == 0) {
-    tsdbDebug("update query time range to invalidate time window");
-
-    assert(taosArrayGetSize(pNew->pGroupList) == 0);
-    bool asc = ASCENDING_TRAVERSE(pCond->order);
-    if (asc) {
-      pCond->twindow.ekey = pCond->twindow.skey - 1;
-    } else {
-      pCond->twindow.skey = pCond->twindow.ekey - 1;
-    }
-  }
-
-  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, pNew, qId, pRef);
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pRef);
   pQueryHandle->loadExternalRow = true;
   pQueryHandle->currentLoadExternalRows = true;
 
@@ -1584,7 +1535,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
+    pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
   }
   if(isRow1DataRow) {
     numOfColsOfRow1 = schemaNCols(pSchema1);
@@ -1596,7 +1547,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   if(row2) {
     isRow2DataRow = isDataRow(row2);
     if (pSchema2 == NULL) {
-      pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+      pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2), (int8_t)memRowType(row2));
     }
     if(isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -1963,11 +1914,11 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
       if ((key < tsArray[pos] && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
           (key > tsArray[pos] && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
         if (rv1 != memRowVersion(row1)) {
-          pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
+          pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
           rv1 = memRowVersion(row1);
         }
         if(row2 && rv2 != memRowVersion(row2)) {
-          pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+          pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2), (int8_t)memRowType(row2));
           rv2 = memRowVersion(row2);
         }
         
@@ -1988,11 +1939,11 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
             doCopyRowsFromFileBlock(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, pos, pos);
           }
           if (rv1 != memRowVersion(row1)) {
-            pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
+            pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
             rv1 = memRowVersion(row1);
           }
           if(row2 && rv2 != memRowVersion(row2)) {
-            pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+            pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2), (int8_t)memRowType(row2));
             rv2 = memRowVersion(row2);
           }
           
@@ -2230,7 +2181,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
     SBlock* pBlock = pTableCheck->pCompInfo->blocks;
     sup.numOfBlocksPerTable[numOfQualTables] = pTableCheck->numOfBlocks;
 
-    char* buf = calloc(1, sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
+    char* buf = malloc(sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
     if (buf == NULL) {
       cleanBlockOrderSupporter(&sup, numOfQualTables);
       return TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -2656,7 +2607,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != memRowVersion(row)) {
-      pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row));
+      pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row), (int8_t)memRowType(row));
       rv = memRowVersion(row);
     }
     mergeTwoRowFromMem(pQueryHandle, maxRowsToRead, numOfRows, row, NULL, numOfCols, pTable, pSchema, NULL, true);
@@ -3630,8 +3581,6 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
     for(int32_t i = 0; i < size; ++i) {
       STableKeyInfo *pKeyInfo = taosArrayGet(pTableList, i);
-      assert(((STable*)pKeyInfo->pTable)->type == TSDB_CHILD_TABLE);
-
       tsdbRefTable(pKeyInfo->pTable);
 
       STableKeyInfo info = {.pTable = pKeyInfo->pTable, .lastKey = skey};
