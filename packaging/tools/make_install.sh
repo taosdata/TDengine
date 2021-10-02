@@ -45,8 +45,10 @@ else
     inc_link_dir="/usr/local/include"
 
     install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
+    install_main_2_dir="/usr/local/Cellar/tdengine@${verNumber}/${verNumber}"
 
     bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
+    bin_2_dir="/usr/local/Cellar/tdengine@${verNumber}/${verNumber}/bin"
 fi
 
 service_config_dir="/etc/systemd/system"
@@ -532,8 +534,16 @@ function install_TDengine() {
 ## ==============================Main program starts from here============================
 echo source directory: $1
 echo binary directory: $2
-if [ -x ${bin_dir}/taos ]; then
-    update_TDengine
+if [ "$osType" != "Darwin" ]; then
+    if [ -x ${bin_dir}/taos ]; then
+        update_TDengine
+    else
+        install_TDengine
+    fi
 else
-    install_TDengine
+    if [ -x ${bin_dir}/taos ] || [ -x ${bin_2_dir}/taos ]; then
+        update_TDengine
+    else
+        install_TDengine
+    fi
 fi
