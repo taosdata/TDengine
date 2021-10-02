@@ -30,7 +30,7 @@ class TDTestCase:
         print("==============step1")
         tdLog.info("create database and table")
         tdSql.execute("create database db_json_tag_test")
-        tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64))")
+        tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(128))")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
         tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, 'json2')")
@@ -162,7 +162,7 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
