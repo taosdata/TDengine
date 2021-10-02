@@ -1163,7 +1163,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   fillTablesColumnsNull(stmt->pSql);
 
-  int code = tscMergeTableDataBlocks(&stmt->pSql->cmd.insertParam, false);
+  int code = tscMergeTableDataBlocks(stmt->pSql, &stmt->pSql->cmd.insertParam, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1194,7 +1194,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   pCmd->insertParam.numOfTables = 0;
   tfree(pCmd->insertParam.pTableNameList);
-  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
 
   return pSql->res.code;
 }
@@ -1215,7 +1215,7 @@ static void insertBatchClean(STscStmt* pStmt) {
 
   tfree(pCmd->insertParam.pTableNameList);
 
-  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
   taosHashClear(pCmd->insertParam.pTableBlockHashList);
@@ -1242,7 +1242,7 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
 
   fillTablesColumnsNull(pStmt->pSql);
 
-  if ((code = tscMergeTableDataBlocks(&pStmt->pSql->cmd.insertParam, false)) != TSDB_CODE_SUCCESS) {
+  if ((code = tscMergeTableDataBlocks(pStmt->pSql, &pStmt->pSql->cmd.insertParam, false)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -1773,8 +1773,8 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       if (pStmt->pSql && pStmt->pSql->res.code != 0) {
         rmMeta = true;
       }
-      tscDestroyDataBlock(pStmt->mtb.lastBlock, rmMeta);
-      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
+      tscDestroyDataBlock(pStmt->pSql, pStmt->mtb.lastBlock, rmMeta);
+      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->pSql, pStmt->mtb.pTableBlockHashList, rmMeta);
       if (pStmt->pSql){
         taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
       }
