@@ -33,9 +33,11 @@
 
 int32_t    sentinel = TSC_VAR_NOT_RELEASE;
 
-SHashObj  *tscVgroupMap;         // hash map to keep the vgroup info from mnode
-SHashObj  *tscTableMetaMap;      // table meta info buffer
-SCacheObj *tscVgroupListBuf;     // super table vgroup list information, only survives 5 seconds for each super table vgroup list
+//SHashObj  *tscVgroupMap;         // hash map to keep the vgroup info from mnode
+//SHashObj  *tscTableMetaMap;      // table meta info buffer
+//SCacheObj *tscVgroupListBuf;     // super table vgroup list information, only survives 5 seconds for each super table vgroup list
+SHashObj  *tscClusterMap = NULL;        // cluster obj
+static pthread_mutex_t clusterMutex; // mutex to protect open the cluster obj
 
 int32_t    tscObjRef = -1;
 void      *tscTmr;
@@ -121,6 +123,57 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   return 0;
 }
 
+void tscClusterInfoDestroy(SClusterInfo *pObj) {
+  if (pObj == NULL) { return; }
+  taosHashCleanup(pObj->vgroupMap);
+  taosHashCleanup(pObj->tableMetaMap);
+  taosCacheCleanup(pObj->vgroupListBuf);
+  tfree(pObj);
+}
+
+void *tscAcquireClusterInfo(const char *clusterId) {
+  pthread_mutex_lock(&clusterMutex);
+  
+  size_t len = strlen(clusterId);
+  SClusterInfo *pObj   = NULL;
+  SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
+  if (ppObj == NULL || *ppObj == NULL) {
+    pObj = calloc(1, sizeof(SClusterInfo));
+    if (pObj) {
+      pObj->vgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+      pObj->tableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK); //
+      pObj->vgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
+      if (pObj->vgroupMap == NULL || pObj->tableMetaMap == NULL || pObj->vgroupListBuf == NULL) {
+        tscClusterInfoDestroy(pObj);
+        pObj = NULL;
+      } else {
+        taosHashPut(tscClusterMap, clusterId, len, &pObj, POINTER_BYTES);
+      } 
+    }
+  } else {
+    pObj = *ppObj;
+  }
+
+  if (pObj) { pObj->ref += 1; }
+  
+  pthread_mutex_unlock(&clusterMutex);
+  return pObj;
+}
+void tscReleaseClusterInfo(const char *clusterId) {
+  pthread_mutex_lock(&clusterMutex);
+
+  size_t len = strlen(clusterId); 
+  SClusterInfo *pObj = NULL;
+  SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
+  if (ppObj != NULL && *ppObj != NULL) {
+    pObj = *ppObj;
+  }
+  if (pObj && --pObj->ref == 0) {
+    taosHashRemove(tscClusterMap, clusterId, len);
+    tscClusterInfoDestroy(pObj); 
+  }
+  pthread_mutex_unlock(&clusterMutex);
+}
 void taos_init_imp(void) {
   char temp[128] = {0};
 
@@ -188,12 +241,16 @@ void taos_init_imp(void) {
     taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
-  if (tscTableMetaMap == NULL) {
+  if (tscClusterMap == NULL) {
     tscObjRef        = taosOpenRef(40960, tscFreeRegisteredSqlObj);
-    tscVgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    tscTableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    tscVgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
-    tscDebug("TableMeta:%p, vgroup:%p is initialized", tscTableMetaMap, tscVgroupMap);
+
+    tscClusterMap    = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK); 
+    pthread_mutex_init(&clusterMutex, NULL); 
+    //tscVgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    //tscTableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    //tscVgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
+    //tscDebug("TableMeta:%p, vgroup:%p is initialized", tscTableMetaMap, tscVgroupMap);
+
   }
    
   int refreshTime = 5;
@@ -222,12 +279,6 @@ void taos_cleanup(void) {
     scriptEnvPoolCleanup();
   }
 
-  taosHashCleanup(tscTableMetaMap);
-  tscTableMetaMap = NULL;
-
-  taosHashCleanup(tscVgroupMap);
-  tscVgroupMap = NULL;
-
   int32_t id = tscObjRef;
   tscObjRef = -1;
   taosCloseRef(id);
@@ -251,13 +302,15 @@ void taos_cleanup(void) {
   }
 
   pthread_mutex_destroy(&setConfMutex);
-  taosCacheCleanup(tscVgroupListBuf);
-  tscVgroupListBuf = NULL;
 
   if (tscEmbedded == 0) {
     rpcCleanup();
     taosCloseLog();
   };
+
+  taosHashCleanup(tscClusterMap);
+  tscClusterMap = NULL;
+  pthread_mutex_destroy(&clusterMutex);
 
   p = tscTmr;
   tscTmr = NULL;
