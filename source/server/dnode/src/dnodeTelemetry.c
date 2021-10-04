@@ -210,7 +210,7 @@ static void dnodeSendTelemetryReport(DnTelem* telem) {
       "Content-Type: application/json\n"
       "Content-Length: ";
 
-  taosWriteSocket(fd, header, (int32_t)strlen(header));
+  taosWriteSocket(fd, (void*)header, (int32_t)strlen(header));
   int32_t contLen = (int32_t)(tbufTell(&bw) - 1);
   sprintf(buf, "%d\n\n", contLen);
   taosWriteSocket(fd, buf, (int32_t)strlen(buf));

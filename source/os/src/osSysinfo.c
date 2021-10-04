@@ -485,6 +485,7 @@ char *taosGetCmdlineByPID(int pid) {
 #include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
+#include <unistd.h>
 
 #define PROCESS_ITEM 12
 
@@ -1127,4 +1128,9 @@ SysNameInfo taosGetSysNameInfo() {
 
   return info;
 }
+
+int64_t taosGetPid() {
+  getpid();
+}
+
 #endif

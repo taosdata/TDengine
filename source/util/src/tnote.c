@@ -100,7 +100,7 @@ static void *taosThreadToOpenNewNote(void *param) {
   }
 
   taosLockNote(fd, pNote);
-  (void)lseek(fd, 0, SEEK_SET);
+  (void)taosLSeekFile(fd, 0, SEEK_SET);
 
   int32_t oldFd = pNote->fd;
   pNote->fd = fd;
@@ -142,10 +142,10 @@ static bool taosCheckNoteIsOpen(char *noteName, SNoteObj *pNote) {
 
   if (taosLockNote(fd, pNote)) {
     taosUnLockNote(fd, pNote);
-    close(fd);
+    taosCloseFile(fd);
     return false;
   } else {
-    close(fd);
+    taosCloseFile(fd);
     return true;
   }
 }
@@ -226,7 +226,7 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
   size = (int32_t)filestat_size;
   pNote->lines = size / 60;
 
-  lseek(pNote->fd, 0, SEEK_END);
+  taosLSeekFile(pNote->fd, 0, SEEK_END);
 
   return 0;
 }
@@ -271,6 +271,6 @@ void taosNotePrint(SNoteObj *pNote, const char *const format, ...) {
 static void taosCloseNoteByFd(int32_t fd, SNoteObj *pNote) {
   if (fd >= 0) {
     taosUnLockNote(fd, pNote);
-    close(fd);
+    taosCloseFile(fd);
   }
 }

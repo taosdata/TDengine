@@ -22,6 +22,8 @@ void taosMsleep(int32_t ms) { Sleep(ms); }
 
 #else
 
+#include <unistd.h>
+
 /*
   to make taosMsleep work,
    signal SIGALRM shall be blocked in the calling thread,

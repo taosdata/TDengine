@@ -62,6 +62,7 @@ void taosUninitTimer() {
 
 #include <sys/syscall.h>
 #include <sys/event.h>
+#include <unistd.h>
 
 static void (*timer_callback)(int);
 static int           timer_ms = 0;
@@ -136,6 +137,7 @@ void taos_block_sigalrm(void) {
  */
 
 #include <sys/syscall.h>
+#include <unistd.h>
 
 static void taosDeleteTimer(void *tharg) {
   timer_t *pTimer = tharg;

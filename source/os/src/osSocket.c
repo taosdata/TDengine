@@ -17,16 +17,57 @@
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #include "winsock2.h"
+  #include <WS2tcpip.h>
+  #include <winbase.h>
+  #include <Winsock2.h>
 #else
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <sys/socket.h>
-#include <unistd.h>
+  #include <arpa/inet.h>
+  #include <fcntl.h>
+  #include <netdb.h>
+  #include <netinet/in.h>
+  #include <netinet/ip.h>
+  #include <netinet/tcp.h>
+  #include <netinet/udp.h>
+  #include <sys/socket.h>
+  #include <unistd.h>
+#endif
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+
+#define taosSend(sockfd, buf, len, flags) send((SOCKET)sockfd, buf, len, flags)
+int32_t taosSendto(SocketFd fd, void *buf, int len, unsigned int flags, const struct sockaddr *to, int tolen) {
+  return sendto((SOCKET)sockfd, buf, len, flags, dest_addr, addrlen);
+}
+int32_t taosWriteSocket(SocketFd fd, void *buf, int len) { return send((SOCKET)fd, buf, len, 0); }
+int32_t taosReadSocket(SocketFd fd, void *buf, int len) { return recv((SOCKET)fd, buf, len, 0)(); }
+int32_t taosCloseSocketNoCheck(SocketFd fd) { return closesocket((SOCKET)fd); }
+int32_t taosCloseSocket(SocketFd fd) { closesocket((SOCKET)fd) }
+
+#else
+
+  #define taosSend(sockfd, buf, len, flags) send(sockfd, buf, len, flags)
+  int32_t taosSendto(SocketFd fd, void * buf, int len, unsigned int flags, const struct sockaddr * dest_addr, int addrlen) {
+    return sendto(fd, buf, len, flags, dest_addr, addrlen);
+  }
+
+  int32_t taosWriteSocket(SocketFd fd, void *buf, int len) {
+    return write(fd, buf, len);
+  }
+
+  int32_t taosReadSocket(SocketFd fd, void *buf, int len) {
+    return read(fd, buf, len);
+  }
+
+  int32_t taosCloseSocketNoCheck(SocketFd fd) {
+    return close(fd);
+  }
+
+  int32_t taosCloseSocket(SocketFd fd) {
+    if (fd > -1) {
+      close(fd);
+    }
+  }
 #endif
 
 void taosShutDownSocketRD(SOCKET fd) {
@@ -225,8 +266,6 @@ uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(va
 #endif
 
 #endif
-
-
 
 #ifndef SIGPIPE
   #define SIGPIPE EPIPE

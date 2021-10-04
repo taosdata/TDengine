@@ -18,6 +18,7 @@
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 #else
 #include <sys/file.h>
+#include <unistd.h>
 #endif
 
 uint32_t taosRand(void) { return rand(); }

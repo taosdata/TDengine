@@ -24,10 +24,8 @@ extern "C" {
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 typedef int32_t FileFd;
-typedef SOCKET  SocketFd;
 #else
 typedef int32_t FileFd;
-typedef int32_t SocketFd;
 #endif
 
 #define FD_INITIALIZER ((int32_t)-1)

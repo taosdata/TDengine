@@ -23,7 +23,7 @@
 static int32_t tsFileRsetId = -1;
 
 static void tfCloseFile(void *p) {
-  close((int32_t)(uintptr_t)p);
+  taosCloseFile((int32_t)(uintptr_t)p);
 }
 
 int32_t tfInit() {
@@ -48,7 +48,7 @@ static int64_t tfOpenImp(int32_t fd) {
 
   void *  p = (void *)(int64_t)fd;
   int64_t rid = taosAddRef(tsFileRsetId, p);
-  if (rid < 0) close(fd);
+  if (rid < 0) taosCloseFile(fd);
 
   return rid;
 }

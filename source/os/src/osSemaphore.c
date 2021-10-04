@@ -376,6 +376,7 @@ int32_t taosGetCurrentAPPName(char *name, int32_t *len) {
  */
 
 #include <sys/syscall.h>
+#include <unistd.h>
 
 bool taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
 
