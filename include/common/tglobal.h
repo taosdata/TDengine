@@ -13,12 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_GLOBAL_H
-#define _TD_COMMON_GLOBAL_H
+#ifndef _TD_COMMON_GLOBAL_H_
+#define _TD_COMMON_GLOBAL_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "tdef.h"
 
 // cluster
 extern char     tsFirst[];
@@ -186,7 +188,7 @@ extern char Compressor[];
 extern int8_t tsDeadLockKillQuery;
 
 typedef struct {
-  char dir[128];
+  char dir[TSDB_FILENAME_LEN];
   int  level;
   int  primary;
 } SDiskCfg;
@@ -208,4 +210,4 @@ void    taosPrintDataDirCfg();
 }
 #endif
 
-#endif
+#endif /*_TD_COMMON_GLOBAL_H_*/

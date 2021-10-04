@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCHED_H
-#define TDENGINE_TSCHED_H
+#ifndef _TD_UTIL_SCHED_H
+#define _TD_UTIL_SCHED_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,4 +68,4 @@ void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg);
 }
 #endif
 
-#endif  // TDENGINE_TSCHED_H
+#endif  /*_TD_UTIL_SCHED_H*/

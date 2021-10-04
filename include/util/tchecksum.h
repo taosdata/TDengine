@@ -13,22 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TCHECKSUM_H
-#define TDENGINE_TCHECKSUM_H
+#ifndef _TD_UTIL_CHECKSUM_H
+#define _TD_UTIL_CHECKSUM_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <assert.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-
+#include "os.h"
 #include "tcrc32c.h"
 #include "tutil.h"
 
@@ -64,4 +56,4 @@ static FORCE_INLINE int taosCheckChecksumWhole(const uint8_t *stream, uint32_t s
 }
 #endif
 
-#endif  // TDENGINE_TCHECKSUM_H
+#endif  /*_TD_UTIL_CHECKSUM_H*/

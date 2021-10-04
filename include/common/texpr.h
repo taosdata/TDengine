@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TEXPR_H
-#define TDENGINE_TEXPR_H
+#ifndef _TD_COMMON_EXPR_H_
+#define _TD_COMMON_EXPR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,4 +104,4 @@ void buildFilterSetFromBinary(void **q, const char *buf, int32_t len);
 }
 #endif
 
-#endif  // TDENGINE_TEXPR_H
+#endif  /*_TD_COMMON_EXPR_H_*/

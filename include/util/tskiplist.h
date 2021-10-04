@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSKIPLIST_H
-#define TDENGINE_TSKIPLIST_H
+#ifndef _TD_UTIL_SKILIST_H
+#define _TD_UTIL_SKILIST_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -159,4 +159,4 @@ void               tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNod
 }
 #endif
 
-#endif  // TDENGINE_TSKIPLIST_H
+#endif  /*_TD_UTIL_SKILIST_H*/

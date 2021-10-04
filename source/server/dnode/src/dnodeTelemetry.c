@@ -17,7 +17,6 @@
 #include "os.h"
 #include "tbuffer.h"
 #include "tglobal.h"
-#include "tsocket.h"
 #include "dnodeCfg.h"
 #include "dnodeTelemetry.h"
 #include "mnode.h"

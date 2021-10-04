@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TAOS_QUEUE_H
-#define TAOS_QUEUE_H
+#ifndef _TD_UTIL_QUEUE_H
+#define _TD_UTIL_QUEUE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,6 +71,6 @@ int        taosGetQsetItemsNumber(taos_qset param);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_QUEUE_H*/
 
 

@@ -1,5 +1,5 @@
-#ifndef TDENGINE_TTYPE_H
-#define TDENGINE_TTYPE_H
+#ifndef _TD_COMMON_TYPE_H_
+#define _TD_COMMON_TYPE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -178,4 +178,4 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 }
 #endif
 
-#endif  // TDENGINE_TTYPE_H
+#endif  /*_TD_COMMON_TYPE_H_*/

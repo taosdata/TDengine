@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTHREAD_H
-#define TDENGINE_TTHREAD_H
+#ifndef _TD_UTIL_THREAD_H
+#define _TD_UTIL_THREAD_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,4 +34,4 @@ bool taosThreadRunning(pthread_t* pthread);
 }
 #endif
 
-#endif  // TDENGINE_TTHREAD_H
+#endif  /*_TD_UTIL_THREAD_H*/

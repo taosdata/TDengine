@@ -21,7 +21,6 @@
 #include "tlog.h"
 #include "tconfig.h"
 #include "tglobal.h"
-#include "tsocket.h"
 #include "tcompare.h"
 #include "tutil.h"
 #include "ttimezone.h"
@@ -384,25 +383,6 @@ static void taosCheckDataDirCfg() {
     uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
   }
 }
-
-static int32_t taosCheckTmpDir(void) {
-#if 0
-  if (strlen(tsTempDir) <= 0){
-    uError("tempDir is not set");
-    return -1;
-  }
-
-  DIR *dir = opendir(tsTempDir);
-  if (dir == NULL) {
-    uError("can not open tempDir:%s, error:%s", tsTempDir, strerror(errno));
-    return -1;
-  }
-
-  closedir(dir);
-#endif
-  return 0;
-}
-
 
 static void doInitGlobalConfig(void) {
   osInit();
@@ -1700,7 +1680,7 @@ int32_t taosCheckGlobalCfg() {
 
   taosCheckDataDirCfg();
 
-  if (taosCheckTmpDir()) {
+  if (!taosDirExist(tsTempDir)) {
     return -1;
   }
   

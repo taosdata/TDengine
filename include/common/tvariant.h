@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TVARIANT_H
-#define TDENGINE_TVARIANT_H
+#ifndef _TD_COMMON_VARIANT_H_
+#define _TD_COMMON_VARIANT_H_
 
 #include "tarray.h"
 #include "ttoken.h"
@@ -61,4 +61,4 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type);
 }
 #endif
 
-#endif  // TDENGINE_TVARIANT_H
+#endif  /*_TD_COMMON_VARIANT_H_*/

@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_DATA_FORMAT_H_
-#define _TD_DATA_FORMAT_H_
+#ifndef _TD_COMMON_DATA_FORMAT_H_
+#define _TD_COMMON_DATA_FORMAT_H_
 
 #include "os.h"
 #include "talgo.h"
@@ -813,4 +813,4 @@ static FORCE_INLINE char *payloadNextCol(char *pCol) { return (char *)POINTER_SH
 }
 #endif
 
-#endif  // _TD_DATA_FORMAT_H_
+#endif  /*_TD_COMMON_DATA_FORMAT_H_*/

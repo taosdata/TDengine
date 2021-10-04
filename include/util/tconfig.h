@@ -87,8 +87,8 @@ bool taosReadGlobalCfg();
 void taosPrintGlobalCfg();
 void taosDumpGlobalCfg();
 
-void taosInitConfigOption(SGlobalCfg cfg);
-SGlobalCfg * taosGetConfigOption(const char *option);
+void        taosInitConfigOption(SGlobalCfg cfg);
+SGlobalCfg *taosGetConfigOption(const char *option);
 
 #ifdef __cplusplus
 }

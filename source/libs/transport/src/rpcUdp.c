@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosdef.h"

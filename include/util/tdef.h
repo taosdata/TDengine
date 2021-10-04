@@ -33,6 +33,15 @@ extern "C" {
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
 
+// TODO: replace and remove code below
+#define CHAR_BYTES    sizeof(char)
+#define SHORT_BYTES   sizeof(int16_t)
+#define INT_BYTES     sizeof(int32_t)
+#define LONG_BYTES    sizeof(int64_t)
+#define FLOAT_BYTES   sizeof(float)
+#define DOUBLE_BYTES  sizeof(double)
+#define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
+
 #define TSDB_KEYSIZE            sizeof(TSKEY)
 
 #if LINUX

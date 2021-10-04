@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "tlosertree.h"
-// #include "taosmsg.h"
 #include "tulog.h"
 
 // set initial value for loser tree

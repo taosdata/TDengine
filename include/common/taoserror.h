@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TAOSERROR_H
-#define TDENGINE_TAOSERROR_H
+#ifndef _TD_COMMON_TAOS_ERROR_H_
+#define _TD_COMMON_TAOS_ERROR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -463,4 +463,4 @@ int32_t* taosGetErrno();
 }
 #endif
 
-#endif //TDENGINE_TAOSERROR_H
+#endif /*_TD_COMMON_TAOS_ERROR_H_*/

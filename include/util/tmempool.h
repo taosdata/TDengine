@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_TMEMPOOL_H
-#define TDENGINE_TMEMPOOL_H
+#ifndef _TD_UTIL_MEMPOOL_H
+#define _TD_UTIL_MEMPOOL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,4 +33,4 @@ void taosMemPoolCleanUp(mpool_h handle);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_MEMPOOL_H*/

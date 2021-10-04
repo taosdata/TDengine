@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_NAME_H
-#define TDENGINE_NAME_H
+#ifndef _TD_COMMON_NAME_H_
+#define _TD_COMMON_NAME_H_
 
 #include "os.h"
 #include "taosmsg.h"
@@ -136,4 +136,4 @@ int32_t tNameSetAcctId(SName* dst, const char* acct);
 
 int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken);
 
-#endif  // TDENGINE_NAME_H
+#endif  /*_TD_COMMON_NAME_H_*/

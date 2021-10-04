@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_QARITHMETICOPERATOR_H
-#define TDENGINE_QARITHMETICOPERATOR_H
+#ifndef _TD_COMMON_QARITHMETICOPERATOR_H_
+#define _TD_COMMON_QARITHMETICOPERATOR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,4 +29,4 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr);
 }
 #endif
 
-#endif  // TDENGINE_TSYNTAXTREEFUNCTION_H
+#endif  /*_TD_COMMON_QARITHMETICOPERATOR_H_*/

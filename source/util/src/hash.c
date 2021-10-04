@@ -16,6 +16,7 @@
 #include "os.h"
 #include "hash.h"
 #include "tulog.h"
+#include "tdef.h"
 
 #define EXT_SIZE 1024 
 

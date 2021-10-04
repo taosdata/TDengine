@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TAOSMSG_H
-#define TDENGINE_TAOSMSG_H
+#ifndef _TD_COMMON_TAOS_MSG_H_
+#define _TD_COMMON_TAOS_MSG_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -961,4 +961,4 @@ typedef struct {
 }
 #endif
 
-#endif
+#endif /*_TD_COMMON_TAOS_MSG_H_*/

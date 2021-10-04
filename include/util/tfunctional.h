@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TD_TFUNCTIONAL_H
-#define TD_TFUNCTIONAL_H
+#ifndef _TD_UTIL_FUNCTIONAL_H
+#define _TD_UTIL_FUNCTIONAL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,4 +53,4 @@ void voidInvoke(tVoidSavedFunc* const pSavedFunc);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_FUNCTIONAL_H*/

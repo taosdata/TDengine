@@ -233,14 +233,20 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
 
   int32_t i = 0;
   int32_t j = 0;
+  int32_t o = 0;
+  int32_t m = 0;
 
   while ((c = patterStr[i++]) != 0) {
     if (c == pInfo->matchAll) { /* Match "*" */
 
       while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
-        if (c == pInfo->matchOne && (j > size || str[j++] == 0)) {
-          // empty string, return not match
-          return TSDB_PATTERN_NOWILDCARDMATCH;
+        if (c == pInfo->matchOne) {
+          if (j > size || str[j++] == 0) {
+            // empty string, return not match
+            return TSDB_PATTERN_NOWILDCARDMATCH;
+          } else {
+            ++o;
+          }
         }
       }
 
@@ -249,9 +255,10 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
       }
 
       char next[3] = {toupper(c), tolower(c), 0};
+      m = o;
       while (1) {
-        size_t n = strcspn(str, next);
-        str += n;
+        size_t n = strcspn(str + m, next);
+        str += m + n;
 
         if (str[0] == 0 || (n >= size)) {
           break;
@@ -261,12 +268,14 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
+        m = 0;
       }
       return TSDB_PATTERN_NOWILDCARDMATCH;
     }
 
     c1 = str[j++];
-
+    ++o; 
+    
     if (j <= size) {
       if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
@@ -292,7 +301,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
     if (c == matchAll) { /* Match "%" */
 
       while ((c = patterStr[i++]) == matchAll || c == matchOne) {
-        if (c == matchOne && (j > size || str[j++] == 0)) {
+        if (c == matchOne && (j >= size || str[j++] == 0)) {
           return TSDB_PATTERN_NOWILDCARDMATCH;
         }
       }

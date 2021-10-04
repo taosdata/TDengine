@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_STRING_BUILDER_H
-#define TDENGINE_STRING_BUILDER_H 
+#ifndef _TD_UTIL_STRING_BUILDER_H
+#define _TD_UTIL_STRING_BUILDER_H 
 
 #include <stddef.h>
 #include <stdint.h>
@@ -49,4 +49,4 @@ void taosStringBuilderAppendDouble(SStringBuilder* sb, double v);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_STRING_BUILDER_H*/

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_HASH_FUNC_H
-#define _TD_UTIL_HASH_FUNC_H
+#ifndef _TD_UTIL_HASHFUNC_H
+#define _TD_UTIL_HASHFUNC_H
 
 #include "os.h"
 
@@ -48,4 +48,4 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type);
 
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type);
 
-#endif /*_TD_UTIL_HASH_FUNC_H*/
+#endif /*_TD_UTIL_HASHFUNC_H*/

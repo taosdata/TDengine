@@ -22,7 +22,6 @@
 #include "lz4.h"
 #include "tref.h"
 #include "taoserror.h"
-#include "tsocket.h"
 #include "tglobal.h"
 #include "taosmsg.h"
 #include "trpc.h"

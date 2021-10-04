@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_COMMON_ULOG_H
-#define TDENGINE_COMMON_ULOG_H
+#ifndef _TD_UTIL_ULOG_H
+#define _TD_UTIL_ULOG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,4 +39,4 @@ extern int8_t  tscEmbedded;
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_ULOG_H*/

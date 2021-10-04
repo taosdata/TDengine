@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TFILE_H
-#define TDENGINE_TFILE_H
+#ifndef _TD_UTIL_FILE_H
+#define _TD_UTIL_FILE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,4 +44,4 @@ int32_t tfFtruncate(int64_t tfd, int64_t length);
 }
 #endif
 
-#endif  // TDENGINE_TFILE_H
+#endif  /*_TD_UTIL_FILE_H*/

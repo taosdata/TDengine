@@ -242,7 +242,7 @@ static void dnodeProcessMsgFromShell(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *p
 static int32_t dnodeAuthNetTest(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (strcmp(user, "nettestinternal") == 0) {
     char pass[32] = {0};
-    taosEncryptPass((uint8_t *)user, strlen(user), pass, TSDB_KEY_LEN);
+    taosEncryptPass((uint8_t *)user, strlen(user), pass);
     *spi = 0;
     *encrypt = 0;
     *ckey = 0;

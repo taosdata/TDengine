@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TIDPOOL_H
-#define TDENGINE_TIDPOOL_H
+#ifndef _TD_UTIL_IDPOOL_H
+#define _TD_UTIL_IDPOOL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,4 +40,4 @@ bool taosIdPoolMarkStatus(void *handle, int id);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_IDPOOL_H*/

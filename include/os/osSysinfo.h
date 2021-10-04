@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define TSDB_LOCALE_LEN 64
+#define TSDB_LOCALE_LEN   64
 #define TSDB_TIMEZONE_LEN 96
 
 extern int64_t tsPageSize;

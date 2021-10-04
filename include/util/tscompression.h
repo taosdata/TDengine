@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCOMPRESSION_H
-#define TDENGINE_TSCOMPRESSION_H
+#ifndef _TD_UTIL_COMPRESSION_H
+#define _TD_UTIL_COMPRESSION_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -366,4 +366,4 @@ static FORCE_INLINE int tsDecompressTimestamp(const char *const input, int compr
 }
 #endif
 
-#endif  // TDENGINE_TSCOMPRESSION_H
+#endif  /*_TD_UTIL_COMPRESSION_H*/

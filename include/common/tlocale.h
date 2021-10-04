@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_COMMON_LOCALE_H
-#define TDENGINE_COMMON_LOCALE_H
+#ifndef _TD_COMMON_LOCALE_H_
+#define _TD_COMMON_LOCALE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +24,6 @@ void tsSetLocale();
 
 #ifdef __cplusplus
 }
-#endif
+#endif /*_TD_COMMON_LOCALE_H_*/
 
 #endif

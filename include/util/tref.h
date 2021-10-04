@@ -14,8 +14,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TREF_H
-#define TDENGINE_TREF_H
+#ifndef _TD_UTIL_REF_H
+#define _TD_UTIL_REF_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,4 +74,4 @@ void demoIterateRefs(int rsetId) {
 }
 #endif
 
-#endif  // TDENGINE_TREF_H
+#endif  /*_TD_UTIL_REF_H*/

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TUTIL_H
-#define TDENGINE_TUTIL_H
+#ifndef _TD_UTIL_UTIL_H
+#define _TD_UTIL_UTIL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +23,7 @@ extern "C" {
 #include "os.h"
 #include "tmd5.h"
 #include "tcrc32c.h"
+#include "tdef.h"
 
 int32_t strdequote(char *src);
 int32_t strRmquote(char *z, int32_t len);
@@ -45,16 +46,16 @@ int  taosCheckVersion(char *input_client_version, char *input_server_version, in
 char *   taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
 
-static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target, int32_t keylen) {
+static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   MD5_CTX context;
   MD5Init(&context);
   MD5Update(&context, inBuf, (unsigned int)inLen);
   MD5Final(&context);
-  memcpy(target, context.digest, keylen);
+  memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TUTIL_H
+#endif  /*_TD_UTIL_UTIL_H*/

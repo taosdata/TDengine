@@ -13,14 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TLOSERTREE_H
-#define TDENGINE_TLOSERTREE_H
+#ifndef _TD_UTIL_LOSERTREE_H
+#define _TD_UTIL_LOSERTREE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
 
 typedef int (*__merge_compare_fn_t)(const void *, const void *, void *param);
 
@@ -51,4 +49,4 @@ void tLoserTreeDisplay(SLoserTreeInfo *pTree);
 }
 #endif
 
-#endif  // TDENGINE_TLOSERTREE_H
+#endif  /*_TD_UTIL_LOSERTREE_H*/

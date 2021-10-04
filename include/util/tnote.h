@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNOTE_H
-#define TDENGINE_TNOTE_H
+#ifndef _TD_UTIL_NOTE_H
+#define _TD_UTIL_NOTE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,4 +61,4 @@ void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_NOTE_H*/

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_COMMON_TIMEZONE_H
-#define TDENGINE_COMMON_TIMEZONE_H
+#ifndef _TD_COMMON_TIMEZONE_H_
+#define _TD_COMMON_TIMEZONE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,4 +26,4 @@ void tsSetTimeZone();
 }
 #endif
 
-#endif
+#endif /*_TD_COMMON_TIMEZONE_H_*/

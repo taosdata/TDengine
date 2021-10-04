@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-
 // log
 extern int8_t  tsAsyncLog;
 extern int32_t tsNumOfLogLines;

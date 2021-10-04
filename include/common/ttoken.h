@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTOKEN_H
-#define TDENGINE_TTOKEN_H
+#ifndef _TD_COMMON_TOKEN_H_
+#define _TD_COMMON_TOKEN_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -189,4 +189,4 @@ SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len);
 }
 #endif
 
-#endif  // TDENGINE_TTOKEN_H
+#endif  /*_TD_COMMON_TOKEN_H_*/

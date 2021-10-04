@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTOKENDEF_H
-#define TDENGINE_TTOKENDEF_H
+#ifndef _TD_COMMON_TOKEN_DEF_H_
+#define _TD_COMMON_TOKEN_DEF_H_
 
 #define TK_ID                               1
 #define TK_BOOL                             2
@@ -223,6 +223,6 @@
 #define TK_FILE                           306
 #define TK_QUESTION                       307   // denoting the placeholder of "?",when invoking statement bind query
 
-#endif
+#endif /*_TD_COMMON_TOKEN_DEF_H_*/
 
 

@@ -154,7 +154,7 @@ static bool taosLockLogFile(int32_t fd) {
   if (fd < 0) return false;
 
   if (tsLogObj.fileNum > 1) {
-    int32_t ret = taosUnLockFile(fd);
+    int32_t ret = taosLockFile(fd);
     if (ret == 0) {
       return true;
     }
