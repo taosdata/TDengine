@@ -2,11 +2,7 @@ aux_source_directory(src DNODE_SRC)
 add_library(dnode ${DNODE_SRC})
 target_link_libraries(
     dnode
-    PUBLIC os
     PUBLIC cjson
-    PUBLIC util
-    PUBLIC common
-    PUBLIC transport
     PUBLIC mnode
     PUBLIC vnode
 )

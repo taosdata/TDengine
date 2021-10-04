@@ -7,5 +7,5 @@ aux_source_directory(. TAOSD_SRC)
 add_executable(taosd ${TAOSD_SRC})
 target_link_libraries(
     taosd
-    PUBLIC os
+    PUBLIC dnode
 )

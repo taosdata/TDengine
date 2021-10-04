@@ -71,7 +71,7 @@ struct Vnode *vnodeCreateInstance(SVnodePara para);
  *
  * @param vnode, instance of vnode module.
  */
-void vnodeCleanupInstance(struct Vnode *vnode);
+void vnodeDropInstance(struct Vnode *vnode);
 
 typedef struct {
   int32_t unused;

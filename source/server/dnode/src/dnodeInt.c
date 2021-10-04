@@ -65,7 +65,7 @@ static int32_t dnodeInitVnodeModule(Dnode *dnode, struct Vnode** out) {
 static void dnodeCleanupVnodeModule(Dnode *dnode, struct Vnode **out) {
   struct Vnode *vnode = *out;
   *out = NULL;
-  vnodeCleanupInstance(vnode);
+  vnodeDropInstance(vnode);
 }
 
 static int32_t dnodeInitMnodeModule(Dnode *dnode, struct Mnode **out) {
@@ -90,7 +90,7 @@ static int32_t dnodeInitMnodeModule(Dnode *dnode, struct Mnode **out) {
 static void dnodeCleanupMnodeModule(Dnode *dnode, struct Mnode **out) {
   struct Mnode *mnode = *out;
   *out = NULL;
-  mnodeCleanupInstance(mnode);
+  mnodeDropInstance(mnode);
 }
 
 Dnode *dnodeCreateInstance() {
@@ -223,7 +223,7 @@ Dnode *dnodeCreateInstance() {
   return dnode;
 }
 
-void dnodeCleanupInstance(Dnode *dnode) {
+void dnodeDropInstance(Dnode *dnode) {
   if (dnode->main->runStatus != TD_RUN_STAT_STOPPED) {
     dnode->main->runStatus = TD_RUN_STAT_STOPPED;
     taosStepCleanup(dnode->steps);

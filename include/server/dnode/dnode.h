@@ -32,7 +32,7 @@ struct Dnode *dnodeCreateInstance();
  *
  * @param dnode, instance of dnode module.
  */
-void dnodeCleanupInstance(struct Dnode *dnode);
+void dnodeDropInstance(struct Dnode *dnode);
 
 /**
  * Send messages to other dnodes, such as create vnode message.

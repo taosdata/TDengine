@@ -5,3 +5,10 @@ target_include_directories(
     PUBLIC "${CMAKE_SOURCE_DIR}/include/os"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
+target_link_libraries(
+    os
+    PUBLIC pthread
+    PUBLIC dl
+    PUBLIC rt
+    PUBLIC m
+)

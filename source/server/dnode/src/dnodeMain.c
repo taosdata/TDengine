@@ -112,7 +112,9 @@ void dnodeCleanupMain(DnMain **out) {
     main->dnodeTimer = NULL;
   }
 
+#if 0
   taos_cleanup();
+#endif
   taosCloseLog();
   taosStopCacheRefreshWorker();
 

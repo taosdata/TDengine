@@ -12,3 +12,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "vnodeInt.h"
+
+struct Vnode *vnodeCreateInstance(SVnodePara para) {
+  return NULL;
+}
+
+void vnodeDropInstance(struct Vnode *vnode) {}
+
+int32_t vnodeGetStatistics(struct Vnode *vnode, SVnodeStat *stat) { return 0; }
+
+void vnodeGetStatus(struct Vnode *vnode, struct SStatusMsg *status) {}
+
+void vnodeSetAccess(struct Vnode *vnode, struct SVgroupAccess *access, int32_t numOfVnodes) {}
+
+void vnodeProcessMsg(struct Vnode *vnode, SRpcMsg *msg) {}

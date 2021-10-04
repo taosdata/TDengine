@@ -13,8 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
+#include "tulog.h"
+#include "trpc.h"
+#include "dnode.h"
 
 int main(int argc, char const *argv[]) {
-  printf("Hello world!\n");
+  struct Dnode *dnode = dnodeCreateInstance();
+  if (dnode == NULL) {
+    uInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
+    exit(EXIT_FAILURE);
+  }
+
+  uInfo("Started TDengine service successfully.");
+
+  // if (tsem_wait(&exitSem) != 0) {
+  //   syslog(LOG_ERR, "failed to wait exit semphore: %s", strerror(errno));
+  // }
+
+  dnodeDropInstance(dnode);
+  
+  uInfo("TDengine is shut down!");
   return 0;
 }

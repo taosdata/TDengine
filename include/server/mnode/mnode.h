@@ -82,7 +82,7 @@ struct Mnode *mnodeCreateInstance(SMnodePara para);
  *
  * @param mnode, instance of mnode module.
  */
-void mnodeCleanupInstance(struct Mnode *vnode);
+void mnodeDropInstance(struct Mnode *vnode);
 
 /**
  * Deploy mnode instances in dnode.
