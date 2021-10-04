@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "taosdef.h"
+#include "tdef.h"
 #include "tutil.h"
 #include "tulog.h"
 #include "tsched.h"

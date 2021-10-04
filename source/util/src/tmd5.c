@@ -35,7 +35,6 @@
 
 #include "os.h"
 #include "tmd5.h"
-#include "taosdef.h"
 
 /* forward declaration */
 static void Transform(uint32_t *buf, uint32_t *in);

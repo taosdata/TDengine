@@ -27,14 +27,6 @@
 #include "dnodeMain.h"
 #include "mnode.h"
 
-static int32_t dnodeCreateDir(const char *dir) {
-  if (!taosMkDir(dir, 0755) && errno != EEXIST) {
-    return -1;
-  }
-
-  return 0;
-}
-
 static void dnodeCheckDataDirOpenned(char *dir) {
 #if 0
   char filepath[256] = {0};
@@ -87,7 +79,7 @@ int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
   taosSetCoreDump(tsEnableCoreFile);
 #endif  
 
-  if (dnodeCreateDir(tsLogDir) < 0) {
+  if (!taosMkDir(tsLogDir)) {
    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
    return -1;
   }
@@ -134,7 +126,7 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
 #endif
 
   // storage module init
-  if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
+  if (tsDiskCfgNum == 1 && !taosMkDir(tsDataDir)) {
     dError("failed to create dir:%s since %s", tsDataDir, strerror(errno));
     return -1;
   }
@@ -151,12 +143,12 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
 
-  if (dnodeCreateDir(tsMnodeDir) < 0) {
+  if (!taosMkDir(tsMnodeDir)) {
     dError("failed to create dir:%s since %s", tsMnodeDir, strerror(errno));
     return -1;
   }
 
-  if (dnodeCreateDir(tsDnodeDir) < 0) {
+  if (!taosMkDir(tsDnodeDir)) {
     dError("failed to create dir:%s since %s", tsDnodeDir, strerror(errno));
     return -1;
   }

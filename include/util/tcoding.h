@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#include "os.h "
+#include "os.h"
 
 #define ENCODE_LIMIT (((uint8_t)1) << 7)
 #define ZIGZAGE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode

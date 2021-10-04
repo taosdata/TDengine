@@ -15,7 +15,7 @@
 
 #include "os.h"
 #include "tlosertree.h"
-#include "taosmsg.h"
+// #include "taosmsg.h"
 #include "tulog.h"
 
 // set initial value for loser tree
@@ -46,7 +46,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
     uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return -1;
   }
 
   (*pTree)->pNode = (SLoserTreeNode*)(((char*)(*pTree)) + sizeof(SLoserTreeInfo));
@@ -74,7 +74,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
   printf("initialize local reducer completed!\n");
 #endif
 
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }
 
 void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {

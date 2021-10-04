@@ -22,7 +22,7 @@ extern "C" {
 
 void taosRemoveDir(char *dirname);
 bool taosDirExist(char *dirname);
-bool taosMkDir(char *dirname, mode_t mode);
+bool taosMkDir(char *dirname);
 void taosRemoveOldFiles(char *dirname, int32_t keepDays);
 bool taosExpandDir(char *dirname, char *outname, int32_t maxlen);
 bool taosRealPath(char *dirname, int32_t maxlen);

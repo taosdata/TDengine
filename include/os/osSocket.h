@@ -85,6 +85,23 @@ const char *taosInetNtoa(struct in_addr ipInt);
   #define htobe64 htonll
 #endif
 
+int32_t taosReadn(SOCKET sock, char *buffer, int32_t len);
+int32_t taosWriteMsg(SOCKET fd, void *ptr, int32_t nbytes);
+int32_t taosReadMsg(SOCKET fd, void *ptr, int32_t nbytes);
+int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes);
+int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len);
+int32_t taosSetNonblocking(SOCKET sock, int32_t on);
+
+SOCKET  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
+SOCKET  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
+SOCKET  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
+int32_t taosKeepTcpAlive(SOCKET sockFd);
+
+int32_t  taosGetFqdn(char *);
+uint32_t taosGetIpv4FromFqdn(const char *);
+void     tinet_ntoa(char *ipstr, uint32_t ip);
+uint32_t ip2uint(const char *const ip_addr);
+
 #ifdef __cplusplus
 }
 #endif

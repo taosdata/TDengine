@@ -15,8 +15,7 @@
 
 #include "os.h"
 #include "tcrc32c.h"
-#include "tglobal.h"
-#include "taosdef.h"
+#include "tdef.h"
 #include "tutil.h"
 #include "tulog.h"
 #include "taoserror.h"

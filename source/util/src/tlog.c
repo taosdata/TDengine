@@ -201,7 +201,7 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   taosUmaskFile(0);
 
-  int32_t fd = taosOpenFileTruncCreateWrite(name);
+  int32_t fd = taosOpenFileCreateWriteTrunc(name);
   if (fd < 0) {
     tsLogObj.openInProgress = 0;
     tsLogObj.lines = tsLogObj.maxLines - 1000;
@@ -731,7 +731,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  int32_t fd = taosOpenFileTruncCreateWrite(destFileName);
+  int32_t fd = taosOpenFileCreateWriteTrunc(destFileName);
   if (fd < 0) {
     ret = -2;
     goto cmp_end;

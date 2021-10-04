@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "taosdef.h"
+#include "tdef.h"
 
 // create new thread
 pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param);

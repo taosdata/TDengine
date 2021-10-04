@@ -18,7 +18,6 @@
 #include "tsched.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "monotonic.h"
 
 extern int8_t tscEmbedded;
 
@@ -187,10 +186,6 @@ static void removeTimer(uintptr_t id) {
   unlockTimerList(list);
 }
 
-static int64_t getMonotonicMs(void) {
-  return (int64_t) getMonotonicUs() / 1000;
-}
-
 static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
   timerAddRef(timer);
   // select a wheel for the timer, we are not an accurate timer,
@@ -206,7 +201,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
 
   time_wheel_t* wheel = wheels + timer->wheel;
   timer->prev = NULL;
-  timer->expireAt = getMonotonicMs() + delay;
+  timer->expireAt = taosGetMonotonicMs() + delay;
 
   pthread_mutex_lock(&wheel->mutex);
 
@@ -339,7 +334,7 @@ tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle
 }
 
 static void taosTimerLoopFunc(int signo) {
-  int64_t now = getMonotonicMs();
+  int64_t now = taosGetMonotonicMs();
 
   for (int i = 0; i < tListLen(wheels); i++) {
     // `expried` is a temporary expire list.
@@ -506,7 +501,7 @@ static void taosTmrModuleInit(void) {
 
   pthread_mutex_init(&tmrCtrlMutex, NULL);
 
-  int64_t now = getMonotonicMs();
+  int64_t now = taosGetMonotonicMs();
   for (int i = 0; i < tListLen(wheels); i++) {
     time_wheel_t* wheel = wheels + i;
     if (pthread_mutex_init(&wheel->mutex, NULL) != 0) {
@@ -537,9 +532,6 @@ static void taosTmrModuleInit(void) {
 }
 
 void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
-  const char* ret = monotonicInit();
-  tmrDebug("ttimer monotonic clock source:%s", ret);
-
   pthread_once(&tmrModuleInit, taosTmrModuleInit);
 
   pthread_mutex_lock(&tmrCtrlMutex);

@@ -24,6 +24,8 @@ extern "C" {
 
 int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
 void    taosUninitTimer();
+int64_t taosGetMonotonicMs();
+const char *taosMonotonicInit();
 
 #ifdef __cplusplus
 }

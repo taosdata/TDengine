@@ -17,6 +17,7 @@
 #include "hash.h"
 #include "taos.h"
 #include "taosdef.h"
+#include "ttime.h"
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "ttype.h"

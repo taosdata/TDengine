@@ -16,6 +16,22 @@
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#include <io.h>
+
+#if defined(_MSDOS)
+#define open _open
+#endif
+
+#if defined(_WIN32)
+extern int openA(const char *, int, ...); /* MsvcLibX ANSI version of open */
+extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
+#if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
+#define open openU
+#else /* _ANSI_SOURCE */
+#define open openA
+#endif /* defined(_UTF8_SOURCE) */
+#endif /* defined(_WIN32) */
+
 #else
 #include <fcntl.h>
 #include <sys/file.h>
@@ -478,14 +494,6 @@ int32_t taosOpenFileWrite(const char *path) {
 #endif
 }
 
-FileFd taosOpenFileRead(const char *path) {
-  #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_RDONLY);
-#endif
-}
-
 int32_t taosOpenFileCreateWrite(const char *path) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
@@ -494,10 +502,36 @@ int32_t taosOpenFileCreateWrite(const char *path) {
 #endif
 }
 
-int32_t taosOpenFileTruncCreateWrite(const char *path) {
+int32_t taosOpenFileCreateWriteTrunc(const char *path) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
   return open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
 }
+
+int32_t taosOpenFileCreateWriteAppend(const char *path) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+#endif
+}
+
+FileFd taosOpenFileRead(const char *path) {
+  #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
+#endif
+}
+
+FileFd taosOpenFileReadWrite(const char *path) {
+  #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return open(path, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
+#endif
+}
+
+

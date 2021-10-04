@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "taosdef.h"
+#include "tdef.h"
 #include "tarray.h"
 #include "tfunctional.h"
 

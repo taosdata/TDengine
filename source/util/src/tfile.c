@@ -53,13 +53,18 @@ static int64_t tfOpenImp(int32_t fd) {
   return rid;
 }
 
-int64_t tfOpen(const char *pathname, int32_t flags) {
-  int32_t fd = open(pathname, flags | O_BINARY);
+int64_t tfOpenReadWrite(const char *pathname, int32_t flags) {
+  int32_t fd = taosOpenFileReadWrite(pathname);
   return tfOpenImp(fd);
 }
 
-int64_t tfOpenM(const char *pathname, int32_t flags, mode_t mode) {
-  int32_t fd = open(pathname, flags | O_BINARY, mode);
+int64_t tfOpenCreateWrite(const char *pathname, int32_t flags, mode_t mode) {
+  int32_t fd = taosOpenFileCreateWrite(pathname);
+  return tfOpenImp(fd);
+}
+
+int64_t tfOpenCreateWriteAppend(const char *pathname, int32_t flags, mode_t mode) {
+  int32_t fd = taosOpenFileCreateWriteAppend(pathname);
   return tfOpenImp(fd);
 }
 
@@ -73,7 +78,7 @@ int64_t tfWrite(int64_t tfd, void *buf, int64_t count) {
 
   int32_t fd = (int32_t)(uintptr_t)p;
 
-  int64_t ret = taosWrite(fd, buf, count);
+  int64_t ret = taosWriteFile(fd, buf, count);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
@@ -86,7 +91,7 @@ int64_t tfRead(int64_t tfd, void *buf, int64_t count) {
 
   int32_t fd = (int32_t)(uintptr_t)p;
 
-  int64_t ret = taosRead(fd, buf, count);
+  int64_t ret = taosReadFile(fd, buf, count);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
@@ -98,7 +103,7 @@ int32_t tfFsync(int64_t tfd) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  int32_t code = taosFsync(fd);
+  int32_t code = taosFsyncFile(fd);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return code;
@@ -117,7 +122,7 @@ int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  int64_t ret = taosLSeek(fd, offset, whence);
+  int64_t ret = taosLSeekFile(fd, offset, whence);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return ret;
@@ -128,7 +133,7 @@ int32_t tfFtruncate(int64_t tfd, int64_t length) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  int32_t code = taosFtruncate(fd, length);
+  int32_t code = taosFtruncateFile(fd, length);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return code;

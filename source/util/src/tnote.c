@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tutil.h"
-#include "tglobal.h"
+#include "tdef.h"
 #include "tnote.h"
 
 SNoteObj tsHttpNote;
@@ -43,6 +43,7 @@ static void taosInitNote(int32_t numOfLines, int32_t maxNotes, SNoteObj *pNote, 
 void taosInitNotes() {
   char name[TSDB_FILENAME_LEN * 2] = {0};
 
+#if 0
   if (tsTscEnableRecordSql) {
     snprintf(name, TSDB_FILENAME_LEN * 2, "%s/tscsql-%d", tsLogDir, taosGetPId());
     taosInitNote(tsNumOfLogLines, 1, &tsTscNote, name);
@@ -57,13 +58,14 @@ void taosInitNotes() {
     snprintf(name, TSDB_FILENAME_LEN * 2, "%s/taosinfo", tsLogDir);
     taosInitNote(tsNumOfLogLines, 1, &tsInfoNote, name);
   }
+#endif  
 }
 
 static bool taosLockNote(int32_t fd, SNoteObj *pNote) {
   if (fd < 0) return false;
 
   if (pNote->fileNum > 1) {
-    int32_t ret = (int32_t)(flock(fd, LOCK_EX | LOCK_NB));
+    int32_t ret = (int32_t)taosLockFile(fd);
     if (ret == 0) {
       return true;
     }
@@ -76,7 +78,7 @@ static void taosUnLockNote(int32_t fd, SNoteObj *pNote) {
   if (fd < 0) return;
 
   if (pNote->fileNum > 1) {
-    flock(fd, LOCK_UN | LOCK_NB);
+    taosUnLockFile(fd);
   }
 }
 
@@ -90,9 +92,9 @@ static void *taosThreadToOpenNewNote(void *param) {
   pNote->lines = 0;
   sprintf(name, "%s.%d", pNote->name, pNote->flag);
 
-  umask(0);
+  taosUmaskFile(0);
 
-  int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = taosOpenFileCreateWriteTrunc(name);
   if (fd < 0) {
     return NULL;
   }
@@ -132,7 +134,7 @@ static int32_t taosOpenNewNote(SNoteObj *pNote) {
 }
 
 static bool taosCheckNoteIsOpen(char *noteName, SNoteObj *pNote) {
-  int32_t fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = taosOpenFileCreateWrite(noteName);
   if (fd < 0) {
     fprintf(stderr, "failed to open note:%s reason:%s\n", noteName, strerror(errno));
     return true;
@@ -174,7 +176,7 @@ static void taosGetNoteName(char *fn, SNoteObj *pNote) {
 static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum, SNoteObj *pNote) {
   char    name[NOTE_FILE_NAME_LEN * 2] = {0};
   int32_t size;
-  struct stat logstat0, logstat1;
+  int32_t logstat0_mtime, logstat1_mtime;
 
   pNote->maxLines = maxLines;
   pNote->fileNum = maxNoteNum;
@@ -184,13 +186,13 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
     strcpy(name, fn);
     strcat(name, ".0");
   }
-  bool log0Exist = stat(name, &logstat0) >= 0;
+  bool log0Exist = taosStatFile(name, NULL, &logstat0_mtime) >= 0;
 
   if (strlen(fn) < NOTE_FILE_NAME_LEN + 50 - 2) {
     strcpy(name, fn);
     strcat(name, ".1");
   }
-  bool log1Exist = stat(name, &logstat1) >= 0;
+  bool log1Exist = taosStatFile(name, NULL, &logstat1_mtime) >= 0;
 
   if (!log0Exist && !log1Exist) {
     pNote->flag = 0;
@@ -199,15 +201,15 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
   } else if (!log0Exist) {
     pNote->flag = 1;
   } else {
-    pNote->flag = (logstat0.st_mtime > logstat1.st_mtime) ? 0 : 1;
+    pNote->flag = (logstat0_mtime > logstat1_mtime) ? 0 : 1;
   }
 
   char noteName[NOTE_FILE_NAME_LEN * 2] = {0};
   sprintf(noteName, "%s.%d", pNote->name, pNote->flag);
   pthread_mutex_init(&pNote->mutex, NULL);
 
-  umask(0);
-  pNote->fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  taosUmaskFile(0);
+  pNote->fd = taosOpenFileCreateWrite(noteName);
 
   if (pNote->fd < 0) {
     fprintf(stderr, "failed to open note file:%s reason:%s\n", noteName, strerror(errno));
@@ -216,12 +218,12 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
   taosLockNote(pNote->fd, pNote);
 
   // only an estimate for number of lines
-  struct stat filestat;
-  if (fstat(pNote->fd, &filestat) < 0) {
+  int64_t filestat_size;
+  if (taosFStatFile(pNote->fd, &filestat_size, NULL) < 0) {
     fprintf(stderr, "failed to fstat note file:%s reason:%s\n", noteName, strerror(errno));
     return -1;
   }
-  size = (int32_t)filestat.st_size;
+  size = (int32_t)filestat_size;
   pNote->lines = size / 60;
 
   lseek(pNote->fd, 0, SEEK_END);
@@ -231,7 +233,7 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
 
 void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len) {
   if (pNote->fd <= 0) return;
-  taosWrite(pNote->fd, buffer, len);
+  taosWriteFile(pNote->fd, buffer, len);
 
   if (pNote->maxLines > 0) {
     pNote->lines++;
@@ -247,7 +249,7 @@ void taosNotePrint(SNoteObj *pNote, const char *const format, ...) {
   struct timeval timeSecs;
   time_t         curTime;
 
-  gettimeofday(&timeSecs, NULL);
+  taosGetTimeOfDay(&timeSecs);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,

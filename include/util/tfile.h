@@ -28,8 +28,10 @@ void tfCleanup();
 
 // the same syntax as UNIX standard open/close/read/write
 // but FD is int64_t and will never be reused
-int64_t tfOpen(const char *pathname, int32_t flags);
-int64_t tfOpenM(const char *pathname, int32_t flags, mode_t mode);
+int64_t tfOpenReadWrite(const char *pathname);
+int64_t tfOpenCreateWrite(const char *pathname);
+int64_t tfOpenCreateWriteAppend(const char *pathname);
+
 int64_t tfClose(int64_t tfd);
 int64_t tfWrite(int64_t tfd, void *buf, int64_t count);
 int64_t tfRead(int64_t tfd, void *buf, int64_t count);

@@ -222,4 +222,20 @@ void taosUninitTimer() {
   pthread_join(timerThread, NULL);
 }
 
+int64_t taosGetMonotonicMs() {
+#if 0  
+  return getMonotonicUs() / 1000;
+#else
+  return taosGetTimestampMs();
+#endif
+}
+
+const char *taosMonotonicInit() {
+#if 0
+  return monotonicInit();
+#else
+  return NULL;
+#endif
+}
+
 #endif

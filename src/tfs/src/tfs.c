@@ -252,7 +252,7 @@ int tfsMkdirAt(const char *rname, int level, int id) {
   char   aname[TMPNAME_LEN];
 
   snprintf(aname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
-  if (!taosMkDir(aname, 0755)) {
+  if (!taosMkDir(aname)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }

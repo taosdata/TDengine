@@ -57,6 +57,7 @@ struct tm *localtime_r(const time_t *timep, struct tm *result) {
  */
 
 #include <sys/time.h>
+// #include "monotonic.h"
 
 FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
   return gettimeofday(tv, NULL);

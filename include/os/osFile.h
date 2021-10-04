@@ -46,8 +46,10 @@ int32_t taosFStatFile(FileFd fd, int64_t *size, int32_t *mtime);
 
 FileFd taosOpenFileWrite(const char *path);
 FileFd taosOpenFileCreateWrite(const char *path);
-FileFd taosOpenFileTruncCreateWrite(const char *path);
+FileFd taosOpenFileCreateWriteTrunc(const char *path);
+FileFd taosOpenFileCreateWriteAppend(const char *path);
 FileFd taosOpenFileRead(const char *path);
+FileFd taosOpenFileReadWrite(const char *path);
 
 int64_t taosLSeekFile(FileFd fd, int64_t offset, int32_t whence);
 int32_t taosFtruncateFile(FileFd fd, int64_t length);
