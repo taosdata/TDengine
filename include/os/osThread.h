@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include <pthread.h>
-#include <semaphore.h>
 
 #ifdef __cplusplus
 }
