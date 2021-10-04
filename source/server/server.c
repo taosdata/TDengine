@@ -13,11 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
-#include "tulog.h"
-#include "trpc.h"
+#include "ulog.h"
 #include "dnode.h"
 
+static bool stop = false;
+static void sigintHandler(int32_t signum, void *info, void *ctx) { stop = true; }
+static void setSignalHandler() {
+  taosSetSignal(SIGTERM, sigintHandler);
+  taosSetSignal(SIGHUP, sigintHandler);
+  taosSetSignal(SIGINT, sigintHandler);
+  taosSetSignal(SIGABRT, sigintHandler);
+  taosSetSignal(SIGBREAK, sigintHandler);
+}
+
 int main(int argc, char const *argv[]) {
+  setSignalHandler();
+
   struct Dnode *dnode = dnodeCreateInstance();
   if (dnode == NULL) {
     uInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
@@ -26,12 +37,12 @@ int main(int argc, char const *argv[]) {
 
   uInfo("Started TDengine service successfully.");
 
-  // if (tsem_wait(&exitSem) != 0) {
-  //   syslog(LOG_ERR, "failed to wait exit semphore: %s", strerror(errno));
-  // }
+  while (!stop) {
+    taosMsleep(100);
+  }
 
-  dnodeDropInstance(dnode);
-  
   uInfo("TDengine is shut down!");
+  dnodeDropInstance(dnode);
+
   return 0;
 }

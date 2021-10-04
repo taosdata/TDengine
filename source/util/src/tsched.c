@@ -16,7 +16,7 @@
 #include "os.h"
 #include "tdef.h"
 #include "tutil.h"
-#include "tulog.h"
+#include "ulog.h"
 #include "tsched.h"
 #include "ttimer.h"
 

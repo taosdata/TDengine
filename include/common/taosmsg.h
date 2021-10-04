@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tdataformat.h"

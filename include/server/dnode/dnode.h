@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+struct SRpcEpSet;
+struct SRpcMsg;
+struct Dnode;
+
 /**
  * Initialize and start the dnode module.
  *

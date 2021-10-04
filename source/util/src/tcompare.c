@@ -18,7 +18,7 @@
 #define _DEFAULT_SOURCE
 
 #include "tcompare.h"
-#include "tulog.h"
+#include "ulog.h"
 #include "hash.h"
 #include "regex.h"
 #include "os.h"

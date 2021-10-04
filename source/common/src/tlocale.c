@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tulog.h"
+#include "ulog.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"

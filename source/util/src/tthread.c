@@ -17,7 +17,7 @@
 #include "tthread.h"
 #include "tdef.h"
 #include "tutil.h"
-#include "tulog.h"
+#include "ulog.h"
 #include "taoserror.h"
 
 // create new thread

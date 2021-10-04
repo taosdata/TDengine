@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tconfig.h"
-#include "tulog.h"
+#include "ulog.h"
 #include "tutil.h"
 
 SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {{0}};

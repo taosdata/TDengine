@@ -5,8 +5,6 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "taosdef.h"
 
 // this data type is internally used only in 'in' query to hold the values
