@@ -54,9 +54,8 @@ typedef struct {
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
-  void    *owner;
-  void   (*cfp)(void * owner, SRpcMsg *, SRpcEpSet *);
-  int    (*afp)(void * owner, char *user, char *spi, char *encrypt, char *secret, char *ckey); 
+  void   (*cfp)(SRpcMsg *, SRpcEpSet *);
+  int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
 
   int32_t   refCount;
   void     *idPool;   // handle to ID pool
@@ -259,7 +258,6 @@ void *rpcOpen(const SRpcInit *pInit) {
   if (pInit->secret) memcpy(pRpc->secret, pInit->secret, sizeof(pRpc->secret));
   if (pInit->ckey) tstrncpy(pRpc->ckey, pInit->ckey, sizeof(pRpc->ckey));
   pRpc->spi = pInit->spi;
-  pRpc->owner = pInit->owner;
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
   pRpc->refCount = 1;
@@ -742,7 +740,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
       if (pConn->user[0] == 0) {
         terrno = TSDB_CODE_RPC_AUTH_REQUIRED;
       } else {
-        terrno = (*pRpc->afp)(pRpc->owner, pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+        terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
       }
 
       if (terrno != 0) {
@@ -1022,7 +1020,7 @@ static void doRpcReportBrokenLinkToServer(void *param, void *id) {
    SRpcMsg *pRpcMsg = (SRpcMsg *)(param); 
    SRpcConn *pConn  = (SRpcConn *)(pRpcMsg->handle);
    SRpcInfo *pRpc   = pConn->pRpc; 
-   (*(pRpc->cfp))(pRpc->owner, pRpcMsg, NULL);
+   (*(pRpc->cfp))(pRpcMsg, NULL);
    free(pRpcMsg);
 }
 static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
@@ -1137,7 +1135,7 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
     if (pContext->epSet.inUse != pContext->oldInUse || pContext->redirect) 
       pEpSet = &pContext->epSet;  
 
-    (*pRpc->cfp)(pRpc->owner, pMsg, pEpSet);  
+    (*pRpc->cfp)(pMsg, pEpSet);  
   }
 
   // free the request message
@@ -1161,7 +1159,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
     rpcAddRef(pRpc);  // add the refCount for requests
 
     // notify the server app
-    (*(pRpc->cfp))(pRpc->owner, &rpcMsg, NULL);
+    (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
     rpcMsg.handle = pContext;

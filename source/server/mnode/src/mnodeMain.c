@@ -15,22 +15,18 @@
 
 #include "mnodeInt.h"
 
-struct Mnode *mnodeCreateInstance(SMnodePara para) {
-  return NULL;
-}
+int32_t mnodeInit(SMnodePara para) { return 0; }
 
-void mnodeDropInstance(struct Mnode *vnode) {}
+void mnodeCleanup() {}
 
-int32_t mnodeDeploy(struct Mnode *mnode, struct SMInfos *minfos) { return 0; }
+int32_t mnodeDeploy(struct SMInfos *minfos) { return 0; }
 
-void mnodeUnDeploy(struct Mnode *mnode) {}
+void mnodeUnDeploy() {}
 
-bool mnodeIsServing(struct Mnode *mnode) { return false; }
+bool mnodeIsServing() { return false; }
 
-int32_t mnodeGetStatistics(struct Mnode *mnode, SMnodeStat *stat) { return 0; }
+int32_t mnodeGetStatistics(SMnodeStat *stat) { return 0; }
 
-int32_t mnodeRetriveAuth(struct Mnode *mnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  return 0;
-}
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
 
-void mnodeProcessMsg(struct Mnode *mnode, SRpcMsg *rpcMsg) {}
+void mnodeProcessMsg(SRpcMsg *rpcMsg) {}

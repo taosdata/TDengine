@@ -23,7 +23,6 @@ extern "C" {
 #include "dnodeInt.h"
 
 typedef struct DnEps {
-  Dnode *         dnode;
   int32_t         dnodeId;
   int32_t         dnodeNum;
   SDnodeEp *      dnodeList;
@@ -32,11 +31,11 @@ typedef struct DnEps {
   pthread_mutex_t mutex;
 } DnEps;
 
-int32_t dnodeInitEps(Dnode *dnode, DnEps **eps);
+int32_t dnodeInitEps(DnEps **eps);
 void    dnodeCleanupEps(DnEps **eps);
 void    dnodeUpdateEps(DnEps *eps, SDnodeEps *data);
 bool    dnodeIsDnodeEpChanged(DnEps *eps, int32_t dnodeId, char *epstr);
-void    dnodeGetDnodeEp(Dnode *dnode, int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
+void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
 
 #ifdef __cplusplus
 }

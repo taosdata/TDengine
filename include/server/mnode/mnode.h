@@ -20,34 +20,29 @@
 extern "C" {
 #endif
 
-struct Dnode;
-
 typedef struct {
   /**
    * Send messages to other dnodes, such as create vnode message.
    *
-   * @param dnode, the instance of dnode module.
    * @param epSet, the endpoint list of the dnodes.
    * @param rpcMsg, message to be sent.
    */
-  void (*SendMsgToDnode)(struct Dnode *dnode, struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 
   /**
    * Send messages to mnode, such as config message.
    *
-   * @param dnode, the instance of dnode module.
    * @param rpcMsg, message to be sent.
    */
-  void (*SendMsgToMnode)(struct Dnode *dnode, struct SRpcMsg *rpcMsg);
+  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
 
   /**
    * Send redirect message to dnode or shell.
    *
-   * @param dnode, the instance of dnode module.
    * @param rpcMsg, message to be sent.
    * @param forShell, used to identify whether to send to shell or dnode.
    */
-  void (*SendRedirectMsg)(struct Dnode *dnode, struct SRpcMsg *rpcMsg, bool forShell);
+  void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
 
   /**
    * Get the corresponding endpoint information from dnodeId.
@@ -58,12 +53,11 @@ typedef struct {
    * @param fqdn, the fqdn of dnode.
    * @param port, the port of dnode.
    */
-  void (*GetDnodeEp)(struct Dnode *dnode, int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
 } SMnodeFp;
 
 typedef struct {
-  struct Dnode *dnode;
   SMnodeFp      fp;
   char          clusterId[TSDB_CLUSTER_ID_LEN];
   int32_t       dnodeId;
@@ -73,40 +67,34 @@ typedef struct {
  * Initialize and start mnode module.
  *
  * @param para, initialization parameters.
- * @return Instance of mnode module.
+ * @return Error code.
  */
-struct Mnode *mnodeCreateInstance(SMnodePara para);
+int32_t mnodeInit(SMnodePara para);
 
 /**
  * Stop and cleanup mnode module.
- *
- * @param mnode, instance of mnode module.
  */
-void mnodeDropInstance(struct Mnode *vnode);
+void mnodeCleanup();
 
 /**
  * Deploy mnode instances in dnode.
  *
- * @param mnode, instance of mnode module.
  * @param minfos, server information used to deploy the mnode instance.
  * @return Error Code.
  */
-int32_t mnodeDeploy(struct Mnode *mnode, struct SMInfos *minfos);
+int32_t mnodeDeploy(struct SMInfos *minfos);
 
 /**
  * Delete the mnode instance deployed in dnode.
- *
- * @param mnode, instance of mnode module.
  */
-void mnodeUnDeploy(struct Mnode *mnode);
+void mnodeUnDeploy();
 
 /**
  * Whether the mnode is in service.
  *
- * @param mnode, instance of mnode module.
  * @return Server status.
  */
-bool mnodeIsServing(struct Mnode *mnode);
+bool mnodeIsServing();
 
 typedef struct {
   int64_t numOfDnode;
@@ -124,16 +112,14 @@ typedef struct {
 /**
  * Get the statistical information of Mnode.
  *
- * @param mnode, instance of mnode module.
  * @param stat, statistical information.
  * @return Error Code.
  */
-int32_t mnodeGetStatistics(struct Mnode *mnode, SMnodeStat *stat);
+int32_t mnodeGetStatistics(SMnodeStat *stat);
 
 /**
  * Get the statistical information of Mnode.
  *
- * @param mnode, instance of mnode module.
  * @param user, username.
  * @param spi,  security parameter index.
  * @param encrypt, encrypt algorithm.
@@ -141,16 +127,15 @@ int32_t mnodeGetStatistics(struct Mnode *mnode, SMnodeStat *stat);
  * @param ckey, ciphering key.
  * @return Error Code.
  */
-int32_t mnodeRetriveAuth(struct Mnode *mnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 /**
  * Interface for processing messages.
  *
- * @param mnode, instance of mnode module.
  * @param rpcMsg, message to be processed.
  * @return Error code.
  */
-void mnodeProcessMsg(struct Mnode *mnode, SRpcMsg *rpcMsg);
+void mnodeProcessMsg(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

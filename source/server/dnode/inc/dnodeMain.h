@@ -28,21 +28,20 @@ typedef enum {
 } RunStat;
 
 typedef struct DnMain {
-  Dnode *      dnode;
   RunStat      runStatus;
   void *       dnodeTimer;
   SStartupStep startup;
 } DnMain;
 
-int32_t dnodeInitMain(Dnode *dnode, DnMain **main);
+int32_t dnodeInitMain(DnMain **main);
 void    dnodeCleanupMain(DnMain **main);
-int32_t dnodeInitStorage(Dnode *dnode, void **unused);
-void    dnodeCleanupStorage(void **unused);
-void    dnodeReportStartup(Dnode *dnode, char *name, char *desc);
-void    dnodeReportStartupFinished(Dnode *dnode, char *name, char *desc);
-void    dnodeProcessStartupReq(Dnode *dnode, SRpcMsg *pMsg);
-void    dnodeProcessCreateMnodeReq(Dnode *dnode, SRpcMsg *pMsg);
-void    dnodeProcessConfigDnodeReq(Dnode *dnode, SRpcMsg *pMsg);
+int32_t dnodeInitStorage();
+void    dnodeCleanupStorage();
+void    dnodeReportStartup(char *name, char *desc);
+void    dnodeReportStartupFinished(char *name, char *desc);
+void    dnodeProcessStartupReq(SRpcMsg *pMsg);
+void    dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
+void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

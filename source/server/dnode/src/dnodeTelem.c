@@ -18,7 +18,7 @@
 #include "tbuffer.h"
 #include "tglobal.h"
 #include "dnodeCfg.h"
-#include "dnodeTelemetry.h"
+#include "dnodeTelem.h"
 #include "mnode.h"
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
@@ -163,7 +163,7 @@ static void dnodeAddVersionInfo(DnTelem* telem, SBufferWriter* bw) {
 
 static void dnodeAddRuntimeInfo(DnTelem* telem, SBufferWriter* bw) {
   SMnodeStat stat = {0};
-  if (mnodeGetStatistics(telem->dnode->mnode, &stat) != 0) {
+  if (mnodeGetStatistics(&stat) != 0) {
     return;
   }
 
@@ -192,9 +192,10 @@ static void dnodeSendTelemetryReport(DnTelem* telem) {
     return;
   }
 
+  Dnode *dnode = dnodeInst();
   SBufferWriter bw = tbufInitWriter(NULL, false);
   dnodeBeginObject(&bw);
-  dnodeAddStringField(&bw, "instanceId", telem->dnode->cfg->clusterId);
+  dnodeAddStringField(&bw, "instanceId", dnode->cfg->clusterId);
   dnodeAddIntField(&bw, "reportVersion", 1);
   dnodeAddOsInfo(&bw);
   dnodeAddCpuInfo(&bw);
@@ -243,7 +244,7 @@ static void* dnodeTelemThreadFp(void* param) {
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
-    if (mnodeIsServing(telem->dnode->mnode)) {
+    if (mnodeIsServing()) {
       dnodeSendTelemetryReport(telem);
     }
     end.tv_sec += REPORT_INTERVAL;
@@ -265,11 +266,10 @@ static void dnodeGetEmail(DnTelem* telem, char* filepath) {
   taosCloseFile(fd);
 }
 
-int32_t dnodeInitTelemetry(Dnode* dnode, DnTelem** out) {
+int32_t dnodeInitTelem(DnTelem** out) {
   DnTelem* telem = calloc(1, sizeof(DnTelem));
   if (telem == NULL) return -1;
 
-  telem->dnode = dnode;
   telem->enable = tsEnableTelemetryReporting;
   *out = telem;
 
@@ -296,7 +296,7 @@ int32_t dnodeInitTelemetry(Dnode* dnode, DnTelem** out) {
   return 0;
 }
 
-void dnodeCleanupTelemetry(DnTelem** out) {
+void dnodeCleanupTelem(DnTelem** out) {
   DnTelem* telem = *out;
   *out = NULL;
 

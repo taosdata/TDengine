@@ -145,11 +145,10 @@ static int32_t dnodeCheckAccess() { return 0; }
 static int32_t dnodeCheckVersion() { return 0; }
 static int32_t dnodeCheckDatafile() { return 0; }
 
-int32_t dnodeInitCheck(Dnode *dnode, DnCheck **out) {
+int32_t dnodeInitCheck(DnCheck **out) {
   DnCheck *check = calloc(1, sizeof(DnCheck));
   if (check == NULL) return -1;
 
-  check->dnode = dnode;
   *out = check;
 
   if (dnodeCheckNetwork() != 0) {

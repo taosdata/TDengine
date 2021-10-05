@@ -103,11 +103,10 @@ static int32_t dnodeWriteCfg(DnCfg *cfg) {
   return 0;
 }
 
-int32_t dnodeInitCfg(Dnode *dnode, DnCfg **out) {
+int32_t dnodeInitCfg(DnCfg **out) {
   DnCfg* cfg = calloc(1, sizeof(DnCfg));
   if (cfg == NULL) return -1;
 
-  cfg->dnode = dnode;
   cfg->dnodeId = 0;
   cfg->dropped = 0;
   cfg->clusterId[0] = 0;

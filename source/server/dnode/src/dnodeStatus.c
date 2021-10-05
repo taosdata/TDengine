@@ -46,7 +46,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-  Dnode *dnode = status->dnode;
+  Dnode *dnode = dnodeInst();
   dnodeGetCfg(dnode->cfg, &pStatus->dnodeId, pStatus->clusterId);
   pStatus->dnodeId = htonl(dnodeGetDnodeId(dnode->cfg));
   pStatus->version = htonl(tsVersion);
@@ -76,16 +76,17 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->clusterCfg.slaveQuery = tsEnableSlaveQuery;
   pStatus->clusterCfg.adjustMaster = tsEnableAdjustMaster;
 
-  vnodeGetStatus(dnode->vnode, pStatus);
+  vnodeGetStatus(pStatus);
   contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
 
   SRpcMsg rpcMsg = {.ahandle = status, .pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_DM_STATUS};
 
-  dnodeSendMsgToMnode(status->dnode, &rpcMsg);
+  dnodeSendMsgToMnode(&rpcMsg);
 }
 
-void dnodeProcessStatusRsp(Dnode *dnode, SRpcMsg *pMsg) {
+void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
+  Dnode *dnode = dnodeInst();
   DnStatus *status = pMsg->ahandle;
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
@@ -114,7 +115,7 @@ void dnodeProcessStatusRsp(Dnode *dnode, SRpcMsg *pMsg) {
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   dnodeUpdateCfg(dnode->cfg, pCfg);
 
-  vnodeSetAccess(dnode->vnode, pStatusRsp->vgAccess, pCfg->numOfVnodes);
+  vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
 
   SDnodeEps *pEps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SVgroupAccess));
   dnodeUpdateEps(dnode->eps, pEps);
@@ -122,17 +123,14 @@ void dnodeProcessStatusRsp(Dnode *dnode, SRpcMsg *pMsg) {
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, status, status->dnodeTimer, &status->statusTimer);
 }
 
-int32_t dnodeInitStatus(Dnode *dnode, DnStatus **out) {
+int32_t dnodeInitStatus(DnStatus **out) {
   DnStatus *status = calloc(1, sizeof(DnStatus));
   if (status == NULL) return -1;
-
-  status->dnode = dnode;
   status->statusTimer = NULL;
-  status->dnodeTimer = dnode->main->dnodeTimer;
+  status->dnodeTimer = dnodeInst()->main->dnodeTimer;
   status->rebootTime = taosGetTimestampSec();
   taosTmrReset(dnodeSendStatusMsg, 500, status, status->dnodeTimer, &status->statusTimer);
   *out = status;
-
   dInfo("dnode status timer is initialized");
   return TSDB_CODE_SUCCESS;
 }

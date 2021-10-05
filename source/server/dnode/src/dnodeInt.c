@@ -28,202 +28,75 @@
 #include "dnodeMain.h"
 #include "dnodeMnodeEps.h"
 #include "dnodeStatus.h"
-#include "dnodeTelemetry.h"
+#include "dnodeTelem.h"
 #include "dnodeTrans.h"
 #include "mnode.h"
 #include "vnode.h"
 
-static int32_t dnodeInitRpcEnv(Dnode *dnode, void **unUsed) { return rpcInit(); }
-static void    dnodeCleanupRpcEnv(void **unUsed) { rpcCleanup(); }
-#if 0
-static int32_t dnodeInitTfsEnv(Dnode *dnode, void **unUsed) { return tfInit(); }
-static void    dnodeCleanupTfsEnv(void **unUsed) { tfCleanup(); }
-static int32_t dnodeInitScriptEnv(Dnode *dnode, void **unUsed) { return scriptEnvPoolInit(); }
-static void    dnodeCleanupScriptEnv(void **unUsed) { scriptEnvPoolCleanup(); }
-static int32_t dnodeInitWalEnv(Dnode *dnode, void **unUsed) { return walInit(); }
-static void    dnodeCleanupWalEnv(void **unUsed) { walCleanUp(); }
-static int32_t dnodeInitSyncEnv(Dnode *dnode, void **unUsed) { return syncInit(); }
-static void    dnodeCleanupSyncEnv(void **unUsed) { syncCleanUp(); }
-#endif
+static Dnode tsDnode = {0};
 
-static int32_t dnodeInitVnodeModule(Dnode *dnode, struct Vnode** out) {
+Dnode *dnodeInst() { return &tsDnode; }
+
+static int32_t dnodeInitVnodeModule(void **unused) {
   SVnodePara para;
   para.fp.GetDnodeEp = dnodeGetDnodeEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
-  para.dnode = dnode;
 
-  struct Vnode *vnode = vnodeCreateInstance(para);
-  if (vnode == NULL) {
-    return -1;
-  }
-
-  *out = vnode;
-  return 0;
+  return vnodeInit(para);
 }
 
-static void dnodeCleanupVnodeModule(Dnode *dnode, struct Vnode **out) {
-  struct Vnode *vnode = *out;
-  *out = NULL;
-  vnodeDropInstance(vnode);
-}
+static int32_t dnodeInitMnodeModule(void **unused) {
+  Dnode *dnode = dnodeInst();
 
-static int32_t dnodeInitMnodeModule(Dnode *dnode, struct Mnode **out) {
   SMnodePara para;
   para.fp.GetDnodeEp = dnodeGetDnodeEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
   para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
-  para.dnode = dnode;
   para.dnodeId = dnode->cfg->dnodeId;
   strncpy(para.clusterId, dnode->cfg->clusterId, sizeof(para.clusterId));
 
-  struct Mnode *mnode = mnodeCreateInstance(para);
-  if (mnode == NULL) {
-    return -1;
-  }
-
-  *out = mnode;
-  return 0;
+  return mnodeInit(para);
 }
 
-static void dnodeCleanupMnodeModule(Dnode *dnode, struct Mnode **out) {
-  struct Mnode *mnode = *out;
-  *out = NULL;
-  mnodeDropInstance(mnode);
-}
+int32_t dnodeInit() {
+  struct SSteps *steps = taosStepInit(24, dnodeReportStartup);
+  if (steps == NULL) return -1;
 
-Dnode *dnodeCreateInstance() {
-  Dnode *dnode = calloc(1, sizeof(Dnode));
-  if (dnode == NULL) {
-    return NULL;
-  }
+  Dnode *dnode = dnodeInst();
 
-  SSteps *steps = taosStepInit(24);
-  if (steps == NULL) {
-    return NULL;
-  }
-
-  SStepObj step = {0};
-  step.parent = dnode;
-  
-  step.name = "dnode-main";
-  step.self = (void **)&dnode->main;
-  step.initFp = (FnInitObj)dnodeInitMain;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupMain;
-  step.reportFp = NULL;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-storage";
-  step.self = NULL;
-  step.initFp = (FnInitObj)dnodeInitStorage;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupStorage;
-  step.reportFp = (FnReportProgress)dnodeReportStartup;
-  taosStepAdd(steps, &step);
-
-#if 0
-  step.name = "dnode-tfs-env";
-  step.self = NULL;
-  step.initFp = (FnInitObj)dnodeInitTfsEnv;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupTfsEnv;
-  taosStepAdd(steps, &step);
-#endif  
-
-  step.name = "dnode-rpc-env";
-  step.self = NULL;
-  step.initFp = (FnInitObj)dnodeInitRpcEnv;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupRpcEnv;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-check";
-  step.self = (void **)&dnode->check;
-  step.initFp = (FnInitObj)dnodeInitCheck;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupCheck;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-cfg";
-  step.self = (void **)&dnode->cfg;
-  step.initFp = (FnInitObj)dnodeInitCfg;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupCfg;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-deps";
-  step.self = (void **)&dnode->eps;
-  step.initFp = (FnInitObj)dnodeInitEps;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupEps;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-meps";
-  step.self = (void **)&dnode->meps;
-  step.initFp = (FnInitObj)dnodeInitMnodeEps;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupMnodeEps;
-  taosStepAdd(steps, &step);
-
-#if 0
-  step.name = "dnode-wal";
-  step.self = NULL;
-  step.initFp = (FnInitObj)dnodeInitWalEnv;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupWalEnv;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-sync";
-  step.self = NULL;
-  step.initFp = (FnInitObj)dnodeInitSyncEnv;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupSyncEnv;
-  taosStepAdd(steps, &step);
-#endif  
-
-  step.name = "dnode-vnode";
-  step.self = (void **)&dnode->vnode;
-  step.initFp = (FnInitObj)dnodeInitVnodeModule;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupVnodeModule;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-mnode";
-  step.self = (void **)&dnode->mnode;
-  step.initFp = (FnInitObj)dnodeInitMnodeModule;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupMnodeModule;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-trans";
-  step.self = (void **)&dnode->trans;
-  step.initFp = (FnInitObj)dnodeInitTrans;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupTrans;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-status";
-  step.self = (void **)&dnode->status;
-  step.initFp = (FnInitObj)dnodeInitStatus;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupStatus;
-  taosStepAdd(steps, &step);
-
-  step.name = "dnode-telem";
-  step.self = (void **)&dnode->telem;
-  step.initFp = (FnInitObj)dnodeInitTelemetry;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupTelemetry;
-  taosStepAdd(steps, &step);
-
-#if 0
-  step.name = "dnode-script";
-  step.self = NULL;
-  step.initFp = (FnInitObj)dnodeInitScriptEnv;
-  step.cleanupFp = (FnCleanupObj)dnodeCleanupScriptEnv;
-  taosStepAdd(steps, &step);
-#endif
+  taosStepAdd(steps, "dnode-main", (void **)&dnode->main, (InitFp)dnodeInitMain, (CleanupFp)dnodeCleanupMain);
+  taosStepAdd(steps, "dnode-storage", NULL, (InitFp)dnodeInitStorage, (CleanupFp)dnodeCleanupStorage);
+  //taosStepAdd(steps, "dnode-tfs-env", NULL, (InitFp)tfInit, (CleanupFp)tfCleanup);
+  taosStepAdd(steps, "dnode-rpc-env", NULL, (InitFp)rpcInit, (CleanupFp)rpcCleanup);
+  taosStepAdd(steps, "dnode-check", (void **)&dnode->check, (InitFp)dnodeInitCheck, (CleanupFp)dnodeCleanupCheck);
+  taosStepAdd(steps, "dnode-cfg", (void **)&dnode->cfg, (InitFp)dnodeInitCfg, (CleanupFp)dnodeCleanupCfg);
+  taosStepAdd(steps, "dnode-deps", (void **)&dnode->eps, (InitFp)dnodeInitEps, (CleanupFp)dnodeCleanupEps);
+  taosStepAdd(steps, "dnode-meps", (void **)&dnode->meps, (InitFp)dnodeInitMnodeEps, (CleanupFp)dnodeCleanupMnodeEps);
+  //taosStepAdd(steps, "dnode-wal", NULL, (InitFp)walInit, (CleanupFp)walCleanUp);
+  //taosStepAdd(steps, "dnode-sync", NULL, (InitFp)syncInit, (CleanupFp)syncCleanUp);
+  taosStepAdd(steps, "dnode-vnode", NULL, (InitFp)dnodeInitVnodeModule, (CleanupFp)vnodeCleanup);
+  taosStepAdd(steps, "dnode-mnode", NULL, (InitFp)dnodeInitMnodeModule, (CleanupFp)mnodeCleanup);
+  taosStepAdd(steps, "dnode-trans", (void **)&dnode->trans, (InitFp)dnodeInitTrans, (CleanupFp)dnodeCleanupTrans);
+  taosStepAdd(steps, "dnode-status", (void **)&dnode->status, (InitFp)dnodeInitStatus, (CleanupFp)dnodeCleanupStatus);
+  taosStepAdd(steps, "dnode-telem", (void **)&dnode->meps, (InitFp)dnodeInitTelem, (CleanupFp)dnodeCleanupTelem);
+  //taosStepAdd(steps, "dnode-script", NULL, (InitFp)scriptEnvPoolInit, (CleanupFp)scriptEnvPoolCleanup);
 
   dnode->steps = steps;
   taosStepExec(dnode->steps);
 
   if (dnode->main) {
     dnode->main->runStatus = TD_RUN_STAT_RUNNING;
-    dnodeReportStartupFinished(dnode, "TDengine", "initialized successfully");
+    dnodeReportStartupFinished("TDengine", "initialized successfully");
     dInfo("TDengine is initialized successfully");
   }
 
-  return dnode;
+  return 0;
 }
 
-void dnodeDropInstance(Dnode *dnode) {
+void dnodeCleanup() {
+  Dnode *dnode = dnodeInst();
   if (dnode->main->runStatus != TD_RUN_STAT_STOPPED) {
     dnode->main->runStatus = TD_RUN_STAT_STOPPED;
     taosStepCleanup(dnode->steps);

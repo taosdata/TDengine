@@ -22,10 +22,9 @@ extern "C" {
 #include "dnodeInt.h"
 
 typedef struct DnCheck {
-  Dnode *dnode;
 } DnCheck;
 
-int32_t dnodeInitCheck(Dnode *dnode, DnCheck **check);
+int32_t dnodeInitCheck(DnCheck **check);
 void    dnodeCleanupCheck(DnCheck **check);
 
 #ifdef __cplusplus

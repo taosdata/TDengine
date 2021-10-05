@@ -21,30 +21,24 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef void (*RpcMsgCfp)(void *owner, SRpcMsg *pMsg, SRpcEpSet *pEpSet);
-typedef void (*RpcMsgFp)(void *owner, SRpcMsg *pMsg);
-
-typedef struct DnMsgFp {
-  void *   module;
-  RpcMsgFp fp;
-} DnMsgFp;
+typedef void (*RpcMsgFp)( SRpcMsg *pMsg);
 
 typedef struct DnTrans {
-  Dnode * dnode;
-  void *  serverRpc;
-  void *  clientRpc;
-  void *  shellRpc;
-  int32_t queryReqNum;
-  int32_t submitReqNum;
-  DnMsgFp fpPeerMsg[TSDB_MSG_TYPE_MAX];
-  DnMsgFp fpShellMsg[TSDB_MSG_TYPE_MAX];
+  void *   serverRpc;
+  void *   clientRpc;
+  void *   shellRpc;
+  int32_t  queryReqNum;
+  int32_t  submitReqNum;
+  RpcMsgFp peerMsgFp[TSDB_MSG_TYPE_MAX];
+  RpcMsgFp shellMsgFp[TSDB_MSG_TYPE_MAX];
+
 } DnTrans;
 
-int32_t dnodeInitTrans(Dnode *dnode, DnTrans **trans);
+int32_t dnodeInitTrans(DnTrans **rans);
 void    dnodeCleanupTrans(DnTrans **trans);
-void    dnodeSendMsgToMnode(Dnode *dnode, SRpcMsg *rpcMsg);
-void    dnodeSendMsgToDnode(Dnode *dnode, SRpcEpSet *epSet, SRpcMsg *rpcMsg);
-void    dnodeSendMsgToDnodeRecv(Dnode *dnode, SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);
+void    dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
+void    dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
+void    dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);
 
 #ifdef __cplusplus
 }

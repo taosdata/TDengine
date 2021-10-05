@@ -55,11 +55,10 @@ void dnodePrintDiskInfo() {
   dInfo("==================================");
 }
 
-int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
+int32_t dnodeInitMain(DnMain **out) {
   DnMain* main = calloc(1, sizeof(DnMain));
   if (main == NULL) return -1;
 
-  main->dnode = dnode;
   main->runStatus = TD_RUN_STAT_STOPPED;
   main->dnodeTimer = taosTmrInit(100, 200, 60000, "DND-TMR");
   if (main->dnodeTimer == NULL) {
@@ -75,9 +74,8 @@ int32_t dnodeInitMain(Dnode *dnode, DnMain **out) {
   taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
-#if 0  
   taosSetCoreDump(tsEnableCoreFile);
-#endif  
+
 
   if (!taosMkDir(tsLogDir)) {
    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
@@ -121,7 +119,7 @@ void dnodeCleanupMain(DnMain **out) {
   free(main);
 }
 
-int32_t dnodeInitStorage(Dnode *dnode, void **m) {
+int32_t dnodeInitStorage() {
 #ifdef TD_TSZ
   // compress module init
   tsCompressInit();
@@ -191,7 +189,7 @@ int32_t dnodeInitStorage(Dnode *dnode, void **m) {
   return 0;
 }
 
-void dnodeCleanupStorage(void **m) {
+void dnodeCleanupStorage() {
 #if 0  
   // storage destroy
   tfsDestroy();
@@ -203,23 +201,26 @@ void dnodeCleanupStorage(void **m) {
 #endif
 }
 
-void dnodeReportStartup(Dnode *dnode, char *name, char *desc) {
+void dnodeReportStartup(char *name, char *desc) {
+  Dnode *dnode = dnodeInst();
   SStartupStep *startup = &dnode->main->startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
   startup->finished = 0;
 }
 
-void dnodeReportStartupFinished(Dnode *dnode, char *name, char *desc) {
+void dnodeReportStartupFinished(char *name, char *desc) {
+  Dnode *dnode = dnodeInst();
   SStartupStep *startup = &dnode->main->startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
   startup->finished = 1;
 }
 
-void dnodeProcessStartupReq(Dnode *dnode, SRpcMsg *pMsg) {
+void dnodeProcessStartupReq(SRpcMsg *pMsg) {
   dInfo("startup msg is received, cont:%s", (char *)pMsg->pCont);
 
+  Dnode *dnode = dnodeInst();
   SStartupStep *pStep = rpcMallocCont(sizeof(SStartupStep));
   memcpy(pStep, &dnode->main->startup, sizeof(SStartupStep));
 
@@ -230,10 +231,11 @@ void dnodeProcessStartupReq(Dnode *dnode, SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-static int32_t dnodeStartMnode(Dnode *dnode, SRpcMsg *pMsg) {
+static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
+  Dnode *dnode = dnodeInst();
   SCreateMnodeMsg *pCfg = pMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
-  if (pCfg->dnodeId != dnodeGetDnodeId(dnode->cfg)) {
+  if (pCfg->dnodeId != dnode->cfg->dnodeId) {
     dDebug("dnode:%d, in create meps msg is not equal with saved dnodeId:%d", pCfg->dnodeId,
            dnodeGetDnodeId(dnode->cfg));
     return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
@@ -252,11 +254,11 @@ static int32_t dnodeStartMnode(Dnode *dnode, SRpcMsg *pMsg) {
 
   if (mnodeIsServing(dnode->mnode)) return 0;
 
-  return mnodeDeploy(dnode->mnode, &pCfg->mnodes);
+  return mnodeDeploy(&pCfg->mnodes);
 }
 
-void dnodeProcessCreateMnodeReq(Dnode *dnode, SRpcMsg *pMsg) {
-  int32_t code = dnodeStartMnode(dnode, pMsg);
+void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg) {
+  int32_t code = dnodeStartMnode(pMsg);
 
   SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code};
 
@@ -264,7 +266,7 @@ void dnodeProcessCreateMnodeReq(Dnode *dnode, SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-void dnodeProcessConfigDnodeReq(Dnode *dnode, SRpcMsg *pMsg) {
+void dnodeProcessConfigDnodeReq(SRpcMsg *pMsg) {
   SCfgDnodeMsg *pCfg = pMsg->pCont;
 
   int32_t code = taosCfgDynamicOptions(pCfg->config);

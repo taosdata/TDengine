@@ -194,7 +194,7 @@ void taosStopTcpServer(void *handle) {
   pServerObj->stop = 1;
 
   if (pServerObj->fd >= 0) {
-    taosShutDownSocketRD(pServerObj->fd);
+ taosShutDownSocketRD(pServerObj->fd);
   }
   if (taosCheckPthreadValid(pServerObj->thread)) {
     if (taosComparePthread(pServerObj->thread, pthread_self())) {
@@ -257,8 +257,8 @@ static void *taosAcceptTcpConnection(void *arg) {
     int32_t ret = taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
     if (ret != 0) {
       taosCloseSocket(connFd);
-      tError("%s failed to set recv timeout fd(%s)for connection from:%hu", pServerObj->label, strerror(errno),
-             htons(caddr.sin_port));
+      tError("%s failed to set recv timeout fd(%s)for connection from:%s:%hu", pServerObj->label, strerror(errno),
+             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
       continue;
     }
 
@@ -270,12 +270,12 @@ static void *taosAcceptTcpConnection(void *arg) {
     if (pFdObj) {
       pFdObj->ip = caddr.sin_addr.s_addr;
       pFdObj->port = htons(caddr.sin_port);
-      tDebug("%s new TCP connection from %hu, fd:%d FD:%p numOfFds:%d", pServerObj->label,
-              pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
+      tDebug("%s new TCP connection from %s:%hu, fd:%d FD:%p numOfFds:%d", pServerObj->label,
+              taosInetNtoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
     } else {
       taosCloseSocket(connFd);
-      tError("%s failed to malloc FdObj(%s) for connection from:%hu", pServerObj->label, strerror(errno),
-             htons(caddr.sin_port));
+      tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
+             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
     }
 
     // pick up next thread for next connection

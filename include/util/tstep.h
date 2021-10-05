@@ -20,29 +20,14 @@
 extern "C" {
 #endif
 
-typedef int32_t (*FnInitObj)(void *parent, void **self);
-typedef void (*FnCleanupObj)(void **self);
-typedef void (*FnReportProgress)(void *parent, const char *name, const char *desc);
+typedef int32_t (*InitFp)(void **obj);
+typedef void (*CleanupFp)(void **obj);
+typedef void (*ReportFp)(char *name, char *desc);
 
-typedef struct SStepObj {
-  const char *     name;
-  void *           parent;
-  void **          self;
-  FnInitObj        initFp;
-  FnCleanupObj     cleanupFp;
-  FnReportProgress reportFp;
-} SStepObj;
-
-typedef struct SSteps {
-  int32_t   cursize;
-  int32_t   maxsize;
-  SStepObj *steps;
-} SSteps;
-
-SSteps *taosStepInit(int32_t stepsize);
-int32_t taosStepAdd(SSteps *steps, SStepObj *step);
-int32_t taosStepExec(SSteps *steps);
-void    taosStepCleanup(SSteps *steps);
+struct SSteps *taosStepInit(int32_t maxsize, ReportFp fp);
+int32_t        taosStepExec(struct SSteps *steps);
+void           taosStepCleanup(struct SSteps *steps);
+int32_t        taosStepAdd(struct SSteps *steps, char *name, void **obj, InitFp initFp, CleanupFp cleanupFp);
 
 #ifdef __cplusplus
 }

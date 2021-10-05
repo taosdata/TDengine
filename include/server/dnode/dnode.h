@@ -22,58 +22,50 @@ extern "C" {
 
 struct SRpcEpSet;
 struct SRpcMsg;
-struct Dnode;
-
 /**
  * Initialize and start the dnode module.
  *
- * @return Instance of dnode module.
+ * @return Error code.
  */
-struct Dnode *dnodeCreateInstance();
+int32_t dnodeInit();
 
 /**
  * Stop and cleanup dnode module.
- *
- * @param dnode, instance of dnode module.
  */
-void dnodeDropInstance(struct Dnode *dnode);
+void dnodeCleanup();
 
 /**
  * Send messages to other dnodes, such as create vnode message.
  *
- * @param dnode, the instance of Dnode module.
  * @param epSet, the endpoint list of the dnodes.
  * @param rpcMsg, message to be sent.
  */
-void dnodeSendMsgToDnode(struct Dnode *dnode, struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+void dnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 
 /**
  * Send messages to mnode, such as config message.
  *
- * @param dnode, the instance of dnode module.
  * @param rpcMsg, message to be sent.
  */
-void dnodeSendMsgToMnode(struct Dnode *dnode, struct SRpcMsg *rpcMsg);
+void dnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 
 /**
  * Send redirect message to dnode or shell.
  *
- * @param dnode, the instance of dnode module.
  * @param rpcMsg, message to be sent.
  * @param forShell, used to identify whether to send to shell or dnode.
  */
-void dnodeSendRedirectMsg(struct Dnode *dnode, struct SRpcMsg *rpcMsg, bool forShell);
+void dnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
 
 /**
  * Get the corresponding endpoint information from dnodeId.
  *
- * @param dnode, the instance of dnode module.
  * @param dnodeId, the id ot dnode.
  * @param ep, the endpoint of dnode.
  * @param fqdn, the fqdn of dnode.
  * @param port, the port of dnode.
  */
-void dnodeGetDnodeEp(struct Dnode *dnode, int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+void dnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
 #ifdef __cplusplus
 }

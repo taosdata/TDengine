@@ -179,7 +179,7 @@ PARSE_MINFOS_OVER:
 
   for (int32_t i = 0; i < mInfos.mnodeNum; ++i) {
     SMInfo *mInfo = &mInfos.mnodeInfos[i];
-    dnodeGetDnodeEp(meps->dnode, mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
+    dnodeGetDnodeEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
   }
 
   dnodeResetMnodeEps(meps, &mInfos);
@@ -191,8 +191,8 @@ PARSE_MINFOS_OVER:
   return 0;
 }
 
-void dnodeSendRedirectMsg(struct Dnode *dnode, SRpcMsg *rpcMsg, bool forShell) {
-  DnMnEps *meps = dnode->meps;
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
+  DnMnEps *meps = dnodeInst()->meps;
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
@@ -222,17 +222,16 @@ void dnodeSendRedirectMsg(struct Dnode *dnode, SRpcMsg *rpcMsg, bool forShell) {
   rpcSendRedirectRsp(rpcMsg->handle, &epSet);
 }
 
-int32_t dnodeInitMnodeEps(Dnode *dnode, DnMnEps **out) {
+int32_t dnodeInitMnodeEps(DnMnEps **out) {
   DnMnEps *meps = calloc(1, sizeof(DnMnEps));
   if (meps == NULL) return -1;
 
-  meps->dnode = dnode;
   snprintf(meps->file, sizeof(meps->file), "%s/mnodeEpSet.json", tsDnodeDir);
   pthread_mutex_init(&meps->mutex, NULL);
   *out = meps;
 
   dnodeResetMnodeEps(meps, NULL);
-  int32_t ret = dnodeReadMnodeEps(meps, dnode->eps);
+  int32_t ret = dnodeReadMnodeEps(meps, dnodeInst()->eps);
   if (ret == 0) {
     dInfo("dnode mInfos is initialized");
   }

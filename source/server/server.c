@@ -29,8 +29,8 @@ static void setSignalHandler() {
 int main(int argc, char const *argv[]) {
   setSignalHandler();
 
-  struct Dnode *dnode = dnodeCreateInstance();
-  if (dnode == NULL) {
+  int32_t code = dnodeInit();
+  if (code != 0) {
     uInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
     exit(EXIT_FAILURE);
   }
@@ -42,7 +42,7 @@ int main(int argc, char const *argv[]) {
   }
 
   uInfo("TDengine is shut down!");
-  dnodeDropInstance(dnode);
+  dnodeCleanup();
 
   return 0;
 }

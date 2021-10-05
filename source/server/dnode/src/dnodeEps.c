@@ -182,15 +182,14 @@ static int32_t dnodeWriteEps(DnEps *eps) {
   return 0;
 }
 
-int32_t dnodeInitEps(Dnode *dnode, DnEps **out) {
+int32_t dnodeInitEps(DnEps **out) {
   DnEps *eps = calloc(1, sizeof(DnEps));
   if (eps == NULL) return -1;
 
   eps->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (eps->dnodeHash == NULL) return -1;
 
-  eps->dnode = dnode;
-  eps->dnodeId = dnode->cfg->dnodeId;
+  eps->dnodeId = dnodeInst()->cfg->dnodeId;
   eps->dnodeNum = 0;
   snprintf(eps->file, sizeof(eps->file), "%s/dnodeEps.json", tsDnodeDir);
   pthread_mutex_init(&eps->mutex, NULL);
@@ -269,10 +268,8 @@ bool dnodeIsDnodeEpChanged(DnEps *eps, int32_t dnodeId, char *epstr) {
   return changed;
 }
 
-void dnodeGetDnodeEp(Dnode *dnode, int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port) {
-  assert(dnode != NULL);
-
-  DnEps *eps = dnode->eps;
+void dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port) {
+  DnEps *eps = dnodeInst()->eps;
   pthread_mutex_lock(&eps->mutex);
 
   SDnodeEp *ep = taosHashGet(eps->dnodeHash, &dnodeId, sizeof(int32_t));

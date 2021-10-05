@@ -22,15 +22,14 @@ extern "C" {
 #include "dnodeInt.h"
 
 typedef struct DnStatus {
-  Dnode *  dnode;
   void *   dnodeTimer;
   void *   statusTimer;
   uint32_t rebootTime;
 } DnStatus;
 
-int32_t dnodeInitStatus(Dnode *dnode, DnStatus **status);
+int32_t dnodeInitStatus(DnStatus **status);
 void    dnodeCleanupStatus(DnStatus **status);
-void    dnodeProcessStatusRsp(Dnode *dnode, SRpcMsg *pMsg);
+void    dnodeProcessStatusRsp(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

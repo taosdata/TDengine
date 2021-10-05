@@ -29,13 +29,13 @@
 #include "vnode.h"
 #include "mnode.h"
 
-static void dnodeProcessPeerReq(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  Dnode * dnode = trans->dnode;
+static void dnodeProcessPeerReq(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  Dnode * dnode = dnodeInst();
   SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
 
   if (pMsg->pCont == NULL) return;
   if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
-    dnodeProcessStartupReq(dnode, pMsg);
+    dnodeProcessStartupReq(pMsg);
     return;
   }
 
@@ -53,9 +53,9 @@ static void dnodeProcessPeerReq(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pEpSet
     return;
   }
 
-  DnMsgFp fp = trans->fpPeerMsg[pMsg->msgType];
-  if (fp.fp != NULL) {
-    (*fp.fp)(fp.module, pMsg);
+  RpcMsgFp fp = dnode->trans->peerMsgFp[pMsg->msgType];
+  if (fp != NULL) {
+    (*fp)(pMsg);
   } else {
     dDebug("RPC %p, peer req:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     rspMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
@@ -65,41 +65,36 @@ static void dnodeProcessPeerReq(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pEpSet
 }
 
 int32_t dnodeInitServer(DnTrans *trans) {
-  struct Dnode *dnode = trans->dnode;
-  struct Vnode *vnode = dnode->vnode;
-  struct Mnode *mnode = dnode->mnode;
-  
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CREATE_TABLE]  = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_DROP_TABLE]    = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_ALTER_TABLE]   = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_DROP_STABLE]   = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE]  = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]    = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]   = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]   = vnodeProcessMsg;
 
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CREATE_VNODE]  = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_ALTER_VNODE]   = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_SYNC_VNODE]    = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_DROP_VNODE]    = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_ALTER_STREAM]  = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE]  = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]   = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]    = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]    = vnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM]  = vnodeProcessMsg;
 
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CONFIG_DNODE]  = (DnMsgFp){.module = dnode, .fp = (RpcMsgFp)dnodeProcessConfigDnodeReq};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CREATE_MNODE]  = (DnMsgFp){.module = dnode, .fp = (RpcMsgFp)dnodeProcessCreateMnodeReq};
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE]  = dnodeProcessConfigDnodeReq;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE]  = dnodeProcessCreateMnodeReq;
 
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_CONFIG_TABLE]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_CONFIG_VNODE]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_AUTH]          = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_GRANT]         = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_STATUS]        = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_AUTH]          = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_GRANT]         = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_STATUS]        = mnodeProcessMsg;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = tsDnodeDnodePort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcMsgCfp)dnodeProcessPeerReq;
+  rpcInit.cfp = dnodeProcessPeerReq;
   rpcInit.sessions = TSDB_MAX_VNODES << 4;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.owner = trans;
 
   trans->serverRpc = rpcOpen(&rpcInit);
   if (trans->serverRpc == NULL) {
@@ -119,8 +114,8 @@ void dnodeCleanupServer(DnTrans *trans) {
   }
 }
 
-static void dnodeProcessRspFromPeer(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  Dnode *dnode = trans->dnode;
+static void dnodeProcessRspFromPeer(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  Dnode *dnode = dnodeInst();
   if (dnode->main->runStatus == TD_RUN_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
     dTrace("msg:%p is ignored since dnode is stopping", pMsg);
@@ -132,9 +127,9 @@ static void dnodeProcessRspFromPeer(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pE
     dnodeUpdateMnodeFromPeer(dnode->meps, pEpSet);
   }
 
-  DnMsgFp fp = trans->fpPeerMsg[pMsg->msgType];
-  if (fp.fp != NULL) {
-    (*fp.fp)(fp.module, pMsg);
+  RpcMsgFp fp = dnode->trans->peerMsgFp[pMsg->msgType];
+  if (fp != NULL) {
+    (*fp)(pMsg);
   } else {
     dDebug("RPC %p, peer rsp:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
@@ -147,43 +142,39 @@ static void dnodeProcessRspFromPeer(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pE
 }
 
 int32_t dnodeInitClient(DnTrans *trans) {
-  struct Dnode *dnode = trans->dnode;
-  struct Mnode *mnode = dnode->mnode;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE_RSP]    = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP]   = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE_RSP]   = mnodeProcessMsg;
 
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_DROP_TABLE_RSP]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP]   = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_DROP_STABLE_RSP]   = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP]   = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE_RSP]    = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP] = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE_RSP]    = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM_RSP]  = mnodeProcessMsg;
 
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP]   = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_SYNC_VNODE_RSP]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP] = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_DROP_VNODE_RSP]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_ALTER_STREAM_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE_RSP]  = mnodeProcessMsg;
 
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_MD_CREATE_MNODE_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_CONFIG_TABLE_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_CONFIG_VNODE_RSP]  = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_AUTH_RSP]          = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_GRANT_RSP]         = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpPeerMsg[TSDB_MSG_TYPE_DM_STATUS_RSP]        = (DnMsgFp){.module = dnode, .fp = (RpcMsgFp)dnodeProcessStatusRsp};
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE_RSP]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE_RSP]  = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_AUTH_RSP]          = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_GRANT_RSP]         = mnodeProcessMsg;
+  trans->peerMsgFp[TSDB_MSG_TYPE_DM_STATUS_RSP]        = dnodeProcessStatusRsp;
 
   char secret[TSDB_KEY_LEN] = "secret";
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.label        = "DND-C";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = (RpcMsgCfp)dnodeProcessRspFromPeer;
+  rpcInit.cfp          = dnodeProcessRspFromPeer;
   rpcInit.sessions     = TSDB_MAX_VNODES << 4;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "t";
   rpcInit.ckey         = "key";
   rpcInit.secret       = secret;
-  rpcInit.owner        = trans;
 
   trans->clientRpc = rpcOpen(&rpcInit);
   if (trans->clientRpc == NULL) {
@@ -203,8 +194,8 @@ void dnodeCleanupClient(DnTrans *trans) {
   }
 }
 
-static void dnodeProcessMsgFromShell(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  Dnode * dnode = trans->dnode;
+static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  Dnode * dnode = dnodeInst();
   SRpcMsg rpcMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
 
   if (pMsg->pCont == NULL) return;
@@ -222,15 +213,16 @@ static void dnodeProcessMsgFromShell(DnTrans *trans, SRpcMsg *pMsg, SRpcEpSet *p
     return;
   }
 
+  DnTrans *trans = dnode->trans;
   if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
     atomic_fetch_add_32(&trans->queryReqNum, 1);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
     atomic_fetch_add_32(&trans->submitReqNum, 1);
   } else {}
 
-  DnMsgFp fp = trans->fpShellMsg[pMsg->msgType];
-  if (fp.fp != NULL) {
-    (*fp.fp)(fp.module, pMsg);
+  RpcMsgFp fp = trans->shellMsgFp[pMsg->msgType];
+  if (fp != NULL) {
+    (*fp)(pMsg);
   } else {
     dError("RPC %p, shell req:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
@@ -254,32 +246,34 @@ static int32_t dnodeAuthNetTest(char *user, char *spi, char *encrypt, char *secr
   return -1;
 }
 
-void dnodeSendMsgToDnode(Dnode *dnode, SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
+void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
+  Dnode *dnode = dnodeInst();
   rpcSendRequest(dnode->trans->clientRpc, epSet, rpcMsg, NULL);
 }
 
-void dnodeSendMsgToMnode(Dnode *dnode, SRpcMsg *rpcMsg) {
+void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
+  Dnode *   dnode = dnodeInst();
   SRpcEpSet epSet = {0};
   dnodeGetEpSetForPeer(dnode->meps, &epSet);
-  dnodeSendMsgToDnode(dnode, &epSet, rpcMsg);
+  dnodeSendMsgToDnode(&epSet, rpcMsg);
 }
 
-void dnodeSendMsgToMnodeRecv(Dnode *dnode, SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
+void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
+  Dnode *   dnode = dnodeInst();
   SRpcEpSet epSet = {0};
   dnodeGetEpSetForPeer(dnode->meps, &epSet);
   rpcSendRecv(dnode->trans->clientRpc, &epSet, rpcMsg, rpcRsp);
 }
 
-void dnodeSendMsgToDnodeRecv(Dnode *dnode, SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet) {
+void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet) {
+  Dnode *dnode = dnodeInst();
   rpcSendRecv(dnode->trans->clientRpc, epSet, rpcMsg, rpcRsp);
 }
 
-static int32_t dnodeRetrieveUserAuthInfo(void *owner, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  DnTrans *trans = owner;
-
+static int32_t dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (dnodeAuthNetTest(user, spi, encrypt, secret, ckey) == 0) return 0;
 
-  int32_t code = mnodeRetriveAuth(trans->dnode->mnode, user, spi, encrypt, secret, ckey);
+  int32_t code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
   if (code != TSDB_CODE_APP_NOT_READY) return code;
 
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
@@ -292,7 +286,7 @@ static int32_t dnodeRetrieveUserAuthInfo(void *owner, char *user, char *spi, cha
 
   dDebug("user:%s, send auth msg to mnodes", user);
   SRpcMsg rpcRsp = {0};
-  dnodeSendMsgToMnodeRecv(trans->dnode, &rpcMsg, &rpcRsp);
+  dnodeSendMsgToMnodeRecv(&rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     dError("user:%s, auth msg received from mnodes, error:%s", user, tstrerror(rpcRsp.code));
@@ -310,55 +304,51 @@ static int32_t dnodeRetrieveUserAuthInfo(void *owner, char *user, char *spi, cha
 }
 
 int32_t dnodeInitShell(DnTrans *trans) {
-  struct Dnode *dnode = trans->dnode;
-  struct Vnode *vnode = dnode->vnode;
-  struct Mnode *mnode = dnode->mnode;
-
-  trans->fpShellMsg[TSDB_MSG_TYPE_SUBMIT] = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_QUERY]  = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_FETCH]  = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = (DnMsgFp){.module = vnode, .fp = (RpcMsgFp)vnodeProcessMsg};
+  trans->shellMsgFp[TSDB_MSG_TYPE_SUBMIT] = vnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_QUERY]  = vnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_FETCH]  = vnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = vnodeProcessMsg;
 
   // the following message shall be treated as mnode write
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_ACCT]     = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_ALTER_ACCT]      = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_ACCT]       = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_USER]     = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_ALTER_USER]      = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_USER]       = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_DNODE]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_DNODE]      = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_DB]       = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_TP]       = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_FUNCTION] = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_DB]         = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_SYNC_DB]         = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_TP]         = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_FUNCTION]   = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_ALTER_DB]        = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_ALTER_TP]        = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CREATE_TABLE]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_DROP_TABLE]      = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_ALTER_TABLE]     = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_ALTER_STREAM]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_KILL_QUERY]      = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_KILL_STREAM]     = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_KILL_CONN]       = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CONFIG_DNODE]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_COMPACT_VNODE]   = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT]     = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT]      = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT]       = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER]     = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_ALTER_USER]      = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_USER]       = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE]    = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]      = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]       = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TP]       = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_FUNCTION] = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]         = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_SYNC_DB]         = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_TP]         = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_FUNCTION]   = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]        = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TP]        = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]    = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_DROP_TABLE]      = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE]     = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_ALTER_STREAM]    = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_KILL_QUERY]      = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_KILL_STREAM]     = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN]       = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE]    = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_COMPACT_VNODE]   = mnodeProcessMsg;
 
   // the following message shall be treated as mnode query
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_HEARTBEAT]     = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_CONNECT]       = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_USE_DB]        = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_TABLE_META]    = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_STABLE_VGROUP] = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_TABLES_META]   = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_SHOW]          = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_RETRIEVE]      = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
-  trans->fpShellMsg[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = (DnMsgFp){.module = mnode, .fp = (RpcMsgFp)mnodeProcessMsg};
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_HEARTBEAT]     = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_CONNECT]       = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_USE_DB]        = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_TABLE_META]    = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP] = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META]   = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_SHOW]          = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]      = mnodeProcessMsg;
+  trans->shellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = mnodeProcessMsg;
 
-  trans->fpShellMsg[TSDB_MSG_TYPE_NETWORK_TEST]     = (DnMsgFp){.module = dnode, .fp = (RpcMsgFp)dnodeProcessStartupReq};
+  trans->shellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]     = dnodeProcessStartupReq;
 
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
@@ -370,12 +360,11 @@ int32_t dnodeInitShell(DnTrans *trans) {
   rpcInit.localPort    = tsDnodeShellPort;
   rpcInit.label        = "SHELL";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp          = (RpcMsgCfp)dnodeProcessMsgFromShell;
+  rpcInit.cfp          = dnodeProcessMsgFromShell;
   rpcInit.sessions     = tsMaxShellConns;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.afp          = dnodeRetrieveUserAuthInfo;
-  rpcInit.owner        = trans;
 
   trans->shellRpc = rpcOpen(&rpcInit);
   if (trans->shellRpc == NULL) {
@@ -394,11 +383,10 @@ void dnodeCleanupShell(DnTrans *trans) {
   }
 }
 
-int32_t dnodeInitTrans(Dnode *dnode, DnTrans **out) {
-  DnTrans* trans = calloc(1, sizeof(DnTrans));
+int32_t dnodeInitTrans(DnTrans **out) {
+  DnTrans *trans = calloc(1, sizeof(DnTrans));
   if (trans == NULL) return -1;
 
-  trans->dnode = dnode;
   *out = trans;
 
   if (dnodeInitClient(trans) != 0) {

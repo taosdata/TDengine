@@ -26,7 +26,6 @@ extern "C" {
  * thus we use pthread_mutex_t/pthread_cond_t to simulate
  */
 typedef struct DnTelem {
-  Dnode *          dnode;
   bool             enable;
   pthread_mutex_t  lock;
   pthread_cond_t   cond;
@@ -35,8 +34,8 @@ typedef struct DnTelem {
   char             email[TSDB_FQDN_LEN];
 } DnTelem;
 
-int32_t dnodeInitTelemetry(Dnode *dnode, DnTelem **telem);
-void    dnodeCleanupTelemetry(DnTelem **telem);
+int32_t dnodeInitTelem(DnTelem **telem);
+void    dnodeCleanupTelem(DnTelem **telem);
 
 #ifdef __cplusplus
 }

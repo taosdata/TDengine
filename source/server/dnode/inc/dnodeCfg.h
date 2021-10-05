@@ -22,7 +22,6 @@ extern "C" {
 #include "dnodeInt.h"
 
 typedef struct DnCfg {
-  Dnode *         dnode;
   int32_t         dnodeId;
   int32_t         dropped;
   char            clusterId[TSDB_CLUSTER_ID_LEN];
@@ -30,7 +29,7 @@ typedef struct DnCfg {
   pthread_mutex_t mutex;
 } DnCfg;
 
-int32_t dnodeInitCfg(Dnode *dnode, DnCfg **cfg);
+int32_t dnodeInitCfg(DnCfg **cfg);
 void    dnodeCleanupCfg(DnCfg **cfg);
 void    dnodeUpdateCfg(DnCfg *cfg, SDnodeCfg *data);
 int32_t dnodeGetDnodeId(DnCfg *cfg);

@@ -22,20 +22,19 @@ extern "C" {
 #include "dnodeInt.h"
 
 typedef struct DnMnEps {
-  Dnode *         dnode;
   SRpcEpSet       mnodeEpSet;
   SMInfos         mnodeInfos;
   char            file[PATH_MAX + 20];
   pthread_mutex_t mutex;
 } DnMnEps;
 
-int32_t dnodeInitMnodeEps(Dnode *dnode, DnMnEps **meps);
+int32_t dnodeInitMnodeEps(DnMnEps **meps);
 void    dnodeCleanupMnodeEps(DnMnEps **meps);
 void    dnodeUpdateMnodeFromStatus(DnMnEps *meps, SMInfos *pMinfos);
 void    dnodeUpdateMnodeFromPeer(DnMnEps *meps, SRpcEpSet *pEpSet);
 void    dnodeGetEpSetForPeer(DnMnEps *meps, SRpcEpSet *epSet);
 void    dnodeGetEpSetForShell(DnMnEps *meps, SRpcEpSet *epSet);
-void    dnodeSendRedirectMsg(Dnode *dnode, SRpcMsg *rpcMsg, bool forShell);
+void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus
 }

@@ -20,41 +20,35 @@
 extern "C" {
 #endif
 
-struct Dnode;
-
 typedef struct {
   /**
    * Send messages to other dnodes, such as create vnode message.
    *
-   * @param dnode, the instance of dnode module.
    * @param epSet, the endpoint list of dnodes.
    * @param rpcMsg, message to be sent.
    */
-  void (*SendMsgToDnode)(struct Dnode *dnode, struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 
   /**
    * Send messages to mnode, such as config message.
    *
-   * @param dnode, the instance of dnode module.
    * @param rpcMsg, message to be sent.
    */
-  void (*SendMsgToMnode)(struct Dnode *dnode, struct SRpcMsg *rpcMsg);
+  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
 
   /**
    * Get the corresponding endpoint information from dnodeId.
    *
-   * @param dnode, the instance of dnode module.
    * @param dnodeId, the id ot dnode.
    * @param ep, the endpoint of dnode.
    * @param fqdn, the fqdn of dnode.
    * @param port, the port of dnode.
    */
-  void (*GetDnodeEp)(struct Dnode *dnode, int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
 } SVnodeFp;
 
 typedef struct {
-  struct Dnode *dnode;
   SVnodeFp      fp;
 } SVnodePara;
 
@@ -62,16 +56,14 @@ typedef struct {
  * Start initialize vnode module.
  *
  * @param para, initialization parameters.
- * @return Instance of vnode module.
+ * @return Error code.
  */
-struct Vnode *vnodeCreateInstance(SVnodePara para);
+int32_t vnodeInit(SVnodePara para);
 
 /**
  * Cleanup vnode module.
- *
- * @param vnode, instance of vnode module.
  */
-void vnodeDropInstance(struct Vnode *vnode);
+void vnodeCleanup();
 
 typedef struct {
   int32_t unused;
@@ -80,36 +72,32 @@ typedef struct {
 /**
  * Get the statistical information of vnode.
  *
- * @param vnode, instance of vnode module.
- * @param sta, statistical information.
+ * @param stat, statistical information.
  * @return Error Code.
  */
-int32_t vnodeGetStatistics(struct Vnode *vnode, SVnodeStat *stat);
+int32_t vnodeGetStatistics(SVnodeStat *stat);
 
 /**
  * Get the status of all vnodes.
  *
- * @param vnode, instance of vnode module.
  * @param status, status msg.
  */
-void vnodeGetStatus(struct Vnode *vnode, struct SStatusMsg *status);
+void vnodeGetStatus(struct SStatusMsg *status);
 
 /**
  * Set access permissions for all vnodes.
  *
- * @param vnode, instance of vnode module.
  * @param access, access permissions of vnodes.
  * @param numOfVnodes, the size of vnodes.
  */
-void vnodeSetAccess(struct Vnode *vnode, struct SVgroupAccess *access, int32_t numOfVnodes);
+void vnodeSetAccess(struct SVgroupAccess *access, int32_t numOfVnodes);
 
 /**
  * Interface for processing messages.
  *
- * @param vnode, instance of vnode module.
  * @param msg, message to be processed.
  */
-void vnodeProcessMsg(struct Vnode *vnode, SRpcMsg *msg);
+void vnodeProcessMsg(SRpcMsg *msg);
 
 #ifdef __cplusplus
 }
