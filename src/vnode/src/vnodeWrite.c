@@ -176,6 +176,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     return terrno;
   }
 
+  if ((pVnode->version & 8191) == 0) {
+    tsdbSetWalSize(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
+  }
+
   if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
     code = terrno;
     ASSERT(code != 0);

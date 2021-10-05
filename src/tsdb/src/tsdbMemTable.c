@@ -77,7 +77,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
 
   if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
 
-  if (tsdbCheckCommit(pRepo) < 0) return -1;
+  if (tsdbCheckCommit(pRepo, false) < 0) return -1;
   return 0;
 }
 

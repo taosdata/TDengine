@@ -185,7 +185,14 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbCheckCommit(STsdbRepo *pRepo) {
+void tsdbSetWalSize(STsdbRepo *pRepo, int64_t walSize) {  // MB
+  atomic_store_64(&pRepo->walSize,walSize);
+  if(walSize <= atomic_load_64(&pRepo->commitWalSize)) {
+    atomic_store_64(&pRepo->commitWalSize, 0); // restart
+  }
+}
+
+int tsdbCheckCommit(STsdbRepo *pRepo, bool checkWal) {
   ASSERT(pRepo->mem != NULL);
   STsdbCfg *pCfg = &(pRepo->config);
 
@@ -195,6 +202,14 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
       ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
     // trigger commit
     if (tsdbAsyncCommit(pRepo) < 0) return -1;
+  } else if (checkWal) {
+    int64_t walSize = atomic_load_64(&pRepo->walSize);
+    int64_t commitWalSize = atomic_load_64(&pRepo->commitWalSize);
+    int64_t delta = walSize - commitWalSize;
+    if ((delta > tsdbWalFlushSize) && (delta > (pCfg->totalBlocks / 2 * pCfg->cacheBlockSize))) {
+      atomic_store_64(&pRepo->commitWalSize, walSize);
+      if (tsdbAsyncCommit(pRepo) < 0) return -1;
+    }
   }
 
   return 0;
