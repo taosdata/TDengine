@@ -574,10 +574,10 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
     memset(fullTableName, 0, tListLen(fullTableName));
     tNameExtractFullName(&sname, fullTableName);
-    tscFreeRegisteredSqlObj(pSql);
 
     size_t size = 0;
-    taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    tscFreeRegisteredSqlObj(pSql);
   }
 
   if (tableMeta != NULL) {

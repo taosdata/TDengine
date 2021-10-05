@@ -29,36 +29,74 @@ class TDTestCase:
         print("==============step1")
         ##2021-09-17 For jira: https://jira.taosdata.com:18080/browse/TD-6585
         tdSql.execute(
-            "create stable if not exists stb_test(ts timestamp,c0 binary(32)) tags(t0 binary(32))"
+            "create stable if not exists stb_test(ts timestamp,c0 binary(32),c1 int) tags(t0 binary(32))"
         )
         tdSql.execute(
             'create table if not exists stb_1 using stb_test tags("abcdefgasdfg12346")'
         )
-        tdLog.info('insert into stb_1 values("2021-09-13 10:00:00.001","abcefdasdqwerxasdazx12345"')
-        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.001","abcefdasdqwerxasdazx12345")')
+        tdLog.info('insert into stb_1 values("2021-09-13 10:00:00.001","abcefdasdqwerxasdazx12345",15')
 
+
+        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.002","abcefdasdqwerxasdazx12345",15)')
+        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.003","aaaaafffwwqqxzz",16)')
+        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.004","fffwwqqxzz",17)')
+        tdSql.execute('insert into stb_1 values("2020-10-13 10:00:00.001","abcd\\\efgh",100)')
 
         tdSql.query('select * from stb_test where tbname match "asd"')
         tdSql.checkRows(0)
-
         tdSql.query('select * from stb_test where tbname nmatch "asd"')
-        tdSql.checkRows(1)
+        tdSql.checkRows(4)
 
         tdSql.query('select * from stb_test where c0 match "abc"')
-        tdSql.checkRows(1)
-        tdSql.checkData(0,1,"abcefdasdqwerxasdazx12345")
-
+        tdSql.checkRows(2)
         tdSql.query('select * from stb_test where c0 nmatch "abc"')
+        tdSql.checkRows(2)
+
+        tdSql.query('select * from stb_test where c0 match "^a"')
+        tdSql.checkRows(3)
+        tdSql.query('select * from stb_test where c0 nmatch "^a"')
+        tdSql.checkRows(1)
+    
+        tdSql.query('select * from stb_test where c0 match "5$"')
+        tdSql.checkData(0,1,"abcefdasdqwerxasdazx12345")
+        tdSql.query('select * from stb_test where c0 nmatch "5$"')
+        tdSql.checkRows(3)
+        
+        
+        tdSql.query('select * from stb_test where c0 match "a*"')
+        tdSql.checkRows(4)
+        tdSql.query('select * from stb_test where c0 nmatch "a*"')
         tdSql.checkRows(0)
+
+
+        tdSql.query('select * from stb_test where c0 match "a+"')
+        tdSql.checkRows(3)
+        tdSql.query('select * from stb_test where c0 nmatch "a+"')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from stb_test where c0 match "a?"')
+        tdSql.checkRows(4)
+        tdSql.query('select * from stb_test where c0 nmatch "a?"')
+        tdSql.checkRows(0)
+        
+
+        tdSql.query('select last(c1) from stb_test where c0 match "a"')
+        tdSql.checkData(0,0,16)
+
+
+        tdSql.query('select count(c1) from stb_test where t0 match "a"')
+        tdSql.checkData(0,0,4)
 
         tdSql.error('select * from stb_test where c0 match abc')
 
         tdSql.error('select * from stb_test where c0 nmatch abc')
 
-
-        tdSql.execute('insert into stb_1 values("2020-10-13 10:00:00.001","abcd\\\efgh")')
+        
         tdSql.query("select * from stb_1 where c0 match '\\\\'")
         tdSql.checkRows(1)
+
+        tdSql.query("select * from stb_1 where c0 nmatch '\\\\'")
+        tdSql.checkRows(3)
 
 
 
