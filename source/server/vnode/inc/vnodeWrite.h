@@ -13,20 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TQ_H_
-#define _TD_TQ_H_
+#ifndef _TD_VNODE_WRITE_H_
+#define _TD_VNODE_WRITE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp);
 
-typedef struct STQ STQ;
-
-int tqPushMsg(void *);
-int tqCommit(STQ *pTQ);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_TQ_H_*/
+#endif /*_TD_VNODE_WRITE_H_*/

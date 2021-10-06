@@ -13,20 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TQ_H_
-#define _TD_TQ_H_
+#ifndef _TD_VNODE_COMMIT_H_
+#define _TD_VNODE_COMMIT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STQ STQ;
-
-int tqPushMsg(void *);
-int tqCommit(STQ *pTQ);
+int vnodeAsyncCommit(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TQ_H_*/
+#endif /*_TD_VNODE_COMMIT_H_*/
