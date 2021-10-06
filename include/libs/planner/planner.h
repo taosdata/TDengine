@@ -20,6 +20,52 @@
 extern "C" {
 #endif
 
+/**
+ * Optimize the query execution plan, currently not implement yet.
+ * @param pQueryNode
+ * @return
+ */
+int32_t qOptimizeQueryPlan(SQueryNode* pQueryNode);
+
+/**
+ * Create the query plan according to the bound AST, which is in the form of pQueryInfo
+ * @param pQueryInfo
+ * @param pQueryNode
+ * @return
+ */
+int32_t qCreateQueryPlan(const SQueryInfo* pQueryInfo, SQueryNode* pQueryNode);
+
+/**
+ * Convert the query plan to string, in order to display it in the shell.
+ * @param pQueryNode
+ * @return
+ */
+int32_t qQueryPlanToString(SQueryNode* pQueryNode, char** str);
+
+/**
+ * Restore the SQL statement according to the logic query plan.
+ * @param pQueryNode
+ * @param sql
+ * @return
+ */
+int32_t qQueryPlanToSql(SQueryNode* pQueryNode, char** sql);
+
+/**
+ * Create the physical plan for the query, according to the logic plan.
+ * @param pQueryNode
+ * @param pPhyNode
+ * @return
+ */
+int32_t qCreatePhysicalPlan(SQueryNode* pQueryNode, SEpSet* pQnode, SQueryPhyNode *pPhyNode);
+
+/**
+ * Convert to physical plan to string to enable to print it out in the shell.
+ * @param pPhyNode
+ * @param str
+ * @return
+ */
+int32_t qPhyPlanToString(SQueryPhyNode *pPhyNode, char** str);
+
 #ifdef __cplusplus
 }
 #endif

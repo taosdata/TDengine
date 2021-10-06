@@ -20,6 +20,41 @@
 extern "C" {
 #endif
 
+#define QUERY_TASK_MERGE       1
+#define QUERY_TASK_PARTIAL     2
+
+/**
+ * create query job from the physical execution plan
+ * @param pPhyNode
+ * @param pJob
+ * @return
+ */
+int32_t qCreateQueryJob(const SQueryPhyNode* pPhyNode, SQueryJob* pJob);
+
+/**
+ * Process the query job, generated according to the query physical plan.
+ * This is a synchronized API, and is also thread-safety.
+ * @param pJob
+ * @return
+ */
+int32_t qProcessQueryJob(SQueryJob* pJob);
+
+/**
+ * The SSqlObj should not be here????
+ * @param pSql
+ * @param pVgroupId
+ * @param pRetVgroupId
+ * @return
+ */
+SArray* qGetInvolvedVgroupIdList(SSqlObj* pSql, SArray* pVgroupId, SArray* pRetVgroupId);
+
+/**
+ * Cancel query job
+ * @param pJob
+ * @return
+ */
+int32_t qKillQueryJob(SQueryJob* pJob);
+
 #ifdef __cplusplus
 }
 #endif
