@@ -203,10 +203,12 @@ void dnodeCleanupStorage() {
 
 void dnodeReportStartup(char *name, char *desc) {
   Dnode *dnode = dnodeInst();
-  SStartupStep *startup = &dnode->main->startup;
-  tstrncpy(startup->name, name, strlen(startup->name));
-  tstrncpy(startup->desc, desc, strlen(startup->desc));
-  startup->finished = 0;
+  if (dnode->main != NULL) {
+    SStartupStep *startup = &dnode->main->startup;
+    tstrncpy(startup->name, name, strlen(startup->name));
+    tstrncpy(startup->desc, desc, strlen(startup->desc));
+    startup->finished = 0;
+  }
 }
 
 void dnodeReportStartupFinished(char *name, char *desc) {

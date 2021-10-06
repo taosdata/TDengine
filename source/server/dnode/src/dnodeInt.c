@@ -68,8 +68,8 @@ int32_t dnodeInit() {
 
   taosStepAdd(steps, "dnode-main", (void **)&dnode->main, (InitFp)dnodeInitMain, (CleanupFp)dnodeCleanupMain);
   taosStepAdd(steps, "dnode-storage", NULL, (InitFp)dnodeInitStorage, (CleanupFp)dnodeCleanupStorage);
-  //taosStepAdd(steps, "dnode-tfs-env", NULL, (InitFp)tfInit, (CleanupFp)tfCleanup);
-  taosStepAdd(steps, "dnode-rpc-env", NULL, (InitFp)rpcInit, (CleanupFp)rpcCleanup);
+  //taosStepAdd(steps, "dnode-tfs", NULL, (InitFp)tfInit, (CleanupFp)tfCleanup);
+  taosStepAdd(steps, "dnode-rpc", NULL, (InitFp)rpcInit, (CleanupFp)rpcCleanup);
   taosStepAdd(steps, "dnode-check", (void **)&dnode->check, (InitFp)dnodeInitCheck, (CleanupFp)dnodeCleanupCheck);
   taosStepAdd(steps, "dnode-cfg", (void **)&dnode->cfg, (InitFp)dnodeInitCfg, (CleanupFp)dnodeCleanupCfg);
   taosStepAdd(steps, "dnode-deps", (void **)&dnode->eps, (InitFp)dnodeInitEps, (CleanupFp)dnodeCleanupEps);
@@ -80,7 +80,7 @@ int32_t dnodeInit() {
   taosStepAdd(steps, "dnode-mnode", NULL, (InitFp)dnodeInitMnodeModule, (CleanupFp)mnodeCleanup);
   taosStepAdd(steps, "dnode-trans", (void **)&dnode->trans, (InitFp)dnodeInitTrans, (CleanupFp)dnodeCleanupTrans);
   taosStepAdd(steps, "dnode-status", (void **)&dnode->status, (InitFp)dnodeInitStatus, (CleanupFp)dnodeCleanupStatus);
-  taosStepAdd(steps, "dnode-telem", (void **)&dnode->meps, (InitFp)dnodeInitTelem, (CleanupFp)dnodeCleanupTelem);
+  taosStepAdd(steps, "dnode-telem", (void **)&dnode->telem, (InitFp)dnodeInitTelem, (CleanupFp)dnodeCleanupTelem);
   //taosStepAdd(steps, "dnode-script", NULL, (InitFp)scriptEnvPoolInit, (CleanupFp)scriptEnvPoolCleanup);
 
   dnode->steps = steps;
