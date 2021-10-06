@@ -20,46 +20,122 @@
 extern "C" {
 #endif
 
-struct SRpcMsg;
+typedef struct {
+  /**
+   * Send messages to other dnodes, such as create vnode message.
+   *
+   * @param epSet, the endpoint list of the dnodes.
+   * @param rpcMsg, message to be sent.
+   */
+  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+
+  /**
+   * Send messages to mnode, such as config message.
+   *
+   * @param rpcMsg, message to be sent.
+   */
+  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
+
+  /**
+   * Send redirect message to dnode or shell.
+   *
+   * @param rpcMsg, message to be sent.
+   * @param forShell, used to identify whether to send to shell or dnode.
+   */
+  void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
+
+  /**
+   * Get the corresponding endpoint information from dnodeId.
+   *
+   * @param dnode, the instance of dDnode module.
+   * @param dnodeId, the id ot dnode.
+   * @param ep, the endpoint of dnode.
+   * @param fqdn, the fqdn of dnode.
+   * @param port, the port of dnode.
+   */
+  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+
+} SMnodeFp;
+
+typedef struct {
+  SMnodeFp      fp;
+  char          clusterId[TSDB_CLUSTER_ID_LEN];
+  int32_t       dnodeId;
+} SMnodePara;
 
 /**
- * Deploy Mnode instances in Dnode.
- * 
+ * Initialize and start mnode module.
+ *
+ * @param para, initialization parameters.
+ * @return Error code.
+ */
+int32_t mnodeInit(SMnodePara para);
+
+/**
+ * Stop and cleanup mnode module.
+ */
+void mnodeCleanup();
+
+/**
+ * Deploy mnode instances in dnode.
+ *
+ * @param minfos, server information used to deploy the mnode instance.
  * @return Error Code.
  */
-int32_t mnodeDeploy();
+int32_t mnodeDeploy(struct SMInfos *minfos);
 
 /**
- * Delete the Mnode instance deployed in Dnode.
+ * Delete the mnode instance deployed in dnode.
  */
 void mnodeUnDeploy();
 
 /**
- * Start Mnode service.
- * 
- * @return Error Code.
- */
-int32_t mnodeStart();
-
-/**
- * Stop Mnode service.
- */
-int32_t mnodeStop();
-
-/**
- * Interface for processing messages.
- * 
- * @param pMsg Message to be processed.
- * @return Error code
- */
-int32_t mnodeProcessMsg(SRpcMsg *pMsg);
-
-/**
- * Whether the Mnode is in service.
- * 
+ * Whether the mnode is in service.
+ *
  * @return Server status.
  */
 bool mnodeIsServing();
+
+typedef struct {
+  int64_t numOfDnode;
+  int64_t numOfMnode;
+  int64_t numOfVgroup;
+  int64_t numOfDatabase;
+  int64_t numOfSuperTable;
+  int64_t numOfChildTable;
+  int64_t numOfColumn;
+  int64_t totalPoints;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SMnodeStat;
+
+/**
+ * Get the statistical information of Mnode.
+ *
+ * @param stat, statistical information.
+ * @return Error Code.
+ */
+int32_t mnodeGetStatistics(SMnodeStat *stat);
+
+/**
+ * Get the statistical information of Mnode.
+ *
+ * @param user, username.
+ * @param spi,  security parameter index.
+ * @param encrypt, encrypt algorithm.
+ * @param secret, key for authentication.
+ * @param ckey, ciphering key.
+ * @return Error Code.
+ */
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
+/**
+ * Interface for processing messages.
+ *
+ * @param rpcMsg, message to be processed.
+ * @return Error code.
+ */
+void mnodeProcessMsg(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

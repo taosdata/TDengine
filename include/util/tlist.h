@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_LIST_
-#define _TD_LIST_
+#ifndef _TD_UTIL_LIST_H
+#define _TD_UTIL_LIST_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,4 +69,4 @@ SListNode *tdListNext(SListIter *pIter);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_LIST_H*/

@@ -51,7 +51,7 @@ int32_t walRenew(void *handle) {
   }
 
   snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
-  pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  pWal->tfd = tfOpenCreateWrite(pWal->name);
 
   if (!tfValid(pWal->tfd)) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -220,7 +220,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
     // open the existing WAL file in append mode
     pWal->fileId = 0;
     snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
-    pWal->tfd = tfOpenM(pWal->name, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+    pWal->tfd = tfOpenCreateWriteAppend(pWal->name);
     if (!tfValid(pWal->tfd)) {
       wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
       return TAOS_SYSTEM_ERROR(errno);
@@ -425,7 +425,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  int64_t tfd = tfOpen(name, O_RDWR);
+  int64_t tfd = tfOpenReadWrite(name);
   if (!tfValid(tfd)) {
     wError("vgId:%d, file:%s, failed to open for restore since %s", pWal->vgId, name, strerror(errno));
     tfree(buffer);
