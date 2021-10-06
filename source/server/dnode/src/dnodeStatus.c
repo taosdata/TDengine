@@ -26,7 +26,7 @@
 #include "vnode.h"
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId) {
-  DnStatus *status = handle;
+  SDnStatus *status = handle;
   if (status->dnodeTimer == NULL) {
     dError("dnode timer is already released");
     return;
@@ -46,7 +46,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   dnodeGetCfg(dnode->cfg, &pStatus->dnodeId, pStatus->clusterId);
   pStatus->dnodeId = htonl(dnodeGetDnodeId(dnode->cfg));
   pStatus->version = htonl(tsVersion);
@@ -86,8 +86,8 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 }
 
 void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
-  Dnode *dnode = dnodeInst();
-  DnStatus *status = pMsg->ahandle;
+  SDnode *dnode = dnodeInst();
+  SDnStatus *status = pMsg->ahandle;
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
     dError("status rsp is received, error:%s", tstrerror(pMsg->code));
@@ -123,8 +123,8 @@ void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, status, status->dnodeTimer, &status->statusTimer);
 }
 
-int32_t dnodeInitStatus(DnStatus **out) {
-  DnStatus *status = calloc(1, sizeof(DnStatus));
+int32_t dnodeInitStatus(SDnStatus **out) {
+  SDnStatus *status = calloc(1, sizeof(SDnStatus));
   if (status == NULL) return -1;
   status->statusTimer = NULL;
   status->dnodeTimer = dnodeInst()->main->dnodeTimer;
@@ -135,8 +135,8 @@ int32_t dnodeInitStatus(DnStatus **out) {
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupStatus(DnStatus **out) {
-  DnStatus *status = *out;
+void dnodeCleanupStatus(SDnStatus **out) {
+  SDnStatus *status = *out;
   *out = NULL;
 
   if (status->statusTimer != NULL) {

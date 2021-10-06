@@ -22,7 +22,7 @@
 #include "dnodeMnodeEps.h"
 #include "mnode.h"
 
-static void dnodePrintMnodeEps(DnMnEps *meps) {
+static void dnodePrintMnodeEps(SDnMnEps *meps) {
   SRpcEpSet *epset = &meps->mnodeEpSet;
   dInfo("print mnode eps, num:%d inuse:%d", epset->numOfEps, epset->inUse);
   for (int32_t i = 0; i < epset->numOfEps; i++) {
@@ -30,7 +30,7 @@ static void dnodePrintMnodeEps(DnMnEps *meps) {
   }
 }
 
-static void dnodeResetMnodeEps(DnMnEps *meps, SMInfos *mInfos) {
+static void dnodeResetMnodeEps(SDnMnEps *meps, SMInfos *mInfos) {
   if (mInfos == NULL || mInfos->mnodeNum == 0) {
     meps->mnodeEpSet.numOfEps = 1;
     taosGetFqdnPortFromEp(tsFirst, meps->mnodeEpSet.fqdn[0], &meps->mnodeEpSet.port[0]);
@@ -55,7 +55,7 @@ static void dnodeResetMnodeEps(DnMnEps *meps, SMInfos *mInfos) {
   dnodePrintMnodeEps(meps);
 }
 
-static int32_t dnodeWriteMnodeEps(DnMnEps *meps) {
+static int32_t dnodeWriteMnodeEps(SDnMnEps *meps) {
   FILE *fp = fopen(meps->file, "w");
   if (!fp) {
     dError("failed to write %s since %s", meps->file, strerror(errno));
@@ -91,7 +91,7 @@ static int32_t dnodeWriteMnodeEps(DnMnEps *meps) {
   return 0;
 }
 
-static int32_t dnodeReadMnodeEps(DnMnEps *meps, DnEps *deps) {
+static int32_t dnodeReadMnodeEps(SDnMnEps *meps, SDnEps *deps) {
   int32_t len = 0;
   int32_t maxLen = 2000;
   char *  content = calloc(1, maxLen + 1);
@@ -192,7 +192,7 @@ PARSE_MINFOS_OVER:
 }
 
 void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
-  DnMnEps *meps = dnodeInst()->meps;
+  SDnMnEps *meps = dnodeInst()->meps;
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
@@ -222,8 +222,8 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
   rpcSendRedirectRsp(rpcMsg->handle, &epSet);
 }
 
-int32_t dnodeInitMnodeEps(DnMnEps **out) {
-  DnMnEps *meps = calloc(1, sizeof(DnMnEps));
+int32_t dnodeInitMnodeEps(SDnMnEps **out) {
+  SDnMnEps *meps = calloc(1, sizeof(SDnMnEps));
   if (meps == NULL) return -1;
 
   snprintf(meps->file, sizeof(meps->file), "%s/mnodeEpSet.json", tsDnodeDir);
@@ -239,8 +239,8 @@ int32_t dnodeInitMnodeEps(DnMnEps **out) {
   return ret;
 }
 
-void dnodeCleanupMnodeEps(DnMnEps **out) {
-  DnMnEps *meps = *out;
+void dnodeCleanupMnodeEps(SDnMnEps **out) {
+  SDnMnEps *meps = *out;
   *out = NULL;
 
   if (meps != NULL) {
@@ -249,7 +249,7 @@ void dnodeCleanupMnodeEps(DnMnEps **out) {
   }
 }
 
-void dnodeUpdateMnodeFromStatus(DnMnEps *meps, SMInfos *mInfos) {
+void dnodeUpdateMnodeFromStatus(SDnMnEps *meps, SMInfos *mInfos) {
   if (mInfos->mnodeNum <= 0 || mInfos->mnodeNum > TSDB_MAX_REPLICA) {
     dError("invalid mInfos since num:%d invalid", mInfos->mnodeNum);
     return;
@@ -278,7 +278,7 @@ void dnodeUpdateMnodeFromStatus(DnMnEps *meps, SMInfos *mInfos) {
   pthread_mutex_unlock(&meps->mutex);
 }
 
-void dnodeUpdateMnodeFromPeer(DnMnEps *meps, SRpcEpSet *ep) {
+void dnodeUpdateMnodeFromPeer(SDnMnEps *meps, SRpcEpSet *ep) {
   if (ep->numOfEps <= 0) {
     dError("mInfos is changed, but content is invalid, discard it");
     return;
@@ -296,7 +296,7 @@ void dnodeUpdateMnodeFromPeer(DnMnEps *meps, SRpcEpSet *ep) {
   pthread_mutex_unlock(&meps->mutex);
 }
 
-void dnodeGetEpSetForPeer(DnMnEps *meps, SRpcEpSet *epSet) {
+void dnodeGetEpSetForPeer(SDnMnEps *meps, SRpcEpSet *epSet) {
   pthread_mutex_lock(&meps->mutex);
 
   *epSet = meps->mnodeEpSet;
@@ -307,7 +307,7 @@ void dnodeGetEpSetForPeer(DnMnEps *meps, SRpcEpSet *epSet) {
   pthread_mutex_unlock(&meps->mutex);
 }
 
-void dnodeGetEpSetForShell(DnMnEps *meps, SRpcEpSet *epSet) {
+void dnodeGetEpSetForShell(SDnMnEps *meps, SRpcEpSet *epSet) {
   pthread_mutex_lock(&meps->mutex);
 
   *epSet = meps->mnodeEpSet;

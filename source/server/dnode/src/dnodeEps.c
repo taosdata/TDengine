@@ -20,7 +20,7 @@
 #include "dnodeEps.h"
 #include "dnodeCfg.h"
 
-static void dnodePrintEps(DnEps *eps) {
+static void dnodePrintEps(SDnEps *eps) {
   dDebug("print dnodeEp, dnodeNum:%d", eps->dnodeNum);
   for (int32_t i = 0; i < eps->dnodeNum; i++) {
     SDnodeEp *ep = &eps->dnodeList[i];
@@ -28,7 +28,7 @@ static void dnodePrintEps(DnEps *eps) {
   }
 }
 
-static void dnodeResetEps(DnEps *eps, SDnodeEps *data) {
+static void dnodeResetEps(SDnEps *eps, SDnodeEps *data) {
   assert(data != NULL);
 
   if (data->dnodeNum > eps->dnodeNum) {
@@ -48,7 +48,7 @@ static void dnodeResetEps(DnEps *eps, SDnodeEps *data) {
   }
 }
 
-static int32_t dnodeReadEps(DnEps *eps) {
+static int32_t dnodeReadEps(SDnEps *eps) {
   int32_t len = 0;
   int32_t maxLen = 30000;
   char *  content = calloc(1, maxLen + 1);
@@ -145,7 +145,7 @@ PRASE_EPS_OVER:
   return 0;
 }
 
-static int32_t dnodeWriteEps(DnEps *eps) {
+static int32_t dnodeWriteEps(SDnEps *eps) {
   FILE *fp = fopen(eps->file, "w");
   if (!fp) {
     dError("failed to write %s since %s", eps->file, strerror(errno));
@@ -182,8 +182,8 @@ static int32_t dnodeWriteEps(DnEps *eps) {
   return 0;
 }
 
-int32_t dnodeInitEps(DnEps **out) {
-  DnEps *eps = calloc(1, sizeof(DnEps));
+int32_t dnodeInitEps(SDnEps **out) {
+  SDnEps *eps = calloc(1, sizeof(SDnEps));
   if (eps == NULL) return -1;
 
   eps->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -203,8 +203,8 @@ int32_t dnodeInitEps(DnEps **out) {
   return ret;
 }
 
-void dnodeCleanupEps(DnEps **out) {
-  DnEps *eps = *out;
+void dnodeCleanupEps(SDnEps **out) {
+  SDnEps *eps = *out;
   *out = NULL;
 
   pthread_mutex_lock(&eps->mutex);
@@ -225,7 +225,7 @@ void dnodeCleanupEps(DnEps **out) {
   free(eps);
 }
 
-void dnodeUpdateEps(DnEps *eps, SDnodeEps *data) {
+void dnodeUpdateEps(SDnEps *eps, SDnodeEps *data) {
   if (data == NULL || data->dnodeNum <= 0) return;
 
   data->dnodeNum = htonl(data->dnodeNum);
@@ -250,7 +250,7 @@ void dnodeUpdateEps(DnEps *eps, SDnodeEps *data) {
   pthread_mutex_unlock(&eps->mutex);
 }
 
-bool dnodeIsDnodeEpChanged(DnEps *eps, int32_t dnodeId, char *epstr) {
+bool dnodeIsDnodeEpChanged(SDnEps *eps, int32_t dnodeId, char *epstr) {
   bool changed = false;
 
   pthread_mutex_lock(&eps->mutex);
@@ -269,7 +269,7 @@ bool dnodeIsDnodeEpChanged(DnEps *eps, int32_t dnodeId, char *epstr) {
 }
 
 void dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port) {
-  DnEps *eps = dnodeInst()->eps;
+  SDnEps *eps = dnodeInst()->eps;
   pthread_mutex_lock(&eps->mutex);
 
   SDnodeEp *ep = taosHashGet(eps->dnodeHash, &dnodeId, sizeof(int32_t));

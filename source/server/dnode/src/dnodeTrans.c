@@ -14,7 +14,7 @@
  */
 
 /* this file is mainly responsible for the communication between DNODEs. Each 
- * dnode works as both server and client. Dnode may send status, grant, config
+ * dnode works as both server and client. SDnode may send status, grant, config
  * messages to mnode, mnode may send create/alter/drop table/vnode messages 
  * to dnode. All theses messages are handled from here
  */
@@ -30,7 +30,7 @@
 #include "mnode.h"
 
 static void dnodeProcessPeerReq(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  Dnode * dnode = dnodeInst();
+  SDnode * dnode = dnodeInst();
   SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
 
   if (pMsg->pCont == NULL) return;
@@ -64,7 +64,7 @@ static void dnodeProcessPeerReq(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 }
 
-int32_t dnodeInitServer(DnTrans *trans) {
+int32_t dnodeInitServer(SDnTrans *trans) {
   trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE]  = vnodeProcessMsg;
   trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]    = vnodeProcessMsg;
   trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]   = vnodeProcessMsg;
@@ -106,7 +106,7 @@ int32_t dnodeInitServer(DnTrans *trans) {
   return 0;
 }
 
-void dnodeCleanupServer(DnTrans *trans) {
+void dnodeCleanupServer(SDnTrans *trans) {
   if (trans->serverRpc) {
     rpcClose(trans->serverRpc);
     trans->serverRpc = NULL;
@@ -115,7 +115,7 @@ void dnodeCleanupServer(DnTrans *trans) {
 }
 
 static void dnodeProcessRspFromPeer(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   if (dnode->main->runStatus == TD_RUN_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
     dTrace("msg:%p is ignored since dnode is stopping", pMsg);
@@ -141,7 +141,7 @@ static void dnodeProcessRspFromPeer(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   rpcFreeCont(pMsg->pCont);
 }
 
-int32_t dnodeInitClient(DnTrans *trans) {
+int32_t dnodeInitClient(SDnTrans *trans) {
   trans->peerMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP]  = mnodeProcessMsg;
   trans->peerMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE_RSP]    = mnodeProcessMsg;
   trans->peerMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP]   = mnodeProcessMsg;
@@ -186,7 +186,7 @@ int32_t dnodeInitClient(DnTrans *trans) {
   return 0;
 }
 
-void dnodeCleanupClient(DnTrans *trans) {
+void dnodeCleanupClient(SDnTrans *trans) {
   if (trans->clientRpc) {
     rpcClose(trans->clientRpc);
     trans->clientRpc = NULL;
@@ -195,7 +195,7 @@ void dnodeCleanupClient(DnTrans *trans) {
 }
 
 static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  Dnode * dnode = dnodeInst();
+  SDnode * dnode = dnodeInst();
   SRpcMsg rpcMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
 
   if (pMsg->pCont == NULL) return;
@@ -213,7 +213,7 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
     return;
   }
 
-  DnTrans *trans = dnode->trans;
+  SDnTrans *trans = dnode->trans;
   if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
     atomic_fetch_add_32(&trans->queryReqNum, 1);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
@@ -247,26 +247,26 @@ static int32_t dnodeAuthNetTest(char *user, char *spi, char *encrypt, char *secr
 }
 
 void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   rpcSendRequest(dnode->trans->clientRpc, epSet, rpcMsg, NULL);
 }
 
 void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
-  Dnode *   dnode = dnodeInst();
+  SDnode *   dnode = dnodeInst();
   SRpcEpSet epSet = {0};
   dnodeGetEpSetForPeer(dnode->meps, &epSet);
   dnodeSendMsgToDnode(&epSet, rpcMsg);
 }
 
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
-  Dnode *   dnode = dnodeInst();
+  SDnode *   dnode = dnodeInst();
   SRpcEpSet epSet = {0};
   dnodeGetEpSetForPeer(dnode->meps, &epSet);
   rpcSendRecv(dnode->trans->clientRpc, &epSet, rpcMsg, rpcRsp);
 }
 
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   rpcSendRecv(dnode->trans->clientRpc, epSet, rpcMsg, rpcRsp);
 }
 
@@ -303,7 +303,7 @@ static int32_t dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, c
   return rpcRsp.code;
 }
 
-int32_t dnodeInitShell(DnTrans *trans) {
+int32_t dnodeInitShell(SDnTrans *trans) {
   trans->shellMsgFp[TSDB_MSG_TYPE_SUBMIT] = vnodeProcessMsg;
   trans->shellMsgFp[TSDB_MSG_TYPE_QUERY]  = vnodeProcessMsg;
   trans->shellMsgFp[TSDB_MSG_TYPE_FETCH]  = vnodeProcessMsg;
@@ -376,15 +376,15 @@ int32_t dnodeInitShell(DnTrans *trans) {
   return 0;
 }
 
-void dnodeCleanupShell(DnTrans *trans) {
+void dnodeCleanupShell(SDnTrans *trans) {
   if (trans->shellRpc) {
     rpcClose(trans->shellRpc);
     trans->shellRpc = NULL;
   }
 }
 
-int32_t dnodeInitTrans(DnTrans **out) {
-  DnTrans *trans = calloc(1, sizeof(DnTrans));
+int32_t dnodeInitTrans(SDnTrans **out) {
+  SDnTrans *trans = calloc(1, sizeof(SDnTrans));
   if (trans == NULL) return -1;
 
   *out = trans;
@@ -404,8 +404,8 @@ int32_t dnodeInitTrans(DnTrans **out) {
   return 0;
 }
 
-void dnodeCleanupTrans(DnTrans **out) {
-  DnTrans* trans = *out;
+void dnodeCleanupTrans(SDnTrans **out) {
+  SDnTrans* trans = *out;
   *out = NULL;
 
   dnodeCleanupShell(trans);

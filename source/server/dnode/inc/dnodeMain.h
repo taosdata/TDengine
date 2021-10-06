@@ -27,14 +27,14 @@ typedef enum {
   TD_RUN_STAT_STOPPED
 } RunStat;
 
-typedef struct DnMain {
+typedef struct SDnMain {
   RunStat      runStatus;
   void *       dnodeTimer;
   SStartupStep startup;
-} DnMain;
+} SDnMain;
 
-int32_t dnodeInitMain(DnMain **main);
-void    dnodeCleanupMain(DnMain **main);
+int32_t dnodeInitMain(SDnMain **main);
+void    dnodeCleanupMain(SDnMain **main);
 int32_t dnodeInitStorage();
 void    dnodeCleanupStorage();
 void    dnodeReportStartup(char *name, char *desc);

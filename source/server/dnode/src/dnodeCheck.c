@@ -145,8 +145,8 @@ static int32_t dnodeCheckAccess() { return 0; }
 static int32_t dnodeCheckVersion() { return 0; }
 static int32_t dnodeCheckDatafile() { return 0; }
 
-int32_t dnodeInitCheck(DnCheck **out) {
-  DnCheck *check = calloc(1, sizeof(DnCheck));
+int32_t dnodeInitCheck(SDnCheck **out) {
+  SDnCheck *check = calloc(1, sizeof(SDnCheck));
   if (check == NULL) return -1;
 
   *out = check;
@@ -195,8 +195,8 @@ int32_t dnodeInitCheck(DnCheck **out) {
   return 0;
 }
 
-void dnodeCleanupCheck(DnCheck **out) {
-  DnCheck *check = *out;
+void dnodeCleanupCheck(SDnCheck **out) {
+  SDnCheck *check = *out;
   *out = NULL;
 
   free(check);

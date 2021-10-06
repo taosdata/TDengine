@@ -21,11 +21,11 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef struct DnCheck {
-} DnCheck;
+typedef struct SDnCheck {
+} SDnCheck;
 
-int32_t dnodeInitCheck(DnCheck **check);
-void    dnodeCleanupCheck(DnCheck **check);
+int32_t dnodeInitCheck(SDnCheck **check);
+void    dnodeCleanupCheck(SDnCheck **check);
 
 #ifdef __cplusplus
 }

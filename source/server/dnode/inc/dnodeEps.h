@@ -22,19 +22,19 @@ extern "C" {
 #include "hash.h"
 #include "dnodeInt.h"
 
-typedef struct DnEps {
+typedef struct SDnEps {
   int32_t         dnodeId;
   int32_t         dnodeNum;
   SDnodeEp *      dnodeList;
   SHashObj *      dnodeHash;
   char            file[PATH_MAX + 20];
   pthread_mutex_t mutex;
-} DnEps;
+} SDnEps;
 
-int32_t dnodeInitEps(DnEps **eps);
-void    dnodeCleanupEps(DnEps **eps);
-void    dnodeUpdateEps(DnEps *eps, SDnodeEps *data);
-bool    dnodeIsDnodeEpChanged(DnEps *eps, int32_t dnodeId, char *epstr);
+int32_t dnodeInitEps(SDnEps **eps);
+void    dnodeCleanupEps(SDnEps **eps);
+void    dnodeUpdateEps(SDnEps *eps, SDnodeEps *data);
+bool    dnodeIsDnodeEpChanged(SDnEps *eps, int32_t dnodeId, char *epstr);
 void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
 
 #ifdef __cplusplus
