@@ -27,6 +27,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <sched.h>
+#include <ctype.h>
 
 #include "osAtomic.h"
 #include "osDef.h"
