@@ -33,9 +33,10 @@
 #include "mnode.h"
 #include "vnode.h"
 
-static Dnode tsDnode = {0};
-
-Dnode *dnodeInst() { return &tsDnode; }
+SDnode *dnodeInst() {
+  static SDnode inst = {0};
+  return &inst;
+}
 
 static int32_t dnodeInitVnodeModule(void **unused) {
   SVnodePara para;
@@ -47,7 +48,7 @@ static int32_t dnodeInitVnodeModule(void **unused) {
 }
 
 static int32_t dnodeInitMnodeModule(void **unused) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
 
   SMnodePara para;
   para.fp.GetDnodeEp = dnodeGetDnodeEp;
@@ -64,7 +65,7 @@ int32_t dnodeInit() {
   struct SSteps *steps = taosStepInit(24, dnodeReportStartup);
   if (steps == NULL) return -1;
 
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
 
   taosStepAdd(steps, "dnode-main", (void **)&dnode->main, (InitFp)dnodeInitMain, (CleanupFp)dnodeCleanupMain);
   taosStepAdd(steps, "dnode-storage", NULL, (InitFp)dnodeInitStorage, (CleanupFp)dnodeCleanupStorage);
@@ -96,7 +97,7 @@ int32_t dnodeInit() {
 }
 
 void dnodeCleanup() {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   if (dnode->main->runStatus != TD_RUN_STAT_STOPPED) {
     dnode->main->runStatus = TD_RUN_STAT_STOPPED;
     taosStepCleanup(dnode->steps);

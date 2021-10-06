@@ -118,7 +118,7 @@ typedef struct {
 int32_t mnodeGetStatistics(SMnodeStat *stat);
 
 /**
- * Get the statistical information of Mnode.
+ * Get the auth information.
  *
  * @param user, username.
  * @param spi,  security parameter index.

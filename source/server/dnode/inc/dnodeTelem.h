@@ -25,17 +25,17 @@ extern "C" {
  * sem_timedwait is NOT implemented on MacOSX
  * thus we use pthread_mutex_t/pthread_cond_t to simulate
  */
-typedef struct DnTelem {
+typedef struct SDnTelem {
   bool             enable;
   pthread_mutex_t  lock;
   pthread_cond_t   cond;
   volatile int32_t exit;
   pthread_t        thread;
   char             email[TSDB_FQDN_LEN];
-} DnTelem;
+} SDnTelem;
 
-int32_t dnodeInitTelem(DnTelem **telem);
-void    dnodeCleanupTelem(DnTelem **telem);
+int32_t dnodeInitTelem(SDnTelem **telem);
+void    dnodeCleanupTelem(SDnTelem **telem);
 
 #ifdef __cplusplus
 }

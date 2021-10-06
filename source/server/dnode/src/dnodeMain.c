@@ -55,8 +55,8 @@ void dnodePrintDiskInfo() {
   dInfo("==================================");
 }
 
-int32_t dnodeInitMain(DnMain **out) {
-  DnMain* main = calloc(1, sizeof(DnMain));
+int32_t dnodeInitMain(SDnMain **out) {
+  SDnMain* main = calloc(1, sizeof(SDnMain));
   if (main == NULL) return -1;
 
   main->runStatus = TD_RUN_STAT_STOPPED;
@@ -101,8 +101,8 @@ int32_t dnodeInitMain(DnMain **out) {
   return taosCheckGlobalCfg();
 }
 
-void dnodeCleanupMain(DnMain **out) {
-  DnMain *main = *out;
+void dnodeCleanupMain(SDnMain **out) {
+  SDnMain *main = *out;
   *out = NULL;
 
   if (main->dnodeTimer != NULL) {
@@ -202,7 +202,7 @@ void dnodeCleanupStorage() {
 }
 
 void dnodeReportStartup(char *name, char *desc) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   if (dnode->main != NULL) {
     SStartupStep *startup = &dnode->main->startup;
     tstrncpy(startup->name, name, strlen(startup->name));
@@ -212,7 +212,7 @@ void dnodeReportStartup(char *name, char *desc) {
 }
 
 void dnodeReportStartupFinished(char *name, char *desc) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   SStartupStep *startup = &dnode->main->startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
@@ -222,7 +222,7 @@ void dnodeReportStartupFinished(char *name, char *desc) {
 void dnodeProcessStartupReq(SRpcMsg *pMsg) {
   dInfo("startup msg is received, cont:%s", (char *)pMsg->pCont);
 
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   SStartupStep *pStep = rpcMallocCont(sizeof(SStartupStep));
   memcpy(pStep, &dnode->main->startup, sizeof(SStartupStep));
 
@@ -234,7 +234,7 @@ void dnodeProcessStartupReq(SRpcMsg *pMsg) {
 }
 
 static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   SCreateMnodeMsg *pCfg = pMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   if (pCfg->dnodeId != dnode->cfg->dnodeId) {
@@ -254,7 +254,7 @@ static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
     dDebug("meps index:%d, meps:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
   }
 
-  if (mnodeIsServing(dnode->mnode)) return 0;
+  if (mnodeIsServing()) return 0;
 
   return mnodeDeploy(&pCfg->mnodes);
 }

@@ -154,14 +154,14 @@ static void dnodeAddMemoryInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void dnodeAddVersionInfo(DnTelem* telem, SBufferWriter* bw) {
+static void dnodeAddVersionInfo(SDnTelem* telem, SBufferWriter* bw) {
   dnodeAddStringField(bw, "version", version);
   dnodeAddStringField(bw, "buildInfo", buildinfo);
   dnodeAddStringField(bw, "gitInfo", gitinfo);
   dnodeAddStringField(bw, "email", telem->email);
 }
 
-static void dnodeAddRuntimeInfo(DnTelem* telem, SBufferWriter* bw) {
+static void dnodeAddRuntimeInfo(SDnTelem* telem, SBufferWriter* bw) {
   SMnodeStat stat = {0};
   if (mnodeGetStatistics(&stat) != 0) {
     return;
@@ -179,7 +179,7 @@ static void dnodeAddRuntimeInfo(DnTelem* telem, SBufferWriter* bw) {
   dnodeAddIntField(bw, "compStorage", stat.compStorage);
 }
 
-static void dnodeSendTelemetryReport(DnTelem* telem) {
+static void dnodeSendTelemetryReport(SDnTelem* telem) {
   char     buf[128] = {0};
   uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
@@ -192,7 +192,7 @@ static void dnodeSendTelemetryReport(DnTelem* telem) {
     return;
   }
 
-  Dnode *dnode = dnodeInst();
+  SDnode *dnode = dnodeInst();
   SBufferWriter bw = tbufInitWriter(NULL, false);
   dnodeBeginObject(&bw);
   dnodeAddStringField(&bw, "instanceId", dnode->cfg->clusterId);
@@ -227,7 +227,7 @@ static void dnodeSendTelemetryReport(DnTelem* telem) {
 }
 
 static void* dnodeTelemThreadFp(void* param) {
-  DnTelem* telem = param;
+  SDnTelem* telem = param;
 
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
@@ -253,7 +253,7 @@ static void* dnodeTelemThreadFp(void* param) {
   return NULL;
 }
 
-static void dnodeGetEmail(DnTelem* telem, char* filepath) {
+static void dnodeGetEmail(SDnTelem* telem, char* filepath) {
   int32_t fd = taosOpenFileRead(filepath);
   if (fd < 0) {
     return;
@@ -266,8 +266,8 @@ static void dnodeGetEmail(DnTelem* telem, char* filepath) {
   taosCloseFile(fd);
 }
 
-int32_t dnodeInitTelem(DnTelem** out) {
-  DnTelem* telem = calloc(1, sizeof(DnTelem));
+int32_t dnodeInitTelem(SDnTelem** out) {
+  SDnTelem* telem = calloc(1, sizeof(SDnTelem));
   if (telem == NULL) return -1;
 
   telem->enable = tsEnableTelemetryReporting;
@@ -296,8 +296,8 @@ int32_t dnodeInitTelem(DnTelem** out) {
   return 0;
 }
 
-void dnodeCleanupTelem(DnTelem** out) {
-  DnTelem* telem = *out;
+void dnodeCleanupTelem(SDnTelem** out) {
+  SDnTelem* telem = *out;
   *out = NULL;
 
   if (!telem->enable) {

@@ -18,7 +18,7 @@
 #include "cJSON.h"
 #include "dnodeCfg.h"
 
-static int32_t dnodeReadCfg(DnCfg *cfg) {
+static int32_t dnodeReadCfg(SDnCfg *cfg) {
   int32_t len = 0;
   int32_t maxLen = 200;
   char *  content = calloc(1, maxLen + 1);
@@ -76,7 +76,7 @@ PARSE_CFG_OVER:
   return 0;
 }
 
-static int32_t dnodeWriteCfg(DnCfg *cfg) {
+static int32_t dnodeWriteCfg(SDnCfg *cfg) {
   FILE *fp = fopen(cfg->file, "w");
   if (!fp) {
     dError("failed to write %s since %s", cfg->file, strerror(errno));
@@ -103,8 +103,8 @@ static int32_t dnodeWriteCfg(DnCfg *cfg) {
   return 0;
 }
 
-int32_t dnodeInitCfg(DnCfg **out) {
-  DnCfg* cfg = calloc(1, sizeof(DnCfg));
+int32_t dnodeInitCfg(SDnCfg **out) {
+  SDnCfg* cfg = calloc(1, sizeof(SDnCfg));
   if (cfg == NULL) return -1;
 
   cfg->dnodeId = 0;
@@ -127,15 +127,15 @@ int32_t dnodeInitCfg(DnCfg **out) {
   return ret;
 }
 
-void dnodeCleanupCfg(DnCfg **out) {
-  DnCfg* cfg = *out;
+void dnodeCleanupCfg(SDnCfg **out) {
+  SDnCfg* cfg = *out;
   *out = NULL;
 
   pthread_mutex_destroy(&cfg->mutex);
   free(cfg);
 }
 
-void dnodeUpdateCfg(DnCfg *cfg, SDnodeCfg *data) {
+void dnodeUpdateCfg(SDnCfg *cfg, SDnodeCfg *data) {
   if (cfg == NULL || cfg->dnodeId == 0) return;
 
   pthread_mutex_lock(&cfg->mutex);
@@ -148,14 +148,14 @@ void dnodeUpdateCfg(DnCfg *cfg, SDnodeCfg *data) {
   pthread_mutex_unlock(&cfg->mutex);
 }
 
-void dnodeSetDropped(DnCfg *cfg) {
+void dnodeSetDropped(SDnCfg *cfg) {
   pthread_mutex_lock(&cfg->mutex);
   cfg->dropped = 1;
   dnodeWriteCfg(cfg);
   pthread_mutex_unlock(&cfg->mutex);
 }
 
-int32_t dnodeGetDnodeId(DnCfg *cfg) {
+int32_t dnodeGetDnodeId(SDnCfg *cfg) {
   int32_t dnodeId = 0;
   pthread_mutex_lock(&cfg->mutex);
   dnodeId = cfg->dnodeId;
@@ -163,13 +163,13 @@ int32_t dnodeGetDnodeId(DnCfg *cfg) {
   return dnodeId;
 }
 
-void dnodeGetClusterId(DnCfg *cfg, char *clusterId) {
+void dnodeGetClusterId(SDnCfg *cfg, char *clusterId) {
   pthread_mutex_lock(&cfg->mutex);
   tstrncpy(clusterId, cfg->clusterId, TSDB_CLUSTER_ID_LEN);
   pthread_mutex_unlock(&cfg->mutex);
 }
 
-void dnodeGetCfg(DnCfg *cfg, int32_t *dnodeId, char *clusterId) {
+void dnodeGetCfg(SDnCfg *cfg, int32_t *dnodeId, char *clusterId) {
   pthread_mutex_lock(&cfg->mutex);
   *dnodeId = cfg->dnodeId;
   tstrncpy(clusterId, cfg->clusterId, TSDB_CLUSTER_ID_LEN);

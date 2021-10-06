@@ -27,32 +27,28 @@ extern "C" {
 #include "tstep.h"
 #include "dnode.h"
 
-struct DnCfg;
-struct DnCheck;
-struct DnEps;
-struct DnMnEps;
-struct DnStatus;
-struct DnTelem;
-struct DnTrans;
-struct DnMain;
-struct Mnode;
-struct Vnode;
+struct SDnCfg;
+struct SDnCheck;
+struct SDnEps;
+struct SDnMnEps;
+struct SDnStatus;
+struct SDnTelem;
+struct SDnTrans;
+struct SDnMain;
 
-typedef struct Dnode {
-  struct SSteps *  steps;
-  struct DnCfg *   cfg;
-  struct DnCheck * check;
-  struct DnEps *   eps;
-  struct DnMnEps * meps;
-  struct DnStatus *status;
-  struct DnTelem * telem;
-  struct DnTrans * trans;
-  struct DnMain *  main;
-  struct Mnode *   mnode;
-  struct Vnode *   vnode;
-} Dnode;
+typedef struct SDnode {
+  struct SSteps*    steps;
+  struct SDnCfg*    cfg;
+  struct SDnCheck*  check;
+  struct SDnEps*    eps;
+  struct SDnMnEps*  meps;
+  struct SDnStatus* status;
+  struct SDnTelem*  telem;
+  struct SDnTrans*  trans;
+  struct SDnMain*   main;
+} SDnode;
 
-Dnode* dnodeInst();
+SDnode* dnodeInst();
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", 255, __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", 255, __VA_ARGS__); }}

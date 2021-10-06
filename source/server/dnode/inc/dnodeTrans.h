@@ -23,7 +23,7 @@ extern "C" {
 
 typedef void (*RpcMsgFp)( SRpcMsg *pMsg);
 
-typedef struct DnTrans {
+typedef struct SDnTrans {
   void *   serverRpc;
   void *   clientRpc;
   void *   shellRpc;
@@ -31,11 +31,10 @@ typedef struct DnTrans {
   int32_t  submitReqNum;
   RpcMsgFp peerMsgFp[TSDB_MSG_TYPE_MAX];
   RpcMsgFp shellMsgFp[TSDB_MSG_TYPE_MAX];
+} SDnTrans;
 
-} DnTrans;
-
-int32_t dnodeInitTrans(DnTrans **rans);
-void    dnodeCleanupTrans(DnTrans **trans);
+int32_t dnodeInitTrans(SDnTrans **rans);
+void    dnodeCleanupTrans(SDnTrans **trans);
 void    dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
 void    dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
 void    dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);

@@ -21,19 +21,19 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef struct DnMnEps {
+typedef struct SDnMnEps {
   SRpcEpSet       mnodeEpSet;
   SMInfos         mnodeInfos;
   char            file[PATH_MAX + 20];
   pthread_mutex_t mutex;
-} DnMnEps;
+} SDnMnEps;
 
-int32_t dnodeInitMnodeEps(DnMnEps **meps);
-void    dnodeCleanupMnodeEps(DnMnEps **meps);
-void    dnodeUpdateMnodeFromStatus(DnMnEps *meps, SMInfos *pMinfos);
-void    dnodeUpdateMnodeFromPeer(DnMnEps *meps, SRpcEpSet *pEpSet);
-void    dnodeGetEpSetForPeer(DnMnEps *meps, SRpcEpSet *epSet);
-void    dnodeGetEpSetForShell(DnMnEps *meps, SRpcEpSet *epSet);
+int32_t dnodeInitMnodeEps(SDnMnEps **meps);
+void    dnodeCleanupMnodeEps(SDnMnEps **meps);
+void    dnodeUpdateMnodeFromStatus(SDnMnEps *meps, SMInfos *pMinfos);
+void    dnodeUpdateMnodeFromPeer(SDnMnEps *meps, SRpcEpSet *pEpSet);
+void    dnodeGetEpSetForPeer(SDnMnEps *meps, SRpcEpSet *epSet);
+void    dnodeGetEpSetForShell(SDnMnEps *meps, SRpcEpSet *epSet);
 void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus
