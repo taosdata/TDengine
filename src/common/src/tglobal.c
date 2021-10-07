@@ -1652,7 +1652,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  // flush vnode wal file if walSize >= walFlushSize and walSize >= cache*blocks*0.5
+  // flush vnode wal file if walSize > walFlushSize and walSize > cache*0.5*blocks
   cfg.option = "walFlushSize";
   cfg.ptr = &tsdbWalFlushSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
