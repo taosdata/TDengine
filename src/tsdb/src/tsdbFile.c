@@ -431,7 +431,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_LATEST_FVER);  // only makesure the paramter sfver > 0
+  pBuf = tsdbDecodeDFInfo(pBuf, pInfo, TSDB_LATEST_FVER);  // only make sure the parameter sfver > 0
   return 0;
 }
 
