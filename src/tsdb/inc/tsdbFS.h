@@ -40,8 +40,6 @@ static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest v
   }
 }
 
-int tsdbRefactorFS(STsdbRepo *pRepo);
-
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;
 

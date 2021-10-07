@@ -342,12 +342,6 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     return -1;
   }
 
-  // TODO: seems not need, remove this logic. 2021-09-29 13:00
-  if (tsdbEnableUpgradeFile && tsdbRefactorFS(pRepo) < 0) {
-    tsdbError("vgId:%d failed to refactor FS since %s", REPO_ID(pRepo), tstrerror(terrno));
-    return -1;
-  }
-
   // Load meta cache if has meta file
   if ((!(pRepo->state & TSDB_STATE_BAD_META)) && tsdbLoadMetaCache(pRepo, true) < 0) {
     tsdbError("vgId:%d failed to open FS while loading meta cache since %s", REPO_ID(pRepo), tstrerror(terrno));

@@ -111,7 +111,6 @@ extern int8_t  tsCacheLastRow;
 //tsdb 
 extern bool tsdbForceKeepFile;
 extern bool tsdbForceCompactFile;
-extern bool tsdbEnableUpgradeFile;
 
 // balance
 extern int8_t  tsEnableBalance;
