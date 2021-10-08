@@ -16,7 +16,7 @@
 #ifndef _TD_META_H_
 #define _TD_META_H_
 
-#include "taosMsg.h"
+#include "taosmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
