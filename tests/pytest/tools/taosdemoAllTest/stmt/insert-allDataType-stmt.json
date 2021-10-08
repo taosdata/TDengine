@@ -11,7 +11,7 @@
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 10,
-    "num_of_records_per_req": 1,
+    "num_of_records_per_req": 1000,
     "max_sql_len": 1024000,
     "databases": [{
         "dbinfo": {
@@ -40,7 +40,7 @@
             "auto_create_table": "no",
             "batch_create_tbl_num": 1,
             "data_source": "rand",
-            "insert_mode": "taosc",
+            "insert_mode": "stmt",
             "insert_rows": 100,
             "childtable_limit": 0,
             "childtable_offset":0,
@@ -55,8 +55,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}],
-            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]
+            "columns": [{"type": "INT"}, {"type": "TIMESTAMP"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 16, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 16, "count":1}],
+            "tags": [{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 16, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 16, "count":1}]
         },
         {
             "name": "stb1",
@@ -66,7 +66,7 @@
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
-            "insert_mode": "taosc",
+            "insert_mode": "stmt",
             "insert_rows": 200,
             "childtable_limit": 0,
             "childtable_offset":0,
