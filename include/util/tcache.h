@@ -22,7 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "tlockfree.h"
-#include "hash.h"
+#include "thash.h"
 
 #if defined(_TD_ARM_32) 
   #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_INT

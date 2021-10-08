@@ -28,28 +28,28 @@ extern "C" {
 #define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 typedef enum {
-  TAOS_QTYPE_RPC   = 0,
-  TAOS_QTYPE_FWD   = 1,
-  TAOS_QTYPE_WAL   = 2,
-  TAOS_QTYPE_CQ    = 3,
-  TAOS_QTYPE_QUERY = 4
+  TAOS_QTYPE_RPC   = 1,
+  TAOS_QTYPE_FWD   = 2,
+  TAOS_QTYPE_WAL   = 3,
+  TAOS_QTYPE_CQ    = 4,
+  TAOS_QTYPE_QUERY = 5
 } EQType;
 
 typedef enum {
-  TSDB_SUPER_TABLE  = 0,   // super table
-  TSDB_CHILD_TABLE  = 1,   // table created from super table
-  TSDB_NORMAL_TABLE = 2,   // ordinary table
-  TSDB_STREAM_TABLE = 3,   // table created from stream computing
-  TSDB_TEMP_TABLE   = 4,   // temp table created by nest query
-  TSDB_TABLE_MAX    = 5
+  TSDB_SUPER_TABLE  = 1,   // super table
+  TSDB_CHILD_TABLE  = 2,   // table created from super table
+  TSDB_NORMAL_TABLE = 3,   // ordinary table
+  TSDB_STREAM_TABLE = 4,   // table created from stream computing
+  TSDB_TEMP_TABLE   = 5,   // temp table created by nest query
+  TSDB_TABLE_MAX    = 6
 } ETableType;
 
 typedef enum {
-  TSDB_MOD_MNODE   = 0,
-  TSDB_MOD_HTTP    = 1,
-  TSDB_MOD_MONITOR = 2,
-  TSDB_MOD_MQTT    = 3,
-  TSDB_MOD_MAX     = 4
+  TSDB_MOD_MNODE   = 1,
+  TSDB_MOD_HTTP    = 2,
+  TSDB_MOD_MONITOR = 3,
+  TSDB_MOD_MQTT    = 4,
+  TSDB_MOD_MAX     = 5
 } EModuleType;
 
 typedef enum {

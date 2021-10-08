@@ -16,7 +16,7 @@
 #include "os.h"
 #include "tbuffer.h"
 #include "exception.h"
-#include "taoserror.h"
+//#include "taoserror.h"
 
 typedef union Un4B {
   uint32_t ui;
@@ -41,7 +41,7 @@ static_assert(sizeof(Un8B) == sizeof(double), "sizeof(Un8B) must equal to sizeof
 
 size_t tbufSkip(SBufferReader* buf, size_t size) {
   if( (buf->pos + size) > buf->size ) {
-    THROW( TSDB_CODE_COM_MEMORY_CORRUPTED );
+    THROW( -1 );
   }
   size_t old = buf->pos;
   buf->pos += size;
@@ -73,7 +73,7 @@ const char* tbufReadString( SBufferReader* buf, size_t* len ) {
   const char* ret = buf->data + buf->pos;
   tbufSkip( buf, l + 1 );
   if( ret[l] != 0 ) {
-    THROW( TSDB_CODE_COM_MEMORY_CORRUPTED );
+    THROW( -1 );
   }
   if( len != NULL ) {
     *len = l;
@@ -228,7 +228,7 @@ void tbufEnsureCapacity( SBufferWriter* buf, size_t size ) {
     char* data = (*buf->allocator)( buf->data, nsize );
     // TODO: the exception should be thrown by the allocator function
     if( data == NULL ) {
-      THROW( TSDB_CODE_COM_OUT_OF_MEMORY );
+      THROW( -1 );
     }
     buf->data = data;
     buf->size = nsize;

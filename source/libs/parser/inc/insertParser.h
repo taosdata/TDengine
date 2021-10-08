@@ -13,4 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "schedulerInt.h"
+#ifndef TDENGINE_INSERTPARSER_H
+#define TDENGINE_INSERTPARSER_H
+
+#endif  // TDENGINE_INSERTPARSER_H

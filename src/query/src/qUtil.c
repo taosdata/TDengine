@@ -19,10 +19,10 @@
 
 #include "qExecutor.h"
 #include "qUtil.h"
-#include "tbuffer.h"
-#include "tlosertree.h"
 #include "queryLog.h"
-#include "tscompression.h"
+#include "tbuffer.h"
+#include "tcompression.h"
+#include "tlosertree.h"
 
 typedef struct SCompSupporter {
   STableQueryInfo **pTableQueryInfo;

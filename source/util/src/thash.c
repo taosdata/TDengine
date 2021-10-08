@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "hash.h"
+#include "thash.h"
 #include "ulog.h"
 #include "tdef.h"
 
@@ -24,7 +24,7 @@
 
 #define DO_FREE_HASH_NODE(_n) \
   do {                        \
-    tfree(_n);            \
+    tfree(_n);                \
   } while (0)
 
 #define FREE_HASH_NODE(_h, _n)  \
@@ -47,7 +47,6 @@ static FORCE_INLINE void __rd_lock(void *lock, int32_t type) {
   if (type == HASH_NO_LOCK) {
     return;
   }
-
   taosRLockLatch(lock);
 }
 
@@ -296,8 +295,9 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashGetClone(pHashObj, key, keyLen, NULL, NULL);
+  return taosHashGetClone(pHashObj, key, keyLen, NULL);
 }
+
 //TODO(yihaoDeng), merge with taosHashGetClone
 void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz) {
   if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
@@ -361,7 +361,7 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
   return data;
 }
 
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d) {
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* d) {
   if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }
@@ -395,8 +395,8 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void 
 
   SHashNode *pNode = doSearchInEntryList(pHashObj, pe, key, keyLen, hashVal);
   if (pNode != NULL) {
-    if (fp != NULL) {
-      fp(GET_HASH_NODE_DATA(pNode));
+    if (pHashObj->callbackFp != NULL) {
+      pHashObj->callbackFp(GET_HASH_NODE_DATA(pNode));
     }
 
     if (d != NULL) {
@@ -414,11 +414,7 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void 
   return data;
 }
 
-int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashRemoveWithData(pHashObj, key, keyLen, NULL, 0);
-}
-
-int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t dsize) {
+int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen/*, void *data, size_t dsize*/) {
   if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
     return -1;
   }
@@ -449,7 +445,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   SHashNode *prevNode = NULL;
 
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0)
       break;
 
     prevNode = pNode;
@@ -467,14 +463,14 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
       } else {
         pe->next = pNode->next;
       }
-   
-      if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
+
+//      if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
 
       pe->num--;
       atomic_sub_fetch_64(&pHashObj->size, 1);
       FREE_HASH_NODE(pHashObj, pNode);
     }
-  } 
+  }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosWUnLockLatch(&pe->latch);

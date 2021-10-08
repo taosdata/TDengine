@@ -19,7 +19,7 @@
 
 #include "tcompare.h"
 #include "ulog.h"
-#include "hash.h"
+#include "thash.h"
 #include "regex.h"
 #include "os.h"
 #include "tdef.h"

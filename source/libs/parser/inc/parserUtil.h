@@ -13,4 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "schedulerInt.h"
+#ifndef TDENGINE_PARSERUTIL_H
+#define TDENGINE_PARSERUTIL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // TDENGINE_PARSERUTIL_H

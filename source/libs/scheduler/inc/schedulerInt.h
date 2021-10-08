@@ -20,6 +20,17 @@
 extern "C" {
 #endif
 
+#include "os.h"
+#include "tarray.h"
+#include "planner.h"
+#include "scheduler.h"
+
+typedef struct SQuery {
+  SArray     **pSubquery;
+  int32_t      numOfLevels;
+  int32_t      currentLevel;
+} SQuery;
+
 #ifdef __cplusplus
 }
 #endif

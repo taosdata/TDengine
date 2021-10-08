@@ -20,6 +20,40 @@
 extern "C" {
 #endif
 
+#include "catalog.h"
+#include "tname.h"
+#include "astGenerator.h"
+
+struct SSqlNode;
+
+typedef struct SInsertStmtInfo {
+  SHashObj *pTableBlockHashList;     // data block for each table
+  SArray   *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
+  int8_t    schemaAttached;          // denote if submit block is built with table schema or not
+  uint8_t   payloadType;             // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+  uint32_t  insertType;              // insert data from [file|sql statement| bound statement]
+  char     *sql;                     // current sql statement position
+} SInsertStmtInfo;
+
+/**
+ * Validate the sql info, according to the corresponding metadata info from catalog.
+ * @param pCatalog
+ * @param pSqlInfo
+ * @param pQueryInfo a bounded AST with essential meta data from local buffer or mgmt node
+ * @param id
+ * @param msg
+ * @return
+ */
+int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg);
+
+/**
+ *
+ * @param pSqlNode
+ * @param pMetaInfo
+ * @return
+ */
+int32_t qParserExtractRequestedMetaInfo(const struct SSqlNode* pSqlNode, SMetaReq* pMetaInfo);
+
 #ifdef __cplusplus
 }
 #endif

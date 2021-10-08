@@ -14,10 +14,9 @@
  */
 
 #include "os.h"
-#include "hashfunc.h"
+#include "thash.h"
 #include "tcompare.h"
 #include "tdef.h"
-#include "tutil.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 

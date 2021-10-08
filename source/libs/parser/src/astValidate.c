@@ -13,4 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "schedulerInt.h"
+
+#include "parserInt.h"
+
+int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg) {
+  //1. if it is a query, get the meta info and continue.
+
+
+
+//  qParserExtractRequestedMetaInfo(pInfo->)
+  return 0;
+}

@@ -19,17 +19,17 @@
 
 #include "exception.h"
 #include "hash.h"
-#include "texpr.h"
 #include "qExecutor.h"
 #include "qResultbuf.h"
+#include "qScript.h"
 #include "qUtil.h"
 #include "queryLog.h"
-#include "tlosertree.h"
-#include "ttype.h"
 #include "tcompare.h"
-#include "tscompression.h"
-#include "qScript.h"
+#include "tcompression.h"
+#include "texpr.h"
+#include "tlosertree.h"
 #include "tscLog.h"
+#include "ttype.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)

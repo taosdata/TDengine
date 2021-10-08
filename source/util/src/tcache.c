@@ -19,8 +19,6 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tcache.h"
-#include "hash.h"
-#include "hashfunc.h"
 
 static FORCE_INLINE void __cache_wr_lock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
@@ -245,7 +243,8 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
   } else {  // duplicated key exists
     while (1) {
       SCacheDataNode* p = NULL;
-      int32_t ret = taosHashRemoveWithData(pCacheObj->pHashTable, key, keyLen, (void*) &p, sizeof(void*));
+//      int32_t ret = taosHashRemoveWithData(pCacheObj->pHashTable, key, keyLen, (void*) &p, sizeof(void*));
+      int32_t ret = taosHashRemove(pCacheObj->pHashTable, key, keyLen);
 
       // add to trashcan
       if (ret == 0) {
@@ -305,7 +304,8 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   }
 
   SCacheDataNode* ptNode = NULL;
-  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode);
+  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, &ptNode);
+//  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode);
 
   void* pData = (ptNode != NULL)? ptNode->data:NULL;
 
@@ -528,7 +528,7 @@ static bool travHashTableEmptyFn(void* param, void* data) {
 void taosCacheEmpty(SCacheObj *pCacheObj) {
   SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = NULL, .time = taosGetTimestampMs()};
 
-  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableEmptyFn, &sup);
+//  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableEmptyFn, &sup);
   taosTrashcanEmpty(pCacheObj, false);
 }
 

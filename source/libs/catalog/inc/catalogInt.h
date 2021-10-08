@@ -20,6 +20,13 @@
 extern "C" {
 #endif
 
+#include "catalog.h"
+
+typedef struct SCatalog {
+  void       *pMsgSender;   // used to send messsage to mnode to fetch necessary metadata
+  SHashObj   *pData;        // items cached for each cluster, the hash key is the cluster-id, returned by mgmt node
+} SCatalog;
+
 #ifdef __cplusplus
 }
 #endif
