@@ -20,6 +20,25 @@
 extern "C" {
 #endif
 
+#include "os.h"
+#include "tarray.h"
+#include "planner.h"
+#include "scheduler.h"
+
+typedef struct SSubquery {
+  int64_t   taskId; // the task id created by qnode
+  int32_t   type;
+  int32_t   level;
+  struct SQueryPhyNode *pNode;
+  SArray   *pUpstream;
+} SSubquery;
+
+typedef struct SQuery {
+  SArray     **pSubquery;
+  int32_t      numOfLevels;
+  int32_t      currentLevel;
+} SQuery;
+
 #ifdef __cplusplus
 }
 #endif

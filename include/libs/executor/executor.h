@@ -29,8 +29,7 @@ typedef void* qinfo_t;
  * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo, uint64_t qId);
-
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableInfo* pQueryTableMsg, qinfo_t* qinfo, uint64_t qId);
 
 /**
  * the main query execution function, including query on both table and multiple tables,

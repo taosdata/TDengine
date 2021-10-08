@@ -14,5 +14,42 @@
  */
 
 #include "parserInt.h"
-#include "astGen.h"
 #include "ttoken.h"
+#include "astGenerator.h"
+
+bool qIsInsertSql(const char* pStr, size_t length) {
+  return false;
+}
+
+int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg) {
+  *pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
+  if (*pQueryInfo == NULL) {
+    return -1; // set correct error code.
+  }
+
+  SSqlInfo info = genAST(pStr);
+  if (!info.valid) {
+    strcpy(msg, info.msg);
+    return -1; // set correct error code.
+  }
+
+  struct SCatalog* pCatalog = getCatalogHandle(NULL);
+  int32_t code = qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg);
+  if (code != 0) {
+    return code;
+  }
+
+  return 0;
+}
+
+int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg) {
+  return 0;
+}
+
+int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
+  return 0;
+}
+
+int32_t qParserExtractRequestedMetaInfo(const struct SSqlNode* pSqlNode, SMetaReq* pMetaInfo) {
+  return 0;
+}

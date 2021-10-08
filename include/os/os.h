@@ -28,6 +28,9 @@ extern "C" {
 #include <string.h>
 #include <sched.h>
 #include <ctype.h>
+#include <errno.h>
+#include <float.h>
+#include <math.h>
 
 #include "osAtomic.h"
 #include "osDef.h"

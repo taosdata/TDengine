@@ -25,6 +25,7 @@ extern "C" {
 #include "tarray.h"
 #include "taosdef.h"
 #include "transport.h"
+#include "common.h"
 
 struct SCatalog;
 
@@ -62,13 +63,6 @@ typedef struct SCTableMeta {
   uint64_t uid;
   uint64_t suid;
 } SCTableMeta;
-
-typedef struct SSchema {
-  uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
-  int16_t colId;
-  int16_t bytes;
-} SSchema;
 
 /*
  * Note that the first 24 bytes of STableMeta are identical to SCTableMeta, it is safe to cast a STableMeta to be a SCTableMeta.
