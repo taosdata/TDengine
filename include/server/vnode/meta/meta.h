@@ -18,16 +18,42 @@
 
 #include "taosMsg.h"
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SMeta SMeta;
+typedef uint64_t tuid_t;
 
-int metaCreateTable(SMeta *pMeta, SCreateTableReq *pReq);
-int metaDropTable(SMeta *pMeta, SDropTableReq *pReq);
-int metaAlterTable(SMeta *pMeta, SAlterTableReq *pReq);
-int metaCommit(SMeta *pMeta);
+// Types exported
+typedef struct SMeta             SMeta;
+typedef struct SMetaOptions      SMetaOptions;
+typedef struct SMetaQueryHandle  SMetaQueryHandle;
+typedef struct SMetaQueryOptions SMetaQueryOptions;
+
+// SMeta operations
+int    metaCreate(const char *path);
+int    metaDestroy(const char *path);
+SMeta *metaOpen(SMetaOptions *);
+void   metaClose(SMeta *);
+int    metaCreateTable(SMeta *, void *);
+int    metaDropTable(SMeta *, uint64_t tuid_t);
+int    metaAlterTable(SMeta *, void *);
+int    metaCommit(SMeta *);
+
+// Options
+SMetaOptions *metaOptionsCreate();
+void          metaOptionsDestroy(SMetaOptions *);
+void          metaOptionsSetCache(SMetaOptions *, size_t capacity);
+
+// SMetaQueryHandle
+SMetaQueryHandle *metaQueryHandleCreate(SMetaQueryOptions *);
+void              metaQueryHandleDestroy(SMetaQueryHandle *);
+
+// SMetaQueryOptions
+SMetaQueryOptions *metaQueryOptionsCreate();
+void               metaQueryOptionsDestroy(SMetaQueryOptions *);
 
 #ifdef __cplusplus
 }

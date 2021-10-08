@@ -23,33 +23,60 @@
 extern "C" {
 #endif
 
-typedef struct STsdb STsdb;
-typedef struct {
-  int32_t id; // TODO: use a global definition
-  int32_t days;
-  int32_t keep;
-  int32_t keep1;
-  int32_t keep2;
-  int32_t minRows;
-  int32_t maxRows;
-  int8_t  precision;
-  int8_t  update;
-} STsdbCfg;
+// Types exported
+typedef struct STsdb             STsdb;
+typedef struct STsdbOptions      STsdbOptions;
+typedef struct STsdbSMAOptions   STsdbSMAOptions;  // SMA stands for Small Materialized Aggregation
+typedef struct STsdbReadOptions  STsdbReadOptions;
+typedef struct STsdbSnapshot     STsdbSnapshot;
+typedef struct STsdbQueryHandle  STsdbQueryHandle;
 
-// Module init and clear
-int tsdbInit();
-int tsdbClear();
+// DB operations
+int    tsdbCreate(const char *path);
+int    tsdbDestroy(const char *path);
+STsdb *tsdbOpen(const STsdbOptions *options);
+void   tsdbClose(STsdb *);
+int    tsdbReset(STsdb *, const STsdbOptions *);
+int    tsdbInsert(STsdb *, SSubmitReq *, SSubmitRsp *);
+int    tsdbCommit(STsdb *);
+int    tsdbCompact(STsdb *);
 
-// Repository operations
-int    tsdbCreateRepo(int id);
-int    tsdbDropRepo(int id);
-STsdb *tsdbOpenRepo(STsdbCfg *pCfg);
-int    tsdbCloseRepo(STsdb *pTsdb);
-int    tsdbForceCloseRepo(STsdb *pTsdb);
+// Options
+STsdbOptions *tsdbOptionsCreate();
+void          tsdbOptionsDestroy(STsdbOptions *);
+void          tsdbOptionsSetId(STsdbOptions *, int id);
+void          tsdbOptionsSetHoursPerFile(STsdbOptions *, int hours);
+void          tsdbOptionsSetRetention(STsdbOptions *, int keep, int keep1, int keep2);
+void          tsdbOptionsSetMinAndMaxRows(STsdbOptions *, int minRows, int maxRows);
+void          tsdbOptionsSetPrecision(STsdbOptions *, int);
+void          tsdbOptionsSetCache(STsdbOptions *, int);
+typedef enum { TSDB_NO_UPDATE = 0, TSDB_WHOLE_ROW_UPDATE = 1, TSDB_PARTIAL_ROW_UPDATE = 2 } ETsdbUpdateType;
+void tsdbOptionsSetUpdate(STsdbOptions *, ETsdbUpdateType);
+void tsdbOptionsSetSMA(STsdbOptions *, STsdbSMAOptions *);
 
-// Data commit
-int tsdbInsert(STsdb *pTsdb, SSubmitReq *pMsg);
-int tsdbCommit(STsdb *pTsdb);
+// STsdbSMAOptions
+STsdbSMAOptions *tsdbSMAOptionsCreate();
+void             tsdbSMAOptionsDestroy(STsdbSMAOptions *);
+void             tsdbSMAOptionsSetFuncs(STsdbSMAOptions *, SArray * /*Array of function to perform on each block*/);
+void             tsdbSMAOptionsSetIntervals(STsdbSMAOptions *, SArray *);
+void             tsdbSMAOptionsSetColTypes(STsdbSMAOptions *, SArray *);
+
+// STsdbQueryHandle
+STsdbQueryHandle *tsdbQueryHandleCreate(STsdb *, STsdbReadOptions *);
+void              tsdbQueryHandleDestroy(STsdbQueryHandle *);
+void              tsdbResetQueryHandle(STsdbQueryHandle *, STsdbReadOptions *);
+bool              tsdbNextDataBlock(STsdbQueryHandle *);
+void              tsdbGetDataBlockInfo(STsdbQueryHandle *, SDataBlockInfo *);
+void              tsdbGetDataBlockStatisInfo(STsdbQueryHandle *, SDataStatis **);
+
+// STsdbReadOptions
+STsdbReadOptions *tsdbReadOptionsCreate();
+void              tsdbReadOptionsDestroy(STsdbReadOptions *);
+void              tsdbReadOptionsSetSnapshot(STsdbReadOptions *, STsdbSnapshot *);
+
+// STsdbSnapshot
+STsdbSnapshot *tsdbSnapshotCreate(STsdb *);
+void           tsdbSnapshotDestroy(STsdbSnapshot *);
 
 #ifdef __cplusplus
 }
