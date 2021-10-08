@@ -1149,6 +1149,10 @@ static int64_t dumpNormalTable(
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
         if (colCount < 0) {
+            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
+                    __func__,
+                    __LINE__,
+                    tbName);
             free(tableDes);
             return -1;
         }
@@ -1160,6 +1164,10 @@ static int64_t dumpNormalTable(
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
         if (colCount < 0) {
+            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
+                    __func__,
+                    __LINE__,
+                    tbName);
             free(tableDes);
             return -1;
         }
@@ -1172,6 +1180,9 @@ static int64_t dumpNormalTable(
     if (g_args.avro) {
         if (0 != convertTbDesToAvroSchema(
                     dbName, tbName, tableDes, colCount, &jsonAvroSchema)) {
+            errorPrint("%s() LN%d, convertTbDesToAvroSchema failed\n",
+                    __func__,
+                    __LINE__);
             freeTbDes(tableDes);
             return -1;
         }
@@ -1281,20 +1292,23 @@ static void *dumpNtbOfDb(void *arg) {
         return NULL;
     }
 
+    int64_t count;
     for (int64_t i = 0; i < pThreadInfo->tablesOfDumpOut; i++) {
         debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
                 pThreadInfo->threadIndex, i,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
-        dumpNormalTable(
+        count = dumpNormalTable(
                 pThreadInfo->dbName,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
                 pThreadInfo->precision,
                 fp);
+        if (count < 0) {
+            break;
+        }
     }
 
     fclose(fp);
-
     return NULL;
 }
 
@@ -1340,16 +1354,20 @@ static void *dumpNormalTablesOfStb(void *arg) {
 
     TAOS_ROW row = NULL;
     int64_t i = 0;
+    int64_t count;
     while((row = taos_fetch_row(res)) != NULL) {
         debugPrint("[%d] sub table %"PRId64": name: %s\n",
                 pThreadInfo->threadIndex, i++, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
 
-        dumpNormalTable(
+        count = dumpNormalTable(
                 pThreadInfo->dbName,
                 pThreadInfo->stbName,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 pThreadInfo->precision,
                 fp);
+        if (count < 0) {
+            break;
+        }
     }
 
     fclose(fp);
@@ -2006,9 +2024,9 @@ static int getTableDes(
 
         if (row[TSDB_SHOW_TABLES_NAME_INDEX] == NULL) {
             sprintf(tableDes->cols[i].note, "%s", "NUL");
+            sprintf(tableDes->cols[i].value, "%s", "NULL");
             taos_free_result(res);
             res = NULL;
-            taos_close(taos);
             continue;
         }
 
