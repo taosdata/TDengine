@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+//implement the array index
+//implement the ring buffer
+
 #ifdef __cplusplus
 }
 #endif

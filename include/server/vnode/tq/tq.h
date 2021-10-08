@@ -16,13 +16,29 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct STQ STQ;
 
-int tqPushMsg(void *);
+STQ* tqInit();
+void tqCleanUp(STQ* pTQ);
+
+//create persistent storage for meta info such as consuming offset
+//return value > 0: cgId
+//return value < 0: error code
+int tqCreateGroup(STQ *pTQ);
+//create ring buffer in memory and load consuming offset
+int tqOpenGroup(STQ* pTQ, int cgId);
+//destroy ring buffer and persist consuming offset
+int tqCloseGroup(STQ *pTQ, int cgId);
+//delete persistent storage for meta info
+int tqDropGroup(STQ *pTQ);
+
+int tqPushMsg(STQ *pTQ, void *, int64_t version);
 int tqCommit(STQ *pTQ);
 
 #ifdef __cplusplus

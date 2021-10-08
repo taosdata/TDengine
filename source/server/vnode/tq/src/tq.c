@@ -15,5 +15,12 @@
 
 #include "tq.h"
 
-int tqPushMsg(void * p) {return 0;}
-int tqCommit(STQ *pTQ) {return 0;}
+int tqPushMsg(STQ *pTQ, void * p, int64_t version) {
+  //add reference
+  //
+  return 0;
+}
+
+int tqCommit(STQ *pTQ) {
+  return 0;
+}
