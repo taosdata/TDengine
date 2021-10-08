@@ -15,12 +15,10 @@
 
 #include "os.h"
 
-#include "hash.h"
-#include "hashfunc.h"
+#include "thash.h"
 #include "taosdef.h"
 #include "ttoken.h"
 #include "ttokendef.h"
-#include "tutil.h"
 
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {
@@ -575,12 +573,12 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken) {
+SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
   char *src = *str;
   size_t nsize = strlen(newToken);
   int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SStrToken ntoken;
+  SToken ntoken;
 
   *str = calloc(1, size);
 
@@ -596,8 +594,8 @@ SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken)
   return ntoken;
 }
 
-SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
-  SStrToken t0 = {0};
+SToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
+  SToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
   if (str[*i] == 0) {
@@ -689,9 +687,9 @@ void taosCleanupKeywordsTable() {
   }
 }
 
-SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len) {
+SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
   assert(pToken != NULL && buf != NULL);
-  SStrToken token = *pToken;
+  SToken token = *pToken;
   token.z = buf;
 
   assert(len > token.n);

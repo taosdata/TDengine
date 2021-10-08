@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "../../../include/client/taos.h"
 #include "os.h"
-#include "taos.h"
-#include "tulog.h"
-#include "ttimer.h"
-#include "tutil.h"
 #include "tglobal.h"
+#include "ttimer.h"
+#include "tulog.h"
+#include "tutil.h"
 
 #define MAX_RANDOM_POINTS 20000
 #define GREEN "\033[1;32m"

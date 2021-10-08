@@ -452,6 +452,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen/*, voi
     pNode = pNode->next;
   }
 
+
   if (pNode) {
     code = 0;  // it is found
 

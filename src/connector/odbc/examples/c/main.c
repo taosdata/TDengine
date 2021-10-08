@@ -9,7 +9,7 @@
 #include <sqlext.h>
 #include <odbcinst.h>
 
-#include "taos.h"
+#include "../../../../../include/client/taos.h"
 #include "taoserror.h"
 
 #include <stdio.h>

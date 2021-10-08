@@ -17,7 +17,7 @@
 
 #include "os.h"
 #include "talgo.h"
-#include "ttype.h"
+#include "ttypes.h"
 #include "tutil.h"
 
 #ifdef __cplusplus

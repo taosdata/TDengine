@@ -12,9 +12,9 @@
 #include <assert.h>
 #include <regex.h>
 #include <stdio.h>
+#include "../../../../include/client/taos.h"
 #include "os.h"
 #include "shell.h"
-#include "taos.h"
 #include "shellCommand.h"
 
 extern char configDir[];

@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "../../../include/client/taos.h"
+#include "hash.h"
 #include "os.h"
-#include "taos.h"
 #include "tulog.h"
 #include "tutil.h"
-#include "hash.h"
 
 typedef struct HashTestRow {
   int32_t keySize;

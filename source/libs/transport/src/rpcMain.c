@@ -25,7 +25,7 @@
 #include "tglobal.h"
 #include "taosmsg.h"
 #include "trpc.h"
-#include "hash.h"
+#include "thash.h"
 #include "rpcLog.h"
 #include "rpcUdp.h"
 #include "rpcCache.h"

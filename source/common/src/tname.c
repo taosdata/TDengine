@@ -2,21 +2,12 @@
 #include "tutil.h"
 
 #include "tname.h"
-#include "ttoken.h"
-#include "tvariant.h"
+#include "taosmsg.h"
 
 #define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
-
-//TODO remove it
-void extractTableName(const char* tableId, char* name) {
-  size_t s1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
-  size_t s2 = strcspn(&tableId[s1 + 1], &TS_PATH_DELIMITER[0]);
-  
-  tstrncpy(name, &tableId[s1 + s2 + 2], TSDB_TABLE_NAME_LEN);
-}
 
 char* extractDBName(const char* tableId, char* name) {
   size_t offset1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
@@ -31,28 +22,6 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
   strcat(prefix, TS_PATH_DELIMITER);
 
   return strlen(prefix);
-}
-
-SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
-  SSchema s = {0};
-
-  s.type  = pVal->nType;
-  if (s.type == TSDB_DATA_TYPE_BINARY || s.type == TSDB_DATA_TYPE_NCHAR) {
-    s.bytes = (int16_t)(pVal->nLen + VARSTR_HEADER_SIZE);
-  } else {
-    s.bytes = tDataTypes[pVal->nType].bytes;
-  }
-
-  s.colId = TSDB_UD_COLUMN_INDEX;
-  if (name != NULL) {
-    tstrncpy(s.name, name, sizeof(s.name));
-  } else {
-    size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
-    tstrncpy(s.name, exprStr->z, tlen);
-    strdequote(s.name);
-  }
-
-  return s;
 }
 
 bool tscValidateTableNameLength(size_t len) {
@@ -155,30 +124,30 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
  * tablePrefix.columnName
  * extract table name and save it in pTable, with only column name in pToken
  */
-void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
-  const char sep = TS_PATH_DELIMITER[0];
-
-  if (pToken == pTable || pToken == NULL || pTable == NULL) {
-    return;
-  }
-
-  char* r = strnchr(pToken->z, sep, pToken->n, false);
-
-  if (r != NULL) {  // record the table name token
-    pTable->n = (uint32_t)(r - pToken->z);
-    pTable->z = pToken->z;
-
-    r += 1;
-    pToken->n -= (uint32_t)(r - pToken->z);
-    pToken->z = r;
-  }
-}
+//void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
+//  const char sep = TS_PATH_DELIMITER[0];
+//
+//  if (pToken == pTable || pToken == NULL || pTable == NULL) {
+//    return;
+//  }
+//
+//  char* r = strnchr(pToken->z, sep, pToken->n, false);
+//
+//  if (r != NULL) {  // record the table name token
+//    pTable->n = (uint32_t)(r - pToken->z);
+//    pTable->z = pToken->z;
+//
+//    r += 1;
+//    pToken->n -= (uint32_t)(r - pToken->z);
+//    pToken->z = r;
+//  }
+//}
 
 static struct SSchema _s = {
     .colId = TSDB_TBNAME_COLUMN_INDEX,
     .type  = TSDB_DATA_TYPE_BINARY,
     .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
-    .name = TSQL_TBNAME_L,
+    .name = "tbname",
 };
 
 SSchema* tGetTbnameColumnSchema() {
@@ -337,19 +306,19 @@ void tNameAssign(SName* dst, const SName* src) {
   memcpy(dst, src, sizeof(SName));
 }
 
-int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken) {
-  assert(dst != NULL && dbToken != NULL && acct != NULL);
-
-  // too long account id or too long db name
-  if (strlen(acct) >= tListLen(dst->acctId) || dbToken->n >= tListLen(dst->dbname)) {
-    return -1;
-  }
-
-  dst->type = TSDB_DB_NAME_T;
-  tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
-  tstrncpy(dst->dbname, dbToken->z, dbToken->n + 1);
-  return 0;
-}
+//int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken) {
+//  assert(dst != NULL && dbToken != NULL && acct != NULL);
+//
+//  // too long account id or too long db name
+//  if (strlen(acct) >= tListLen(dst->acctId) || dbToken->n >= tListLen(dst->dbname)) {
+//    return -1;
+//  }
+//
+//  dst->type = TSDB_DB_NAME_T;
+//  tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
+//  tstrncpy(dst->dbname, dbToken->z, dbToken->n + 1);
+//  return 0;
+//}
 
 int32_t tNameSetAcctId(SName* dst, const char* acct) {
   assert(dst != NULL && acct != NULL);

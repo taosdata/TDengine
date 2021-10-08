@@ -24,20 +24,20 @@ extern "C" {
 #include "common.h"
 #include "tname.h"
 
-typedef struct SInterval {
-  int32_t  tz;            // query client timezone
-  char     intervalUnit;
-  char     slidingUnit;
-  char     offsetUnit;
-  int64_t  interval;
-  int64_t  sliding;
-  int64_t  offset;
-} SInterval;
-
-typedef struct SSessionWindow {
-  int64_t  gap;             // gap between two session window(in microseconds)
-  int32_t  primaryColId;    // primary timestamp column
-} SSessionWindow;
+//typedef struct SInterval {
+//  int32_t  tz;            // query client timezone
+//  char     intervalUnit;
+//  char     slidingUnit;
+//  char     offsetUnit;
+//  int64_t  interval;
+//  int64_t  sliding;
+//  int64_t  offset;
+//} SInterval;
+//
+//typedef struct SSessionWindow {
+//  int64_t  gap;             // gap between two session window(in microseconds)
+//  int32_t  primaryColId;    // primary timestamp column
+//} SSessionWindow;
 
 typedef struct SGroupbyExpr {
   int16_t  tableIndex;

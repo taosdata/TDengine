@@ -21,7 +21,7 @@
 #include "taosmsg.h"
 #include "tcq.h"
 
-#include "taos.h"
+#include "../../../include/client/taos.h"
 #include "tscUtil.h"
 
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);

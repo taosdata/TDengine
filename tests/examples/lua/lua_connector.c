@@ -1,11 +1,11 @@
-#include <stdio.h>
+#include <lauxlib.h>
+#include <lua.h>
+#include <lualib.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-#include <taos.h>
+#include "../../../include/client/taos.h"
 
 struct cb_param{
   lua_State* state;

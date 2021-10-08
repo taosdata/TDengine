@@ -20,7 +20,7 @@
 #include "todbc_iconv.h"
 #include "todbc_log.h"
 
-#include "taos.h"
+#include "../../../../include/client/taos.h"
 #include "taoserror.h"
 
 #include <sql.h>

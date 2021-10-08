@@ -433,7 +433,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
       // NOTE: remove it from hash in the first place, otherwise, the pNode may have been released by other thread
       // when reaches here.
       SCacheDataNode *p = NULL;
-      int32_t ret = taosHashRemoveWithData(pCacheObj->pHashTable, pNode->key, pNode->keySize, &p, sizeof(void *));
+      int32_t ret = taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
+//      int32_t ret = taosHashRemoveWithData(pCacheObj->pHashTable, pNode->key, pNode->keySize, &p, sizeof(void *));
       ref = T_REF_DEC(pNode);
 
       // successfully remove from hash table, if failed, this node must have been move to trash already, do nothing.
@@ -641,8 +642,8 @@ void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
 }
 
 void doCleanupDataCache(SCacheObj *pCacheObj) {
-  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = NULL, .time = taosGetTimestampMs()};
-  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableEmptyFn, &sup);
+//  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = NULL, .time = taosGetTimestampMs()};
+//  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableEmptyFn, &sup);
 
   // todo memory leak if there are object with refcount greater than 0 in hash table?
   taosHashCleanup(pCacheObj->pHashTable);
@@ -679,7 +680,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_trav_fn_t
   assert(pCacheObj != NULL);
 
   SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time, .param1 = param1};
-  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
+//  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
 }
 
 void taosCacheRefreshWorkerUnexpectedStopped(void) {

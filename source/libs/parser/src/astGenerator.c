@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "taos.h"
 #include "astGenerator.h"
+#include "../../../../include/client/taos.h"
+#include "os.h"
 
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned) {
   errno = 0;

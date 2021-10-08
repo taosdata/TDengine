@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../../include/client/taos.h"
 #include "cJSON.h"
 #include "hash.h"
-#include "taos.h"
 
 #include "tscUtil.h"
 #include "tsclient.h"

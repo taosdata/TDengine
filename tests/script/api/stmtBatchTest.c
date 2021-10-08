@@ -1,14 +1,14 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet 
 // to compile: gcc -o prepare prepare.c -ltaos
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "taos.h"
-#include "taoserror.h"
 #include <sys/time.h>
-#include <pthread.h>
 #include <unistd.h>
+#include "../../../include/client/taos.h"
+#include "taoserror.h"
 
 #define    MAX_ROWS_OF_PER_COLUMN   32770
 #define    MAX_BINARY_DEF_LEN       (1024*16)

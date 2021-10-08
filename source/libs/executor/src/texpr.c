@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <texpr.h>
 #include "os.h"
 
 #include "texpr.h"
@@ -24,11 +23,11 @@
 #include "tbuffer.h"
 #include "tcompare.h"
 #include "tname.h"
-#include "hash.h"
-// #include "tsdb.h"
+#include "thash.h"
 #include "tskiplist.h"
 #include "texpr.h"
 #include "tarithoperator.h"
+#include "tvariant.h"
 
 static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
   if (pLeft->nodeType == TSQL_NODE_COL) {
@@ -287,7 +286,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
   tbufWriteUint8(bw, expr->nodeType);
   
   if (expr->nodeType == TSQL_NODE_VALUE) {
-    tVariant* pVal = expr->pVal;
+    SVariant* pVal = expr->pVal;
     
     tbufWriteUint32(bw, pVal->nType);
     if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
@@ -355,7 +354,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
   pExpr->nodeType = tbufReadUint8(br);
   
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     pExpr->pVal = pVal;
   
     pVal->nType = tbufReadUint32(br);
@@ -416,7 +415,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
   left->pSchema = pSchema;
 
-  *pSchema = *tGetTbnameColumnSchema();
+//  *pSchema = NULL;//*tGetTbnameColumnSchema();
 
   tExprNode* right = exception_calloc(1, sizeof(tExprNode));
   expr->_node.pRight = right;
@@ -424,7 +423,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_LIKE;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
     pVal->pz = exception_malloc(len);
@@ -435,7 +434,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_MATCH;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_MATCH_LEN) + 1;
     pVal->pz = exception_malloc(len);
@@ -445,7 +444,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_NMATCH, QUERY_COND_REL_PREFIX_NMATCH_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_NMATCH;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_NMATCH_LEN) + 1;
     pVal->pz = exception_malloc(len);
@@ -455,7 +454,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
     right->nodeType = TSQL_NODE_VALUE;
     expr->_node.optr = TSDB_RELATION_IN;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
+    SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
     pVal->nType = TSDB_DATA_TYPE_POINTER_ARRAY;
     pVal->arr = taosArrayInit(2, POINTER_BYTES);
@@ -532,7 +531,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
   taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(tType)); 
   
   int dummy = -1;
-  tVariant tmpVar = {0};  
+  SVariant tmpVar = {0};  
   size_t  t = 0;
   int32_t sz = tbufReadInt32(&br);
   void *pvar = NULL;  
@@ -615,7 +614,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_UTINYINT:
       case TSDB_DATA_TYPE_TINYINT: {
-        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+        if (taosVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
         pvar = &val;
@@ -624,7 +623,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       }
       case TSDB_DATA_TYPE_USMALLINT:
       case TSDB_DATA_TYPE_SMALLINT: {
-        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+        if (taosVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
         pvar = &val;
@@ -633,7 +632,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       }
       case TSDB_DATA_TYPE_UINT:
       case TSDB_DATA_TYPE_INT: {
-        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+        if (taosVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
         pvar = &val;
@@ -643,7 +642,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_UBIGINT:
       case TSDB_DATA_TYPE_BIGINT: {
-        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+        if (taosVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
         pvar = &val;
@@ -651,7 +650,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
-        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+        if (taosVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
         pvar = &val;
@@ -659,7 +658,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
-        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+        if (taosVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
         pvar = &val;
@@ -667,7 +666,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         break;
       }
       case TSDB_DATA_TYPE_BINARY: {
-        if (tVariantDump(&tmpVar, tmp, tType, true)) {
+        if (taosVariantDump(&tmpVar, tmp, tType, true)) {
           goto err_ret;
         }
         t = varDataLen(tmp);
@@ -675,7 +674,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
-        if (tVariantDump(&tmpVar, tmp, tType, true)) {
+        if (taosVariantDump(&tmpVar, tmp, tType, true)) {
           goto err_ret;
         }
         t = varDataLen(tmp);
@@ -716,7 +715,7 @@ tExprNode* exprdup(tExprNode* pNode) {
     pCloned->_node.optr  = pNode->_node.optr;
     pCloned->_node.hasPK = pNode->_node.hasPK;
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
-    pCloned->pVal = calloc(1, sizeof(tVariant));
+    pCloned->pVal = calloc(1, sizeof(SVariant));
     tVariantAssign(pCloned->pVal, pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     pCloned->pSchema = calloc(1, sizeof(SSchema));

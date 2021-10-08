@@ -17,12 +17,12 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
+#include "os.h"
 #include "tcompare.h"
 #include "ulog.h"
 #include "thash.h"
 #include "regex.h"
-#include "os.h"
-#include "tdef.h"
+#include "ttypes.h"
 
 int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;

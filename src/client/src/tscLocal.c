@@ -16,14 +16,14 @@
 #include "os.h"
 #include "taosmsg.h"
 
+#include "../../../include/client/taos.h"
+#include "qTableMeta.h"
 #include "taosdef.h"
 #include "tname.h"
 #include "tscLog.h"
-#include "tscUtil.h"
-#include "qTableMeta.h"
-#include "tsclient.h"
-#include "taos.h"
 #include "tscSubquery.h"
+#include "tscUtil.h"
+#include "tsclient.h"
 
 #define STR_NOCASE_EQUAL(str1, len1, str2, len2) ((len1 == len2) && 0 == strncasecmp(str1, str2, len1)) 
 

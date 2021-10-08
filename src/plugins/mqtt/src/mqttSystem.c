@@ -14,16 +14,16 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
+#include "../../../../include/client/taos.h"
 #include "mqtt.h"
 #include "mqttInit.h"
 #include "mqttLog.h"
 #include "mqttPayload.h"
-#include "tmqtt.h"
+#include "os.h"
 #include "posix_sockets.h"
-#include "taos.h"
-#include "tglobal.h"
 #include "taoserror.h"
+#include "tglobal.h"
+#include "tmqtt.h"
 
 struct SMqttReconnectState tsMqttStatus = {0};
 struct mqtt_client tsMqttClient = {0};

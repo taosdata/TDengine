@@ -22,8 +22,8 @@ extern "C" {
 
 #include "os.h"
 
+#include "../../../include/client/taos.h"
 #include "qAggMain.h"
-#include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"

@@ -14,13 +14,12 @@
  */
 #include "os.h"
 
-#include "hash.h"
 #include "taos.h"
+#include "thash.h"
 #include "taosdef.h"
 #include "ttime.h"
-#include "ttoken.h"
 #include "ttokendef.h"
-#include "ttype.h"
+#include "ttypes.h"
 #include "tutil.h"
 #include "tvariant.h"
 
@@ -30,12 +29,12 @@
                                                         if ((res) > (maxv)) { *exti = 1; break; }                                   \
                                                         assert(0);                                                                  \
                                                        } while (0)
-
-void tVariantCreate(tVariant *pVar, SStrToken *token) {
+#if 0
+void tVariantCreate(SVariant *pVar, SToken *token) {
   int32_t ret = 0;
   int32_t type = token->type;
 
-  memset(pVar, 0, sizeof(tVariant));
+  memset(pVar, 0, sizeof(SVariant));
 
   switch (token->type) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -56,7 +55,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
     case TSDB_DATA_TYPE_INT:{
       ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
       if (ret != 0) {
-        SStrToken t = {0};
+        SToken t = {0};
         tGetToken(token->z, &t.type);
         if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
           pVar->nType = -1;   // -1 means error type
@@ -76,7 +75,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
 
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_FLOAT: {
-      pVar->dKey = strtod(token->z, NULL);
+      pVar->d = strtod(token->z, NULL);
       break;
     }
 
@@ -97,15 +96,16 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
   
   pVar->nType = type;
 }
+#endif
 
 /**
- * create tVariant from binary string, not ascii data
+ * create SVariant from binary string, not ascii data
  * @param pVar
  * @param pz
  * @param len
  * @param type
  */
-void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type) {
+void tVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
@@ -151,12 +151,12 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       pVar->nLen = tDataTypes[type].bytes;
-      pVar->dKey = GET_DOUBLE_VAL(pz);
+      pVar->d = GET_DOUBLE_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       pVar->nLen = tDataTypes[type].bytes;
-      pVar->dKey = GET_FLOAT_VAL(pz);
+      pVar->d = GET_FLOAT_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
@@ -183,7 +183,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
   pVar->nType = type;
 }
 
-void tVariantDestroy(tVariant *pVar) {
+void tVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
   
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
@@ -206,12 +206,12 @@ void tVariantDestroy(tVariant *pVar) {
   }
 }
 
-bool tVariantIsValid(tVariant *pVar) {
+bool tVariantIsValid(SVariant *pVar) {
   assert(pVar != NULL);
   return isValidDataType(pVar->nType);
 }
 
-void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
+void tVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
   
   pDst->nType = pSrc->nType;
@@ -255,7 +255,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   }
 }
 
-int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
+int32_t tVariantCompare(const SVariant* p1, const SVariant* p2) {
   if (p1->nType == TSDB_DATA_TYPE_NULL && p2->nType == TSDB_DATA_TYPE_NULL) {
     return 0;
   }
@@ -275,10 +275,10 @@ int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
       return p1->nLen > p2->nLen? 1:-1;
     }
   } else if (p1->nType == TSDB_DATA_TYPE_FLOAT || p1->nType == TSDB_DATA_TYPE_DOUBLE) {
-    if (p1->dKey == p2->dKey) {
+    if (p1->d == p2->d) {
       return 0;
     } else {
-      return p1->dKey > p2->dKey? 1:-1;
+      return p1->d > p2->d? 1:-1;
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(p1->nType)) {
     if (p1->u64 == p2->u64) {
@@ -295,7 +295,7 @@ int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
   }
 }
 
-int32_t tVariantToString(tVariant *pVar, char *dst) {
+int32_t tVariantToString(SVariant *pVar, char *dst) {
   if (pVar == NULL || dst == NULL) return 0;
   
   switch (pVar->nType) {
@@ -329,7 +329,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
       return sprintf(dst, "%" PRIu64, pVar->u64);
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
-      return sprintf(dst, "%.9lf", pVar->dKey);
+      return sprintf(dst, "%.9lf", pVar->d);
     
     default:
       return 0;
@@ -360,11 +360,11 @@ static FORCE_INLINE int32_t wcsconvertToBoolImpl(wchar_t *pstr, int32_t len) {
   }
 }
 
-static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
+static int32_t toBinary(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
   const int32_t INITIAL_ALLOC_SIZE = 40;
   char *        pBuf = NULL;
 
-  // it is a in-place convert type for tVariant, local buffer is needed
+  // it is a in-place convert type for SVariant, local buffer is needed
   if (*pDest == pVariant->pz) {
     pBuf = calloc(1, INITIAL_ALLOC_SIZE);
   }
@@ -387,7 +387,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType)) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%" PRId64, pVariant->i64);
     } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
-      sprintf(pBuf == NULL ? *pDest : pBuf, "%lf", pVariant->dKey);
+      sprintf(pBuf == NULL ? *pDest : pBuf, "%lf", pVariant->d);
     } else if (pVariant->nType == TSDB_DATA_TYPE_BOOL) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%s", (pVariant->i64 == TSDB_TRUE) ? "TRUE" : "FALSE");
     } else if (pVariant->nType == 0) {  // null data
@@ -403,7 +403,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   return 0;
 }
 
-static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
+static int32_t toNchar(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
   char tmpBuf[40] = {0};
   
   char *  pDst = tmpBuf;
@@ -415,7 +415,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     nLen = sprintf(pDst, "%"PRIu64, pVariant->u64);
   } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
-    nLen = sprintf(pDst, "%lf", pVariant->dKey);
+    nLen = sprintf(pDst, "%lf", pVariant->d);
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
     pDst = pVariant->pz;
     nLen = pVariant->nLen;
@@ -461,30 +461,30 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
 }
 
 static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *value) {
-  SStrToken stoken = {.z = pStr, .n = len};
-  if (TK_ILLEGAL == tGetNumericStringType(&stoken)) {
-    return -1;
-  }
-  
-  *value = strtod(pStr, NULL);
+//  SToken stoken = {.z = pStr, .n = len};
+//  if (TK_ILLEGAL == tGetNumericStringType(&stoken)) {
+//    return -1;
+//  }
+//
+//  *value = strtod(pStr, NULL);
   return 0;
 }
 
-static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result, int32_t type, bool issigned, bool releaseVariantPtr, bool *converted) {
+static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result, int32_t type, bool issigned, bool releaseVariantPtr, bool *converted) {
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
     setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
   }
-
+#if 0
   errno = 0;
   if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
     *result = pVariant->i64;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     *result = pVariant->u64;
   } else if (IS_FLOAT_TYPE(pVariant->nType)) {
-    *result = (int64_t) pVariant->dKey;
+    *result = (int64_t) pVariant->d;
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
-    SStrToken token = {.z = pVariant->pz, .n = pVariant->nLen};
+    SToken token = {.z = pVariant->pz, .n = pVariant->nLen};
     /*int32_t n = */tGetToken(pVariant->pz, &token.type);
 
     if (token.type == TK_NULL) {
@@ -519,7 +519,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     errno = 0;
     wchar_t *endPtr = NULL;
     
-    SStrToken token = {0};
+    SToken token = {0};
     token.n = tGetToken(pVariant->pz, &token.type);
     
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -590,16 +590,19 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
       code = IS_VALID_UBIGINT(ui); break;
   }
 
+
   return code? 0:-1;
+#endif
+  return 0;
 }
 
-static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
+static int32_t convertToBool(SVariant *pVariant, int64_t *pDest) {
   if (pVariant->nType == TSDB_DATA_TYPE_BOOL) {
     *pDest = pVariant->i64;  // in order to be compatible to null of bool
   } else if (IS_NUMERIC_TYPE(pVariant->nType)) {
     *pDest = ((pVariant->i64 != 0) ? TSDB_TRUE : TSDB_FALSE);
   } else if (pVariant->nType == TSDB_DATA_TYPE_FLOAT || pVariant->nType == TSDB_DATA_TYPE_DOUBLE) {
-    *pDest = ((pVariant->dKey != 0) ? TSDB_TRUE : TSDB_FALSE);
+    *pDest = ((pVariant->d != 0) ? TSDB_TRUE : TSDB_FALSE);
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
     int32_t ret = 0;
     if ((ret = convertToBoolImpl(pVariant->pz, pVariant->nLen)) < 0) {
@@ -625,15 +628,7 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
  * transfer data from variant serve as the implicit data conversion: from input sql string pVariant->nType
  * to column type defined in schema
  */
-int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
-  return tVariantDumpEx(pVariant, payload, type, includeLengthPrefix, NULL, NULL);
-}
-
-/*
- * transfer data from variant serve as the implicit data conversion: from input sql string pVariant->nType
- * to column type defined in schema
- */
-int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix, bool *converted, char *extInfo) {
+int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix, bool *converted, char *extInfo) {
   if (converted) {
     *converted = false;
   }
@@ -766,12 +761,12 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
           *converted = true;
         }
         
-        if (pVariant->dKey > FLT_MAX || pVariant->dKey < -FLT_MAX) {          
-          SET_EXT_INFO(converted, pVariant->dKey, -FLT_MAX, FLT_MAX, extInfo);
+        if (pVariant->d > FLT_MAX || pVariant->d < -FLT_MAX) {          
+          SET_EXT_INFO(converted, pVariant->d, -FLT_MAX, FLT_MAX, extInfo);
           return -1;
         }
       
-        SET_FLOAT_VAL(payload, pVariant->dKey);
+        SET_FLOAT_VAL(payload, pVariant->d);
       } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((uint32_t *)payload) = TSDB_DATA_FLOAT_NULL;
         return 0;
@@ -802,7 +797,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       } else if (pVariant->nType == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
         SET_DOUBLE_VAL(payload, pVariant->i64);
       } else if (IS_FLOAT_TYPE(pVariant->nType)) {
-        SET_DOUBLE_VAL(payload, pVariant->dKey);
+        SET_DOUBLE_VAL(payload, pVariant->d);
       } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
         return 0;
@@ -894,6 +889,13 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
   return 0;
 }
 
+/*
+ * transfer data from variant serve as the implicit data conversion: from input sql string pVariant->nType
+ * to column type defined in schema
+ */
+int32_t tVariantDump(SVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
+  return tVariantDumpEx(pVariant, payload, type, includeLengthPrefix, NULL, NULL);
+}
 
 /*
  * In variant, bool/smallint/tinyint/int/bigint share the same attribution of
@@ -901,7 +903,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
  *
  * It is actually the bigint/binary/bool/nchar type transfer
  */
-int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
+int32_t tVariantTypeSetType(SVariant *pVariant, char type) {
   if (pVariant == NULL || pVariant->nType == 0) {  // value is not set
     return 0;
   }
@@ -934,7 +936,7 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
         }
         
         free(pVariant->pz);
-        pVariant->dKey = v;
+        pVariant->d = v;
       } else if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
         errno = 0;
         double v = wcstod(pVariant->wpz, NULL);
@@ -944,10 +946,10 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
         }
         
         free(pVariant->pz);
-        pVariant->dKey = v;
+        pVariant->d = v;
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
         double tmp = (double) pVariant->i64;
-        pVariant->dKey = tmp;
+        pVariant->d = tmp;
       }
       
       pVariant->nType = TSDB_DATA_TYPE_DOUBLE;

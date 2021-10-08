@@ -14,14 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "taos.h"
-#include "taoserror.h"
-#include "tglobal.h"
-#include "tcache.h"
-#include "httpInt.h"
-#include "httpContext.h"
 #include "httpSession.h"
+#include "../../../../include/client/taos.h"
+#include "httpContext.h"
+#include "httpInt.h"
+#include "os.h"
+#include "taoserror.h"
+#include "tcache.h"
+#include "tglobal.h"
 
 void httpCreateSession(HttpContext *pContext, void *taos) {
   HttpServer *server = &tsHttpServer;

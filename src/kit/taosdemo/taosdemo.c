@@ -19,8 +19,8 @@
    */
 
 #include <stdint.h>
-#include <taos.h>
 #include <taoserror.h>
+#include "../../../include/client/taos.h"
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 
@@ -49,8 +49,8 @@
 #include <stdlib.h>
 #include "cJSON.h"
 
+#include "../../../include/client/taos.h"
 #include "os.h"
-#include "taos.h"
 #include "taoserror.h"
 #include "tutil.h"
 

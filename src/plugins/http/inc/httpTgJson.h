@@ -16,9 +16,9 @@
 #ifndef TDENGINE_TG_JSON_H
 #define TDENGINE_TG_JSON_H
 
+#include "../../../../include/client/taos.h"
 #include "httpHandle.h"
 #include "httpJson.h"
-#include "taos.h"
 
 void tgInitQueryJson(HttpContext *pContext);
 void tgCleanQueryJson(HttpContext *pContext);

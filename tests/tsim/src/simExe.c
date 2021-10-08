@@ -14,13 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "../../../include/client/taos.h"
+#include "cJSON.h"
 #include "os.h"
 #include "sim.h"
-#include "taos.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "tutil.h"
-#include "cJSON.h"
 #undef TAOS_MEM_CHECK
 
 void simLogSql(char *sql, bool useSharp) {

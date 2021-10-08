@@ -163,21 +163,20 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   return fn;
 }
 
-int32_t taosFloatEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
-  return getComparFunc(TSDB_DATA_TYPE_FLOAT, -1)(a, b);  
-}
-
-int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
-  return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);  
-}
+//int32_t taosFloatEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+//  return getComparFunc(TSDB_DATA_TYPE_FLOAT, -1)(a, b);
+//}
+//
+//int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+//  return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);
+//}
 
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
   _equal_fn_t fn = NULL;
-  switch (type) {
-    case TSDB_DATA_TYPE_FLOAT:  fn = taosFloatEqual;  break; 
-    case TSDB_DATA_TYPE_DOUBLE: fn = taosDoubleEqual; break;
-    default: fn = memcmp; break;
-  }
+//  switch (type) {
+//    case TSDB_DATA_TYPE_FLOAT:  fn = taosFloatEqual;  break;
+//    case TSDB_DATA_TYPE_DOUBLE: fn = taosDoubleEqual; break;
+//    default: fn = memcmp; break;
+//  }
   return fn;
-  
 }

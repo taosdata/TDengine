@@ -52,7 +52,7 @@
 #ifdef TD_TSZ  
   #include "td_sz.h"
 #endif
-#include "tscompression.h"
+#include "tcompression.h"
 #include "ulog.h"
 
 static const int TEST_NUMBER = 1;

@@ -1,13 +1,13 @@
+#include <inttypes.h>
+#include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <taos.h>
-#include <time.h>
-#include <pthread.h>
 #include <sys/time.h>
-#include <inttypes.h>
+#include <time.h>
+#include <unistd.h>
+#include "../../../include/client/taos.h"
 
 typedef struct {
   char sql[256];

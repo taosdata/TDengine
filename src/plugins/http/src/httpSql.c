@@ -14,18 +14,18 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "tnote.h"
-#include "taos.h"
-#include "taoserror.h"
-#include "tsclient.h"
-#include "httpInt.h"
-#include "httpContext.h"
 #include "httpSql.h"
-#include "httpResp.h"
+#include "../../../../include/client/taos.h"
 #include "httpAuth.h"
-#include "httpSession.h"
+#include "httpContext.h"
+#include "httpInt.h"
 #include "httpQueue.h"
+#include "httpResp.h"
+#include "httpSession.h"
+#include "os.h"
+#include "taoserror.h"
+#include "tnote.h"
+#include "tsclient.h"
 
 void httpProcessMultiSql(HttpContext *pContext);
 

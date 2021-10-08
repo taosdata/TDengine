@@ -23,6 +23,7 @@ extern "C" {
 #include "common.h"
 #include "tarray.h"
 #include "planner.h"
+#include "taosmsg.h"
 
 typedef struct SQueryNodeBasicInfo {
   int32_t   type;

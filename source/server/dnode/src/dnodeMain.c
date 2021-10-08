@@ -20,12 +20,12 @@
 #if 0
 #include "tfs.h"
 #endif
-#include "tscompression.h"
-#include "tnote.h"
-#include "ttimer.h"
 #include "dnodeCfg.h"
 #include "dnodeMain.h"
 #include "mnode.h"
+#include "tcompression.h"
+#include "tnote.h"
+#include "ttimer.h"
 
 static void dnodeCheckDataDirOpenned(char *dir) {
 #if 0

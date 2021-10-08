@@ -20,7 +20,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "taos.h"
+#include "../../../include/client/taos.h"
 #include "tidpool.h"
 #include "tlog.h"
 #include "tutil.h"

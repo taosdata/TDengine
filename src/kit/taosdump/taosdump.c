@@ -17,15 +17,14 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 
+#include "../../../include/client/taos.h"
 #include "os.h"
-#include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tglobal.h"
 #include "tsclient.h"
 #include "tsdb.h"
 #include "tutil.h"
-#include <taos.h>
 
 #define TSDB_SUPPORT_NANOSECOND 1
 

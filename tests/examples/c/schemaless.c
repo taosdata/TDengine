@@ -1,6 +1,6 @@
-#include "taos.h"
-#include "taoserror.h"
+#include "../../../include/client/taos.h"
 #include "os.h"
+#include "taoserror.h"
 
 #include <stdio.h>
 #include <stdlib.h>
