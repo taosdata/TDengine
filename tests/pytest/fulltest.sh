@@ -45,7 +45,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -211,7 +211,7 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #query
