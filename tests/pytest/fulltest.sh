@@ -334,7 +334,7 @@ python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
 
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
