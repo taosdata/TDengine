@@ -11,3 +11,5 @@ target_link_libraries(
     PUBLIC zlib
     PUBLIC lz4_static
 )
+
+CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
