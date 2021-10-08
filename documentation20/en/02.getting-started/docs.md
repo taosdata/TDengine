@@ -20,6 +20,19 @@ Three different packages for TDengine server are provided, please pick up the on
 
 Click [here](https://www.taosdata.com/en/getting-started/#Install-from-Package) to download the install package.
 
+### Install TDengine by apt-get
+
+If you use Debian or Ubuntu system you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
+
 ## <a class="anchor" id="start"></a>Quick Launch
 
 After installation, you can start the TDengine service by the `systemctl` command.

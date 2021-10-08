@@ -210,7 +210,7 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
   }
 
   char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
-  assert(type == pCol->type && bytes >= pCol->bytes);
+  assert(type == pCol->type);
 
   // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
   //   assert(varDataLen(val) < pCol->bytes);
