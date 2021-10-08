@@ -171,6 +171,7 @@ def pre_test_win(){
       } 
     }
     bat '''
+    taskkill /f /t /im python.exe
     cd C:\\workspace\\TDinternal
     git pull 
 
@@ -180,9 +181,9 @@ def pre_test_win(){
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    nmake
-    nmake install 
-    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    nmake || exit 8
+    nmake install || exit 8
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
     
@@ -466,10 +467,12 @@ pipeline {
             
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
+                timeout(time: 20, unit: 'MINUTES'){
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
                 .\\test-all.bat Wintest
                 '''
+                }
             }     
             script{
               win_stop=1
