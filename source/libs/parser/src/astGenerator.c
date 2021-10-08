@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "astGenerator.h"
-#include "../../../../include/client/taos.h"
+#include "taos.h"
 #include "os.h"
+#include "astGenerator.h"
+#include "tmsgtype.h"
 
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned) {
   errno = 0;
@@ -104,7 +105,8 @@ SArray *tListItemAppendToken(SArray *pList, SToken *pAliasToken, uint8_t sortOrd
 
   if (pAliasToken) {
     SListItem item;
-    taosVariantCreate(&item.pVar, pAliasToken);
+    assert(0);
+//    taosVariantCreate(&item.pVar, pAliasToken);
     item.sortOrder = sortOrder;
 
     taosArrayPush(pList, &item);
@@ -371,87 +373,755 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
-tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);
-void      tSqlExprCompact(tSqlExpr **pExpr);
-bool      tSqlExprIsLeaf(tSqlExpr *pExpr);
-bool      tSqlExprIsParentOfLeaf(tSqlExpr *pExpr);
-void      tSqlExprDestroy(tSqlExpr *pExpr);
-SArray *  tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SToken *pDistinct, SToken *pToken);
-void      tSqlExprListDestroy(SArray *pList);
+tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
+  tSqlExpr *pExpr = malloc(sizeof(tSqlExpr));
+  memcpy(pExpr, pSrc, sizeof(*pSrc));
+
+  if (pSrc->pLeft) {
+    pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
+  }
+
+  if (pSrc->pRight) {
+    pExpr->pRight = tSqlExprClone(pSrc->pRight);
+  }
+
+  memset(&pExpr->value, 0, sizeof(pExpr->value));
+  taosVariantAssign(&pExpr->value, &pSrc->value);
+
+  //we don't clone paramList now because clone is only used for between/and
+  assert(pSrc->Expr.paramList == NULL);
+  return pExpr;
+}
+
+void      tSqlExprCompact(tSqlExpr **pExpr) {
+
+  if (*pExpr == NULL || tSqlExprIsParentOfLeaf(*pExpr)) {
+    return;
+  }
+
+  if ((*pExpr)->pLeft) {
+    tSqlExprCompact(&(*pExpr)->pLeft);
+  }
+
+  if ((*pExpr)->pRight) {
+    tSqlExprCompact(&(*pExpr)->pRight);
+  }
+
+  if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight == NULL && ((*pExpr)->tokenId == TK_OR || (*pExpr)->tokenId == TK_AND)) {
+    tSqlExprDestroy(*pExpr);
+    *pExpr = NULL;
+  } else if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight != NULL) {
+    tSqlExpr* tmpPtr = (*pExpr)->pRight;
+    (*pExpr)->pRight = NULL;
+
+    tSqlExprDestroy(*pExpr);
+    (*pExpr) = tmpPtr;
+  } else if ((*pExpr)->pRight == NULL && (*pExpr)->pLeft != NULL) {
+    tSqlExpr* tmpPtr = (*pExpr)->pLeft;
+    (*pExpr)->pLeft = NULL;
+
+    tSqlExprDestroy(*pExpr);
+    (*pExpr) = tmpPtr;
+  }
+}
+
+bool      tSqlExprIsLeaf(tSqlExpr *pExpr) {
+  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
+         (pExpr->tokenId == 0 ||
+          (pExpr->tokenId == TK_ID) ||
+          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
+          (pExpr->tokenId == TK_NULL) ||
+          (pExpr->tokenId == TK_SET));
+}
+
+bool      tSqlExprIsParentOfLeaf(tSqlExpr *pExpr) {
+  return (pExpr->pLeft != NULL && pExpr->pRight != NULL) &&
+         (tSqlExprIsLeaf(pExpr->pLeft) && tSqlExprIsLeaf(pExpr->pRight));
+}
+
+static void doDestroySqlExprNode(tSqlExpr *pExpr) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  taosVariantDestroy(&pExpr->value);
+  tSqlExprListDestroy(pExpr->Expr.paramList);
+  free(pExpr);
+}
+
+void tSqlExprDestroy(tSqlExpr *pExpr) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  tSqlExprDestroy(pExpr->pLeft);
+  pExpr->pLeft = NULL;
+  tSqlExprDestroy(pExpr->pRight);
+  pExpr->pRight = NULL;
+
+  doDestroySqlExprNode(pExpr);
+}
+
+SArray *  tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SToken *pDistinct, SToken *pToken) {
+
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(tSqlExprItem));
+  }
+
+  if (pNode || pToken) {
+    struct tSqlExprItem item = {0};
+
+    item.pNode = pNode;
+    item.distinct = (pDistinct != NULL);
+
+    if (pToken) {  // set the as clause
+      item.aliasName = malloc(pToken->n + 1);
+      strncpy(item.aliasName, pToken->z, pToken->n);
+      item.aliasName[pToken->n] = 0;
+
+      strdequote(item.aliasName);
+    }
+
+    taosArrayPush(pList, &item);
+  }
+
+  return pList;
+}
+
+static void freeExprElem(void* item) {
+  tSqlExprItem* exprItem = item;
+
+  tfree(exprItem->aliasName);
+  tSqlExprDestroy(exprItem->pNode);
+}
+
+void tSqlExprListDestroy(SArray *pList) {
+  if (pList == NULL) {
+    return;
+  }
+  taosArrayDestroyEx(pList, freeExprElem);
+}
 
 SSqlNode *tSetQuerySqlNode(SToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
-                           SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
-                           SWindowStateVal *pw, SToken *pSliding, SArray *pFill, SLimit *pLimit, SLimit *pgLimit, tSqlExpr *pHaving);
-int32_t   tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
+                           SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+                           SSessionWindowVal *pSession, SWindowStateVal *pWindowStateVal, SToken *pSliding, SArray *pFill, SLimit *pLimit,
+                           SLimit *psLimit, tSqlExpr *pHaving) {
+  assert(pSelNodeList != NULL);
 
-SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type);
+  SSqlNode *pSqlNode = calloc(1, sizeof(SSqlNode));
 
-SAlterTableInfo * tSetAlterTableInfo(SToken *pTableName, SArray *pCols, SArray *pVals, int32_t type,
-                                     int16_t tableTable);
-SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames, SArray *pTagVals, SToken *pToken,
-                                          SToken *igExists);
+  // all later sql string are belonged to the stream sql
+  pSqlNode->sqlstr   = *pSelectToken;
+  pSqlNode->sqlstr.n = (uint32_t)strlen(pSqlNode->sqlstr.z);
 
-void destroyAllSqlNode(SArray *pSqlNode);
-void destroySqlNode(SSqlNode *pSql);
-void freeCreateTableInfo(void* p);
+  pSqlNode->pSelNodeList = pSelNodeList;
+  pSqlNode->from        = pFrom;
+  pSqlNode->pGroupby    = pGroupby;
+  pSqlNode->pSortOrder  = pSortOrder;
+  pSqlNode->pWhere      = pWhere;
+  pSqlNode->fillType    = pFill;
+  pSqlNode->pHaving     = pHaving;
 
-SSqlInfo *setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, int32_t type);
-SArray   *setSubclause(SArray *pList, void *pSqlNode);
-SArray   *appendSelectClause(SArray *pList, void *pSubclause);
+  if (pLimit != NULL) {
+    pSqlNode->limit = *pLimit;
+  } else {
+    pSqlNode->limit.limit = -1;
+    pSqlNode->limit.offset = 0;
+  }
 
-void setCreatedTableName(SSqlInfo *pInfo, SToken *pTableNameToken, SToken *pIfNotExists);
+  if (psLimit != NULL) {
+    pSqlNode->slimit = *psLimit;
+  } else {
+    pSqlNode->slimit.limit = -1;
+    pSqlNode->slimit.offset = 0;
+  }
 
-void SqlInfoDestroy(SSqlInfo *pInfo);
+  if (pInterval != NULL) {
+    pSqlNode->interval = *pInterval;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->interval.interval);
+    TPARSER_SET_NONE_TOKEN(pSqlNode->interval.offset);
+  }
 
-void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken, SToken* existsCheck,int16_t dbType,int16_t tableType);
-void setShowOptions(SSqlInfo *pInfo, int32_t type, SToken* prefix, SToken* pPatterns);
+  if (pSliding != NULL) {
+    pSqlNode->sliding = *pSliding;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sliding);
+  }
 
-void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SToken *pToken, SCreateDbInfo *pDB, SToken *pIgExists);
+  if (pSession != NULL) {
+    pSqlNode->sessionVal = *pSession;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.gap);
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.col);
+  }
 
-void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPwd, SCreateAcctInfo *pAcctInfo);
-void setCreateUserSql(SSqlInfo *pInfo, SToken *pName, SToken *pPasswd);
-void setKillSql(SSqlInfo *pInfo, int32_t type, SToken *ip);
-void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SToken *pName, SToken* pPwd, SToken *pPrivilege);
+  if (pWindowStateVal != NULL) {
+    pSqlNode->windowstateVal = *pWindowStateVal;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->windowstateVal.col);
+  }
 
-void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam);
+  return pSqlNode;
+}
 
-void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
+static FORCE_INLINE int32_t tStrTokenCompare(SToken* left, SToken* right) {
+  return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
+}
+
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
+  if ((left == NULL && right) || (left && right == NULL) || (left == NULL && right == NULL)) {
+    return 1;
+  }
+
+  if (left->type != right->type) {
+    return 1;
+  }
+
+  if (left->tokenId != right->tokenId) {
+    return 1;
+  }
+
+  if ((left->pLeft && right->pLeft == NULL)
+      || (left->pLeft == NULL && right->pLeft)
+      || (left->pRight && right->pRight == NULL)
+      || (left->pRight == NULL && right->pRight)
+      || (left->Expr.paramList && right->Expr.paramList == NULL)
+      || (left->Expr.paramList == NULL && right->Expr.paramList)) {
+    return 1;
+  }
+
+  if (taosVariantCompare(&left->value, &right->value)) {
+    return 1;
+  }
+
+  if (tStrTokenCompare(&left->columnName, &right->columnName)) {
+    return 1;
+  }
+
+  if (right->Expr.paramList && left->Expr.paramList) {
+    size_t size = taosArrayGetSize(right->Expr.paramList);
+    if (left->Expr.paramList && taosArrayGetSize(left->Expr.paramList) != size) {
+      return 1;
+    }
+
+    for (int32_t i = 0; i < size; i++) {
+      tSqlExprItem* pLeftElem = taosArrayGet(left->Expr.paramList, i);
+      tSqlExpr* pSubLeft = pLeftElem->pNode;
+      tSqlExprItem* pRightElem = taosArrayGet(right->Expr.paramList, i);
+      tSqlExpr* pSubRight = pRightElem->pNode;
+
+      if (tSqlExprCompare(pSubLeft, pSubRight)) {
+        return 1;
+      }
+    }
+  }
+
+  if (left->pLeft && tSqlExprCompare(left->pLeft, right->pLeft)) {
+    return 1;
+  }
+
+  if (left->pRight && tSqlExprCompare(left->pRight, right->pRight)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type) {
+  SCreateTableSql *pCreate = calloc(1, sizeof(SCreateTableSql));
+
+  switch (type) {
+    case TSQL_CREATE_TABLE: {
+      pCreate->colInfo.pColumns = pCols;
+      assert(pTags == NULL);
+      break;
+    }
+    case TSQL_CREATE_STABLE: {
+      pCreate->colInfo.pColumns = pCols;
+      pCreate->colInfo.pTagColumns = pTags;
+      assert(pTags != NULL && pCols != NULL);
+      break;
+    }
+    case TSQL_CREATE_STREAM: {
+      pCreate->pSelect = pSelect;
+      break;
+    }
+
+    case TSQL_CREATE_CTABLE: {
+      assert(0);
+    }
+
+    default:
+      assert(false);
+  }
+
+  pCreate->type = type;
+  return pCreate;
+}
+
+SAlterTableInfo *tSetAlterTableInfo(SToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
+  SAlterTableInfo *pAlterTable = calloc(1, sizeof(SAlterTableInfo));
+
+  pAlterTable->name = *pTableName;
+  pAlterTable->type = type;
+  pAlterTable->tableType = tableType;
+
+  if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN || type == TSDB_ALTER_TABLE_CHANGE_COLUMN || type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
+    pAlterTable->pAddColumns = pCols;
+    assert(pVals == NULL);
+  } else {
+    /*
+     * ALTER_TABLE_TAGS_CHG, ALTER_TABLE_TAGS_SET, ALTER_TABLE_TAGS_DROP,
+     * ALTER_TABLE_DROP_COLUMN
+     */
+    pAlterTable->varList = pVals;
+    assert(pCols == NULL);
+  }
+
+  return pAlterTable;
+}
+SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames, SArray *pTagVals, SToken *pToken, SToken* igExists) {
+  SCreatedTableInfo info;
+  memset(&info, 0, sizeof(SCreatedTableInfo));
+
+  info.name       = *pToken;
+  info.pTagNames  = pTagNames;
+  info.pTagVals   = pTagVals;
+  info.stableName = *pTableName;
+  info.igExist    = (igExists->n > 0)? 1:0;
+
+  return info;
+}
+
+void destroyAllSqlNode(SArray *pList) {
+  if (pList == NULL) {
+    return;
+  }
+
+  size_t size = taosArrayGetSize(pList);
+  for(int32_t i = 0; i < size; ++i) {
+    SSqlNode *pNode = taosArrayGetP(pList, i);
+    destroySqlNode(pNode);
+  }
+
+  taosArrayDestroy(pList);
+}
+
+static void freeItem(void *pItem) {
+  SListItem* p = (SListItem*) pItem;
+  taosVariantDestroy(&p->pVar);
+}
+
+void destroySqlNode(SSqlNode *pSqlNode) {
+  if (pSqlNode == NULL) {
+    return;
+  }
+
+  tSqlExprListDestroy(pSqlNode->pSelNodeList);
+  pSqlNode->pSelNodeList = NULL;
+
+  tSqlExprDestroy(pSqlNode->pWhere);
+  pSqlNode->pWhere = NULL;
+
+  taosArrayDestroyEx(pSqlNode->pSortOrder, freeItem);
+  pSqlNode->pSortOrder = NULL;
+
+  taosArrayDestroyEx(pSqlNode->pGroupby, freeItem);
+  pSqlNode->pGroupby = NULL;
+
+  pSqlNode->from = destroyRelationInfo(pSqlNode->from);
+
+  taosArrayDestroyEx(pSqlNode->fillType, freeItem);
+  pSqlNode->fillType = NULL;
+
+  tSqlExprDestroy(pSqlNode->pHaving);
+  free(pSqlNode);
+}
+
+void freeCreateTableInfo(void* p) {
+  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
+  taosArrayDestroy(pInfo->pTagNames);
+  taosArrayDestroyEx(pInfo->pTagVals, freeItem);
+  tfree(pInfo->fullname);
+  tfree(pInfo->tagdata.data);
+}
+
+SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, int32_t type) {
+  pInfo->type = type;
+
+  if (type == TSDB_SQL_SELECT) {
+    pInfo->list = (SArray*) pSqlExprInfo;
+  } else {
+    pInfo->pCreateTableInfo = pSqlExprInfo;
+  }
+
+  if (pTableName != NULL) {
+    pInfo->pCreateTableInfo->name = *pTableName;
+  }
+
+  return pInfo;
+}
+SArray* setSubclause(SArray* pList, void *pSqlNode) {
+  if (pList == NULL) {
+    pList = taosArrayInit(1, POINTER_BYTES);
+  }
+
+  taosArrayPush(pList, &pSqlNode);
+  return pList;
+}
+SArray* appendSelectClause(SArray *pList, void *pSubclause) {
+  taosArrayPush(pList, &pSubclause);
+  return pList;
+}
+
+void setCreatedTableName(SSqlInfo *pInfo, SToken *pTableNameToken, SToken *pIfNotExists) {
+  pInfo->pCreateTableInfo->name = *pTableNameToken;
+  pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
+}
+
+void* destroyCreateTableSql(SCreateTableSql* pCreate) {
+  destroySqlNode(pCreate->pSelect);
+
+  taosArrayDestroy(pCreate->colInfo.pColumns);
+  taosArrayDestroy(pCreate->colInfo.pTagColumns);
+
+  taosArrayDestroyEx(pCreate->childTableInfo, freeCreateTableInfo);
+  tfree(pCreate);
+
+  return NULL;
+}
+
+void SqlInfoDestroy(SSqlInfo *pInfo) {
+  if (pInfo == NULL) return;;
+  taosArrayDestroy(pInfo->funcs);
+  if (pInfo->type == TSDB_SQL_SELECT) {
+    destroyAllSqlNode(pInfo->list);
+  } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
+    pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
+  } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
+    taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeItem);
+    taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
+    tfree(pInfo->pAlterInfo->tagData.data);
+    tfree(pInfo->pAlterInfo);
+  } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
+    tSqlExprListDestroy(pInfo->list);
+  } else {
+    if (pInfo->pMiscInfo != NULL) {
+      taosArrayDestroy(pInfo->pMiscInfo->a);
+    }
+
+    if (pInfo->pMiscInfo != NULL && (pInfo->type == TSDB_SQL_CREATE_DB || pInfo->type == TSDB_SQL_ALTER_DB)) {
+      taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeItem);
+    }
+
+    tfree(pInfo->pMiscInfo);
+  }
+}
+
+void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
+  pInfo->type = type;
+  if (nParam == 0) {
+    return;
+  }
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SToken));
+  }
+
+  va_list va;
+  va_start(va, nParam);
+
+  while ((nParam--) > 0) {
+    SToken *pToken = va_arg(va, SToken *);
+    taosArrayPush(pInfo->pMiscInfo->a, pToken);
+  }
+
+  va_end(va);
+}
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken, SToken* existsCheck, int16_t dbType, int16_t tableType) {
+  pInfo->type = type;
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+
+  pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo->dbType = dbType;
+  pInfo->pMiscInfo->tableType = tableType;
+}
+void setShowOptions(SSqlInfo *pInfo, int32_t type, SToken* prefix, SToken* pPatterns) {
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  pInfo->type = TSDB_SQL_SHOW;
+
+  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
+  pShowInfo->showType = type;
+
+  if (prefix != NULL && prefix->type != 0) {
+    pShowInfo->prefix = *prefix;
+  } else {
+    pShowInfo->prefix.type = 0;
+  }
+
+  if (pPatterns != NULL && pPatterns->type != 0) {
+    pShowInfo->pattern = *pPatterns;
+  } else {
+    pShowInfo->pattern.type = 0;
+  }
+}
+
+void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SToken *pToken, SCreateDbInfo *pDB, SToken *pIgExists) {
+  pInfo->type = type;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  pInfo->pMiscInfo->dbOpt = *pDB;
+  pInfo->pMiscInfo->dbOpt.dbname = *pToken;
+  pInfo->pMiscInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
+}
+
+void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPwd, SCreateAcctInfo *pAcctInfo) {
+  pInfo->type = type;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  pInfo->pMiscInfo->acctOpt = *pAcctInfo;
+
+  assert(pName != NULL);
+  pInfo->pMiscInfo->user.user = *pName;
+
+  if (pPwd != NULL) {
+    pInfo->pMiscInfo->user.passwd = *pPwd;
+  }
+}
+void setCreateUserSql(SSqlInfo *pInfo, SToken *pName, SToken *pPasswd) {
+  pInfo->type = TSDB_SQL_CREATE_USER;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  assert(pName != NULL && pPasswd != NULL);
+
+  pInfo->pMiscInfo->user.user = *pName;
+  pInfo->pMiscInfo->user.passwd = *pPasswd;
+}
+void setKillSql(SSqlInfo *pInfo, int32_t type, SToken *id) {
+  pInfo->type = type;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  assert(id != NULL);
+  pInfo->pMiscInfo->id = *id;
+}
+
+void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SToken *pName, SToken* pPwd, SToken *pPrivilege) {
+  pInfo->type = TSDB_SQL_ALTER_USER;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  assert(pName != NULL);
+
+  SUserInfo* pUser = &pInfo->pMiscInfo->user;
+  pUser->type = type;
+  pUser->user = *pName;
+
+  if (pPwd != NULL) {
+    pUser->passwd = *pPwd;
+  } else {
+    pUser->passwd.type = TSDB_DATA_TYPE_NULL;
+  }
+
+  if (pPrivilege != NULL) {
+    pUser->privilege = *pPrivilege;
+  } else {
+    pUser->privilege.type = TSDB_DATA_TYPE_NULL;
+  }
+}
+
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
+  pInfo->type = type;
+  pInfo->list = pParam;
+}
+
+void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
+  pDBInfo->compressionLevel = -1;
+
+  pDBInfo->walLevel = -1;
+  pDBInfo->fsyncPeriod = -1;
+  pDBInfo->commitTime = -1;
+  pDBInfo->maxTablesPerVnode = -1;
+
+  pDBInfo->cacheBlockSize = -1;
+  pDBInfo->numOfBlocks = -1;
+  pDBInfo->maxRowsPerBlock = -1;
+  pDBInfo->minRowsPerBlock = -1;
+  pDBInfo->daysPerFile = -1;
+
+  pDBInfo->replica = -1;
+  pDBInfo->quorum = -1;
+  pDBInfo->keep = NULL;
+
+  pDBInfo->update = -1;
+  pDBInfo->cachelast = -1;
+
+  pDBInfo->dbType = -1;
+  pDBInfo->partitions = -1;
+
+  memset(&pDBInfo->precision, 0, sizeof(SToken));
+}
 void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);
 
 // prefix show db.tables;
-void tSetDbName(SToken *pCpxName, SToken *pDb);
+void tSetDbName(SToken *pCpxName, SToken *pDb) {
+  pCpxName->type = pDb->type;
+  pCpxName->z = pDb->z;
+  pCpxName->n = pDb->n;
+}
 
-void tSetColumnInfo(struct SField *pField, SToken *pName, struct SField *pType);
-void tSetColumnType(struct SField *pField, SToken *type);
+void tSetColumnInfo(SField *pField, SToken *pName, SField *pType) {
+  int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
 
-/**
- *
- * @param yyp      The parser
- * @param yymajor  The major token code number
- * @param yyminor  The value for the token
- */
-void Parse(void *yyp, int yymajor, ParseTOKENTYPE yyminor, SSqlInfo *);
+  // column name is too long, set the it to be invalid.
+  if ((int32_t) pName->n >= maxLen) {
+    pName->n = -1;
+  } else {
+    strncpy(pField->name, pName->z, pName->n);
+    pField->name[pName->n] = 0;
+  }
 
-/**
- *
- * @param p         The parser to be deleted
- * @param freeProc  Function used to reclaim memory
- */
-void ParseFree(void *p, void (*freeProc)(void *));
+  pField->type = pType->type;
+  if(!isValidDataType(pField->type)){
+    pField->bytes = 0;
+  } else {
+    pField->bytes = pType->bytes;
+  }
+}
 
-/**
- *
- * @param mallocProc  The parser allocator
- * @return
- */
-void *ParseAlloc(void *(*mallocProc)(size_t));
+static int32_t tryParseNameTwoParts(SToken *type) {
+  int32_t t = -1;
 
-SSqlInfo genAST(const char *pStr) {
+  char* str = strndup(type->z, type->n);
+  if (str == NULL) {
+    return t;
+  }
+
+  char* p = strtok(str, " ");
+  if (p == NULL) {
+    tfree(str);
+    return t;
+  } else {
+    char* unsign = strtok(NULL, " ");
+    if (unsign == NULL) {
+      tfree(str);
+      return t;
+    }
+
+    if (strncasecmp(unsign, "UNSIGNED", 8) == 0) {
+      for(int32_t j = TSDB_DATA_TYPE_TINYINT; j <= TSDB_DATA_TYPE_BIGINT; ++j) {
+        if (strcasecmp(p, tDataTypes[j].name) == 0) {
+          t = j;
+          break;
+        }
+      }
+
+      tfree(str);
+
+      if (t == -1) {
+        return -1;
+      }
+
+      switch(t) {
+        case TSDB_DATA_TYPE_TINYINT:  return TSDB_DATA_TYPE_UTINYINT;
+        case TSDB_DATA_TYPE_SMALLINT: return TSDB_DATA_TYPE_USMALLINT;
+        case TSDB_DATA_TYPE_INT:      return TSDB_DATA_TYPE_UINT;
+        case TSDB_DATA_TYPE_BIGINT:   return TSDB_DATA_TYPE_UBIGINT;
+        default:
+          return -1;
+      }
+
+    } else {
+      tfree(str);
+      return -1;
+    }
+  }
+}
+
+void tSetColumnType(SField *pField, SToken *type) {
+  // set the field type invalid
+  pField->type = -1;
+  pField->name[0] = 0;
+
+  int32_t i = 0;
+  while (i < tListLen(tDataTypes)) {
+    if ((type->n == tDataTypes[i].nameLen) &&
+        (strncasecmp(type->z, tDataTypes[i].name, tDataTypes[i].nameLen) == 0)) {
+      break;
+    }
+
+    i += 1;
+  }
+
+  // no qualified data type found, try unsigned data type
+  if (i == tListLen(tDataTypes)) {
+    i = tryParseNameTwoParts(type);
+    if (i == -1) {
+      return;
+    }
+  }
+
+  pField->type = i;
+  pField->bytes = tDataTypes[i].bytes;
+
+  if (i == TSDB_DATA_TYPE_NCHAR) {
+    /*
+     * for nchar, the TOKENTYPE is the number of character, so the length is the
+     * number of bytes in UCS-4 format, which is 4 times larger than the number of characters
+     */
+    if (type->type == 0) {
+      pField->bytes = 0;
+    } else {
+      int32_t bytes = -(int32_t)(type->type);
+      if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        // overflowed. set bytes to -1 so that error can be reported
+        bytes = -1;
+      } else {
+        bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+      }
+      pField->bytes = (int16_t)bytes;
+    }
+  } else if (i == TSDB_DATA_TYPE_BINARY) {
+    /* for binary, the TOKENTYPE is the length of binary */
+    if (type->type == 0) {
+      pField->bytes = 0;
+    } else {
+      int32_t bytes = -(int32_t)(type->type);
+      if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+        // overflowed. set bytes to -1 so that error can be reported
+        bytes = -1;
+      } else {
+        bytes += VARSTR_HEADER_SIZE;
+      }
+
+      pField->bytes = (int16_t)bytes;
+    }
+  }
+}
+
+SSqlInfo doGenerateAST(const char *pStr) {
   void *pParser = ParseAlloc(malloc);
 
   SSqlInfo sqlInfo = {0};
-
   sqlInfo.valid = true;
   sqlInfo.funcs = taosArrayInit(4, sizeof(SToken));
 

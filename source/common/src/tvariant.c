@@ -29,18 +29,16 @@
                                                         if ((res) > (maxv)) { *exti = 1; break; }                                   \
                                                         assert(0);                                                                  \
                                                        } while (0)
-#if 0
-void tVariantCreate(SVariant *pVar, SToken *token) {
-  int32_t ret = 0;
-  int32_t type = token->type;
 
+void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
+  int32_t ret = 0;
   memset(pVar, 0, sizeof(SVariant));
 
-  switch (token->type) {
+  switch (type) {
     case TSDB_DATA_TYPE_BOOL: {
-      if (strncasecmp(token->z, "true", 4) == 0) {
+      if (strncasecmp(z, "true", 4) == 0) {
         pVar->i64 = TSDB_TRUE;
-      } else if (strncasecmp(token->z, "false", 5) == 0) {
+      } else if (strncasecmp(z, "false", 5) == 0) {
         pVar->i64 = TSDB_FALSE;
       } else {
         return;
@@ -53,35 +51,35 @@ void tVariantCreate(SVariant *pVar, SToken *token) {
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_INT:{
-      ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
-      if (ret != 0) {
-        SToken t = {0};
-        tGetToken(token->z, &t.type);
-        if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
-          pVar->nType = -1;   // -1 means error type
-          return;
-        }
-
-        // data overflow, try unsigned parse the input number
-        ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
-        if (ret != 0) {
-          pVar->nType = -1;   // -1 means error type
-          return;
-        }
-      }
+//      ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
+//      if (ret != 0) {
+//        SToken t = {0};
+//        tGetToken(token->z, &t.type);
+//        if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
+//          pVar->nType = -1;   // -1 means error type
+//          return;
+//        }
+//
+//        // data overflow, try unsigned parse the input number
+//        ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
+//        if (ret != 0) {
+//          pVar->nType = -1;   // -1 means error type
+//          return;
+//        }
+//      }
 
       break;
     }
 
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_FLOAT: {
-      pVar->d = strtod(token->z, NULL);
+      pVar->d = strtod(z, NULL);
       break;
     }
 
     case TSDB_DATA_TYPE_BINARY: {
-      pVar->pz = strndup(token->z, token->n);
-      pVar->nLen = strRmquote(pVar->pz, token->n);
+      pVar->pz = strndup(z, n);
+      pVar->nLen = strRmquote(pVar->pz, n);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -96,7 +94,7 @@ void tVariantCreate(SVariant *pVar, SToken *token) {
   
   pVar->nType = type;
 }
-#endif
+
 
 /**
  * create SVariant from binary string, not ascii data
@@ -105,7 +103,7 @@ void tVariantCreate(SVariant *pVar, SToken *token) {
  * @param len
  * @param type
  */
-void tVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type) {
+void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
@@ -183,7 +181,7 @@ void tVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32
   pVar->nType = type;
 }
 
-void tVariantDestroy(SVariant *pVar) {
+void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
   
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
@@ -206,12 +204,12 @@ void tVariantDestroy(SVariant *pVar) {
   }
 }
 
-bool tVariantIsValid(SVariant *pVar) {
+bool taosVariantIsValid(SVariant *pVar) {
   assert(pVar != NULL);
   return isValidDataType(pVar->nType);
 }
 
-void tVariantAssign(SVariant *pDst, const SVariant *pSrc) {
+void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
   
   pDst->nType = pSrc->nType;
@@ -255,7 +253,7 @@ void tVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   }
 }
 
-int32_t tVariantCompare(const SVariant* p1, const SVariant* p2) {
+int32_t taosVariantCompare(const SVariant* p1, const SVariant* p2) {
   if (p1->nType == TSDB_DATA_TYPE_NULL && p2->nType == TSDB_DATA_TYPE_NULL) {
     return 0;
   }
@@ -295,7 +293,7 @@ int32_t tVariantCompare(const SVariant* p1, const SVariant* p2) {
   }
 }
 
-int32_t tVariantToString(SVariant *pVar, char *dst) {
+int32_t taosVariantToString(SVariant *pVar, char *dst) {
   if (pVar == NULL || dst == NULL) return 0;
   
   switch (pVar->nType) {
@@ -893,7 +891,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
  * transfer data from variant serve as the implicit data conversion: from input sql string pVariant->nType
  * to column type defined in schema
  */
-int32_t tVariantDump(SVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
+int32_t taosVariantDump(SVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
   return tVariantDumpEx(pVariant, payload, type, includeLengthPrefix, NULL, NULL);
 }
 

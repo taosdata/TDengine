@@ -259,7 +259,7 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
 intitemlist(A) ::= intitemlist(X) COMMA intitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
 intitemlist(A) ::= intitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
 
-intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
+intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); taosVariantCreate(&A, &X); }
 
 %type keep {SArray*}
 %destructor keep {taosArrayDestroy($$);}
@@ -444,39 +444,39 @@ column(A) ::= ids(X) typename(Y).          {
 tagitemlist(A) ::= tagitemlist(X) COMMA tagitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
 tagitemlist(A) ::= tagitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
 
-tagitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= STRING(X).       { toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
-tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreate(&A, &X);}
+tagitem(A) ::= INTEGER(X).      { toTSDBType(X.type); taosVariantCreate(&A, &X); }
+tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); taosVariantCreate(&A, &X); }
+tagitem(A) ::= STRING(X).       { toTSDBType(X.type); taosVariantCreate(&A, &X); }
+tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); taosVariantCreate(&A, &X); }
+tagitem(A) ::= NULL(X).         { X.type = 0; taosVariantCreate(&A, &X); }
+tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; taosVariantCreate(&A, &X);}
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X);
+    taosVariantCreate(&A, &X);
 }
 
 tagitem(A) ::= MINUS(X) FLOAT(Y).  {
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X);
+    taosVariantCreate(&A, &X);
 }
 
 tagitem(A) ::= PLUS(X) INTEGER(Y). {
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X);
+    taosVariantCreate(&A, &X);
 }
 
 tagitem(A) ::= PLUS(X) FLOAT(Y).  {
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X);
+    taosVariantCreate(&A, &X);
 }
 
 //////////////////////// The SELECT statement /////////////////////////////////
@@ -599,7 +599,7 @@ fill_opt(N) ::= .                                           { N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
     toTSDBType(Y.type);
-    tVariantCreate(&A, &Y);
+    taosVariantCreate(&A, &Y);
 
     tVariantListInsert(X, &A, -1, 0);
     N = X;
@@ -639,7 +639,7 @@ item(A) ::= ids(X) cpxName(Y).   {
   toTSDBType(X.type);
   X.n += Y.n;
 
-  tVariantCreate(&A, &X);
+  taosVariantCreate(&A, &X);
 }
 
 %type sortorder {int}
@@ -719,7 +719,7 @@ expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
-expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
+expr(A) ::= ID(X) LP exprlist(Y) RP(E). { (pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
 
 // for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
 expr(A) ::= ID(X) LP STAR RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }

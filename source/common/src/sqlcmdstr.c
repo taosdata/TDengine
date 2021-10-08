@@ -15,4 +15,4 @@
 
 #define TSDB_SQL_C
 
-#include "tcmdtype.h"
+#include "tmsgtype.h"

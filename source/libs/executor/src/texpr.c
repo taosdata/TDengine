@@ -117,7 +117,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   if (pNode->nodeType == TSQL_NODE_EXPR) {
     doExprTreeDestroy(&pNode, fp);
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
-    tVariantDestroy(pNode->pVal);
+    taosVariantDestroy(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     tfree(pNode->pSchema);
   }
@@ -138,7 +138,7 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
       fp((*pExpr)->_node.info);
     }
   } else if ((*pExpr)->nodeType == TSQL_NODE_VALUE) {
-    tVariantDestroy((*pExpr)->pVal);
+    taosVariantDestroy((*pExpr)->pVal);
     free((*pExpr)->pVal);
   } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
     free((*pExpr)->pSchema);
@@ -492,8 +492,8 @@ void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
   uint32_t type  = tbufReadUint32(&br);     
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   
-  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
-  
+//  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type));
+
   int dummy = -1;
   int32_t sz = tbufReadInt32(&br);
   for (int32_t i = 0; i < sz; i++) {
@@ -528,7 +528,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
   uint32_t sType  = tbufReadUint32(&br);     
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(tType), true, false);
   
-  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(tType)); 
+//  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(tType));
   
   int dummy = -1;
   SVariant tmpVar = {0};  
@@ -603,7 +603,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       return;
     }
     
-    tVariantCreateFromBinary(&tmpVar, (char *)pvar, t, sType);
+    taosVariantCreateFromBinary(&tmpVar, (char *)pvar, t, sType);
 
     if (bufLen < t) {
       tmp = realloc(tmp, t * TSDB_NCHAR_SIZE);
@@ -686,7 +686,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
     }
     
     taosHashPut(pObj, (char *)pvar, t,  &dummy, sizeof(dummy));
-    tVariantDestroy(&tmpVar);
+    taosVariantDestroy(&tmpVar);
     memset(&tmpVar, 0, sizeof(tmpVar));
   } 
 
@@ -694,7 +694,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
   pObj = NULL;
   
 err_ret:  
-  tVariantDestroy(&tmpVar);
+  taosVariantDestroy(&tmpVar);
   taosHashCleanup(pObj);
   tfree(tmp);
 }
@@ -716,7 +716,7 @@ tExprNode* exprdup(tExprNode* pNode) {
     pCloned->_node.hasPK = pNode->_node.hasPK;
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
     pCloned->pVal = calloc(1, sizeof(SVariant));
-    tVariantAssign(pCloned->pVal, pNode->pVal);
+    taosVariantAssign(pCloned->pVal, pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     pCloned->pSchema = calloc(1, sizeof(SSchema));
     *pCloned->pSchema = *pNode->pSchema;

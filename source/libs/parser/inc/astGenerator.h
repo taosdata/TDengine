@@ -285,8 +285,7 @@ int32_t   tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type);
 
-SAlterTableInfo * tSetAlterTableInfo(SToken *pTableName, SArray *pCols, SArray *pVals, int32_t type,
-                                     int16_t tableTable);
+SAlterTableInfo * tSetAlterTableInfo(SToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType);
 SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames, SArray *pTagVals, SToken *pToken,
                                           SToken *igExists);
 
@@ -299,6 +298,7 @@ SArray   *setSubclause(SArray *pList, void *pSqlNode);
 SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SToken *pTableNameToken, SToken *pIfNotExists);
+void* destroyCreateTableSql(SCreateTableSql* pCreate);
 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 
@@ -351,7 +351,7 @@ void *ParseAlloc(void *(*mallocProc)(size_t));
  * @param str sql string
  * @return sql ast
  */
-SSqlInfo genAST(const char *str);
+SSqlInfo doGenerateAST(const char *str);
 
 #ifdef __cplusplus
 }

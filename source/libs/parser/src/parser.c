@@ -21,13 +21,13 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   return false;
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg) {
+int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen) {
   *pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
   if (*pQueryInfo == NULL) {
     return -1; // set correct error code.
   }
 
-  SSqlInfo info = genAST(pStr);
+  SSqlInfo info = doGenerateAST(pStr);
   if (!info.valid) {
     strcpy(msg, info.msg);
     return -1; // set correct error code.
@@ -42,7 +42,7 @@ int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** 
   return 0;
 }
 
-int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg) {
+int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg, int32_t msgLen) {
   return 0;
 }
 

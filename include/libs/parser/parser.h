@@ -183,7 +183,7 @@ bool qIsInsertSql(const char* pStr, size_t length);
  * @param msg      extended error message if exists.
  * @return         error code
  */
-int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg);
+int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen);
 
 /**
  * Parse the insert sql statement.
@@ -194,7 +194,7 @@ int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** 
  * @param msg             extended error message if exists to help avoid the problem in sql statement.
  * @return
  */
-int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg);
+int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg, int32_t msgLen);
 
 /**
  * Convert a normal sql statement to only query tags information to enable that the subscribe client can be aware quickly of the true vgroup ids that
