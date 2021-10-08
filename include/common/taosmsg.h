@@ -952,6 +952,42 @@ typedef struct {
   char    reserved2[64];
 } SStartupStep;
 
+typedef struct {
+  /* data */
+} SSubmitReq;
+
+typedef struct {
+  /* data */
+} SSubmitRsp;
+
+typedef struct {
+  /* data */
+} SSubmitReqReader;
+
+typedef struct {
+  /* data */
+} SCreateTableReq;
+
+typedef struct {
+  /* data */
+} SCreateTableRsp;
+
+typedef struct {
+  /* data */
+} SDropTableReq;
+
+typedef struct {
+  /* data */
+} SDropTableRsp;
+
+typedef struct {
+  /* data */
+} SAlterTableReq;
+
+typedef struct {
+  /* data */
+} SAlterTableRsp;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

@@ -16,6 +16,10 @@
 #ifndef _TD_CONSUMER_H_
 #define _TD_CONSUMER_H_
 
+#include "tlist.h"
+#include "tarray.h"
+#include "hash.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,16 +36,15 @@ extern "C" {
   struct tmq_resp_err_t;
   typedef struct tmq_resp_err_t tmq_resp_err_t;
 
-  //topic list
-  //resouces are supposed to be free by users by calling tmq_list_destroy
-  struct tmq_topic_list_t;
-  typedef struct tmq_topic_list_t tmq_topic_list_t;
-  int32_t tmq_topic_list_add(tmq_topic_list_t*, const char*);
-  void    tmq_topic_list_destroy(tmq_topic_list_t*);
+  struct tmq_message_t;
+  typedef struct tmq_message_t tmq_message_t;
+
+  struct tmq_col_batch_t;
+  typedef struct tmq_col_batch_t tmq_col_batch_t;
 
   //get content of message
-  tmq_col_batch_t *tmq_get_msg_col_by_idx(tmq_message_t*, int32_t);
-  tmq_col_batch_t *tmq_get_msg_col_by_name(tmq_message_t*, const char*);
+  tmq_col_batch_t* tmq_get_msg_col_by_idx(tmq_message_t*, int32_t col_id);
+  tmq_col_batch_t* tmq_get_msg_col_by_name(tmq_message_t*, const char*);
 
   //consumer config
   int32_t tmq_conf_set(tmq_consumer_config_t* , const char* config_key, const char* config_value, char* errstr, int32_t errstr_cap);
@@ -51,11 +54,12 @@ extern "C" {
   tmq_consumer_t* tmq_consumer_new(tmq_consumer_config_t* , char* errstr, int32_t errstr_cap);
 
   //subscribe
-  tmq_resp_err_t tmq_subscribe(tmq_consumer_t*, const tmq_topic_list_t*);
+  tmq_resp_err_t tmq_subscribe(tmq_consumer_t*, const SList*);
+  tmq_resp_err_t tmq_unsubscribe(tmq_consumer_t*);
 
   //consume
   //resouces are supposed to be free by users by calling tmq_message_destroy
-  tmq_message_t tmq_consume_poll(tmq_consumer_t*, int64_t blocking_time);
+  tmq_message_t* tmq_consume_poll(tmq_consumer_t*, int64_t blocking_time);
 
   //destroy message and free memory
   void tmq_message_destroy(tmq_message_t*);
