@@ -9,5 +9,5 @@ target_link_libraries(
     common
     PUBLIC os
     PUBLIC util
-    PUBLIC api
+    INTERFACE api
 )
