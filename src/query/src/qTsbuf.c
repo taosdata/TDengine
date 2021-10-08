@@ -1,8 +1,8 @@
 #include "qTsbuf.h"
-#include "taoserror.h"
-#include "tscompression.h"
-#include "tutil.h"
 #include "queryLog.h"
+#include "taoserror.h"
+#include "tcompression.h"
+#include "tutil.h"
 
 static int32_t getDataStartOffset();
 static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);

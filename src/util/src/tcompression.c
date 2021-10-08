@@ -53,10 +53,9 @@
   #include "td_sz.h"
 #endif
 #include "taosdef.h"
-#include "tscompression.h"
-#include "tulog.h"
+#include "tcompression.h"
 #include "tglobal.h"
-
+#include "tulog.h"
 
 static const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)

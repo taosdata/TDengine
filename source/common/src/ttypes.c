@@ -12,27 +12,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "os.h"
 
+#include "taos.h"
+#include "os.h"
+#include "ttypes.h"
 #include "tcompression.h"
-#include "ttokendef.h"
-#include "ttype.h"
 
 const int32_t TYPE_BYTES[15] = {
     -1,                      // TSDB_DATA_TYPE_NULL
-    sizeof(int8_t),          // TSDB_DATA_TYPE_BOOL
-    sizeof(int8_t),          // TSDB_DATA_TYPE_TINYINT
-    sizeof(int16_t),         // TSDB_DATA_TYPE_SMALLINT
-    sizeof(int32_t),         // TSDB_DATA_TYPE_INT
+    CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
+    CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
+    SHORT_BYTES,             // TSDB_DATA_TYPE_SMALLINT
+    INT_BYTES,               // TSDB_DATA_TYPE_INT
     sizeof(int64_t),         // TSDB_DATA_TYPE_BIGINT
-    sizeof(float),           // TSDB_DATA_TYPE_FLOAT
-    sizeof(double),          // TSDB_DATA_TYPE_DOUBLE
+    FLOAT_BYTES,             // TSDB_DATA_TYPE_FLOAT
+    DOUBLE_BYTES,            // TSDB_DATA_TYPE_DOUBLE
     sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_BINARY
     sizeof(TSKEY),           // TSDB_DATA_TYPE_TIMESTAMP
     sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_NCHAR
-    sizeof(uint8_t),         // TSDB_DATA_TYPE_UTINYINT
-    sizeof(uint16_t),        // TSDB_DATA_TYPE_USMALLINT
-    sizeof(uint32_t),        // TSDB_DATA_TYPE_UINT
+    CHAR_BYTES,              // TSDB_DATA_TYPE_UTINYINT
+    SHORT_BYTES,             // TSDB_DATA_TYPE_USMALLINT
+    INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
 };
 
@@ -58,7 +58,7 @@ static void getStatics_bool(const void *pData, int32_t numOfRow, int64_t *min, i
   *minIndex = 0;
   *maxIndex = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (data[i] == TSDB_DATA_BOOL_NULL) {
@@ -78,7 +78,7 @@ static void getStatics_i8(const void *pData, int32_t numOfRow, int64_t *min, int
   *minIndex = 0;
   *maxIndex = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint8_t)data[i]) == TSDB_DATA_TINYINT_NULL) {
@@ -100,7 +100,7 @@ static void getStatics_u8(const void *pData, int32_t numOfRow, int64_t *min, int
   *minIndex = 0;
   *maxIndex = 0;
 
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint8_t)data[i]) == TSDB_DATA_UTINYINT_NULL) {
@@ -124,7 +124,7 @@ static void getStatics_i16(const void *pData, int32_t numOfRow, int64_t *min, in
   *minIndex = 0;
   *maxIndex = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint16_t)data[i]) == TSDB_DATA_SMALLINT_NULL) {
@@ -147,7 +147,7 @@ static void getStatics_u16(const void *pData, int32_t numOfRow, int64_t *min, in
   *minIndex = 0;
   *maxIndex = 0;
 
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint16_t)data[i]) == TSDB_DATA_USMALLINT_NULL) {
@@ -171,7 +171,7 @@ static void getStatics_i32(const void *pData, int32_t numOfRow, int64_t *min, in
   *minIndex = 0;
   *maxIndex = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint32_t)data[i]) == TSDB_DATA_INT_NULL) {
@@ -193,7 +193,7 @@ static void getStatics_u32(const void *pData, int32_t numOfRow, int64_t *min, in
   *minIndex = 0;
   *maxIndex = 0;
 
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint32_t)data[i]) == TSDB_DATA_UINT_NULL) {
@@ -217,7 +217,7 @@ static void getStatics_i64(const void *pData, int32_t numOfRow, int64_t *min, in
   *minIndex = 0;
   *maxIndex = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint64_t)data[i]) == TSDB_DATA_BIGINT_NULL) {
@@ -239,7 +239,7 @@ static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, in
   *minIndex = 0;
   *maxIndex = 0;
 
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
 
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (((uint64_t)data[i]) == TSDB_DATA_UBIGINT_NULL) {
@@ -264,7 +264,7 @@ static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int6
   *minIndex    = 0;
   *maxIndex    = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if ((*(uint32_t*)&(data[i])) == TSDB_DATA_FLOAT_NULL) {
@@ -300,7 +300,7 @@ static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int6
   *minIndex    = 0;
   *maxIndex    = 0;
   
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if ((*(uint64_t*)&(data[i])) == TSDB_DATA_DOUBLE_NULL) {
@@ -330,7 +330,7 @@ static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int6
 static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
                          int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   const char* data = pData;
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(data, TSDB_DATA_TYPE_BINARY)) {
@@ -350,7 +350,7 @@ static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, in
 static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
                            int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   const char* data = pData;
-  ASSERT(numOfRow <= INT16_MAX);
+  assert(numOfRow <= INT16_MAX);
   
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(data, TSDB_DATA_TYPE_NCHAR)) {
@@ -426,7 +426,6 @@ FORCE_INLINE void* getDataMax(int32_t type) {
   }
 }
 
-
 bool isValidDataType(int32_t type) {
   return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
 }
@@ -444,6 +443,8 @@ void setVardataNull(void* val, int32_t type) {
 }
 
 void setNull(void *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
+
+#define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 
 void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   switch (type) {
@@ -531,11 +532,6 @@ static uint32_t     nullIntu = TSDB_DATA_UINT_NULL;
 static uint64_t     nullBigIntu = TSDB_DATA_UBIGINT_NULL;
 static SBinaryNullT nullBinary = {1, TSDB_DATA_BINARY_NULL};
 static SNCharNullT  nullNchar = {4, TSDB_DATA_NCHAR_NULL};
-
-// static union {
-//   tstr str;
-//   char pad[sizeof(tstr) + 4];
-// } nullBinary = {.str = {.len = 1}}, nullNchar = {.str = {.len = 4}};
 
 static const void *nullValues[] = {
     &nullBool,     &nullTinyInt,   &nullSmallInt, &nullInt,    &nullBigInt,
@@ -634,6 +630,13 @@ void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   }
 }
 
+#define SWAP(a, b, c)        \
+    do {                     \
+      typeof(a) __tmp = (a); \
+      (a) = (b);             \
+      (b) = __tmp;           \
+    } while (0)
+
 
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf) {
   switch (type) {
@@ -678,50 +681,4 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
       break;
     }
   }
-}
-
-int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned) {
-  errno = 0;
-  int32_t ret = 0;
-
-  char* endPtr = NULL;
-  if (type == TK_FLOAT) {
-    double v = strtod(z, &endPtr);
-    if ((errno == ERANGE && v == HUGE_VALF) || isinf(v) || isnan(v)) {
-      ret = -1;
-    } else if ((issigned && (v < INT64_MIN || v > INT64_MAX)) || ((!issigned) && (v < 0 || v > UINT64_MAX))) {
-      ret = -1;
-    } else {
-      *value = (int64_t) round(v);
-    }
-
-    errno = 0;
-    return ret;
-  }
-
-  int32_t radix = 10;
-  if (type == TK_HEX) {
-    radix = 16;
-  } else if (type == TK_BIN) {
-    radix = 2;
-  }
-
-  // the string may be overflow according to errno
-  if (!issigned) {
-    const char *p = z;
-    while(*p != 0 && *p == ' ') p++;   
-    if (*p != 0 && *p == '-') { return -1;}
-
-    *value = strtoull(z, &endPtr, radix);
-  } else {
-    *value = strtoll(z, &endPtr, radix);
-  }
-
-  // not a valid integer number, return error
-  if (endPtr - z != n || errno == ERANGE) {
-    ret = -1;
-  }
-
-  errno = 0;
-  return ret;
 }

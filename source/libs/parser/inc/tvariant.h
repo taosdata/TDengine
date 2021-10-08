@@ -39,7 +39,7 @@ typedef struct SVariant {
 
 bool taosVariantIsValid(SVariant *pVar);
 
-void taosVariantCreate(SVariant *pVar, SStrToken *token);
+void taosVariantCreate(SVariant *pVar, SToken *token);
 
 void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
 

@@ -8,5 +8,5 @@ target_include_directories(
 
 target_link_libraries(
     planner
-    PRIVATE os util common catalog parser
+    PRIVATE os util common catalog parser transport
 )

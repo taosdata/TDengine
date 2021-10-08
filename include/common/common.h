@@ -16,6 +16,8 @@
 #ifndef TDENGINE_COMMON_H
 #define TDENGINE_COMMON_H
 
+#include "taosdef.h"
+
 typedef struct STimeWindow {
   TSKEY skey;
   TSKEY ekey;
