@@ -1176,7 +1176,7 @@ static int64_t dumpNormalTable(
         }
     }
 
-    free(tableDes);
+    tfree(tableDes);
 
     int64_t ret = 0;
     if (!g_args.schemaonly) {
@@ -1184,6 +1184,7 @@ static int64_t dumpNormalTable(
             jsonAvroSchema);
     }
 
+    tfree(jsonAvroSchema);
     return ret;
 }
 
