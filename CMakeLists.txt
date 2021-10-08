@@ -48,8 +48,8 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -gdwarf-2 -msse4.2 -mfma")
 add_subdirectory(deps)
 
 # api
-aux_source_directory(include/client API_SRC)
-add_library(api INTERFACE ${API_SRC})
+add_library(api INTERFACE)
+target_include_directories(api INTERFACE "include/client")
 
 # src
 add_subdirectory(source)
