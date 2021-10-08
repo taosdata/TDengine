@@ -179,10 +179,10 @@ def pre_test_win(){
     mkdir debug
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
-    cmake ../ -G "NMake Makefiles" 
-    nmake
-    nmake install 
-    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    cmake ../ -G "NMake Makefiles" && exit 8
+    nmake && exit 8
+    nmake install && exit 8
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 && exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
     
