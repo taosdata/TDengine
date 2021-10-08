@@ -1002,6 +1002,7 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
   size_t rows = taosArrayGetSize(cTablePoints);
   SArray* rowsBind = taosArrayInit(rows, POINTER_BYTES);
 
+  int isNullColBind = TSDB_TRUE;
   for (int i = 0; i < rows; ++i) {
     TAOS_SML_DATA_POINT* point = taosArrayGetP(cTablePoints, i);
 
@@ -1012,7 +1013,6 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
-    int isNullColBind = TSDB_TRUE;
     for (int j = 0; j < numCols; ++j) {
       TAOS_BIND* bind = colBinds + j;
       bind->is_null = &isNullColBind;

@@ -45,7 +45,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -211,7 +211,7 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #query
@@ -263,7 +263,7 @@ python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
-#python3 ./test.py -f query/nestedQuery/nestedQuery.py
+python3 ./test.py -f query/nestedQuery/nestedQuery.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
@@ -293,6 +293,7 @@ python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
+python3 ./test.py -f client/taoshellCheckCase.py
 # python3 test.py -f client/change_time_1_1.py
 # python3 test.py -f client/change_time_1_2.py
 

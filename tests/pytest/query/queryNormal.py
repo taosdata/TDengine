@@ -17,6 +17,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import platform
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -137,8 +138,9 @@ class TDTestCase:
         tdSql.checkData(1, 1, 421)
         tdSql.checkData(1, 2, "tm1")
         
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        if platform.system() == "Linux": 
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
 
         tdSql.query("select last(*) from m1 group by tbname")
         tdSql.checkData(0, 0, "2020-03-01 01:01:01")
