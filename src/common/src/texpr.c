@@ -118,7 +118,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
-    free(pNode->pSchema);
+    tfree(pNode->pSchema);
   }
 
   free(pNode);
@@ -325,14 +325,6 @@ static void* exception_calloc(size_t nmemb, size_t size) {
   return p;
 }
 
-static void* exception_malloc(size_t size) {
-  void* p = malloc(size);
-  if (p == NULL) {
-    THROW(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-  return p;
-}
-
 static UNUSED_FUNC char* exception_strdup(const char* str) {
   char* p = strdup(str);
   if (p == NULL) {
@@ -395,77 +387,6 @@ tExprNode* exprTreeFromBinary(const void* data, size_t size) {
   return exprTreeFromBinaryImpl(&br);
 }
 
-tExprNode* exprTreeFromTableName(const char* tbnameCond) {
-  if (!tbnameCond) {
-    return NULL;
-  }
-
-  int32_t anchor = CLEANUP_GET_ANCHOR();
-
-  tExprNode* expr = exception_calloc(1, sizeof(tExprNode));
-  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, expr, NULL);
-
-  expr->nodeType = TSQL_NODE_EXPR;
-
-  tExprNode* left = exception_calloc(1, sizeof(tExprNode));
-  expr->_node.pLeft = left;
-
-  left->nodeType = TSQL_NODE_COL;
-  SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
-  left->pSchema = pSchema;
-
-  *pSchema = *tGetTbnameColumnSchema();
-
-  tExprNode* right = exception_calloc(1, sizeof(tExprNode));
-  expr->_node.pRight = right;
-
-  if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
-    expr->_node.optr = TSDB_RELATION_LIKE;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
-    right->pVal = pVal;
-    size_t len = strlen(tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN) + 1;
-    pVal->pz = exception_malloc(len);
-    memcpy(pVal->pz, tbnameCond + QUERY_COND_REL_PREFIX_LIKE_LEN, len);
-    pVal->nType = TSDB_DATA_TYPE_BINARY;
-    pVal->nLen = (int32_t)len;
-
-  } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
-    expr->_node.optr = TSDB_RELATION_IN;
-    tVariant* pVal = exception_calloc(1, sizeof(tVariant));
-    right->pVal = pVal;
-    pVal->nType = TSDB_DATA_TYPE_ARRAY;
-    pVal->arr = taosArrayInit(2, POINTER_BYTES);
-
-    const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;
-    for (const char *e = cond; *e != 0; e++) {
-      if (*e == TS_PATH_DELIMITER[0]) {
-        cond = e + 1;
-      } else if (*e == ',') {
-        size_t len = e - cond;
-        char* p = exception_malloc(len + VARSTR_HEADER_SIZE);
-        STR_WITH_SIZE_TO_VARSTR(p, cond, (VarDataLenT)len);
-        cond += len;
-        taosArrayPush(pVal->arr, &p);
-      }
-    }
-
-    if (*cond != 0) {
-      size_t len = strlen(cond) + VARSTR_HEADER_SIZE;
-      
-      char* p = exception_malloc(len);
-      STR_WITH_SIZE_TO_VARSTR(p, cond, (VarDataLenT)(len - VARSTR_HEADER_SIZE));
-      taosArrayPush(pVal->arr, &p);
-    }
-
-    taosArraySortString(pVal->arr, taosArrayCompareString);
-  }
-
-  CLEANUP_EXECUTE_TO(anchor, false);
-  return expr;
-}
-
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
   SBufferReader br = tbufInitReader(buf, len, false); 
   uint32_t type  = tbufReadUint32(&br);     
@@ -501,6 +422,183 @@ void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
   } 
   *q = (void *)pObj;
 }
+
+void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType) {
+  SBufferReader br = tbufInitReader(buf, len, false); 
+  uint32_t sType  = tbufReadUint32(&br);     
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(tType), true, false);
+  
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(tType)); 
+  
+  int dummy = -1;
+  tVariant tmpVar = {0};  
+  size_t  t = 0;
+  int32_t sz = tbufReadInt32(&br);
+  void *pvar = NULL;  
+  int64_t val = 0;
+  int32_t bufLen = 0;
+  if (IS_NUMERIC_TYPE(sType)) {
+    bufLen = 60;  // The maximum length of string that a number is converted to.
+  } else {
+    bufLen = 128;
+  }
+
+  char *tmp = calloc(1, bufLen * TSDB_NCHAR_SIZE);
+    
+  for (int32_t i = 0; i < sz; i++) {
+    switch (sType) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT: {
+      *(uint8_t *)&val = (uint8_t)tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT: {
+      *(uint16_t *)&val = (uint16_t)tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT: {
+      *(uint32_t *)&val = (uint32_t)tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT: {
+      *(uint64_t *)&val = (uint64_t)tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      *(double *)&val = tbufReadDouble(&br);
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      *(float *)&val = (float)tbufReadDouble(&br);
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_BINARY: {
+      pvar = (char *)tbufReadBinary(&br, &t);
+      break;
+    }
+    case TSDB_DATA_TYPE_NCHAR: {
+      pvar = (char *)tbufReadBinary(&br, &t);      
+      break;
+    }
+    default:
+      taosHashCleanup(pObj);
+      *q = NULL;
+      return;
+    }
+    
+    tVariantCreateFromBinary(&tmpVar, (char *)pvar, t, sType);
+
+    if (bufLen < t) {
+      tmp = realloc(tmp, t * TSDB_NCHAR_SIZE);
+      bufLen = (int32_t)t;
+    }
+
+    switch (tType) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_TINYINT: {
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_SMALLINT: {
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_INT: {
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_BIGINT: {
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_BINARY: {
+        if (tVariantDump(&tmpVar, tmp, tType, true)) {
+          goto err_ret;
+        }
+        t = varDataLen(tmp);
+        pvar = varDataVal(tmp);
+        break;
+      }
+      case TSDB_DATA_TYPE_NCHAR: {
+        if (tVariantDump(&tmpVar, tmp, tType, true)) {
+          goto err_ret;
+        }
+        t = varDataLen(tmp);
+        pvar = varDataVal(tmp);        
+        break;
+      }
+      default:
+        goto err_ret;
+    }
+    
+    taosHashPut(pObj, (char *)pvar, t,  &dummy, sizeof(dummy));
+    tVariantDestroy(&tmpVar);
+    memset(&tmpVar, 0, sizeof(tmpVar));
+  } 
+
+  *q = (void *)pObj;
+  pObj = NULL;
+  
+err_ret:  
+  tVariantDestroy(&tmpVar);
+  taosHashCleanup(pObj);
+  tfree(tmp);
+}
+
 
 tExprNode* exprdup(tExprNode* pNode) {
   if (pNode == NULL) {

@@ -35,7 +35,7 @@ fi
 if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taosd
   strip ${build_dir}/bin/taos
-  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh"
+  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh ${script_dir}/startPre.sh"
 else
   bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${build_dir}/bin/taosdemo ${build_dir}/bin/tarbitrator\
              ${script_dir}/remove.sh ${script_dir}/set_core.sh ${script_dir}/startPre.sh  ${script_dir}/taosd-dump-cfg.gdb"
@@ -203,26 +203,29 @@ fi
 
 cd ${release_dir}
 
-if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${osType}-${cpuType}
-elif [ "$verMode" == "edge" ]; then
-  pkg_name=${install_dir}-${osType}-${cpuType}
-else
-  echo "unknow verMode, nor cluster or edge"
-  exit 1
-fi
+#  install_dir has been distinguishes  cluster from  edege, so comments this code
+pkg_name=${install_dir}-${osType}-${cpuType}
 
-if [ "$pagMode" == "lite" ]; then
-  pkg_name=${pkg_name}-Lite
-fi
+# if [ "$verMode" == "cluster" ]; then
+#   pkg_name=${install_dir}-${osType}-${cpuType}
+# elif [ "$verMode" == "edge" ]; then
+#   pkg_name=${install_dir}-${osType}-${cpuType}
+# else
+#   echo "unknow verMode, nor cluster or edge"
+#   exit 1
+# fi
 
-if [ "$verType" == "beta" ]; then
-  pkg_name=${pkg_name}-${verType}
+if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
+fi
+
+if [ "$pagMode" == "lite" ]; then
+  pkg_name=${pkg_name}-Lite
 fi
 
 tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :

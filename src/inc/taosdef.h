@@ -34,6 +34,7 @@ extern "C" {
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+#define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
@@ -83,9 +84,13 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "powerdb"
 #elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
+#elif (_TD_PRO_ == true)
+#define TSDB_DEFAULT_PASS               "prodb"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
+
+#define SHELL_MAX_PASSWORD_LEN          20
 
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
@@ -161,6 +166,9 @@ do { \
 #define TSDB_RELATION_OR          12
 #define TSDB_RELATION_NOT         13
 
+#define TSDB_RELATION_MATCH       14
+#define TSDB_RELATION_NMATCH      15
+
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
 #define TSDB_BINARY_OP_MULTIPLY   32
@@ -180,12 +188,16 @@ do { \
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN          11
 
-#define TSDB_MAX_COLUMNS          1024
+#define TSDB_MAX_COLUMNS          4096
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
+#define TSDB_FUNC_NAME_LEN        65
+#define TSDB_FUNC_CODE_LEN        (65535 - 512)
+#define TSDB_FUNC_BUF_SIZE        512
+#define TSDB_TYPE_STR_MAX_LEN     32
 #define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
@@ -195,7 +207,13 @@ do { \
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
-#define TSDB_MAX_BYTES_PER_ROW    16384
+  /**
+   *  In some scenarios uint16_t (0~65535) is used to store the row len.
+   *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
+   *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
+   *    the final value is 65531-(4096-1)*4 = 49151.
+   */
+#define TSDB_MAX_BYTES_PER_ROW    49151
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
@@ -213,6 +231,7 @@ do { \
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_STEP_NAME_LEN        32
@@ -263,6 +282,7 @@ do { \
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
 #define TSDB_TABLES_STEP                1000
+#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
@@ -297,7 +317,7 @@ do { \
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_DB_UPDATE              0
-#define TSDB_MAX_DB_UPDATE              1
+#define TSDB_MAX_DB_UPDATE              2
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
@@ -323,14 +343,19 @@ do { \
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
+#define TSDB_MAX_FIELD_LEN              16384
+#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
+#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
 #define TSDB_MAX_RPC_THREADS            5
 
 #define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
+
+#define TSDB_UDF_TYPE_SCALAR       1
+#define TSDB_UDF_TYPE_AGGREGATE    2
+
 
 /*
  * 1. ordinary sub query for select * from super_table
@@ -350,6 +375,7 @@ do { \
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
 #define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
+#define TSDB_QUERY_TYPE_NEST_SUBQUERY          0x1000u   // nested sub query
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)          ((x) |= (_type))
@@ -419,6 +445,12 @@ typedef enum {
   TSDB_CHECK_ITEM_DATAFILE,
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
+
+typedef enum {
+  TD_ROW_DISCARD_UPDATE   = 0,
+  TD_ROW_OVERWRITE_UPDATE = 1,
+  TD_ROW_PARTIAL_UPDATE   = 2
+} TDUpdateConfig;
 
 extern char *qtypeStr[];
 

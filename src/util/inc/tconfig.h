@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define TSDB_CFG_MAX_NUM    110
+#define TSDB_CFG_MAX_NUM    124
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
@@ -31,6 +31,9 @@ extern "C" {
 #define TSDB_CFG_CTYPE_B_CLIENT    8U   // can be displayed in the client log
 #define TSDB_CFG_CTYPE_B_OPTION    16U  // can be configured by taos_options function
 #define TSDB_CFG_CTYPE_B_NOT_PRINT 32U  // such as password
+
+#define MAX_FLOAT    100000
+#define MIN_FLOAT    0
 
 enum {
   TAOS_CFG_CSTATUS_NONE,     // not configured
@@ -50,6 +53,7 @@ enum {
   TAOS_CFG_VTYPE_IPSTR,
   TAOS_CFG_VTYPE_DIRECTORY,
   TAOS_CFG_VTYPE_DATA_DIRCTORY,
+  TAOS_CFG_VTYPE_DOUBLE,
 };
 
 enum {
@@ -85,6 +89,7 @@ void taosDumpGlobalCfg();
 
 void taosInitConfigOption(SGlobalCfg cfg);
 SGlobalCfg * taosGetConfigOption(const char *option);
+bool taosReadConfigOption(const char *option, char *value, char *value2, char *value3, int8_t cfgStatus, int8_t sourceType);
 
 #ifdef __cplusplus
 }

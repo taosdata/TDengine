@@ -1,18 +1,21 @@
 // sample code to verify all TDengine API
 // to compile: gcc -o apitest apitest.c -ltaos
 
+#include "taoserror.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>
 #include <unistd.h>
 
+
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
   result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
   usleep(100000);
-  result = taos_query(taos, "create database test;");
+  result = taos_query(taos, "create database test precision 'us';");
   taos_free_result(result);
   usleep(100000);
   taos_select_db(taos, "test");
@@ -359,7 +362,7 @@ void verify_prepare(TAOS* taos) {
     v.v8 = (int64_t)(i * 8);
     v.f4 = (float)(i * 40);
     v.f8 = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin); ++j) {
       v.bin[j] = (char)(i + '0');
     }
 
@@ -556,7 +559,7 @@ void verify_prepare2(TAOS* taos) {
     v.v8[i] = (int64_t)(i * 8);
     v.f4[i] = (float)(i * 40);
     v.f8[i] = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin[0]) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin[0]); ++j) {
       v.bin[i][j] = (char)(i + '0');
     }    
     strcpy(v.blob[i], "一二三四五六七八九十");
@@ -808,7 +811,7 @@ void verify_prepare3(TAOS* taos) {
     v.v8[i] = (int64_t)(i * 8);
     v.f4[i] = (float)(i * 40);
     v.f8[i] = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin[0]) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin[0]); ++j) {
       v.bin[i][j] = (char)(i + '0');
     }    
     strcpy(v.blob[i], "一二三四五六七八九十");
@@ -949,13 +952,77 @@ void verify_stream(TAOS* taos) {
   taos_close_stream(strm);
 }
 
+int32_t verify_schema_less(TAOS* taos) {
+  TAOS_RES *result;
+  result = taos_query(taos, "drop database if exists test;");
+  taos_free_result(result);
+  usleep(100000);
+  result = taos_query(taos, "create database test precision 'us' update 1;");
+  taos_free_result(result);
+  usleep(100000);
+
+  taos_select_db(taos, "test");
+  result = taos_query(taos, "create stable ste(ts timestamp, f int) tags(t1 bigint)");
+  taos_free_result(result);
+  usleep(100000);
+
+  int code = 0;
+
+  char* lines[] = {
+      "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+      "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns",
+      "ste,t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\"iam\" 1626056811823316532ns",
+      "st,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1626006833642000000ns",
+      "ste,t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532ns",
+      "ste,t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32i8,c6=64i16,c7=32i32,c8=88.88f32 1626056812843316532ns",
+      "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns",
+      "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns",
+      "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000ns"
+  };
+
+  code = taos_insert_lines(taos, lines , sizeof(lines)/sizeof(char*));
+
+  char* lines2[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns"
+  };
+  code = taos_insert_lines(taos, &lines2[0], 1);
+  code = taos_insert_lines(taos, &lines2[1], 1);
+
+  char* lines3[] = {
+      "sth,t1=4i64,t2=5f64,t4=5f64,ID=\"childtable\" c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641ms",
+      "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654ms"
+  };
+  code = taos_insert_lines(taos, lines3, 2);
+
+  char* lines4[] = {
+      "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+      "dgtyqodr,t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"
+  };
+  code = taos_insert_lines(taos, lines4, 2);
+
+  char* lines5[] = {
+      "zqlbgs,id=\"zqlbgs_39302_21680\",t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000ns",
+      "zqlbgs,t9=f,id=\"zqlbgs_39302_21680\",t0=f,t1=127i8,t11=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\",t10=L\"ncharTagValue\" c10=f,c0=f,c1=127i8,c12=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64,c11=L\"ncharColValue\" 1626006833639000000ns"
+  };
+  code = taos_insert_lines(taos, &lines5[0], 1);
+  code = taos_insert_lines(taos, &lines5[1], 1);
+
+
+  char* lines6[] = {
+      "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+      "dgtyqodr,t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"
+  };
+  code = taos_insert_lines(taos, lines6, 2);
+  return (code);
+}
+
 int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
 
   taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
-
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {
     printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));
@@ -966,6 +1033,9 @@ int main(int argc, char *argv[]) {
   printf("server info: %s\n", info);
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
+
+  printf("************  verify schema-less  *************\n");
+  verify_schema_less(taos);
 
   printf("************  verify query  *************\n");
   verify_query(taos);
@@ -981,14 +1051,12 @@ int main(int argc, char *argv[]) {
 
   printf("************ verify prepare2 *************\n");
   verify_prepare2(taos);
-
   printf("************ verify prepare3 *************\n");
   verify_prepare3(taos);
 
   printf("************ verify stream  *************\n");
   verify_stream(taos);
   printf("done\n");
-
   taos_close(taos);
   taos_cleanup();
 }

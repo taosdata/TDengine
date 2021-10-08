@@ -808,6 +808,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
+              if (length[i] < 0 || length[i] > 1 << 20) {
+                fprintf(stderr, "Invalid length(%d) of BINARY or NCHAR\n", length[i]);
+                exit(-1);
+              }
+
               memset(value, 0, MAX_QUERY_VALUE_LEN);
               memcpy(value, row[i], length[i]);
               value[length[i]] = 0;
@@ -1066,4 +1071,50 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
           tstrerror(ret));
 
   return false;
+}
+
+bool simExecuteLineInsertCmd(SScript *script, char *rest) {
+  char buf[TSDB_MAX_BINARY_LEN];
+
+  simVisuallizeOption(script, rest, buf);
+  rest = buf;
+
+  SCmdLine *line = &script->lines[script->linePos];
+
+  simInfo("script:%s, %s", script->fileName, rest);
+  simLogSql(buf, true);
+  char *  lines[] = {rest};
+  int32_t ret = taos_insert_lines(script->taos, lines, 1);
+  if (ret == TSDB_CODE_SUCCESS) {
+    simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
+    script->linePos++;
+    return true;
+  } else {
+    sprintf(script->error, "lineNum: %d. line: %s failed, ret:%d:%s", line->lineNum, rest,
+            ret & 0XFFFF, tstrerror(ret));
+    return false;
+  }
+}
+
+bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
+  char buf[TSDB_MAX_BINARY_LEN];
+
+  simVisuallizeOption(script, rest, buf);
+  rest = buf;
+
+  SCmdLine *line = &script->lines[script->linePos];
+
+  simInfo("script:%s, %s", script->fileName, rest);
+  simLogSql(buf, true);
+  char *  lines[] = {rest};
+  int32_t ret = taos_insert_lines(script->taos, lines, 1);
+  if (ret == TSDB_CODE_SUCCESS) {
+    sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName, script->taos, rest);
+    script->linePos++;
+    return false;
+  } else {
+    simDebug("lineNum: %d. line: %s failed, ret:%d:%s. Expect failed, so success", line->lineNum, rest,
+            ret & 0XFFFF, tstrerror(ret));
+    return true;
+  }
 }

@@ -32,6 +32,8 @@
 #define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
 #define CONN_CHECK_TIME (tsShellActivityTimer * 2)
 #define QUERY_ID_SIZE   20
+#define QUERY_OBJ_ID_SIZE   18
+#define SUBQUERY_INFO_SIZE   6
 #define QUERY_STREAM_SAVE_SIZE 20
 
 static SCacheObj *tsMnodeConnCache = NULL;
@@ -361,6 +363,42 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = QUERY_OBJ_ID_SIZE + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sql_obj_id");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "pid");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "ep");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 1;
+  pSchema[cols].type = TSDB_DATA_TYPE_BOOL;
+  strcpy(pSchema[cols].name, "stable_query");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "sub_queries");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sub_query_info");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sql");
@@ -433,6 +471,33 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int64_t *)pWrite = htobe64(pDesc->useconds);
+      cols++;
+
+      snprintf(str, tListLen(str), "0x%" PRIx64, htobe64(pDesc->sqlObjId));
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->bytes[cols]);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int32_t *)pWrite = htonl(pDesc->pid);
+      cols++;
+
+      char epBuf[TSDB_EP_LEN + 1] = {0};
+      snprintf(epBuf, tListLen(epBuf), "%s:%u", pDesc->fqdn, pConnObj->port);
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, epBuf, pShow->bytes[cols]);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(bool *)pWrite = pDesc->stableQuery;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int32_t *)pWrite = htonl(pDesc->numOfSub);
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->bytes[cols]);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

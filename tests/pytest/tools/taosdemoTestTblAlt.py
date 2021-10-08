@@ -26,7 +26,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.numberOfTables = 10
+        self.numberOfTables = 8
         self.numberOfRecords = 1000000
 
     def getBuildPath(self):
@@ -54,7 +54,7 @@ class TDTestCase:
         binPath = buildPath + "/build/bin/"
 
         if(threadID == 0):
-            os.system("%staosdemo -y -t %d -n %d" %
+            os.system("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT -m t" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)
@@ -86,7 +86,7 @@ class TDTestCase:
             while True:
                 print("query started")
                 try:
-                    tdSql.query("select * from test.t9")
+                    tdSql.query("select * from test.t7")
                 except Exception as e:
                     tdLog.info("select * test failed")
                     time.sleep(2)
@@ -98,10 +98,10 @@ class TDTestCase:
                     break
                 time.sleep(1)
 
-            print("alter table test.meters add column col10 int")
-            tdSql.execute("alter table test.meters add column col10 int")
-            print("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
-            tdSql.execute("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
+            print("alter table test.meters add column c10 int")
+            tdSql.execute("alter table test.meters add column c10 int")
+            print("insert into test.t7 values (now, 1, 2, 3, 4, 0)")
+            tdSql.execute("insert into test.t7 values (now, 1, 2, 3, 4, 0)")
 
     def run(self):
         tdSql.prepare()

@@ -21,6 +21,10 @@ run general/compute/bottom.sim
 run general/compute/count.sim
 run general/compute/diff.sim
 run general/compute/diff2.sim
+run general/compute/mavg.sim
+run general/compute/mavg2.sim
+run general/compute/csum.sim
+run general/compute/csum2.sim
 run general/compute/first.sim
 run general/compute/interval.sim
 run general/compute/last.sim
@@ -105,6 +109,7 @@ run general/parser/import_commit2.sim
 run general/parser/import_commit3.sim
 run general/parser/insert_tb.sim
 run general/parser/first_last.sim
+run general/parser/line_insert.sim
 #unsupport run general/parser/import_file.sim
 run general/parser/lastrow.sim
 run general/parser/nchar.sim
@@ -220,3 +225,5 @@ run general/stream/table_replica1_vnoden.sim
 run general/stream/metrics_replica1_vnoden.sim
 run general/db/show_create_db.sim
 run general/db/show_create_table.sim
+run general/parser/like.sim
+run general/parser/regex.sim

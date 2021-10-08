@@ -8,12 +8,14 @@ IF (GIT_FOUND)
     MESSAGE("Git found")
     EXECUTE_PROCESS(
         COMMAND ${GIT_EXECUTABLE} log --pretty=oneline -n 1 ${CMAKE_CURRENT_LIST_DIR}/taosdemo.c
+        WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         RESULT_VARIABLE RESULT
         OUTPUT_VARIABLE TAOSDEMO_COMMIT_SHA1)
     IF ("${TAOSDEMO_COMMIT_SHA1}" STREQUAL "")
-        MESSAGE("taosdemo's latest commit in short is:" ${TAOSDEMO_COMMIT_SHA1})
+        SET(TAOSDEMO_COMMIT_SHA1 "unknown")
     ELSE ()
         STRING(SUBSTRING "${TAOSDEMO_COMMIT_SHA1}" 0 7 TAOSDEMO_COMMIT_SHA1)
+        STRING(STRIP "${TAOSDEMO_COMMIT_SHA1}" TAOSDEMO_COMMIT_SHA1)
     ENDIF ()
     EXECUTE_PROCESS(
         COMMAND ${GIT_EXECUTABLE} status -z -s ${CMAKE_CURRENT_LIST_DIR}/taosdemo.c
@@ -25,14 +27,13 @@ IF (GIT_FOUND)
         RESULT_VARIABLE RESULT
         OUTPUT_VARIABLE TAOSDEMO_STATUS)
     ENDIF (TD_LINUX)
-    MESSAGE("taosdemo.c status: " ${TAOSDEMO_STATUS})
 ELSE()
     MESSAGE("Git not found")
     SET(TAOSDEMO_COMMIT_SHA1 "unknown")
     SET(TAOSDEMO_STATUS "unknown")
 ENDIF (GIT_FOUND)
 
-STRING(STRIP "${TAOSDEMO_COMMIT_SHA1}" TAOSDEMO_COMMIT_SHA1)
+
 MESSAGE("taosdemo's latest commit in short is:" ${TAOSDEMO_COMMIT_SHA1})
 STRING(STRIP "${TAOSDEMO_STATUS}" TAOSDEMO_STATUS)
 
@@ -67,7 +68,7 @@ IF (TD_LINUX)
   ADD_EXECUTABLE(taosdemo ${SRC})
 
   IF (TD_SOMODE_STATIC)
-      TARGET_LINK_LIBRARIES(taosdemo taos_static cJson ${LINK_JEMALLOC})
+      TARGET_LINK_LIBRARIES(taosdemo taos_static cJson lua ${LINK_JEMALLOC})
   ELSE ()
       TARGET_LINK_LIBRARIES(taosdemo taos cJson ${LINK_JEMALLOC})
   ENDIF ()
@@ -76,9 +77,9 @@ ELSEIF (TD_WINDOWS)
   ADD_EXECUTABLE(taosdemo ${SRC})
   SET_SOURCE_FILES_PROPERTIES(./taosdemo.c PROPERTIES COMPILE_FLAGS -w)
   IF (TD_SOMODE_STATIC)
-    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson)
+    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson lua)
   ELSE ()
-    TARGET_LINK_LIBRARIES(taosdemo taos cJson)
+    TARGET_LINK_LIBRARIES(taosdemo taos cJson lua)
   ENDIF ()
 ELSEIF (TD_DARWIN)
   # missing a few dependencies, such as <argp.h>
@@ -86,9 +87,9 @@ ELSEIF (TD_DARWIN)
   ADD_EXECUTABLE(taosdemo ${SRC})
   
   IF (TD_SOMODE_STATIC)
-    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson)
+    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson lua)
   ELSE ()
-    TARGET_LINK_LIBRARIES(taosdemo taos cJson)
+    TARGET_LINK_LIBRARIES(taosdemo taos cJson lua)
   ENDIF ()
 ENDIF ()
 

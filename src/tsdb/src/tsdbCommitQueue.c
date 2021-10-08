@@ -138,7 +138,7 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
     pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
     pSaveCfg->totalBlocks, oldCfg.cacheLastRow, pSaveCfg->cacheLastRow, oldTotalBlocks, pSaveCfg->totalBlocks);
 
-  int err = tsdbExpendPool(pRepo, oldTotalBlocks);
+  int err = tsdbExpandPool(pRepo, oldTotalBlocks);
   if (!TAOS_SUCCEEDED(err)) {
     tsdbError("vgId:%d expand pool from %d to %d fail,reason:%s",
       REPO_ID(pRepo), oldTotalBlocks, pSaveCfg->totalBlocks, tstrerror(err));
@@ -157,6 +157,8 @@ static void *tsdbLoopCommit(void *arg) {
   SListNode *   pNode = NULL;
   STsdbRepo *   pRepo = NULL;
   TSDB_REQ_T    req;
+
+  setThreadName("tsdbCommit");
 
   while (true) {
     pthread_mutex_lock(&(pQueue->lock));

@@ -19,35 +19,37 @@ else
 fi
 
 # Dynamic directory
-data_dir="/var/lib/taos"
 
 if [ "$osType" != "Darwin" ]; then
+    data_dir="/var/lib/taos"
     log_dir="/var/log/taos"
-else
-    log_dir=~/TDengine/log
-fi
 
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
+    cfg_install_dir="/etc/taos"
 
-cfg_install_dir="/etc/taos"
-
-if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
     lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
+
+    install_main_dir="/usr/local/taos"
+
+    bin_dir="/usr/local/taos/bin"
 else
+    data_dir="/usr/local/var/lib/taos"
+    log_dir="/usr/local/var/log/taos"
+
+    cfg_install_dir="/usr/local/etc/taos"
+
     bin_link_dir="/usr/local/bin"
     lib_link_dir="/usr/local/lib"
     inc_link_dir="/usr/local/include"
+
+    install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
+    install_main_2_dir="/usr/local/Cellar/tdengine@${verNumber}/${verNumber}"
+        
+    bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
+    bin_2_dir="/usr/local/Cellar/tdengine@${verNumber}/${verNumber}/bin"
 fi
-
-#install main path
-install_main_dir="/usr/local/taos"
-
-# old bin dir
-bin_dir="/usr/local/taos/bin"
 
 service_config_dir="/etc/systemd/system"
 
@@ -59,12 +61,11 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 csudo=""
-if command -v sudo > /dev/null; then
-    csudo="sudo"
-fi
 
 if [ "$osType" != "Darwin" ]; then
-
+    if command -v sudo > /dev/null; then
+    csudo="sudo"
+    fi
     initd_mod=0
     service_mod=2
     if pidof systemd &> /dev/null; then
@@ -122,58 +123,67 @@ function kill_taosd() {
 
 function install_main_path() {
     #create install main dir and all sub dir
-    ${csudo} rm -rf ${install_main_dir}    || :
-    ${csudo} mkdir -p ${install_main_dir}
-    ${csudo} mkdir -p ${install_main_dir}/cfg
-    ${csudo} mkdir -p ${install_main_dir}/bin
-    ${csudo} mkdir -p ${install_main_dir}/connector
-    ${csudo} mkdir -p ${install_main_dir}/driver
-    ${csudo} mkdir -p ${install_main_dir}/examples
-    ${csudo} mkdir -p ${install_main_dir}/include
     if [ "$osType" != "Darwin" ]; then
+        ${csudo} rm -rf ${install_main_dir}    || :
+        ${csudo} mkdir -p ${install_main_dir}
+        ${csudo} mkdir -p ${install_main_dir}/cfg
+        ${csudo} mkdir -p ${install_main_dir}/bin
+        ${csudo} mkdir -p ${install_main_dir}/connector
+        ${csudo} mkdir -p ${install_main_dir}/driver
+        ${csudo} mkdir -p ${install_main_dir}/examples
+        ${csudo} mkdir -p ${install_main_dir}/include
         ${csudo} mkdir -p ${install_main_dir}/init.d
+    else
+        ${csudo} rm -rf ${install_main_dir}             || ${csudo} rm -rf ${install_main_2_dir}             || :
+        ${csudo} mkdir -p ${install_main_dir}           || ${csudo} mkdir -p ${install_main_2_dir}
+        ${csudo} mkdir -p ${install_main_dir}/cfg       || ${csudo} mkdir -p ${install_main_2_dir}/cfg
+        ${csudo} mkdir -p ${install_main_dir}/bin       || ${csudo} mkdir -p ${install_main_2_dir}/bin
+        ${csudo} mkdir -p ${install_main_dir}/connector || ${csudo} mkdir -p ${install_main_2_dir}/connector
+        ${csudo} mkdir -p ${install_main_dir}/driver    || ${csudo} mkdir -p ${install_main_2_dir}/driver
+        ${csudo} mkdir -p ${install_main_dir}/examples  || ${csudo} mkdir -p ${install_main_2_dir}/examples
+        ${csudo} mkdir -p ${install_main_dir}/include   || ${csudo} mkdir -p ${install_main_2_dir}/include
     fi
 }
 
 function install_bin() {
     # Remove links
-    ${csudo} rm -f ${bin_link_dir}/taos         || :
+    ${csudo} rm -f ${bin_link_dir}/taos     || :
+    ${csudo} rm -f ${bin_link_dir}/taosd    || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
+    ${csudo} rm -f ${bin_link_dir}/taosdump || :
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} rm -f ${bin_link_dir}/taosd    || :
-        ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-        ${csudo} rm -f ${bin_link_dir}/taosdump || :
+        ${csudo} rm -f ${bin_link_dir}/perfMonitor || :
         ${csudo} rm -f ${bin_link_dir}/set_core || :
-    fi
-
-    ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
-
-    ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
-    ${csudo} cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
-
-    if [ "$osType" != "Darwin" ]; then
+        ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+        
+        ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
+        
         ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
-    else
-        ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_dir}/bin
-    fi
-    ${csudo} chmod 0555 ${install_main_dir}/bin/*
-
-    #Make link
-    [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos         || :
-
-    if [ "$osType" != "Darwin" ]; then
+        
+        ${csudo} chmod 0555 ${install_main_dir}/bin/*
+        #Make link
+        [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+        [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-    fi
-
-    if [ "$osType" != "Darwin" ]; then
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
-    else
-        [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
+   else
+    
+        ${csudo} cp -r ${binary_dir}/build/bin/*   ${install_main_dir}/bin || ${csudo} cp -r ${binary_dir}/build/bin/*   ${install_main_2_dir}/bin  || :
+        ${csudo} cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin || ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_2_dir}  || :
+        ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_dir}/bin || ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_2_dir}/bin
+        ${csudo} chmod 0555 ${install_main_dir}/bin/* || ${csudo} chmod 0555 ${install_main_2_dir}/bin/*
+        #Make link
+        [ -x ${install_main_dir}/bin/taos ] || [ -x ${install_main_2_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos || ${csudo} ln -s ${install_main_2_dir}/bin/taos  || :
+        [ -x ${install_main_dir}/bin/taosd ] || [ -x ${install_main_2_dir}/bin/taosd ] &&  ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd || ${csudo} ln -s ${install_main_2_dir}/bin/taosd || :
+        [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump   || :
+        [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo   || :
     fi
 }
 
@@ -220,7 +230,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
@@ -245,11 +255,14 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${lib_link_dir}/libtaos.1.dylib
-        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver || ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_2_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/* || ${csudo} chmod 777 ${install_main_2_dir}/driver/*
+  
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${install_main_dir}/driver/libtaos.1.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.* ${install_main_2_dir}/driver/libtaos.1.dylib   || :
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${install_main_dir}/driver/libtaos.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.1.dylib ${install_main_2_dir}/driver/libtaos.dylib   || :
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib ${lib_link_dir}/libtaos.1.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.${verNumber}.dylib ${lib_link_dir}/libtaos.1.dylib   || :
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib   || :
     fi
-
+    
     install_jemalloc
 
     if [ "$osType" != "Darwin" ]; then
@@ -259,10 +272,14 @@ function install_lib() {
 
 function install_header() {
 
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
-    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
-    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h     || :
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
+        ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+        ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+    else
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_2_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/* || ${csudo} chmod 644 ${install_main_2_dir}/include/*
+    fi
 }
 
 function install_config() {
@@ -270,29 +287,33 @@ function install_config() {
 
     if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/../cfg/taos.cfg ] && ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/../cfg/taos.cfg ] &&
+        ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
+        ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
+        ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    else
+        ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org || ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_2_dir}/cfg/taos.cfg.org
     fi
-
-    ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 }
 
 function install_log() {
     ${csudo} rm -rf ${log_dir}  || :
-
+    ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+        ${csudo} ln -s ${log_dir} ${install_main_dir}/log
     else
-        mkdir -p ${log_dir} && chmod 777 ${log_dir}
+        ${csudo} ln -s ${log_dir} ${install_main_dir}/log || ${csudo} ln -s ${log_dir} ${install_main_2_dir}/log
     fi
-
-    ${csudo} ln -s ${log_dir} ${install_main_dir}/log
 }
 
 function install_data() {
     ${csudo} mkdir -p ${data_dir}
-    ${csudo} ln -s ${data_dir} ${install_main_dir}/data
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ln -s ${data_dir} ${install_main_dir}/data
+    else
+        ${csudo} ln -s ${data_dir} ${install_main_dir}/data || ${csudo} ln -s ${data_dir} ${install_main_2_dir}/data
+    fi
 }
 
 function install_connector() {
@@ -306,13 +327,21 @@ function install_connector() {
     else
         echo "WARNING: go connector not found, please check if want to use it!"
     fi
-    ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
-
-    ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || echo &> /dev/null
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
+        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar  || echo &> /dev/null
+    else
+        ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_2_dir}/connector}
+        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null || cp ${binary_dir}/build/lib/*.jar ${install_main_2_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || ${csudo} chmod 777 ${install_main_2_dir}/connector/*.jar || echo &> /dev/null
+    fi
 }
 
 function install_examples() {
-    ${csudo} cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples
+    if [ "$osType" != "Darwin" ]; then
+       ${csudo} cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples
+    else
+       ${csudo} cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples || ${csudo} cp -rf ${source_dir}/tests/examples/* ${install_main_2_dir}/examples
+    fi
 }
 
 function clean_service_on_sysvinit() {
@@ -421,7 +450,7 @@ function install_service() {
 }
 
 function update_TDengine() {
-    echo -e "${GREEN}Start to update TDEngine...${NC}"
+    echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
 
     if [ "$osType" != "Darwin" ]; then
@@ -487,24 +516,21 @@ function install_TDengine() {
     else
         echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
     fi
-
+    
     install_main_path
 
-    if [ "$osType" != "Darwin" ]; then
-        install_data
-    fi
+    install_data
     install_log
     install_header
     install_lib
     install_connector
     install_examples
-
     install_bin
-
+    
     if [ "$osType" != "Darwin" ]; then
         install_service
     fi
-
+    
     install_config
 
     if [ "$osType" != "Darwin" ]; then
@@ -534,8 +560,16 @@ function install_TDengine() {
 ## ==============================Main program starts from here============================
 echo source directory: $1
 echo binary directory: $2
-if [ -x ${bin_dir}/taos ]; then
-    update_TDengine
+if [ "$osType" != "Darwin" ]; then
+    if [ -x ${bin_dir}/taos ]; then
+        update_TDengine
+    else
+        install_TDengine
+    fi
 else
-    install_TDengine
+    if [ -x ${bin_dir}/taos ] || [ -x ${bin_2_dir}/taos ]; then
+        update_TDengine
+    else
+        install_TDengine
+    fi
 fi

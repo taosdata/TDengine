@@ -3,6 +3,7 @@
 
 #include "tsdb.h"  //todo tsdb should not be here
 #include "qSqlparser.h"
+#include "qFilter.h"
 
 typedef struct SFieldInfo {
   int16_t      numOfOutput;   // number of column in result
@@ -15,6 +16,14 @@ typedef struct SCond {
   int32_t  len;  // length of tag query condition data
   char *   cond;
 } SCond;
+
+typedef struct STblCond {
+  uint64_t uid;
+  int16_t  idx;  //table index
+  int32_t  len;  // length of tag query condition data
+  char *   cond;
+} STblCond;
+
 
 typedef struct SJoinNode {
   uint64_t uid;
@@ -29,12 +38,6 @@ typedef struct SJoinInfo {
 } SJoinInfo;
 
 typedef struct STagCond {
-  // relation between tbname list and query condition, including : TK_AND or TK_OR
-  int16_t relType;
-
-  // tbname query condition, only support tbname query condition on one table
-  SCond tbnameCond;
-
   // join condition, only support two tables join currently
   SJoinInfo joinInfo;
 
@@ -53,6 +56,7 @@ typedef struct SGroupbyExpr {
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
+  uint8_t update;
   int16_t numOfColumns;
   int32_t rowSize;
 } STableComInfo;
@@ -60,7 +64,7 @@ typedef struct STableComInfo {
 typedef struct STableMeta {
   int32_t        vgId;
   STableId       id;
-  uint8_t        tableType;
+  int8_t         tableType;
   char           sTableName[TSDB_TABLE_FNAME_LEN];  // super table name
   uint64_t       suid;       // super table id
   int16_t        sversion;
@@ -71,7 +75,8 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
-  uint32_t       tableMetaSize;
+  uint32_t      tableMetaSize;
+  size_t        tableMetaCapacity; 
   SVgroupsInfo  *vgroupList;
   SArray        *pVgroupTables;   // SArray<SVgroupTableInfo>
 
@@ -83,10 +88,16 @@ typedef struct STableMetaInfo {
   SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
+  int32_t       joinTagNum;
 } STableMetaInfo;
 
 struct   SQInfo;      // global merge operator
 struct   SQueryAttr;     // query object
+
+typedef struct STableFilter {
+  uint64_t uid;
+  void    *info;
+} STableFilter;
 
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
@@ -105,12 +116,18 @@ typedef struct SQueryInfo {
   SLimitVal        slimit;
   STagCond         tagCond;
 
+  SArray *         colCond;
+
   SOrderVal        order;
-  int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
+  int16_t          curTableIdx;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
+
+  int16_t          fillType;      // final result fill type
   int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
 
@@ -118,12 +135,17 @@ typedef struct SQueryInfo {
   int64_t          vgroupLimit;    // table limit in case of super table projection query + global order + limit
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
-  bool             distinctTag;   // distinct tag or not
+  bool             distinct;   // distinct tag or not
+  bool             onlyHasTagCond;
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
-  struct SQInfo*          pQInfo;      // global merge operator
-  struct SQueryAttr*      pQueryAttr;     // query object
+
+  bool               udfCopy;
+  SArray            *pUdfInfo;
+
+  struct SQInfo     *pQInfo;      // global merge operator
+  struct SQueryAttr *pQueryAttr;     // query object
 
   struct SQueryInfo *sibling;     // sibling
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
@@ -138,6 +160,8 @@ typedef struct SQueryInfo {
   bool               onlyTagQuery;
   bool               orderProjectQuery;
   bool               stateWindow;
+  bool               globalMerge;
+  bool               multigroupResult;
 } SQueryInfo;
 
 /**

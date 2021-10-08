@@ -55,7 +55,7 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/tmp1")
         else:
-            print("目录存在")
+            print("directory exists")
 
         if not os.path.exists("./taosdumptest/tmp2"):
             os.makedirs("./taosdumptest/tmp2")
@@ -105,7 +105,6 @@ class TDTestCase:
         # 6--days,7--keep0,keep1,keep, 12--block,
 
         isCommunity = self.checkCommunity()
-
         print("iscommunity: %d" % isCommunity)
         for i in range(len(dbresult)):
             if dbresult[i][0] == 'db':

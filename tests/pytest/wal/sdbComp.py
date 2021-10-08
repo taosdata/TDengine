@@ -26,10 +26,11 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
     def getBuildPath(self):
+        global selfPath
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        
+
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
@@ -42,7 +43,7 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
     def run(self):
 
         # set path para
@@ -53,7 +54,7 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath+ "/build/bin/"
-        testPath = buildPath[:buildPath.find("debug")]
+        testPath = selfPath+ "/../../../"
         walFilePath = testPath + "/sim/dnode1/data/mnode_bak/wal/"
 
         #new db and insert data
@@ -61,9 +62,9 @@ class TDTestCase:
         os.system("rm -rf  %s/sim/dnode1/data/mnode_bak/" % testPath)
         tdSql.execute("drop database if exists db2")
         os.system("%staosdemo -f wal/insertDataDb1.json -y " % binPath)
-        tdSql.execute("drop database if exists db1") 
+        tdSql.execute("drop database if exists db1")
         os.system("%staosdemo -f wal/insertDataDb2.json -y " % binPath)
-        tdSql.execute("drop table if exists db2.stb0") 
+        tdSql.execute("drop table if exists db2.stb0")
         os.system("%staosdemo -f wal/insertDataDb2Newstab.json -y " % binPath)
         query_pid1 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
         print(query_pid1)
@@ -71,14 +72,14 @@ class TDTestCase:
         tdSql.execute("drop table if exists stb1_0")
         tdSql.execute("drop table if exists stb1_1")
         tdSql.execute("insert into stb0_0 values(1614218412000,8637,78.861045,'R','bf3')(1614218422000,8637,98.861045,'R','bf3')")
-        tdSql.execute("alter table db2.stb0 add column col4 int")
-        tdSql.execute("alter table db2.stb0 drop column col2")
-        tdSql.execute("alter table db2.stb0  add tag t3 int;")        
+        tdSql.execute("alter table db2.stb0 add column c4 int")
+        tdSql.execute("alter table db2.stb0 drop column c2")
+        tdSql.execute("alter table db2.stb0  add tag t3 int;")
         tdSql.execute("alter table db2.stb0 drop tag t1")
-        tdSql.execute("create table  if not exists stb2_0 (ts timestamp, col0 int, col1 float)  ")
+        tdSql.execute("create table  if not exists stb2_0 (ts timestamp, c0 int, c1 float)  ")
         tdSql.execute("insert into stb2_0 values(1614218412000,8637,78.861045)")
-        tdSql.execute("alter table stb2_0 add column col2 binary(4)")
-        tdSql.execute("alter table stb2_0 drop column col1")
+        tdSql.execute("alter table stb2_0 add column c2 binary(4)")
+        tdSql.execute("alter table stb2_0 drop column c1")
         tdSql.execute("insert into stb2_0 values(1614218422000,8638,'R')")
 
         # stop taosd and compact wal file
@@ -86,9 +87,9 @@ class TDTestCase:
         sleep(10)
         os.system("nohup %s/taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " %(binPath,testPath) )
         sleep(5)
-        assert os.path.exists(walFilePath) , "%s is not generated, compact didn't  take effect " % walFilePath    
+        assert os.path.exists(walFilePath) , "%s is not generated, compact didn't  take effect " % walFilePath
 
-        # use new wal file to start  taosd 
+        # use new wal file to start  taosd
         tdDnodes.start(1)
         sleep(5)
         tdSql.execute("reset query cache")
@@ -107,14 +108,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 2)
         tdSql.query("select count(*) from stb2_0")
         tdSql.checkData(0, 0, 2)
-   
+
         # delete useless file
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf wal/%s.sql" % testcaseFilename )       
-        
-        
-        
+        os.system("rm -rf wal/%s.sql" % testcaseFilename)
+
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

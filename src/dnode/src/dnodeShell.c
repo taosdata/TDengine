@@ -48,9 +48,11 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]  = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]   = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TP]   = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_FUNCTION] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]     = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SYNC_DB]     = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TP]     = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_FUNCTION] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]    = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TP]    = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]= dnodeDispatchToMWriteQueue;
@@ -72,6 +74,7 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = dnodeDispatchToMReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = dnodeDispatchToMReadQueue;
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
@@ -237,7 +240,9 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
 SStatisInfo dnodeGetStatisInfo() {
   SStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
+#ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();
+#endif
     info.queryReqNum  = atomic_exchange_32(&tsQueryReqNum, 0);
     info.submitReqNum = atomic_exchange_32(&tsSubmitReqNum, 0);
   }

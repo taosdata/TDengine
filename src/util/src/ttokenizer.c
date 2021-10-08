@@ -53,6 +53,7 @@ static SKeyword keywordTable[] = {
     {"NOTNULL",      TK_NOTNULL},
     {"IS",           TK_IS},
     {"LIKE",         TK_LIKE},
+    {"MATCH",        TK_MATCH},
     {"GLOB",         TK_GLOB},
     {"BETWEEN",      TK_BETWEEN},
     {"IN",           TK_IN},
@@ -137,6 +138,7 @@ static SKeyword keywordTable[] = {
     {"COMMA",        TK_COMMA},
     {"NULL",         TK_NULL},
     {"SELECT",       TK_SELECT},
+    {"EVERY",        TK_EVERY},
     {"FROM",         TK_FROM},
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
@@ -193,6 +195,7 @@ static SKeyword keywordTable[] = {
     {"INITIALLY",    TK_INITIALLY},
     {"INSTEAD",      TK_INSTEAD},
     {"MATCH",        TK_MATCH},
+    {"NMATCH",       TK_NMATCH},
     {"KEY",          TK_KEY},
     {"OF",           TK_OF},
     {"RAISE",        TK_RAISE},
@@ -219,8 +222,13 @@ static SKeyword keywordTable[] = {
     {"PARTITIONS",   TK_PARTITIONS},
     {"TOPIC",        TK_TOPIC},
     {"TOPICS",       TK_TOPICS},
-    {"COMPACT",       TK_COMPACT},
-    {"MODIFY",       TK_MODIFY}
+    {"COMPACT",      TK_COMPACT},
+    {"MODIFY",       TK_MODIFY},
+    {"FUNCTION",     TK_FUNCTION},
+    {"FUNCTIONS",    TK_FUNCTIONS},
+    {"OUTPUTTYPE",   TK_OUTPUTTYPE},
+    {"AGGREGATE",    TK_AGGREGATE},
+    {"BUFSIZE",      TK_BUFSIZE},
 };
 
 static const char isIdChar[] = {
@@ -269,7 +277,7 @@ static int32_t tKeywordCode(const char* z, int n) {
   if (keywordHashTable == NULL) {
     return TK_ILLEGAL;
   }
-  
+
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
   return (pKey != NULL)? (*pKey)->type:TK_ID;
 }

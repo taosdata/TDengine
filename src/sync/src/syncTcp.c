@@ -177,7 +177,7 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
   SPoolInfo * pInfo = &pPool->info;
 
   if (pConn->closedByApp == 0) shutdown(pConn->fd, SHUT_WR);
-  (*pInfo->processBrokenLink)(pConn->handleId);
+  (*pInfo->processBrokenLink)(pConn->handleId, pConn->closedByApp);
 
   pThread->numOfFds--;
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);
@@ -194,6 +194,8 @@ static void *syncProcessTcpData(void *param) {
   SPoolInfo * pInfo = &pPool->info;
   SConnObj *  pConn = NULL;
   struct epoll_event events[maxEvents];
+
+  setThreadName("syncTcpData");
 
   void *buffer = malloc(pInfo->bufferSize);
   taosBlockSIGPIPE();
@@ -257,6 +259,7 @@ static void *syncAcceptPeerTcpConnection(void *argv) {
   SPoolInfo *pInfo = &pPool->info;
 
   taosBlockSIGPIPE();
+  setThreadName("acceptTcpConn");
 
   while (1) {
     struct sockaddr_in clientAddr;

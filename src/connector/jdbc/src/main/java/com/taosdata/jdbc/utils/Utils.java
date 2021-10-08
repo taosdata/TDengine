@@ -5,7 +5,6 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 import com.taosdata.jdbc.enums.TimestampPrecision;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
@@ -23,8 +22,7 @@ import java.util.stream.IntStream;
 
 public class Utils {
 
-    private static Pattern ptn = Pattern.compile(".*?'");
-
+    private static final Pattern ptn = Pattern.compile(".*?'");
     private static final DateTimeFormatter milliSecFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss.SSS").toFormatter();
     private static final DateTimeFormatter microSecFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss.SSSSSS").toFormatter();
     private static final DateTimeFormatter nanoSecFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS").toFormatter();
@@ -75,7 +73,7 @@ public class Utils {
 
     public static String escapeSingleQuota(String origin) {
         Matcher m = ptn.matcher(origin);
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         int end = 0;
         while (m.find()) {
             end = m.end();
@@ -88,7 +86,7 @@ public class Utils {
                     sb.append(seg);
                 }
             } else { // len > 1
-                sb.append(seg.substring(0, seg.length() - 2));
+                sb.append(seg, 0, seg.length() - 2);
                 char lastcSec = seg.charAt(seg.length() - 2);
                 if (lastcSec == '\\') {
                     sb.append("\\'");
@@ -110,13 +108,25 @@ public class Utils {
             return rawSql;
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-        String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
+        String[] clause = new String[]{"tags\\s*\\([\\s\\S]*?\\)", "where[\\s\\S]*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);
+        // find tags and where clause's position
         findClauseRangeSet(preparedSql, clause, clauseRangeSet);
+        // find values clause's position
+        findValuesClauseRangeSet(preparedSql, clauseRangeSet);
 
         return transformSql(rawSql, parameters, placeholderPositions, clauseRangeSet);
+    }
+
+    private static void findValuesClauseRangeSet(String preparedSql, RangeSet<Integer> clauseRangeSet) {
+        Matcher matcher = Pattern.compile("(values|,)\\s*(\\([^)]*\\))").matcher(preparedSql);
+        while (matcher.find()) {
+            int start = matcher.start(2);
+            int end = matcher.end(2);
+            clauseRangeSet.add(Range.closedOpen(start, end));
+        }
     }
 
     private static void findClauseRangeSet(String preparedSql, String[] regexArr, RangeSet<Integer> clauseRangeSet) {
@@ -126,7 +136,7 @@ public class Utils {
             while (matcher.find()) {
                 int start = matcher.start();
                 int end = matcher.end();
-                clauseRangeSet.add(Range.closed(start, end));
+                clauseRangeSet.add(Range.closedOpen(start, end));
             }
         }
     }
@@ -184,7 +194,7 @@ public class Utils {
 
     public static String formatTimestamp(Timestamp timestamp) {
         int nanos = timestamp.getNanos();
-        if (nanos % 1000000l != 0)
+        if (nanos % 1000000L != 0)
             return timestamp.toLocalDateTime().format(microSecFormatter);
         return timestamp.toLocalDateTime().format(milliSecFormatter);
     }

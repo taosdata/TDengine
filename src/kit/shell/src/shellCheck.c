@@ -72,12 +72,13 @@ static int32_t shellShowTables(TAOS *con, char *db) {
       int32_t tbIndex = tbNum++;
       if (tbMallocNum < tbNum) {
         tbMallocNum = (tbMallocNum * 2 + 1);
-        tbNames = realloc(tbNames, tbMallocNum * sizeof(char *));
-        if (tbNames == NULL) {
+        char** tbNames1 = realloc(tbNames, tbMallocNum * sizeof(char *));
+        if (tbNames1 == NULL) {
           fprintf(stdout, "failed to malloc tablenames, num:%d\n", tbMallocNum);
           code = TSDB_CODE_TSC_OUT_OF_MEMORY;
           break;
         }
+        tbNames = tbNames1;
       }
 
       tbNames[tbIndex] = malloc(TSDB_TABLE_NAME_LEN);
@@ -103,6 +104,8 @@ static void shellFreeTbnames() {
 
 static void *shellCheckThreadFp(void *arg) {
   ShellThreadObj *pThread = (ShellThreadObj *)arg;
+
+  setThreadName("shellCheckThrd");
 
   int32_t interval = tbNum / pThread->totalThreads + 1;
   int32_t start = pThread->threadIndex * interval;

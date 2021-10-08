@@ -610,7 +610,18 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // stable tag for detail
   for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
-    stable_cmd->tagNames[i] = table_cmd->tagNames[i] = httpAddToSqlCmdBuffer(pContext, tag->string);
+
+    char *tagStr = NULL;
+    int32_t retCode = httpCheckAllocEscapeSql(tag->string, &tagStr);
+    if (retCode != TSDB_CODE_SUCCESS) {
+      httpSendErrorResp(pContext, retCode);
+
+      return false;
+    }
+
+    stable_cmd->tagNames[i] = table_cmd->tagNames[i] = httpAddToSqlCmdBuffer(pContext, tagStr);
+
+    httpCheckFreeEscapedSql(tag->string, tagStr);
 
     if (tag->type == cJSON_String)
       stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "'%s'", tag->valuestring);

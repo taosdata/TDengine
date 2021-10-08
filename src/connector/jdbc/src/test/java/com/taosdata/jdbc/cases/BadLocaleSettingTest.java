@@ -3,12 +3,13 @@ package com.taosdata.jdbc.cases;
 
 import com.taosdata.jdbc.TSDBDriver;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import java.io.IOException;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 
 public class BadLocaleSettingTest {

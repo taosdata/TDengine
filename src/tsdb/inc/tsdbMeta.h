@@ -24,15 +24,14 @@ typedef struct STable {
   tstr*          name;  // NOTE: there a flexible string here
   uint64_t       suid;
   struct STable* pSuper;  // super table pointer
-  uint8_t        numOfSchemas;
-  STSchema*      schema[TSDB_MAX_TABLE_SCHEMAS];
+  SArray*        schema;
   STSchema*      tagSchema;
   SKVRow         tagVal;
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;
-  SDataRow       lastRow;
+  SMemRow        lastRow;
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
@@ -101,16 +100,15 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
 }
 
 static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
-  STable*   pDTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
+  STable*   pDTable = (pTable->pSuper != NULL) ? pTable->pSuper : pTable;  // for performance purpose
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
 
   if (lock) TSDB_RLOCK_TABLE(pDTable);
   if (_version < 0) {  // get the latest version of schema
-    pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
+    pTSchema = *(STSchema **)taosArrayGetLast(pDTable->schema);
   } else {  // get the schema with version
-    void* ptr = taosbsearch(&_version, pDTable->schema, pDTable->numOfSchemas, sizeof(STSchema*),
-                            tsdbCompareSchemaVersion, TD_EQ);
+    void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       goto _exit;
@@ -148,7 +146,7 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
 }
 
 static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
-  ASSERT(pTable->lastRow == NULL || pTable->lastKey == dataRowKey(pTable->lastRow));
+  ASSERT((pTable->lastRow == NULL) || (pTable->lastKey == memRowKey(pTable->lastRow)));
   return pTable->lastKey;
 }
 

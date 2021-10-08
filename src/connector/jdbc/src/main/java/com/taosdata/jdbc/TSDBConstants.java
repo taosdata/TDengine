@@ -74,6 +74,8 @@ public abstract class TSDBConstants {
 
     public static final String DEFAULT_PRECISION = "ms";
 
+    public static final boolean DEFAULT_BATCH_ERROR_IGNORE = false;
+
     public static int typeName2JdbcType(String type) {
         switch (type.toUpperCase()) {
             case "TIMESTAMP":
@@ -127,8 +129,9 @@ public abstract class TSDBConstants {
                 return Types.TIMESTAMP;
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return Types.NCHAR;
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type: " + taosType + " in tdengine");
         }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
     }
 
     public static String taosType2JdbcTypeName(int taosType) throws SQLException {
@@ -158,7 +161,7 @@ public abstract class TSDBConstants {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return "NCHAR";
             default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type: " + taosType + " in tdengine");
         }
     }
 
@@ -185,7 +188,7 @@ public abstract class TSDBConstants {
             case Types.NCHAR:
                 return TSDBConstants.TSDB_DATA_TYPE_NCHAR;
         }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE, "unknown sql type: " + jdbcType + " in tdengine");
     }
 
     public static String jdbcType2TaosTypeName(int jdbcType) throws SQLException {
@@ -211,7 +214,7 @@ public abstract class TSDBConstants {
             case Types.NCHAR:
                 return "NCHAR";
             default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE, "unknown sql type: " + jdbcType + " in tdengine");
         }
     }
 

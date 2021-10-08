@@ -851,14 +851,18 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
   SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
   if (pHb != NULL) {
     pSql->res.code = pHb->res.code;
-    taosReleaseRef(tscObjRef, pObj->hbrid);
   }
 
   if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    taosReleaseRef(tscObjRef, pObj->hbrid);
     return pSql->res.code;
   }
 
-  pSql->res.code = checkForOnlineNode(pHb);
+  if (pHb != NULL) {
+    pSql->res.code = checkForOnlineNode(pHb);
+    taosReleaseRef(tscObjRef, pObj->hbrid);
+  }
+
   if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     return pSql->res.code;
   }
@@ -920,7 +924,8 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosHashClear(tscTableMetaInfo);
+    taosHashClear(UTIL_GET_TABLEMETA(pSql));
+    taosCacheEmpty(UTIL_GET_VGROUPLIST(pSql));
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);

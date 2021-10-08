@@ -26,6 +26,8 @@ void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
 }
 
 void *cancelHandler(void *arg) {
+  setThreadName("cancelHandler");
+
   while(1) {
     if (tsem_wait(&cancelSem) != 0) {
       taosMsleep(10);
@@ -69,7 +71,9 @@ int checkVersion() {
 // Global configurations
 SShellArguments args = {
   .host = NULL,
+#ifndef TD_WINDOWS
   .password = NULL,
+#endif
   .user = NULL,
   .database = NULL,
   .timezone = NULL,
@@ -81,6 +85,8 @@ SShellArguments args = {
   .threadNum = 5,
   .commands = NULL,
   .pktLen = 1000,
+  .pktNum = 100,
+  .pktType = "TCP",
   .netTestRole = NULL
 };
 
@@ -114,7 +120,7 @@ int main(int argc, char* argv[]) {
       printf("Failed to init taos");
       exit(EXIT_FAILURE);
     }
-    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen);
+    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
     exit(0);
   }
 

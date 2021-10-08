@@ -122,6 +122,7 @@ static int32_t mnodeMnodeActionRestored() {
     void *pIter = mnodeGetNextMnode(NULL, &pMnode);
     if (pMnode != NULL) {
       pMnode->role = TAOS_SYNC_ROLE_MASTER;
+      pMnode->roleTime = taosGetTimestampMs();
       mnodeDecMnodeRef(pMnode);
     }
     mnodeCancelGetNextMnode(pIter);
@@ -496,7 +497,13 @@ static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   strcpy(pSchema[cols].name, "role");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
-  
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "role_time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
@@ -550,6 +557,10 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     char* roles = syncRole[pMnode->role];
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, roles, pShow->bytes[cols]);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pMnode->roleTime;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

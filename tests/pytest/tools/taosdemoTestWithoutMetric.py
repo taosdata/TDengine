@@ -60,7 +60,7 @@ class TDTestCase:
 
         tdSql.execute("use test")
         tdSql.query(
-            "select count(*) from test.t%d" % (self.numberOfTables -1))
+            "select count(*) from test.d%d" % (self.numberOfTables -1))
         tdSql.checkData(0, 0, self.numberOfRecords)
 
     def stop(self):

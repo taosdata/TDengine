@@ -25,6 +25,18 @@ class TDTestCase:
 
         self.ts = 1538548685000
 
+    def bug_6387(self):
+        tdSql.execute("create database bug6387 ")
+        tdSql.execute("use bug6387 ")
+        tdSql.execute("create table test(ts timestamp, c1 int) tags(t1 int)")
+        for i in range(5000):
+            sql = "insert into t%d using test tags(1) values " % i
+            for j in range(21):
+                sql = sql + "(now+%ds,%d)" % (j ,j )
+            tdSql.execute(sql)
+        tdSql.query("select count(*) from test interval(1s) group by tbname")
+        tdSql.checkData(0,1,1)
+
     def run(self):
         tdSql.prepare()
 
@@ -121,6 +133,9 @@ class TDTestCase:
 
         tdSql.query("select * from tb0")
         tdSql.checkRows(1)
+
+        #For jira: https://jira.taosdata.com:18080/browse/TD-6387
+        self.bug_6387()
         
 
     def stop(self):

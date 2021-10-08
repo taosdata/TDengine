@@ -3,7 +3,8 @@ package com.taosdata.taosdemo.dao;
 import com.taosdata.taosdemo.domain.SubTableMeta;
 import com.taosdata.taosdemo.domain.SubTableValue;
 import com.taosdata.taosdemo.utils.SqlSpeller;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
@@ -11,7 +12,7 @@ import java.util.List;
 
 public class SubTableMapperImpl implements SubTableMapper {
 
-    private static final Logger logger = Logger.getLogger(SubTableMapperImpl.class);
+    private static final Logger logger = LogManager.getLogger(SubTableMapperImpl.class);
     private final JdbcTemplate jdbcTemplate;
 
     public SubTableMapperImpl(DataSource dataSource) {

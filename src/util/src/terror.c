@@ -109,11 +109,22 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,         "Syntax error in SQL")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DB_NOT_SELECTED,          "Database not specified or available")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TABLE_NAME,       "Table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_SQL_LIMIT,         "SQL statement too long, check maxSQLLength config")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FILE_EMPTY,               "File is empty")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_LINE_SYNTAX_ERROR,        "Syntax error in Line")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_META_CACHED,           "No table meta cached")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DUP_COL_NAMES,            "duplicated column names")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TAG_LENGTH,       "Invalid tag length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_COLUMN_LENGTH,    "Invalid column length")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DUP_TAG_NAMES,            "duplicated tag names")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON,             "Invalid JSON format")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_TYPE,        "Invalid JSON data type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_CONFIG,      "Invalid JSON configuration")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACTION_IN_PROGRESS,       "Message is progressing")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACTION_NEED_REPROCESSED,  "Messag need to be reprocessed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACTION_NEED_REPROCESSED,  "Message need to be reprocessed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_APP_ERROR,                "Unexpected generic error in mnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONNECTION,       "Invalid message connection")
@@ -182,6 +193,17 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_ALREAY_EXIST,       "Field already exists"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          "Field does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STABLE_NAME,      "Super table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG, "Invalid create table message")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_EXCEED_MAX_ROW_BYTES,     "Exceed max row bytes")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_NAME,        "Invalid func name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_LEN,         "Invalid func length")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_CODE,        "Invalid func code")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC,             "Invalid func")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_BUFSIZE,     "Invalid func bufSize")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TAG_LENGTH,        "invalid tag length")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COLUMN_LENGTH,     "invalid column length")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_SELECTED,          "Database not specified or available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_ALREADY_EXIST,         "Database already exists")
@@ -269,6 +291,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_IN_EXEC,                  "Multiple retrieval of
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      "Too many time window in query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        "Query buffer limit has reached")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
 
 
 // grant
@@ -402,6 +426,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_NULL,       "tag value is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   "tag value can not more than 64")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           "value not find")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           "value type should be boolean, number or string")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_REQUEST_JSON_ERROR,      "http request json error")
 
 // odbc
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     "out of memory")

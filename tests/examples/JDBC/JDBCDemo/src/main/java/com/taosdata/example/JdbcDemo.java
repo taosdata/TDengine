@@ -7,6 +7,9 @@ public class JdbcDemo {
     private static String host;
     private static final String dbName = "test";
     private static final String tbName = "weather";
+    private static final String user = "root";
+    private static final String password = "taosdata";
+
     private Connection connection;
 
     public static void main(String[] args) {
@@ -30,10 +33,9 @@ public class JdbcDemo {
     }
 
     private void init() {
-        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
         // get connection
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty("charset", "UTF-8");
             properties.setProperty("locale", "en_US.UTF-8");
@@ -42,7 +44,7 @@ public class JdbcDemo {
             connection = DriverManager.getConnection(url, properties);
             if (connection != null)
                 System.out.println("[ OK ] Connection established.");
-        } catch (ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
             e.printStackTrace();
         }
     }
@@ -68,12 +70,12 @@ public class JdbcDemo {
     }
 
     private void insert() {
-        final String sql = "insert into  " + dbName + "." + tbName + " (ts, temperature, humidity) values(now, 20.5, 34)";
+        final String sql = "insert into " + dbName + "." + tbName + " (ts, temperature, humidity) values(now, 20.5, 34)";
         exuete(sql);
     }
 
     private void select() {
-        final String sql = "select * from "+ dbName + "." + tbName;
+        final String sql = "select * from " + dbName + "." + tbName;
         executeQuery(sql);
     }
 
@@ -88,16 +90,16 @@ public class JdbcDemo {
         }
     }
 
-    /************************************************************************/
-
     private void executeQuery(String sql) {
+        long start = System.currentTimeMillis();
         try (Statement statement = connection.createStatement()) {
-            long start = System.currentTimeMillis();
             ResultSet resultSet = statement.executeQuery(sql);
             long end = System.currentTimeMillis();
             printSql(sql, true, (end - start));
             printResult(resultSet);
         } catch (SQLException e) {
+            long end = System.currentTimeMillis();
+            printSql(sql, false, (end - start));
             e.printStackTrace();
         }
     }
@@ -114,20 +116,20 @@ public class JdbcDemo {
         }
     }
 
-
     private void printSql(String sql, boolean succeed, long cost) {
         System.out.println("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
     }
 
     private void exuete(String sql) {
+        long start = System.currentTimeMillis();
         try (Statement statement = connection.createStatement()) {
-            long start = System.currentTimeMillis();
             boolean execute = statement.execute(sql);
             long end = System.currentTimeMillis();
-            printSql(sql, execute, (end - start));
+            printSql(sql, true, (end - start));
         } catch (SQLException e) {
+            long end = System.currentTimeMillis();
+            printSql(sql, false, (end - start));
             e.printStackTrace();
-
         }
     }
 
@@ -135,6 +137,5 @@ public class JdbcDemo {
         System.out.println("Usage: java -jar JDBCDemo.jar -host <hostname>");
         System.exit(0);
     }
-
 
 }

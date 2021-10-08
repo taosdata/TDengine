@@ -54,6 +54,7 @@ if command -v sudo > /dev/null; then
 fi
 
 update_flag=0
+prompt_force=0
 
 initd_mod=0
 service_mod=2
@@ -101,6 +102,12 @@ elif  echo $osinfo | grep -qwi "centos" ; then
 elif echo $osinfo | grep -qwi "fedora" ; then
 #  echo "This is fedora system"
   os_type=2
+elif echo $osinfo | grep -qwi "Linx" ; then
+#  echo "This is Linx system"
+  os_type=1
+  service_mod=0
+  initd_mod=0
+  service_config_dir="/etc/systemd/system"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
@@ -777,10 +784,21 @@ function is_version_compatible() {
     if [ -f ${script_dir}/driver/vercomp.txt ]; then
         min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`
     else
-        min_compatible_version=$(${script_dir}/bin/tqd -V | head -1 | cut -d ' ' -f 5)
+        min_compatible_version=$(${script_dir}/bin/taosd -V | head -1 | cut -d ' ' -f 5)
     fi
 
+    # [TD-5628] prompt to execute taosd --force-keep-file if upgrade from lower version within 2.0.16.0
+    exist_version=$(/usr/local/taos/bin/taosd -V | head -1 | cut -d ' ' -f 3)
+    vercomp $exist_version "2.0.16.0"
+    case $? in
+        2)
+          prompt_force=1
+          ;;
+    esac
+
     vercomp $curr_version $min_compatible_version
+    echo "" # avoid $? value not update
+
     case $? in
         0) return 0;;
         1) return 0;;
@@ -789,6 +807,12 @@ function is_version_compatible() {
 }
 
 function update_TDengine() {
+    # Check if version compatible
+    if ! is_version_compatible; then
+        echo -e "${RED}Version incompatible${NC}"
+        return 1
+    fi
+
     # Start to update
     if [ ! -e taos.tar.gz ]; then
         echo "File taos.tar.gz does not exist"
@@ -796,12 +820,6 @@ function update_TDengine() {
     fi
     tar -zxf taos.tar.gz
     install_jemalloc
-
-    # Check if version compatible
-    if ! is_version_compatible; then
-        echo -e "${RED}Version incompatible${NC}"
-        return 1
-    fi
 
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
@@ -875,6 +893,10 @@ function update_TDengine() {
             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos -h $serverFqdn${NC} in shell${NC}"
         fi
 
+        if ((${prompt_force}==1)); then
+          echo ""
+          echo -e "${RED}Please run 'taosd --force-keep-file' at first time for the exist TDengine $exist_version!${NC}"
+        fi
         echo
         echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
     else

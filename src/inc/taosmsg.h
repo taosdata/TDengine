@@ -77,8 +77,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_USER, "drop-user" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DNODE, "create-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DNODE, "drop-dnode" )   
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DB, "create-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )	  
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_FUNCTION, "create-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_FUNCTION, "drop-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_DB, "alter-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SYNC_DB, "sync-db-replica" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TABLE, "create-table" )
@@ -96,7 +98,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_STREAM, "kill-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONFIG_DNODE, "cm-config-dnode" ) 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_HEARTBEAT, "heartbeat" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY8, "dummy8" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE_FUNC, "retrieve-func" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY9, "dummy9" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY10, "dummy10" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY11, "dummy11" )
@@ -153,6 +155,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_TP,
+  TSDB_MGMT_TABLE_FUNCTION,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -468,6 +471,7 @@ typedef struct {
 
   bool        stableQuery;      // super table query or not
   bool        topBotQuery;      // TODO used bitwise flag
+  bool        interpQuery;      // interp query or not
   bool        groupbyColumn;    // denote if this is a groupby normal column query
   bool        hasTagResults;    // if there are tag values in final result or not
   bool        timeWindowInterpo;// if the time window start/end required interpolation
@@ -487,7 +491,7 @@ typedef struct {
   SInterval   interval;
   SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
-  uint32_t    tbnameCondLen;    // table name filter condition string length
+  uint16_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -497,7 +501,6 @@ typedef struct {
   int64_t     offset;
   uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
-  int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     fillType;         // interpolate type
   uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
@@ -507,6 +510,9 @@ typedef struct {
   int32_t     prevResultLen;    // previous result length
   int32_t     numOfOperator;
   int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
+  int32_t     udfNum;           // number of udf function
+  int32_t     udfContentOffset;
+  int32_t     udfContentLen;
   SColumnInfo tableCols[];
 } SQueryTableMsg;
 
@@ -528,6 +534,8 @@ typedef struct SRetrieveTableRsp {
   int16_t precision;
   int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
+  int8_t  compressed;
+  int32_t compLen;
   char    data[];
 } SRetrieveTableRsp;
 
@@ -570,6 +578,41 @@ typedef struct {
   int16_t  partitions;
   int8_t   reserve[5];
 } SCreateDbMsg, SAlterDbMsg;
+
+typedef struct {
+  char     name[TSDB_FUNC_NAME_LEN];
+  char     path[PATH_MAX];
+  int32_t  funcType;
+  uint8_t  outputType;
+  int16_t  outputLen;
+  int32_t  bufSize;
+  int32_t  codeLen;
+  char     code[];
+} SCreateFuncMsg;
+
+typedef struct {
+  int32_t num;
+  char    name[];
+} SRetrieveFuncMsg;
+
+typedef struct {
+  char    name[TSDB_FUNC_NAME_LEN];
+  int32_t funcType;
+  int8_t  resType;
+  int16_t resBytes;
+  int32_t bufSize;
+  int32_t len;
+  char    content[];
+} SFunctionInfoMsg;
+
+typedef struct {
+  int32_t num;
+  char    content[];
+} SUdfFuncMsg;
+
+typedef struct {
+  char     name[TSDB_FUNC_NAME_LEN];
+} SDropFuncMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
@@ -710,20 +753,16 @@ typedef struct {
 } STableInfoMsg;
 
 typedef struct {
+  uint8_t metaClone;     // create local clone of the cached table meta
   int32_t numOfVgroups;
   int32_t numOfTables;
+  int32_t numOfUdfs;
   char    tableNames[];
 } SMultiTableInfoMsg;
 
 typedef struct SSTableVgroupMsg {
   int32_t numOfTables;
 } SSTableVgroupMsg, SSTableVgroupRspMsg;
-
-typedef struct {
-  int32_t       vgId;
-  int8_t        numOfEps;
-  SEpAddr1      epAddr[TSDB_MAX_REPLICA];
-} SVgroupInfo;
 
 typedef struct {
   int32_t    vgId;
@@ -733,19 +772,15 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  SVgroupInfo vgroups[];
-} SVgroupsInfo;
-
-typedef struct {
-  int32_t numOfVgroups;
   SVgroupMsg vgroups[];
-} SVgroupsMsg;
+} SVgroupsMsg, SVgroupsInfo;
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableFname[TSDB_TABLE_FNAME_LEN];   // table id
   uint8_t       numOfTags;
   uint8_t       precision;
+  uint8_t       update;
   uint8_t       tableType;
   int16_t       numOfColumns;
   int16_t       sversion;
@@ -762,7 +797,11 @@ typedef struct STableMetaMsg {
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
   int32_t       numOfVgroup;
+  int32_t       numOfUdf;
   int32_t       contLen;
+  uint8_t       compressed;      // denote if compressed or not
+  uint32_t      rawLen;          // size before compress
+  uint8_t       metaClone;       // make meta clone after retrieve meta from mnode
   char          meta[];
 } SMultiTableMeta;
 
@@ -827,6 +866,12 @@ typedef struct {
   int64_t  useconds;
   int64_t  stime;
   uint64_t qId;
+  uint64_t sqlObjId;
+  int32_t  pid;
+  char     fqdn[TSDB_FQDN_LEN];
+  uint8_t  stableQuery;
+  int32_t  numOfSub;
+  char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
 
 typedef struct {

@@ -128,8 +128,12 @@ function install_lib() {
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
-
-    ${csudo} ldconfig
+    
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ldconfig
+    else
+        ${csudo} update_dyld_shared_cache
+    fi
 }
 
 function install_header() {
@@ -182,7 +186,13 @@ function install_jemalloc() {
             ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
             ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
-        ${csudo} ldconfig
+
+        if [ -d /etc/ld.so.conf.d ]; then
+            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            ${csudo} ldconfig
+        else
+            echo "/etc/ld.so.conf.d not found!"
+        fi
     fi
 }
 

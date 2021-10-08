@@ -64,12 +64,15 @@ int32_t strRmquote(char *z, int32_t len){
     int32_t j = 0;
     for (uint32_t k = 1; k < len - 1; ++k) {
       if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
+        if (z[k] == '\\' && z[k + 1] == '_') {
+          //match '_' self
+        } else {
           z[j] = z[k + 1];
-  
-        cnt++;
-        j++;
-        k++;
-        continue;
+          cnt++;
+          j++;
+          k++;
+          continue;
+        }
       }
   
       z[j] = z[k];
@@ -162,6 +165,8 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+
+
 char* strtolower(char *dst, const char *src) {
   int esc = 0;
   char quote = 0, *p = dst, c;
@@ -197,7 +202,7 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   if (n == 0) {
     *p = 0;
     return dst;
-  } 
+  }
   for (c = *src++; n-- > 0; c = *src++) {
     if (esc) {
       esc = 0;
@@ -216,6 +221,26 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   }
 
   *p = 0;
+  return dst;
+}
+
+char* strntolower_s(char *dst, const char *src, int32_t n) {
+  char *p = dst, c;
+
+  assert(dst != NULL);
+  if (n == 0) {
+    return NULL;
+  }
+
+  while (n-- > 0) {
+    c = *src;
+    if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    }
+    *p++ = c;
+    src++;
+  }
+
   return dst;
 }
 

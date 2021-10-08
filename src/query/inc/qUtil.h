@@ -24,11 +24,21 @@
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
+#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)             \
+  do {                                                                 \
+    assert(sizeof(_uid) == sizeof(uint64_t));                          \
+    *(void **)(_k) = (_buf);                                             \
+    *(uint64_t *)((_k) + POINTER_BYTES) = (_uid);                      \
+    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len));   \
+  } while (0)
+
+
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
+#define GET_RES_EXT_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t) + POINTER_BYTES)
+
 #define GET_QID(_r)  (((SQInfo*)((_r)->qinfo))->qId)
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!(sq)))? (_q)->pExpr1[1].base.param[0].i64:1)
 
 int32_t getOutputInterResultBufSize(SQueryAttr* pQueryAttr);
 
@@ -49,16 +59,18 @@ SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t
 
 void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
 void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols);
+int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char *getPosInResultPage(SQueryAttr *pQueryAttr, tFilePage* page, int32_t rowOffset, int16_t offset) {
+static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* page, int32_t rowOffset,
+                                             int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
 
-  int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
+  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
   return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 
@@ -92,5 +104,7 @@ bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t* offset);
+
+int32_t initUdfInfo(SUdfInfo* pUdfInfo);
 
 #endif  // TDENGINE_QUERYUTIL_H

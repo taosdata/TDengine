@@ -218,8 +218,4 @@ use telegraf；
 使用telegraf这个数据库。然后执行show tables，describe table等命令详细查询下telegraf这个库里保存了些什么数据。
 具体TDengine的查询语句可以参考[TDengine官方文档](https://www.taosdata.com/cn/documentation/taos-sql/)
 ## 接入多个监控对象
-<<<<<<< HEAD
 就像前面原理介绍的，这个miniDevops的小系统，已经提供了一个时序数据库和可视化系统，对于多台机器的监控，只需要将每台机器的telegraf或prometheus配置按上面所述修改，就可以完成监控数据采集和可视化呈现了。
-=======
-就像前面原理介绍的，这个miniDevops的小系统，已经提供了一个时序数据库和可视化系统，对于多台机器的监控，只需要将每台机器的telegraf或prometheus配置按上面所述修改，就可以完成监控数据采集和可视化呈现了。
->>>>>>> 740f82af58c4ecc2deecfa36fb1de4ef5ee55efc

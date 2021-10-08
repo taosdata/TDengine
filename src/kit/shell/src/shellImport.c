@@ -223,6 +223,8 @@ static void shellSourceFile(TAOS *con, char *fptr) {
 void* shellImportThreadFp(void *arg)
 {
   ShellThreadObj *pThread = (ShellThreadObj*)arg;
+  setThreadName("shellImportThrd");
+
   for (int f = 0; f < shellSQLFileNum; ++f) {
     if (f % pThread->totalThreads == pThread->threadIndex) {
       char *SQLFileName = shellSQLFiles[f];

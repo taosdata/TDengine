@@ -28,7 +28,7 @@ typedef void* qinfo_t;
  * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo, uint64_t *qId);
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo, uint64_t qId);
 
 
 /**
@@ -75,6 +75,11 @@ void* qGetResultRetrieveMsg(qinfo_t qinfo);
  * @return
  */
 int32_t qKillQuery(qinfo_t qinfo);
+
+//kill by qid 
+int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount);
+
+bool qSolveCommitNoBlock(void* pRepo, void* pMgmt);
 
 int32_t qQueryCompleted(qinfo_t qinfo);
 

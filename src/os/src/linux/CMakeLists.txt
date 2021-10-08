@@ -4,4 +4,4 @@ PROJECT(TDengine)
 AUX_SOURCE_DIRECTORY(. SRC)
 ADD_LIBRARY(oslinux ${SRC})
 
-TARGET_LINK_LIBRARIES(oslinux m rt z)
+TARGET_LINK_LIBRARIES(oslinux m rt z dl)

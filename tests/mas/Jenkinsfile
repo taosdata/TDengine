@@ -18,6 +18,33 @@ def pre_test(){
     rm -rf ${WK}/debug
     mkdir debug
     cd debug
+    cmake  .. > /dev/null
+    make > /dev/null
+    make install > /dev/null
+    pip3 install ${WKC}/src/connector/python/ || echo 0
+    '''
+    return 1
+}
+def pre_test_p(){
+   
+    sh '''
+    sudo rmtaos||echo 'no taosd installed'
+    '''
+    sh '''
+    cd ${WKC}
+    git reset --hard
+    git checkout $BRANCH_NAME
+    git pull
+    git submodule update
+    cd ${WK}
+    git reset --hard
+    git checkout $BRANCH_NAME
+    git pull
+    export TZ=Asia/Harbin
+    date
+    rm -rf ${WK}/debug
+    mkdir debug
+    cd debug
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
@@ -39,7 +66,7 @@ pipeline {
         stage('pytest') {
           agent{label 'slam1'}
           steps {
-            pre_test()
+            pre_test_p()
             sh '''
             cd ${WKC}/tests
             find pytest -name '*'sql|xargs rm -rf
@@ -92,7 +119,7 @@ pipeline {
             }
             
             sh'''
-            systemctl start taosd 
+            nohup taosd >/dev/null & 
             sleep 10
             '''
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -136,7 +163,7 @@ pipeline {
                 '''
             }
             sh '''
-            systemctl stop taosd 
+            pkill -9 taosd || echo 1
             cd ${WKC}/tests
             ./test-all.sh b2
             date

@@ -554,6 +554,9 @@ void mnodeCleanupDbs() {
   tsDbSdb = NULL;
 }
 
+
+
+
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 

@@ -49,7 +49,7 @@ typedef struct {
   SRpcMsg  rpcMsg;
   SRspRet  rspRet;
   char     reserveForSync[24];
-  SWalHead pHead;
+  SWalHead walHead;
 } SVWriteMsg;
 
 // vnodeStatus

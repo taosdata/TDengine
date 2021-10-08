@@ -14,7 +14,10 @@
  */
 
 // no test file errors here
+#include "taosdef.h"
 #include "tsdbint.h"
+#include "ttimer.h"
+#include "tthread.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -106,6 +109,8 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
 
+  pRepo->mergeBuf = NULL;
+
   tsdbStartStream(pRepo);
 
   tsdbDebug("vgId:%d, TSDB repository opened", REPO_ID(pRepo));
@@ -123,6 +128,10 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
+  if(pRepo->pthread){
+    taosDestoryThread(pRepo->pthread);
+    pRepo->pthread = NULL;
+  }
 
   if (toCommit) {
     tsdbSyncCommit(repo);
@@ -197,7 +206,7 @@ STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo) { return NULL; }
 
 int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
-bool tsdbInCompact(STsdbRepo *repo) { return repo->inCompact; }
+int8_t tsdbGetCompactState(STsdbRepo *repo) { return (int8_t)(repo->compactState); }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
@@ -518,7 +527,8 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   }
 
   // update check
-  if (pCfg->update != 0) pCfg->update = 1;
+  if (pCfg->update < TD_ROW_DISCARD_UPDATE || pCfg->update > TD_ROW_PARTIAL_UPDATE)
+    pCfg->update = TD_ROW_DISCARD_UPDATE;
 
   // update cacheLastRow
   if (pCfg->cacheLastRow != 0) {
@@ -537,12 +547,13 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
 
   pRepo->state = TSDB_STATE_OK;
   pRepo->code = TSDB_CODE_SUCCESS;
-  pRepo->inCompact = false;
+  pRepo->compactState = 0;
   pRepo->config = *pCfg;
   if (pAppH) {
     pRepo->appH = *pAppH;
   }
   pRepo->repoLocked = false;
+  pRepo->pthread = NULL;
 
   int code = pthread_mutex_init(&(pRepo->mutex), NULL);
   if (code != 0) {
@@ -597,6 +608,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tsdbFreeFS(pRepo->fs);
     tsdbFreeBufPool(pRepo->pPool);
     tsdbFreeMeta(pRepo->tsdbMeta);
+    tsdbFreeMergeBuf(pRepo->mergeBuf);
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
@@ -641,7 +653,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SDataRow row = NULL;
+  SMemRow      row = NULL;
   // restore last column data with last schema
   
   int err = 0;
@@ -657,13 +669,15 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     }
   }
 
-  row = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+  row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
   if (row == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     err = -1;
     goto out;
   }
-  tdInitDataRow(row, pSchema);
+
+  memRowSetType(row, SMEM_ROW_DATA);
+  tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
   if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
@@ -720,9 +734,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       // OK,let's load row from backward to get not-null column
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
-        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
+        const void* pColData = tdGetColDataOfRow(pDataCol, rowId);
+        tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
         //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
-        void* value = tdGetRowDataOfCol(row, (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+        void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
         if (isNull(value, pCol->type)) {
           continue;
         }
@@ -733,17 +748,18 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
           continue;
         }
         // save not-null column
+        uint16_t bytes = IS_VAR_DATA_TYPE(pCol->type) ? varDataTLen(pColData) : pCol->bytes;
         SDataCol *pLastCol = &(pTable->lastCols[idx]);
-        pLastCol->pData = malloc(pCol->bytes);
-        pLastCol->bytes = pCol->bytes;
+        pLastCol->pData = malloc(bytes);
+        pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
-        memcpy(pLastCol->pData, value, pCol->bytes);
+        memcpy(pLastCol->pData, value, bytes);
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
         pCol = schemaColAt(pSchema, 0);
-        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
-        pLastCol->ts = dataRowKey(row);
+        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
+        pLastCol->ts = memRowKey(row);
 
         pTable->restoreColumnNum += 1;
 
@@ -779,18 +795,18 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
   // Get the data in row
   
   STSchema *pSchema = tsdbGetTableSchema(pTable);
-  pTable->lastRow = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+  pTable->lastRow = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
   if (pTable->lastRow == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
-
-  tdInitDataRow(pTable->lastRow, pSchema);
+  memRowSetType(pTable->lastRow, SMEM_ROW_DATA);
+  tdInitDataRow(memRowDataBody(pTable->lastRow), pSchema);
   for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
     STColumn *pCol = schemaColAt(pSchema, icol);
     SDataCol *pDataCol = pReadh->pDCols[0]->cols + icol;
-    tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
-                    pCol->offset);
+    tdAppendColVal(memRowDataBody(pTable->lastRow), tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type,
+                   pCol->offset);
   }
 
   return 0;

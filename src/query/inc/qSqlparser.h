@@ -80,6 +80,7 @@ typedef struct tVariantListItem {
 } tVariantListItem;
 
 typedef struct SIntervalVal {
+  int32_t            token;
   SStrToken          interval;
   SStrToken          offset;
 } SIntervalVal;
@@ -182,6 +183,15 @@ typedef struct SCreateDbInfo {
   int16_t            partitions;
 } SCreateDbInfo;
 
+typedef struct SCreateFuncInfo {
+  SStrToken name;
+  SStrToken path;
+  int32_t   type;
+  int32_t   bufSize;
+  TAOS_FIELD output;
+} SCreateFuncInfo;
+
+
 typedef struct SCreateAcctInfo {
   int32_t            maxUsers;
   int32_t            maxDbs;
@@ -214,10 +224,11 @@ typedef struct SMiscInfo {
   int16_t            tableType;
   SUserInfo          user;
   union {
-    SCreateDbInfo    dbOpt;
-    SCreateAcctInfo  acctOpt;
-    SShowInfo        showOpt;
-    SStrToken        id;
+    SCreateDbInfo   dbOpt;
+    SCreateAcctInfo acctOpt;
+    SCreateFuncInfo funcOpt;
+    SShowInfo       showOpt;
+    SStrToken       id;
   };
 } SMiscInfo;
 
@@ -226,6 +237,7 @@ typedef struct SSqlInfo {
   bool               valid;
   SArray            *list;    // todo refactor
   char               msg[256];
+  SArray            *funcs;
   union {
     SCreateTableSql *pCreateTableInfo;
     SAlterTableInfo *pAlterInfo;
@@ -243,7 +255,7 @@ typedef struct tSqlExpr {
     struct SArray   *paramList;      // function parameters list
   } Expr;
 
-  uint32_t           functionId;  // function id, todo remove it
+  int32_t            functionId;  // function id, todo remove it
   SStrToken          columnName;  // table column info
   tVariant           value;       // the use input value
   SStrToken          exprToken;   // original sql expr string
@@ -271,6 +283,7 @@ SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
+SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);

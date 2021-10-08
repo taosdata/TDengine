@@ -1,6 +1,5 @@
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.rs.RestfulParameterMetaData;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
