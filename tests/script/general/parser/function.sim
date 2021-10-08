@@ -1087,6 +1087,14 @@ sql select diff(val) from (select derivative(k, 1s, 0) val from t1);
 if $rows != 0 then
   return -1
 endi
+sql select mavg(val,2) from (select derivative(k, 1s, 0) val from t1);
+if $rows != 0 then
+  return -1
+endi
+sql select csum(val) from (select derivative(k, 1s, 0) val from t1);
+if $rows != 0 then
+  return -1
+endi
 
 sql insert into t1 values('2020-1-1 1:1:4', 20);
 sql insert into t1 values('2020-1-1 1:1:6', 200);

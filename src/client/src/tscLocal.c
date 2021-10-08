@@ -926,8 +926,8 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosHashClear(tscTableMetaMap);
-    taosCacheEmpty(tscVgroupListBuf);
+    taosHashClear(UTIL_GET_TABLEMETA(pSql));
+    taosCacheEmpty(UTIL_GET_VGROUPLIST(pSql));
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);
