@@ -24,7 +24,7 @@ extern "C" {
 #include "tlockfree.h"
 
 typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
-typedef int32_t  (*_equal_fn_t)(const void*, const void*);
+typedef int32_t  (*_equal_fn_t)(const void*, const void*, uint32_t len);
 typedef void (*_hash_before_fn_t)(void *);
 typedef void (*_hash_free_fn_t)(void *);
 

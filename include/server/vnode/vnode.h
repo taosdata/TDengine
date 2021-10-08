@@ -20,40 +20,84 @@
 extern "C" {
 #endif
 
-struct SRpcMsg;
+typedef struct {
+  /**
+   * Send messages to other dnodes, such as create vnode message.
+   *
+   * @param epSet, the endpoint list of dnodes.
+   * @param rpcMsg, message to be sent.
+   */
+  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+
+  /**
+   * Send messages to mnode, such as config message.
+   *
+   * @param rpcMsg, message to be sent.
+   */
+  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
+
+  /**
+   * Get the corresponding endpoint information from dnodeId.
+   *
+   * @param dnodeId, the id ot dnode.
+   * @param ep, the endpoint of dnode.
+   * @param fqdn, the fqdn of dnode.
+   * @param port, the port of dnode.
+   */
+  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+
+} SVnodeFp;
+
+typedef struct {
+  SVnodeFp      fp;
+} SVnodePara;
 
 /**
- * Start Initialize Vnode module.
+ * Start initialize vnode module.
  *
- * @return Error Code.
+ * @param para, initialization parameters.
+ * @return Error code.
  */
-int32_t vnodeInit();
- 
+int32_t vnodeInit(SVnodePara para);
+
 /**
- * Cleanup Vnode module.
+ * Cleanup vnode module.
  */
 void vnodeCleanup();
- 
+
 typedef struct {
-  int64_t queryMsgCount;
-  int64_t writeMsgCount;
+  int32_t unused;
 } SVnodeStat;
- 
+
 /**
- * Get the statistical information of Vnode
+ * Get the statistical information of vnode.
  *
- * @param stat Statistical information.
+ * @param stat, statistical information.
  * @return Error Code.
  */
 int32_t vnodeGetStatistics(SVnodeStat *stat);
 
-/** 
+/**
+ * Get the status of all vnodes.
+ *
+ * @param status, status msg.
+ */
+void vnodeGetStatus(struct SStatusMsg *status);
+
+/**
+ * Set access permissions for all vnodes.
+ *
+ * @param access, access permissions of vnodes.
+ * @param numOfVnodes, the size of vnodes.
+ */
+void vnodeSetAccess(struct SVgroupAccess *access, int32_t numOfVnodes);
+
+/**
  * Interface for processing messages.
  *
- * @param pMsg Message to be processed.
- * @return Error code
+ * @param msg, message to be processed.
  */
-int32_t vnodeProcessMsg(SRpcMsg *pMsg);
+void vnodeProcessMsg(SRpcMsg *msg);
 
 #ifdef __cplusplus
 }

@@ -5,3 +5,11 @@ target_include_directories(
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/transport"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+target_link_libraries(
+    transport
+    PUBLIC lz4_static
+    PUBLIC os
+    PUBLIC util
+    PUBLIC common
+)

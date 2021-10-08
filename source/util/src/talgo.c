@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-
 #include "talgo.h"
 
 #define doswap(__left, __right, __size, __buf) do {\

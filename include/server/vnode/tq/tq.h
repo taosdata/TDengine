@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+typedef struct STQ STQ;
+
+int tqPushMsg(void *);
+int tqCommit(STQ *pTQ);
+
 #ifdef __cplusplus
 }
 #endif

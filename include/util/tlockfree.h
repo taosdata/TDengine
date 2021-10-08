@@ -12,15 +12,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef __TD_LOCK_FREE_H__
-#define __TD_LOCK_FREE_H__
+#ifndef _TD_UTIL_LOCK_FREE_H
+#define _TD_UTIL_LOCK_FREE_H
 
 #include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 // reference counting
 typedef void (*_ref_fn_t)(const void* pObj);
@@ -71,7 +70,7 @@ typedef void (*_ref_fn_t)(const void* pObj);
 
 
 // single writer multiple reader lock
-typedef int32_t SRWLatch;
+typedef volatile int32_t SRWLatch;
 
 void taosInitRWLatch(SRWLatch *pLatch);
 void taosWLockLatch(SRWLatch *pLatch);
@@ -106,9 +105,8 @@ void taosRUnLockLatch(SRWLatch *pLatch);
     break; \
   }
 
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_LOCK_FREE_H*/

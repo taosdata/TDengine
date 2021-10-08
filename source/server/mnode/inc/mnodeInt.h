@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+#include "os.h"
+#include "taosmsg.h"
+#include "trpc.h"
+#include "mnode.h"
+
 #ifdef __cplusplus
 }
 #endif

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_SCHEMA_H_
-#define _TD_SCHEMA_H_
+#ifndef _TD_COMMON_SCHEMA_H_
+#define _TD_COMMON_SCHEMA_H_
 
 #include "os.h"
 
@@ -100,4 +100,4 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 }
 #endif
 
-#endif /*_TD_SCHEMA_H_*/
+#endif /*_TD_COMMON_SCHEMA_H_*/
