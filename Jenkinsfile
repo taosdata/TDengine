@@ -183,7 +183,7 @@ def pre_test_win(){
     cmake ../ -G "NMake Makefiles" 
     nmake || exit 8
     nmake install || exit 8
-    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 && exit 8
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
     
