@@ -114,7 +114,6 @@ def pre_test(){
 }
 def pre_test_win(){
     bat '''
-    taskkill /f /t /im python.exe
     cd C:\\
     rd /s /Q C:\\TDengine
     cd C:\\workspace\\TDinternal
@@ -172,6 +171,7 @@ def pre_test_win(){
       } 
     }
     bat '''
+    taskkill /f /t /im python.exe
     cd C:\\workspace\\TDinternal
     git pull 
 
@@ -183,7 +183,7 @@ def pre_test_win(){
     cmake ../ -G "NMake Makefiles" 
     nmake || exit 8
     nmake install || exit 8
-    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 && exit 8
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
     
@@ -313,29 +313,11 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
-              node test1970.js
-	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-	      npm install td2.0-connector > /dev/null 2>&1
-              node nanosecondTest.js
-
               '''
-
               sh '''
-              cd ${WKC}/src/connector/node-rest/
-              npm install
-              npm run build 
-              npm run build:test
-              npm run test
-
-              '''
-
-              sh '''
-                cd ${WKC}/tests/examples/C#/taosdemo
-                mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo -c /etc/taos
-                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
-                mcs -out:nano *.cs > /dev/null 2>&1
-                echo '' |./nano
+              cd ${WKC}/tests/examples/C#/taosdemo
+              mcs -out:taosdemo *.cs > /dev/null 2>&1
+              ./taosdemo -c /etc/taos -y
               '''
               sh '''
                 cd ${WKC}/tests/gotest
