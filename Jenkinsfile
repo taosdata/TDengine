@@ -114,6 +114,7 @@ def pre_test(){
 }
 def pre_test_win(){
     bat '''
+    taskkill /f /t /im python.exe
     cd C:\\
     rd /s /Q C:\\TDengine
     cd C:\\workspace\\TDinternal
@@ -180,9 +181,9 @@ def pre_test_win(){
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    nmake
-    nmake install 
-    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    nmake || exit 8
+    nmake install || exit 8
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 && exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
     
@@ -312,11 +313,29 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
+              node test1970.js
+	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+	      npm install td2.0-connector > /dev/null 2>&1
+              node nanosecondTest.js
+
               '''
+
               sh '''
-              cd ${WKC}/tests/examples/C#/taosdemo
-              mcs -out:taosdemo *.cs > /dev/null 2>&1
-              ./taosdemo -c /etc/taos -y
+              cd ${WKC}/src/connector/node-rest/
+              npm install
+              npm run build 
+              npm run build:test
+              npm run test
+
+              '''
+
+              sh '''
+                cd ${WKC}/tests/examples/C#/taosdemo
+                mcs -out:taosdemo *.cs > /dev/null 2>&1
+                echo '' |./taosdemo -c /etc/taos
+                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
+                mcs -out:nano *.cs > /dev/null 2>&1
+                echo '' |./nano
               '''
               sh '''
                 cd ${WKC}/tests/gotest
@@ -466,10 +485,12 @@ pipeline {
             
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
+                timeout(time: 20, unit: 'MINUTES'){
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
                 .\\test-all.bat Wintest
                 '''
+                }
             }     
             script{
               win_stop=1
