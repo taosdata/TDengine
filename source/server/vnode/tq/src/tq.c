@@ -13,14 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tq.h"
+#include "tqInt.h"
 
-int tqPushMsg(STQ *pTQ, void * p, int64_t version) {
+//static
+//read next version data
+//
+//send to fetch queue
+//
+//handle management message
+
+int tqPushMsg(STQ* pTq , void* p, int64_t version) {
   //add reference
   //
   return 0;
 }
 
-int tqCommit(STQ *pTQ) {
+int tqCommit(STQ* pTq) {
   return 0;
 }

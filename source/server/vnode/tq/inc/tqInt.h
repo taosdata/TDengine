@@ -16,6 +16,8 @@
 #ifndef _TD_TQ_INT_H_
 #define _TD_TQ_INT_H_
 
+#include "tq.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
