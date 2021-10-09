@@ -303,7 +303,7 @@ typedef struct SSuperTable_S {
     uint64_t     lenOfTagOfOneRow;
 
     char*        sampleDataBuf;
-    bool         sampleTs;
+    bool         useSampleTs;
 
     uint32_t     tagSource;    // 0: rand, 1: tag sample
     char*        tagDataBuf;
@@ -2762,8 +2762,8 @@ static int printfInsertMeta() {
                         g_Dbs.db[i].superTbls[j].sampleFormat);
                 printf("      sampleFile:        \033[33m%s\033[0m\n",
                         g_Dbs.db[i].superTbls[j].sampleFile);
-                printf("      sampleTs:          \033[33m%s\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].sampleTs ? "yes" : "no");
+                printf("      useSampleTs:          \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].useSampleTs ? "yes" : "no");
                 printf("      tagsFile:          \033[33m%s\033[0m\n",
                         g_Dbs.db[i].superTbls[j].tagsFile);
                 printf("      columnCount:       \033[33m%d\033[0m\n        ",
@@ -5708,20 +5708,20 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 goto PARSE_OVER;
             }
 
-            cJSON *sampleTs = cJSON_GetObjectItem(stbInfo, "sample_ts");
-            if (sampleTs && sampleTs->type == cJSON_String
-                    && sampleTs->valuestring != NULL) {
-                if (0 == strncasecmp(sampleTs->valuestring, "yes", 3)) {
-                    g_Dbs.db[i].superTbls[j].sampleTs = true;
-                } else if (0 == strncasecmp(sampleTs->valuestring, "no", 2)){
-                    g_Dbs.db[i].superTbls[j].sampleTs = false;
+            cJSON *useSampleTs = cJSON_GetObjectItem(stbInfo, "use_sample_ts");
+            if (useSampleTs && useSampleTs->type == cJSON_String
+                    && useSampleTs->valuestring != NULL) {
+                if (0 == strncasecmp(useSampleTs->valuestring, "yes", 3)) {
+                    g_Dbs.db[i].superTbls[j].useSampleTs = true;
+                } else if (0 == strncasecmp(useSampleTs->valuestring, "no", 2)){
+                    g_Dbs.db[i].superTbls[j].useSampleTs = false;
                 } else {
-                    g_Dbs.db[i].superTbls[j].sampleTs = false;
+                    g_Dbs.db[i].superTbls[j].useSampleTs = false;
                 }
-            } else if (!sampleTs) {
-                g_Dbs.db[i].superTbls[j].sampleTs = false;
+            } else if (!useSampleTs) {
+                g_Dbs.db[i].superTbls[j].useSampleTs = false;
             } else {
-                errorPrint("%s", "failed to read json, sample_ts not found\n");
+                errorPrint("%s", "failed to read json, use_sample_ts not found\n");
                 goto PARSE_OVER;
             }
 
@@ -6485,7 +6485,7 @@ static int getRowDataFromSample(
     }
 
     int    dataLen = 0;
-    if(stbInfo->sampleTs) {
+    if(stbInfo->useSampleTs) {
         dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
             "(%s",
             stbInfo->sampleDataBuf
@@ -6931,7 +6931,7 @@ static int prepareSampleForStb(SSuperTable *stbInfo) {
 
     int ret;
     if (0 == strncasecmp(stbInfo->dataSource, "sample", strlen("sample"))) {
-        if(stbInfo->sampleTs) {
+        if(stbInfo->useSampleTs) {
             getAndSetRowsFromCsvFile(stbInfo);
         }
         ret = generateSampleFromCsvForStb(stbInfo);
