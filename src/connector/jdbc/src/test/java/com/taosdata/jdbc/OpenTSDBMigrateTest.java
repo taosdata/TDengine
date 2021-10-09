@@ -23,7 +23,8 @@ public class OpenTSDBMigrateTest {
         };
 
         // when
-        conn.getConnector().insertTelnetLines(lines);
+        OpenTSDBStatement statement = new OpenTSDBStatement(conn.createStatement());
+        statement.executeTelnetPut(lines);
 
         // then
         Set<String> collect = Arrays.stream(lines)
@@ -31,7 +32,6 @@ public class OpenTSDBMigrateTest {
                 .map(s -> s.split("\\s+")[0].replaceAll("\\.", "_"))
                 .collect(Collectors.toSet());
 
-        Statement statement = conn.createStatement();
         ResultSet rs = statement.executeQuery("show stables");
         Assert.assertNotNull(rs);
         ResultSetMetaData metaData = rs.getMetaData();
@@ -60,11 +60,11 @@ public class OpenTSDBMigrateTest {
                 "}";
 
         // when
-        conn.getConnector().insertJsonPayload(json);
+        OpenTSDBStatement statement = new OpenTSDBStatement(conn.createStatement());
+        statement.executeInsertJsonPayload(json);
 
         // then
         JSONObject jObject = JSONObject.parseObject(json);
-        Statement statement = conn.createStatement();
         ResultSet rs = statement.executeQuery("show stables");
         Assert.assertNotNull(rs);
         ResultSetMetaData metaData = rs.getMetaData();
