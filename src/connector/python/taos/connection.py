@@ -117,9 +117,10 @@ class TaosConnection(object):
         stream = taos_open_stream(self._conn, sql, callback, stime, param, callback2)
         return TaosStream(stream)
 
-    def insert_lines(self, lines):
+    def schemaless_insert(self, lines, protocol):
         # type: (list[str]) -> None
-        """Line protocol and schemaless support
+        """
+        1.Line protocol and schemaless support
 
         ## Example
 
@@ -131,34 +132,31 @@ class TaosConnection(object):
         lines = [
             'ste,t2=5,t3=L"ste" c1=true,c2=4,c3="string" 1626056811855516532',
         ]
-        conn.insert_lines(lines)
+        conn.schemaless_insert(lines, 0)
         ```
 
-        ## Exception
-
-        ```python
-        try:
-            conn.insert_lines(lines)
-        except SchemalessError as err:
-            print(err)
-        ```
-        """
-        return taos_insert_lines(self._conn, lines)
-
-    def insert_telnet_lines(self, lines):
-        """OpenTSDB telnet style API format support
+        2.OpenTSDB telnet style API format support
 
         ## Example
-        cpu_load 1626056811855516532ns 2.0f32 id="tb1",host="host0",interface="eth0"
+        import taos
+        conn = taos.connect()
+        conn.exec("drop database if exists test")
+        conn.select_db("test")
+        lines = [
+            'cpu_load 1626056811855516532ns 2.0f32 id="tb1",host="host0",interface="eth0"',
+        ]
+        conn.schemaless_insert(lines, 1)
 
-        """
-        return taos_insert_telnet_lines(self._conn, lines)
 
-    def insert_json_payload(self, payload):
-        """OpenTSDB HTTP JSON format support
+        3.OpenTSDB HTTP JSON format support
 
         ## Example
-        "{
+        import taos
+        conn = taos.connect()
+        conn.exec("drop database if exists test")
+        conn.select_db("test")
+        payload = ['''
+        {
             "metric": "cpu_load_0",
             "timestamp": 1626006833610123,
             "value": 55.5,
@@ -168,10 +166,13 @@ class TaosConnection(object):
                     "interface": "eth0",
                     "Id": "tb0"
                 }
-        }"
+        }
+        ''']
+        conn.schemaless_insert(lines, 2)
 
         """
-        return taos_insert_json_payload(self._conn, payload)
+        return taos_schemaless_insert(self._conn, lines, protocol)
+
 
     def cursor(self):
         # type: () -> TaosCursor

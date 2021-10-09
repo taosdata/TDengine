@@ -77,9 +77,9 @@ int main(int argc, char* argv[]) {
   }
   //shuffle(lines, numSuperTables * numChildTables * numRowsPerChildTable);
 
-  printf("%s\n", "begin taos_insert_lines");
+  printf("%s\n", "begin taos_schemaless_insert");
   int64_t  begin = getTimeInUs();
-  int32_t code = taos_insert_lines(taos, lines, numSuperTables * numChildTables * numRowsPerChildTable);
+  int32_t code = taos_schemaless_insert(taos, lines, numSuperTables * numChildTables * numRowsPerChildTable, 0);
   int64_t end = getTimeInUs();
   printf("code: %d, %s. time used: %"PRId64"\n", code, tstrerror(code), end-begin);
 

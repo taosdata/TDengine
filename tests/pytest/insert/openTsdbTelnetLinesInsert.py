@@ -13,7 +13,7 @@
 
 import traceback
 import random
-from taos.error import TelnetLinesError
+from taos.error import SchemalessError
 import time
 import numpy as np
 from util.log import *
@@ -282,7 +282,7 @@ class TDTestCase:
 
     def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, id=True, none_check_tag=None):
         expect_list = self.inputHandle(input_sql)
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         query_sql = f"{query_sql} {stb_name} {condition}"
         res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True)
         if ts == 0:
@@ -389,13 +389,13 @@ class TDTestCase:
         """
         for input_sql in [self.genLongSql(128)[0]]:
             tdCom.cleanTb()
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
         for input_sql in [self.genLongSql(129)[0]]:
             tdCom.cleanTb()
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
     def idIllegalNameCheckCase(self):
@@ -408,9 +408,9 @@ class TDTestCase:
         for i in rstr:
             input_sql = self.genFullTypeSql(tb_name=f"\"aaa{i}bbb\"")[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
     def idStartWithNumCheckCase(self):
@@ -420,9 +420,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(tb_name=f"\"1aaabbb\"")[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def nowTsCheckCase(self):
@@ -432,9 +432,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="now")[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def dateFormatTsCheckCase(self):
@@ -444,9 +444,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
     
     def illegalTsCheckCase(self):
@@ -456,9 +456,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="16260068336390us19")[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def tagValueLengthCheckCase(self):
@@ -473,9 +473,9 @@ class TDTestCase:
         for t1 in ["-128i8", "128i8"]:
             input_sql = self.genFullTypeSql(t1=t1)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         #i16
@@ -485,9 +485,9 @@ class TDTestCase:
         for t2 in ["-32768i16", "32768i16"]:
             input_sql = self.genFullTypeSql(t2=t2)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         #i32
@@ -497,9 +497,9 @@ class TDTestCase:
         for t3 in ["-2147483648i32", "2147483648i32"]:
             input_sql = self.genFullTypeSql(t3=t3)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         #i64
@@ -509,9 +509,9 @@ class TDTestCase:
         for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
             input_sql = self.genFullTypeSql(t4=t4)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # f32
@@ -522,9 +522,9 @@ class TDTestCase:
         for t5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
             input_sql = self.genFullTypeSql(t5=t5)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
 
@@ -536,33 +536,33 @@ class TDTestCase:
         for t6 in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
             input_sql = self.genFullTypeSql(t6=t6)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # binary 
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns t t0=t t1="{tdCom.getLongName(16374, "letters")}"'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         
         input_sql = f'{stb_name} 1626006833639000000ns t t0=t t1="{tdCom.getLongName(16375, "letters")}"'
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns t t0=t t1=L"{tdCom.getLongName(4093, "letters")}"'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
 
         input_sql = f'{stb_name} 1626006833639000000ns t t0=t t1=L"{tdCom.getLongName(4094, "letters")}"'
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def colValueLengthCheckCase(self):
@@ -578,9 +578,9 @@ class TDTestCase:
         for value in ["-128i8", "128i8"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
         # i16
         tdCom.cleanTb()
@@ -591,9 +591,9 @@ class TDTestCase:
         for value in ["-32768i16", "32768i16"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i32
@@ -605,9 +605,9 @@ class TDTestCase:
         for value in ["-2147483648i32", "2147483648i32"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i64
@@ -619,9 +619,9 @@ class TDTestCase:
         for value in ["-9223372036854775808i64", "9223372036854775808i64"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # f32       
@@ -634,9 +634,9 @@ class TDTestCase:
         for value in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # f64
@@ -649,23 +649,23 @@ class TDTestCase:
         for value in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # # binary 
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns "{tdCom.getLongName(16374, "letters")}" t0=t'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         
         tdCom.cleanTb()
         input_sql = f'{stb_name} 1626006833639000000ns "{tdCom.getLongName(16375, "letters")}" t0=t'
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
         # nchar
@@ -673,14 +673,14 @@ class TDTestCase:
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns L"{tdCom.getLongName(4093, "letters")}" t0=t'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
 
         tdCom.cleanTb()
         input_sql = f'{stb_name} 1626006833639000000ns L"{tdCom.getLongName(4094, "letters")}" t0=t'
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def tagColIllegalValueCheckCase(self):
@@ -706,9 +706,9 @@ class TDTestCase:
                 self.genFullTypeSql(t6="11.1s45f64")[0], 
             ]:
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # check binary and nchar blank
@@ -718,9 +718,9 @@ class TDTestCase:
         input_sql4 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=L"abc aaa"'
         for input_sql in [input_sql1, input_sql2, input_sql3, input_sql4]:
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # check accepted binary and nchar symbols 
@@ -728,8 +728,8 @@ class TDTestCase:
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_sql1 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns "abc{symbol}aaa" t0=t'
             input_sql2 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=t t1="abc{symbol}aaa"'
-            self._conn.insert_telnet_lines([input_sql1])
-            self._conn.insert_telnet_lines([input_sql2])
+            self._conn.schemaless_insert([input_sql1], 1)
+            self._conn.schemaless_insert([input_sql2], 1)
     
     def blankCheckCase(self):
         '''
@@ -748,9 +748,9 @@ class TDTestCase:
                         f'{tdCom.getLongName(7, "letters")}  1626006833639000000ns L"abaaa" t0=L"abcaaa3"']
         for input_sql in input_sql_list:
             try:
-                self._conn.insert_telnet_lines([input_sql])
+                self._conn.schemaless_insert([input_sql], 1)
                 raise Exception("should not reach here")
-            except TelnetLinesError as err:
+            except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
     def duplicateIdTagColInsertCheckCase(self):
@@ -760,17 +760,17 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql_id = self.genFullTypeSql(id_double_tag=True)[0]
         try:
-            self._conn.insert_telnet_lines([input_sql_id])
+            self._conn.schemaless_insert([input_sql_id], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
         input_sql = self.genFullTypeSql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         try:
-            self._conn.insert_telnet_lines([input_sql_tag])
+            self._conn.schemaless_insert([input_sql_tag], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     ##### stb exist #####
@@ -794,7 +794,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         self.resCmp(input_sql, stb_name)
 
     def tagColBinaryNcharLengthCheckCase(self):
@@ -865,7 +865,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", value="f", id_noexist_tag=True, t_add_tag=True)
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -881,19 +881,19 @@ class TDTestCase:
         tb_name = f'{stb_name}_1'
 
         input_sql = f'{stb_name} 1626006833639000000ns f id="{tb_name}" t0=t'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
         input_sql = f'{stb_name} 1626006833639000000ns f t0=t t1="{tdCom.getLongName(16374, "letters")}" t2="{tdCom.getLongName(5, "letters")}"'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         input_sql = f'{stb_name} 1626006833639000000ns f t0=t t1="{tdCom.getLongName(16374, "letters")}" t2="{tdCom.getLongName(6, "letters")}"'
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -907,18 +907,18 @@ class TDTestCase:
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name} 1626006833639000000ns f id="{tb_name}" t0=t'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
 
         # * legal nchar could not be larger than 16374/4
         input_sql = f'{stb_name} 1626006833639000000ns f t0=t t1=L"{tdCom.getLongName(4093, "letters")}" t2=L"{tdCom.getLongName(1, "letters")}"'
-        self._conn.insert_telnet_lines([input_sql])
+        self._conn.schemaless_insert([input_sql], 1)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         input_sql = f'{stb_name} 1626006833639000000ns f t0=t t1=L"{tdCom.getLongName(4093, "letters")}" t2=L"{tdCom.getLongName(2, "letters")}"'
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -941,7 +941,7 @@ class TDTestCase:
                 "st123456 1626006933640000000ns 8i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 "st123456 1626006933641000000ns 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64"
                 ]
-        self._conn.insert_telnet_lines(lines)
+        self._conn.schemaless_insert(lines, 1)
         tdSql.query('show stables')
         tdSql.checkRows(3)
         tdSql.query('show tables')
@@ -960,7 +960,7 @@ class TDTestCase:
             for i in range(count):
                 input_sql = self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True)[0]
                 sql_list.append(input_sql)
-            self._conn.insert_telnet_lines(sql_list)
+            self._conn.schemaless_insert(sql_list, 1)
             tdSql.query('show tables')
             tdSql.checkRows(count)
 
@@ -973,9 +973,9 @@ class TDTestCase:
         lines = ["st123456 1626006833639000000ns 3i 64 t1=3i64 t2=4f64 t3=\"t3\"",
                 f"{stb_name} 1626056811823316532ns tRue t2=5f64 t3=L\"ste\""]
         try:
-            self._conn.insert_telnet_lines(lines)
+            self._conn.schemaless_insert(lines, 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def multiColsInsertCheckCase(self):
@@ -985,9 +985,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(t_multi_tag=True)[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
     
     def blankColInsertCheckCase(self):
@@ -997,9 +997,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(c_blank_tag=True)[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def blankTagInsertCheckCase(self):
@@ -1009,9 +1009,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(t_blank_tag=True)[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
     
     def chineseCheckCase(self):
@@ -1029,9 +1029,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(multi_field_tag=True)[0]
         try:
-            self._conn.insert_telnet_lines([input_sql])
+            self._conn.schemaless_insert([input_sql], 1)
             raise Exception("should not reach here")
-        except TelnetLinesError as err:
+        except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
     def errorTypeCheckCase(self):
@@ -1120,7 +1120,7 @@ class TDTestCase:
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
-            t = threading.Thread(target=self._conn.insert_telnet_lines,args=([insert_sql[0]],))
+            t = threading.Thread(target=self._conn.schemaless_insert,args=([insert_sql[0]],1))
             tlist.append(t)
         return tlist
 
@@ -1320,8 +1320,8 @@ class TDTestCase:
     def test(self):
         try:
             input_sql = f'test_nchar 0 L"涛思数据" t0=f t1=L"涛思数据" t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64'
-            self._conn.insert_telnet_lines([input_sql])
-        except TelnetLinesError as err:
+            self._conn.schemaless_insert([input_sql], 1)
+        except SchemalessError as err:
             print(err.errno)
 
     def runAll(self):
