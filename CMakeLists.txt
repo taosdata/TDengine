@@ -35,6 +35,18 @@ cat("${CMAKE_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 ## cJson
 cat("${CMAKE_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
+## leveldb
+option(BUILD_WITH_LEVELDB "If build with leveldb" ON)
+if(${BUILD_WITH_LEVELDB})
+    cat("${CMAKE_SUPPORT_DIR}/leveldb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+endif(${BUILD_WITH_LEVELDB})
+
+## rocksdb
+option(BUILD_WITH_ROCKSDB "If build with rocksdb" ON)
+if(${BUILD_WITH_ROCKSDB})
+    cat("${CMAKE_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+endif(${BUILD_WITH_ROCKSDB})
+
 ## download dependencies
 configure_file(${DEPS_TMP_FILE} "${CMAKE_SOURCE_DIR}/deps/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
