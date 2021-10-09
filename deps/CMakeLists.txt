@@ -6,6 +6,9 @@ endif(${BUILD_TEST})
 # cJson
 # see https://stackoverflow.com/questions/37582508/silence-cmp0048-warnings-in-vendored-projects
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${CMAKE_SUPPORT_DIR}/EnableCMP0048.txt.in")
+option(ENABLE_CJSON_TEST "Enable building cJSON test" OFF)
+option(CJSON_OVERRIDE_BUILD_SHARED_LIBS "Override BUILD_SHARED_LIBS with CJSON_BUILD_SHARED_LIBS" ON)
+option(CJSON_BUILD_SHARED_LIBS "Overrides BUILD_SHARED_LIBS if CJSON_OVERRIDE_BUILD_SHARED_LIBS is enabled" OFF)
 add_subdirectory(cJson)
 target_include_directories(
     cjson
