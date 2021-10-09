@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-typedef struct SVMANode           SVMANode;
 typedef struct SVnodeMemAllocator SVnodeMemAllocator;
 
 SVnodeMemAllocator *VMACreate(size_t size /* base size */, size_t ssize /* step size */,
@@ -34,12 +33,12 @@ void                VMAFree(SVnodeMemAllocator *pvma, void *ptr);
 bool                VMAIsFull(SVnodeMemAllocator *pvma);
 
 // ------------------ FOR TEST ONLY ------------------
-struct SVMANode {
+typedef struct SVMANode {
   struct SVMANode *prev;
   size_t           tsize;
   size_t           used;
   char             data[];
-};
+} SVMANode;
 
 struct SVnodeMemAllocator {
   bool      full;       // if allocator is full
