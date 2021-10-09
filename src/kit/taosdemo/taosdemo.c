@@ -2762,8 +2762,8 @@ static int printfInsertMeta() {
                         g_Dbs.db[i].superTbls[j].sampleFormat);
                 printf("      sampleFile:        \033[33m%s\033[0m\n",
                         g_Dbs.db[i].superTbls[j].sampleFile);
-                printf("      useSampleTs:          \033[33m%s\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].useSampleTs ? "yes" : "no");
+                printf("      useSampleTs:       \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].useSampleTs ? "yes (warning: disorderRange/disorderRatio is disabled)" : "no");
                 printf("      tagsFile:          \033[33m%s\033[0m\n",
                         g_Dbs.db[i].superTbls[j].tagsFile);
                 printf("      columnCount:       \033[33m%d\033[0m\n        ",
