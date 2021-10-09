@@ -859,12 +859,12 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       TSKEY      lastKey = tsdbGetTableLastKeyImpl(pTable);
       SBlockIdx *pIdx = readh.pBlkIdx;
       if (pIdx && lastKey < pIdx->maxKey) {
-        pTable->lastKey = pIdx->maxKey;
-
         if (CACHE_LAST_ROW(pCfg) && tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
           tsdbDestroyReadH(&readh);
           return -1;
         }
+
+        pTable->lastKey = pTable->lastRow ? memRowKey(pTable->lastRow) : pIdx->maxKey;
       }
       
       // restore NULL columns
@@ -976,12 +976,11 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
       SBlockIdx *pIdx = readh.pBlkIdx;
 
       if (pIdx && cacheLastRowTableNum > 0 && pTable->lastRow == NULL) {                
-        pTable->lastKey = pIdx->maxKey;
-
         if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
           tsdbDestroyReadH(&readh);
           return -1;
         }
+        pTable->lastKey = pTable->lastRow ? memRowKey(pTable->lastRow) : pIdx->maxKey;
         cacheLastRowTableNum -= 1;
       }
       
