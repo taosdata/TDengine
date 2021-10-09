@@ -162,7 +162,8 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
 #if defined(USE_ARRAYLIST)
   int32_t idx = histoBinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
-  assert(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL);
+  if(idx >= (*pHisto)->maxEntries) idx = (*pHisto)->maxEntries - 1;
+  assert(idx >= 0 && idx < (*pHisto)->maxEntries && (*pHisto)->elems != NULL);
 
   if ((*pHisto)->elems[idx].val == val && idx >= 0) {
     (*pHisto)->elems[idx].num += 1;
