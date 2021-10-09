@@ -19,22 +19,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "thash.h"
 #include "dnodeInt.h"
 
-typedef struct SDnEps {
-  int32_t         dnodeId;
-  int32_t         dnodeNum;
-  SDnodeEp *      dnodeList;
-  SHashObj *      dnodeHash;
-  char            file[PATH_MAX + 20];
-  pthread_mutex_t mutex;
-} SDnEps;
-
-int32_t dnodeInitEps(SDnEps **eps);
-void    dnodeCleanupEps(SDnEps **eps);
-void    dnodeUpdateEps(SDnEps *eps, SDnodeEps *data);
-bool    dnodeIsDnodeEpChanged(SDnEps *eps, int32_t dnodeId, char *epstr);
+int32_t dnodeInitEps();
+void    dnodeCleanupEps();
+void    dnodeUpdateEps(SDnodeEps *data);
+bool    dnodeIsDnodeEpChanged(int32_t dnodeId, char *epstr);
 void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
 
 #ifdef __cplusplus

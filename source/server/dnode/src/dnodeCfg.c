@@ -16,56 +16,65 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
+#include "tglobal.h"
 #include "dnodeCfg.h"
 
-static int32_t dnodeReadCfg(SDnCfg *cfg) {
+static struct DnCfg {
+  int32_t         dnodeId;
+  int32_t         dropped;
+  char            clusterId[TSDB_CLUSTER_ID_LEN];
+  char            file[PATH_MAX + 20];
+  pthread_mutex_t mutex;
+} tsDcfg;
+
+static int32_t dnodeReadCfg() {
   int32_t len = 0;
   int32_t maxLen = 200;
   char *  content = calloc(1, maxLen + 1);
   cJSON * root = NULL;
   FILE *  fp = NULL;
 
-  fp = fopen(cfg->file, "r");
+  fp = fopen(tsDcfg.file, "r");
   if (!fp) {
-    dDebug("file %s not exist", cfg->file);
+    dDebug("file %s not exist", tsDcfg.file);
     goto PARSE_CFG_OVER;
   }
 
   len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
-    dError("failed to read %s since content is null", cfg->file);
+    dError("failed to read %s since content is null", tsDcfg.file);
     goto PARSE_CFG_OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
-    dError("failed to read %s since invalid json format", cfg->file);
+    dError("failed to read %s since invalid json format", tsDcfg.file);
     goto PARSE_CFG_OVER;
   }
 
   cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
   if (!dnodeId || dnodeId->type != cJSON_Number) {
-    dError("failed to read %s since dnodeId not found", cfg->file);
+    dError("failed to read %s since dnodeId not found", tsDcfg.file);
     goto PARSE_CFG_OVER;
   }
-  cfg->dnodeId = (int32_t)dnodeId->valueint;
+  tsDcfg.dnodeId = (int32_t)dnodeId->valueint;
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
   if (!dropped || dropped->type != cJSON_Number) {
-    dError("failed to read %s since dropped not found", cfg->file);
+    dError("failed to read %s since dropped not found", tsDcfg.file);
     goto PARSE_CFG_OVER;
   }
-  cfg->dropped = (int32_t)dropped->valueint;
+  tsDcfg.dropped = (int32_t)dropped->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
-    dError("failed to read %s since clusterId not found", cfg->file);
+    dError("failed to read %s since clusterId not found", tsDcfg.file);
     goto PARSE_CFG_OVER;
   }
-  tstrncpy(cfg->clusterId, clusterId->valuestring, TSDB_CLUSTER_ID_LEN);
+  tstrncpy(tsDcfg.clusterId, clusterId->valuestring, TSDB_CLUSTER_ID_LEN);
 
-  dInfo("successed to read %s", cfg->file);
+  dInfo("successed to read %s", tsDcfg.file);
 
 PARSE_CFG_OVER:
   if (content != NULL) free(content);
@@ -76,10 +85,10 @@ PARSE_CFG_OVER:
   return 0;
 }
 
-static int32_t dnodeWriteCfg(SDnCfg *cfg) {
-  FILE *fp = fopen(cfg->file, "w");
+static int32_t dnodeWriteCfg() {
+  FILE *fp = fopen(tsDcfg.file, "w");
   if (!fp) {
-    dError("failed to write %s since %s", cfg->file, strerror(errno));
+    dError("failed to write %s since %s", tsDcfg.file, strerror(errno));
     return -1;
   }
 
@@ -88,9 +97,9 @@ static int32_t dnodeWriteCfg(SDnCfg *cfg) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", cfg->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", cfg->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%s\"\n", cfg->clusterId);
+  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", tsDcfg.dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", tsDcfg.dropped);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%s\"\n", tsDcfg.clusterId);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
@@ -99,27 +108,23 @@ static int32_t dnodeWriteCfg(SDnCfg *cfg) {
   free(content);
   terrno = 0;
 
-  dInfo("successed to write %s", cfg->file);
+  dInfo("successed to write %s", tsDcfg.file);
   return 0;
 }
 
-int32_t dnodeInitCfg(SDnCfg **out) {
-  SDnCfg* cfg = calloc(1, sizeof(SDnCfg));
-  if (cfg == NULL) return -1;
-
-  cfg->dnodeId = 0;
-  cfg->dropped = 0;
-  cfg->clusterId[0] = 0;
-  snprintf(cfg->file, sizeof(cfg->file), "%s/dnodeCfg.json", tsDnodeDir);
-  pthread_mutex_init(&cfg->mutex, NULL);
-  *out = cfg;
-
-  int32_t ret = dnodeReadCfg(cfg);
+int32_t dnodeInitCfg() {
+  tsDcfg.dnodeId = 0;
+  tsDcfg.dropped = 0;
+  tsDcfg.clusterId[0] = 0;
+  snprintf(tsDcfg.file, sizeof(tsDcfg.file), "%s/dnodeCfg.json", tsDnodeDir);
+  pthread_mutex_init(&tsDcfg.mutex, NULL);
+  
+  int32_t ret = dnodeReadCfg();
   if (ret == 0) {
     dInfo("dnode cfg is initialized");
   }
 
-  if (cfg->dropped) {
+  if (tsDcfg.dropped) {
     dInfo("dnode is dropped and start to exit");
     return -1;
   }
@@ -127,51 +132,47 @@ int32_t dnodeInitCfg(SDnCfg **out) {
   return ret;
 }
 
-void dnodeCleanupCfg(SDnCfg **out) {
-  SDnCfg* cfg = *out;
-  *out = NULL;
-
-  pthread_mutex_destroy(&cfg->mutex);
-  free(cfg);
+void dnodeCleanupCfg() {
+  pthread_mutex_destroy(&tsDcfg.mutex);
 }
 
-void dnodeUpdateCfg(SDnCfg *cfg, SDnodeCfg *data) {
-  if (cfg == NULL || cfg->dnodeId == 0) return;
+void dnodeUpdateCfg(SDnodeCfg *data) {
+  if (tsDcfg.dnodeId != 0) return;
 
-  pthread_mutex_lock(&cfg->mutex);
+  pthread_mutex_lock(&tsDcfg.mutex);
 
-  cfg->dnodeId = data->dnodeId;
-  tstrncpy(cfg->clusterId, data->clusterId, TSDB_CLUSTER_ID_LEN);
-  dInfo("dnodeId is set to %d, clusterId is set to %s", cfg->dnodeId, cfg->clusterId);
+  tsDcfg.dnodeId = data->dnodeId;
+  tstrncpy(tsDcfg.clusterId, data->clusterId, TSDB_CLUSTER_ID_LEN);
+  dInfo("dnodeId is set to %d, clusterId is set to %s", data->dnodeId, data->clusterId);
 
-  dnodeWriteCfg(cfg);
-  pthread_mutex_unlock(&cfg->mutex);
+  dnodeWriteCfg();
+  pthread_mutex_unlock(&tsDcfg.mutex);
 }
 
-void dnodeSetDropped(SDnCfg *cfg) {
-  pthread_mutex_lock(&cfg->mutex);
-  cfg->dropped = 1;
-  dnodeWriteCfg(cfg);
-  pthread_mutex_unlock(&cfg->mutex);
+void dnodeSetDropped() {
+  pthread_mutex_lock(&tsDcfg.mutex);
+  tsDcfg.dropped = 1;
+  dnodeWriteCfg();
+  pthread_mutex_unlock(&tsDcfg.mutex);
 }
 
-int32_t dnodeGetDnodeId(SDnCfg *cfg) {
+int32_t dnodeGetDnodeId() {
   int32_t dnodeId = 0;
-  pthread_mutex_lock(&cfg->mutex);
-  dnodeId = cfg->dnodeId;
-  pthread_mutex_unlock(&cfg->mutex);
+  pthread_mutex_lock(&tsDcfg.mutex);
+  dnodeId = tsDcfg.dnodeId;
+  pthread_mutex_unlock(&tsDcfg.mutex);
   return dnodeId;
 }
 
-void dnodeGetClusterId(SDnCfg *cfg, char *clusterId) {
-  pthread_mutex_lock(&cfg->mutex);
-  tstrncpy(clusterId, cfg->clusterId, TSDB_CLUSTER_ID_LEN);
-  pthread_mutex_unlock(&cfg->mutex);
+void dnodeGetClusterId(char *clusterId) {
+  pthread_mutex_lock(&tsDcfg.mutex);
+  tstrncpy(clusterId, tsDcfg.clusterId, TSDB_CLUSTER_ID_LEN);
+  pthread_mutex_unlock(&tsDcfg.mutex);
 }
 
-void dnodeGetCfg(SDnCfg *cfg, int32_t *dnodeId, char *clusterId) {
-  pthread_mutex_lock(&cfg->mutex);
-  *dnodeId = cfg->dnodeId;
-  tstrncpy(clusterId, cfg->clusterId, TSDB_CLUSTER_ID_LEN);
-  pthread_mutex_unlock(&cfg->mutex);
+void dnodeGetCfg(int32_t *dnodeId, char *clusterId) {
+  pthread_mutex_lock(&tsDcfg.mutex);
+  *dnodeId = tsDcfg.dnodeId;
+  tstrncpy(clusterId, tsDcfg.clusterId, TSDB_CLUSTER_ID_LEN);
+  pthread_mutex_unlock(&tsDcfg.mutex);
 }
