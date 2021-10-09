@@ -14,3 +14,7 @@
  */
 
 #include "catalogInt.h"
+
+struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
+  return NULL;
+}

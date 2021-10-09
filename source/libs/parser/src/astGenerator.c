@@ -252,7 +252,7 @@ tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SToken *pFuncToken, SToken *end
   return pExpr;
 }
 
-SArray *tAppendFuncName(SArray *pList, SToken *pToken) {
+SArray *tRecordFuncName(SArray *pList, SToken *pToken) {
   assert(pList != NULL && pToken != NULL);
   taosArrayPush(pList, pToken);
   return pList;
@@ -286,7 +286,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
           break;
         }
-
         case TK_MINUS: {
           pExpr->value.i64 = pLeft->value.i64 - pRight->value.i64;
           break;
@@ -681,6 +680,7 @@ SAlterTableInfo *tSetAlterTableInfo(SToken *pTableName, SArray *pCols, SArray *p
 
   return pAlterTable;
 }
+
 SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames, SArray *pTagVals, SToken *pToken, SToken* igExists) {
   SCreatedTableInfo info;
   memset(&info, 0, sizeof(SCreatedTableInfo));
@@ -762,6 +762,7 @@ SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, in
 
   return pInfo;
 }
+
 SArray* setSubclause(SArray* pList, void *pSqlNode) {
   if (pList == NULL) {
     pList = taosArrayInit(1, POINTER_BYTES);
@@ -770,6 +771,7 @@ SArray* setSubclause(SArray* pList, void *pSqlNode) {
   taosArrayPush(pList, &pSqlNode);
   return pList;
 }
+
 SArray* appendSelectClause(SArray *pList, void *pSubclause) {
   taosArrayPush(pList, &pSubclause);
   return pList;
@@ -790,6 +792,34 @@ void* destroyCreateTableSql(SCreateTableSql* pCreate) {
   tfree(pCreate);
 
   return NULL;
+}
+
+void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken) {
+  pInfo->type = type;
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+}
+
+void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPath, SField *output, SToken* bufSize, int32_t funcType) {
+  pInfo->type = type;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  pInfo->pMiscInfo->funcOpt.name = *pName;
+  pInfo->pMiscInfo->funcOpt.path = *pPath;
+  pInfo->pMiscInfo->funcOpt.output = *output;
+  pInfo->pMiscInfo->funcOpt.type = funcType;
+  if (bufSize->n > 0) {
+    pInfo->pMiscInfo->funcOpt.bufSize = strtol(bufSize->z, NULL, 10);
+  } else {
+    pInfo->pMiscInfo->funcOpt.bufSize = 0;
+  }
 }
 
 void SqlInfoDestroy(SSqlInfo *pInfo) {
@@ -840,6 +870,7 @@ void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
 
   va_end(va);
 }
+
 void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken, SToken* existsCheck, int16_t dbType, int16_t tableType) {
   pInfo->type = type;
 
@@ -854,6 +885,7 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken, SToken* e
   pInfo->pMiscInfo->dbType = dbType;
   pInfo->pMiscInfo->tableType = tableType;
 }
+
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SToken* prefix, SToken* pPatterns) {
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
@@ -903,6 +935,7 @@ void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPwd
     pInfo->pMiscInfo->user.passwd = *pPwd;
   }
 }
+
 void setCreateUserSql(SSqlInfo *pInfo, SToken *pName, SToken *pPasswd) {
   pInfo->type = TSDB_SQL_CREATE_USER;
   if (pInfo->pMiscInfo == NULL) {
@@ -914,6 +947,7 @@ void setCreateUserSql(SSqlInfo *pInfo, SToken *pName, SToken *pPasswd) {
   pInfo->pMiscInfo->user.user = *pName;
   pInfo->pMiscInfo->user.passwd = *pPasswd;
 }
+
 void setKillSql(SSqlInfo *pInfo, int32_t type, SToken *id) {
   pInfo->type = type;
   if (pInfo->pMiscInfo == NULL) {
@@ -980,7 +1014,13 @@ void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
 
   memset(&pDBInfo->precision, 0, sizeof(SToken));
 }
-void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);
+
+void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
+  setDefaultCreateDbOption(pDBInfo);
+
+  pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
+  pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
+}
 
 // prefix show db.tables;
 void tSetDbName(SToken *pCpxName, SToken *pDb) {

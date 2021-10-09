@@ -418,12 +418,14 @@ static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t time
       return -1;
     }
   }
-
-  /* get the value in microsecond */
   return 0;
 }
 
 /*
+ * n - months
+ * y - Years
+ * is not allowed, since the duration of month or year are both variable.
+ *
  * b - nanoseconds;
  * u - microseconds;
  * a - Millionseconds
@@ -432,8 +434,6 @@ static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t time
  * h - Hours
  * d - Days (24 hours)
  * w - Weeks (7 days)
- * n - Months (30 days)
- * y - Years (365 days)
  */
 int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, char* unit, int32_t timePrecision) {
   errno = 0;

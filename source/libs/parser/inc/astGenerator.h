@@ -267,7 +267,7 @@ SRelationInfo *addSubquery(SRelationInfo *pRelationInfo, SArray *pSub, SToken *p
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SToken *pFuncToken, SToken *endToken, int32_t optType);
-SArray *  tAppendFuncName(SArray *pList, SToken *pToken);
+SArray *  tRecordFuncName(SArray *pList, SToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);
@@ -299,6 +299,8 @@ SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SToken *pTableNameToken, SToken *pIfNotExists);
 void* destroyCreateTableSql(SCreateTableSql* pCreate);
+void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken);
+void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPath, SField *output, SToken* bufSize, int32_t funcType);
 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 

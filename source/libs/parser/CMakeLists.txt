@@ -10,3 +10,5 @@ target_link_libraries(
         parser
         PRIVATE os util common catalog transport
 )
+
+ADD_SUBDIRECTORY(test)

@@ -24,17 +24,17 @@ bool qIsInsertSql(const char* pStr, size_t length) {
 int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen) {
   *pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
   if (*pQueryInfo == NULL) {
-    return -1; // set correct error code.
+    return TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
   }
 
   SSqlInfo info = doGenerateAST(pStr);
   if (!info.valid) {
-    strcpy(msg, info.msg);
-    return -1; // set correct error code.
+    strncpy(msg, info.msg, msgLen);
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
 
   struct SCatalog* pCatalog = getCatalogHandle(NULL);
-  int32_t code = qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg);
+  int32_t code = qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
   if (code != 0) {
     return code;
   }
@@ -50,6 +50,6 @@ int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
   return 0;
 }
 
-int32_t qParserExtractRequestedMetaInfo(const struct SSqlNode* pSqlNode, SMetaReq* pMetaInfo) {
+int32_t qParserExtractRequestedMetaInfo(const SArray* pSqlNodeList, SMetaReq* pMetaInfo) {
   return 0;
 }

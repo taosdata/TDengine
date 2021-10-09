@@ -40,9 +40,6 @@ char *  paGetToken(char *src, char **token, int32_t *tokenLen);
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 
-//bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
-//int  taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
-
 char *   taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
 

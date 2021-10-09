@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+#include "os.h"
+#include "ttoken.h"
+
+int32_t parserValidateNameToken(SToken* pToken);
 
 #ifdef __cplusplus
 }

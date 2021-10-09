@@ -23,12 +23,21 @@
 #include "tutil.h"
 #include "tvariant.h"
 
-#define SET_EXT_INFO(converted, res, minv, maxv, exti) do {                                                       \
-                                                        if (converted == NULL || exti == NULL || *converted == false) { break; }  \
-                                                        if ((res) < (minv)) { *exti = -1; break; }                                  \
-                                                        if ((res) > (maxv)) { *exti = 1; break; }                                   \
-                                                        assert(0);                                                                  \
-                                                       } while (0)
+#define SET_EXT_INFO(converted, res, minv, maxv, exti)              \
+  do {                                                              \
+    if (converted == NULL || exti == NULL || *converted == false) { \
+      break;                                                        \
+    }                                                               \
+    if ((res) < (minv)) {                                           \
+      *exti = -1;                                                   \
+      break;                                                        \
+    }                                                               \
+    if ((res) > (maxv)) {                                           \
+      *exti = 1;                                                    \
+      break;                                                        \
+    }                                                               \
+    assert(0);                                                      \
+  } while (0)
 
 void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
   int32_t ret = 0;
@@ -94,7 +103,6 @@ void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
   
   pVar->nType = type;
 }
-
 
 /**
  * create SVariant from binary string, not ascii data
@@ -901,7 +909,7 @@ int32_t taosVariantDump(SVariant *pVariant, char *payload, int16_t type, bool in
  *
  * It is actually the bigint/binary/bool/nchar type transfer
  */
-int32_t tVariantTypeSetType(SVariant *pVariant, char type) {
+int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
   if (pVariant == NULL || pVariant->nType == 0) {  // value is not set
     return 0;
   }
