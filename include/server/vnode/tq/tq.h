@@ -25,23 +25,14 @@ extern "C" {
 typedef struct STQ STQ;
 
 STQ* tqInit(void* ref_func(void*), void* unref_func(void*));
-void tqCleanUp(STQ* pTq);
+void tqCleanUp(STQ*);
 
-//create persistent storage for meta info such as consuming offset
-//return value > 0: cgId
-//return value <= 0: error code
-int tqCreateGroup(STQ*);
-//create ring buffer in memory and load consuming offset
-int tqOpenGroup(STQ*, int cgId);
-//destroy ring buffer and persist consuming offset
-int tqCloseGroup(STQ*, int cgId);
-//delete persistent storage for meta info
-int tqDropGroup(STQ*, int cgId);
-
-int tqPushMsg(STQ*, void *, int64_t version);
+//void* will be replace by a msg type
+int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
 
-int tqHandleMsg(STQ*, void *msg);
+//void* will be replace by a msg type
+int tqHandleMsg(STQ*, void* msg);
 
 #ifdef __cplusplus
 }
