@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include <malloc.h>
+#include "../../../include/client/taos.h"
 #include "os.h"
-#include "taos.h"
 #include "tcache.h"
 #include "tulog.h"
 #include "tutil.h"

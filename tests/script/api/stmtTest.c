@@ -1,10 +1,10 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "taos.h"
 #include <sys/time.h>
-#include <pthread.h>
 #include <unistd.h>
+#include "../../../include/client/taos.h"
 
 #define PRINT_ERROR printf("\033[31m");
 #define PRINT_SUCCESS printf("\033[32m");

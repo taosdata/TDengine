@@ -16,9 +16,9 @@
 #ifndef TDENGINE_REST_JSON_H
 #define TDENGINE_REST_JSON_H
 #include <stdbool.h>
+#include "../../../../include/client/taos.h"
 #include "httpHandle.h"
 #include "httpJson.h"
-#include "taos.h"
 
 #define REST_JSON_SUCCESS        "succ"
 #define REST_JSON_SUCCESS_LEN    4

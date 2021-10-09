@@ -11,10 +11,8 @@ target_include_directories(
 )
 target_link_libraries(
     vnode
+    PUBLIC transport
     PUBLIC meta
     PUBLIC tq
     PUBLIC tsdb
-    PUBLIC os
-    PUBLIC common
-    PUBLIC util
 )

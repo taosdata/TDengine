@@ -18,7 +18,7 @@
 
 // !!! functions exported in this header file are all non-thread-safe !!!
 
-#include "taos.h"
+#include "../../../../include/client/taos.h"
 
 #include "todbc_buf.h"
 #include "todbc_iconv.h"

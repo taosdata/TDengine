@@ -21,13 +21,15 @@
 #endif // __APPLE__
 
 #include <qSqlparser.h>
+#include "../../../include/client/taos.h"
 #include "os.h"
-#include "regex.h"
+#include "qFilter.h"
 #include "qPlan.h"
+#include "qScript.h"
 #include "qSqlparser.h"
 #include "qTableMeta.h"
 #include "qUtil.h"
-#include "taos.h"
+#include "regex.h"
 #include "taosmsg.h"
 #include "tcompare.h"
 #include "texpr.h"
@@ -38,9 +40,7 @@
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "ttokendef.h"
-#include "qScript.h"
 #include "ttype.h"
-#include "qFilter.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -2230,6 +2230,28 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   }
 
   return numOfTotalColumns;
+}
+
+SSchema tGetUserSpecifiedColumnSchema(SVariant* pVal, SStrToken* exprStr, const char* name) {
+  SSchema s = {0};
+
+  s.type  = pVal->nType;
+  if (s.type == TSDB_DATA_TYPE_BINARY || s.type == TSDB_DATA_TYPE_NCHAR) {
+    s.bytes = (int16_t)(pVal->nLen + VARSTR_HEADER_SIZE);
+  } else {
+    s.bytes = tDataTypes[pVal->nType].bytes;
+  }
+
+  s.colId = TSDB_UD_COLUMN_INDEX;
+  if (name != NULL) {
+    tstrncpy(s.name, name, sizeof(s.name));
+  } else {
+    size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
+    tstrncpy(s.name, exprStr->z, tlen);
+    strdequote(s.name);
+  }
+
+  return s;
 }
 
 int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery) {

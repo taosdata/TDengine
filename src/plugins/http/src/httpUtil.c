@@ -14,13 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "tmd5.h"
-#include "taos.h"
+#include "httpUtil.h"
+#include "../../../../include/client/taos.h"
 #include "httpInt.h"
 #include "httpResp.h"
 #include "httpSql.h"
-#include "httpUtil.h"
+#include "os.h"
+#include "tmd5.h"
 #include "ttoken.h"
 
 bool httpCheckUsedbSql(char *sql) {

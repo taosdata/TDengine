@@ -16,7 +16,7 @@
 #include "tsclient.h"
 #include "tscLog.h"
 
-#include "taos.h"
+#include "../../../include/client/taos.h"
 #include "tscParseLine.h"
 
 typedef struct  {

@@ -27,13 +27,13 @@
 /************ Begin %include sections from the grammar ************************/
 #line 23 "sql.y"
 
+#include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <stdbool.h>
 #include "qSqlparser.h"
-#include "tcmdtype.h"
+#include "tmsgtype.h"
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"

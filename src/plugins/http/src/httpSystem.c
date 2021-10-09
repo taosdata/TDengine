@@ -14,23 +14,23 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "../../../../include/client/taos.h"
+#include "httpContext.h"
+#include "httpGcHandle.h"
+#include "httpHandle.h"
+#include "httpInt.h"
+#include "httpMetricsHandle.h"
+#include "httpQueue.h"
+#include "httpResp.h"
+#include "httpRestHandle.h"
+#include "httpServer.h"
+#include "httpSession.h"
+#include "httpTgHandle.h"
 #include "os.h"
-#include "taos.h"
+#include "tadmin.h"
 #include "tglobal.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "tadmin.h"
-#include "httpInt.h"
-#include "httpContext.h"
-#include "httpSession.h"
-#include "httpServer.h"
-#include "httpResp.h"
-#include "httpHandle.h"
-#include "httpQueue.h"
-#include "httpGcHandle.h"
-#include "httpRestHandle.h"
-#include "httpTgHandle.h"
-#include "httpMetricsHandle.h"
 
 #ifndef _ADMIN
 void adminInitHandle(HttpServer* pServer) {}

@@ -16,10 +16,9 @@
 #ifndef __SHELL__
 #define __SHELL__
 
+#include "../../../../include/client/taos.h"
 #include "stdbool.h"
-#include "taos.h"
 #include "taosdef.h"
-#include "stdbool.h"
 #include "tsclient.h"
 
 #define MAX_USERNAME_SIZE      64

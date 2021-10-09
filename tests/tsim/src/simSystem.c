@@ -14,14 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "../../../include/client/taos.h"
 #include "os.h"
 #include "sim.h"
-#include "taos.h"
+#include "taoserror.h"
 #include "tglobal.h"
+#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tsocket.h"
-#include "taoserror.h"
 #undef TAOS_MEM_CHECK
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];

@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../../../include/client/taos.h"
 #include "os.h"
-#include "taos.h"
+#include "tcache.h"
 #include "trpc.h"
+#include "tscLog.h"
+#include "tscProfile.h"
+#include "tscUtil.h"
 #include "tsclient.h"
 #include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tscLog.h"
-#include "tscUtil.h"
-#include "tcache.h"
-#include "tscProfile.h"
 
 typedef struct SSubscriptionProgress {
   int64_t uid;
@@ -371,7 +371,7 @@ void tscSaveSubscriptionProgress(void* sub) {
 
   char path[256];
   sprintf(path, "%s/subscribe", tsDataDir);
-  if (taosMkDir(path, 0777) != 0) {
+  if (!taosMkDir(path)) {
     tscError("failed to create subscribe dir: %s", path);
   }
 

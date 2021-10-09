@@ -16,11 +16,11 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subset
 // to compile: gcc -o demo demo.c -ltaos
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
-#include <taos.h>  // TAOS header file
+#include "../../../include/client/taos.h"  // TAOS header file
 
 static void queryDB(TAOS *taos, char *command) {
   int i;

@@ -20,6 +20,32 @@
 extern "C" {
 #endif
 
+struct SQueryJob;
+
+/**
+ * Process the query job, generated according to the query physical plan.
+ * This is a synchronized API, and is also thread-safety.
+ * @param pJob
+ * @return
+ */
+int32_t qProcessQueryJob(struct SQueryJob* pJob);
+
+/**
+ * The SSqlObj should not be here????
+ * @param pSql
+ * @param pVgroupId
+ * @param pRetVgroupId
+ * @return
+ */
+//SArray* qGetInvolvedVgroupIdList(struct SSqlObj* pSql, SArray* pVgroupId, SArray* pRetVgroupId);
+
+/**
+ * Cancel query job
+ * @param pJob
+ * @return
+ */
+int32_t qKillQueryJob(struct SQueryJob* pJob);
+
 #ifdef __cplusplus
 }
 #endif

@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tscompression.h>
+#include <tcompression.h>
 #include "os.h"
 #include "qPlan.h"
 #include "qTableMeta.h"
-#include "tcmdtype.h"
 #include "tlockfree.h"
+#include "tmsgtype.h"
 #include "trpc.h"
 #include "tscGlobalmerge.h"
 #include "tscLog.h"

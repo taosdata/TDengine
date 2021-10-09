@@ -1,10 +1,10 @@
 #include "qResultbuf.h"
-#include "stddef.h"
-#include "tscompression.h"
 #include "hash.h"
 #include "qExtbuffer.h"
 #include "queryLog.h"
+#include "stddef.h"
 #include "taoserror.h"
+#include "tcompression.h"
 
 #define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)

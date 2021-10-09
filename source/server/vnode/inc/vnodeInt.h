@@ -16,10 +16,15 @@
 #ifndef _TD_VNODE_INT_H_
 #define _TD_VNODE_INT_H_
 
+
+#include "os.h"
 #include "amalloc.h"
-#include "tq.h"
-#include "tsdb.h"
 #include "meta.h"
+#include "taosmsg.h"
+#include "tq.h"
+#include "trpc.h"
+#include "tsdb.h"
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {

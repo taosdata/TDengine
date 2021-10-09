@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TALGO_H
-#define TDENGINE_TALGO_H
+#ifndef _TD_UTIL_TALGO_H
+#define _TD_UTIL_TALGO_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,4 +95,4 @@ void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, 
 #ifdef __cplusplus
 }
 #endif
-#endif  // TDENGINE_TALGO_H
+#endif  /*_TD_UTIL_TALGO_H*/

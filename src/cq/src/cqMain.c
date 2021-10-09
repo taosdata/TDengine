@@ -20,15 +20,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "taos.h"
-#include "tsclient.h"
+#include "../../../include/client/taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "ttimer.h"
 #include "tcq.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tlog.h"
+#include "tsclient.h"
+#include "ttimer.h"
 #include "twal.h"
 
 #define cFatal(...) { if (cqDebugFlag & DEBUG_FATAL) { taosPrintLog("CQ  FATAL ", 255, __VA_ARGS__); }}

@@ -1,13 +1,13 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subet 
 // to compile: gcc -o prepare prepare.c -ltaos
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "taos.h"
 #include <sys/time.h>
-#include <pthread.h>
 #include <unistd.h>
+#include "../../../include/client/taos.h"
 
 typedef struct {
   TAOS     *taos;

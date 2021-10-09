@@ -12,14 +12,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_CODING_H_
-#define _TD_CODING_H_
+#ifndef _TD_UTIL_CODING_H
+#define _TD_UTIL_CODING_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h "
+#include "os.h"
 
 #define ENCODE_LIMIT (((uint8_t)1) << 7)
 #define ZIGZAGE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
@@ -361,4 +361,4 @@ static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_CODING_H*/

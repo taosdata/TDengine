@@ -15,9 +15,9 @@
 
 #ifndef TDENGINE_GC_JSON_H
 #define TDENGINE_GC_JSON_H
+#include "../../../../include/client/taos.h"
 #include "httpHandle.h"
 #include "httpJson.h"
-#include "taos.h"
 
 void gcInitQueryJson(HttpContext *pContext);
 void gcCleanQueryJson(HttpContext *pContext);

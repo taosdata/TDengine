@@ -20,6 +20,22 @@
 extern "C" {
 #endif
 
+//typedef struct SEpAddr {
+//  char       fqdn[TSDB_FQDN_LEN];
+//  uint16_t   port;
+//} SEpAddr;
+//
+//typedef struct SVgroup {
+//  int32_t    vgId;
+//  int8_t     numOfEps;
+//  SEpAddr    epAddr[TSDB_MAX_REPLICA];
+//} SVgroup;
+//
+//typedef struct SVgroupsInfo {
+//  int32_t    numOfVgroups;
+//  SVgroup    vgroups[];
+//} SVgroupsInfo;
+
 #ifdef __cplusplus
 }
 #endif

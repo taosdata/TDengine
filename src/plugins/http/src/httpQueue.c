@@ -14,18 +14,18 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "tqueue.h"
-#include "tnote.h"
-#include "taos.h"
-#include "tsclient.h"
-#include "httpInt.h"
-#include "httpContext.h"
-#include "httpSql.h"
-#include "httpResp.h"
-#include "httpAuth.h"
-#include "httpSession.h"
 #include "httpQueue.h"
+#include "../../../../include/client/taos.h"
+#include "httpAuth.h"
+#include "httpContext.h"
+#include "httpInt.h"
+#include "httpResp.h"
+#include "httpSession.h"
+#include "httpSql.h"
+#include "os.h"
+#include "tnote.h"
+#include "tqueue.h"
+#include "tsclient.h"
 
 typedef struct {
   pthread_t thread;

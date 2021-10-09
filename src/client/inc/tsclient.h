@@ -22,8 +22,8 @@ extern "C" {
 
 #include "os.h"
 
+#include "../../../include/client/taos.h"
 #include "qAggMain.h"
-#include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
@@ -36,7 +36,7 @@ extern "C" {
 #include "qSqlparser.h"
 #include "qTsbuf.h"
 #include "qUtil.h"
-#include "tcmdtype.h"
+#include "tmsgtype.h"
 
 typedef enum {
   TAOS_REQ_FROM_SHELL,

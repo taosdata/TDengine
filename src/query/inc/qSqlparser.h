@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "taos.h"
+#include "../../../include/client/taos.h"
 #include "taosmsg.h"
 #include "tstrbuild.h"
 #include "ttoken.h"

@@ -17,7 +17,7 @@
 #define _TD_TSDB_H_
 
 #include "os.h"
-#include "taosMsg.h"
+#include "taosmsg.h"
 
 #ifdef __cplusplus
 extern "C" {

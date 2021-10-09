@@ -15,13 +15,16 @@
 #ifndef _TD_WAL_H_
 #define _TD_WAL_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef enum {
   TAOS_WAL_NOLOG = 0,
-  TAOS_WAL_WRITE = 1
+  TAOS_WAL_WRITE = 1,
+  TAOS_WAL_FSYNC = 2
 } EWalType;
 
 typedef struct {
@@ -55,8 +58,8 @@ void     walStop(twalh);
 void     walClose(twalh);
 
 //write
-int32_t  walWrite(twalh, int8_t msgType, void* body, uint32_t bodyLen);
-void     walWaitFsync(twalh, bool forceHint);
+int64_t  walWrite(twalh, int8_t msgType, void* body, uint32_t bodyLen);
+void     walFsync(twalh, bool forceHint);
 //int32_t  walCommit(twalh, uint64_t ver);
 //int32_t  walRollback(twalh, uint64_t ver);
 
@@ -67,7 +70,7 @@ int32_t  walReadWithFp(twalh, FWalWrite writeFp, int64_t verStart, int readNum);
 //life cycle
 int32_t  walDataPersisted(twalh, int64_t ver);
 int32_t  walFirstVer(twalh);
-int32_t  walLastVer(twal);
+int32_t  walLastVer(twalh);
 //int32_t  walDataCorrupted(twalh);
 
 #ifdef __cplusplus

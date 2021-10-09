@@ -12,16 +12,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "qExtbuffer.h"
+#include "../../../include/client/taos.h"
 #include "os.h"
 #include "qAggMain.h"
+#include "qExecutor.h"
 #include "queryLog.h"
-#include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tulog.h"
-#include "qExecutor.h"
-#include "qExtbuffer.h"
 #include "tcompare.h"
+#include "tulog.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->pFields[colId].offset * (allrow) + (rowId) * (schema)->pFields[colId].field.bytes)
@@ -398,7 +398,7 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       if (len1 != len2) {
         return len1 > len2 ? 1 : -1;
       } else {
-        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1);
+        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1, TSDB_NCHAR_SIZE);
         if (ret == 0) {
           return 0;
         }

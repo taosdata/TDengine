@@ -14,14 +14,14 @@
  */
 #include "os.h"
 
-#include "taos.h"
-#include "tsclient.h"
-#include "tscUtil.h"
-#include "ttimer.h"
+#include "../../../include/client/taos.h"
 #include "taosmsg.h"
-#include "tstrbuild.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
+#include "tscUtil.h"
+#include "tsclient.h"
+#include "tstrbuild.h"
+#include "ttimer.h"
 
 int tsParseInsertSql(SSqlObj *pSql);
 int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);

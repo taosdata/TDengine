@@ -1,11 +1,11 @@
+#include <assert.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "taos.h"
 #include <sys/time.h>
-#include <pthread.h>
 #include <unistd.h>
-#include <assert.h>
+#include "../../../include/client/taos.h"
 
 void execute_simple_sql(void *taos, char *sql) {
     TAOS_RES *result = taos_query(taos, sql);
