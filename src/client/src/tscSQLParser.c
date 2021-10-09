@@ -7559,11 +7559,16 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     SStrToken* pToken = &pCreateTableInfo->stableName;
     
     bool dbIncluded = false;
-    if (tscValidateName(pToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    char      buf[TSDB_TABLE_FNAME_LEN];
+    SStrToken sTblToken;
+    sTblToken.z = buf;
+
+    int32_t code = validateTableName(pToken->z, pToken->n, &sTblToken, &dbIncluded);
+    if (code != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    int32_t code = tscSetTableFullName(&pStableMetaInfo->name, pToken, pSql, dbIncluded);
+    code = tscSetTableFullName(&pStableMetaInfo->name, &sTblToken, pSql, dbIncluded);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -7793,7 +7798,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   SRelElementPair* p1 = taosArrayGet(pFromInfo->list, 0);
-  SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = TK_STRING};
+  SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = p1->tableName.type};
   
   bool dbIncluded2 = false;
   if (tscValidateName(&srcToken, true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
