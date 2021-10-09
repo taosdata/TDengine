@@ -16,3 +16,8 @@ target_link_libraries(
     PUBLIC tq
     PUBLIC tsdb
 )
+
+# test
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})
