@@ -57,17 +57,17 @@ void tsdbOptionsSetSMA(STsdbOptions *, STsdbSMAOptions *);
 // STsdbSMAOptions
 STsdbSMAOptions *tsdbSMAOptionsCreate();
 void             tsdbSMAOptionsDestroy(STsdbSMAOptions *);
-void             tsdbSMAOptionsSetFuncs(STsdbSMAOptions *, SArray * /*Array of function to perform on each block*/);
-void             tsdbSMAOptionsSetIntervals(STsdbSMAOptions *, SArray *);
-void             tsdbSMAOptionsSetColTypes(STsdbSMAOptions *, SArray *);
+// void             tsdbSMAOptionsSetFuncs(STsdbSMAOptions *, SArray * /*Array of function to perform on each block*/);
+// void             tsdbSMAOptionsSetIntervals(STsdbSMAOptions *, SArray *);
+// void             tsdbSMAOptionsSetColTypes(STsdbSMAOptions *, SArray *);
 
 // STsdbQueryHandle
 STsdbQueryHandle *tsdbQueryHandleCreate(STsdb *, STsdbReadOptions *);
 void              tsdbQueryHandleDestroy(STsdbQueryHandle *);
 void              tsdbResetQueryHandle(STsdbQueryHandle *, STsdbReadOptions *);
 bool              tsdbNextDataBlock(STsdbQueryHandle *);
-void              tsdbGetDataBlockInfo(STsdbQueryHandle *, SDataBlockInfo *);
-void              tsdbGetDataBlockStatisInfo(STsdbQueryHandle *, SDataStatis **);
+// void              tsdbGetDataBlockInfo(STsdbQueryHandle *, SDataBlockInfo *);
+// void              tsdbGetDataBlockStatisInfo(STsdbQueryHandle *, SDataStatis **);
 
 // STsdbReadOptions
 STsdbReadOptions *tsdbReadOptionsCreate();

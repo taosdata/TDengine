@@ -15,22 +15,4 @@
 
 #include "meta.h"
 
-int metaCreateTable(SMeta *pMeta, SCreateTableReq *pReq) {
-  // TODO
-  return 0;
-}
-
-int metaDropTable(SMeta *pMeta, SDropTableReq *pReq) {
-  // TODO
-  return 0;
-}
-
-int metaAlterTable(SMeta *pMeta, SAlterTableReq *pReq) {
-  // TODO
-  return 0;
-}
-
-int metaCommit(SMeta *pMeta) {
-  // TODO
-  return 0;
-}
+int metaCommit(SMeta *meta) { return 0; }

@@ -15,5 +15,5 @@
 
 #include "tsdb.h"
 
-int tsdbInsert(STsdb *pTsdb, SSubmitReq *pMsg) { return 0; }
+int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
 int tsdbCommit(STsdb *pTsdb) { return 0; }
