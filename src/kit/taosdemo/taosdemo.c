@@ -303,6 +303,7 @@ typedef struct SSuperTable_S {
     uint64_t     lenOfTagOfOneRow;
 
     char*        sampleDataBuf;
+    bool         sampleTs;
 
     uint32_t     tagSource;    // 0: rand, 1: tag sample
     char*        tagDataBuf;
@@ -2761,6 +2762,8 @@ static int printfInsertMeta() {
                         g_Dbs.db[i].superTbls[j].sampleFormat);
                 printf("      sampleFile:        \033[33m%s\033[0m\n",
                         g_Dbs.db[i].superTbls[j].sampleFile);
+                printf("      sampleTs:          \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].sampleTs ? "yes" : "no");
                 printf("      tagsFile:          \033[33m%s\033[0m\n",
                         g_Dbs.db[i].superTbls[j].tagsFile);
                 printf("      columnCount:       \033[33m%d\033[0m\n        ",
@@ -4795,6 +4798,23 @@ static int readTagFromCsvFileToMem(SSuperTable  * stbInfo) {
     return 0;
 }
 
+static void getAndSetRowsFromCsvFile(SSuperTable *stbInfo) {
+    FILE *fp = fopen(stbInfo->sampleFile, "r");
+    int line_count = 0;
+    if (fp == NULL) {
+        errorPrint("Failed to open sample file: %s, reason:%s\n",
+                stbInfo->sampleFile, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    char *buf = calloc(1, stbInfo->maxSqlLen);
+    while (fgets(buf, stbInfo->maxSqlLen, fp)) {
+        line_count++;
+    }
+    fclose(fp);
+    tmfree(buf);
+    stbInfo->insertRows = line_count;
+}
+
 /*
    Read 10000 lines at most. If more than 10000 lines, continue to read after using
    */
@@ -5688,6 +5708,23 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 goto PARSE_OVER;
             }
 
+            cJSON *sampleTs = cJSON_GetObjectItem(stbInfo, "sample_ts");
+            if (sampleTs && sampleTs->type == cJSON_String
+                    && sampleTs->valuestring != NULL) {
+                if (0 == strncasecmp(sampleTs->valuestring, "yes", 3)) {
+                    g_Dbs.db[i].superTbls[j].sampleTs = true;
+                } else if (0 == strncasecmp(sampleTs->valuestring, "no", 2)){
+                    g_Dbs.db[i].superTbls[j].sampleTs = false;
+                } else {
+                    g_Dbs.db[i].superTbls[j].sampleTs = false;
+                }
+            } else if (!sampleTs) {
+                g_Dbs.db[i].superTbls[j].sampleTs = false;
+            } else {
+                errorPrint("%s", "failed to read json, sample_ts not found\n");
+                goto PARSE_OVER;
+            }
+
             cJSON *tagsFile = cJSON_GetObjectItem(stbInfo, "tags_file");
             if ((tagsFile && tagsFile->type == cJSON_String)
                     && (tagsFile->valuestring != NULL)) {
@@ -6448,13 +6485,20 @@ static int getRowDataFromSample(
     }
 
     int    dataLen = 0;
-
-    dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+    if(stbInfo->sampleTs) {
+        dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+            "(%s",
+            stbInfo->sampleDataBuf
+            + stbInfo->lenOfOneRow * (*sampleUsePos));
+    } else {
+        dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
             "(%" PRId64 ", ", timestamp);
-    dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+        dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
             "%s",
             stbInfo->sampleDataBuf
             + stbInfo->lenOfOneRow * (*sampleUsePos));
+    }
+    
     dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
 
     (*sampleUsePos)++;
@@ -6887,6 +6931,9 @@ static int prepareSampleForStb(SSuperTable *stbInfo) {
 
     int ret;
     if (0 == strncasecmp(stbInfo->dataSource, "sample", strlen("sample"))) {
+        if(stbInfo->sampleTs) {
+            getAndSetRowsFromCsvFile(stbInfo);
+        }
         ret = generateSampleFromCsvForStb(stbInfo);
     } else {
         ret = generateSampleFromRandForStb(stbInfo);
