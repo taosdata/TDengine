@@ -1020,25 +1020,25 @@ static void dumpCreateMTableClause(
                     strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
                 //pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].note);
                 if (tableDes->cols[counter].var_value) {
-                    pstr += sprintf(pstr, ", %s",
+                    pstr += sprintf(pstr, ", \'%s\'",
                             tableDes->cols[counter].var_value);
                 } else {
-                    pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
+                    pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].value);
                 }
             } else {
-                pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
+                pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].value);
             }
         } else {
             if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
                     strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
                 //pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].note);
                 if (tableDes->cols[counter].var_value) {
-                    pstr += sprintf(pstr, "%s", tableDes->cols[counter].var_value);
+                    pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].var_value);
                 } else {
-                    pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
+                    pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].value);
                 }
             } else {
-                pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
+                pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].value);
             }
             /* pstr += sprintf(pstr, "%s", tableDes->cols[counter].note); */
         }
@@ -1188,14 +1188,13 @@ static int64_t dumpNormalTable(
         }
     }
 
-    free(tableDes);
-
     int64_t ret = 0;
     if (!g_args.schemaonly) {
         ret = dumpTableData(fp, tbName, dbName, precision,
             jsonAvroSchema);
     }
 
+    freeTbDes(tableDes);
     return ret;
 }
 
@@ -2068,26 +2067,22 @@ static int getTableDes(
                 int len = strlen((char *)row[0]);
                 // FIXME for long value
                 if (len < (COL_VALUEBUF_LEN - 2)) {
-                    tableDes->cols[i].value[0] = '\'';
                     converStringToReadable(
                             (char *)row[0],
                             length[0],
-                            tableDes->cols[i].value + 1,
+                            tableDes->cols[i].value,
                             len);
-                    tableDes->cols[i].value[len+1] = '\'';
                 } else {
-                    tableDes->cols[i].var_value = calloc(1, len + 2);
+                    tableDes->cols[i].var_value = calloc(1, len * 2);
                     if (tableDes->cols[i].var_value == NULL) {
                         errorPrint("%s() LN%d, memory alalocation failed!\n",
                                 __func__, __LINE__);
                         taos_free_result(res);
                         return -1;
                     }
-                    tableDes->cols[i].var_value[0] = '\'';
                     converStringToReadable((char *)row[0],
                             length[0],
-                            (char *)(tableDes->cols[i].var_value + 1), len);
-                    tableDes->cols[i].var_value[len+1] = '\'';
+                            (char *)(tableDes->cols[i].var_value), len);
                 }
                 break;
 
