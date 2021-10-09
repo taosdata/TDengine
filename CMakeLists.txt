@@ -36,13 +36,13 @@ cat("${CMAKE_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 cat("${CMAKE_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
 ## leveldb
-option(BUILD_WITH_LEVELDB "If build with leveldb" ON)
+option(BUILD_WITH_LEVELDB "If build with leveldb" OFF)
 if(${BUILD_WITH_LEVELDB})
     cat("${CMAKE_SUPPORT_DIR}/leveldb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_WITH_LEVELDB})
 
 ## rocksdb
-option(BUILD_WITH_ROCKSDB "If build with rocksdb" ON)
+option(BUILD_WITH_ROCKSDB "If build with rocksdb" OFF)
 if(${BUILD_WITH_ROCKSDB})
     cat("${CMAKE_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_WITH_ROCKSDB})
