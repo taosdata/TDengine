@@ -1688,10 +1688,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_DOUBLE;
                     } else if (0 == strcasecmp(token, "TINYINT")) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_TINYINT;
-                    } else if (1 == regexMatch(token, "^BINARY(\\([1-9][0-9]*\\))?$", REG_ICASE | 
+                    } else if (1 == regexMatch(token, "^BINARY(\\([1-9][0-9]*\\))?$", REG_ICASE |
                     REG_EXTENDED)) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_BINARY;
-                    } else if (1 == regexMatch(token, "^NCHAR(\\([1-9][0-9]*\\))?$", REG_ICASE | 
+                    } else if (1 == regexMatch(token, "^NCHAR(\\([1-9][0-9]*\\))?$", REG_ICASE |
                     REG_EXTENDED)) {
                         arguments->data_type[index] = TSDB_DATA_TYPE_NCHAR;
                     } else if (0 == strcasecmp(token, "BOOL")) {
@@ -2808,8 +2808,6 @@ static int printfInsertMeta() {
             printf("  insertRows:        \033[33m%"PRId64"\033[0m\n",
                         g_args.insertRows);
         }
-        
-        
         printf("\n");
     }
 
@@ -3981,21 +3979,21 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
 
-            
+
             if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "INT", strlen("INT")) && 
+                        "INT", strlen("INT")) &&
                         strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_INT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "TINYINT", strlen("TINYINT")) && 
+                        "TINYINT", strlen("TINYINT")) &&
                         strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_TINYINT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "SMALLINT", strlen("SMALLINT")) && 
+                        "SMALLINT", strlen("SMALLINT")) &&
                         strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                        "BIGINT", strlen("BIGINT")) && 
+                        "BIGINT", strlen("BIGINT")) &&
                         strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BIGINT;
             } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -4049,7 +4047,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                     min(NOTE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
-            
+
             if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
                 tstrncpy(superTbls->columns[columnIndex].dataType,
                     (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -6570,7 +6568,7 @@ static int64_t generateStbRowData(
                     tmpLen = strlen(tmp);
                     tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
                     break;
-                
+
                 case TSDB_DATA_TYPE_UBIGINT:
                     tmp = rand_ubigint_str();
                     tmpLen = strlen(tmp);
@@ -7460,7 +7458,7 @@ static int32_t prepareStmtBindArrayByType(
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
             break;
-        
+
         case TSDB_DATA_TYPE_UINT:
             bind_uint = malloc(sizeof(uint32_t));
             assert(bind_uint);
