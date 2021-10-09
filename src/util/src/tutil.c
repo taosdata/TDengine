@@ -179,6 +179,43 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
+  if (!ignoreInEsc) {
+    return strstr(src, dst);
+  }
+
+  int32_t len = strlen(src);
+  bool inEsc = false;
+  char escChar = 0;
+  char *str = src, *res = NULL;
+  
+  for (int32_t i = 0; i < len; ++i) {
+    if (src[i] == TS_ESCAPE_CHAR || src[i] == '\'' || src[i] == '\"') {
+      if (!inEsc) {
+        escChar = src[i];
+        src[i] = 0;
+        res = strstr(str, dst);
+        src[i] = escChar;
+        if (res) {
+          return res;
+        }
+        str = NULL;
+      } else {
+        if (src[i] != escChar) {
+          continue;
+        }
+
+        str = src + i + 1;
+      }
+      
+      inEsc = !inEsc;
+      continue;
+    }
+  }
+
+  return str ? strstr(str, dst) : NULL;
+}
+
 
 
 char* strtolower(char *dst, const char *src) {

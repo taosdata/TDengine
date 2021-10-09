@@ -398,7 +398,7 @@ static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const 
   TAOS_FIELD f; 
   if (type == SCREATE_BUILD_TABLE) {
     f.type  = TSDB_DATA_TYPE_BINARY;
-    f.bytes = (TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+    f.bytes = (TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
     tstrncpy(f.name, "Table", sizeof(f.name));
   } else {
     f.type  = TSDB_DATA_TYPE_BINARY;
