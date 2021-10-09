@@ -61,9 +61,6 @@ typedef struct RaftFSM {
   // apply buffer data, bufs will be free by raft module
   int (*apply)(struct RaftFSM *fsm, const RaftBuffer *bufs[], int nBufs);
 
-  // configuration commit callback 
-  int (*onConfigurationCommit)(const RaftConfiguration* cluster);
-
   // fsm return snapshot in ppBuf, bufs will be free by raft module
   // TODO: getSnapshot SHOULD be async?
   int (*getSnapshot)(struct RaftFSM *fsm, RaftBuffer **ppBuf);
@@ -80,11 +77,11 @@ typedef struct RaftNodeOptions {
   RaftFSM* pFSM;
 
   // election timeout(in ms)
-  // by default: 1000
+  // by default: 150
   int electionTimeoutMS;
 
   // heart timeout(in ms)
-  // by default: 100
+  // by default: 50
   int heartbeatTimeoutMS;
 
   // install snapshot timeout(in ms)
@@ -111,17 +108,16 @@ typedef struct RaftNodeOptions {
 
 } RaftNodeOptions;
 
-// create raft lib
 int RaftCreate(Raft** ppRaft);
 
 int RaftDestroy(Raft* pRaft);
 
-// start a raft node with options,node id,group id
+// start a raft node with options and cluster configuration
 int RaftStart(Raft* pRaft, 
               RaftId selfId,
               RaftGroupId selfGroupId,
-              const RaftConfiguration* cluster,
-              const RaftNodeOptions* options,              
+              const RaftNodeOptions* options,
+              const RaftConfiguration* cluster
               RaftNode **ppNode);
 
 // stop a raft node
