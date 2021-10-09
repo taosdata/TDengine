@@ -581,8 +581,6 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       TSKEY      lastKey = tsdbGetTableLastKeyImpl(pTable);
       SBlockIdx *pIdx = readh.pBlkIdx;
       if (pIdx && lastKey < pIdx->maxKey) {
-        pTable->lastKey = pIdx->maxKey;
-
         if (pCfg->cacheLastRow) {
           if (tsdbLoadBlockInfo(&readh, NULL) < 0) {
             tsdbDestroyReadH(&readh);
@@ -614,6 +612,8 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
                            pCol->offset);
           }
         }
+
+        pTable->lastKey = pTable->lastRow ? dataRowKey(pTable->lastRow) : pIdx->maxKey;
       }
       
     }
