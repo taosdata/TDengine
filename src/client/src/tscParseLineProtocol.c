@@ -1731,6 +1731,14 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
       *ts = taosGetTimestampNs();
       break;
     }
+    case SML_TIME_STAMP_HOURS: {
+      *ts = (int64_t)(*ts * 3600 * 1e9);
+      break;
+    }
+    case SML_TIME_STAMP_MINUTES: {
+      *ts = (int64_t)(*ts * 60 * 1e9);
+      break;
+    }
     case SML_TIME_STAMP_SECONDS: {
       *ts = (int64_t)(*ts * 1e9);
       break;
@@ -2241,16 +2249,33 @@ int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
     *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
     return TSDB_CODE_SUCCESS;
   }
+  if (strcmp(precision, "μ") == 0) {
+    *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t len = (int32_t)strlen(precision);
-  if (len == 1 && precision[0] == 's') {
-    *tsType = SML_TIME_STAMP_SECONDS;
+  if (len == 1) {
+    switch (precision[0]) {
+      case 'u':
+        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+        break;
+      case 's':
+        *tsType = SML_TIME_STAMP_SECONDS;
+        break;
+      case 'm':
+        *tsType = SML_TIME_STAMP_MINUTES;
+        break;
+      case 'h':
+        *tsType = SML_TIME_STAMP_HOURS;
+        break;
+      default:
+        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
+    }
   } else if (len == 2 && precision[1] == 's') {
     switch (precision[0]) {
       case 'm':
         *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-        break;
-      case 'u':
-        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
         break;
       case 'n':
         *tsType = SML_TIME_STAMP_NANO_SECONDS;
@@ -2286,12 +2311,12 @@ int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
  *
  */
 
-int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* precision) {
+int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* timePrecision) {
   int code;
   SMLTimeStampType tsType;
 
   if (protocol == SML_LINE_PROTOCOL) {
-    code = convertPrecisionStrType(precision, &tsType);
+    code = convertPrecisionStrType(timePrecision, &tsType);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
