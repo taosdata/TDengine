@@ -55,7 +55,12 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
     }
 
     if (*cur == ' ') {
-      break;
+      if (*(cur + 1) != ' ') {
+        break;
+      } else {
+        cur++;
+        continue;
+      }
     }
 
     //convert dot to underscore for now, will be removed once dot is allowed in tbname.
@@ -96,7 +101,12 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
 
   while(*cur != '\0') {
     if (*cur == ' ') {
-      break;
+      if (*(cur + 1) != ' ') {
+        break;
+      } else {
+        cur++;
+        continue;
+      }
     }
     cur++;
     len++;
@@ -140,7 +150,14 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
 
   while(*cur != '\0') {
     if (*cur == ' ') {
-      break;
+      if (*cur == ' ') {
+        if (*(cur + 1) != ' ') {
+          break;
+        } else {
+          cur++;
+          continue;
+        }
+      }
     }
     cur++;
     len++;
@@ -224,7 +241,12 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
     if (*cur == ' ' || *cur == '\0') {
       // '\0' indicates end of value
       *is_last_kv = (*cur == '\0') ? true : false;
-      break;
+      if (*cur == ' ' && *(cur + 1) == ' ') {
+        cur++;
+        continue;
+      } else {
+        break;
+      }
     }
     cur++;
     len++;

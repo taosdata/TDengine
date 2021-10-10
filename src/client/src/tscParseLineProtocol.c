@@ -1879,7 +1879,12 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     if ((*cur == ',' || *cur == ' ' || *cur == '\0') && *(cur - 1) != '\\') {
       //unescaped ' ' or '\0' indicates end of value
       *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
-      break;
+      if (*cur == ' ' && *(cur + 1) == ' ') {
+        cur++;
+        continue;
+      } else {
+        break;
+      }
     }
     //Escape special character
     if (*cur == '\\') {
@@ -1937,7 +1942,13 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
       break;
     }
     if (*cur == ' ' && *(cur - 1) != '\\') {
-      break;
+      if (*(cur + 1) != ' ') {
+        break;
+      }
+      else {
+        cur++;
+        continue;
+      }
     }
     //Comma, Space, Backslash needs to be escaped if any
     if (*cur == '\\') {
