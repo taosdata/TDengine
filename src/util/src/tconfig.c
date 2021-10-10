@@ -498,7 +498,7 @@ bool taosReadGlobalCfg() {
 }
 
 void taosPrintGlobalCfg() {
-  uInfo("   taos config & system info:");
+  uInfo("   prodb config & system info:");
   uInfo("==================================");
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
