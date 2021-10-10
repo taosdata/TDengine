@@ -1542,9 +1542,18 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info
 }
 //len does not include '\0' from value.
 bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
-                         uint16_t len, SSmlLinesInfo* info) {
+                         uint16_t len, SSmlLinesInfo* info, bool isTag) {
   if (len <= 0) {
     return false;
+  }
+
+  //convert tags value to Nchar
+  if (isTag) {
+    pVal->type = TSDB_DATA_TYPE_NCHAR;
+    pVal->length = len;
+    pVal->value = calloc(pVal->length, 1);
+    memcpy(pVal->value, value, pVal->length);
+    return true;
   }
 
   //integer number
@@ -1859,7 +1868,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
 
 static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
-                          bool *is_last_kv, SSmlLinesInfo* info) {
+                          bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
   char *value = NULL;
   uint16_t len = 0;
@@ -1883,7 +1892,7 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   value = calloc(len + 1, 1);
   memcpy(value, start, len);
   value[len] = '\0';
-  if (!convertSmlValueType(pKV, value, len, info)) {
+  if (!convertSmlValueType(pKV, value, len, info, isTag)) {
     tscError("SML:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
     //free previous alocated key field
@@ -1989,7 +1998,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse key", info->id);
       goto error;
     }
-    ret = parseSmlValue(pkv, &cur, &is_last_kv, info);
+    ret = parseSmlValue(pkv, &cur, &is_last_kv, info, !isField);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;

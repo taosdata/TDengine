@@ -153,7 +153,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  if (!convertSmlValueType(pVal, value, len, info)) {
+  if (!convertSmlValueType(pVal, value, len, info, false)) {
     tscError("OTD:0x%"PRIx64" Failed to convert metric value string(%s) to any type",
             info->id, value);
     tfree(value);
@@ -238,7 +238,7 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
   value = tcalloc(len + 1, 1);
   memcpy(value, start, len);
   value[len] = '\0';
-  if (!convertSmlValueType(pKV, value, len, info)) {
+  if (!convertSmlValueType(pKV, value, len, info, true)) {
     tscError("OTD:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
     //free previous alocated key field
