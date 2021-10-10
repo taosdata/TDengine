@@ -1208,6 +1208,22 @@ bool isValidFloat(char *str) {
   return true;
 }
 
+static bool isInteger(char *pVal, uint16_t len, bool *has_sign) {
+  if (len <= 1) {
+    return false;
+  }
+  if (pVal[len - 1] == 'i') {
+    *has_sign = true;
+    return true;
+  }
+  if (pVal[len - 1] == 'u') {
+    *has_sign = false;
+    return true;
+  }
+
+  return false;
+}
+
 static bool isTinyInt(char *pVal, uint16_t len) {
   if (len <= 2) {
     return false;
@@ -1532,6 +1548,16 @@ bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
   }
 
   //integer number
+  bool has_sign;
+  if (isInteger(value, len, &has_sign)) {
+    pVal->type = has_sign ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_UBIGINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    value[len - 1] = '\0';
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value, info)) {
+      return false;
+    }
+    return true;
+  }
   if (isTinyInt(value, len)) {
     pVal->type = TSDB_DATA_TYPE_TINYINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
@@ -1650,18 +1676,9 @@ bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     memcpy(pVal->value, &bVal, pVal->length);
     return true;
   }
-  //Handle default(no appendix) interger type as BIGINT
-  if (isValidInteger(value)) {
-    pVal->type = TSDB_DATA_TYPE_BIGINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    if (!convertStrToNumber(pVal, value, info)) {
-      return false;
-    }
-    return true;
-  }
 
-  //Handle default(no appendix) floating number type as DOUBLE
-  if (isValidFloat(value)) {
+  //Handle default(no appendix) type as DOUBLE
+  if (isValidInteger(value) || isValidFloat(value)) {
     pVal->type = TSDB_DATA_TYPE_DOUBLE;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     if (!convertStrToNumber(pVal, value, info)) {
