@@ -36,7 +36,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	".stb.0.",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	10,
 	    "tags":	{
 		"t1":	true,
@@ -57,7 +57,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_0",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	10,
 	    "tags":	{
 		"t1":	true,
@@ -76,7 +76,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_1",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	true,
 	    "tags":	{
 		"t1":	true,
@@ -95,7 +95,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_2",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	false,
 	    "tags":	{
 		"t1":	true,
@@ -114,7 +114,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_3",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>",
 	    "tags":	{
 		"t1":	true,
@@ -133,7 +133,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_4",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	3.14,
 	    "tags":	{
 		"t1":	true,
@@ -152,7 +152,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_5",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	3.14E-2,
 	    "tags":	{
 		"t1":	true,
@@ -187,6 +187,22 @@ class TDTestCase:
         code = self._conn.schemaless_insert(payload, 2)
         print("schemaless_insert result {}".format(code))
 
+        ### timestamp 10 digits second ###
+        payload = ['''
+        {
+	    "metric":	"stb0_7",
+	    "timestamp":	1626006833,
+	    "value":	123,
+	    "tags":	{
+		"t1":	true,
+		"t2":	false,
+		"t3":	10,
+		"t4":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, 2)
+        print("schemaless_insert result {}".format(code))
 
         print("============= step3 : test tags  ================")
         ### Default tag numeric types ###

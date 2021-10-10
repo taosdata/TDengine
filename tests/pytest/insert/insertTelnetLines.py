@@ -63,16 +63,17 @@ class TDTestCase:
                       "stb1 1626006833s 1i8 host=\"host0\"",
                       "stb1 1626006833639000000ns 2i8 host=\"host0\"",
                       "stb1 1626006833640000us 3i8 host=\"host0\"",
-                      "stb1 1626006833641123 4i8 host=\"host0\"",
-                      "stb1 1626006833651ms 5i8 host=\"host0\"",
-                      "stb1 0 6i8 host=\"host0\"",
+                      "stb1 1626006833641 4i8 host=\"host0\"",
+                      "stb1 1626006834 5i8 host=\"host0\"",
+                      "stb1 1626006833651ms 6i8 host=\"host0\"",
+                      "stb1 0 7i8 host=\"host0\"",
                     ]
 
         code = self._conn.schemaless_insert(lines1, 1)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb1")
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
 
         ### metric value ###
         print("============= step3 : test metric value  ================")
@@ -126,15 +127,14 @@ class TDTestCase:
         #bigint
         lines2_3 = [
                         "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
-                        "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\"",
-                        "stb2_3 1626006833662ms 9223372036854775807 host=\"host0\""
+                        "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_3, 1)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_3")
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
 
         tdSql.query("describe stb2_3")
         tdSql.checkRows(3)
@@ -176,7 +176,7 @@ class TDTestCase:
                         "stb2_5 1626006833680ms -3.4e-2f64 host=\"host0\"",
                         "stb2_5 1626006833690ms 1.7E308f64 host=\"host0\"",
                         "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\"",
-                        "stb2_5 1626006833710ms 3.15 host=\"host0\""
+                        "stb2_5 1626006833710ms 3 host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_5, 1)
@@ -263,28 +263,28 @@ class TDTestCase:
         tdSql.query("describe stb3_0")
         tdSql.checkRows(11)
 
-        tdSql.checkData(2, 1, "TINYINT")
+        tdSql.checkData(2, 1, "NCHAR")
         tdSql.checkData(2, 3, "TAG")
 
-        tdSql.checkData(3, 1, "SMALLINT")
+        tdSql.checkData(3, 1, "NCHAR")
         tdSql.checkData(3, 3, "TAG")
 
-        tdSql.checkData(4, 1, "INT")
+        tdSql.checkData(4, 1, "NCHAR")
         tdSql.checkData(4, 3, "TAG")
 
-        tdSql.checkData(5, 1, "BIGINT")
+        tdSql.checkData(5, 1, "NCHAR")
         tdSql.checkData(5, 3, "TAG")
 
-        tdSql.checkData(6, 1, "FLOAT")
+        tdSql.checkData(6, 1, "NCHAR")
         tdSql.checkData(6, 3, "TAG")
 
-        tdSql.checkData(7, 1, "DOUBLE")
+        tdSql.checkData(7, 1, "NCHAR")
         tdSql.checkData(7, 3, "TAG")
 
-        tdSql.checkData(8, 1, "BOOL")
+        tdSql.checkData(8, 1, "NCHAR")
         tdSql.checkData(8, 3, "TAG")
 
-        tdSql.checkData(9, 1, "BINARY")
+        tdSql.checkData(9, 1, "NCHAR")
         tdSql.checkData(9, 3, "TAG")
 
         tdSql.checkData(10, 1, "NCHAR")
@@ -293,9 +293,9 @@ class TDTestCase:
 
         #tag ID as child table name
         lines3_1 = [
-                        "stb3_1 1626006833610ms 1 id=\"child_table1\" host=\"host1\"",
-                        "stb3_1 1626006833610ms 2 host=\"host2\" iD=\"child_table2\"",
-                        "stb3_1 1626006833610ms 3 ID=\"child_table3\" host=\"host3\""
+                        "stb3_1 1626006833610ms 1 id=child_table1 host=host1",
+                        "stb3_1 1626006833610ms 2 host=host2 iD=child_table2",
+                        "stb3_1 1626006833610ms 3 ID=child_table3 host=host3"
                      ]
 
         code = self._conn.schemaless_insert(lines3_1, 1)

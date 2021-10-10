@@ -1408,7 +1408,7 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSml
 
   //Default no appendix
   if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
-    if (info->protocol == SML_LINE_PROTOCOL) {
+    if (info->protocol == SML_LINE_PROTOCOL && info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
       *tsType = info->tsType;
     } else if (info->protocol == SML_TELNET_PROTOCOL) {
       if (len == SML_TIMESTAMP_SECOND_DIGITS) {
@@ -2018,8 +2018,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField &&
-        (strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
+    if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
       ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
         goto error;
@@ -2233,6 +2232,10 @@ cleanup:
 }
 
 int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
+  if (precision == NULL) {
+    *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t len = (int32_t)strlen(precision);
   if (len == 1 && precision[0] == 's') {
     *tsType = SML_TIME_STAMP_SECONDS;

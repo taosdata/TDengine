@@ -297,7 +297,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("OTD:0x%"PRIx64" Unable to parse value", info->id);
       return ret;
     }
-    if ((strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
+    if ((strcasecmp(pkv->key, "ID") == 0)) {
       ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
         return ret;

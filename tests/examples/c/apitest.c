@@ -990,7 +990,7 @@ int32_t verify_schema_less(TAOS* taos) {
   code = taos_schemaless_insert(taos, &lines2[1], 1, 0, "ns");
 
   char* lines3[] = {
-      "sth,t1=4i64,t2=5f64,t4=5f64,ID=\"childtable\" c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641",
+      "sth,t1=4i64,t2=5f64,t4=5f64,ID=childTable c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641",
       "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654"
   };
   code = taos_schemaless_insert(taos, lines3, 2, 0, "ms");
@@ -1036,6 +1036,7 @@ int main(int argc, char *argv[]) {
 
   printf("************  verify schema-less  *************\n");
   verify_schema_less(taos);
+  return 0;
 
   printf("************  verify query  *************\n");
   verify_query(taos);
