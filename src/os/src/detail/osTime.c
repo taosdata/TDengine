@@ -374,8 +374,10 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
           return time;
       }
     } //end from nano
-    default:
+    default: {
       assert(0);
+      return time;  // only to pass windows compilation
+    }
   } //end switch fromPrecision
 }
 
