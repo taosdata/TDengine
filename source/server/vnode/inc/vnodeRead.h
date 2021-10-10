@@ -13,19 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_CFG_H
-#define TDENGINE_VNODE_CFG_H
+#ifndef _TD_VNODE_READ_H_
+#define _TD_VNODE_READ_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeReadCfg(SVnodeObj *pVnode);
-int32_t vnodeWriteCfg(SCreateVnodeMsg *pVnodeCfg);
+int32_t    vnodeInitRead();
+void       vnodeCleanupRead();
+taos_queue vnodeAllocQueryQueue(SVnode *pVnode);
+taos_queue vnodeAllocFetchQueue(SVnode *pVnode);
+void       vnodeFreeQueryQueue(taos_queue pQueue);
+void       vnodeFreeFetchQueue(taos_queue pQueue);
+
+void vnodeProcessReadMsg(SRpcMsg *pRpcMsg);
+int32_t vnodeReputPutToRQueue(SVnode *pVnode, void **qhandle, void *ahandle);
+
+void vnodeStartRead(SVnode *pVnode);
+void vnodeStopRead(SVnode *pVnode);
+void vnodeWaitReadCompleted(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_READ_H_*/

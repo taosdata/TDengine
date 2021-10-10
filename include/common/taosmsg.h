@@ -990,6 +990,22 @@ typedef struct {
   /* data */
 } SAlterTableRsp;
 
+typedef struct {
+  /* data */
+} SDropStableReq;
+
+typedef struct {
+  /* data */
+} SDropStableRsp;
+
+typedef struct {
+  /* data */
+} SUpdateTagValReq;
+
+typedef struct {
+  /* data */
+} SUpdateTagValRsp;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

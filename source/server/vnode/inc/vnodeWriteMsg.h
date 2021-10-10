@@ -13,9 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#ifndef _TD_VNODE_WRITE_MSG_H_
+#define _TD_VNODE_WRITE_MSG_H_
 
-int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp);
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "vnodeInt.h"
+ 
+int32_t vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp);
+int32_t vnodeProcessCreateTableReq(SVnode *pVnode, SCreateTableReq *pReq, SCreateTableRsp *pRsp);
+int32_t vnodeProcessDropTableReq(SVnode *pVnode, SDropTableReq *pReq, SDropTableRsp *pRsp);
+int32_t vnodeProcessAlterTableReq(SVnode *pVnode, SAlterTableReq *pReq, SAlterTableRsp *pRsp);
+int32_t vnodeProcessDropStableReq(SVnode *pVnode, SDropStableReq *pReq, SDropStableRsp *pRsp);
+int32_t vnodeProcessUpdateTagValReq(SVnode *pVnode, SUpdateTagValReq *pReq, SUpdateTagValRsp *pRsp);
 
-#endif /*_TD_VNODE_WRITE_H_*/
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_VNODE_WRITE_MSG_H_*/

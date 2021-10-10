@@ -13,19 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_VERSION_H
-#define TDENGINE_VNODE_VERSION_H
+#ifndef _TD_VNODE_READ_MSG_H_
+#define _TD_VNODE_READ_MSG_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeReadVersion(SVnodeObj *pVnode);
-int32_t vnodeSaveVersion(SVnodeObj *pVnode);
+typedef struct SReadMsg {
+  int32_t code;
+  int32_t contLen;
+  int8_t  qtype;
+  int8_t  msgType;
+  SVnode *pVnode;
+  SVnRsp rspRet;
+  void *  rpcHandle;
+  void *  rpcAhandle;
+  void *  qhandle;
+  char    pCont[];
+} SReadMsg;
+
+int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead);
+int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_READ_MSG_H_*/

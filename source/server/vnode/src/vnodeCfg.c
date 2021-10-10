@@ -17,10 +17,10 @@
 #include "os.h"
 #include "cJSON.h"
 #include "tglobal.h"
-#include "dnode.h"
 #include "vnodeCfg.h"
 
-static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
+static void vnodeLoadCfg(SVnode *pVnode, SCreateVnodeMsg *vnodeMsg) {
+#if 0
   tstrncpy(pVnode->db, vnodeMsg->db, sizeof(pVnode->db));
   pVnode->dbCfgVersion = vnodeMsg->cfg.dbCfgVersion;
   pVnode->vgCfgVersion = vnodeMsg->cfg.vgCfgVersion;
@@ -56,9 +56,11 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
     SNodeInfo *node = &pVnode->syncCfg.nodeInfo[i];
     vInfo("vgId:%d, dnode:%d, %s:%u", pVnode->vgId, node->nodeId, node->nodeFqdn, node->nodePort);
   }
+#endif  
 }
 
-int32_t vnodeReadCfg(SVnodeObj *pVnode) {
+int32_t vnodeReadCfg(SVnode *pVnode) {
+#if 0
   int32_t ret = TSDB_CODE_VND_APP_ERROR;
   int32_t len = 0;
   int     maxLen = 1000;
@@ -66,6 +68,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   cJSON * root = NULL;
   FILE *  fp = NULL;
   bool    nodeChanged = false;
+
   SCreateVnodeMsg vnodeMsg;
 
   char file[TSDB_FILENAME_LEN + 30] = {0};
@@ -286,8 +289,13 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     }
     tstrncpy(node->nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
 
-    bool changed = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
-    if (changed) nodeChanged = changed;
+    char nodeEpStr[TSDB_EP_LEN];
+    vnodeGetDnodeEp(node->nodeId, nodeEpStr, NULL, NULL);
+    bool changed = (strcmp(node->nodeEp, nodeEpStr) != 0);
+    if (changed) {
+      tstrncpy(node->nodeEp, nodeEpStr, TSDB_EP_LEN);
+      nodeChanged = changed;
+    }
   }
 
   ret = TSDB_CODE_SUCCESS;
@@ -350,7 +358,7 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pMsg->cfg.vgReplica; i++) {
     SVnodeDesc *node = &pMsg->nodes[i];
-    dnodeUpdateEp(node->nodeId, node->nodeEp, NULL, NULL);
+    vnodeGetDnodeEp(node->nodeId, node->nodeEp, NULL, NULL);
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", node->nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", node->nodeEp);
     if (i < pMsg->cfg.vgReplica - 1) {
@@ -368,5 +376,6 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   terrno = 0;
 
   vInfo("vgId:%d, successed to write %s", pMsg->cfg.vgId, file);
+#endif  
   return TSDB_CODE_SUCCESS;
 }

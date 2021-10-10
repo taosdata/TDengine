@@ -13,9 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "vnodeWriteMsg.h"
 
-int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
+int32_t vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
   // TODO: Check inputs
 
 #if 0
@@ -51,17 +53,27 @@ int vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp) {
   return 0;
 }
 
-int vnodeProcessCreateTableReq(SVnode *pVnode, SCreateTableReq *pReq, SCreateTableRsp *pRsp) {
+int32_t vnodeProcessCreateTableReq(SVnode *pVnode, SCreateTableReq *pReq, SCreateTableRsp *pRsp) {
   // TODO
   return 0;
 }
 
-int vnodeProcessDropTableReq(SVnode *pVnode, SDropTableReq *pReq, SDropTableRsp *pRsp) {
+ int32_t vnodeProcessDropTableReq(SVnode *pVnode, SDropTableReq *pReq, SDropTableRsp *pRsp) {
   // TODO
   return 0;
 }
 
-int vnodeProcessAlterTableReq(SVnode *pVnode, SAlterTableReq *pReq, SAlterTableRsp *pRsp) {
+int32_t vnodeProcessAlterTableReq(SVnode *pVnode, SAlterTableReq *pReq, SAlterTableRsp *pRsp) {
+  // TODO
+  return 0;
+}
+
+int32_t vnodeProcessDropStableReq(SVnode *pVnode, SDropStableReq *pReq, SDropStableRsp *pRsp) {
+  // TODO
+  return 0;
+}
+
+int32_t vnodeProcessUpdateTagValReq(SVnode *pVnode, SUpdateTagValReq *pReq, SUpdateTagValRsp *pRsp) {
   // TODO
   return 0;
 }

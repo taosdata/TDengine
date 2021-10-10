@@ -13,25 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_MAIN_H
-#define TDENGINE_VNODE_MAIN_H
+#ifndef _TD_VNODE_STATUS_H_
+#define _TD_VNODE_STATUS_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeDrop(int32_t vgId);
-int32_t vnodeOpen(int32_t vgId);
-int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeSync(int32_t vgId);
-int32_t vnodeClose(int32_t vgId);
-void    vnodeCleanUp(SVnodeObj *pVnode);
-void    vnodeDestroy(SVnodeObj *pVnode);
+typedef enum _VN_STATUS {
+  TAOS_VN_STATUS_INIT = 0,
+  TAOS_VN_STATUS_READY = 1,
+  TAOS_VN_STATUS_CLOSING = 2,
+  TAOS_VN_STATUS_UPDATING = 3
+} EVnodeStatus;
+
+// vnodeStatus
+extern char* vnodeStatus[];
+
+bool vnodeSetInitStatus(SVnode* pVnode);
+bool vnodeSetReadyStatus(SVnode* pVnode);
+bool vnodeSetClosingStatus(SVnode* pVnode);
+bool vnodeSetUpdatingStatus(SVnode* pVnode);
+
+bool vnodeInInitStatus(SVnode* pVnode);
+bool vnodeInReadyStatus(SVnode* pVnode);
+bool vnodeInClosingStatus(SVnode* pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_STATUS_H_*/
