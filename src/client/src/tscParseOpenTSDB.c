@@ -394,11 +394,13 @@ static int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, 
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines) {
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genUID();
+  info->tsType = tsType;
+  info->protocol = protocol;
 
   if (numLines <= 0 || numLines > 65536) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
@@ -563,7 +565,14 @@ static int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_k
       tsVal = taosGetTimestampNs();
     } else {
       tsVal = strtoll(timestamp->numberstring, NULL, 10);
-      tsVal = convertTimePrecision(tsVal, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
+      size_t tsLen = strlen(timestamp->numberstring);
+      if (tsLen == SML_TIMESTAMP_SECOND_DIGITS) {
+        tsVal = (int64_t)(tsVal * 1e9);
+      } else if (tsLen == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
+        tsVal = convertTimePrecision(tsVal, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_NANO);
+      } else {
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
     }
   } else if (cJSON_IsObject(timestamp)) {
     int32_t ret = parseTimestampFromJSONObj(timestamp, &tsVal, info);
@@ -1017,11 +1026,13 @@ PARSE_JSON_OVER:
   return ret;
 }
 
-int taos_insert_json_payload(TAOS* taos, char* payload) {
+int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genUID();
+  info->tsType = tsType;
+  info->protocol = protocol;
 
   if (payload == NULL) {
     tscError("OTD:0x%"PRIx64" taos_insert_json_payload payload is NULL", info->id);
