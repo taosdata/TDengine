@@ -781,28 +781,35 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
     }
     case cJSON_Number: {
       //convert default JSON Number type to BIGINT/DOUBLE
-      if (isValidInteger(root->numberstring)) {
-        pVal->type = TSDB_DATA_TYPE_BIGINT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        /* cJSON conversion of legit BIGINT may overflow,
-         * use original string to do the conversion.
-         */
-        errno = 0;
-        int64_t val = (int64_t)strtoll(root->numberstring, NULL, 10);
-        if (errno == ERANGE || !IS_VALID_BIGINT(val)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%s) cannot fit in type(bigint)", info->id, root->numberstring);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        *(int64_t *)(pVal->value) = val;
-      } else if (isValidFloat(root->numberstring)) {
+      //if (isValidInteger(root->numberstring)) {
+      //  pVal->type = TSDB_DATA_TYPE_BIGINT;
+      //  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      //  pVal->value = tcalloc(pVal->length, 1);
+      //  /* cJSON conversion of legit BIGINT may overflow,
+      //   * use original string to do the conversion.
+      //   */
+      //  errno = 0;
+      //  int64_t val = (int64_t)strtoll(root->numberstring, NULL, 10);
+      //  if (errno == ERANGE || !IS_VALID_BIGINT(val)) {
+      //    tscError("OTD:0x%"PRIx64" JSON value(%s) cannot fit in type(bigint)", info->id, root->numberstring);
+      //    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      //  }
+      //  *(int64_t *)(pVal->value) = val;
+      //} else if (isValidFloat(root->numberstring)) {
+      //  pVal->type = TSDB_DATA_TYPE_DOUBLE;
+      //  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      //  pVal->value = tcalloc(pVal->length, 1);
+      //  *(double *)(pVal->value) = (double)(root->valuedouble);
+      //} else {
+      //  return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+      //}
+      if (isValidInteger(root->numberstring) || isValidFloat(root->numberstring)) {
         pVal->type = TSDB_DATA_TYPE_DOUBLE;
         pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
         pVal->value = tcalloc(pVal->length, 1);
         *(double *)(pVal->value) = (double)(root->valuedouble);
-      } else {
-        return TSDB_CODE_TSC_INVALID_JSON_TYPE;
       }
+
       break;
     }
     case cJSON_String: {

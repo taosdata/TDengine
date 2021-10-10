@@ -71,7 +71,7 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_0")
-        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(1, 1, "DOUBLE")
 
         payload = ['''
         {
@@ -220,7 +220,7 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_8")
-        tdSql.checkData(2, 1, "BIGINT")
+        tdSql.checkData(2, 1, "DOUBLE")
 
         payload = ['''
         {
