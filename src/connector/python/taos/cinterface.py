@@ -823,7 +823,8 @@ def taos_schemaless_insert(connection, lines, protocol, precision):
     lines = (c_char_p(line.encode("utf-8")) for line in lines)
     lines_type = ctypes.c_char_p * num_of_lines
     p_lines = lines_type(*lines)
-    precision = c_char_p(precision.encode("utf-8"))
+    if precision != None:
+        precision = c_char_p(precision.encode("utf-8"))
     errno = _libtaos.taos_schemaless_insert(connection, p_lines, num_of_lines, protocol, precision)
     if errno != 0:
         raise SchemalessError("schemaless insert error", errno)
