@@ -1408,8 +1408,12 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSml
 
   //Default no appendix
   if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
-    if (info->protocol == SML_LINE_PROTOCOL && info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
-      *tsType = info->tsType;
+    if (info->protocol == SML_LINE_PROTOCOL) {
+      if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
+        *tsType = info->tsType;
+      } else {
+        *tsType = SML_TIME_STAMP_NANO_SECONDS;
+      }
     } else if (info->protocol == SML_TELNET_PROTOCOL) {
       if (len == SML_TIMESTAMP_SECOND_DIGITS) {
         *tsType = SML_TIME_STAMP_SECONDS;
@@ -1421,6 +1425,7 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSml
     }
     return true;
   }
+
   if (pVal[len - 1] == 's') {
     switch (pVal[len - 2]) {
       case 'm':
@@ -1716,7 +1721,7 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
   }
 
   //No appendix or no timestamp given (len = 0)
-  if (len >= 1 && isdigit(value[len - 1]) && type != SML_TIME_STAMP_NOW) {
+  if (len != 0 && type != SML_TIME_STAMP_NOW) {
     *ts = (int64_t)strtoll(value, NULL, 10);
   } else {
     type = SML_TIME_STAMP_NOW;
