@@ -8,4 +8,5 @@ add_executable(taosd ${TAOSD_SRC})
 target_link_libraries(
     taosd
     PUBLIC dnode
+    PUBLIC util
 )

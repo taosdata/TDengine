@@ -46,11 +46,6 @@ int patternMatch(const char *pattern, const char *str, size_t size, const SPatte
 
 int WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
-
-__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
-
-__compar_fn_t getComparFunc(int32_t type, int32_t optr);
 
 int32_t taosArrayCompareString(const void* a, const void* b);
 
@@ -82,12 +77,22 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
-int32_t compareStrPatternComp(const void* pLeft, const void* pRight);
 int32_t compareStrRegexComp(const void* pLeft, const void* pRight);
 int32_t compareStrRegexCompMatch(const void* pLeft, const void* pRight);
 int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight);
 int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
-int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
+int32_t compareInt8ValDesc(const void *pLeft, const void *pRight);
+int32_t compareInt16ValDesc(const void* pLeft, const void* pRight);
+int32_t compareInt32ValDesc(const void* pLeft, const void* pRight);
+int32_t compareInt64ValDesc(const void* pLeft, const void* pRight);
+int32_t compareFloatValDesc(const void* pLeft, const void* pRight);
+int32_t compareDoubleValDesc(const void* pLeft, const void* pRight);
+int32_t compareUint8ValDesc(const void* pLeft, const void* pRight);
+int32_t compareUint16ValDesc(const void* pLeft, const void* pRight);
+int32_t compareUint32ValDesc(const void* pLeft, const void* pRight);
+int32_t compareUint64ValDesc(const void* pLeft, const void* pRight);
+int32_t compareLenPrefixedStrDesc(const void* pLeft, const void* pRight);
+int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight);
 
 #ifdef __cplusplus
 }

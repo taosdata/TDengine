@@ -6,10 +6,10 @@ extern "C" {
 #endif
 
 #include "taosdef.h"
+#include "types.h"
 
 // ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
 typedef int32_t  VarDataOffsetT;
-typedef int16_t  VarDataLenT;  // maxVarDataLen: 32767
 typedef uint16_t TDRowLenT;    // not including overhead: 0 ~ 65535
 typedef uint32_t TDRowTLenT;   // total length, including overhead
 
@@ -30,11 +30,7 @@ typedef struct {
 } SNCharNullT;
 #pragma pack(pop)
 
-#define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
-
-#define varDataLen(v)       ((VarDataLenT *)(v))[0]
 #define varDataTLen(v)      (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataVal(v)       ((void *)((char *)v + VARSTR_HEADER_SIZE))
 #define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
 #define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))

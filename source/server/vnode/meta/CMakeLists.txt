@@ -11,6 +11,6 @@ target_link_libraries(
 )
 target_link_libraries(meta PUBLIC rocksdb)
 
-# if(${BUILD_TEST})
-#     add_subdirectory(test)
-# endif(${BUILD_TEST})
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})
