@@ -102,7 +102,7 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 - 创建标量函数：`CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [bufsize B];`
   * ids(X)：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
   * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来，可以为相对路径或者绝对路径；
-  * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可，与函数处理处理的对象列数据类型保持一致；
+  * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
   * bufsize ：若标量函数用到了缓冲区，则应该分配bufsize，若标量函数未用到缓冲区，则无需分配bufsize。
   * B：系统使用的中间临时缓冲区大小，单位是字节，最小 0，最大 512，通常可以设置为 128。
 
@@ -110,7 +110,7 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
   ```sql
   CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
   ```
-  add_one 函数内部处理对象数据类型为 INT ，且并未使用到缓冲区，因此创建函数时 OUTPUTTYPE 为 INT ，无需分配 bufsize 。
+  add_one 函数内部处理对象数据类型为 INT ，且并未使用到缓冲区，因此创建函数时无需分配 bufsize 。
 
 - 创建聚合函数：`CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [bufsize B];`
   * AGGREGATE：聚合函数的创建必须使用该关键字，在创建函数时，需要明确 UDF 函数的类型；
@@ -124,18 +124,18 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
   ```sql
   CREATE AGGREGATE FUNCTION abs_max AS "/home/taos/udf_example/abs_max.so" OUTPUTTYPE BIGINT;
   ```
-  abs_max 为聚合函数，创建时使用关键字AGGREGATE ，函数内部处理对象数据类型为 BIGINT ，且并未使用到缓冲区，因此创建函数时 OUTPUTTYPE 为 BIGINT ，无需分配 bufsize 。
+  abs_max 为聚合函数，创建时使用关键字AGGREGATE ，函数内部处理对象数据类型为 BIGINT ，且并未使用到缓冲区，因此创建函数时无需分配 bufsize 。
 
   与之类似，如下语句可以把 sum_double.so 创建为系统中可用的 UDF：
   ```sql
   CREATE AGGREGATE FUNCTION sum_double AS "/home/taos/udf_example/sum_double.so" OUTPUTTYPE INT bufsize 128;
   ```
-  sum_double 为聚合函数，创建时使用关键字 AGGREGATE ，函数内部处理对象数据类型为 INT ，使用了缓冲区，因此创建函数时 OUTPUTTYPE 为 INT ，分配 bufsize 128 。
+  sum_double 为聚合函数，创建时使用关键字 AGGREGATE ，函数内部处理对象数据类型为 INT ，使用了缓冲区，因此创建函数时分配 bufsize 128 。
 
   当前版本，创建UDF函数的基本原则：
 1. 明确区分UDF函数的类型，对聚合函数使用 AGGREGATE 关键字；
 2. 明确缓冲区的分配，对使用缓冲区的函数分配bufsize,未使用缓冲区的函数，无需分配bufsize；
-3. 明确处理的对象列数据类型，OUTPUTTYPE 与处理的对象列类型保持一致；
+3. 明确处理的对象列数据类型，调用UDF函数处理时只能处理该数据类型的对象列；
 
 ### 管理 UDF
 
@@ -157,7 +157,7 @@ SELECT X(c) FROM table/stable;
 在当前版本下，使用 UDF 存在如下这些限制：
 1. 在创建和调用 UDF 时，服务端和客户端都只支持 Linux 操作系统；
 2. UDF 不能与系统内建的 SQL 函数混合使用；
-3. UDF 只支持以单个数据列作为输入；
+3. UDF 只支持以单个数据列作为输入；6
 4. UDF 只要创建成功，就会被持久化存储到 MNode 节点中；
 5. 无法通过 RESTful 接口来创建 UDF；
 6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
