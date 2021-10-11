@@ -270,7 +270,7 @@ int dataColAppendValEx(SDataCol *pCol, const void *value, int numOfRows, int max
       pCol->len += pCol->bytes;
     } else {
       // update the value of last row by increasing the pCol->len and keeping the original numOfRows
-      ASSERT((pCol->len == TYPE_BYTES[pCol->type] * (numOfRows + 1)) && (pCol->len > TYPE_BYTES[pCol->type]));
+      ASSERT(pCol->len == (TYPE_BYTES[pCol->type] * (numOfRows + 1)));
       memcpy(POINTER_SHIFT(pCol->pData, pCol->len - TYPE_BYTES[pCol->type]), value, pCol->bytes);
     }
   }
