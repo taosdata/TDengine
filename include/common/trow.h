@@ -20,6 +20,13 @@
 extern "C" {
 #endif
 
+typedef struct SRow SRow;
+
+#define rowType(r)
+#define rowLen(r)
+#define rowVersion(r)
+#define rowNCols(r)
+
 #ifdef __cplusplus
 }
 #endif

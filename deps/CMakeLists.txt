@@ -48,6 +48,7 @@ endif(${BUILD_WITH_LEVELDB})
 if(${BUILD_WITH_ROCKSDB})
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
     add_subdirectory(rocksdb)
     target_include_directories(
         rocksdb
