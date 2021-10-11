@@ -46,7 +46,8 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_USMALLINT  12    // 2 bytes
 #define TSDB_DATA_TYPE_UINT       13    // 4 bytes
 #define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
-#define TSDB_DATA_TYPE_JSON       15    // json string
+#define TSDB_DATA_TYPE_JSON_BINARY 15    // json string
+#define TSDB_DATA_TYPE_JSON_NCHAR 16    // json unicode string
 
 typedef enum {
   TSDB_OPTION_LOCALE,

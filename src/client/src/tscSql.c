@@ -439,9 +439,9 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
         f[j] = pField->field;
 
         // revise the length for binary and nchar fields
-        if (f[j].type == TSDB_DATA_TYPE_BINARY || f[j].type == TSDB_DATA_TYPE_JSON) {
+        if (f[j].type == TSDB_DATA_TYPE_BINARY || f[j].type == TSDB_DATA_TYPE_JSON_BINARY) {
           f[j].bytes -= VARSTR_HEADER_SIZE;
-        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR || f[j].type == TSDB_DATA_TYPE_JSON_NCHAR) {
           f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
         }
 
