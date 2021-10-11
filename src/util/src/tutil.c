@@ -184,7 +184,7 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
     return strstr(src, dst);
   }
 
-  int32_t len = strlen(src);
+  int32_t len = (int32_t)strlen(src);
   bool inEsc = false;
   char escChar = 0;
   char *str = src, *res = NULL;
