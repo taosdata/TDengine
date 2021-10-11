@@ -145,7 +145,6 @@ static void dnodeProcessRspFromPeer(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
     SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0};
     rspMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
     rpcSendResponse(&rspMsg);
-    rpcFreeCont(pMsg->pCont);
   }
 
   rpcFreeCont(pMsg->pCont);
