@@ -392,6 +392,10 @@ static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functId = pCtx[i].functionId;
+    if (TSDB_FUNC_IS_SCALAR(functId)) {
+      continue;
+    }
+
     if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
       hasTags = true;
       continue;
@@ -411,6 +415,11 @@ static bool isScalarWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functId = pCtx[i].functionId;
+    if (TSDB_FUNC_IS_SCALAR(functId)) {
+      numOfScalar++;
+      continue;
+    }
+
     if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
       hasTags = true;
       continue;
@@ -1024,8 +1033,10 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       if (functionId < 0) { // load the script and exec, pRuntimeEnv->pUdfInfo
         SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
         aAggs[functionId].xFunction(&pCtx[k]);
+      } else {
+        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFunction(&pCtx[k]);
       }
     }
 
@@ -1241,9 +1252,13 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
         pCtx[i].pInput = p->pData;
         assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);
 
-        if (pCtx[i].functionId < 0) {
+        if (pCtx[i].functionId < 0 || TSDB_FUNC_IS_SCALAR(pCtx[i].functionId)) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-          pCtx[i].ptsList = (int64_t*) tsInfo->pData;
+          if (tsInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            pCtx[i].ptsList = (int64_t*)tsInfo->pData;
+          } else {
+            pCtx[i].ptsList = NULL;
+          }
 
           continue;
         }
@@ -1285,8 +1300,10 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       if (functionId < 0) {
         SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
         aAggs[functionId].xFunction(&pCtx[k]);
+      } else {
+        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFunction(&pCtx[k]);
       }
     }
   }
@@ -1309,8 +1326,10 @@ static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
       // load the script and exec
       SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
       doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(pCtx[k].functionId)) {
       aAggs[pCtx[k].functionId].xFunction(&pCtx[k]);
+    } else {
+      aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[k].functionId)].xFunction(&pCtx[k]);
     }
   }
 }
@@ -1973,6 +1992,9 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functionId = pCtx[i].functionId;
+    if (functionId < 0 || TSDB_FUNC_IS_SCALAR(functionId)) {
+      continue;
+    }
 
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pCtx[i].outputBytes;
@@ -3056,7 +3078,7 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
     int32_t colId = pTableScanInfo->pExpr[i].base.colInfo.colId;
 
     // group by + first/last should not apply the first/last block filter
-    if (functionId < 0) {
+    if (functionId < 0 || TSDB_FUNC_IS_SCALAR(functionId)) {
       status |= BLK_DATA_ALL_NEEDED;
       return status;
     } else {
@@ -3754,8 +3776,10 @@ void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
 
     if (pCtx[j].functionId < 0) { // todo udf initialization
       continue;
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
       aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+    } else {
+      aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[j].functionId)].init(&pCtx[j], pCtx[j].resultInfo);
     }
   }
 }
@@ -3814,8 +3838,10 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
         pCtx[j].startTs  = buf->win.skey;
         if (pCtx[j].functionId < 0) {
           doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-        } else {
+        } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
           aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
+        } else {
+          aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[j].functionId)].xFinalize(&pCtx[j]);
         }
       }
 
@@ -3831,8 +3857,10 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
     for (int32_t j = 0; j < numOfOutput; ++j) {
       if (pCtx[j].functionId < 0) {
         doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
         aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
+      } else {
+        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[j].functionId)].xFinalize(&pCtx[j]);
       }
     }
   }
@@ -3920,9 +3948,6 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     offset += pCtx[i].outputBytes;
 
     int32_t functionId = pCtx[i].functionId;
-    if (functionId < 0) {
-      continue;
-    }
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
@@ -3930,7 +3955,13 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     }
 
     if (!pResInfo->initialized) {
-      aAggs[functionId].init(&pCtx[i], pResInfo);
+      if (functionId < 0 ) {
+        doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[i], 0, TSDB_UDF_FUNC_INIT);
+      } else if (TSDB_FUNC_IS_SCALAR(functionId)) {
+        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].init(&pCtx[i], pResInfo);
+      } else {
+        aAggs[functionId].init(&pCtx[i], pResInfo);
+      }
     }
   }
 }
@@ -5836,7 +5867,15 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
         break;
       } else { // init output buffer for a new group data
         for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
-          aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
+          int16_t functionId = pInfo->pCtx[j].functionId;
+          if (functionId < 0 ) {
+            SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
+            doInvokeUdf(pUdfInfo, &pInfo->pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
+          } else if (TSDB_FUNC_IS_SCALAR(functionId)) {
+            aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFinalize(&pInfo->pCtx[j]);
+          } else {
+            aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
+          }
         }
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfOutput);
       }

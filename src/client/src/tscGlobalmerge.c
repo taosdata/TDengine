@@ -602,8 +602,10 @@ static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, i
     if (functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
       aAggs[functionId].mergeFunc(&pCtx[j]);
+    } else {
+      assert(0);
     }
   }
 }
@@ -618,8 +620,10 @@ static void doFinalizeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx
     if (functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
       aAggs[functionId].xFinalize(&pCtx[j]);
+    } else {
+      aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFinalize(&pCtx[j]);
     }
   }
 }
@@ -658,8 +662,11 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           if (pCtx[j].functionId < 0) {
             continue;
           }
-
-          aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+          if (TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
+            assert(0);
+          } else {
+            aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+          }
         }
 
         doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
@@ -899,8 +906,11 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
             clearOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
             continue;
           }
-
-          aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
+          if (!TSDB_FUNC_SCALAR_INDEX(pCtx->functionId)) {
+            aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
+          } else {
+            assert(0);
+          }
         }
       }
 

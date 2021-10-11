@@ -86,6 +86,16 @@ extern "C" {
 // #define TSDB_FUNC_HLL          41
 // #define TSDB_FUNC_MODE         42
 
+#define TSDB_FUNC_FLAG_UDF          0x8000
+#define TSDB_FUNC_FLAG_SCALAR       0x4000
+#define TSDB_FUNC_IS_SCALAR(id)     ((((id) & TSDB_FUNC_FLAG_UDF) == 0) && (((id) & TSDB_FUNC_FLAG_SCALAR) != 0))
+#define TSDB_FUNC_SCALAR_INDEX(id)  ((id) & ~TSDB_FUNC_FLAG_SCALAR)
+///////////////////////////////////////////
+// SCALAR FUNCTIONS
+#define TSDB_FUNC_SCALAR_POW          (TSDB_FUNC_FLAG_SCALAR | 0x0000)
+#define TSDB_FUNC_SCALAR_LOG          (TSDB_FUNC_FLAG_SCALAR | 0x0001)
+#define TSDB_FUNC_SCALAR_MAX_NUM      2
+
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
 #define TSDB_FUNCSTATE_STREAM       0x4u    // function avail for stream
@@ -218,6 +228,15 @@ typedef struct SAggFunctionInfo {
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
+typedef struct SScalarFunctionInfo {
+  int16_t functionId; // scalar function id & ~TSDB_FUNC_FLAG_SCALAR == index
+  char    name[TSDB_FUNCTIONS_NAME_MAX_LENGTH];
+
+  bool (*init)(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultCellInfo);
+  void (*xFunction)(SQLFunctionCtx *pCtx);
+  void (*xFinalize)(SQLFunctionCtx *pCtx);
+} SScalarFunctionInfo;
+
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
@@ -251,6 +270,9 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
 /* global sql function array */
 extern struct SAggFunctionInfo aAggs[];
 
+/* global scalar sql functions array */
+extern struct SScalarFunctionInfo aScalarFunctions[TSDB_FUNC_SCALAR_MAX_NUM];
+
 extern int32_t functionCompatList[]; // compatible check array list
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval);
@@ -266,11 +288,11 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
 
 static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
-  
+
   pResInfo->complete  = false;
   pResInfo->hasResult = false;
   pResInfo->numOfRes  = 0;
-  
+
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 

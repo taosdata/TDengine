@@ -197,6 +197,25 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
+  if (TSDB_FUNC_IS_SCALAR(functionId)) {
+    switch (functionId) {
+      case TSDB_FUNC_SCALAR_POW: {
+        *type = TSDB_DATA_TYPE_DOUBLE;
+        *bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+        break;
+      }
+      case TSDB_FUNC_SCALAR_LOG: {
+        *type = TSDB_DATA_TYPE_DOUBLE;
+        *bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+        break;
+      }
+      default: {
+        qError("Illegal function id: %d", functionId);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
@@ -468,6 +487,17 @@ int32_t isValidFunction(const char* name, int32_t len) {
 
     if (strncasecmp(aAggs[i].name, name, len) == 0) {
       return i;
+    }
+  }
+
+  for (int32_t i = 0; i < TSDB_FUNC_SCALAR_MAX_NUM; ++i) {
+    int32_t nameLen = (int32_t) strlen(aScalarFunctions[i].name);
+    if (len != nameLen) {
+      continue;
+    }
+
+    if (strncasecmp(aScalarFunctions[i].name, name, len) == 0) {
+      return aScalarFunctions[i].functionId;
     }
   }
 
@@ -5351,4 +5381,72 @@ SAggFunctionInfo aAggs[] = {{
                               block_func_merge,
                               dataBlockRequired,
                           },
+};
+
+static void scalar_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  int32_t notNullElems = 0;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
+
+  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+
+  qDebug("%p scalar_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
+
+  for (; i < pCtx->size && i >= 0; i += step) {
+    char* pData = GET_INPUT_DATA(pCtx, i);
+    if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+      qDebug("%p scalar_function() index of null data:%d", pCtx, i);
+      continue;
+    }
+
+    switch (pCtx->functionId) {
+      case TSDB_FUNC_SCALAR_POW: {
+        double v = 0;
+        GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+        double result = pow(v, pCtx->param[0].dKey);
+        SET_TYPED_DATA(pCtx->pOutput, pCtx->outputType, result);
+        break;
+      }
+      case TSDB_FUNC_SCALAR_LOG: {
+        double v = 0;
+        GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+        double result = log(v)/ log(pCtx->param[0].dKey);
+        SET_TYPED_DATA(pCtx->pOutput, pCtx->outputType, result);
+        break;
+      }
+      default:
+        qError("invalid function id %d", pCtx->functionId);
+        break;
+    }
+
+    ++notNullElems;
+    pCtx->pOutput += pCtx->outputBytes;
+    pTimestamp++;
+  }
+
+  if (notNullElems == 0) {
+    assert(pCtx->hasNull);
+  } else {
+    pResInfo->numOfRes += notNullElems;
+    pResInfo->hasResult = DATA_SET_FLAG;
+  }
+}
+
+SScalarFunctionInfo aScalarFunctions[] = {
+    {
+        TSDB_FUNC_SCALAR_POW,
+        "pow",
+        function_setup,
+        scalar_function,
+        doFinalizer,
+    },
+    {
+        TSDB_FUNC_SCALAR_LOG,
+        "log",
+        function_setup,
+        scalar_function,
+        doFinalizer,
+    },
 };

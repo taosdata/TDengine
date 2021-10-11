@@ -277,7 +277,8 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_TID_TAG &&
         functionId != TSDB_FUNC_CEIL &&
         functionId != TSDB_FUNC_FLOOR &&
-        functionId != TSDB_FUNC_ROUND) {
+        functionId != TSDB_FUNC_ROUND &&
+        !TSDB_FUNC_IS_SCALAR(functionId)) {
       return false;
     }
   }
@@ -628,6 +629,10 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
         return true;
       }
 
+      continue;
+    }
+
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
       continue;
     }
 

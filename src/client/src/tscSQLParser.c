@@ -2351,11 +2351,20 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
     if (tsKeepOriginalColumnName) { // keep the original column name
       tstrncpy(name, uname, TSDB_COL_NAME_LEN);
     } else {
-      int32_t size = TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].name) + 2 + 1;
-      char tmp[TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].name) + 2 + 1] = {0};
-      snprintf(tmp, size, "%s(%s)", aAggs[functionId].name, uname);
+      if (!TSDB_FUNC_IS_SCALAR(functionId)) {
+        int32_t size = TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].name) + 2 + 1;
+        char    tmp[TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].name) + 2 + 1] = {0};
+        snprintf(tmp, size, "%s(%s)", aAggs[functionId].name, uname);
 
-      tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
+        tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
+      } else {
+        int32_t index = TSDB_FUNC_SCALAR_INDEX(functionId);
+        int32_t size = TSDB_COL_NAME_LEN + tListLen(aScalarFunctions[index].name) + 2 + 1;
+        char    tmp[TSDB_COL_NAME_LEN + tListLen(aScalarFunctions[index].name) + 2 + 1] = {0};
+        snprintf(tmp, size, "%s(%s)", aScalarFunctions[index].name, uname);
+
+        tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
+      }
     }
   } else  { // use the user-input result column name
     int32_t len = MIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
@@ -2991,6 +3000,77 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       return TSDB_CODE_SUCCESS;
     }
 
+    case TSDB_FUNC_SCALAR_LOG:
+    case TSDB_FUNC_SCALAR_POW: {
+      // 1. valid the number of parameters
+      if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) {
+        /* no parameters or more than one parameter for function */
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
+      if (pParamElem->pNode->tokenId != TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+
+      // functions can not be applied to tags
+      if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+
+      // 2. valid the column type
+      if (!IS_NUMERIC_TYPE(pSchema->type)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
+      // 3. valid the parameters
+      if (pParamElem[1].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      int16_t  resultType = pSchema->type;
+      int16_t  resultSize = pSchema->bytes;
+      int32_t  interResult = 0;
+
+      tVariant* pVariant = &pParamElem[1].pNode->value;
+      char val[8] = {0};
+      tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
+
+      SExprInfo* pExpr = NULL;
+      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize, &interResult, 0, false,
+                        pUdfInfo);
+      pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
+      tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double ));
+
+      memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
+      getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
+
+      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+
+      if (finalResult) {
+        insertResultField(pQueryInfo, colIndex, &ids, resultSize, (int8_t)resultType, pExpr->base.aliasName, pExpr);
+      } else {
+        assert(ids.num == 1);
+        tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
+      }
+
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
+
+      return TSDB_CODE_SUCCESS;
+    }
+
     default: {
       pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
       if (pUdfInfo == NULL) {
@@ -3337,7 +3417,11 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
   for (int32_t k = 0; k < size; ++k) {
     SExprInfo*   pExpr = tscExprGet(pQueryInfo, k);
-    int16_t functionId = aAggs[pExpr->base.functionId].stableFuncId;
+
+    int16_t functionId = pExpr->base.functionId;
+    if (!TSDB_FUNC_IS_SCALAR(functionId)) {
+      functionId = aAggs[pExpr->base.functionId].stableFuncId;
+    }
 
     int32_t colIndex = pExpr->base.colInfo.colIndex;
     SSchema* pSrcSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, colIndex);
@@ -3412,6 +3496,10 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
       continue;
     }
 
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      continue;
+    }
+
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_STABLE) == 0) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return true;
@@ -3461,7 +3549,8 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   int32_t scalarUdf = 0;
   int32_t prjNum = 0;
   int32_t aggNum = 0;
-  int32_t scalNum = 0;
+  int32_t scalarFuncNum = 0;
+  int32_t funcCompatFactor = INT_MAX;
 
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
@@ -3494,17 +3583,27 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     }
 
     if (functionId == TSDB_FUNC_CEIL || functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND) {
-      ++scalNum;
+      ++scalarFuncNum;
+    }
+
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      ++scalarFuncNum;
     }
 
     if (functionId == TSDB_FUNC_PRJ && (pExpr1->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX || TSDB_COL_IS_UD_COL(pExpr1->base.colInfo.flag))) {
       continue;
     }
 
-    if (factor == INT32_MAX) {
-      factor = functionCompatList[functionId];
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      funcCompatFactor = 1;
     } else {
-      if (functionCompatList[functionId] != factor) {
+      funcCompatFactor = functionCompatList[functionId];
+    }
+
+    if (factor == INT32_MAX) {
+      factor = funcCompatFactor;
+    } else {
+      if (funcCompatFactor != factor) {
         return false;
       } else {
         if (factor == -1) { // two functions with the same -1 flag
@@ -3518,19 +3617,19 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     }
   }
 
-  aggNum = (int32_t)size - prjNum - scalNum - aggUdf - scalarUdf;
+  aggNum = (int32_t)size - prjNum - scalarFuncNum - aggUdf - scalarUdf;
 
   assert(aggNum >= 0);
 
-  if (aggUdf > 0 && (prjNum > 0 || aggNum > 0 || scalNum > 0 || scalarUdf > 0)) {
+  if (aggUdf > 0 && (prjNum > 0 || aggNum > 0 || scalarFuncNum > 0 || scalarUdf > 0)) {
     return false;
   }
 
-  if (scalarUdf > 0 && (aggNum > 0 || scalNum > 0)) {
+  if (scalarUdf > 0 && (aggNum > 0 || scalarFuncNum > 0)) {
     return false;
   }
 
-  if (aggNum > 0 && scalNum > 0) {
+  if (aggNum > 0 && scalarFuncNum > 0) {
     return false;
   }
 
@@ -6272,6 +6371,9 @@ int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < size; ++i) {
     int32_t functId = tscExprGet(pQueryInfo, i)->base.functionId;
+    if (TSDB_FUNC_IS_SCALAR(functId)) {
+      continue;
+    }
     if (!IS_STREAM_QUERY_VALID(aAggs[functId].status)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -6298,6 +6400,11 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
       } else {
         continue;
       }
+    }
+
+    if (TSDB_FUNC_IS_SCALAR(pExpr->base.functionId)) {
+      isProjectionFunction = true;
+      break;
     }
 
     // projection query on primary timestamp, the selectivity function needs to be present.
@@ -6955,6 +7062,11 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      numOfScalar++;
+      continue;
+    }
+
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       numOfSelectivity++;
     } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
@@ -6989,6 +7101,10 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       for (int32_t i = 0; i < numOfExprs; ++i) {
         SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
         int16_t functionId = pExpr->base.functionId;
+        if (TSDB_FUNC_IS_SCALAR(functionId)) {
+          continue;
+        }
+
         if (functionId == TSDB_FUNC_TAGPRJ || (aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) == 0) {
           continue;
         }
@@ -7188,6 +7304,10 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       }
 
       if (f < 0) {
+        continue;
+      }
+
+      if (TSDB_FUNC_IS_SCALAR(f)) {
         continue;
       }
 
@@ -7417,8 +7537,10 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
     if (pExpr->base.functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * pExpr->base.functionId - 1);
       name = pUdfInfo->name;
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(pExpr->base.functionId)) {
       name = aAggs[pExpr->base.functionId].name;
+    } else {
+      name = aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pExpr->base.functionId)].name;
     }
 
     tmpLen =
