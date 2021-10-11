@@ -85,9 +85,20 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
     dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
-    
     STR_WITH_MAXSIZE_TO_VARSTR(dst, type, pField->bytes);
-    
+    char *postfix = NULL;
+    if (pSchema[i].type == TSDB_DATA_TYPE_JSON && JSON_TYPE_BINARY){
+      postfix = " BINARY";
+
+    }
+    else if(pSchema[i].type == TSDB_DATA_TYPE_JSON && JSON_TYPE_NCHAR) {
+      postfix = " NCHAR";
+    }
+    if(postfix){
+      strncpy(varDataVal(dst), postfix, pField->bytes-varDataTLen(dst));
+      varDataSetLen(dst, varDataLen(dst) + strlen(postfix));
+    }
+
     int32_t bytes = pSchema[i].bytes;
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || (pSchema[i].type == TSDB_DATA_TYPE_JSON && JSON_TYPE_BINARY)){
       bytes -= VARSTR_HEADER_SIZE;

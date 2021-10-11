@@ -189,7 +189,7 @@ typedef struct tDataTypeDescriptor {
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
                     int outputSize, char algorithm, char *const buffer, int bufferSize);
   void (*statisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum,
-                        int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
+                     int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypes[16];

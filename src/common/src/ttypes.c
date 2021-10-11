@@ -17,6 +17,7 @@
 #include "ttype.h"
 #include "ttokendef.h"
 #include "tscompression.h"
+#include "tglobal.h"
 
 const int32_t TYPE_BYTES[16] = {
     -1,                      // TSDB_DATA_TYPE_NULL
@@ -368,6 +369,16 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
   *maxIndex = 0;
 }
 
+static void getStatics_json(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
+                            int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
+  if (JSON_TYPE_NCHAR) {
+    getStatics_nchr(pData, numOfRow, min, max, sum, minIndex, maxIndex, numOfNull);
+  }
+  else{
+    getStatics_bin(pData, numOfRow, min, max, sum, minIndex, maxIndex, numOfNull);
+  }
+}
+
 tDataTypeDescriptor tDataTypes[16] = {
   {TSDB_DATA_TYPE_NULL,      6,  1,     "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
   {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               false,      true,           tsCompressBool,      tsDecompressBool,      getStatics_bool},
@@ -384,7 +395,7 @@ tDataTypeDescriptor tDataTypes[16] = {
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
   {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
-  {TSDB_DATA_TYPE_JSON,      4,  0,     "JSON",               0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_JSON,      4,  0,     "JSON",               0,          0,              tsCompressString,    tsDecompressString,    getStatics_json},
 };
 
 char tTokenTypeSwitcher[13] = {
