@@ -19,7 +19,7 @@
 #include "tglobal.h"
 #include "vnodeVersion.h"
 
-int32_t vnodeReadVersion(SVnodeObj *pVnode) {
+int32_t vnodeReadVersion(SVnode *pVnode) {
   int32_t len = 0;
   int32_t maxLen = 100;
   char *  content = calloc(1, maxLen + 1);
@@ -71,7 +71,7 @@ PARSE_VER_ERROR:
   return terrno;
 }
 
-int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
+int32_t vnodeSaveVersion(SVnode *pVnode) {
   char file[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(file, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
 
@@ -90,7 +90,7 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  taosFsync(fileno(fp));
+  taosFsyncFile(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

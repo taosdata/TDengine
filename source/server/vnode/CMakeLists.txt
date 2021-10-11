@@ -15,4 +15,6 @@ target_link_libraries(
     PUBLIC meta
     PUBLIC tq
     PUBLIC tsdb
+    PUBLIC wal
+    PUBLIC cjson
 )

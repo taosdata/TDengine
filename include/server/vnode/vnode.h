@@ -49,7 +49,7 @@ typedef struct {
 } SVnodeFp;
 
 typedef struct {
-  SVnodeFp      fp;
+  SVnodeFp fp;
 } SVnodePara;
 
 /**

@@ -21,21 +21,14 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef struct SDnCfg {
-  int32_t         dnodeId;
-  int32_t         dropped;
-  char            clusterId[TSDB_CLUSTER_ID_LEN];
-  char            file[PATH_MAX + 20];
-  pthread_mutex_t mutex;
-} SDnCfg;
 
-int32_t dnodeInitCfg(SDnCfg **cfg);
-void    dnodeCleanupCfg(SDnCfg **cfg);
-void    dnodeUpdateCfg(SDnCfg *cfg, SDnodeCfg *data);
-int32_t dnodeGetDnodeId(SDnCfg *cfg);
-void    dnodeGetClusterId(SDnCfg *cfg, char *clusterId);
-void    dnodeGetCfg(SDnCfg *cfg, int32_t *dnodeId, char *clusterId);
-void    dnodeSetDropped(SDnCfg *cfg);
+int32_t dnodeInitCfg();
+void    dnodeCleanupCfg();
+void    dnodeUpdateCfg(SDnodeCfg *data);
+int32_t dnodeGetDnodeId();
+void    dnodeGetClusterId(char *clusterId);
+void    dnodeGetCfg(int32_t *dnodeId, char *clusterId);
+void    dnodeSetDropped();
 
 #ifdef __cplusplus
 }

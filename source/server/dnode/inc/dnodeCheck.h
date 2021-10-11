@@ -21,11 +21,9 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef struct SDnCheck {
-} SDnCheck;
 
-int32_t dnodeInitCheck(SDnCheck **check);
-void    dnodeCleanupCheck(SDnCheck **check);
+int32_t dnodeInitCheck();
+void    dnodeCleanupCheck();
 
 #ifdef __cplusplus
 }

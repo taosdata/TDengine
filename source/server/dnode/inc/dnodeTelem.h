@@ -21,21 +21,8 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-/*
- * sem_timedwait is NOT implemented on MacOSX
- * thus we use pthread_mutex_t/pthread_cond_t to simulate
- */
-typedef struct SDnTelem {
-  bool             enable;
-  pthread_mutex_t  lock;
-  pthread_cond_t   cond;
-  volatile int32_t exit;
-  pthread_t        thread;
-  char             email[TSDB_FQDN_LEN];
-} SDnTelem;
-
-int32_t dnodeInitTelem(SDnTelem **telem);
-void    dnodeCleanupTelem(SDnTelem **telem);
+int32_t dnodeInitTelem();
+void    dnodeCleanupTelem();
 
 #ifdef __cplusplus
 }

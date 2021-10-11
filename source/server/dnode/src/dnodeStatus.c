@@ -25,15 +25,15 @@
 #include "dnodeMain.h"
 #include "vnode.h"
 
-static void dnodeSendStatusMsg(void *handle, void *tmrId) {
-  SDnStatus *status = handle;
-  if (status->dnodeTimer == NULL) {
-    dError("dnode timer is already released");
-    return;
-  }
+static struct {
+  void *   dnodeTimer;
+  void *   statusTimer;
+  uint32_t rebootTime;
+} tsStatus;
 
-  if (status->statusTimer == NULL) {
-    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, status, status->dnodeTimer, &status->statusTimer);
+static void dnodeSendStatusMsg(void *handle, void *tmrId) {
+  if (tsStatus.statusTimer == NULL) {
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsStatus.dnodeTimer, &tsStatus.statusTimer);
     dError("failed to start status timer");
     return;
   }
@@ -41,16 +41,15 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   int32_t     contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
   SStatusMsg *pStatus = rpcMallocCont(contLen);
   if (pStatus == NULL) {
-    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, status, status->dnodeTimer, &status->statusTimer);
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsStatus.dnodeTimer, &tsStatus.statusTimer);
     dError("failed to malloc status message");
     return;
   }
 
-  SDnode *dnode = dnodeInst();
-  dnodeGetCfg(dnode->cfg, &pStatus->dnodeId, pStatus->clusterId);
-  pStatus->dnodeId = htonl(dnodeGetDnodeId(dnode->cfg));
+  dnodeGetCfg(&pStatus->dnodeId, pStatus->clusterId);
+  pStatus->dnodeId = htonl(dnodeGetDnodeId());
   pStatus->version = htonl(tsVersion);
-  pStatus->lastReboot = htonl(status->rebootTime);
+  pStatus->lastReboot = htonl(tsStatus.rebootTime);
   pStatus->numOfCores = htons((uint16_t)tsNumOfCores);
   pStatus->diskAvailable = tsAvailDataDirGB;
   pStatus->alternativeRole = tsAlternativeRole;
@@ -80,69 +79,58 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
 
-  SRpcMsg rpcMsg = {.ahandle = status, .pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_DM_STATUS};
+  SRpcMsg rpcMsg = {.ahandle = NULL, .pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_DM_STATUS};
 
   dnodeSendMsgToMnode(&rpcMsg);
 }
 
 void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
-  SDnode *dnode = dnodeInst();
-  SDnStatus *status = pMsg->ahandle;
-
   if (pMsg->code != TSDB_CODE_SUCCESS) {
     dError("status rsp is received, error:%s", tstrerror(pMsg->code));
     if (pMsg->code == TSDB_CODE_MND_DNODE_NOT_EXIST) {
       char clusterId[TSDB_CLUSTER_ID_LEN];
-      dnodeGetClusterId(dnode->cfg, clusterId);
+      dnodeGetClusterId(clusterId);
       if (clusterId[0] != '\0') {
-        dnodeSetDropped(dnode->cfg);
+        dnodeSetDropped();
         dError("exit zombie dropped dnode");
         exit(EXIT_FAILURE);
       }
     }
 
-    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, status, status->dnodeTimer, &status->statusTimer);
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsStatus.dnodeTimer, &tsStatus.statusTimer);
     return;
   }
 
   SStatusRsp *pStatusRsp = pMsg->pCont;
   SMInfos *   minfos = &pStatusRsp->mnodes;
-  dnodeUpdateMnodeFromStatus(dnode->meps, minfos);
+  dnodeUpdateMnodeFromStatus(minfos);
 
   SDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;
   pCfg->numOfVnodes = htonl(pCfg->numOfVnodes);
   pCfg->moduleStatus = htonl(pCfg->moduleStatus);
   pCfg->dnodeId = htonl(pCfg->dnodeId);
-  dnodeUpdateCfg(dnode->cfg, pCfg);
+  dnodeUpdateCfg(pCfg);
 
   vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
 
   SDnodeEps *pEps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SVgroupAccess));
-  dnodeUpdateEps(dnode->eps, pEps);
+  dnodeUpdateEps(pEps);
 
-  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, status, status->dnodeTimer, &status->statusTimer);
+  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsStatus.dnodeTimer, &tsStatus.statusTimer);
 }
 
-int32_t dnodeInitStatus(SDnStatus **out) {
-  SDnStatus *status = calloc(1, sizeof(SDnStatus));
-  if (status == NULL) return -1;
-  status->statusTimer = NULL;
-  status->dnodeTimer = dnodeInst()->main->dnodeTimer;
-  status->rebootTime = taosGetTimestampSec();
-  taosTmrReset(dnodeSendStatusMsg, 500, status, status->dnodeTimer, &status->statusTimer);
-  *out = status;
+int32_t dnodeInitStatus() {
+  tsStatus.statusTimer = NULL;
+  tsStatus.dnodeTimer = dnodeGetTimer();
+  tsStatus.rebootTime = taosGetTimestampSec();
+  taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsStatus.dnodeTimer, &tsStatus.statusTimer);
   dInfo("dnode status timer is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupStatus(SDnStatus **out) {
-  SDnStatus *status = *out;
-  *out = NULL;
-
-  if (status->statusTimer != NULL) {
-    taosTmrStopA(&status->statusTimer);
-    status->statusTimer = NULL;
+void dnodeCleanupStatus() {
+  if (tsStatus.statusTimer != NULL) {
+    taosTmrStopA(&tsStatus.statusTimer);
+    tsStatus.statusTimer = NULL;
   }
-
-  free(status);
 }

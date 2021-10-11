@@ -20,15 +20,14 @@
 
 typedef struct SStepObj {
   char *    name;
-  void **   self;
   InitFp    initFp;
   CleanupFp cleanupFp;
 } SStep;
 
 typedef struct SSteps {
-  int32_t cursize;
-  int32_t maxsize;
-  SStep * steps;
+  int32_t  cursize;
+  int32_t  maxsize;
+  SStep *  steps;
   ReportFp reportFp;
 } SSteps;
 
@@ -44,14 +43,14 @@ SSteps *taosStepInit(int32_t maxsize, ReportFp fp) {
   return steps;
 }
 
-int32_t taosStepAdd(struct SSteps *steps, char *name, void **obj, InitFp initFp, CleanupFp cleanupFp) {
+int32_t taosStepAdd(struct SSteps *steps, char *name, InitFp initFp, CleanupFp cleanupFp) {
   if (steps == NULL) return -1;
   if (steps->cursize >= steps->maxsize) {
     uError("failed to add step since up to the maxsize");
     return -1;
   }
 
-  SStep step = {.name = name, .self = obj, .initFp = initFp, .cleanupFp = cleanupFp};
+  SStep step = {.name = name, .initFp = initFp, .cleanupFp = cleanupFp};
   steps->steps[steps->cursize++] = step;
   return 0;
 }
@@ -61,7 +60,7 @@ static void taosStepCleanupImp(SSteps *steps, int32_t pos) {
     SStep *step = steps->steps + s;
     uDebug("step:%s will cleanup", step->name);
     if (step->cleanupFp != NULL) {
-      (*step->cleanupFp)(step->self);
+      (*step->cleanupFp)();
     }
   }
 }
@@ -77,7 +76,7 @@ int32_t taosStepExec(SSteps *steps) {
       (*steps->reportFp)(step->name, "start initialize");
     }
 
-    int32_t code = (*step->initFp)(step->self);
+    int32_t code = (*step->initFp)();
     if (code != 0) {
       uDebug("step:%s will cleanup", step->name);
       taosStepCleanupImp(steps, s);
