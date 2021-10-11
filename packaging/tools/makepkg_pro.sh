@@ -96,7 +96,7 @@ fi
 sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/taos.cfg
 sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/taos.cfg
 sed -i "s/TDengine/ProDB/g"     ${install_dir}/cfg/taos.cfg
-sed -i "s/support@taosdata.com/support@hanatech.com/g"      ${install_dir}/cfg/taos.cfg
+sed -i "s/support@taosdata.com/support@hanatech.com.cn/g"      ${install_dir}/cfg/taos.cfg
 sed -i "s/taos client/prodbc/g"      ${install_dir}/cfg/taos.cfg
 sed -i "s/taosd/prodbs/g"      ${install_dir}/cfg/taos.cfg
 
