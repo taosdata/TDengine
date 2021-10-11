@@ -1288,7 +1288,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
+      tdAppendMemRowToDataCol(row, pSchema, pTarget, true, true);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
@@ -1310,7 +1310,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
           ASSERT(pSchema != NULL);
         }
 
-        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE,
+                                update != TD_ROW_PARTIAL_UPDATE);
       }
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);

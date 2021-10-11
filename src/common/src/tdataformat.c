@@ -240,7 +240,7 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
   pDataCol->len = 0;
 }
 // value from timestamp should be TKEY here instead of TSKEY
-int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
+int dataColAppendValEx(SDataCol *pCol, const void *value, int numOfRows, int maxPoints, bool isAppend) {
   ASSERT(pCol != NULL && value != NULL);
 
   if (isAllRowsNull(pCol)) {
@@ -264,9 +264,15 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
     // Update the length
     pCol->len += varDataTLen(value);
   } else {
-    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
-    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
-    pCol->len += pCol->bytes;
+    if (isAppend) {  // append the value
+      ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
+      pCol->len += pCol->bytes;
+    } else {
+      // update the value of last row by increasing the pCol->len and keeping the original numOfRows
+      ASSERT((pCol->len == TYPE_BYTES[pCol->type] * (numOfRows + 1)) && (pCol->len > TYPE_BYTES[pCol->type]));
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len - TYPE_BYTES[pCol->type]), value, pCol->bytes);
+    }
   }
   return 0;
 }
@@ -441,7 +447,8 @@ void tdResetDataCols(SDataCols *pCols) {
   }
 }
 
-static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull,
+                                     bool isAppend) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < dataRowKey(row));
 
   int rcol = 0;
@@ -451,7 +458,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+      dataColAppendValEx(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, isAppend);
       dcol++;
       continue;
     }
@@ -460,14 +467,14 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     if (pRowCol->colId == pDataCol->colId) {
       void *value = tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE);
       if(!isNull(value, pDataCol->type)) setCol = 1;
-      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+      dataColAppendValEx(pDataCol, value, pCols->numOfRows, pCols->maxPoints, isAppend);
       dcol++;
       rcol++;
     } else if (pRowCol->colId < pDataCol->colId) {
       rcol++;
     } else {
       if(forceSetNull || setCol) {
-        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendValEx(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, isAppend);
       }
       dcol++;
     }
@@ -475,7 +482,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   pCols->numOfRows++;
 }
 
-static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, bool isAppend) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < kvRowKey(row));
 
   int rcol = 0;
@@ -487,7 +494,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+      dataColAppendValEx(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, isAppend);
       ++dcol;
       continue;
     }
@@ -497,14 +504,14 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     if (colIdx->colId == pDataCol->colId) {
       void *value = tdGetKvRowDataOfCol(row, colIdx->offset);
       if(!isNull(value, pDataCol->type)) setCol = 1;
-      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+      dataColAppendValEx(pDataCol, value, pCols->numOfRows, pCols->maxPoints, isAppend);
       ++dcol;
       ++rcol;
     } else if (colIdx->colId < pDataCol->colId) {
       ++rcol;
     } else {
       if (forceSetNull || setCol) {
-        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendValEx(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, isAppend);
       }
       ++dcol;
     }
@@ -512,11 +519,11 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
   pCols->numOfRows++;
 }
 
-void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, bool isAppend) {
   if (isDataRow(row)) {
-    tdAppendDataRowToDataCol(memRowDataBody(row), pSchema, pCols, forceSetNull);
+    tdAppendDataRowToDataCol(memRowDataBody(row), pSchema, pCols, forceSetNull, isAppend);
   } else if (isKvRow(row)) {
-    tdAppendKvRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull);
+    tdAppendKvRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull, isAppend);
   } else {
     ASSERT(0);
   }
