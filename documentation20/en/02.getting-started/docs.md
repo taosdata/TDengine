@@ -181,6 +181,7 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 ```
 
 **Note**: you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
+Please refer to [How to use taosdemo to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosdemo) for detail.
 
 ## Client and Alarm Module
 
