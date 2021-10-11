@@ -4,5 +4,6 @@
 #include "meta.h"
 
 TEST(MetaTest, meta_open_test) {
+    metaOpen(NULL);
     std::cout << "Hello META!" << std::endl;
 }
