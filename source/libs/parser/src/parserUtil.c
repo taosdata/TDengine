@@ -2,7 +2,7 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-int32_t parserValidateNameToken(SToken* pToken) {
+int32_t parserValidateIdToken(SToken* pToken) {
   if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -57,4 +57,9 @@ int32_t parserValidateNameToken(SToken* pToken) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t parserSetInvalidOperatorMsg(char* dst, int32_t dstBufLen, const char* msg) {
+  strncpy(dst, msg, dstBufLen);
+  return TSDB_CODE_TSC_INVALID_OPERATION;
 }

@@ -48,6 +48,16 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQ
 
 /**
  *
+ * @param pNode
+ * @param tsPrecision
+ * @param msg
+ * @param msgBufLen
+ * @return
+ */
+int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, char* msg, int32_t msgBufLen);
+
+/**
+ *
  * @param pSqlNode
  * @param pMetaInfo
  * @return

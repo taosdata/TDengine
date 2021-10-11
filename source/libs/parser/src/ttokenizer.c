@@ -411,6 +411,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       *tokenId = TK_QUESTION;
       return 1;
     }
+    case '`':
     case '\'':
     case '"': {
       int  delim = z[0];
@@ -434,7 +435,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (z[i]) i++;
 
       if (strEnd) {
-        *tokenId = TK_STRING;
+        *tokenId = (delim == '`')? TK_ID:TK_STRING;
         return i;
       }
 

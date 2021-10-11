@@ -277,6 +277,7 @@ bool      tSqlExprIsParentOfLeaf(tSqlExpr *pExpr);
 void      tSqlExprDestroy(tSqlExpr *pExpr);
 SArray *  tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SToken *pDistinct, SToken *pToken);
 void      tSqlExprListDestroy(SArray *pList);
+void      tSqlExprEvaluate(tSqlExpr* pExpr);
 
 SSqlNode *tSetQuerySqlNode(SToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                            SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,

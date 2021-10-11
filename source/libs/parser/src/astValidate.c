@@ -13,13 +13,82 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "ttime.h"
 #include "parserInt.h"
 #include "parserUtil.h"
-#include "tmsgtype.h"
 
-static int32_t setInvalidOperatorErrMsg(char* dst, int32_t dstBufLen, const char* msg) {
-  strncpy(dst, msg, dstBufLen);
-  return TSDB_CODE_TSC_INVALID_OPERATION;
+static int32_t evaluateImpl(tSqlExpr* pExpr, int32_t tsPrecision) {
+  int32_t code = 0;
+  if (pExpr->type == SQL_NODE_EXPR) {
+    code = evaluateImpl(pExpr->pLeft, tsPrecision);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = evaluateImpl(pExpr->pRight, tsPrecision);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if (pExpr->pLeft->type == SQL_NODE_VALUE && pExpr->pRight->type == SQL_NODE_VALUE) {
+      tSqlExpr* pLeft  = pExpr->pLeft;
+      tSqlExpr* pRight = pExpr->pRight;
+      if ((pLeft->tokenId == TK_TIMESTAMP && (pRight->tokenId == TK_INTEGER || pRight->tokenId == TK_FLOAT)) ||
+          ((pRight->tokenId == TK_TIMESTAMP && (pLeft->tokenId == TK_INTEGER || pLeft->tokenId == TK_FLOAT)))) {
+        return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      } else if (pLeft->tokenId == TK_TIMESTAMP && pRight->tokenId == TK_TIMESTAMP) {
+        tSqlExprEvaluate(pExpr);
+      } else {
+        tSqlExprEvaluate(pExpr);
+      }
+    } else {
+      // Other types of expressions are not evaluated, they will be handled during the validation of the abstract syntax tree.
+    }
+  } else if (pExpr->type == SQL_NODE_VALUE) {
+    if (pExpr->tokenId == TK_NOW) {
+      pExpr->value.i64   = taosGetTimestamp(tsPrecision);
+      pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->tokenId     = TK_TIMESTAMP;
+    } else if (pExpr->tokenId == TK_VARIABLE) {
+      char    unit = 0;
+      SToken* pToken = &pExpr->exprToken;
+      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pExpr->value.i64, &unit, tsPrecision);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      }
+
+      pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->tokenId = TK_TIMESTAMP;
+    }  else if (pExpr->tokenId == TK_NULL) {
+      pExpr->value.nType = TSDB_DATA_TYPE_NULL;
+    } else if (pExpr->tokenId == TK_INTEGER || pExpr->tokenId == TK_STRING || pExpr->tokenId == TK_FLOAT || pExpr->tokenId == TK_BOOL) {
+      SToken* pToken = &pExpr->exprToken;
+
+      int32_t tokenType = pToken->type;
+      toTSDBType(tokenType);
+      taosVariantCreate(&pExpr->value, pToken->z, pToken->n, tokenType);
+    }
+
+    return  TSDB_CODE_SUCCESS;
+    // other types of data are handled in the parent level.
+  }
+
+  return  TSDB_CODE_SUCCESS;
+}
+
+int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, char* msg, int32_t msgBufLen) {
+  assert(pNode != NULL && msg != NULL && msgBufLen > 0);
+  if (pNode->pWhere == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = evaluateImpl(pNode->pWhere, tsPrecision);
+  if (code != TSDB_CODE_SUCCESS) {
+    strncpy(msg, "invalid time expression in sql", msgBufLen);
+    return code;
+  }
+
+  return code;
 }
 
 int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msgBuf, int32_t msgBufLen) {
@@ -37,15 +106,15 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       const char* msg2 = "invalid name";
 
       SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (parserValidateNameToken(pzName) != TSDB_CODE_SUCCESS)) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+      if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (parserValidateIdToken(pzName) != TSDB_CODE_SUCCESS)) {
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
       }
 
       if (pInfo->type == TSDB_SQL_DROP_DB) {
         assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
         code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
         if (code != TSDB_CODE_SUCCESS) {
-          return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+          return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
         }
 
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
@@ -62,7 +131,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         strncpy(pCmd->payload, pzName->z, pzName->n);
       } else {  // drop user/account
         if (pzName->n >= TSDB_USER_LEN) {
-          return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg3);
+          return setInvalidOperatorMsg(msgBuf, msgBufLen, msg3);
         }
 
         strncpy(pCmd->payload, pzName->z, pzName->n);
@@ -76,12 +145,12 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg);
       }
 
       int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
       if (ret != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg);
       }
 
       break;
@@ -116,19 +185,19 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
       if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
       }
 
       char buf[TSDB_DB_NAME_LEN] = {0};
       SToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
 
       if (tscValidateName(&token) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
       }
 
       int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &token);
       if (ret != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
       }
 
       if (parseCreateDBOptions(pCmd, pCreateDB) != TSDB_CODE_SUCCESS) {
@@ -142,7 +211,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       const char* msg = "invalid host name (ip address)";
 
       if (taosArrayGetSize(pInfo->pMiscInfo->a) > 1) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg);
       }
 
       SToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
@@ -166,11 +235,11 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       }
 
       if (pName->n >= TSDB_USER_LEN) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg3);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg3);
       }
 
       if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
       }
 
       SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
@@ -180,7 +249,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
         } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
         } else {
-          return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+          return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
         }
       }
 
@@ -192,7 +261,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
       }
       // additional msg has been attached already
       code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
@@ -208,7 +277,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
       }
 
       code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
@@ -223,11 +292,11 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
       }
 
       if (pToken->n > TSDB_DB_NAME_LEN) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
       }
       return tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
     }
@@ -240,7 +309,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       /* validate the parameter names and options */
       if (validateDNodeConfig(pMiscInfo) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
       }
 
       char* pMsg = pCmd->payload;
@@ -254,7 +323,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       strncpy(pCfg->ep, t0->z, t0->n);
 
       if (validateEp(pCfg->ep) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg3);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg3);
       }
 
       strncpy(pCfg->config, t1->z, t1->n);
@@ -283,11 +352,11 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       SToken* pPwd = &pUser->passwd;
 
       if (pName->n >= TSDB_USER_LEN) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg3);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg3);
       }
 
       if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg2);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg2);
       }
 
       if (pCmd->command == TSDB_SQL_CREATE_USER) {
@@ -311,10 +380,10 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
           } else if (strncasecmp(pPrivilege->z, "write", 5) == 0 && pPrivilege->n == 5) {
             pCmd->count = 3;
           } else {
-            return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg5);
+            return setInvalidOperatorMsg(msgBuf, msgBufLen, msg5);
           }
         } else {
-          return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg7);
+          return setInvalidOperatorMsg(msgBuf, msgBufLen, msg7);
         }
       }
 
@@ -327,7 +396,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       // validate the parameter names and options
       if (validateLocalConfig(pMiscInfo) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg);
       }
 
       int32_t numOfToken = (int32_t) taosArrayGetSize(pMiscInfo->a);
@@ -382,7 +451,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 
         if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
-          return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+          return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
         }
 
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
@@ -448,19 +517,19 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
       code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
       if (code != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg1);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg1);
       }
       break;
     }
     case TSDB_SQL_COMPACT_VNODE:{
       const char* msg = "invalid compact";
       if (setCompactVnodeInfo(pSql, pInfo) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorErrMsg(msgBuf, msgBufLen, msg);
+        return setInvalidOperatorMsg(msgBuf, msgBufLen, msg);
       }
       break;
     }
     default:
-      return setInvalidOperatorErrMsg(msgBuf, msgBufLen, "not support sql expression");
+      return setInvalidOperatorMsg(msgBuf, msgBufLen, "not support sql expression");
   }
 #endif
 

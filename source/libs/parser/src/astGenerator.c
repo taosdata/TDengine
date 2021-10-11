@@ -18,52 +18,6 @@
 #include "astGenerator.h"
 #include "tmsgtype.h"
 
-int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned) {
-  errno = 0;
-  int32_t ret = 0;
-
-  char* endPtr = NULL;
-  if (type == TK_FLOAT) {
-    double v = strtod(z, &endPtr);
-    if ((errno == ERANGE && v == HUGE_VALF) || isinf(v) || isnan(v)) {
-      ret = -1;
-    } else if ((issigned && (v < INT64_MIN || v > INT64_MAX)) || ((!issigned) && (v < 0 || v > UINT64_MAX))) {
-      ret = -1;
-    } else {
-      *value = (int64_t) round(v);
-    }
-
-    errno = 0;
-    return ret;
-  }
-
-  int32_t radix = 10;
-  if (type == TK_HEX) {
-    radix = 16;
-  } else if (type == TK_BIN) {
-    radix = 2;
-  }
-
-  // the string may be overflow according to errno
-  if (!issigned) {
-    const char *p = z;
-    while(*p != 0 && *p == ' ') p++;
-    if (*p != 0 && *p == '-') { return -1;}
-
-    *value = strtoull(z, &endPtr, radix);
-  } else {
-    *value = strtoll(z, &endPtr, radix);
-  }
-
-  // not a valid integer number, return error
-  if (endPtr - z != n || errno == ERANGE) {
-    ret = -1;
-  }
-
-  errno = 0;
-  return ret;
-}
-
 SArray *tListItemAppend(SArray *pList, SVariant *pVar, uint8_t sortOrder) {
   if (pList == NULL) {
     pList = taosArrayInit(4, sizeof(SListItem));
@@ -173,7 +127,6 @@ SRelationInfo *addSubquery(SRelationInfo *pRelationInfo, SArray *pSub, SToken *p
 }
 
 // sql expr leaf node
-// todo Evalute the value during the validation process of AST.
 tSqlExpr *tSqlExprCreateIdValue(SToken *pToken, int32_t optrType) {
   tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
@@ -189,34 +142,10 @@ tSqlExpr *tSqlExprCreateIdValue(SToken *pToken, int32_t optrType) {
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type = SQL_NODE_VALUE;
   } else if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
-//    if (pToken) {
-//      toTSDBType(pToken->type);
-//      tVariantCreate(&pSqlExpr->value, pToken);
-//    }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type = SQL_NODE_VALUE;
-  } else if (optrType == TK_NOW) {
-    // use nanosecond by default TODO set value after getting database precision
-//    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
-//    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
-    pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
-    pSqlExpr->type = SQL_NODE_VALUE;
-//    pSqlExpr->flags |= 1 << EXPR_FLAG_NS_TIMESTAMP;
-  } else if (optrType == TK_VARIABLE) {
-    // use nanosecond by default
-    // TODO set value after getting database precision
-//    if (pToken) {
-//      char    unit = 0;
-//      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
-//      if (ret != TSDB_CODE_SUCCESS) {
-//        terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-//      }
-//    }
-
-//    pSqlExpr->flags |= 1 << EXPR_FLAG_NS_TIMESTAMP;
-//    pSqlExpr->flags |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
-//    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
-    pSqlExpr->tokenId = TK_TIMESTAMP;
+  } else if (optrType == TK_NOW || optrType == TK_VARIABLE) {
+    pSqlExpr->tokenId = optrType;  // TK_TIMESTAMP used to denote this is a timestamp value
     pSqlExpr->type = SQL_NODE_VALUE;
   } else {
     // Here it must be the column name (tk_id) if it is not a number or string.
@@ -269,87 +198,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pExpr->exprToken.type = pLeft->exprToken.type;
   }
 
-  if ((pLeft != NULL && pRight != NULL) &&
-      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM)) {
-    /*
-     * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
-     * Otherwise, the time precision is adaptive, determined by the time precision from databases.
-     */
-    if ((pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_INTEGER) ||
-        (pLeft->tokenId == TK_TIMESTAMP && pRight->tokenId == TK_TIMESTAMP)) {
-      pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
-      pExpr->tokenId = pLeft->tokenId;
-      pExpr->type    = SQL_NODE_VALUE;
-
-      switch (optrType) {
-        case TK_PLUS: {
-          pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
-          break;
-        }
-        case TK_MINUS: {
-          pExpr->value.i64 = pLeft->value.i64 - pRight->value.i64;
-          break;
-        }
-        case TK_STAR: {
-          pExpr->value.i64 = pLeft->value.i64 * pRight->value.i64;
-          break;
-        }
-        case TK_DIVIDE: {
-          pExpr->tokenId = TK_FLOAT;
-          pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
-          pExpr->value.d = (double)pLeft->value.i64 / pRight->value.i64;
-          break;
-        }
-        case TK_REM: {
-          pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
-          break;
-        }
-      }
-
-      tSqlExprDestroy(pLeft);
-      tSqlExprDestroy(pRight);
-    } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
-               (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
-               (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {
-      pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
-      pExpr->tokenId  = TK_FLOAT;
-      pExpr->type     = SQL_NODE_VALUE;
-
-      double left  = (pLeft->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->value.d : pLeft->value.i64;
-      double right = (pRight->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->value.d : pRight->value.i64;
-
-      switch (optrType) {
-        case TK_PLUS: {
-          pExpr->value.d = left + right;
-          break;
-        }
-        case TK_MINUS: {
-          pExpr->value.d = left - right;
-          break;
-        }
-        case TK_STAR: {
-          pExpr->value.d = left * right;
-          break;
-        }
-        case TK_DIVIDE: {
-          pExpr->value.d = left / right;
-          break;
-        }
-        case TK_REM: {
-          pExpr->value.d = left - ((int64_t)(left / right)) * right;
-          break;
-        }
-      }
-
-      tSqlExprDestroy(pLeft);
-      tSqlExprDestroy(pRight);
-
-    } else {
-      pExpr->tokenId = optrType;
-      pExpr->pLeft = pLeft;
-      pExpr->pRight = pRight;
-    }
-  } else if (optrType == TK_IN) {
+  if (optrType == TK_IN) {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
 
@@ -499,6 +348,105 @@ void tSqlExprListDestroy(SArray *pList) {
     return;
   }
   taosArrayDestroyEx(pList, freeExprElem);
+}
+
+void tSqlExprEvaluate(tSqlExpr* pExpr) {
+  tSqlExpr *pLeft = pExpr->pLeft;
+  tSqlExpr *pRight = pExpr->pRight;
+
+  if (pLeft == NULL || pRight == NULL) {
+    return;
+  }
+
+  int32_t optrType = pExpr->tokenId;
+
+  if ((optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE ||
+       optrType == TK_REM)) {
+    /*
+     * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
+     * Otherwise, the time precision is adaptive, determined by the time precision from databases.
+     */
+    int32_t ltoken = pLeft->tokenId;
+    int32_t rtoken = pRight->tokenId;
+
+    if ((ltoken == TK_INTEGER && rtoken == TK_INTEGER) || (ltoken == TK_TIMESTAMP && rtoken == TK_TIMESTAMP)) {
+      pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->tokenId = ltoken;
+      pExpr->type = SQL_NODE_VALUE;
+
+      switch (optrType) {
+        case TK_PLUS: {
+          pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
+          break;
+        }
+        case TK_MINUS: {
+          pExpr->value.i64 = pLeft->value.i64 - pRight->value.i64;
+          break;
+        }
+        case TK_STAR: {
+          pExpr->value.i64 = pLeft->value.i64 * pRight->value.i64;
+          break;
+        }
+        case TK_DIVIDE: {
+          pExpr->tokenId = TK_FLOAT;
+          pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
+          pExpr->value.d = (double)pLeft->value.i64 / pRight->value.i64;
+          break;
+        }
+        case TK_REM: {
+          pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
+          break;
+        }
+        default:
+          assert(0);
+      }
+
+      tSqlExprDestroy(pLeft);
+      tSqlExprDestroy(pRight);
+
+      pExpr->pLeft  = NULL;
+      pExpr->pRight = NULL;
+    } else if ((ltoken == TK_FLOAT && rtoken == TK_INTEGER) || (ltoken == TK_INTEGER && rtoken == TK_FLOAT) ||
+               (ltoken == TK_FLOAT && rtoken == TK_FLOAT)) {
+      pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->tokenId = TK_FLOAT;
+      pExpr->type = SQL_NODE_VALUE;
+
+      double left  = (pLeft->value.nType  == TSDB_DATA_TYPE_DOUBLE) ? pLeft->value.d : pLeft->value.i64;
+      double right = (pRight->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->value.d : pRight->value.i64;
+
+      switch (optrType) {
+        case TK_PLUS: {
+          pExpr->value.d = left + right;
+          break;
+        }
+        case TK_MINUS: {
+          pExpr->value.d = left - right;
+          break;
+        }
+        case TK_STAR: {
+          pExpr->value.d = left * right;
+          break;
+        }
+        case TK_DIVIDE: {
+          pExpr->value.d = left / right;
+          break;
+        }
+        case TK_REM: {
+          pExpr->value.d = left - ((int64_t)(left / right)) * right;
+          break;
+        }
+        default:
+          assert(0);
+      }
+
+      tSqlExprDestroy(pLeft);
+      tSqlExprDestroy(pRight);
+
+      pExpr->pLeft  = NULL;
+      pExpr->pRight = NULL;
+    }
+  }
 }
 
 SSqlNode *tSetQuerySqlNode(SToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,

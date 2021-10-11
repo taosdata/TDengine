@@ -14,6 +14,7 @@
 #include "ttoken.h"
 #include "astGenerator.h"
 #include "parserUtil.h"
+#include "parserInt.h"
 
 namespace {
 int32_t testValidateName(char* name) {
@@ -23,7 +24,7 @@ int32_t testValidateName(char* name) {
   token.type = 0;
 
   tGetToken(name, &token.type);
-  return parserValidateNameToken(&token);
+  return parserValidateIdToken(&token);
 }
 
 SToken createToken(char* s) {
@@ -667,4 +668,29 @@ TEST(testCase, isValidNumber_test) {
 TEST(testCase, generateAST_test) {
   SSqlInfo info = doGenerateAST("select * from t1 where ts < now");
   ASSERT_EQ(info.valid, true);
+
+  SSqlInfo info1 = doGenerateAST("select * from `t.1abc` where ts<now+2h  and col < 20+99");
+  ASSERT_EQ(info1.valid, true);
+
+  char msg[128] = {0};
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, msg, sizeof(msg));
+  ASSERT_EQ(code, 0);
+
+  SSqlInfo info2 = doGenerateAST("select * from abc where ts<now+2");
+  SSqlNode* pNode2 = (SSqlNode*) taosArrayGetP(((SArray*)info2.list), 0);
+  code = evaluateSqlNode(pNode2, TSDB_TIME_PRECISION_MILLI, msg, sizeof(msg));
+  ASSERT_NE(code, 0);
+}
+
+TEST(testCase, evaluateAST_test) {
+  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and col < 20 + 99");
+  ASSERT_EQ(info1.valid, true);
+
+  char msg[128] = {0};
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, msg, sizeof(msg));
+  ASSERT_EQ(code, 0);
+
+
 }
