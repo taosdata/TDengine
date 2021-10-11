@@ -49,7 +49,7 @@ void tdigestAutoFill(TDigest* t, int32_t compression) {
 }
 
 TDigest *tdigestNewFrom(void* pBuf, int32_t compression) {
-    memset(pBuf, 0, TDIGEST_SIZE(compression));
+    memset(pBuf, 0, (size_t)TDIGEST_SIZE(compression));
     TDigest* t = (TDigest*)pBuf;
     tdigestAutoFill(t, compression);
 
