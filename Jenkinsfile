@@ -1,4 +1,5 @@
 import hudson.model.Result
+import hudson.model.*;
 import jenkins.model.CauseOfInterruption
 properties([pipelineTriggers([githubPush()])])
 node {
@@ -6,6 +7,7 @@ node {
 }
 
 def skipbuild=0
+def win_stop=0
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -110,7 +112,84 @@ def pre_test(){
     '''
     return 1
 }
+def pre_test_win(){
+    bat '''
+    taskkill /f /t /im python.exe
+    cd C:\\
+    rd /s /Q C:\\TDengine
+    cd C:\\workspace\\TDinternal
+    rd /s /Q C:\\workspace\\TDinternal\\debug
+    cd C:\\workspace\\TDinternal\\community
+    git reset --hard HEAD~10 
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        bat '''
+        cd C:\\workspace\\TDinternal\\community
+        git checkout master
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        bat '''
+        cd C:\\workspace\\TDinternal\\community
+        git checkout 2.0
+        '''
+      } 
+      else{
+        bat '''
+        cd C:\\workspace\\TDinternal\\community
+        git checkout develop
+        '''
+      }
+    }
+    bat'''
+    cd C:\\workspace\\TDinternal\\community
+    git pull 
+    git fetch origin +refs/pull/%CHANGE_ID%/merge
+    git checkout -qf FETCH_HEAD
+    git clean -dfx
+    cd C:\\workspace\\TDinternal
+    git reset --hard HEAD~10
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        bat '''
+        cd C:\\workspace\\TDinternal
+        git checkout master
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        bat '''
+        cd C:\\workspace\\TDinternal
+        git checkout 2.0
+        '''
+      } 
+      else{
+        bat '''
+        cd C:\\workspace\\TDinternal
+        git checkout develop
+        '''
+      } 
+    }
+    bat '''
+    cd C:\\workspace\\TDinternal
+    git pull 
 
+    date
+    git clean -dfx
+    mkdir debug
+    cd debug
+    call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
+    cmake ../ -G "NMake Makefiles" 
+    nmake || exit 8
+    nmake install || exit 8
+    xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
+    cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
+    python -m pip install .
+    
+    '''
+    return 1
+}
 pipeline {
   agent none
   environment{
@@ -387,7 +466,39 @@ pipeline {
               date'''              
             }
           }
-        }        
+        } 
+        
+        stage('build'){
+          agent{label " wintest "}
+          steps {
+            pre_test()
+            script{             
+                while(win_stop == 0){
+                  sleep(1)
+                  }
+              }
+            }
+        }
+        stage('test'){
+          agent{label "win"}
+          steps{
+            
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                pre_test_win()
+                timeout(time: 20, unit: 'MINUTES'){
+                bat'''
+                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                .\\test-all.bat Wintest
+                '''
+                }
+            }     
+            script{
+              win_stop=1
+            }
+          }
+        }
+          
+               
     }
   }
   }

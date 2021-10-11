@@ -202,6 +202,19 @@ taos
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
+## Install TDengine by apt-get
+
+If you use Debian or Ubuntu system, you can use 'apt-get' command to intall TDengine from official repository. Please use following commands to setup:
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
+
 ## Quick Run
 
 If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)

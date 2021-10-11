@@ -574,10 +574,10 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
     memset(fullTableName, 0, tListLen(fullTableName));
     tNameExtractFullName(&sname, fullTableName);
-    tscFreeRegisteredSqlObj(pSql);
 
     size_t size = 0;
-    taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    tscFreeRegisteredSqlObj(pSql);
   }
 
   if (tableMeta != NULL) {
@@ -1811,8 +1811,8 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
-    if (len > TSDB_COL_NAME_LEN) {
-      tscError("SML:0x%"PRIx64" Key field cannot exceeds 65 characters", info->id);
+    if (len >= TSDB_COL_NAME_LEN - 1) {
+      tscError("SML:0x%"PRIx64" Key field cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     //unescaped '=' identifies a tag key
@@ -1898,8 +1898,8 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   }
 
   while (*cur != '\0') {
-    if (len > TSDB_TABLE_NAME_LEN) {
-      tscError("SML:0x%"PRIx64" Measurement field cannot exceeds 193 characters", info->id);
+    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+      tscError("SML:0x%"PRIx64" Measurement field cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       free(pSml->stableName);
       pSml->stableName = NULL;
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
@@ -1917,7 +1917,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     if (*cur == '\\') {
       escapeSpecialCharacter(1, &cur);
     }
-    pSml->stableName[len] = *cur;
+    pSml->stableName[len] = tolower(*cur);
     cur++;
     len++;
   }
@@ -1929,7 +1929,11 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 }
 
 //Table name can only contain digits(0-9),alphebet(a-z),underscore(_)
-int32_t isValidChildTableName(const char *pTbName, int16_t len) {
+int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* info) {
+  if (len > TSDB_TABLE_NAME_LEN - 1) {
+    tscError("SML:0x%"PRIx64" child table name cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
   const char *cur = pTbName;
   for (int i = 0; i < len; ++i) {
     if(!isdigit(cur[i]) && !isalpha(cur[i]) && (cur[i] != '_')) {
@@ -1975,12 +1979,13 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     }
     if (!isField &&
         (strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
-      ret = isValidChildTableName(pkv->value, pkv->length);
+      ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
         goto error;
       }
       smlData->childTableName = malloc( pkv->length + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
+      strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
       smlData->childTableName[pkv->length] = '\0';
       free(pkv->key);
       free(pkv->value);
@@ -2184,3 +2189,43 @@ cleanup:
   return code;
 }
 
+/**
+ * taos_schemaless_insert() parse and insert data points into database according to
+ * different protocol.
+ *
+ * @param $lines input array may contain multiple lines, each line indicates a data point.
+ *               If protocol=2 is used input array should contain single JSON
+ *               string(e.g. char *lines[] = {"$JSON_string"}). If need to insert
+ *               multiple data points in JSON format, should include them in $JSON_string
+ *               as a JSON array.
+ * @param $numLines indicates how many data points in $lines.
+ *                  If protocol = 2 is used this param will be ignored as $lines should
+ *                  contain single JSON string.
+ * @param $protocol indicates which protocol to use for parsing:
+ *                  0 - influxDB line protocol
+ *                  1 - OpenTSDB telnet line protocol
+ *                  2 - OpenTSDB JSON format protocol
+ * @return return zero for successful insertion. Otherwise return none-zero error code of
+ *         failure reason.
+ *
+ */
+
+int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol) {
+  int code;
+  switch (protocol) {
+    case SML_LINE_PROTOCOL:
+      code = taos_insert_lines(taos, lines, numLines);
+      break;
+    case SML_TELNET_PROTOCOL:
+      code = taos_insert_telnet_lines(taos, lines, numLines);
+      break;
+    case SML_JSON_PROTOCOL:
+      code = taos_insert_json_payload(taos, *lines);
+      break;
+    default:
+      code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
+      break;
+  }
+
+  return code;
+}

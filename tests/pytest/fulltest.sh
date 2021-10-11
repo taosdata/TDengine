@@ -219,6 +219,7 @@ python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 #taosdemo
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py 
 
 #query
 python3 test.py -f query/distinctOneColTb.py 
@@ -345,6 +346,7 @@ python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
+python3 ./test.py -f functions/function_sample.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
@@ -398,7 +400,12 @@ python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
+
+
+python3 ./test.py -f client/nettest.py
+
 python3 ./test.py -f query/queryRegex.py
+python3 ./test.py -f tools/taosdemoTestdatatype.py
 #======================p4-end===============
 
 
