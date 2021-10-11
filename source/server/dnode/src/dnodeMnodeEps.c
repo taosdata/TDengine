@@ -22,43 +22,51 @@
 #include "dnodeMnodeEps.h"
 #include "mnode.h"
 
-static void dnodePrintMnodeEps(SDnMnEps *meps) {
-  SRpcEpSet *epset = &meps->mnodeEpSet;
+static struct {
+  SRpcEpSet       mnodeEpSet;
+  SMInfos         mnodeInfos;
+  char            file[PATH_MAX + 20];
+  pthread_mutex_t mutex;
+} tsDmeps;
+
+
+static void dnodePrintMnodeEps() {
+  SRpcEpSet *epset = &tsDmeps.mnodeEpSet;
   dInfo("print mnode eps, num:%d inuse:%d", epset->numOfEps, epset->inUse);
   for (int32_t i = 0; i < epset->numOfEps; i++) {
     dInfo("ep index:%d, %s:%u", i, epset->fqdn[i], epset->port[i]);
   }
 }
 
-static void dnodeResetMnodeEps(SDnMnEps *meps, SMInfos *mInfos) {
+static void dnodeResetMnodeEps(SMInfos *mInfos) {
   if (mInfos == NULL || mInfos->mnodeNum == 0) {
-    meps->mnodeEpSet.numOfEps = 1;
-    taosGetFqdnPortFromEp(tsFirst, meps->mnodeEpSet.fqdn[0], &meps->mnodeEpSet.port[0]);
+    tsDmeps.mnodeEpSet.numOfEps = 1;
+    taosGetFqdnPortFromEp(tsFirst, tsDmeps.mnodeEpSet.fqdn[0], &tsDmeps.mnodeEpSet.port[0]);
 
     if (strcmp(tsSecond, tsFirst) != 0) {
-      meps->mnodeEpSet.numOfEps = 2;
-      taosGetFqdnPortFromEp(tsSecond, meps->mnodeEpSet.fqdn[1], &meps->mnodeEpSet.port[1]);
+      tsDmeps.mnodeEpSet.numOfEps = 2;
+      taosGetFqdnPortFromEp(tsSecond, tsDmeps.mnodeEpSet.fqdn[1], &tsDmeps.mnodeEpSet.port[1]);
     }
-    dnodePrintMnodeEps(meps);
+    dnodePrintMnodeEps();
     return;
   }
 
-    int32_t size = sizeof(SMInfos);
-  memcpy(&meps->mnodeInfos, mInfos, size);
+  int32_t size = sizeof(SMInfos);
+  memcpy(&tsDmeps.mnodeInfos, mInfos, size);
 
-  meps->mnodeEpSet.inUse = meps->mnodeInfos.inUse;
-  meps->mnodeEpSet.numOfEps = meps->mnodeInfos.mnodeNum;
-  for (int32_t i = 0; i < meps->mnodeInfos.mnodeNum; i++) {
-    taosGetFqdnPortFromEp(meps->mnodeInfos.mnodeInfos[i].mnodeEp, meps->mnodeEpSet.fqdn[i], &meps->mnodeEpSet.port[i]);
+  tsDmeps.mnodeEpSet.inUse = tsDmeps.mnodeInfos.inUse;
+  tsDmeps.mnodeEpSet.numOfEps = tsDmeps.mnodeInfos.mnodeNum;
+  for (int32_t i = 0; i < tsDmeps.mnodeInfos.mnodeNum; i++) {
+    taosGetFqdnPortFromEp(tsDmeps.mnodeInfos.mnodeInfos[i].mnodeEp, tsDmeps.mnodeEpSet.fqdn[i], &tsDmeps.mnodeEpSet.port[i]);
   }
 
-  dnodePrintMnodeEps(meps);
+  dnodePrintMnodeEps();
 }
 
-static int32_t dnodeWriteMnodeEps(SDnMnEps *meps) {
-  FILE *fp = fopen(meps->file, "w");
+static int32_t dnodeWriteMnodeEps() {
+  FILE *fp = fopen(tsDmeps.file, "w");
   if (!fp) {
-    dError("failed to write %s since %s", meps->file, strerror(errno));
+    dError("failed to write %s since %s", tsDmeps.file, strerror(errno));
     return -1;
   }
 
@@ -67,13 +75,13 @@ static int32_t dnodeWriteMnodeEps(SDnMnEps *meps) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"inUse\": %d,\n", meps->mnodeInfos.inUse);
-  len += snprintf(content + len, maxLen - len, "  \"nodeNum\": %d,\n", meps->mnodeInfos.mnodeNum);
+  len += snprintf(content + len, maxLen - len, "  \"inUse\": %d,\n", tsDmeps.mnodeInfos.inUse);
+  len += snprintf(content + len, maxLen - len, "  \"nodeNum\": %d,\n", tsDmeps.mnodeInfos.mnodeNum);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
-  for (int32_t i = 0; i < meps->mnodeInfos.mnodeNum; i++) {
-    len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", meps->mnodeInfos.mnodeInfos[i].mnodeId);
-    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", meps->mnodeInfos.mnodeInfos[i].mnodeEp);
-    if (i < meps->mnodeInfos.mnodeNum - 1) {
+  for (int32_t i = 0; i < tsDmeps.mnodeInfos.mnodeNum; i++) {
+    len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", tsDmeps.mnodeInfos.mnodeInfos[i].mnodeId);
+    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", tsDmeps.mnodeInfos.mnodeInfos[i].mnodeEp);
+    if (i < tsDmeps.mnodeInfos.mnodeNum - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {
       len += snprintf(content + len, maxLen - len, "  }]\n");
@@ -87,11 +95,11 @@ static int32_t dnodeWriteMnodeEps(SDnMnEps *meps) {
   free(content);
   terrno = 0;
 
-  dInfo("successed to write %s", meps->file);
+  dInfo("successed to write %s", tsDmeps.file);
   return 0;
 }
 
-static int32_t dnodeReadMnodeEps(SDnMnEps *meps, SDnEps *deps) {
+static int32_t dnodeReadMnodeEps() {
   int32_t len = 0;
   int32_t maxLen = 2000;
   char *  content = calloc(1, maxLen + 1);
@@ -100,22 +108,22 @@ static int32_t dnodeReadMnodeEps(SDnMnEps *meps, SDnEps *deps) {
   SMInfos mInfos = {0};
   bool    nodeChanged = false;
 
-  fp = fopen(meps->file, "r");
+  fp = fopen(tsDmeps.file, "r");
   if (!fp) {
-    dDebug("file %s not exist", meps->file);
+    dDebug("file %s not exist", tsDmeps.file);
     goto PARSE_MINFOS_OVER;
   }
 
   len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
-    dError("failed to read %s since content is null", meps->file);
+    dError("failed to read %s since content is null", tsDmeps.file);
     goto PARSE_MINFOS_OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
-    dError("failed to read %s since invalid json format", meps->file);
+    dError("failed to read %s since invalid json format", tsDmeps.file);
     goto PARSE_MINFOS_OVER;
   }
 
@@ -124,7 +132,7 @@ static int32_t dnodeReadMnodeEps(SDnMnEps *meps, SDnEps *deps) {
     dError("failed to read mnodeEpSet.json since inUse not found");
     goto PARSE_MINFOS_OVER;
   }
-  meps->mnodeInfos.inUse = (int8_t)inUse->valueint;
+  tsDmeps.mnodeInfos.inUse = (int8_t)inUse->valueint;
 
   cJSON *nodeNum = cJSON_GetObjectItem(root, "nodeNum");
   if (!nodeNum || nodeNum->type != cJSON_Number) {
@@ -165,11 +173,11 @@ static int32_t dnodeReadMnodeEps(SDnMnEps *meps, SDnEps *deps) {
     mInfo->mnodeId = (int32_t)nodeId->valueint;
     tstrncpy(mInfo->mnodeEp, nodeEp->valuestring, TSDB_EP_LEN);
 
-    bool changed = dnodeIsDnodeEpChanged(deps, mInfo->mnodeId, mInfo->mnodeEp);
+    bool changed = dnodeIsDnodeEpChanged(mInfo->mnodeId, mInfo->mnodeEp);
     if (changed) nodeChanged = changed;
   }
 
-  dInfo("successed to read file %s", meps->file);
+  dInfo("successed to read file %s", tsDmeps.file);
 
 PARSE_MINFOS_OVER:
   if (content != NULL) free(content);
@@ -182,25 +190,24 @@ PARSE_MINFOS_OVER:
     dnodeGetDnodeEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
   }
 
-  dnodeResetMnodeEps(meps, &mInfos);
+  dnodeResetMnodeEps(&mInfos);
 
   if (nodeChanged) {
-    dnodeWriteMnodeEps(meps);
+    dnodeWriteMnodeEps();
   }
 
   return 0;
 }
 
 void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
-  SDnMnEps *meps = dnodeInst()->meps;
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
   SRpcEpSet epSet = {0};
   if (forShell) {
-    dnodeGetEpSetForShell(meps, &epSet);
+    dnodeGetEpSetForShell(&epSet);
   } else {
-    dnodeGetEpSetForPeer(meps, &epSet);
+    dnodeGetEpSetForPeer(&epSet);
   }
 
   dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfEps:%d inUse:%d", taosMsg[rpcMsg->msgType],
@@ -222,16 +229,12 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
   rpcSendRedirectRsp(rpcMsg->handle, &epSet);
 }
 
-int32_t dnodeInitMnodeEps(SDnMnEps **out) {
-  SDnMnEps *meps = calloc(1, sizeof(SDnMnEps));
-  if (meps == NULL) return -1;
+int32_t dnodeInitMnodeEps() {
+  snprintf(tsDmeps.file, sizeof(tsDmeps.file), "%s/mnodeEpSet.json", tsDnodeDir);
+  pthread_mutex_init(&tsDmeps.mutex, NULL);
 
-  snprintf(meps->file, sizeof(meps->file), "%s/mnodeEpSet.json", tsDnodeDir);
-  pthread_mutex_init(&meps->mutex, NULL);
-  *out = meps;
-
-  dnodeResetMnodeEps(meps, NULL);
-  int32_t ret = dnodeReadMnodeEps(meps, dnodeInst()->eps);
+  dnodeResetMnodeEps(NULL);
+  int32_t ret = dnodeReadMnodeEps();
   if (ret == 0) {
     dInfo("dnode mInfos is initialized");
   }
@@ -239,17 +242,11 @@ int32_t dnodeInitMnodeEps(SDnMnEps **out) {
   return ret;
 }
 
-void dnodeCleanupMnodeEps(SDnMnEps **out) {
-  SDnMnEps *meps = *out;
-  *out = NULL;
-
-  if (meps != NULL) {
-    pthread_mutex_destroy(&meps->mutex);
-    free(meps);
-  }
+void dnodeCleanupMnodeEps() {
+  pthread_mutex_destroy(&tsDmeps.mutex);
 }
 
-void dnodeUpdateMnodeFromStatus(SDnMnEps *meps, SMInfos *mInfos) {
+void dnodeUpdateMnodeFromStatus(SMInfos *mInfos) {
   if (mInfos->mnodeNum <= 0 || mInfos->mnodeNum > TSDB_MAX_REPLICA) {
     dError("invalid mInfos since num:%d invalid", mInfos->mnodeNum);
     return;
@@ -264,53 +261,51 @@ void dnodeUpdateMnodeFromStatus(SDnMnEps *meps, SMInfos *mInfos) {
     }
   }
 
-  pthread_mutex_lock(&meps->mutex);
-  if (mInfos->mnodeNum != meps->mnodeInfos.mnodeNum) {
-    dnodeResetMnodeEps(meps, mInfos);
-    dnodeWriteMnodeEps(meps);
+  pthread_mutex_lock(&tsDmeps.mutex);
+  if (mInfos->mnodeNum != tsDmeps.mnodeInfos.mnodeNum) {
+    dnodeResetMnodeEps(mInfos);
+    dnodeWriteMnodeEps();
   } else {
     int32_t size = sizeof(SMInfos);
-    if (memcmp(mInfos, &meps->mnodeInfos, size) != 0) {
-      dnodeResetMnodeEps(meps, mInfos);
-      dnodeWriteMnodeEps(meps);
+    if (memcmp(mInfos, &tsDmeps.mnodeInfos, size) != 0) {
+      dnodeResetMnodeEps(mInfos);
+      dnodeWriteMnodeEps();
     }
   }
-  pthread_mutex_unlock(&meps->mutex);
+  pthread_mutex_unlock(&tsDmeps.mutex);
 }
 
-void dnodeUpdateMnodeFromPeer(SDnMnEps *meps, SRpcEpSet *ep) {
+void dnodeUpdateMnodeFromPeer(SRpcEpSet *ep) {
   if (ep->numOfEps <= 0) {
     dError("mInfos is changed, but content is invalid, discard it");
     return;
   }
 
-  pthread_mutex_lock(&meps->mutex);
+  pthread_mutex_lock(&tsDmeps.mutex);
 
   dInfo("mInfos is changed, numOfEps:%d inUse:%d", ep->numOfEps, ep->inUse);
   for (int32_t i = 0; i < ep->numOfEps; ++i) {
     ep->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("minfo:%d %s:%u", i, ep->fqdn[i], ep->port[i]);
   }
-  meps->mnodeEpSet = *ep;
+  tsDmeps.mnodeEpSet = *ep;
 
-  pthread_mutex_unlock(&meps->mutex);
+  pthread_mutex_unlock(&tsDmeps.mutex);
 }
 
-void dnodeGetEpSetForPeer(SDnMnEps *meps, SRpcEpSet *epSet) {
-  pthread_mutex_lock(&meps->mutex);
+void dnodeGetEpSetForPeer(SRpcEpSet *epSet) {
+  pthread_mutex_lock(&tsDmeps.mutex);
 
-  *epSet = meps->mnodeEpSet;
+  *epSet = tsDmeps.mnodeEpSet;
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {
     epSet->port[i] += TSDB_PORT_DNODEDNODE;
   }
 
-  pthread_mutex_unlock(&meps->mutex);
+  pthread_mutex_unlock(&tsDmeps.mutex);
 }
 
-void dnodeGetEpSetForShell(SDnMnEps *meps, SRpcEpSet *epSet) {
-  pthread_mutex_lock(&meps->mutex);
-
-  *epSet = meps->mnodeEpSet;
-
-  pthread_mutex_unlock(&meps->mutex);
+void dnodeGetEpSetForShell(SRpcEpSet *epSet) {
+  pthread_mutex_lock(&tsDmeps.mutex);
+  *epSet = tsDmeps.mnodeEpSet;
+  pthread_mutex_unlock(&tsDmeps.mutex);
 }

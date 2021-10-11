@@ -13,16 +13,39 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tstep.h"
+#include "vnodeMain.h"
+#include "vnodeMgmt.h"
+#include "vnodeRead.h"
+#include "vnodeWorker.h"
+#include "vnodeWrite.h"
 
-int32_t vnodeInit(SVnodePara para) { return 0; }
+static struct {
+  struct SSteps *steps;
+  SVnodeFp       fp;
+} tsVint;
 
-void vnodeCleanup() {}
+int32_t vnodeInit(SVnodePara para) {
+  tsVint.fp = para.fp;
 
-int32_t vnodeGetStatistics(SVnodeStat *stat) { return 0; }
+  struct SSteps *steps = taosStepInit(8, NULL);
+  if (steps == NULL) return -1;
 
-void vnodeGetStatus(struct SStatusMsg *status) {}
+  taosStepAdd(steps, "vnode-main", vnodeInitMain, vnodeCleanupMain);
+  taosStepAdd(steps, "vnode-worker",vnodeInitWorker, vnodeCleanupWorker);
+  taosStepAdd(steps, "vnode-read", vnodeInitRead, vnodeCleanupRead);
+  taosStepAdd(steps, "vnode-mgmt", vnodeInitMgmt, vnodeCleanupMgmt);
+  taosStepAdd(steps, "vnode-write", vnodeInitWrite, vnodeCleanupWrite);
+  // taosStepAdd(steps, "vnode-queue", tsdbInitCommitQueue, tsdbDestroyCommitQueue);
 
-void vnodeSetAccess(struct SVgroupAccess *access, int32_t numOfVnodes) {}
+  tsVint.steps = steps;
+  return taosStepExec(tsVint.steps);
+}
 
-void vnodeProcessMsg(SRpcMsg *msg) {}
+void vnodeCleanup() { taosStepCleanup(tsVint.steps); }
+
+void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port) {
+  return (*tsVint.fp.GetDnodeEp)(dnodeId, ep, fqdn, port);
+}

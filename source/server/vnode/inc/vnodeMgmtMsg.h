@@ -13,30 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_MGMT_H
-#define TDENGINE_VNODE_MGMT_H
+#ifndef _TD_VNODE_MGMT_MSG_H_
+#define _TD_VNODE_MGMT_MSG_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeInitMgmt();
-void    vnodeCleanupMgmt();
-
-void*   vnodeAcquire(int32_t vgId);
-void    vnodeRelease(void *pVnode);
-void*   vnodeGetWal(void *pVnode);
-
-int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
-void    vnodeBuildStatusMsg(void *pStatus);
-void    vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes);
-
-void    vnodeAddIntoHash(SVnodeObj* pVnode);
-void    vnodeRemoveFromHash(SVnodeObj * pVnode);
+int32_t vnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg);
+int32_t vnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg);
+int32_t vnodeProcessSyncVnodeMsg(SRpcMsg *rpcMsg);
+int32_t vnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg);
+int32_t vnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg);
+int32_t vnodeProcessAlterStreamReq(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_MGMT_H_*/

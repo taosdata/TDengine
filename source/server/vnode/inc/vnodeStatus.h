@@ -13,19 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_CFG_H
-#define TDENGINE_VNODE_CFG_H
+#ifndef _TD_VNODE_STATUS_H_
+#define _TD_VNODE_STATUS_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeReadCfg(SVnodeObj *pVnode);
-int32_t vnodeWriteCfg(SCreateVnodeMsg *pVnodeCfg);
+typedef enum _VN_STATUS {
+  TAOS_VN_STATUS_INIT = 0,
+  TAOS_VN_STATUS_READY = 1,
+  TAOS_VN_STATUS_CLOSING = 2,
+  TAOS_VN_STATUS_UPDATING = 3
+} EVnodeStatus;
+
+// vnodeStatus
+extern char* vnodeStatus[];
+
+bool vnodeSetInitStatus(SVnode* pVnode);
+bool vnodeSetReadyStatus(SVnode* pVnode);
+bool vnodeSetClosingStatus(SVnode* pVnode);
+bool vnodeSetUpdatingStatus(SVnode* pVnode);
+
+bool vnodeInInitStatus(SVnode* pVnode);
+bool vnodeInReadyStatus(SVnode* pVnode);
+bool vnodeInClosingStatus(SVnode* pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_STATUS_H_*/

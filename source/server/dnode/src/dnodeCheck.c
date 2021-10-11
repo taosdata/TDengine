@@ -118,7 +118,7 @@ static int32_t dnodeCheckMem() {
 }
 
 static int32_t dnodeCheckDisk() {
-#if 0  
+#if 0
   taosGetDisk();
 
   if (tsAvailDataDirGB < tsMinimalDataDirGB) {
@@ -145,12 +145,7 @@ static int32_t dnodeCheckAccess() { return 0; }
 static int32_t dnodeCheckVersion() { return 0; }
 static int32_t dnodeCheckDatafile() { return 0; }
 
-int32_t dnodeInitCheck(SDnCheck **out) {
-  SDnCheck *check = calloc(1, sizeof(SDnCheck));
-  if (check == NULL) return -1;
-
-  *out = check;
-
+int32_t dnodeInitCheck() {
   if (dnodeCheckNetwork() != 0) {
     dError("failed to check network");
     return -1;
@@ -195,9 +190,4 @@ int32_t dnodeInitCheck(SDnCheck **out) {
   return 0;
 }
 
-void dnodeCleanupCheck(SDnCheck **out) {
-  SDnCheck *check = *out;
-  *out = NULL;
-
-  free(check);
-}
+void dnodeCleanupCheck() {}

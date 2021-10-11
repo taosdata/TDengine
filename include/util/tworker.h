@@ -20,14 +20,16 @@
 extern "C" {
 #endif
 
-typedef int32_t (*ProcessReqFp)(void *ahandle, void *msg);
-typedef void (*SendRspFp)(void *ahandle, void *msg, int32_t qtype, int32_t code);
+typedef int32_t (*ProcessStartFp)(void *ahandle, void *pMsg, int32_t qtype);
+typedef void (*ProcessEndFp)(void *ahandle, void *pMsg, int32_t qtype, int32_t code);
 
-struct SWorkerPool;
+typedef bool (*ProcessWriteStartFp)(void *ahandle, void *pMsg, int32_t qtype);
+typedef void (*ProcessWriteSyncFp)(void *ahandle, int32_t code);
+typedef void (*ProcessWriteEndFp)(void *ahandle, void *pMsg, int32_t qtype);
 
-typedef struct {
-  pthread_t           thread;  // thread
+typedef struct SWorker {
   int32_t             id;      // worker ID
+  pthread_t           thread;  // thread
   struct SWorkerPool *pool;
 } SWorker;
 
@@ -35,18 +37,42 @@ typedef struct SWorkerPool {
   int32_t         max;  // max number of workers
   int32_t         min;  // min number of workers
   int32_t         num;  // current number of workers
-  void *          qset;
+  taos_qset       qset;
   const char *    name;
+  ProcessStartFp  startFp;
+  ProcessEndFp    endFp;
   SWorker *       workers;
-  ProcessReqFp    reqFp;
-  SendRspFp       rspFp;
   pthread_mutex_t mutex;
 } SWorkerPool;
 
-int32_t tWorkerInit(SWorkerPool *pPool);
-void    tWorkerCleanup(SWorkerPool *pPool);
-void *  tWorkerAllocQueue(SWorkerPool *pPool, void *ahandle);
-void    tWorkerFreeQueue(SWorkerPool *pPool, void *pQueue);
+typedef struct SWriteWorker {
+  int32_t                  id;      // worker id
+  pthread_t                thread;  // thread
+  taos_qall                qall;
+  taos_qset                qset;  // queue set
+  struct SWriteWorkerPool *pool;
+} SWriteWorker;
+
+typedef struct SWriteWorkerPool {
+  int32_t             max;     // max number of workers
+  int32_t             nextId;  // from 0 to max-1, cyclic
+  const char *        name;
+  ProcessWriteStartFp startFp;
+  ProcessWriteSyncFp  syncFp;
+  ProcessWriteEndFp   endFp;
+  SWriteWorker *      workers;
+  pthread_mutex_t     mutex;
+} SWriteWorkerPool;
+
+int32_t    tWorkerInit(SWorkerPool *pool);
+void       tWorkerCleanup(SWorkerPool *pool);
+taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle);
+void       tWorkerFreeQueue(SWorkerPool *pool, taos_queue queue);
+
+int32_t    tWriteWorkerInit(SWriteWorkerPool *pool);
+void       tWriteWorkerCleanup(SWriteWorkerPool *pool);
+taos_queue tWriteWorkerAllocQueue(SWriteWorkerPool *pool, void *ahandle);
+void       tWriteWorkerFreeQueue(SWriteWorkerPool *pool, taos_queue queue);
 
 #ifdef __cplusplus
 }

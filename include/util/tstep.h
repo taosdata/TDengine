@@ -20,14 +20,14 @@
 extern "C" {
 #endif
 
-typedef int32_t (*InitFp)(void **obj);
-typedef void (*CleanupFp)(void **obj);
+typedef int32_t (*InitFp)();
+typedef void (*CleanupFp)();
 typedef void (*ReportFp)(char *name, char *desc);
 
 struct SSteps *taosStepInit(int32_t maxsize, ReportFp fp);
 int32_t        taosStepExec(struct SSteps *steps);
 void           taosStepCleanup(struct SSteps *steps);
-int32_t        taosStepAdd(struct SSteps *steps, char *name, void **obj, InitFp initFp, CleanupFp cleanupFp);
+int32_t        taosStepAdd(struct SSteps *steps, char *name, InitFp initFp, CleanupFp cleanupFp);
 
 #ifdef __cplusplus
 }

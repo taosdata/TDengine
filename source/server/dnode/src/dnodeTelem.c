@@ -25,6 +25,19 @@
 #define TELEMETRY_PORT 80
 #define REPORT_INTERVAL 86400
 
+/*
+ * sem_timedwait is NOT implemented on MacOSX
+ * thus we use pthread_mutex_t/pthread_cond_t to simulate
+ */
+static struct {
+  bool             enable;
+  pthread_mutex_t  lock;
+  pthread_cond_t   cond;
+  volatile int32_t exit;
+  pthread_t        thread;
+  char             email[TSDB_FQDN_LEN];
+} tsTelem;
+
 static void dnodeBeginObject(SBufferWriter* bw) { tbufWriteChar(bw, '{'); }
 
 static void dnodeCloseObject(SBufferWriter* bw) {
@@ -154,14 +167,14 @@ static void dnodeAddMemoryInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void dnodeAddVersionInfo(SDnTelem* telem, SBufferWriter* bw) {
+static void dnodeAddVersionInfo(SBufferWriter* bw) {
   dnodeAddStringField(bw, "version", version);
   dnodeAddStringField(bw, "buildInfo", buildinfo);
   dnodeAddStringField(bw, "gitInfo", gitinfo);
-  dnodeAddStringField(bw, "email", telem->email);
+  dnodeAddStringField(bw, "email", tsTelem.email);
 }
 
-static void dnodeAddRuntimeInfo(SDnTelem* telem, SBufferWriter* bw) {
+static void dnodeAddRuntimeInfo(SBufferWriter* bw) {
   SMnodeStat stat = {0};
   if (mnodeGetStatistics(&stat) != 0) {
     return;
@@ -179,7 +192,7 @@ static void dnodeAddRuntimeInfo(SDnTelem* telem, SBufferWriter* bw) {
   dnodeAddIntField(bw, "compStorage", stat.compStorage);
 }
 
-static void dnodeSendTelemetryReport(SDnTelem* telem) {
+static void dnodeSendTelemetryReport() {
   char     buf[128] = {0};
   uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
@@ -192,16 +205,18 @@ static void dnodeSendTelemetryReport(SDnTelem* telem) {
     return;
   }
 
-  SDnode *dnode = dnodeInst();
+  char clusterId[TSDB_CLUSTER_ID_LEN] = {0};
+  dnodeGetClusterId(clusterId);
+
   SBufferWriter bw = tbufInitWriter(NULL, false);
   dnodeBeginObject(&bw);
-  dnodeAddStringField(&bw, "instanceId", dnode->cfg->clusterId);
+  dnodeAddStringField(&bw, "instanceId", clusterId);
   dnodeAddIntField(&bw, "reportVersion", 1);
   dnodeAddOsInfo(&bw);
   dnodeAddCpuInfo(&bw);
   dnodeAddMemoryInfo(&bw);
-  dnodeAddVersionInfo(telem, &bw);
-  dnodeAddRuntimeInfo(telem, &bw);
+  dnodeAddVersionInfo(&bw);
+  dnodeAddRuntimeInfo(&bw);
   dnodeCloseObject(&bw);
 
   const char* header =
@@ -227,25 +242,23 @@ static void dnodeSendTelemetryReport(SDnTelem* telem) {
 }
 
 static void* dnodeTelemThreadFp(void* param) {
-  SDnTelem* telem = param;
-
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
   end.tv_sec += 300;  // wait 5 minutes before send first report
 
   setThreadName("dnode-telem");
 
-  while (!telem->exit) {
+  while (!tsTelem.exit) {
     int32_t         r = 0;
     struct timespec ts = end;
-    pthread_mutex_lock(&telem->lock);
-    r = pthread_cond_timedwait(&telem->cond, &telem->lock, &ts);
-    pthread_mutex_unlock(&telem->lock);
+    pthread_mutex_lock(&tsTelem.lock);
+    r = pthread_cond_timedwait(&tsTelem.cond, &tsTelem.lock, &ts);
+    pthread_mutex_unlock(&tsTelem.lock);
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
     if (mnodeIsServing()) {
-      dnodeSendTelemetryReport(telem);
+      dnodeSendTelemetryReport();
     }
     end.tv_sec += REPORT_INTERVAL;
   }
@@ -253,40 +266,35 @@ static void* dnodeTelemThreadFp(void* param) {
   return NULL;
 }
 
-static void dnodeGetEmail(SDnTelem* telem, char* filepath) {
+static void dnodeGetEmail(char* filepath) {
   int32_t fd = taosOpenFileRead(filepath);
   if (fd < 0) {
     return;
   }
 
-  if (taosReadFile(fd, (void*)telem->email, TSDB_FQDN_LEN) < 0) {
+  if (taosReadFile(fd, (void*)tsTelem.email, TSDB_FQDN_LEN) < 0) {
     dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
   }
 
   taosCloseFile(fd);
 }
 
-int32_t dnodeInitTelem(SDnTelem** out) {
-  SDnTelem* telem = calloc(1, sizeof(SDnTelem));
-  if (telem == NULL) return -1;
+int32_t dnodeInitTelem() {
+  tsTelem.enable = tsEnableTelemetryReporting;
+  if (!tsTelem.enable) return 0;
 
-  telem->enable = tsEnableTelemetryReporting;
-  *out = telem;
+  tsTelem.exit = 0;
+  pthread_mutex_init(&tsTelem.lock, NULL);
+  pthread_cond_init(&tsTelem.cond, NULL);
+  tsTelem.email[0] = 0;
 
-  if (!telem->enable) return 0;
-
-  telem->exit = 0;
-  pthread_mutex_init(&telem->lock, NULL);
-  pthread_cond_init(&telem->cond, NULL);
-  telem->email[0] = 0;
-
-  dnodeGetEmail(telem, "/usr/local/taos/email");
+  dnodeGetEmail("/usr/local/taos/email");
 
   pthread_attr_t attr;
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-  int32_t code = pthread_create(&telem->thread, &attr, dnodeTelemThreadFp, telem);
+  int32_t code = pthread_create(&tsTelem.thread, &attr, dnodeTelemThreadFp, NULL);
   pthread_attr_destroy(&attr);
   if (code != 0) {
     dTrace("failed to create telemetry thread since :%s", strerror(code));
@@ -296,26 +304,18 @@ int32_t dnodeInitTelem(SDnTelem** out) {
   return 0;
 }
 
-void dnodeCleanupTelem(SDnTelem** out) {
-  SDnTelem* telem = *out;
-  *out = NULL;
+void dnodeCleanupTelem() {
+  if (!tsTelem.enable) return;
 
-  if (!telem->enable) {
-    free(telem);
-    return;
+  if (taosCheckPthreadValid(tsTelem.thread)) {
+    pthread_mutex_lock(&tsTelem.lock);
+    tsTelem.exit = 1;
+    pthread_cond_signal(&tsTelem.cond);
+    pthread_mutex_unlock(&tsTelem.lock);
+
+    pthread_join(tsTelem.thread, NULL);
   }
 
-  if (taosCheckPthreadValid(telem->thread)) {
-    pthread_mutex_lock(&telem->lock);
-    telem->exit = 1;
-    pthread_cond_signal(&telem->cond);
-    pthread_mutex_unlock(&telem->lock);
-
-    pthread_join(telem->thread, NULL);
-  }
-
-  pthread_mutex_destroy(&telem->lock);
-  pthread_cond_destroy(&telem->cond);
-
-  free(telem);
+  pthread_mutex_destroy(&tsTelem.lock);
+  pthread_cond_destroy(&tsTelem.cond);
 }

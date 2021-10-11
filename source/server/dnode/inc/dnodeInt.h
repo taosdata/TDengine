@@ -19,36 +19,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "taoserror.h"
 #include "taosmsg.h"
-#include "tglobal.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tstep.h"
 #include "dnode.h"
 
-struct SDnCfg;
-struct SDnCheck;
-struct SDnEps;
-struct SDnMnEps;
-struct SDnStatus;
-struct SDnTelem;
-struct SDnTrans;
-struct SDnMain;
-
-typedef struct SDnode {
-  struct SSteps*    steps;
-  struct SDnCfg*    cfg;
-  struct SDnCheck*  check;
-  struct SDnEps*    eps;
-  struct SDnMnEps*  meps;
-  struct SDnStatus* status;
-  struct SDnTelem*  telem;
-  struct SDnTrans*  trans;
-  struct SDnMain*   main;
-} SDnode;
-
-SDnode* dnodeInst();
+extern int32_t dDebugFlag;
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", 255, __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", 255, __VA_ARGS__); }}
