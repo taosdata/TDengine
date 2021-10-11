@@ -340,13 +340,7 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints);
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints);
 
-// value from timestamp should be TKEY here instead of TSKEY
-int dataColAppendValEx(SDataCol *pCol, const void *value, int numOfRows, int maxPoints, bool isAppend);
-
-// value from timestamp should be TKEY here instead of TSKEY
-FORCE_INLINE int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
-  return dataColAppendValEx(pCol, value, numOfRows, maxPoints, true);
-}
+int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints, int rowOffset);
 
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
@@ -678,7 +672,7 @@ static FORCE_INLINE char *memRowEnd(SMemRow row) {
 #define memRowDeleted(r) TKEY_IS_DELETED(memRowTKey(r))
 
 SMemRow tdMemRowDup(SMemRow row);
-void    tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, bool isAppend);
+void    tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, int rowOffset);
 
 // NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int16_t colId, int8_t colType, uint16_t offset) {
