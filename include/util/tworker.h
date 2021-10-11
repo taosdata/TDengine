@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TWORKER_H
-#define TDENGINE_TWORKER_H
+#ifndef _TD_UTIL_WORKER_H
+#define _TD_UTIL_WORKER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,4 +78,4 @@ void       tWriteWorkerFreeQueue(SWriteWorkerPool *pool, taos_queue queue);
 }
 #endif
 
-#endif
+#endif /*_TD_UTIL_WORKER_H*/
