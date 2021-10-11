@@ -2814,12 +2814,15 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
         }
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
+
         double dp = GET_DOUBLE_VAL(val);
         if (dp < 0 || dp > TOP_BOTTOM_QUERY_LIMIT) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
         }
+
         getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize, &interResult, 0, false,
             pUdfInfo);
+
         /*
          * sql function transformation
          * for dp = 0, it is actually min,
@@ -2827,6 +2830,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
          */
         tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
         colIndex += 1;  // the first column is ts
+        
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
 
@@ -2879,7 +2883,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
                           pUdfInfo);
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
-
       } else {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
