@@ -97,29 +97,45 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 
 用户可以通过 SQL 指令在系统中加载客户端所在主机上的 UDF 函数库（不能通过 RESTful 接口或 HTTP 管理界面来进行这一过程）。一旦创建成功，则当前 TDengine 集群的所有用户都可以在 SQL 指令中使用这些函数。UDF 存储在系统的 MNode 节点上，因此即使重启 TDengine 系统，已经创建的 UDF 也仍然可用。
 
-在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。
+在创建 UDF 时，需要区分标量函数和聚合函数，并结合用户自定义的UDF函数的设计，以明确函数中是否使用缓冲区，并对函数处理的列对象的数据类型予以明确，以正确的方式创建UDF函数，否则可能导致通过 SQL 指令调用函数时出错。
 
-- 创建标量函数：`CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize B;`
+- 创建标量函数：`CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [bufsize B];`
   * ids(X)：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
-  * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
+  * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来，可以为相对路径或者绝对路径；
+  * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可，与函数处理处理的对象列数据类型保持一致；
+  * bufsize ：若标量函数用到了缓冲区，则应该分配bufsize，若标量函数未用到缓冲区，则无需分配bufsize。
   * B：系统使用的中间临时缓冲区大小，单位是字节，最小 0，最大 512，通常可以设置为 128。
 
   例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
   ```sql
   CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
   ```
+  add_one 函数内部处理对象数据类型为 INT ，且并未使用到缓冲区，因此创建函数时 OUTPUTTYPE 为 INT ，无需分配 bufsize 。
 
-- 创建聚合函数：`CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize B;`
+- 创建聚合函数：`CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [bufsize B];`
+  * AGGREGATE：聚合函数的创建必须使用该关键字，在创建函数时，需要明确 UDF 函数的类型；
   * ids(X)：聚合函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
+  * ids(Y)：包含 UDF 函数实现的动态链接库的库文件路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来，可以为相对路径或者绝对路径；
   * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
+  * bufsize ：若标量函数用到了缓冲区，则应该分配bufsize，若标量函数未用到缓冲区，则无需分配bufsize。
   * B：系统使用的中间临时缓冲区大小，单位是字节，最小 0，最大 512，通常可以设置为 128。
 
   例如，如下语句可以把 abs_max.so 创建为系统中可用的 UDF：
   ```sql
-  CREATE AGGREGATE FUNCTION abs_max AS "/home/taos/udf_example/abs_max.so" OUTPUTTYPE BIGINT bufsize 128;
+  CREATE AGGREGATE FUNCTION abs_max AS "/home/taos/udf_example/abs_max.so" OUTPUTTYPE BIGINT;
   ```
+  abs_max 为聚合函数，创建时使用关键字AGGREGATE ，函数内部处理对象数据类型为 BIGINT ，且并未使用到缓冲区，因此创建函数时 OUTPUTTYPE 为 BIGINT ，无需分配 bufsize 。
+
+  与之类似，如下语句可以把 sum_double.so 创建为系统中可用的 UDF：
+  ```sql
+  CREATE AGGREGATE FUNCTION sum_double AS "/home/taos/udf_example/sum_double.so" OUTPUTTYPE INT bufsize 128;
+  ```
+  sum_double 为聚合函数，创建时使用关键字 AGGREGATE ，函数内部处理对象数据类型为 INT ，使用了缓冲区，因此创建函数时 OUTPUTTYPE 为 INT ，分配 bufsize 128 。
+
+  当前版本，创建UDF函数的基本原则：
+1. 明确区分UDF函数的类型，对聚合函数使用 AGGREGATE 关键字；
+2. 明确缓冲区的分配，对使用缓冲区的函数分配bufsize,未使用缓冲区的函数，无需分配bufsize；
+3. 明确处理的对象列数据类型，OUTPUTTYPE 与处理的对象列类型保持一致；
 
 ### 管理 UDF
 
@@ -134,7 +150,7 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 SELECT X(c) FROM table/stable;
 ```
 
-表示对名为 c 的数据列调用名为 X 的用户定义函数。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。
+表示对名为 c 的数据列调用名为 X 的用户定义函数，需要注意数据列 c 的数据类型和UDF函数内部处理的对象列数据类型一致。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。
 
 ## UDF 的一些使用限制
 
