@@ -157,7 +157,7 @@ SELECT X(c) FROM table/stable;
 在当前版本下，使用 UDF 存在如下这些限制：
 1. 在创建和调用 UDF 时，服务端和客户端都只支持 Linux 操作系统；
 2. UDF 不能与系统内建的 SQL 函数混合使用；
-3. UDF 只支持以单个数据列作为输入；6
+3. UDF 只支持以单个数据列作为输入；
 4. UDF 只要创建成功，就会被持久化存储到 MNode 节点中；
 5. 无法通过 RESTful 接口来创建 UDF；
 6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
