@@ -683,7 +683,8 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON_BINARY:
+    case TSDB_DATA_TYPE_JSON_NCHAR:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -791,13 +792,15 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
       return MAX(25, width);
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON_BINARY:
       if (field->bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);
       } else {
         return MAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON_NCHAR:{
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);
@@ -805,12 +808,6 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
         return MAX(bytes, width);
       }
     }
-    case TSDB_DATA_TYPE_JSON:
-      if (field->bytes > tsMaxBinaryDisplayWidth) {
-        return MAX(tsMaxBinaryDisplayWidth, width);
-      } else {
-        return MAX(field->bytes, width);
-      }
 
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {

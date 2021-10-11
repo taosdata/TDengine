@@ -158,7 +158,8 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       pVar->dKey = GET_FLOAT_VAL(pz);
       break;
     }
-    case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON_NCHAR:{ // here we get the nchar length from raw binary bits length
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
 
       pVar->wpz = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
@@ -168,7 +169,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_JSON_BINARY:{
       pVar->pz = calloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
@@ -919,14 +920,17 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       
       break;
     }
-    case TSDB_DATA_TYPE_JSON: {
+    case TSDB_DATA_TYPE_JSON_BINARY:
+    case TSDB_DATA_TYPE_JSON_NCHAR:{
       if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
       } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY){
         *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
-      } else if (pVariant->nType == TSDB_DATA_TYPE_JSON){   // select * from stable, set tag type to json，from setTagValue/tag_project_function
+      } else if (pVariant->nType == TSDB_DATA_TYPE_JSON_BINARY){   // select * from stable, set tag type to json，from setTagValue/tag_project_function
         memcpy(payload, pVariant->pz, pVariant->nLen);
-      } else {
+      } else if(pVariant->nType == TSDB_DATA_TYPE_JSON_NCHAR){
+        memcpy(payload, pVariant->wpz, pVariant->nLen);
+      }else {
         return -1;
       }
       break;

@@ -376,12 +376,12 @@ void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
 char* cloneCurrentDBName(SSqlObj* pSql);
 
-int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId);
-char* parseTagDatatoJson(void *p);
-void findTagValue(STable* data, char* key, int32_t keyLen, char* out, int16_t len);
+int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId, uint8_t jsonType);
+char* parseTagDatatoJson(void *p, uint8_t jsonType);
+void findTagValue(STable* data, char* key, int32_t keyLen, char* out, int16_t len, uint8_t jsonType);
 
-int8_t  jsonType2DbType(double data, int jsonType);
-void*      getJsonTagValue(STable* pTable, char* key, int32_t keyLen);
+int8_t  jsonType2DbType(double data, int jsonType, uint8_t type);
+void*      getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonType);
 
 #ifdef __cplusplus
 }

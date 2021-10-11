@@ -3352,12 +3352,12 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     return;
   }
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_VAR_DATA_TYPE(type)) {
     int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
     int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
     tVariantCreateFromBinary(tag, varDataVal(val), len, type);
     //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
-  } else if(type == TSDB_DATA_TYPE_JSON){
+  } else if(IS_JSON_DATA_TYPE(type)){
     assert(kvRowLen(val) < bytes);
     tVariantCreateFromBinary(tag, val, bytes, type);
     memcpy(tag->pz + 1, tag->pz, bytes - 1);    // move back 1 byte for select type
@@ -4334,7 +4334,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
         *compLen += compSizes[col];
         compSizes[col] = htonl(compSizes[col]);
       } else {
-        if(pColRes->info.type == TSDB_DATA_TYPE_JSON){      // todo json
+        if(IS_JSON_DATA_TYPE(pColRes->info.type)){      // todo json
           //pColRes->info.bytes =
 
         }
@@ -7185,11 +7185,11 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
         } else {
-          if(type == TSDB_DATA_TYPE_JSON){
+          if(IS_JSON_DATA_TYPE(type)){
             data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
               char* tagJsonElementData = calloc(bytes, 1);
-              findTagValue(item->pTable, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes);
+              findTagValue(item->pTable, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, tagJsonElementData, bytes, type);
               *dst = SELECT_ELEMENT_JSON_TAG;   // select tag->element
               dst++;
               assert(varDataTLen(tagJsonElementData) < bytes);

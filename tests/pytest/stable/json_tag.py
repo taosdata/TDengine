@@ -162,7 +162,7 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
