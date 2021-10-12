@@ -207,7 +207,8 @@ CONVERT_FUNC = {
     FieldType.C_SMALLINT_UNSIGNED: _crow_smallint_unsigned_to_python,
     FieldType.C_INT_UNSIGNED: _crow_int_unsigned_to_python,
     FieldType.C_BIGINT_UNSIGNED: _crow_bigint_unsigned_to_python,
-    FieldType.C_JSON: _crow_nchar_to_python,
+    FieldType.C_JSON_NCHAR: _crow_nchar_to_python,
+    FieldType.C_JSON_BINARY: _crow_binary_to_python,
 }
 
 CONVERT_FUNC_BLOCK = {
@@ -225,7 +226,8 @@ CONVERT_FUNC_BLOCK = {
     FieldType.C_SMALLINT_UNSIGNED: _crow_smallint_unsigned_to_python,
     FieldType.C_INT_UNSIGNED: _crow_int_unsigned_to_python,
     FieldType.C_BIGINT_UNSIGNED: _crow_bigint_unsigned_to_python,
-    FieldType.C_JSON: _crow_nchar_to_python_block,
+    FieldType.C_JSON_NCHAR: _crow_nchar_to_python_block,
+    FieldType.C_JSON_BINARY: _crow_binary_to_python_block,
 }
 
 # Corresponding TAOS_FIELD structure in C

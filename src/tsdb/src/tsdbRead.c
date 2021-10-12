@@ -2678,7 +2678,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
   STSchema* pTagSchema = tsdbGetTableTagSchema(pSuperTable);
-  if(pTagSchema->numOfCols == 1 && IS_JSON_DATA_TYPE(pTagSchema->columns[0].type)){
+  if(pTagSchema && pTagSchema->numOfCols == 1 && IS_JSON_DATA_TYPE(pTagSchema->columns[0].type)){
     SArray** pRecord = taosHashIterate(pSuperTable->jsonKeyMap, NULL);
     SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
 
@@ -4081,7 +4081,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
-    void* jsonData = getJsonTagValue(pTable, name, strlen(name), pTable->tagSchema->columns->type);
+    void* jsonData = getJsonTagValue(pTable, name, strlen(name), pTable->pSuper->tagSchema->columns->type);
     if (jsonData != NULL) jsonData += CHAR_BYTES;   // jump type
     *data = jsonData;
   }
