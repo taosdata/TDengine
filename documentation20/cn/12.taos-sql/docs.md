@@ -1266,7 +1266,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT APERCENTILE(field_name, P[, algo_type]) 
     FROM { tb_name | stb_name } [WHERE clause]
-```
+    ```
     功能说明：统计表/超级表中指定列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
 
     返回结果数据类型： 双精度浮点数Double。
