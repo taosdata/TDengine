@@ -2185,7 +2185,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_MultiTableTimeInterval: {
         pRuntimeEnv->proot =
             createMultiTableTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        int32_t opType = pRuntimeEnv->proot->upstream[0]->operatorType;
+        if (opType != OP_DummyInput) {
+          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        }
         break;
       }
       case OP_AllMultiTableTimeInterval: {
@@ -3370,6 +3373,10 @@ static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t num
 }
 
 void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
+  if (pTable == NULL) {
+    return;
+  }
+  
   SQueryRuntimeEnv* pRuntimeEnv = pOperatorInfo->pRuntimeEnv;
 
   SExprInfo  *pExpr      = pOperatorInfo->pExpr;
@@ -3887,6 +3894,7 @@ STableQueryInfo* createTmpTableQueryInfo(STimeWindow win) {
 
   return pTableQueryInfo;
 }
+
 
 void destroyTableQueryInfoImpl(STableQueryInfo *pTableQueryInfo) {
   if (pTableQueryInfo == NULL) {

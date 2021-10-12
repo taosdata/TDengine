@@ -3752,6 +3752,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
 
   pRuntimeEnv->pQueryAttr = pQueryAttr;
   tscCreateQueryFromQueryInfo(pQueryInfo, pQueryAttr, NULL);
+  tscSetDummyStableQuery(pQueryInfo, pQueryAttr);
 
   pQueryAttr->tableGroupInfo = *pTableGroupInfo;
 
@@ -3838,6 +3839,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   SArray* pa = NULL;
   if (stage == MASTER_SCAN) {
     pQueryAttr->createFilterOperator = false;  // no need for parent query
+
     pa = createExecOperatorPlan(pQueryAttr);
   } else {
     pa = createGlobalMergePlan(pQueryAttr);

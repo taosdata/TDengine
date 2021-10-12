@@ -385,6 +385,19 @@ bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscGroupbyTag(SQueryInfo* pQueryInfo) {
+  SGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (TSDB_COL_IS_TAG(pIndex->flag)) {  // group by tag
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
 
@@ -794,7 +807,7 @@ static SColumnInfo* extractColumnInfoFromResult(SArray* pTableCols) {
 
 typedef struct SDummyInputInfo {
   SSDataBlock     *block;
-  STableQueryInfo *pTableQueryInfo;
+  STableQueryInfo *pTableQueryInfo;  
   SSqlObj         *pSql;  // refactor: remove it
   int32_t          numOfFilterCols;
   SSingleColumnFilterInfo *pFilterInfo;
@@ -901,8 +914,9 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   SSDataBlock* pBlock = pInput->block;
   if (pOperator->pRuntimeEnv != NULL) {
     pOperator->pRuntimeEnv->current = pInput->pTableQueryInfo;
+    pOperator->pRuntimeEnv->groupResInfo.totalGroup = 1;
   }
-
+  
   pBlock->info.rows = pRes->numOfRows;
   if (pRes->numOfRows != 0) {
     doSetupSDataBlock(pRes, pBlock, pInput->pFilterInfo, pInput->numOfFilterCols);
@@ -1097,16 +1111,16 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
   pInfo->pSql = NULL;
 
   doDestroyFilterInfo(pInfo->pFilterInfo, pInfo->numOfFilterCols);
-
+  
   cleanupResultRowInfo(&pInfo->pTableQueryInfo->resInfo);
-  tfree(pInfo->pTableQueryInfo);
+  tfree(pInfo->pTableQueryInfo);  
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
 SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols) {
   assert(numOfCols > 0);
   STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-
+  
   SDummyInputInfo* pInfo = calloc(1, sizeof(SDummyInputInfo));
 
   pInfo->pSql            = pSql;
@@ -4714,6 +4728,24 @@ int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo) {
   }
   return 0;
 }
+
+void tscSetDummyStableQuery(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr) {
+  if (pQueryInfo->interval.interval <= 0) {
+    return;
+  }
+  
+  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // subquery in the from clause
+    size_t size = taosArrayGetSize(pQueryInfo->pUpstream);
+    for(int32_t i = 0; i < size; ++i) {
+      SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, i);
+      if (pq->groupbyTag && pq->interval.interval > 0) {
+        pQueryAttr->dummyStableQuery = true;
+        return;
+      }
+    }
+  }
+}
+
 
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
   memset(pQueryAttr, 0, sizeof(SQueryAttr));

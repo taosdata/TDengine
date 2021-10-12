@@ -143,6 +143,7 @@ typedef struct SQueryInfo {
   int32_t            havingFieldNum;
   bool               stableQuery;
   bool               groupbyColumn;
+  bool               groupbyTag;
   bool               simpleAgg;
   bool               arithmeticOnAgg;
   bool               projectionQuery;

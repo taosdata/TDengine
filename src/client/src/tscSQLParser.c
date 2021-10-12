@@ -8892,6 +8892,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->simpleAgg = isSimpleAggregateRv(pQueryInfo);
     pQueryInfo->onlyTagQuery = onlyTagPrjFunction(pQueryInfo);
     pQueryInfo->groupbyColumn = tscGroupbyColumn(pQueryInfo);
+    pQueryInfo->groupbyTag = tscGroupbyTag(pQueryInfo);
     pQueryInfo->arithmeticOnAgg   = tsIsArithmeticQueryOnAggResult(pQueryInfo);
     pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
 

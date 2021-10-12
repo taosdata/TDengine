@@ -143,6 +143,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscGroupbyTag(SQueryInfo* pQueryInfo);
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
@@ -350,6 +351,7 @@ SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
+void tscSetDummyStableQuery(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr);
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage, uint64_t qId);
 
 void* malloc_throw(size_t size);

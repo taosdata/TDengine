@@ -803,6 +803,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
         } else {
           sameGroup = false;
           *newgroup = true;
+          pInfo->binfo.pRes->info.tid++;
           break;
         }
       }
