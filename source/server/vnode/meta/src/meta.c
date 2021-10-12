@@ -51,9 +51,15 @@ struct SMeta {
   size_t     totalUsed;
 };
 
+struct STableOpts {
+  int8_t    type;
+  char *    name;
+  STSchema *pSchema;
+};
+
 /* -------------------- Methods -------------------- */
 
-SMeta *metaOpen(SMetaOptions *options) {
+SMeta *metaOpen(SMetaOpts *options) {
   SMeta *pMeta = NULL;
   char * err = NULL;
 
@@ -102,6 +108,11 @@ void metaClose(SMeta *pMeta) {
     taosHashCleanup(pMeta->pTableObjHash);
     pthread_rwlock_destroy(&(pMeta->rwLock));
   }
+}
+
+int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
+  // TODO
+  return 0;
 }
 
 void metaDestroy(const char *path) { taosRemoveDir(path); }

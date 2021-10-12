@@ -27,33 +27,34 @@ extern "C" {
 typedef uint64_t tuid_t;
 
 // Types exported
-typedef struct SMeta             SMeta;
-typedef struct SMetaOptions      SMetaOptions;
-typedef struct SMetaQueryHandle  SMetaQueryHandle;
-typedef struct SMetaQueryOptions SMetaQueryOptions;
+typedef struct SMeta            SMeta;
+typedef struct SMetaOpts        SMetaOpts;
+typedef struct SMetaQueryHandle SMetaQueryHandle;
+typedef struct SMetaQueryOpts   SMetaQueryOpts;
+typedef struct STableOpts       STableOpts;
 
 // SMeta operations
 int    metaCreate(const char *path);
 void   metaDestroy(const char *path);
-SMeta *metaOpen(SMetaOptions *);
+SMeta *metaOpen(SMetaOpts *);
 void   metaClose(SMeta *);
-int    metaCreateTable(SMeta *, void *);
+int    metaCreateTable(SMeta *, STableOpts *);
 int    metaDropTable(SMeta *, uint64_t tuid_t);
 int    metaAlterTable(SMeta *, void *);
 int    metaCommit(SMeta *);
 
 // Options
-SMetaOptions *metaOptionsCreate();
-void          metaOptionsDestroy(SMetaOptions *);
-void          metaOptionsSetCache(SMetaOptions *, size_t capacity);
+SMetaOpts *metaOptionsCreate();
+void       metaOptionsDestroy(SMetaOpts *);
+void       metaOptionsSetCache(SMetaOpts *, size_t capacity);
 
 // SMetaQueryHandle
-SMetaQueryHandle *metaQueryHandleCreate(SMetaQueryOptions *);
+SMetaQueryHandle *metaQueryHandleCreate(SMetaQueryOpts *);
 void              metaQueryHandleDestroy(SMetaQueryHandle *);
 
-// SMetaQueryOptions
-SMetaQueryOptions *metaQueryOptionsCreate();
-void               metaQueryOptionsDestroy(SMetaQueryOptions *);
+// SMetaQueryOpts
+SMetaQueryOpts *metaQueryOptionsCreate();
+void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
 #ifdef __cplusplus
 }
