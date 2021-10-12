@@ -25,6 +25,7 @@ typedef struct {
   uint8_t type;
   int16_t length;
   char* value;
+  uint32_t fieldSchemaIdx;
 } TAOS_SML_KV;
 
 typedef struct {
@@ -37,6 +38,8 @@ typedef struct {
   // first kv must be timestamp
   TAOS_SML_KV* fields;
   int32_t fieldNum;
+
+  uint32_t schemaIdx;
 } TAOS_SML_DATA_POINT;
 
 typedef enum {
@@ -55,7 +58,6 @@ typedef enum {
 
 typedef struct {
   uint64_t id;
-  SHashObj* smlDataToSchema;
 } SSmlLinesInfo;
 
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
