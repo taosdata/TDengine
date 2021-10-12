@@ -869,6 +869,10 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
   //only pick up the first ID value as child table name
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
+    if (!cJSON_IsString(id)) {
+      tscError("OTD:0x%"PRIx64" ID must be JSON string", info->id);
+      return TSDB_CODE_TSC_INVALID_JSON;
+    }
     size_t idLen = strlen(id->valuestring);
     ret = isValidChildTableName(id->valuestring, (int16_t)idLen, info);
     if (ret != TSDB_CODE_SUCCESS) {

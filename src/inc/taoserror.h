@@ -113,7 +113,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_INVALID_JSON_CONFIG       TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Invalid JSON configuration")
 #define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0224)  //"Value out of range")
 #define TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE     TAOS_DEF_ERROR_CODE(0, 0x0225)  //"Invalid line protocol type")
-#define TSDB_CODE_TSC_INVALID_PRECISION_TYPE    TAOS_DEF_ERROR_CODE(0, 0x0225)  //"Invalid timestamp precision type")
+#define TSDB_CODE_TSC_INVALID_PRECISION_TYPE    TAOS_DEF_ERROR_CODE(0, 0x0226)  //"Invalid timestamp precision type")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
