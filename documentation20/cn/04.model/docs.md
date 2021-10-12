@@ -4,7 +4,7 @@
 
 TDengine 采用关系型数据模型，需要建库、建表。因此对于一个具体的应用场景，需要考虑库、超级表和普通表的设计。本节不讨论细致的语法规则，只介绍概念。
 
-关于数据建模请参考[视频教程] (https://www.taosdata.com/blog/2020/11/11/1945.html)。
+关于数据建模请参考[视频教程](https://www.taosdata.com/blog/2020/11/11/1945.html)。
 
 ## <a class="anchor" id="create-db"></a> 创建库
 
@@ -39,7 +39,7 @@ CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAG
 
 **注意：**这一指令中的 STABLE 关键字，在 2.0.15 之前的版本中需写作 TABLE 。
 
-与创建普通表一样，创建表时，需要提供表名（示例中为 meters），表结构 Schema，即数据列的定义。第一列必须为时间戳（示例中为ts)，其他列为采集的物理量（示例中为current, voltage, phase)，数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的schema (示例中为 location, groupId)，标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组 ID、管理员 ID 等等。标签的 schema 可以事后增加、删除、修改。具体定义以及细节请见 [TAOS SQL 的超级表管理](https://www.taosdata.com/cn/documentation/taos-sql#super-table) 章节。
+与创建普通表一样，创建表时，需要提供表名（示例中为 meters），表结构 Schema，即数据列的定义。第一列必须为时间戳（示例中为 ts)，其他列为采集的物理量（示例中为 current, voltage, phase)，数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的 schema (示例中为 location, groupId)，标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组 ID、管理员 ID 等等。标签的 schema 可以事后增加、删除、修改。具体定义以及细节请见 [TAOS SQL 的超级表管理](https://www.taosdata.com/cn/documentation/taos-sql#super-table) 章节。
 
 每一种类型的数据采集点需要建立一个超级表，因此一个物联网系统，往往会有多个超级表。对于电网，我们就需要对智能电表、变压器、母线、开关等都建立一个超级表。在物联网中，一个设备就可能有多个数据采集点（比如一台风力发电的风机，有的采集点采集电流、电压等电参数，有的采集点采集温度、湿度、风向等环境参数），这个时候，对这一类型的设备，需要建立多张超级表。一张超级表里包含的采集物理量必须是同时采集的（时间戳是一致的）。
 
@@ -53,11 +53,11 @@ TDengine 对每个数据采集点需要独立建表。与标准的关系型数�
 CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
 ```
 
-其中d1001是表名，meters 是超级表的表名，后面紧跟标签 Location 的具体标签值 ”Beijing.Chaoyang"，标签 groupId 的具体标签值 2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TAOS SQL 的表管理](https://www.taosdata.com/cn/documentation/taos-sql#table) 章节。
+其中 d1001 是表名，meters 是超级表的表名，后面紧跟标签 Location 的具体标签值 ”Beijing.Chaoyang"，标签 groupId 的具体标签值 2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TAOS SQL 的表管理](https://www.taosdata.com/cn/documentation/taos-sql#table) 章节。
 
-**注意：**目前 TDengine 没有从技术层面限制使用一个 database （dbA）的超级表作为模板建立另一个 database （dbB）的子表，后续会禁止这种用法，不建议使用这种方法建表。
+**注意：**目前 TDengine 没有从技术层面限制使用一个 database (dbA)的超级表作为模板建立另一个 database (dbB)的子表，后续会禁止这种用法，不建议使用这种方法建表。
 
-TDengine 建议将数据采集点的全局唯一ID 作为表名(比如设备序列号）。但对于有的场景，并没有唯一的 ID，可以将多个 ID 组合成一个唯一的 ID 。不建议将具有唯一性的ID作为标签值。  
+TDengine 建议将数据采集点的全局唯一 ID 作为表名(比如设备序列号）。但对于有的场景，并没有唯一的 ID，可以将多个 ID 组合成一个唯一的 ID。不建议将具有唯一性的 ID 作为标签值。  
 
 **自动建表**：在某些特殊场景中，用户在写数据时并不确定某个数据采集点的表是否存在，此时可在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。比如：
 
@@ -65,7 +65,7 @@ TDengine 建议将数据采集点的全局唯一ID 作为表名(比如设备序�
 INSERT INTO d1001 USING meters TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
 ```
 
-上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表 d1001。如果表 d1001 还未创建，则使用超级表 meters 做模板自动创建，同时打上标签值 `“Beijing.Chaoyang", 2`。
+上述 SQL 语句将记录(now, 10.2, 219, 0.32)插入表 d1001。如果表 d1001 还未创建，则使用超级表 meters 做模板自动创建，同时打上标签值 `“Beijing.Chaoyang", 2`。
 
 关于自动建表的详细语法请参见 [插入记录时自动建表](https://www.taosdata.com/cn/documentation/taos-sql#auto_create_table) 章节。
 
