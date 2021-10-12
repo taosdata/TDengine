@@ -756,7 +756,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **正则表达式规范**
 
-   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
 
    **使用限制**
 
