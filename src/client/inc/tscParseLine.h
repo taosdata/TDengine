@@ -47,11 +47,7 @@ typedef enum {
   SML_TIME_STAMP_NANO_SECONDS
 } SMLTimeStampType;
 
-typedef enum {
-  SML_LINE_PROTOCOL = 0,
-  SML_TELNET_PROTOCOL = 1,
-  SML_JSON_PROTOCOL = 2,
-} SMLProtocolType;
+
 
 typedef struct {
   uint64_t id;

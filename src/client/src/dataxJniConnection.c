@@ -4,29 +4,7 @@
 #include "tscUtil.h"
 
 #include "com_alibaba_datax_plugin_writer_JniConnection.h"
-
-#define jniError(...)                                                            \
-  {                                                                              \
-    if (jniDebugFlag & DEBUG_ERROR) {                                            \
-      taosPrintLog("JNI ERROR ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); \
-    }                                                                            \
-  }
-#define jniDebug(...)                                  \
-  {                                                    \
-    if (jniDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
-    }                                                  \
-  }
-#define jniTrace(...)                                  \
-  {                                                    \
-    if (jniDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); \
-    }                                                  \
-  }
-
-int __init_datax = 0;
-
-JavaVM *g_vm_datax = NULL;
+#include "jniCommon.h"
 
 jclass    g_arrayListClass;
 jmethodID g_arrayListConstructFp;
@@ -56,18 +34,6 @@ jmethodID g_rowdataSetByteArrayFp;
 jmethodID g_blockdataSetByteArrayFp;
 jmethodID g_blockdataSetNumOfRowsFp;
 jmethodID g_blockdataSetNumOfColsFp;
-
-#define JNI_SUCCESS 0
-#define JNI_TDENGINE_ERROR -1
-#define JNI_CONNECTION_NULL -2
-#define JNI_RESULT_SET_NULL -3
-#define JNI_NUM_OF_FIELDS_0 -4
-#define JNI_SQL_NULL -5
-#define JNI_FETCH_END -6
-#define JNI_OUT_OF_MEMORY -7
-
-static void    jniGetGlobalMethod(JNIEnv *env);
-static int32_t check_for_params(jobject jobj, jlong conn, jlong res);
 
 JNIEXPORT void JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_initImp(JNIEnv *env, jobject jobj,
                                                                                   jstring jconfigDir) {
@@ -279,77 +245,4 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_closeC
     taos_close(tscon);
     return JNI_SUCCESS;
   }
-}
-
-static void jniGetGlobalMethod(JNIEnv *env) {
-  // make sure init function executed once
-  switch (atomic_val_compare_exchange_32(&__init_datax, 0, 1)) {
-    case 0:
-      break;
-    case 1:
-      do {
-        taosMsleep(0);
-      } while (atomic_load_32(&__init_datax) == 1);
-    case 2:
-      return;
-  }
-
-  if (g_vm_datax == NULL) {
-    (*env)->GetJavaVM(env, &g_vm_datax);
-  }
-
-  jclass arrayListClass = (*env)->FindClass(env, "java/util/ArrayList");
-  g_arrayListClass = (*env)->NewGlobalRef(env, arrayListClass);
-  g_arrayListConstructFp = (*env)->GetMethodID(env, g_arrayListClass, "<init>", "()V");
-  g_arrayListAddFp = (*env)->GetMethodID(env, g_arrayListClass, "add", "(Ljava/lang/Object;)Z");
-  (*env)->DeleteLocalRef(env, arrayListClass);
-
-  jclass metadataClass = (*env)->FindClass(env, "com/taosdata/jdbc/ColumnMetaData");
-  g_metadataClass = (*env)->NewGlobalRef(env, metadataClass);
-  g_metadataConstructFp = (*env)->GetMethodID(env, g_metadataClass, "<init>", "()V");
-  g_metadataColtypeField = (*env)->GetFieldID(env, g_metadataClass, "colType", "I");
-  g_metadataColnameField = (*env)->GetFieldID(env, g_metadataClass, "colName", "Ljava/lang/String;");
-  g_metadataColsizeField = (*env)->GetFieldID(env, g_metadataClass, "colSize", "I");
-  g_metadataColindexField = (*env)->GetFieldID(env, g_metadataClass, "colIndex", "I");
-  (*env)->DeleteLocalRef(env, metadataClass);
-
-  jclass rowdataClass = (*env)->FindClass(env, "com/taosdata/jdbc/TSDBResultSetRowData");
-  g_rowdataClass = (*env)->NewGlobalRef(env, rowdataClass);
-  g_rowdataConstructor = (*env)->GetMethodID(env, g_rowdataClass, "<init>", "(I)V");
-  g_rowdataClearFp = (*env)->GetMethodID(env, g_rowdataClass, "clear", "()V");
-  g_rowdataSetBooleanFp = (*env)->GetMethodID(env, g_rowdataClass, "setBoolean", "(IZ)V");
-  g_rowdataSetByteFp = (*env)->GetMethodID(env, g_rowdataClass, "setByte", "(IB)V");
-  g_rowdataSetShortFp = (*env)->GetMethodID(env, g_rowdataClass, "setShort", "(IS)V");
-  g_rowdataSetIntFp = (*env)->GetMethodID(env, g_rowdataClass, "setInt", "(II)V");
-  g_rowdataSetLongFp = (*env)->GetMethodID(env, g_rowdataClass, "setLong", "(IJ)V");
-  g_rowdataSetFloatFp = (*env)->GetMethodID(env, g_rowdataClass, "setFloat", "(IF)V");
-  g_rowdataSetDoubleFp = (*env)->GetMethodID(env, g_rowdataClass, "setDouble", "(ID)V");
-  g_rowdataSetStringFp = (*env)->GetMethodID(env, g_rowdataClass, "setString", "(ILjava/lang/String;)V");
-  g_rowdataSetTimestampFp = (*env)->GetMethodID(env, g_rowdataClass, "setTimestamp", "(IJI)V");
-  g_rowdataSetByteArrayFp = (*env)->GetMethodID(env, g_rowdataClass, "setByteArray", "(I[B)V");
-  (*env)->DeleteLocalRef(env, rowdataClass);
-
-  jclass blockdataClass = (*env)->FindClass(env, "com/taosdata/jdbc/TSDBResultSetBlockData");
-  jclass g_blockdataClass = (*env)->NewGlobalRef(env, blockdataClass);
-  g_blockdataSetByteArrayFp = (*env)->GetMethodID(env, g_blockdataClass, "setByteArray", "(II[B)V");
-  g_blockdataSetNumOfRowsFp = (*env)->GetMethodID(env, g_blockdataClass, "setNumOfRows", "(I)V");
-  g_blockdataSetNumOfColsFp = (*env)->GetMethodID(env, g_blockdataClass, "setNumOfCols", "(I)V");
-  (*env)->DeleteLocalRef(env, blockdataClass);
-
-  atomic_store_32(&__init_datax, 2);
-  jniDebug("native method register finished");
-}
-
-static int32_t check_for_params(jobject jobj, jlong conn, jlong res) {
-  if ((TAOS *)conn == NULL) {
-    jniError("jobj:%p, connection is closed", jobj);
-    return JNI_CONNECTION_NULL;
-  }
-
-  if ((TAOS_RES *)res == NULL) {
-    jniError("jobj:%p, conn:%p, res is null", jobj, (TAOS *)conn);
-    return JNI_RESULT_SET_NULL;
-  }
-
-  return JNI_SUCCESS;
 }
