@@ -7706,9 +7706,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
               }
             }
-
-            ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
-
+            if(IS_JSON_DATA_TYPE(pSchema->type)){
+              *((int8_t *)tagVal) = TSDB_DATA_BINARY_PLACEHOLDER;
+            }else {
+              ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+            }
             // check again after the convert since it may be converted from binary to nchar.
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
               int16_t len = varDataTLen(tagVal);
@@ -7766,9 +7768,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
         }
-
-        ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
-
+        if(IS_JSON_DATA_TYPE(pSchema->type)){
+          *((int8_t *)tagVal) = TSDB_DATA_BINARY_PLACEHOLDER;
+        }else {
+          ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+        }
         // check again after the convert since it may be converted from binary to nchar.
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
           int16_t len = varDataTLen(tagVal);
