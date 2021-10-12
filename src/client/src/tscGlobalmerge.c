@@ -906,7 +906,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
             clearOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
             continue;
           }
-          if (!TSDB_FUNC_SCALAR_INDEX(pCtx->functionId)) {
+          if (!TSDB_FUNC_IS_SCALAR(pCtx->functionId)) {
             aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
           } else {
             assert(0);
