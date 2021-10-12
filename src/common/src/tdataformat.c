@@ -239,9 +239,12 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
 
   pDataCol->len = 0;
 }
-// value from timestamp should be TKEY here instead of TSKEY
-int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
-  ASSERT(pCol != NULL && value != NULL);
+/**
+ *  value from timestamp should be TKEY here instead of TSKEY.
+ *  - rowOffset: 0 for current row, -1 for previous row
+ */
+int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints, int rowOffset) {
+  ASSERT(pCol != NULL && value != NULL && (rowOffset == 0 || rowOffset == -1));
 
   if (isAllRowsNull(pCol)) {
     if (isNull(value, pCol->type)) {
@@ -257,16 +260,29 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
   }
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
-    // set offset
-    pCol->dataOff[numOfRows] = pCol->len;
-    // Copy data
-    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
-    // Update the length
-    pCol->len += varDataTLen(value);
+    if (rowOffset == 0) {
+      // set offset
+        pCol->dataOff[numOfRows] = pCol->len;
+      // Copy data
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
+      // Update the length
+      pCol->len += varDataTLen(value);
+    } else {
+      // Copy data
+      void *lastValue = POINTER_SHIFT(pCol->pData, pCol->dataOff[numOfRows]);
+      int   lastValLen = varDataTLen(lastValue);
+      memcpy(lastValue, value, varDataTLen(value));
+      // Update the length
+      pCol->len -= lastValLen;
+      pCol->len += varDataTLen(value);
+    }
   } else {
-    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
-    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
-    pCol->len += pCol->bytes;
+    // update the value of last row with increasing the pCol->len and keeping the numOfRows for partial update
+    ASSERT(pCol->len == (TYPE_BYTES[pCol->type] * (numOfRows - rowOffset)));
+    memcpy(POINTER_SHIFT(pCol->pData, (pCol->len + rowOffset * TYPE_BYTES[pCol->type])), value, pCol->bytes);
+    if (rowOffset == 0) {
+      pCol->len += pCol->bytes;
+    }
   }
   return 0;
 }
@@ -441,7 +457,8 @@ void tdResetDataCols(SDataCols *pCols) {
   }
 }
 
-static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull,
+                                     int rowOffset) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < dataRowKey(row));
 
   int rcol = 0;
@@ -451,7 +468,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
       dcol++;
       continue;
     }
@@ -460,14 +477,14 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
     if (pRowCol->colId == pDataCol->colId) {
       void *value = tdGetRowDataOfCol(row, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE);
       if(!isNull(value, pDataCol->type)) setCol = 1;
-      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints, rowOffset);
       dcol++;
       rcol++;
     } else if (pRowCol->colId < pDataCol->colId) {
       rcol++;
     } else {
       if(forceSetNull || setCol) {
-        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
       }
       dcol++;
     }
@@ -475,7 +492,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   pCols->numOfRows++;
 }
 
-static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, int rowOffset) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < kvRowKey(row));
 
   int rcol = 0;
@@ -487,7 +504,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
       ++dcol;
       continue;
     }
@@ -497,14 +514,14 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     if (colIdx->colId == pDataCol->colId) {
       void *value = tdGetKvRowDataOfCol(row, colIdx->offset);
       if(!isNull(value, pDataCol->type)) setCol = 1;
-      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints, rowOffset);
       ++dcol;
       ++rcol;
     } else if (colIdx->colId < pDataCol->colId) {
       ++rcol;
     } else {
       if (forceSetNull || setCol) {
-        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints, rowOffset);
       }
       ++dcol;
     }
@@ -512,11 +529,11 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
   pCols->numOfRows++;
 }
 
-void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, int rowOffset) {
   if (isDataRow(row)) {
-    tdAppendDataRowToDataCol(memRowDataBody(row), pSchema, pCols, forceSetNull);
+    tdAppendDataRowToDataCol(memRowDataBody(row), pSchema, pCols, forceSetNull, rowOffset);
   } else if (isKvRow(row)) {
-    tdAppendKvRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull);
+    tdAppendKvRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull, rowOffset);
   } else {
     ASSERT(0);
   }
@@ -539,7 +556,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
       for (int j = 0; j < source->numOfCols; j++) {
         if (source->cols[j].len > 0 || target->cols[j].len > 0) {
           dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i + (*pOffset)), target->numOfRows,
-                           target->maxPoints);
+                           target->maxPoints, 0);
         }
       }
       target->numOfRows++;
@@ -583,7 +600,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
         ASSERT(target->cols[i].type == src1->cols[i].type);
         if (src1->cols[i].len > 0 || target->cols[i].len > 0) {
           dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
-                           target->maxPoints);
+                           target->maxPoints, 0);
         }
       }
 
@@ -595,10 +612,10 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
           ASSERT(target->cols[i].type == src2->cols[i].type);
           if (src2->cols[i].len > 0 && !isNull(src2->cols[i].pData, src2->cols[i].type)) {
             dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfRows,
-                             target->maxPoints);
+                             target->maxPoints, 0);
           } else if(!forceSetNull && key1 == key2 && src1->cols[i].len > 0) {
             dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src1->cols + i, *iter1), target->numOfRows,
-                             target->maxPoints);
+                             target->maxPoints, 0);
           } else if(target->cols[i].len > 0) {
             dataColSetNullAt(&target->cols[i], target->numOfRows);
           }
