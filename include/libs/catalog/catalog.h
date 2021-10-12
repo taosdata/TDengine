@@ -33,7 +33,6 @@ struct SCatalog;
 typedef struct SMetaReq {
   char    clusterId[TSDB_CLUSTER_ID_LEN];
   SArray *pTableName;     // table full name
-  SArray *pVgroup;        // vgroup id
   SArray *pUdf;           // udf name
   bool    qNodeEpset;     // valid qnode
 } SMetaReq;
@@ -60,7 +59,6 @@ typedef struct STableComInfo {
 typedef struct SCTableMeta {
   int32_t  vgId:24;
   int8_t   tableType;
-  uint32_t tid;
   uint64_t uid;
   uint64_t suid;
 } SCTableMeta;
@@ -71,7 +69,6 @@ typedef struct SCTableMeta {
 typedef struct STableMeta {
   int32_t        vgId:24;
   int8_t         tableType;
-  uint32_t       tid;
   uint64_t       uid;
   uint64_t       suid;
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta info

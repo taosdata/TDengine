@@ -534,7 +534,18 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 #endif
 
   SMetaReq req = {0};
-  qParserExtractRequestedMetaInfo(pInfo->list, &req);
 
-  return 0;
+  // TODO: check if the qnode info has been cached already
+  req.qNodeEpset = true;
+  code = qParserExtractRequestedMetaInfo(pInfo, &req, msgBuf, msgBufLen);
+
+  // load the meta data from catalog
+
+
+  // evaluate the sqlnode
+
+  // convert the sqlnode into queryinfo
+
+
+  return code;
 }

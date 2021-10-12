@@ -47,7 +47,7 @@ typedef struct SInsertStmtInfo {
 int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg, int32_t msgLen);
 
 /**
- *
+ * Evaluate the numeric and timestamp arithmetic expression in the WHERE clause.
  * @param pNode
  * @param tsPrecision
  * @param msg
@@ -57,12 +57,14 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQ
 int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, char* msg, int32_t msgBufLen);
 
 /**
- *
- * @param pSqlNode
+ * Extract request meta info from the sql statement
+ * @param pSqlInfo
  * @param pMetaInfo
+ * @param msg
+ * @param msgBufLen
  * @return
  */
-int32_t qParserExtractRequestedMetaInfo(const SArray* pSqlNodeList, SMetaReq* pMetaInfo);
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen);
 
 #ifdef __cplusplus
 }

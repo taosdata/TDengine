@@ -63,3 +63,28 @@ int32_t parserSetInvalidOperatorMsg(char* dst, int32_t dstBufLen, const char* ms
   strncpy(dst, msg, dstBufLen);
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
+
+int32_t parserSetSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr) {
+  const char* msgFormat1 = "syntax error near \'%s\'";
+  const char* msgFormat2 = "syntax error near \'%s\' (%s)";
+  const char* msgFormat3 = "%s";
+
+  const char* prefix = "syntax error";
+  if (sourceStr == NULL) {
+    assert(additionalInfo != NULL);
+    snprintf(dst, dstBufLen, msgFormat1, additionalInfo);
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
+
+  char buf[64] = {0};  // only extract part of sql string
+  strncpy(buf, sourceStr, tListLen(buf) - 1);
+
+  if (additionalInfo != NULL) {
+    snprintf(dst, dstBufLen, msgFormat2, buf, additionalInfo);
+  } else {
+    const char* msgFormat = (0 == strncmp(sourceStr, prefix, strlen(prefix))) ? msgFormat3 : msgFormat1;
+    snprintf(dst, dstBufLen, msgFormat, buf);
+  }
+
+  return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+}

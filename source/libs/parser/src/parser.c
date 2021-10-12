@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parserInt.h"
-#include "ttoken.h"
 #include "astGenerator.h"
+#include "parserInt.h"
 #include "parserUtil.h"
+#include "ttoken.h"
+#include "executor.h"
 
 bool qIsInsertSql(const char* pStr, size_t length) {
   return false;
@@ -51,7 +52,31 @@ int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
   return 0;
 }
 
-static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameList, char* msgBuf) {
+static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char* msg, int32_t msgBufLen);
+
+static int32_t tnameComparFn(const void* p1, const void* p2) {
+  SName* pn1 = (SName*)p1;
+  SName* pn2 = (SName*)p2;
+
+  int32_t ret = strncmp(pn1->acctId, pn2->acctId, tListLen(pn1->acctId));
+  if (ret != 0) {
+    return ret > 0? 1:-1;
+  } else {
+    ret = strncmp(pn1->dbname, pn2->dbname, tListLen(pn1->dbname));
+    if (ret != 0) {
+      return ret > 0? 1:-1;
+    } else {
+      ret = strncmp(pn1->tname, pn2->tname, tListLen(pn1->tname));
+      if (ret != 0) {
+        return ret > 0? 1:-1;
+      } else {
+        return 0;
+      }
+    }
+  }
+}
+
+static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameList, char* msgBuf, int32_t msgBufLen) {
   int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
 
   for (int32_t j = 0; j < numOfSub; ++j) {
@@ -61,12 +86,12 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
     for (int32_t i = 0; i < num; ++i) {
       SSqlNode* p = taosArrayGetP(sub->pSubquery, i);
       if (p->from->type == SQL_NODE_FROM_TABLELIST) {
-        int32_t code = getTableNameFromSqlNode(p, tableNameList, msgBuf);
+        int32_t code = getTableNameFromSqlNode(p, tableNameList, msgBuf, msgBufLen);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
       } else {
-        getTableNameFromSubquery(p, tableNameList, msgBuf);
+        getTableNameFromSubquery(p, tableNameList, msgBuf, msgBufLen);
       }
     }
   }
@@ -74,7 +99,7 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char* msg, int32_t msgBufLen) {
+int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char* msg, int32_t msgBufLen) {
   const char* msg1 = "invalid table name";
 
   int32_t numOfTables = (int32_t) taosArrayGetSize(pSqlNode->from->list);
@@ -84,20 +109,20 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
     SRelElementPair* item = taosArrayGet(pSqlNode->from->list, j);
 
     SToken* t = &item->tableName;
-    if (t->type == TK_INTEGER || t->type == TK_FLOAT) {
+    if (t->type == TK_INTEGER || t->type == TK_FLOAT || t->type == TK_STRING) {
       return parserSetInvalidOperatorMsg(msg, msgBufLen, msg1);
     }
 
-    tscDequoteAndTrimToken(t);
+//    tscDequoteAndTrimToken(t);
     if (parserValidateIdToken(t) != TSDB_CODE_SUCCESS) {
       return parserSetInvalidOperatorMsg(msg, msgBufLen, msg1);
     }
 
     SName name = {0};
-    int32_t code = tscSetTableFullName(&name, t, pSql);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+//    int32_t code = tscSetTableFullName(&name, t, pSql);
+//    if (code != TSDB_CODE_SUCCESS) {
+//      return code;
+//    }
 
     taosArrayPush(tableNameList, &name);
   }
@@ -105,162 +130,59 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserExtractRequestedMetaInfo(const SArray* pSqlNodeList, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen) {
-  int32_t code = TSDB_CODE_SUCCESS;
+static void freePtrElem(void* p) {
+  tfree(*(char**)p);
+}
 
-  SArray* tableNameList = NULL;
-  SArray* pVgroupList   = NULL;
-  SArray* plist         = NULL;
-  STableMeta* pTableMeta = NULL;
-//  size_t    tableMetaCapacity = 0;
-//  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen) {
+  int32_t code  = TSDB_CODE_SUCCESS;
 
-//  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pMetaInfo->pTableName = taosArrayInit(4, sizeof(SName));
+  pMetaInfo->pUdf = taosArrayInit(4, POINTER_BYTES);
 
-  tableNameList = taosArrayInit(4, sizeof(SName));
-  size_t size = taosArrayGetSize(pSqlNodeList);
+  size_t size = taosArrayGetSize(pSqlInfo->list);
   for (int32_t i = 0; i < size; ++i) {
-    SSqlNode* pSqlNode = taosArrayGetP(pSqlNodeList, i);
+    SSqlNode* pSqlNode = taosArrayGetP(pSqlInfo->list, i);
     if (pSqlNode->from == NULL) {
-      goto _end;
+      return parserSetInvalidOperatorMsg(msg, msgBufLen, "invalid from clause");
     }
 
-    // load the table meta in the from clause
+    // load the table meta in the FROM clause
     if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
-      code = getTableNameFromSqlNode(pSqlNode, tableNameList, msg, msgBufLen);
+      code = getTableNameFromSqlNode(pSqlNode, pMetaInfo->pTableName, msg, msgBufLen);
       if (code != TSDB_CODE_SUCCESS) {
-        goto _end;
+        return code;
       }
     } else {
-      code = getTableNameFromSubquery(pSqlNode, tableNameList, msg, msgBufLen);
+      code = getTableNameFromSubquery(pSqlNode, pMetaInfo->pTableName, msg, msgBufLen);
       if (code != TSDB_CODE_SUCCESS) {
-        goto _end;
+        return code;
       }
     }
   }
 
-  char name[TSDB_TABLE_FNAME_LEN] = {0};
-
-  plist = taosArrayInit(4, POINTER_BYTES);
-  pVgroupList = taosArrayInit(4, POINTER_BYTES);
-
-  taosArraySort(tableNameList, tnameComparFn);
-  taosArrayRemoveDuplicate(tableNameList, tnameComparFn, NULL);
-
-  STableMeta* pSTMeta = (STableMeta *)(pSql->pBuf);
-  size_t numOfTables = taosArrayGetSize(tableNameList);
-  for (int32_t i = 0; i < numOfTables; ++i) {
-    SName* pname = taosArrayGet(tableNameList, i);
-    tNameExtractFullName(pname, name);
-
-    size_t len = strlen(name);
-
-    if (NULL == taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity)) {
-      // not found
-      tfree(pTableMeta);
-    }
-
-    if (pTableMeta && pTableMeta->id.uid > 0) {
-      tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);
-
-      // avoid mem leak, may should update pTableMeta
-      void* pVgroupIdList = NULL;
-      if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta((STableMeta **)(&pTableMeta), name, &tableMetaCapacity, (STableMeta **)(&pSTMeta));
-        pSql->pBuf = (void *)pSTMeta;
-
-        // create the child table meta from super table failed, try load it from mnode
-        if (code != TSDB_CODE_SUCCESS) {
-          char* t = strdup(name);
-          taosArrayPush(plist, &t);
-          continue;
-        }
-      } else if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
-        // the vgroup list of super table is not kept in local buffer, so here need retrieve it from the mnode each time
-        tscDebug("0x%"PRIx64" try to acquire cached super table %s vgroup id list", pSql->self, name);
-        void* pv = taosCacheAcquireByKey(tscVgroupListBuf, name, len);
-        if (pv == NULL) {
-          char* t = strdup(name);
-          taosArrayPush(pVgroupList, &t);
-          tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, name);
-        } else {
-          tFilePage* pdata = (tFilePage*) pv;
-          pVgroupIdList = taosArrayInit((size_t) pdata->num, sizeof(int32_t));
-          if (pVgroupIdList == NULL) {
-            return TSDB_CODE_TSC_OUT_OF_MEMORY;
-          }
-
-          taosArrayAddBatch(pVgroupIdList, pdata->data, (int32_t) pdata->num);
-          taosCacheRelease(tscVgroupListBuf, &pv, false);
-        }
-      }
-
-      if (taosHashGet(pCmd->pTableMetaMap, name, len) == NULL) {
-        STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-        STableMetaVgroupInfo tvi = { .pTableMeta = pMeta,  .vgroupIdList = pVgroupIdList};
-        taosHashPut(pCmd->pTableMetaMap, name, len, &tvi, sizeof(STableMetaVgroupInfo));
-      }
-    } else {
-      // Add to the retrieve table meta array list.
-      // If the tableMeta is missing, the cached vgroup list for the corresponding super table will be ignored.
-      tscDebug("0x%"PRIx64" failed to retrieve table meta %s from local buf", pSql->self, name);
-
-      char* t = strdup(name);
-      taosArrayPush(plist, &t);
-    }
-  }
+  taosArraySort(pMetaInfo->pTableName, tnameComparFn);
+  taosArrayRemoveDuplicate(pMetaInfo->pTableName, tnameComparFn, NULL);
 
   size_t funcSize = 0;
-  if (pInfo->funcs) {
-    funcSize = taosArrayGetSize(pInfo->funcs);
+  if (pSqlInfo->funcs) {
+    funcSize = taosArrayGetSize(pSqlInfo->funcs);
   }
 
   if (funcSize > 0) {
     for (size_t i = 0; i < funcSize; ++i) {
-      SToken* t = taosArrayGet(pInfo->funcs, i);
-      if (NULL == t) {
-        continue;
-      }
+      SToken* t = taosArrayGet(pSqlInfo->funcs, i);
+      assert(t != NULL);
 
       if (t->n >= TSDB_FUNC_NAME_LEN) {
-        code = tscSQLSyntaxErrMsg(tscGetErrorMsgPayload(pCmd), "too long function name", t->z);
-        if (code != TSDB_CODE_SUCCESS) {
-          goto _end;
-        }
+        return parserSetSyntaxErrMsg(msg, msgBufLen, "too long function name", t->z);
       }
 
-      int32_t functionId = isValidFunction(t->z, t->n);
-      if (functionId < 0) {
-        struct SUdfInfo info = {0};
-        info.name = strndup(t->z, t->n);
-        if (pQueryInfo->pUdfInfo == NULL) {
-          pQueryInfo->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
-        }
-
-        info.functionId = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo) * (-1) - 1;;
-        taosArrayPush(pQueryInfo->pUdfInfo, &info);
+      // Let's assume that it is an UDF/UDAF, if it is not a built-in function.
+      if (!isBuiltinFunction(t->z, t->n)) {
+        char* fname = strndup(t->z, t->n);
+        taosArrayPush(pMetaInfo->pUdf, &fname);
       }
     }
   }
-
-  // load the table meta for a given table name list
-  if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0 || (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0)) {
-    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, pQueryInfo->pUdfInfo, tscTableMetaCallBack, true);
-  }
-
-  _end:
-  if (plist != NULL) {
-    taosArrayDestroyEx(plist, freeElem);
-  }
-
-  if (pVgroupList != NULL) {
-    taosArrayDestroyEx(pVgroupList, freeElem);
-  }
-
-  if (tableNameList != NULL) {
-    taosArrayDestroy(tableNameList);
-  }
-
-  tfree(pTableMeta);
-  return code;
 }

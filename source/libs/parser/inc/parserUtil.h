@@ -25,6 +25,7 @@ extern "C" {
 
 int32_t parserValidateIdToken(SToken* pToken);
 int32_t parserSetInvalidOperatorMsg(char* dst, int32_t dstBufLen, const char* msg);
+int32_t parserSetSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr);
 
 #ifdef __cplusplus
 }
