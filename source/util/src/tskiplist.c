@@ -15,7 +15,7 @@
  */
 #include "tskiplist.h"
 #include "os.h"
-#include "tcompare.h"
+#include "compare.h"
 #include "ulog.h"
 #include "tutil.h"
 

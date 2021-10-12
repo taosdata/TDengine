@@ -13,22 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_DIR_H_
-#define _TD_OS_DIR_H_
+#ifndef _TD_META_UID_H_
+#define _TD_META_UID_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void taosRemoveDir(const char *dirname);
-bool taosDirExist(char *dirname);
-bool taosMkDir(char *dirname);
-void taosRemoveOldFiles(char *dirname, int32_t keepDays);
-bool taosExpandDir(char *dirname, char *outname, int32_t maxlen);
-bool taosRealPath(char *dirname, int32_t maxlen);
+typedef uint64_t tb_uid_t;
+tb_uid_t         metaGenerateUid();
+
+#define IVLD_TB_UID 0
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_DIR_H_*/
+#endif /*_TD_META_UID_H_*/

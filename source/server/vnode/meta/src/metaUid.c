@@ -13,22 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_DIR_H_
-#define _TD_OS_DIR_H_
+#include "metaUid.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+static tb_uid_t nuid = IVLD_TB_UID;
 
-void taosRemoveDir(const char *dirname);
-bool taosDirExist(char *dirname);
-bool taosMkDir(char *dirname);
-void taosRemoveOldFiles(char *dirname, int32_t keepDays);
-bool taosExpandDir(char *dirname, char *outname, int32_t maxlen);
-bool taosRealPath(char *dirname, int32_t maxlen);
-
-#ifdef __cplusplus
+tb_uid_t metaGenerateUid() {
+  // TODO: need a more complex UID generator
+  return ++nuid;
 }
-#endif
-
-#endif /*_TD_OS_DIR_H_*/

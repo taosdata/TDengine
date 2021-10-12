@@ -16,56 +16,42 @@
 #ifndef _TD_TKV_H_
 #define _TD_TKV_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct tkv_db_s tkv_db_t;
+// Types exported
+typedef struct STkvDb        STkvDb;
+typedef struct STkvOpts      STkvOpts;
+typedef struct STkvCache     STkvCache;
+typedef struct STkvReadOpts  STkvReadOpts;
+typedef struct STkvWriteOpts STkvWriteOpts;
 
-typedef struct {
-  /* data */
-} tkv_key_t;
+// DB operations
+STkvDb *tkvOpen(const STkvOpts *options, const char *path);
+void    tkvClose(STkvDb *db);
+void    tkvPut(STkvDb *db, STkvWriteOpts *, char *key, size_t keylen, char *val, size_t vallen);
+char *  tkvGet(STkvDb *db, STkvReadOpts *, char *key, size_t keylen, size_t *vallen);
 
-typedef struct {
-  bool    pinned;
-  int64_t ref;  // TODO: use util library
-                // TODO: add a RW latch here
-  uint64_t offset;
-  void *   pObj;
-} tkv_obj_t;
+// DB options
+STkvOpts *tkvOptionsCreate();
+void      tkvOptionsDestroy(STkvOpts *);
+void      tkvOptionsSetCache(STkvOpts *, STkvCache *);
 
-typedef int (*tkv_key_comp_fn_t)(const tkv_key_t *, const tkv_key_t *);
-typedef void (*tkv_get_key_fn_t)(const tkv_obj_t *, tkv_key_t *);
-typedef int (*tkv_obj_encode_fn_t)(void **buf, void *pObj);
-typedef void *(*tkv_obj_decode_fn_t)(void *buf, void **pObj);
-typedef int (*tkv_obj_comp_fn_t)(const tkv_obj_t *, const tkv_obj_t *);
-typedef void (*tkv_obj_destroy_fn_t)(void *);
+// DB cache
+typedef enum { TKV_LRU_CACHE = 0, TKV_LFU_CACHE = 1 } ETkvCacheType;
+STkvCache *tkvCacheCreate(size_t capacity, ETkvCacheType type);
+void       tkvCacheDestroy(STkvCache *);
 
-typedef struct {
-  uint64_t             memLimit;
-  tkv_get_key_fn_t     getKey;
-  tkv_obj_encode_fn_t  encode;
-  tkv_obj_decode_fn_t  decode;
-  tkv_obj_comp_fn_t    compare;
-  tkv_obj_destroy_fn_t destroy;
-} tkv_db_option_t;
+// STkvReadOpts
+STkvReadOpts *tkvReadOptsCreate();
+void          tkvReadOptsDestroy(STkvReadOpts *);
 
-tkv_db_t *       tkvOpenDB(char *dir, tkv_db_option_t *);
-int              tkvCloseDB(tkv_db_t *);
-int              tkvPut(tkv_db_t *, tkv_obj_t *);
-int              tkvPutBatch(tkv_db_t *, tkv_obj_t **, int);  // TODO: use array here
-const tkv_obj_t *tkvGet(tkv_key_t *);
-int              tkvGetBatch(tkv_db_t *, tkv_key_t **, int, tkv_obj_t **);  // TODO: use array here
-int              tkvDrop(tkv_db_t *, tkv_key_t *);
-int              tkvDropBatch(tkv_db_t *, tkv_key_t **, int);  // TODO: use array here
-int              tkvCommit(tkv_db_t *, void * /*TODO*/);
-
-typedef struct {
-} tkv_db_iter_t;
-
-tkv_db_iter_t *  tkvIterNew(tkv_db_t *);
-void             tkvIterFree(tkv_db_iter_t *);
-const tkv_obj_t *tkvIterNext(tkv_db_iter_t *);
+// STkvWriteOpts
+STkvWriteOpts *tkvWriteOptsCreate();
+void           tkvWriteOptsDestroy(STkvWriteOpts *);
 
 #ifdef __cplusplus
 }

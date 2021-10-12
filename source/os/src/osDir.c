@@ -34,7 +34,7 @@
 #include <unistd.h>
 #include <wordexp.h>
 
-void taosRemoveDir(char *dirname) {
+void taosRemoveDir(const char *dirname) {
   DIR *dir = opendir(dirname);
   if (dir == NULL) return;
 
@@ -48,7 +48,7 @@ void taosRemoveDir(char *dirname) {
       taosRemoveDir(filename);
     } else {
       (void)remove(filename);
-      printf("file:%s is removed", filename);
+      printf("file:%s is removed\n", filename);
     }
   }
 

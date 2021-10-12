@@ -13,22 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_DIR_H_
-#define _TD_OS_DIR_H_
+#ifndef _TD_TCOMPARE_H_
+#define _TD_TCOMPARE_H_
+
+#include "compare.h"
+#include "ttypes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void taosRemoveDir(const char *dirname);
-bool taosDirExist(char *dirname);
-bool taosMkDir(char *dirname);
-void taosRemoveOldFiles(char *dirname, int32_t keepDays);
-bool taosExpandDir(char *dirname, char *outname, int32_t maxlen);
-bool taosRealPath(char *dirname, int32_t maxlen);
+int32_t       compareStrPatternComp(const void* pLeft, const void* pRight);
+int32_t       compareWStrPatternComp(const void* pLeft, const void* pRight);
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
+__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
+int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_DIR_H_*/
+#endif /*_TD_TCOMPARE_H_*/

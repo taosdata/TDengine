@@ -18,16 +18,53 @@
 
 #include "taosmsg.h"
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SMeta SMeta;
+typedef uint64_t tuid_t;
 
-int metaCreateTable(SMeta *pMeta, SCreateTableReq *pReq);
-int metaDropTable(SMeta *pMeta, SDropTableReq *pReq);
-int metaAlterTable(SMeta *pMeta, SAlterTableReq *pReq);
-int metaCommit(SMeta *pMeta);
+// Types exported
+typedef struct SMeta            SMeta;
+typedef struct SMetaOpts        SMetaOpts;
+typedef struct SMetaQueryHandle SMetaQueryHandle;
+typedef struct SMetaQueryOpts   SMetaQueryOpts;
+typedef struct STableOpts       STableOpts;
+
+// SMeta operations
+int    metaCreate(const char *path);
+void   metaDestroy(const char *path);
+SMeta *metaOpen(SMetaOpts *);
+void   metaClose(SMeta *);
+int    metaCreateTable(SMeta *, STableOpts *);
+int    metaDropTable(SMeta *, uint64_t tuid_t);
+int    metaAlterTable(SMeta *, void *);
+int    metaCommit(SMeta *);
+
+// Options
+SMetaOpts *metaOptionsCreate();
+void       metaOptionsDestroy(SMetaOpts *);
+void       metaOptionsSetCache(SMetaOpts *, size_t capacity);
+
+// SMetaQueryHandle
+SMetaQueryHandle *metaQueryHandleCreate(SMetaQueryOpts *);
+void              metaQueryHandleDestroy(SMetaQueryHandle *);
+
+// SMetaQueryOpts
+SMetaQueryOpts *metaQueryOptionsCreate();
+void            metaQueryOptionsDestroy(SMetaQueryOpts *);
+
+// STableOpts
+void metaTableOptsInit(STableOpts *, int8_t type, const char *name, const STSchema *pSchema);
+
+/* -------------------------------- Hided implementations -------------------------------- */
+struct STableOpts {
+  int8_t    type;
+  char *    name;
+  STSchema *pSchema;
+};
 
 #ifdef __cplusplus
 }
