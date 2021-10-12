@@ -2,7 +2,7 @@
 #include "taos.h"
 #include "tlog.h"
 #include "tscUtil.h"
-#include "tscParseLine.h"
+//#include "tscParseLine.h"
 
 #include "com_alibaba_datax_plugin_writer_JniConnection.h"
 #include "jniCommon.h"
@@ -265,12 +265,15 @@ JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_inser
     return JNI_SQL_NULL;
   }
 
-  int code = taos_insert_json_payload(taos, payload);
-
+  char *message[1];
+  message[0] = payload;
+  int code = taos_schemaless_insert(taos, message, 0, 2);
   (*env)->ReleaseStringUTFChars(env, json, payload);
-  if (code != TSDB_CODE_SUCCESS) {
+
+  if (code) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
+  jniDebug("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
   return code;
 }
