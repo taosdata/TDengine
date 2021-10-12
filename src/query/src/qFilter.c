@@ -1166,14 +1166,16 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     assert(info->pTable != NULL);
     SSchema* schema = pLeft->_node.pLeft->pSchema;
+    if(pLeft->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    memset(schema->name, 0, TSDB_COL_NAME_LEN);
+    strncpy(schema->name, pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen);
+
     void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type, &schema->colId);
     if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
     type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next
     assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON_BINARY);
-    if(pLeft->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
-    memset(schema->name, 0, TSDB_COL_NAME_LEN);
-    strncpy(schema->name, pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen);
-    pLeft = pLeft->_node.pLeft;
+
+    pLeft = pLeft->_node.pLeft;   // -> operation use left as input
   }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
     SSchema* schema = pLeft->pSchema;
     if(tree->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
