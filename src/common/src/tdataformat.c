@@ -277,7 +277,7 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
       pCol->len += varDataTLen(value);
     }
   } else {
-    // update the value of last row with increasing the pCol->len and keeping the numOfRows for paritial update
+    // update the value of last row with increasing the pCol->len and keeping the numOfRows for partial update
     ASSERT(pCol->len == (TYPE_BYTES[pCol->type] * (numOfRows - rowOffset)));
     memcpy(POINTER_SHIFT(pCol->pData, (pCol->len + rowOffset * TYPE_BYTES[pCol->type])), value, pCol->bytes);
     if (rowOffset == 0) {
