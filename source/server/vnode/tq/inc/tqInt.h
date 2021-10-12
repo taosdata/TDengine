@@ -25,6 +25,17 @@ extern "C" {
 //implement the array index
 //implement the ring buffer
 
+//create persistent storage for meta info such as consuming offset
+//return value > 0: cgId
+//return value <= 0: error code
+int tqCreateGroup(STQ*);
+//create ring buffer in memory and load consuming offset
+int tqOpenGroup(STQ*, int cgId);
+//destroy ring buffer and persist consuming offset
+int tqCloseGroup(STQ*, int cgId);
+//delete persistent storage for meta info
+int tqDropGroup(STQ*, int cgId);
+
 #ifdef __cplusplus
 }
 #endif

@@ -60,6 +60,7 @@ float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight       = 0;
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+int64_t tsMaxVnodeQueuedBytes = 1024*1024*1024; //1GB
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,

@@ -21,14 +21,8 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef struct SDnStatus {
-  void *   dnodeTimer;
-  void *   statusTimer;
-  uint32_t rebootTime;
-} SDnStatus;
-
-int32_t dnodeInitStatus(SDnStatus **status);
-void    dnodeCleanupStatus(SDnStatus **status);
+int32_t dnodeInitStatus();
+void    dnodeCleanupStatus();
 void    dnodeProcessStatusRsp(SRpcMsg *pMsg);
 
 #ifdef __cplusplus

@@ -60,8 +60,8 @@ void     walClose(twalh);
 //write
 int64_t  walWrite(twalh, int8_t msgType, void* body, uint32_t bodyLen);
 void     walFsync(twalh, bool forceHint);
-//int32_t  walCommit(twalh, uint64_t ver);
-//int32_t  walRollback(twalh, uint64_t ver);
+//int32_t  walCommit(twalh, int64_t ver);
+//int32_t  walRollback(twalh, int64_t ver);
 
 //read
 int32_t  walRead(twalh, SWalHead **, int64_t ver);

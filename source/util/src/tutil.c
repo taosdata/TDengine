@@ -382,24 +382,3 @@ char *taosIpStr(uint32_t ipInt) {
   return ipStr;
 }
 
-FORCE_INLINE float taos_align_get_float(const char* pBuf) {
-#if __STDC_VERSION__ >= 201112L
-  static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
-#else
-  assert(sizeof(float) == sizeof(uint32_t));
-#endif
-  float fv = 0;
-  memcpy(&fv, pBuf, sizeof(fv)); // in ARM, return *((const float*)(pBuf)) may cause problem
-  return fv; 
-}
-
-FORCE_INLINE double taos_align_get_double(const char* pBuf) {
-#if __STDC_VERSION__ >= 201112L
-  static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
-#else
-  assert(sizeof(double) == sizeof(uint64_t));
-#endif
-  double dv = 0;
-  memcpy(&dv, pBuf, sizeof(dv)); // in ARM, return *((const double*)(pBuf)) may cause problem
-  return dv; 
-}

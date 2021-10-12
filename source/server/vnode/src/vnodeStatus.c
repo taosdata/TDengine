@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "query.h"
-#include "vnodeStatus.h"
+// #include "query.h"
 #include "vnodeRead.h"
+#include "vnodeStatus.h"
 #include "vnodeWrite.h"
 
 char* vnodeStatus[] = {
@@ -29,30 +29,32 @@ char* vnodeStatus[] = {
   "reset"
 };
 
-bool vnodeSetInitStatus(SVnodeObj* pVnode) {
+bool vnodeSetInitStatus(SVnode* pVnode) {
   pthread_mutex_lock(&pVnode->statusMutex);
   pVnode->status = TAOS_VN_STATUS_INIT;
   pthread_mutex_unlock(&pVnode->statusMutex);
   return true;
 }
 
-bool vnodeSetReadyStatus(SVnodeObj* pVnode) {
+bool vnodeSetReadyStatus(SVnode* pVnode) {
   bool set = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
   if (pVnode->status == TAOS_VN_STATUS_INIT || pVnode->status == TAOS_VN_STATUS_READY ||
-      pVnode->status == TAOS_VN_STATUS_UPDATING || pVnode->status == TAOS_VN_STATUS_RESET) {
+      pVnode->status == TAOS_VN_STATUS_UPDATING) {
     pVnode->status = TAOS_VN_STATUS_READY;
     set = true;
   }
 
+#if 0
   qQueryMgmtReOpen(pVnode->qMgmt);
+#endif   
 
   pthread_mutex_unlock(&pVnode->statusMutex);
   return set;
 }
 
-static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
+static bool vnodeSetClosingStatusImp(SVnode* pVnode) {
   bool set = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
@@ -65,7 +67,7 @@ static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
   return set;
 }
 
-bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
+bool vnodeSetClosingStatus(SVnode* pVnode) {
   if (pVnode->status == TAOS_VN_STATUS_CLOSING)
     return true;
 
@@ -73,15 +75,17 @@ bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
     taosMsleep(1);
   }
 
+#if 0
   // release local resources only after cutting off outside connections
   qQueryMgmtNotifyClosed(pVnode->qMgmt);
+#endif   
   vnodeWaitReadCompleted(pVnode);
   vnodeWaitWriteCompleted(pVnode);
 
   return true;
 }
 
-bool vnodeSetUpdatingStatus(SVnodeObj* pVnode) {
+bool vnodeSetUpdatingStatus(SVnode* pVnode) {
   bool set = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
@@ -94,35 +98,7 @@ bool vnodeSetUpdatingStatus(SVnodeObj* pVnode) {
   return set;
 }
 
-static bool vnodeSetResetStatusImp(SVnodeObj* pVnode) {
-  bool set = false;
-  pthread_mutex_lock(&pVnode->statusMutex);
-
-  if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_INIT) {
-    pVnode->status = TAOS_VN_STATUS_RESET;
-    set = true;
-  }
-
-  pthread_mutex_unlock(&pVnode->statusMutex);
-  return set;
-}
-
-bool vnodeSetResetStatus(SVnodeObj* pVnode) {
-  while (!vnodeSetResetStatusImp(pVnode)) {
-    taosMsleep(1);
-  }
-
-  vInfo("vgId:%d, set to reset status", pVnode->vgId);
-
-  // release local resources only after cutting off outside connections
-  qQueryMgmtNotifyClosed(pVnode->qMgmt);
-  vnodeWaitReadCompleted(pVnode);
-  vnodeWaitWriteCompleted(pVnode);
-
-  return true;
-}
-
-bool vnodeInInitStatus(SVnodeObj* pVnode) {
+bool vnodeInInitStatus(SVnode* pVnode) {
   bool in = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
@@ -134,7 +110,7 @@ bool vnodeInInitStatus(SVnodeObj* pVnode) {
   return in;
 }
 
-bool vnodeInReadyStatus(SVnodeObj* pVnode) {
+bool vnodeInReadyStatus(SVnode* pVnode) {
   bool in = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
@@ -146,19 +122,7 @@ bool vnodeInReadyStatus(SVnodeObj* pVnode) {
   return in;
 }
 
-bool vnodeInReadyOrUpdatingStatus(SVnodeObj* pVnode) {
-  bool in = false;
-  pthread_mutex_lock(&pVnode->statusMutex);
-
-  if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_UPDATING) {
-    in = true;
-  }
-
-  pthread_mutex_unlock(&pVnode->statusMutex);
-  return in;
-}
-
-bool vnodeInClosingStatus(SVnodeObj* pVnode) {
+bool vnodeInClosingStatus(SVnode* pVnode) {
   bool in = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
@@ -170,14 +134,3 @@ bool vnodeInClosingStatus(SVnodeObj* pVnode) {
   return in;
 }
 
-bool vnodeInResetStatus(SVnodeObj* pVnode) {
-  bool in = false;
-  pthread_mutex_lock(&pVnode->statusMutex);
-
-  if (pVnode->status == TAOS_VN_STATUS_RESET) {
-    in = true;
-  }
-
-  pthread_mutex_unlock(&pVnode->statusMutex);
-  return in;
-}

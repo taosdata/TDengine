@@ -104,33 +104,6 @@ do { \
   (src) = (void *)((char *)src + sizeof(type));\
 } while(0)
 
-#define GET_INT8_VAL(x)    (*(int8_t *)(x))
-#define GET_INT16_VAL(x)   (*(int16_t *)(x))
-#define GET_INT32_VAL(x)   (*(int32_t *)(x))
-#define GET_INT64_VAL(x)   (*(int64_t *)(x))
-#define GET_UINT8_VAL(x)   (*(uint8_t*) (x))
-#define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
-#define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
-#define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
-
-#ifdef _TD_ARM_32
-  float  taos_align_get_float(const char* pBuf);
-  double taos_align_get_double(const char* pBuf);
-
-  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
-  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
-  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
-  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
-  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
-#else
-  #define GET_FLOAT_VAL(x)       (*(float *)(x))
-  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
-  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
-  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
-  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
-  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
-#endif
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0

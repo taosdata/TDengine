@@ -15,8 +15,9 @@
 
 #include "os.h"
 #include "thash.h"
-#include "tcompare.h"
+#include "compare.h"
 #include "tdef.h"
+#include "types.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 

@@ -3,7 +3,7 @@ add_subdirectory(tq)
 add_subdirectory(tsdb)
 
 aux_source_directory(src VNODE_SRC)
-add_library(vnode ${VNODE_SRC})
+add_library(vnode STATIC ${VNODE_SRC})
 target_include_directories(
     vnode
     PUBLIC "${CMAKE_SOURCE_DIR}/include/server/vnode"
@@ -15,4 +15,11 @@ target_link_libraries(
     PUBLIC meta
     PUBLIC tq
     PUBLIC tsdb
+    PUBLIC wal
+    PUBLIC cjson
 )
+
+# test
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})

@@ -21,20 +21,8 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef void (*RpcMsgFp)( SRpcMsg *pMsg);
-
-typedef struct SDnTrans {
-  void *   serverRpc;
-  void *   clientRpc;
-  void *   shellRpc;
-  int32_t  queryReqNum;
-  int32_t  submitReqNum;
-  RpcMsgFp peerMsgFp[TSDB_MSG_TYPE_MAX];
-  RpcMsgFp shellMsgFp[TSDB_MSG_TYPE_MAX];
-} SDnTrans;
-
-int32_t dnodeInitTrans(SDnTrans **rans);
-void    dnodeCleanupTrans(SDnTrans **trans);
+int32_t dnodeInitTrans();
+void    dnodeCleanupTrans();
 void    dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
 void    dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
 void    dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);

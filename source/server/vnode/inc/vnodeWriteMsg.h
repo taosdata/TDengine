@@ -13,25 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_MAIN_H
-#define TDENGINE_VNODE_MAIN_H
+#ifndef _TD_VNODE_WRITE_MSG_H_
+#define _TD_VNODE_WRITE_MSG_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
-
-int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeDrop(int32_t vgId);
-int32_t vnodeOpen(int32_t vgId);
-int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeSync(int32_t vgId);
-int32_t vnodeClose(int32_t vgId);
-void    vnodeCleanUp(SVnodeObj *pVnode);
-void    vnodeDestroy(SVnodeObj *pVnode);
+ 
+int32_t vnodeProcessSubmitReq(SVnode *pVnode, SSubmitReq *pReq, SSubmitRsp *pRsp);
+int32_t vnodeProcessCreateTableReq(SVnode *pVnode, SCreateTableReq *pReq, SCreateTableRsp *pRsp);
+int32_t vnodeProcessDropTableReq(SVnode *pVnode, SDropTableReq *pReq, SDropTableRsp *pRsp);
+int32_t vnodeProcessAlterTableReq(SVnode *pVnode, SAlterTableReq *pReq, SAlterTableRsp *pRsp);
+int32_t vnodeProcessDropStableReq(SVnode *pVnode, SDropStableReq *pReq, SDropStableRsp *pRsp);
+int32_t vnodeProcessUpdateTagValReq(SVnode *pVnode, SUpdateTagValReq *pReq, SUpdateTagValRsp *pRsp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_VNODE_WRITE_MSG_H_*/

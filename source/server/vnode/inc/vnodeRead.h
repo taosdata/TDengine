@@ -13,35 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_MAIN_H_
-#define _TD_DNODE_MAIN_H_
+#ifndef _TD_VNODE_READ_H_
+#define _TD_VNODE_READ_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
+#include "vnodeInt.h"
 
-typedef enum {
-  TD_RUN_STAT_INIT,
-  TD_RUN_STAT_RUNNING,
-  TD_RUN_STAT_STOPPED
-} RunStat;
+int32_t    vnodeInitRead();
+void       vnodeCleanupRead();
+taos_queue vnodeAllocQueryQueue(SVnode *pVnode);
+taos_queue vnodeAllocFetchQueue(SVnode *pVnode);
+void       vnodeFreeQueryQueue(taos_queue pQueue);
+void       vnodeFreeFetchQueue(taos_queue pQueue);
 
-int32_t dnodeInitMain();
-void    dnodeCleanupMain();
-int32_t dnodeInitStorage();
-void    dnodeCleanupStorage();
-void    dnodeReportStartup(char *name, char *desc);
-void    dnodeReportStartupFinished(char *name, char *desc);
-void    dnodeProcessStartupReq(SRpcMsg *pMsg);
-void    dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
-void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
-RunStat dnodeGetRunStat();
-void    dnodeSetRunStat();
-void*   dnodeGetTimer();
+void vnodeProcessReadMsg(SRpcMsg *pRpcMsg);
+int32_t vnodeReputPutToRQueue(SVnode *pVnode, void **qhandle, void *ahandle);
+
+void vnodeStartRead(SVnode *pVnode);
+void vnodeStopRead(SVnode *pVnode);
+void vnodeWaitReadCompleted(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_MAIN_H_*/
+#endif /*_TD_VNODE_READ_H_*/

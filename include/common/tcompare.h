@@ -13,19 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_VERSION_H
-#define TDENGINE_VNODE_VERSION_H
+#ifndef _TD_TCOMPARE_H_
+#define _TD_TCOMPARE_H_
+
+#include "compare.h"
+#include "ttypes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-int32_t vnodeReadVersion(SVnodeObj *pVnode);
-int32_t vnodeSaveVersion(SVnodeObj *pVnode);
+int32_t       compareStrPatternComp(const void* pLeft, const void* pRight);
+int32_t       compareWStrPatternComp(const void* pLeft, const void* pRight);
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
+__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
+int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_TCOMPARE_H_*/
