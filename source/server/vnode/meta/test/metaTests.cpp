@@ -31,7 +31,7 @@ TEST(MetaTest, meta_open_test) {
   metaClose(meta);
   std::cout << "Meta is closed!" << std::endl;
 
-  // // Destroy Meta
-  // metaDestroy("meta");
-  // std::cout << "Meta is destroyed!" << std::endl;
+  // Destroy Meta
+  metaDestroy("meta");
+  std::cout << "Meta is destroyed!" << std::endl;
 }

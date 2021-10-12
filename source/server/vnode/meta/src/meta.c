@@ -145,19 +145,20 @@ int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
   taosHashPut(pMeta->pTableObjHash, &(pTableObj->pTable->uid), sizeof(tb_uid_t), &pTableObj, sizeof(pTableObj));
 
   wopt = rocksdb_writeoptions_create();
+  rocksdb_writeoptions_disable_WAL(wopt, 1);
 
   // Add to tbname db
   rocksdb_put(pMeta->tbnameDb, wopt, pTableOpts->name, strlen(pTableOpts->name), &pTableObj->pTable->uid,
               sizeof(tb_uid_t), &err);
 
   // Add to schema db
-  char id[12];
-  char buf[256];
+  char  id[12];
+  char  buf[256];
   void *pBuf = buf;
   *(tb_uid_t *)id = pTableObj->pTable->uid;
   *(int32_t *)(id + sizeof(tb_uid_t)) = schemaVersion(pTableOpts->pSchema);
   int size = tdEncodeSchema(&pBuf, pTableOpts->pSchema);
-  
+
   rocksdb_put(pMeta->schemaDb, wopt, id, 12, buf, size, &err);
 
   rocksdb_writeoptions_destroy(wopt);
