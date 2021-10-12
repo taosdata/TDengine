@@ -6160,13 +6160,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(pMsg, msg25);
       }
 
-      char tagVal[TSDB_MAX_TAGS_LEN] = {0};
-      int ret = tVariantDump(&(pItem->pVar), tagVal, pTagsSchema->type, true);
-      if (ret != TSDB_CODE_SUCCESS) {
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidOperationMsg(pMsg, msg25);
-      }
-      tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, tagVal, false);
+      int8_t tagVal = TSDB_DATA_BINARY_PLACEHOLDER;
+      tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
 
       code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId, pTagsSchema->type);
       if (code != TSDB_CODE_SUCCESS) {
