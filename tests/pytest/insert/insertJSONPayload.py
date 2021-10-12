@@ -35,7 +35,7 @@ class TDTestCase:
         print("============= step0 : test metric  ================")
         payload = ['''
         {
-	    "metric":	".stb.0.",
+	    "metric":	"`.stb.0.`",
 	    "timestamp":	1626006833610123,
 	    "value":	10,
 	    "tags":	{
@@ -49,7 +49,7 @@ class TDTestCase:
         code = self._conn.schemaless_insert(payload, 2)
         print("schemaless_insert result {}".format(code))
 
-        tdSql.query("describe _stb_0_")
+        tdSql.query("describe `.stb.0.`")
         tdSql.checkRows(6)
 
         ### metric value ###

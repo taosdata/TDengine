@@ -58,12 +58,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
       break;
     }
 
-    //convert dot to underscore for now, will be removed once dot is allowed in tbname.
-    if (*cur == '.') {
-      pSml->stableName[len] = '_';
-    } else {
-      pSml->stableName[len] = tolower(*cur);
-    }
+    pSml->stableName[len] = *cur;
 
     cur++;
     len++;
@@ -460,13 +455,6 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
     tscError("OTD:0x%"PRIx64" Metric cannnot start with digit in JSON", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_INVALID_JSON;
-  }
-
-  //convert dot to underscore for now, will be removed once dot is allowed in tbname.
-  for (int i = 0; i < stableLen; ++i) {
-    if (metric->valuestring[i] == '.') {
-      metric->valuestring[i] = '_';
-    }
   }
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
