@@ -102,22 +102,6 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
       n = bufSize + 2;
       break;
 
-    case TSDB_DATA_TYPE_UTINYINT:
-      n = sprintf(str, "%d", *(uint8_t*)buf);
-      break;
-  
-    case TSDB_DATA_TYPE_USMALLINT:
-      n = sprintf(str, "%d", *(uint16_t*)buf);
-      break;
-  
-    case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%u", *(uint32_t*)buf);
-      break;
-  
-    case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
-      break;
-    
     default:
       tscError("unsupported type:%d", type);
       return TSDB_CODE_TSC_INVALID_VALUE;
@@ -4028,7 +4012,9 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     // todo refactor
     tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
-    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry)) {
+    SSqlObj *rootObj = pParentSql->rootObj;
+
+    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && rootObj->retry < rootObj->maxRetry)) {
       pParentSql->res.code = code;
 
       tscAsyncResultOnError(pParentSql);
@@ -4048,7 +4034,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
              tstrerror(code), rootObj->retry);
 
 
-    tscResetSqlCmd(&rootObj->cmd, true);
+    tscResetSqlCmd(&rootObj->cmd, true, rootObj->self);
 
     code = tsParseSql(rootObj, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -5300,30 +5286,4 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-char* cloneCurrentDBName(SSqlObj* pSql) {
-  char        *p = NULL;
-  HttpContext *pCtx = NULL;
 
-  pthread_mutex_lock(&pSql->pTscObj->mutex);
-  STscObj *pTscObj = pSql->pTscObj;
-  switch (pTscObj->from) {
-  case TAOS_REQ_FROM_HTTP:
-    pCtx = pSql->param;
-    if (pCtx && pCtx->db[0] != '\0') {
-      char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
-      int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
-      assert(len <= sizeof(db));
-
-      p = strdup(db);
-    }
-    break;
-  default:
-    break;
-  }
-  if (p == NULL) {
-    p = strdup(pSql->pTscObj->db);
-  }
-  pthread_mutex_unlock(&pSql->pTscObj->mutex);
-
-  return p;
-}

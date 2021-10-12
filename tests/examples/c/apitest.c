@@ -384,14 +384,6 @@ int main(int argc, char* argv[]) {
   printf("*********** verify subscribe ************\n");
   verify_subscribe(taos);
 
-  printf("************ verify prepare *************\n");
-  verify_prepare(taos);
-
-  printf("************ verify prepare2 *************\n");
-  verify_prepare2(taos);
-  printf("************ verify prepare3 *************\n");
-  verify_prepare3(taos);
-
   printf("************ verify stream  *************\n");
   // verify_stream(taos);
   printf("done\n");

@@ -47,6 +47,7 @@ typedef enum {
 struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
+typedef void (*_freeSqlSupporter)(void **);
 
 
 typedef struct SNewVgroupInfo {

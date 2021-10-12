@@ -876,7 +876,7 @@ bool tscReparseSql(SSqlObj *sql, int32_t code){
   tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", sql->self,
       tstrerror(code), sql->retry);
   
-  tscResetSqlCmd(&sql->cmd, true);
+  tscResetSqlCmd(&sql->cmd, true, sql->self);
   code = tsParseSql(sql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     return false;

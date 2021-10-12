@@ -488,44 +488,6 @@ static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupR
   return TSDB_CODE_SUCCESS;
 }
 
-static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
-    int32_t* rowCellInfoOffset) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
-
-  taosArraySort(pRuntimeEnv->pResultRowArrayList, fn);
-}
-
-static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, uint64_t groupId, int32_t* rowCellInfoOffset) {
-  if (!pGroupResInfo->ordered) {
-    orderTheResultRows(pRuntimeEnv);
-    pGroupResInfo->ordered = true;
-  }
-
-  if (pGroupResInfo->pRows == NULL) {
-    pGroupResInfo->pRows = taosArrayInit(100, POINTER_BYTES);
-  }
-
-  size_t len = taosArrayGetSize(pRuntimeEnv->pResultRowArrayList);
-  for(; pGroupResInfo->position < len; ++pGroupResInfo->position) {
-
-    SResultRowCell* pResultRowCell = taosArrayGet(pRuntimeEnv->pResultRowArrayList, pGroupResInfo->position);
-    if (pResultRowCell->groupId != groupId) {
-      break;
-    }
-
-    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pResultRowCell->pRow, rowCellInfoOffset);
-    if (num <= 0) {
-      continue;
-    }
-
-    taosArrayPush(pGroupResInfo->pRows, &pResultRowCell->pRow);
-    pResultRowCell->pRow->numOfRows = (uint32_t) num;
-
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t* offset) {
   int64_t st = taosGetTimestampUs();
 
