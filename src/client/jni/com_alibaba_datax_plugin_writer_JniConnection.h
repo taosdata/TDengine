@@ -81,6 +81,14 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getAff
 JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_closeConnectionImp
   (JNIEnv *, jobject, jlong);
 
+/*
+ * Class:     com_alibaba_datax_plugin_writer_JniConnection
+ * Method:    insertOpentsdbJson
+ * Signature: (Ljava/lang/String;J)J
+ */
+JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_insertOpentsdbJson
+  (JNIEnv *, jobject, jstring, jlong);
+
 #ifdef __cplusplus
 }
 #endif

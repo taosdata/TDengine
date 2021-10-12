@@ -2,6 +2,7 @@
 #include "taos.h"
 #include "tlog.h"
 #include "tscUtil.h"
+#include "tscParseLine.h"
 
 #include "com_alibaba_datax_plugin_writer_JniConnection.h"
 #include "jniCommon.h"
@@ -220,7 +221,7 @@ JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_get
 
 JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getAffectedRowsImp(JNIEnv *env, jobject jobj,
                                                                                              jlong con, jlong res) {
-  TAOS *  tscon = (TAOS *)con;
+  TAOS   *tscon = (TAOS *)con;
   int32_t code = check_for_params(jobj, con, res);
   if (code != JNI_SUCCESS) {
     return code;
@@ -244,4 +245,32 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_closeC
     taos_close(tscon);
     return JNI_SUCCESS;
   }
+}
+
+JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_insertOpentsdbJson(JNIEnv *env, jobject jobj,
+                                                                                              jstring json, jlong con) {
+  TAOS *taos = (TAOS *)con;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  char *payload = NULL;
+  if (json != NULL) {
+    payload = (char *)(*env)->GetStringUTFChars(env, json, NULL);
+  }
+
+  if (payload == NULL) {
+    jniDebug("jobj:%p, invalid argument: opentsdb insert json is NULL", jobj);
+    return JNI_SQL_NULL;
+  }
+
+  int code = taos_insert_json_payload(taos, payload);
+
+  (*env)->ReleaseStringUTFChars(env, json, payload);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+  return code;
 }
