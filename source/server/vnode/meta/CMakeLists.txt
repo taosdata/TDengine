@@ -8,8 +8,8 @@ target_include_directories(
 target_link_libraries(
     meta
     PUBLIC common
+    PUBLIC tkv
 )
-target_link_libraries(meta PUBLIC rocksdb)
 
 if(${BUILD_TEST})
     add_subdirectory(test)

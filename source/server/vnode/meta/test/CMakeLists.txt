@@ -14,8 +14,8 @@ target_link_libraries(metaTest
     os
     util
     common
-    rocksdb
     gtest_main
+    tkv
 )
 enable_testing()
 add_test(

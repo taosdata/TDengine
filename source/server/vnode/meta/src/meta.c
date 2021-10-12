@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <rocksdb/c.h>
-
+#include "tkv.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tlockfree.h"
@@ -44,13 +43,13 @@ typedef struct STableObj {
 struct SMeta {
   pthread_rwlock_t rwLock;
 
-  SHashObj * pTableObjHash;  // uid --> STableObj
-  SList *    stbList;        // super table list
-  rocksdb_t *tbnameDb;       // tbname --> uid
-  rocksdb_t *tagDb;          // uid --> tag
-  rocksdb_t *schemaDb;
-  rocksdb_t *tagIdx;
-  size_t     totalUsed;
+  SHashObj *pTableObjHash;  // uid --> STableObj
+  SList *   stbList;        // super table list
+  STkvDb *  tbnameDb;       // tbname --> uid
+  STkvDb *  tagDb;          // uid --> tag
+  STkvDb *  schemaDb;
+  STkvDb *  tagIdx;
+  size_t    totalUsed;
 };
 
 static STable *   metaTableNew(tb_uid_t uid, const char *name, int32_t sver);
@@ -74,34 +73,33 @@ SMeta *metaOpen(SMetaOpts *options) {
   pMeta->stbList = tdListNew(sizeof(STableObj *));
 
   // Options
-  rocksdb_options_t *dbOptions = rocksdb_options_create();
-  rocksdb_options_set_create_if_missing(dbOptions, 1);
+  STkvOpts *dbOptions = tkvOptionsCreate();
 
   taosMkDir("meta");
 
   // Open tbname DB
-  pMeta->tbnameDb = rocksdb_open(dbOptions, "meta/tbname_uid_db", &err);
+  pMeta->tbnameDb = tkvOpen(dbOptions, "meta/tbname_uid_db");
 
   // Open tag DB
-  pMeta->tagDb = rocksdb_open(dbOptions, "meta/uid_tag_db", &err);
+  pMeta->tagDb = tkvOpen(dbOptions, "meta/uid_tag_db");
 
   // Open schema DB
-  pMeta->schemaDb = rocksdb_open(dbOptions, "meta/schema_db", &err);
+  pMeta->schemaDb = tkvOpen(dbOptions, "meta/schema_db");
 
   // Open tag index
-  pMeta->tagIdx = rocksdb_open(dbOptions, "meta/tag_idx_db", &err);
+  pMeta->tagIdx = tkvOpen(dbOptions, "meta/tag_idx_db");
 
-  rocksdb_options_destroy(dbOptions);
+  tkvOptionsDestroy(dbOptions);
 
   return pMeta;
 }
 
 void metaClose(SMeta *pMeta) {
   if (pMeta) {
-    rocksdb_close(pMeta->tagIdx);
-    rocksdb_close(pMeta->schemaDb);
-    rocksdb_close(pMeta->tagDb);
-    rocksdb_close(pMeta->tbnameDb);
+    tkvClose(pMeta->tagIdx);
+    tkvClose(pMeta->schemaDb);
+    tkvClose(pMeta->tagDb);
+    tkvClose(pMeta->tbnameDb);
 
     tdListFree(pMeta->stbList);
     taosHashCleanup(pMeta->pTableObjHash);
@@ -110,22 +108,21 @@ void metaClose(SMeta *pMeta) {
 }
 
 int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
-  size_t                  vallen;
-  char *                  err = NULL;
-  rocksdb_readoptions_t * ropt;
-  STableObj *             pTableObj = NULL;
-  rocksdb_writeoptions_t *wopt;
+  size_t        vallen;
+  STkvReadOpts *ropt;
+  STableObj *   pTableObj = NULL;
+  STkvWriteOpts *wopt;
 
   // Check if table already exists
-  ropt = rocksdb_readoptions_create();
+  ropt = tkvReadOptsCreate();
 
-  char *uidStr = rocksdb_get(pMeta->tbnameDb, ropt, pTableOpts->name, strlen(pTableOpts->name), &vallen, &err);
+  char *uidStr = tkvGet(pMeta->tbnameDb, ropt, pTableOpts->name, strlen(pTableOpts->name), &vallen);
   if (uidStr != NULL) {
     // Has duplicate named table
     return -1;
   }
 
-  rocksdb_readoptions_destroy(ropt);
+  tkvReadOptsDestroy(ropt);
 
   // Create table obj
   pTableObj = metaTableObjNew();
@@ -144,12 +141,12 @@ int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
 
   taosHashPut(pMeta->pTableObjHash, &(pTableObj->pTable->uid), sizeof(tb_uid_t), &pTableObj, sizeof(pTableObj));
 
-  wopt = rocksdb_writeoptions_create();
-  rocksdb_writeoptions_disable_WAL(wopt, 1);
+  wopt = tkvWriteOptsCreate();
+  // rocksdb_writeoptions_disable_WAL(wopt, 1);
 
   // Add to tbname db
-  rocksdb_put(pMeta->tbnameDb, wopt, pTableOpts->name, strlen(pTableOpts->name), &pTableObj->pTable->uid,
-              sizeof(tb_uid_t), &err);
+  tkvPut(pMeta->tbnameDb, wopt, pTableOpts->name, strlen(pTableOpts->name), (char *)&pTableObj->pTable->uid,
+              sizeof(tb_uid_t));
 
   // Add to schema db
   char  id[12];
@@ -159,9 +156,9 @@ int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
   *(int32_t *)(id + sizeof(tb_uid_t)) = schemaVersion(pTableOpts->pSchema);
   int size = tdEncodeSchema(&pBuf, pTableOpts->pSchema);
 
-  rocksdb_put(pMeta->schemaDb, wopt, id, 12, buf, size, &err);
+  tkvPut(pMeta->schemaDb, wopt, id, 12, buf, size);
 
-  rocksdb_writeoptions_destroy(wopt);
+  tkvWriteOptsDestroy(wopt);
 
   pthread_rwlock_unlock(&pMeta->rwLock);
 

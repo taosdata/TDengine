@@ -5,3 +5,7 @@ target_include_directories(
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/tkv"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+target_link_libraries(
+    tkv
+    PUBLIC os
+)

@@ -16,29 +16,42 @@
 #ifndef _TD_TKV_H_
 #define _TD_TKV_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Types exported
-typedef struct STkvDb      STkvDb;
-typedef struct STkvOptions STkvOptions;
-typedef struct STkvCache   STkvCache;
+typedef struct STkvDb        STkvDb;
+typedef struct STkvOpts      STkvOpts;
+typedef struct STkvCache     STkvCache;
+typedef struct STkvReadOpts  STkvReadOpts;
+typedef struct STkvWriteOpts STkvWriteOpts;
 
 // DB operations
-STkvDb *tkvOpen(const STkvOptions *options, const char *path);
+STkvDb *tkvOpen(const STkvOpts *options, const char *path);
 void    tkvClose(STkvDb *db);
-void    tkvPut(STkvDb *db, void * /*TODO*/);
+void    tkvPut(STkvDb *db, STkvWriteOpts *, char *key, size_t keylen, char *val, size_t vallen);
+char *  tkvGet(STkvDb *db, STkvReadOpts *, char *key, size_t keylen, size_t *vallen);
 
 // DB options
-STkvOptions *tkvOptionsCreate();
-void         tkvOptionsDestroy(STkvOptions *);
-void         tkvOptionsSetCache(STkvOptions *, STkvCache *);
+STkvOpts *tkvOptionsCreate();
+void      tkvOptionsDestroy(STkvOpts *);
+void      tkvOptionsSetCache(STkvOpts *, STkvCache *);
 
 // DB cache
 typedef enum { TKV_LRU_CACHE = 0, TKV_LFU_CACHE = 1 } ETkvCacheType;
 STkvCache *tkvCacheCreate(size_t capacity, ETkvCacheType type);
 void       tkvCacheDestroy(STkvCache *);
+
+// STkvReadOpts
+STkvReadOpts *tkvReadOptsCreate();
+void          tkvReadOptsDestroy(STkvReadOpts *);
+
+// STkvWriteOpts
+STkvWriteOpts *tkvWriteOptsCreate();
+void           tkvWriteOptsDestroy(STkvWriteOpts *);
 
 #ifdef __cplusplus
 }
