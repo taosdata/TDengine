@@ -4,6 +4,9 @@
 #include "meta.h"
 
 TEST(MetaTest, meta_open_test) {
-    metaOpen(NULL);
-    std::cout << "Hello META!" << std::endl;
+  SMeta *meta = metaOpen(NULL);
+  std::cout << "Meta is opened!" << std::endl;
+
+  metaClose(meta);
+  std::cout << "Meta is closed!" << std::endl;
 }

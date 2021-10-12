@@ -22,6 +22,7 @@
 
 #include "meta.h"
 
+/* -------------------- Structures -------------------- */
 typedef struct STable {
   uint64_t uid;
   tstr *   name;
@@ -46,8 +47,11 @@ struct SMeta {
   rocksdb_t *tbnameDb;       // tbname --> uid
   rocksdb_t *tagDb;          // uid --> tag
   rocksdb_t *schemaDb;
+  rocksdb_t *tagIdx;
   size_t     totalUsed;
 };
+
+/* -------------------- Methods -------------------- */
 
 SMeta *metaOpen(SMetaOptions *options) {
   SMeta *pMeta = NULL;
@@ -64,21 +68,40 @@ SMeta *metaOpen(SMetaOptions *options) {
 
   pMeta->stbList = tdListNew(sizeof(STableObj *));
 
+  // Options
+  rocksdb_options_t *dbOptions = rocksdb_options_create();
+  rocksdb_options_set_create_if_missing(dbOptions, 1);
+
+  taosMkDir("meta");
+
   // Open tbname DB
-  rocksdb_options_t *tbnameDbOptions = rocksdb_options_create();
-  pMeta->tbnameDb = rocksdb_open(tbnameDbOptions, "tbname_uid_db", &err);
+  pMeta->tbnameDb = rocksdb_open(dbOptions, "meta/tbname_uid_db", &err);
 
   // Open tag DB
-  pMeta->tagDb = rocksdb_open(tbnameDbOptions, "uid_tag_db", &err);
+  pMeta->tagDb = rocksdb_open(dbOptions, "meta/uid_tag_db", &err);
 
   // Open schema DB
-  pMeta->schemaDb = rocksdb_open(tbnameDbOptions, "schema_db", &err);
+  pMeta->schemaDb = rocksdb_open(dbOptions, "meta/schema_db", &err);
+
+  // Open tag index
+  pMeta->tagIdx = rocksdb_open(dbOptions, "meta/tag_idx_db", &err);
+
+  rocksdb_options_destroy(dbOptions);
 
   return pMeta;
 }
 
 void metaClose(SMeta *pMeta) {
-  // TODO
+  if (pMeta) {
+    rocksdb_close(pMeta->tagIdx);
+    rocksdb_close(pMeta->schemaDb);
+    rocksdb_close(pMeta->tagDb);
+    rocksdb_close(pMeta->tbnameDb);
+
+    tdListFree(pMeta->stbList);
+    taosHashCleanup(pMeta->pTableObjHash);
+    pthread_rwlock_destroy(&(pMeta->rwLock));
+  }
 }
 
 int metaCommit(SMeta *meta) { return 0; }
