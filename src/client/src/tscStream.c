@@ -763,13 +763,13 @@ void taos_close_stream(TAOS_STREAM *handle) {
    */
   if (pSql->signature == pSql) {
     tscRemoveFromStreamList(pStream, pSql);
+    pStream->pSql = NULL;
 
     taosTmrStopA(&(pStream->pTimer));
 
     tscDebug("0x%"PRIx64" stream:%p is closed", pSql->self, pStream);
     // notify CQ to release the pStream object
     pStream->fp(pStream->param, NULL, NULL);
-    pStream->pSql = NULL;
 
     taos_free_result(pSql);
     tfree(pStream);
