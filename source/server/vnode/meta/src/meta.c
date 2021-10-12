@@ -21,12 +21,14 @@
 #include "ttypes.h"
 
 #include "meta.h"
+#include "metaUid.h"
 
 /* -------------------- Structures -------------------- */
+
 typedef struct STable {
-  uint64_t uid;
-  tstr *   name;
-  uint64_t suid;
+  tb_uid_t uid;
+  char *   name;
+  tb_uid_t suid;
   SArray * schema;
 } STable;
 
@@ -51,11 +53,8 @@ struct SMeta {
   size_t     totalUsed;
 };
 
-struct STableOpts {
-  int8_t    type;
-  char *    name;
-  STSchema *pSchema;
-};
+static STable *   metaTableNew(tb_uid_t uid, const char *name, int32_t sver);
+static STableObj *metaTableObjNew();
 
 /* -------------------- Methods -------------------- */
 
@@ -111,10 +110,97 @@ void metaClose(SMeta *pMeta) {
 }
 
 int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
-  // TODO
+  size_t                  vallen;
+  char *                  err = NULL;
+  rocksdb_readoptions_t * ropt;
+  STableObj *             pTableObj = NULL;
+  rocksdb_writeoptions_t *wopt;
+
+  // Check if table already exists
+  ropt = rocksdb_readoptions_create();
+
+  char *uidStr = rocksdb_get(pMeta->tbnameDb, ropt, pTableOpts->name, strlen(pTableOpts->name), &vallen, &err);
+  if (uidStr != NULL) {
+    // Has duplicate named table
+    return -1;
+  }
+
+  rocksdb_readoptions_destroy(ropt);
+
+  // Create table obj
+  pTableObj = metaTableObjNew();
+  if (pTableObj == NULL) {
+    // TODO
+    return -1;
+  }
+
+  // Create table object
+  pTableObj->pTable = metaTableNew(metaGenerateUid(), pTableOpts->name, schemaVersion(pTableOpts->pSchema));
+  if (pTableObj->pTable == NULL) {
+    // TODO
+  }
+
+  pthread_rwlock_rdlock(&pMeta->rwLock);
+
+  taosHashPut(pMeta->pTableObjHash, &(pTableObj->pTable->uid), sizeof(tb_uid_t), &pTableObj, sizeof(pTableObj));
+
+  wopt = rocksdb_writeoptions_create();
+
+  rocksdb_put(pMeta->tbnameDb, wopt, pTableOpts->name, strlen(pTableOpts->name), &pTableObj->pTable->uid,
+              sizeof(tb_uid_t), &err);
+  rocksdb_put(pMeta->schemaDb, wopt, pTableOpts->name, strlen(pTableOpts->name), &pTableObj->pTable->uid,
+              sizeof(tb_uid_t), &err);
+
+  rocksdb_writeoptions_destroy(wopt);
+
+  pthread_rwlock_unlock(&pMeta->rwLock);
+
   return 0;
 }
 
 void metaDestroy(const char *path) { taosRemoveDir(path); }
 
 int metaCommit(SMeta *meta) { return 0; }
+
+/* -------------------- Static Methods -------------------- */
+
+static STable *metaTableNew(tb_uid_t uid, const char *name, int32_t sver) {
+  STable *pTable = NULL;
+
+  pTable = (STable *)malloc(sizeof(*pTable));
+  if (pTable == NULL) {
+    // TODO
+    return NULL;
+  }
+
+  pTable->schema = taosArrayInit(0, sizeof(int32_t));
+  if (pTable->schema == NULL) {
+    // TODO
+    return NULL;
+  }
+
+  pTable->uid = uid;
+  pTable->name = strdup(name);
+  pTable->suid = IVLD_TB_UID;
+  taosArrayPush(pTable->schema, &sver);
+
+  return pTable;
+}
+
+static STableObj *metaTableObjNew() {
+  STableObj *pTableObj = NULL;
+
+  pTableObj = (STableObj *)malloc(sizeof(*pTableObj));
+  if (pTableObj == NULL) {
+    return NULL;
+  }
+
+  pTableObj->pin = true;
+  pTableObj->ref = 1;
+  taosInitRWLatch(&(pTableObj->latch));
+  pTableObj->offset = UINT64_MAX;
+  pTableObj->ctbList = NULL;
+  pTableObj->pTable = NULL;
+
+  return pTableObj;
+}

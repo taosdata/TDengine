@@ -56,6 +56,16 @@ void              metaQueryHandleDestroy(SMetaQueryHandle *);
 SMetaQueryOpts *metaQueryOptionsCreate();
 void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
+// STableOpts
+void metaTableOptsInit(int8_t type, const char *name, const STSchema *pSchema);
+
+/* -------------------------------- Hided implementations -------------------------------- */
+struct STableOpts {
+  int8_t    type;
+  char *    name;
+  STSchema *pSchema;
+};
+
 #ifdef __cplusplus
 }
 #endif
