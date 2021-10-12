@@ -5177,7 +5177,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
 }
 
 void findTagValue(STable* data, char* key, int32_t keyLen, char* out, int16_t len, uint8_t jsonType){
-  void* result = getJsonTagValue(data, key, keyLen, jsonType);
+  void* result = getJsonTagValue(data, key, keyLen, jsonType, NULL);
   if (result == NULL){    // json key no result
     return;
   }
@@ -5381,11 +5381,14 @@ int8_t jsonType2DbType(double data, int jsonType, uint8_t type){
       if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
     case cJSON_String:
       if (type == TSDB_DATA_TYPE_JSON_NCHAR) return TSDB_DATA_TYPE_NCHAR; else return TSDB_DATA_TYPE_BINARY;
+    case cJSON_True:
+    case cJSON_False:
+      return TSDB_DATA_TYPE_BOOL;
   }
   return TSDB_DATA_TYPE_NULL;
 }
 
-void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonType){
+void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonType, int16_t* retColId){
   int32_t outLen = 0;
   if(jsonType == TSDB_DATA_TYPE_JSON_NCHAR){
     char tagKey[256] = {0};
@@ -5405,6 +5408,7 @@ void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonTyp
     JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
     if (p == NULL) return NULL;
     int16_t colId = p->colId + 1;
+    if(retColId) *retColId = p->colId;
     return tdGetKVRowValOfCol(pTable->tagVal, colId);
   }else if(TABLE_TYPE(pTable) == TSDB_SUPER_TABLE){
     SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
@@ -5412,6 +5416,7 @@ void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonTyp
     if(taosArrayGetSize(*data) == 0) return NULL;
     JsonMapValue* p = taosArrayGet(*data, 0);
     int16_t colId = p->colId + 1;
+    if(retColId) *retColId = p->colId;
     return tdGetKVRowValOfCol(((STable*)(p->table))->tagVal, colId);
   }
   return NULL;

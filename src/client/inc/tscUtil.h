@@ -381,7 +381,7 @@ char* parseTagDatatoJson(void *p, uint8_t jsonType);
 void findTagValue(STable* data, char* key, int32_t keyLen, char* out, int16_t len, uint8_t jsonType);
 
 int8_t  jsonType2DbType(double data, int jsonType, uint8_t type);
-void*      getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonType);
+void*      getJsonTagValue(STable* pTable, char* key, int32_t keyLen, uint8_t jsonType, int16_t* colId);
 
 #ifdef __cplusplus
 }

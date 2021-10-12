@@ -847,7 +847,8 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       break;
     }
     
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON_BINARY:{
       if (!includeLengthPrefix) {
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
           *(uint8_t*) payload = TSDB_DATA_BINARY_NULL;
@@ -884,7 +885,8 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       }
       break;
     }
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON_NCHAR:{
       int32_t newlen = 0;
       if (!includeLengthPrefix) {
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
@@ -920,21 +922,21 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       
       break;
     }
-    case TSDB_DATA_TYPE_JSON_BINARY:
-    case TSDB_DATA_TYPE_JSON_NCHAR:{
-      if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-        *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
-      } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY){
-        *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
-      } else if (pVariant->nType == TSDB_DATA_TYPE_JSON_BINARY){   // select * from stable, set tag type to json，from setTagValue/tag_project_function
-        memcpy(payload, pVariant->pz, pVariant->nLen);
-      } else if(pVariant->nType == TSDB_DATA_TYPE_JSON_NCHAR){
-        memcpy(payload, pVariant->wpz, pVariant->nLen);
-      }else {
-        return -1;
-      }
-      break;
-    }
+//    case TSDB_DATA_TYPE_JSON_BINARY:
+//    case TSDB_DATA_TYPE_JSON_NCHAR:{
+//      if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+//        *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
+//      } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY){
+//        *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
+//      } else if (pVariant->nType == TSDB_DATA_TYPE_JSON_BINARY){   // select * from stable, set tag type to json，from setTagValue/tag_project_function
+//        memcpy(payload, pVariant->pz, pVariant->nLen);
+//      } else if(pVariant->nType == TSDB_DATA_TYPE_JSON_NCHAR){
+//        memcpy(payload, pVariant->wpz, pVariant->nLen);
+//      }else {
+//        return -1;
+//      }
+//      break;
+//    }
   }
   
   return 0;

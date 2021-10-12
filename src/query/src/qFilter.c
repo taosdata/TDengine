@@ -858,37 +858,23 @@ static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilte
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode* parent, tExprNode *node, SFilterFieldId *fid) {
+int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldId *fid) {
   CHK_LRET(node == NULL, TSDB_CODE_QRY_APP_ERROR, "empty node");
+  CHK_RET(node->nodeType != TSQL_NODE_COL && node->nodeType != TSQL_NODE_VALUE, TSDB_CODE_QRY_APP_ERROR);
 
   int32_t type;
   void *v;
-  if(node->nodeType == TSQL_NODE_EXPR && node->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
+
+  if (node->nodeType == TSQL_NODE_COL) {
     type = FLD_TYPE_COLUMN;
-    assert(node->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
-    memset(node->_node.pLeft->pSchema->name, 0, TSDB_COL_NAME_LEN);
-    strncpy(node->_node.pLeft->pSchema->name, node->_node.pRight->pVal->pz, node->_node.pRight->pVal->nLen);
-    v = node->_node.pLeft->pSchema;
-    node->_node.pLeft->pSchema = NULL;
-  }else{
-    CHK_RET(node->nodeType != TSQL_NODE_COL && node->nodeType != TSQL_NODE_VALUE, TSDB_CODE_QRY_APP_ERROR);
-    if (node->nodeType == TSQL_NODE_COL) {
-      type = FLD_TYPE_COLUMN;
-      v = node->pSchema;
-      if(parent->_node.optr == TSDB_RELATION_QUESTION){
-        node->pSchema->colId = 0;  // ? operation make colId=0 to make different with -> operation to eliminate repetition and don not convert type
-        assert(parent->_node.pRight->pVal->nLen < TSDB_COL_NAME_LEN);
-        memset(node->pSchema->name, 0, TSDB_COL_NAME_LEN);
-        strncpy(node->pSchema->name, parent->_node.pRight->pVal->pz, parent->_node.pRight->pVal->nLen);
-      }
-      node->pSchema = NULL;
-    } else {
-      type = FLD_TYPE_VALUE;
-      v = node->pVal;
-      node->pVal = NULL;
-    }
+    v = node->pSchema;
+    node->pSchema = NULL;
+  } else {
+    type = FLD_TYPE_VALUE;
+    v = node->pVal;
+    node->pVal = NULL;
   }
+
   filterAddField(info, v, NULL, type, fid, 0, true);
   
   return TSDB_CODE_SUCCESS;
@@ -1175,25 +1161,32 @@ _return:
 
 
 int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *group) {
-  SFilterFieldId left = {0}, right = {0};
-
-  filterAddFieldFromNode(info, tree, tree->_node.pLeft, &left);
-
-  tVariant* var = tree->_node.pRight->pVal;
-  int32_t type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
-  int32_t len = 0;
-  uint16_t uidx = 0;
-
-  // if has json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next
+  int32_t type = -1;
   tExprNode* pLeft = tree->_node.pLeft;
   if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     assert(info->pTable != NULL);
-    SSchema* schema = FILTER_GET_COL_FIELD_DESC(FILTER_GET_FIELD(info, left));
-    void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type);
+    SSchema* schema = pLeft->_node.pLeft->pSchema;
+    void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type, &schema->colId);
     if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
-    type = *(char*)data;
+    type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next
     assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON_BINARY);
+    if(pLeft->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    memset(schema->name, 0, TSDB_COL_NAME_LEN);
+    strncpy(schema->name, pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen);
+    pLeft = pLeft->_node.pLeft;
+  }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
+    SSchema* schema = pLeft->pSchema;
+    if(tree->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    memset(schema->name, 0, TSDB_COL_NAME_LEN);
+    strncpy(schema->name, tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen);
   }
+
+  SFilterFieldId left = {0}, right = {0};
+  filterAddFieldFromNode(info, pLeft, &left);
+  tVariant* var = tree->_node.pRight->pVal;
+  if(type == -1) type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
+  int32_t len = 0;
+  uint16_t uidx = 0;
 
   if (tree->_node.optr == TSDB_RELATION_IN && (!IS_VAR_DATA_TYPE(type))) {
     void *data = NULL;
@@ -1235,7 +1228,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
 
     taosHashCleanup(data);
   } else {
-    filterAddFieldFromNode(info, tree, tree->_node.pRight, &right);
+    filterAddFieldFromNode(info, tree->_node.pRight, &right);
     
     filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);
 
@@ -1841,10 +1834,10 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
       continue;
     }
 
-    if (type == TSDB_DATA_TYPE_BINARY) {
+    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_JSON_BINARY) {
       size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;
       fi->data = calloc(1, len + 1 + VARSTR_HEADER_SIZE);
-    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON_NCHAR) {
       size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;    
       fi->data = calloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     } else {
@@ -3198,7 +3191,7 @@ int filterJsonTypeConvert(SFilterInfo* info) {
     SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
     if(IS_JSON_DATA_TYPE(schema->type)){
       if(schema->colId != 0){           // schema->colId != 0 means not ? operation
-        void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type);
+        void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type, NULL);
         if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
         int8_t type = *(char*)data;
         assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON_BINARY);
@@ -3248,7 +3241,7 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   ERR_JRET(code);
 
   if(info->pTable){
-    code = filterJsonTypeConvert(info); // convert json type to other type to prepare for th next defination of compare function
+    //code = filterJsonTypeConvert(info); // convert json type to other type to prepare for th next defination of compare function
     ERR_JRET(code);
   }
 
