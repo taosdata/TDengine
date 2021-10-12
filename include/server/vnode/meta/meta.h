@@ -57,7 +57,7 @@ SMetaQueryOpts *metaQueryOptionsCreate();
 void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
 // STableOpts
-void metaTableOptsInit(int8_t type, const char *name, const STSchema *pSchema);
+void metaTableOptsInit(STableOpts *, int8_t type, const char *name, const STSchema *pSchema);
 
 /* -------------------------------- Hided implementations -------------------------------- */
 struct STableOpts {
