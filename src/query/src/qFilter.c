@@ -44,12 +44,7 @@ static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const v
   const SSchema *sch1 = desc1;
   const SSchema *sch2 = desc2;
 
-  if(IS_JSON_DATA_TYPE(sch1->type) && IS_JSON_DATA_TYPE(sch2->type)){
-    return !(strcmp(sch1->name, sch2->name) == 0 && sch1->colId == sch2->colId);
-  }
-  else{
-    return sch1->colId != sch2->colId;
-  }
+  return !(strcmp(sch1->name, sch2->name) == 0 && sch1->colId == sch2->colId);
 }
 
 static FORCE_INLINE int32_t filterFieldValDescCompare(const void *desc1, const void *desc2) {
@@ -1161,7 +1156,6 @@ _return:
 
 
 int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *group) {
-  int32_t type = -1;
   tExprNode* pLeft = tree->_node.pLeft;
   if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     assert(info->pTable != NULL);
@@ -1172,8 +1166,11 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
 
     void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type, &schema->colId);
     if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
-    type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next
-    assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON_BINARY);
+    schema->type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next and set value in filterInitValFieldData
+    assert(schema->type > TSDB_DATA_TYPE_NULL && schema->type < TSDB_DATA_TYPE_JSON_BINARY);
+    if((tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH)
+        && schema->type != TSDB_DATA_TYPE_BINARY)
+      return TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR;
 
     pLeft = pLeft->_node.pLeft;   // -> operation use left as input
   }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
@@ -1186,7 +1183,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   SFilterFieldId left = {0}, right = {0};
   filterAddFieldFromNode(info, pLeft, &left);
   tVariant* var = tree->_node.pRight->pVal;
-  if(type == -1) type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
+  uint8_t type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
   int32_t len = 0;
   uint16_t uidx = 0;
 
@@ -3187,40 +3184,6 @@ int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_
   return TSDB_CODE_SUCCESS;
 }
 
-// convert json type for next compare and so on
-int filterJsonTypeConvert(SFilterInfo* info) {
-  for(int i = 0; i < info->fields[FLD_TYPE_COLUMN].num; i++) {
-    SSchema* schema = info->fields[FLD_TYPE_COLUMN].fields[i].desc;
-    if(IS_JSON_DATA_TYPE(schema->type)){
-      if(schema->colId != 0){           // schema->colId != 0 means not ? operation
-        void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type, NULL);
-        if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
-        int8_t type = *(char*)data;
-        assert(type > TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_JSON_BINARY);
-        schema->type = type;
-      }else{
-        schema->type = TSDB_DATA_TYPE_BINARY;
-      }
-    }
-  }
-  for(int i = 0; i < info->unitNum; i++){
-    if(IS_JSON_DATA_TYPE(info->units[i].compare.type)){
-      SFilterField *colLeft = FILTER_UNIT_LEFT_FIELD(info, &info->units[i]);
-      info->units[i].compare.type = FILTER_GET_COL_FIELD_TYPE(colLeft);
-
-      if((info->units[i].compare.optr == TSDB_RELATION_MATCH || info->units[i].compare.optr == TSDB_RELATION_NMATCH)
-          && info->units[i].compare.type != TSDB_DATA_TYPE_BINARY)
-        return TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR;
-//      SFilterField *colRight = FILTER_UNIT_RIGHT_FIELD(info, &info->units[i]);
-//      tVariant* var = colRight->desc;
-//      if(!tVariantTypeMatch(var, info->units[i].compare.type))
-//        return TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   int32_t code = TSDB_CODE_SUCCESS;
   SFilterInfo *info = NULL;
@@ -3241,11 +3204,6 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
 
   code = filterTreeToGroup(tree, info, group);
   ERR_JRET(code);
-
-  if(info->pTable){
-    //code = filterJsonTypeConvert(info); // convert json type to other type to prepare for th next defination of compare function
-    ERR_JRET(code);
-  }
 
   filterConvertGroupFromArray(info, group);
 
