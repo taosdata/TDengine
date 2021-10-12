@@ -16,3 +16,8 @@ target_link_libraries(metaTest
     rocksdb
     gtest_main
 )
+enable_testing()
+add_test(
+    NAME meta_test
+    COMMAND metaTest
+)
