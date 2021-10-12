@@ -67,9 +67,9 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
     ```
     说明：<!-- 注意：上一行中的 SQL 语句在企业版文档中会被替换，因此修改此语句的话，需要修改企业版文档的替换字典键值！！ -->
- 
+
     1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION -->
- 
+
     2) UPDATE 标志数据库支持更新相同时间戳数据；（从 2.1.7.0 版本开始此参数支持设为 2，表示允许部分列更新，也即更新数据行时未被设置的列会保留原值。）（从 2.0.8.0 版本开始支持此参数。注意此参数不能通过 `ALTER DATABASE` 指令进行修改。）
 
         1) UPDATE设为0时，表示不允许更新数据，后发送的相同时间戳的数据会被直接丢弃；
@@ -79,11 +79,11 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
         3) UPDATE设为2时，表示支持更新部分列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值；
         
         4) 更多关于UPDATE参数的用法，请参考[FAQ](https://www.taosdata.com/cn/documentation/faq)。
- 
+
     3) 数据库名最大长度为33；
- 
+
     4) 一条SQL 语句的最大长度为65480个字符；
- 
+
     5) 数据库还有更多与存储相关的配置参数，请参见 [服务端配置](https://www.taosdata.com/cn/documentation/administrator#config) 章节。
 
 - **显示系统当前参数**
@@ -721,18 +721,19 @@ Query OK, 1 row(s) in set (0.001091s)
 
 ### 支持的条件过滤操作
 
-| **Operation**   | **Note**                      | **Applicable Data Types**                 |
-| --------------- | ----------------------------- | ----------------------------------------- |
-| >               | larger than                   | **`timestamp`** and all numeric types     |
-| <               | smaller than                  | **`timestamp`** and all numeric types     |
-| >=              | larger than or equal to       | **`timestamp`** and all numeric types     |
-| <=              | smaller than or equal to      | **`timestamp`** and all numeric types     |
-| =               | equal to                      | all types                                 |
-| <>              | not equal to                  | all types                                 |
-| is [not] null   | is null or is not null        | all types                                 |
-| between and     | within a certain range        | **`timestamp`** and all numeric types     |
-| in              | match any value in a set      | all types except first column `timestamp` |
-| like            | match a wildcard string       | **`binary`** **`nchar`**                  |
+| **Operation** | **Note**                 | **Applicable Data Types**                 |
+| ------------- | ------------------------ | ----------------------------------------- |
+| >             | larger than              | **`timestamp`** and all numeric types     |
+| <             | smaller than             | **`timestamp`** and all numeric types     |
+| >=            | larger than or equal to  | **`timestamp`** and all numeric types     |
+| <=            | smaller than or equal to | **`timestamp`** and all numeric types     |
+| =             | equal to                 | all types                                 |
+| <>            | not equal to             | all types                                 |
+| is [not] null | is null or is not null   | all types                                 |
+| between and   | within a certain range   | **`timestamp`** and all numeric types     |
+| in            | match any value in a set | all types except first column `timestamp` |
+| like          | match a wildcard string  | **`binary`** **`nchar`**                  |
+| match/nmatch  | filter regex             | **regex**                                 |
 
 1. <> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 2. like 算子使用通配符字符串进行匹配检查。
@@ -744,7 +745,30 @@ Query OK, 1 row(s) in set (0.001091s)
 4. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如： `((value > 20 AND value < 30) OR (value < 12))`。
   * 从 2.3.0.0 版本开始，允许使用多个时间过滤条件，但首列时间戳的过滤运算结果只能包含一个区间。
 5. 从 2.0.17.0 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
-6. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
+
+6. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。
+
+7. 从2.3.0.0版本开始，条件过滤开始支持正则表达式，关键字match/nmatch，不区分大小写。
+
+   **语法**
+
+   WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+
+   **正则表达式规范**
+
+   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+
+   **使用限制**
+
+   只能针对表名（即 tbname 筛选）和标签的名称和binary类型标签值 进行正则表达式过滤，不支持针对普通列使用正则表达式过滤。
+
+   只能在 WHERE 子句中作为过滤条件存在。
+
+   正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
+
+   **嵌套查询支持**
+
+   可以在内层查询和外层查询中使用。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
 
 <a class="anchor" id="join"></a>
 ### JOIN 子句
@@ -1239,24 +1263,45 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **APERCENTILE**
     ```mysql
-    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause];
+    SELECT APERCENTILE(field_name, P[, algo_type]) 
+    FROM { tb_name | stb_name } [WHERE clause]
     ```
-    功能说明：统计表/超级表中某列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
-
-    返回结果数据类型： 双精度浮点数Double。
-
-    应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-
-    适用于：**表、超级表**。
-
-    说明：*P*值取值范围0≤*P*≤100，为0的时候等同于MIN，为100的时候等同于MAX。推荐使用```APERCENTILE```函数，该函数性能远胜于```PERCENTILE```函数。
-
+功能说明：统计表/超级表中某列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
+    
+返回结果数据类型： 双精度浮点数Double。
+    
+应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+    
+适用于：**表、超级表**。
+    
+**嵌套子查询支持**：适用于内层查询和外层查询。
+    
+    说明：*P* 值有效取值范围 0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX。
+    
+    *algo_type* 的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。
+    
+    该函数可以应用在普通表和超级表上。
+    
+    **说明**：第三个参数指定计算算法的功能从2.2.0.x 版本开始，2.2.0.0之前的版本不支持指定使用算法的功能。
+    
     ```mysql
     taos> SELECT APERCENTILE(current, 20) FROM d1001;
     apercentile(current, 20)  |
     ============================
                 10.300000191 |
     Query OK, 1 row(s) in set (0.000645s)
+    
+    taos> select apercentile (count, 80, 'default') from stb1;
+     apercentile (c0, 80, 'default') |
+    ==================================
+                 601920857.210056424 |
+    Query OK, 1 row(s) in set (0.012363s)
+    
+    taos> select apercentile (count, 80, 't-digest') from stb1;
+     apercentile (c0, 80, 't-digest') |
+    ===================================
+                  605869120.966666579 |
+    Query OK, 1 row(s) in set (0.011639s)
     ```
     
 - **LAST_ROW**
