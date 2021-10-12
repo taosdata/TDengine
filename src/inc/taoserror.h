@@ -322,7 +322,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_WAL_SIZE_LIMIT                TAOS_DEF_ERROR_CODE(0, 0x1002)  //"WAL size exceeds limit")
 
 // http
-#define TSDB_CODE_HTTP_SERVER_OFFLINE           TAOS_DEF_ERROR_CODE(0, 0x1100)  //"http server is not onlin")
+#define TSDB_CODE_HTTP_SERVER_OFFLINE           TAOS_DEF_ERROR_CODE(0, 0x1100)  //"http server is not online")
 #define TSDB_CODE_HTTP_UNSUPPORT_URL            TAOS_DEF_ERROR_CODE(0, 0x1101)  //"url is not support")
 #define TSDB_CODE_HTTP_INVALID_URL              TAOS_DEF_ERROR_CODE(0, 0x1102)  //invalid url format")
 #define TSDB_CODE_HTTP_NO_ENOUGH_MEMORY         TAOS_DEF_ERROR_CODE(0, 0x1103)  //"no enough memory")
