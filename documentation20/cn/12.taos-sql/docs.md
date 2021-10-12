@@ -1266,7 +1266,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT APERCENTILE(field_name, P[, algo_type]) 
     FROM { tb_name | stb_name } [WHERE clause]
     ```
-功能说明：统计表/超级表中某列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
+功能说明：统计表/超级表中指定列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
     
 返回结果数据类型： 双精度浮点数Double。
     
@@ -1274,15 +1274,15 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     
 适用于：**表、超级表**。
     
-**嵌套子查询支持**：适用于内层查询和外层查询。
+嵌套子查询支持：适用于内层查询和外层查询。
     
     说明：*P* 值有效取值范围 0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX。
     
-    *algo_type* 的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。
+    ​          *algo_type* 的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。
     
-    该函数可以应用在普通表和超级表上。
+    **注**：第三个参数指定计算算法的功能从2.2.0.x 版本开始，2.2.0.0之前的版本不支持指定使用算法的功能。
     
-    **说明**：第三个参数指定计算算法的功能从2.2.0.x 版本开始，2.2.0.0之前的版本不支持指定使用算法的功能。
+    
     
     ```mysql
     taos> SELECT APERCENTILE(current, 20) FROM d1001;
@@ -1305,36 +1305,37 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```
     
 - **LAST_ROW**
+    
     ```mysql
     SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
     ```
-    功能说明：返回表/超级表的最后一条记录。
-
-    返回结果数据类型：同应用的字段。
-
-    应用字段：所有字段。
-
-    适用于：**表、超级表**。
-
-    限制：LAST_ROW() 不能与 INTERVAL 一起使用。
-
-    说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-
+功能说明：返回表/超级表的最后一条记录。
+    
+返回结果数据类型：同应用的字段。
+    
+应用字段：所有字段。
+    
+适用于：**表、超级表**。
+    
+限制：LAST_ROW() 不能与 INTERVAL 一起使用。
+    
+说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
+    
     示例：
     ```mysql
     taos> SELECT LAST_ROW(current) FROM meters;
     last_row(current)   |
     =======================
                 12.30000 |
-    Query OK, 1 row(s) in set (0.001238s)
-
+Query OK, 1 row(s) in set (0.001238s)
+    
     taos> SELECT LAST_ROW(current) FROM d1002;
     last_row(current)   |
     =======================
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
-    ```
-
+```
+    
 - **INTERP**
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
