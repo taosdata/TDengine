@@ -1003,7 +1003,7 @@ static int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLines
 
   for (int32_t i = 0; i < payloadNum; ++i) {
     TAOS_SML_DATA_POINT point = {0};
-    cJSON *dataPoint = (payloadNum == 1) ? root : cJSON_GetArrayItem(root, i);
+    cJSON *dataPoint = (payloadNum == 1 && cJSON_IsObject(root)) ? root : cJSON_GetArrayItem(root, i);
 
     ret = tscParseJSONPayload(dataPoint, &point, info);
     if (ret != TSDB_CODE_SUCCESS) {
