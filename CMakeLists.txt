@@ -42,9 +42,10 @@ if(${BUILD_WITH_LEVELDB})
 endif(${BUILD_WITH_LEVELDB})
 
 ## rocksdb
-option(BUILD_WITH_ROCKSDB "If build with rocksdb" OFF)
+option(BUILD_WITH_ROCKSDB "If build with rocksdb" ON)
 if(${BUILD_WITH_ROCKSDB})
     cat("${CMAKE_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+    add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
 ## download dependencies

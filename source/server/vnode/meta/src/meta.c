@@ -73,7 +73,8 @@ SMeta *metaOpen(SMetaOpts *options) {
   pMeta->stbList = tdListNew(sizeof(STableObj *));
 
   // Options
-  STkvOpts *dbOptions = tkvOptionsCreate();
+  STkvOpts *dbOptions = tkvOptsCreate();
+  tkvOptsSetCreateIfMissing(dbOptions, 1);
 
   taosMkDir("meta");
 
@@ -89,7 +90,7 @@ SMeta *metaOpen(SMetaOpts *options) {
   // Open tag index
   pMeta->tagIdx = tkvOpen(dbOptions, "meta/tag_idx_db");
 
-  tkvOptionsDestroy(dbOptions);
+  tkvOptsDestroy(dbOptions);
 
   return pMeta;
 }
