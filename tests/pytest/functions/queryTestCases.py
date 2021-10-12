@@ -1124,20 +1124,22 @@ class TDTestCase:
 
     def run(self):
 
-        # master branch
-        # self.td3690()
-        # self.td4082()
-        # self.td4288()
-        # self.td4724()
-        # self.td5935()
-        # self.td6068()
-
         # develop branch
         self.td4097()
         self.td4889()
         self.td5798()
+
+        # master branch
+        self.td3690()
+        self.td4082()
+        self.td4288()
+        self.td4724()
+        self.td5935()
+        self.td6068()
+
         # self.td5168()
-        self.td5433()
+        # self.td5433()
+        # self.td5798()
 
     def stop(self):
         tdSql.close()

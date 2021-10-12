@@ -197,6 +197,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
+  int16_t      colId;
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;

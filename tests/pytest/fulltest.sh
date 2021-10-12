@@ -28,6 +28,7 @@ python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
+python3 ./test.py -f insert/specialSql.py
 
 # timezone 
 
@@ -250,6 +251,7 @@ python3 ./test.py -f query/bug2143.py
 python3 ./test.py -f query/sliding.py
 python3 ./test.py -f query/unionAllTest.py
 python3 ./test.py -f query/bug2281.py
+python3 ./test.py -f query/udf.py
 python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
@@ -270,6 +272,7 @@ python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
+python3 ./test.py -f query/nestedQuery/nestedQuery.py
 python3 ./test.py -f query/queryCnameDisplay.py
 # python3 ./test.py -f query/operator_cost.py
 # python3 ./test.py -f query/long_where_query.py
@@ -300,6 +303,7 @@ python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
+python3 ./test.py -f client/taoshellCheckCase.py
 # python3 test.py -f client/change_time_1_1.py
 # python3 test.py -f client/change_time_1_2.py
 
@@ -310,6 +314,7 @@ python3 testMinTablesPerVnode.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
+python3 ./test.py -f query/query.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 # subscribe
@@ -398,11 +403,16 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
 
 
 python3 ./test.py -f client/nettest.py
+
+python3 ./test.py -f query/queryGroupTbname.py
+python3 ./test.py -f insert/verifyMemToDiskCrash.py
+
 
 python3 ./test.py -f query/queryRegex.py
 python3 ./test.py -f tools/taosdemoTestdatatype.py
