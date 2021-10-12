@@ -13,7 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
+#ifndef _TD_TCOMPARE_H_
+#define _TD_TCOMPARE_H_
 
-int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
-int tsdbCommit(STsdb *pTsdb) { return 0; }
+#include "compare.h"
+#include "ttypes.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t       compareStrPatternComp(const void* pLeft, const void* pRight);
+int32_t       compareWStrPatternComp(const void* pLeft, const void* pRight);
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
+__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
+int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TCOMPARE_H_*/

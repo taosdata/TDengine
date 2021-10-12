@@ -79,7 +79,7 @@ typedef struct {
   void *   cq;  // continuous query
   int32_t  dbCfgVersion;
   int32_t  vgCfgVersion;
-  STsdbCfg tsdbCfg;
+  // STsdbCfg tsdbCfg;
 #if 0  
   SSyncCfg syncCfg;
 #endif  
