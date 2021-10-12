@@ -199,7 +199,8 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_TIMESTAMP: comparFn = 3;  break;
     case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON_BINARY:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
@@ -217,7 +218,8 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       break;
     }
   
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON_NCHAR:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
