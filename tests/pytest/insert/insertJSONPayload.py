@@ -49,7 +49,7 @@ class TDTestCase:
         code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
-        tdSql.query("describe _stb_0_")
+        tdSql.query("describe `.stb.0.`")
         tdSql.checkRows(6)
 
         ### metric value ###

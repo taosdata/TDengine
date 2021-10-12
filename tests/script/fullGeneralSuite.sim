@@ -227,3 +227,4 @@ run general/db/show_create_db.sim
 run general/db/show_create_table.sim
 run general/parser/like.sim
 run general/parser/regex.sim
+run general/parser/tbname_escape.sim

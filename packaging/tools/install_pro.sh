@@ -154,9 +154,9 @@ function install_main_path() {
     ${csudo} mkdir -p ${install_main_dir}
     ${csudo} mkdir -p ${install_main_dir}/cfg
     ${csudo} mkdir -p ${install_main_dir}/bin
-    ${csudo} mkdir -p ${install_main_dir}/connector
+#    ${csudo} mkdir -p ${install_main_dir}/connector
     ${csudo} mkdir -p ${install_main_dir}/driver
-    ${csudo} mkdir -p ${install_main_dir}/examples
+#    ${csudo} mkdir -p ${install_main_dir}/examples
     ${csudo} mkdir -p ${install_main_dir}/include
     ${csudo} mkdir -p ${install_main_dir}/init.d
     if [ "$verMode" == "cluster" ]; then
@@ -779,10 +779,10 @@ function update_prodb() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
-    install_examples
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
+#    install_examples
     if [ -z $1 ]; then
         install_bin
         install_service
@@ -853,10 +853,10 @@ function install_prodb() {
     install_header
     install_lib
     install_jemalloc
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
-    install_examples
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
+#    install_examples
 
     if [ -z $1 ]; then # install service and client
         # For installing new
