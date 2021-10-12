@@ -1262,19 +1262,20 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```
 
 - **APERCENTILE**
+    
     ```mysql
     SELECT APERCENTILE(field_name, P[, algo_type]) 
     FROM { tb_name | stb_name } [WHERE clause]
-    ```
-功能说明：统计表/超级表中指定列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
-    
-返回结果数据类型： 双精度浮点数Double。
-    
-应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    
-适用于：**表、超级表**。
-    
-说明：*P*值有效取值范围0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX；*algo_type*的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。但该参数指定计算算法的功能从2.2.0.x版本开始支持，2.2.0.0之前的版本不支持指定使用算法的功能。
+```
+    功能说明：统计表/超级表中指定列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
+
+    返回结果数据类型： 双精度浮点数Double。
+
+    应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
+    适用于：**表、超级表**。
+
+    说明：*P*值有效取值范围0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX；*algo_type*的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。但该参数指定计算算法的功能从2.2.0.x版本开始支持，2.2.0.0之前的版本不支持指定使用算法的功能。
     
     嵌套子查询支持：适用于内层查询和外层查询。
     
