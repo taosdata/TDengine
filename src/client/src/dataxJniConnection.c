@@ -45,7 +45,6 @@ JNIEXPORT void JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_initIm
     (*env)->ReleaseStringUTFChars(env, jconfigDir, confDir);
   }
 
-  jniGetGlobalMethod(env);
   jniDebug("jni initialized successfully, config directory: %s", configDir);
 }
 
