@@ -48,7 +48,7 @@ void taosRemoveDir(char *dirname) {
       taosRemoveDir(filename);
     } else {
       (void)remove(filename);
-      printf("file:%s is removed", filename);
+      printf("file:%s is removed\n", filename);
     }
   }
 

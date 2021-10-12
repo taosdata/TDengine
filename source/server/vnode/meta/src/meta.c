@@ -104,4 +104,6 @@ void metaClose(SMeta *pMeta) {
   }
 }
 
+void metaDestroy(const char *path) { taosRemoveDir(path); }
+
 int metaCommit(SMeta *meta) { return 0; }

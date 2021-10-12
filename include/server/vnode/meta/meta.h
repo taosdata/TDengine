@@ -34,7 +34,7 @@ typedef struct SMetaQueryOptions SMetaQueryOptions;
 
 // SMeta operations
 int    metaCreate(const char *path);
-int    metaDestroy(const char *path);
+void   metaDestroy(const char *path);
 SMeta *metaOpen(SMetaOptions *);
 void   metaClose(SMeta *);
 int    metaCreateTable(SMeta *, void *);
