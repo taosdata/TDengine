@@ -3213,7 +3213,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     for(int32_t i = 0; i < pParentObj->cmd.insertParam.numOfTables; ++i) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(pParentObj->cmd.insertParam.pTableNameList[i], name);
-      taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+      taosHashRemove(UTIL_GET_TABLEMETA(pParentObj), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
@@ -3358,7 +3358,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     goto _error;
   }
 
-  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
 
   // use the local variable
   for (int32_t j = 0; j < numOfSub; ++j) {

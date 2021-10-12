@@ -47,6 +47,12 @@ typedef enum {
   SML_TIME_STAMP_NANO_SECONDS
 } SMLTimeStampType;
 
+typedef enum {
+  SML_LINE_PROTOCOL = 0,
+  SML_TELNET_PROTOCOL = 1,
+  SML_JSON_PROTOCOL = 2,
+} SMLProtocolType;
+
 typedef struct {
   uint64_t id;
   SHashObj* smlDataToSchema;
@@ -57,7 +63,7 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
 bool isValidInteger(char *str);
 bool isValidFloat(char *str);
 
-int32_t isValidChildTableName(const char *pTbName, int16_t len);
+int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* info);
 
 bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
                          uint16_t len, SSmlLinesInfo* info);
@@ -65,6 +71,11 @@ int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
                             uint16_t len, SSmlLinesInfo* info);
 
 void destroySmlDataPoint(TAOS_SML_DATA_POINT* point);
+
+int taos_insert_sml_lines(TAOS* taos, char* lines[], int numLines);
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines);
+int taos_insert_json_payload(TAOS* taos, char* payload);
+
 
 #ifdef __cplusplus
 }
