@@ -4,17 +4,22 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <properties>
+     <maven.compiler.source>1.8</maven.compiler.source>
+     <maven.compiler.target>1.8</maven.compiler.target>
+    </properties>
+
     <groupId>com.taosdata.demo</groupId>
     <artifactId>connectionPools</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <dependencies>
+        <!-- taos -->
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
             <version>2.0.18</version>
         </dependency>
-
         <!-- druid -->
         <dependency>
             <groupId>com.alibaba</groupId>
@@ -46,9 +51,15 @@
         </dependency>
         <!-- log4j -->
         <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.14.1</version>
+        </dependency>
+        <!-- proxool -->
+        <dependency>
+            <groupId>com.cloudhopper.proxool</groupId>
+            <artifactId>proxool</artifactId>
+            <version>0.9.1</version>
         </dependency>
     </dependencies>
 
@@ -57,25 +68,46 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.1.0</version>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>com.taosdata.example.ConnectionPoolDemo</mainClass>
-                        </manifest>
-                    </archive>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                </configuration>
+                <version>3.3.0</version>
                 <executions>
                     <execution>
-                        <id>make-assembly</id>
+                        <id>ConnectionPoolDemo</id>
+                        <configuration>
+                            <finalName>ConnectionPoolDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.ConnectionPoolDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
                         </goals>
                     </execution>
+
+                    <execution>
+                        <id>ProxoolDemo</id>
+                        <configuration>
+                            <finalName>ProxoolDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.ProxoolDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+
                 </executions>
             </plugin>
         </plugins>

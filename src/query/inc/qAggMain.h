@@ -27,6 +27,7 @@ extern "C" {
 #include "trpc.h"
 #include "tvariant.h"
 #include "tsdb.h"
+#include "qUdf.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
 #define TSDB_FUNC_COUNT        0
@@ -65,24 +66,25 @@ extern "C" {
 
 #define TSDB_FUNC_RATE         29
 #define TSDB_FUNC_IRATE        30
-#define TSDB_FUNC_SUM_RATE     31
-#define TSDB_FUNC_SUM_IRATE    32
-#define TSDB_FUNC_AVG_RATE     33
-#define TSDB_FUNC_AVG_IRATE    34
+#define TSDB_FUNC_TID_TAG      31
+#define TSDB_FUNC_DERIVATIVE   32
 
-#define TSDB_FUNC_TID_TAG      35
-#define TSDB_FUNC_BLKINFO      36
+#define TSDB_FUNC_CEIL         33
+#define TSDB_FUNC_FLOOR        34
+#define TSDB_FUNC_ROUND        35
 
-#define TSDB_FUNC_HISTOGRAM    37
-#define TSDB_FUNC_HLL          38
-#define TSDB_FUNC_MODE         39
-#define TSDB_FUNC_SAMPLE       40
-#define TSDB_FUNC_CEIL         41
-#define TSDB_FUNC_FLOOR        42
-#define TSDB_FUNC_ROUND        43
-#define TSDB_FUNC_MAVG         44
-#define TSDB_FUNC_CSUM         45
+#define TSDB_FUNC_CSUM         36
+#define TSDB_FUNC_MAVG         37
+#define TSDB_FUNC_SAMPLE       38
 
+#define TSDB_FUNC_BLKINFO      39
+
+///////////////////////////////////////////
+// the following functions is not implemented.
+// after implementation, move them before TSDB_FUNC_BLKINFO. also make TSDB_FUNC_BLKINFO the maxium function index
+// #define TSDB_FUNC_HISTOGRAM    40
+// #define TSDB_FUNC_HLL          41
+// #define TSDB_FUNC_MODE         42
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -91,6 +93,7 @@ extern "C" {
 #define TSDB_FUNCSTATE_OF           0x10u   // outer forward
 #define TSDB_FUNCSTATE_NEED_TS      0x20u   // timestamp is required during query processing
 #define TSDB_FUNCSTATE_SELECTIVITY  0x40u   // selectivity functions, can exists along with tag columns
+#define TSDB_FUNCSTATE_SCALAR       0x80u
 
 #define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
@@ -122,7 +125,7 @@ enum {
 #define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
 
 typedef struct SArithmeticSupport {
-  SExprInfo   *pArithExpr;
+  SExprInfo   *pExprInfo;
   int32_t      numOfCols;
   SColumnInfo *colList;
   void        *exprList;   // client side used
@@ -205,13 +208,8 @@ typedef struct SAggFunctionInfo {
   int8_t   stableFuncId;  // transfer function for super table query
   uint16_t status;
 
-  bool (*init)(SQLFunctionCtx *pCtx);  // setup the execute environment
-
+  bool (*init)(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultCellInfo);  // setup the execute environment
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
-  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
-
-  // some sql function require scan data twice or more, e.g.,stddev, percentile
-  void (*xNextStep)(SQLFunctionCtx *pCtx);
 
   // finalizer must be called after all xFunction has been executed to generated final result.
   void (*xFinalize)(SQLFunctionCtx *pCtx);
@@ -223,7 +221,7 @@ typedef struct SAggFunctionInfo {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
+                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int32_t isValidFunction(const char* name, int32_t len);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
@@ -269,9 +267,9 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
 static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
-  pResInfo->complete = false;
+  pResInfo->complete  = false;
   pResInfo->hasResult = false;
-  pResInfo->numOfRes = 0;
+  pResInfo->numOfRes  = 0;
   
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }

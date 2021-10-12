@@ -1,16 +1,27 @@
-/**
- * MurmurHash3 by Austin Appleby
- * @ref
- * https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
- * Plese refers to the link above for the complete implementation of
- * MurmurHash algorithm
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "os.h"
 #include "hashfunc.h"
 #include "tutil.h"
+#include "tcompare.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
+
+#define DLT (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON)
+#define BASE 1000
 
 #define FMIX32(h)      \
   do {                 \
@@ -18,8 +29,7 @@
     (h) *= 0x85ebca6b; \
     (h) ^= (h) >> 13;  \
     (h) *= 0xc2b2ae35; \
-    (h) ^= (h) >> 16;  \
-  } while (0)
+    (h) ^= (h) >> 16; } while (0)
   
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const uint8_t *data = (const uint8_t *)key;
@@ -71,7 +81,38 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
+uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
+  float f = GET_FLOAT_VAL(key); 
+  if (isnan(f)) {
+    return 0x7fc00000;
+  }
+   
+  if (FLT_EQUAL(f, 0.0)) {
+    return 0;
+  } 
+  if (fabs(f) < FLT_MAX/BASE - DLT) {
+   int t = (int)(round(BASE * (f + DLT)));
+   return (uint32_t)t;
+  } else {
+   return 0x7fc00000;
+  }
+}
+uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
+  double f = GET_DOUBLE_VAL(key);  
+  if (isnan(f)) {
+    return 0x7fc00000;
+  }
 
+  if (FLT_EQUAL(f, 0.0)) {
+    return 0;
+  } 
+  if (fabs(f) < DBL_MAX/BASE - DLT) {
+   int t = (int)(round(BASE * (f + DLT)));
+   return (uint32_t)t;
+  } else {
+   return 0x7fc00000;
+  } 
+}
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t val = *(uint64_t *)key;
 
@@ -85,13 +126,58 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   _hash_fn_t fn = NULL;
   switch(type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_BIGINT: fn = taosIntHash_64;break;
-    case TSDB_DATA_TYPE_BINARY: fn = MurmurHash3_32;break;
-    case TSDB_DATA_TYPE_INT: fn = taosIntHash_32; break;
-    case TSDB_DATA_TYPE_SMALLINT: fn = taosIntHash_16; break;
-    case TSDB_DATA_TYPE_TINYINT: fn = taosIntHash_8; break;
-    default: fn = taosIntHash_32;break;
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:   
+      fn = taosIntHash_64;
+      break;
+    case TSDB_DATA_TYPE_BINARY:   
+      fn = MurmurHash3_32;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:    
+      fn = MurmurHash3_32;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:      
+      fn = taosIntHash_32; 
+      break;
+    case TSDB_DATA_TYPE_SMALLINT: 
+    case TSDB_DATA_TYPE_USMALLINT:  
+      fn = taosIntHash_16; 
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:  
+      fn = taosIntHash_8; 
+      break;
+    case TSDB_DATA_TYPE_FLOAT:    
+      fn = taosFloatHash; 
+      break;                             
+    case TSDB_DATA_TYPE_DOUBLE:   
+      fn = taosDoubleHash; 
+      break;                             
+    default: 
+      fn = taosIntHash_32;
+      break;
   }
   
   return fn;
+}
+
+int32_t taosFloatEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+  return getComparFunc(TSDB_DATA_TYPE_FLOAT, -1)(a, b);  
+}
+
+int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+  return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);  
+}
+
+_equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
+  _equal_fn_t fn = NULL;
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT:  fn = taosFloatEqual;  break; 
+    case TSDB_DATA_TYPE_DOUBLE: fn = taosDoubleEqual; break;
+    default: fn = memcmp; break;
+  }
+  return fn;
+  
 }

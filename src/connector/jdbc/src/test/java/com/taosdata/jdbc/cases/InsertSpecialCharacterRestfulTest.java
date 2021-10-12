@@ -7,16 +7,15 @@ import java.sql.*;
 public class InsertSpecialCharacterRestfulTest {
 
     private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
     private static Connection conn;
-    private static String dbName = "spec_char_test";
-    private static String tbname1 = "test";
-    private static String tbname2 = "weather";
-    private static String special_character_str_1 = "$asd$$fsfsf$";
-    private static String special_character_str_2 = "\\\\asdfsfsf\\\\";
-    private static String special_character_str_3 = "\\\\asdfsfsf\\";
-    private static String special_character_str_4 = "?asd??fsf?sf?";
-    private static String special_character_str_5 = "?#sd@$f(('<(s[P)>\"){]}f?s[]{}%vaew|\"fsfs^a&d*jhg)(j))(f@~!?$";
+    private static final String dbName = "spec_char_test";
+    private static final String tbname1 = "test";
+    private static final String tbname2 = "weather";
+    private static final String special_character_str_1 = "$asd$$fsfsf$";
+    private static final String special_character_str_2 = "\\\\asdfsfsf\\\\";
+    private static final String special_character_str_3 = "\\\\asdfsfsf\\";
+    private static final String special_character_str_4 = "?asd??fsf?sf?";
+    private static final String special_character_str_5 = "?#sd@$f(('<(s[P)>\"){]}f?s[]{}%vaew|\"fsfs^a&d*jhg)(j))(f@~!?$";
 
     @Test
     public void testCase01() throws SQLException {
@@ -294,13 +293,12 @@ public class InsertSpecialCharacterRestfulTest {
             Assert.assertEquals(2, ret);
         }
         //query t1
-        String query = "select * from ?.t? where ts < ? and ts >= ? and ? is not null";
+        String query = "select * from ?.t? where ts < ? and ts >= ? and f1 is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setString(1, dbName);
             pstmt.setInt(2, 1);
             pstmt.setTimestamp(3, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(4, new Timestamp(0));
-            pstmt.setString(5, "f1");
 
             ResultSet rs = pstmt.executeQuery();
             rs.next();
@@ -312,12 +310,11 @@ public class InsertSpecialCharacterRestfulTest {
             Assert.assertNull(f2);
         }
         // query t2
-        query = "select * from t? where ts < ? and ts >= ? and ? is not null";
+        query = "select * from t? where ts < ? and ts >= ? and f2 is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setInt(1, 2);
             pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(3, new Timestamp(0));
-            pstmt.setString(4, "f2");
 
             ResultSet rs = pstmt.executeQuery();
             rs.next();

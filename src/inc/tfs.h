@@ -31,6 +31,8 @@ typedef struct {
 #define TFS_UNDECIDED_ID -1
 #define TFS_PRIMARY_LEVEL 0
 #define TFS_PRIMARY_ID 0
+#define TFS_MIN_LEVEL 0
+#define TFS_MAX_LEVEL (TSDB_MAX_TIERS - 1)
 
 // FS APIs ====================================
 typedef struct {
@@ -39,9 +41,16 @@ typedef struct {
   int64_t avail;
 } SFSMeta;
 
+typedef struct {
+  int64_t size;
+  int64_t used;
+  int64_t free;
+  int16_t nAvailDisks;  // # of Available disks
+} STierMeta;
+
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
-void tfsUpdateInfo(SFSMeta *pFSMeta);
+void tfsUpdateInfo(SFSMeta *pFSMeta, STierMeta *tierMetas, int8_t numLevels);
 void tfsGetMeta(SFSMeta *pMeta);
 void tfsAllocDisk(int expLevel, int *level, int *id);
 

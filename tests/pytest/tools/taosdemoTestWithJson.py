@@ -23,32 +23,32 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[: selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if "taosd" in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                if "packaging" not in rootRealPath:
+                    buildPath = root[: len(root) - len("/build/bin")]
                     break
         return buildPath
-        
+
     def run(self):
         tdSql.prepare()
         buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        if buildPath == "":
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
-        os.system("yes | %staosdemo -f tools/insert.json" % binPath)
+        binPath = buildPath + "/build/bin/"
+        os.system("%staosdemo -f tools/insert.json -y" % binPath)
 
         tdSql.execute("use db01")
         tdSql.query("select count(*) from stb01")

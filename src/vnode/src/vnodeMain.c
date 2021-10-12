@@ -47,9 +47,6 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return terrno;
   }
 
-  char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
-
   char vnodeDir[TSDB_FILENAME_LEN] = "\0";
   snprintf(vnodeDir, TSDB_FILENAME_LEN, "/vnode/vnode%d", pVnodeCfg->cfg.vgId);
   if (tfsMkdir(vnodeDir) < 0) {
@@ -63,23 +60,6 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return code;
   }
 
-  // STsdbCfg tsdbCfg = {0};
-  // tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
-  // tsdbCfg.cacheBlockSize      = pVnodeCfg->cfg.cacheBlockSize;
-  // tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
-  // tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
-  // tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
-  // tsdbCfg.keep1               = pVnodeCfg->cfg.daysToKeep1;
-  // tsdbCfg.keep2               = pVnodeCfg->cfg.daysToKeep2;
-  // tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
-  // tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
-  // tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  // tsdbCfg.compression         = pVnodeCfg->cfg.compression;
-  // tsdbCfg.update              = pVnodeCfg->cfg.update;
-  // tsdbCfg.cacheLastRow        = pVnodeCfg->cfg.cacheLastRow;
-
-  // char tsdbDir[TSDB_FILENAME_LEN] = {0};
-  // sprintf(tsdbDir, "vnode/vnode%d/tsdb", pVnodeCfg->cfg.vgId);
   if (tsdbCreateRepo(pVnodeCfg->cfg.vgId) < 0) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
@@ -93,7 +73,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeSync(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vDebug("vgId:%d, failed to sync, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -114,22 +94,38 @@ int32_t vnodeSync(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+
 int32_t vnodeDrop(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vDebug("vgId:%d, failed to drop, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+  if (pVnode->dropped) {
+    vnodeRelease(pVnode);
+    return TSDB_CODE_SUCCESS;
   }
 
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   pVnode->dropped = 1;
 
-  // remove from hash, so new messages wont be consumed
-  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanupInMWorker(pVnode);
 
   return TSDB_CODE_SUCCESS;
+}
+int32_t vnodeCompact(int32_t vgId) {
+  void *pVnode = vnodeAcquire(vgId);
+  if (pVnode != NULL) {
+    vDebug("vgId:%d, compact vnode msg is received", vgId);
+    //not care success or not
+    tsdbCompact(((SVnodeObj*)pVnode)->tsdb);  
+    vnodeRelease(pVnode);
+  } else {
+    vInfo("vgId:%d, vnode not exist, can't compact it", vgId);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+  return TSDB_CODE_SUCCESS;  
 }
 
 static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
@@ -170,29 +166,31 @@ static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
 
   vDebug("vgId:%d, tsdbchanged:%d syncchanged:%d while alter vnode", pVnode->vgId, tsdbCfgChanged, syncCfgChanged);
 
-  if (/*tsdbCfgChanged || */syncCfgChanged) {
+  if (tsdbCfgChanged || syncCfgChanged) {
     // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
     // dbCfgVersion can be corrected by status msg
-    if (!vnodeSetUpdatingStatus(pVnode)) {
-      vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
-      pVnode->dbCfgVersion = dbCfgVersion;
-      pVnode->vgCfgVersion = vgCfgVersion;
-      pVnode->syncCfg = syncCfg;
-      pVnode->tsdbCfg = tsdbCfg;
-      return TSDB_CODE_SUCCESS;
+    if (syncCfgChanged) {
+      if (!vnodeSetUpdatingStatus(pVnode)) {
+        vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
+        pVnode->dbCfgVersion = dbCfgVersion;
+        pVnode->vgCfgVersion = vgCfgVersion;
+        pVnode->syncCfg = syncCfg;
+        pVnode->tsdbCfg = tsdbCfg;
+        return TSDB_CODE_SUCCESS;
+      }
+
+      code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
+      if (code != TSDB_CODE_SUCCESS) {
+        pVnode->dbCfgVersion = dbCfgVersion;
+        pVnode->vgCfgVersion = vgCfgVersion;
+        pVnode->syncCfg = syncCfg;
+        pVnode->tsdbCfg = tsdbCfg;
+        vnodeSetReadyStatus(pVnode);
+        return code;
+      }
     }
 
-    code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
-    if (code != TSDB_CODE_SUCCESS) {
-      pVnode->dbCfgVersion = dbCfgVersion;
-      pVnode->vgCfgVersion = vgCfgVersion;
-      pVnode->syncCfg = syncCfg;
-      pVnode->tsdbCfg = tsdbCfg;
-      vnodeSetReadyStatus(pVnode);
-      return code;
-    }
-
-    if (pVnode->tsdb) {
+    if (tsdbCfgChanged && pVnode->tsdb) {
       code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
       if (code != TSDB_CODE_SUCCESS) {
         pVnode->dbCfgVersion = dbCfgVersion;
@@ -232,9 +230,28 @@ int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
   return code;
 }
 
+static void vnodeFindWalRootDir(int32_t vgId, char *walRootDir) {
+  char vnodeDir[TSDB_FILENAME_LEN] = "\0";
+  snprintf(vnodeDir, TSDB_FILENAME_LEN, "/vnode/vnode%d/wal", vgId);
+
+  TDIR *tdir = tfsOpendir(vnodeDir);
+  if (!tdir) return;
+
+  const TFILE *tfile = tfsReaddir(tdir);
+  if (!tfile) {
+    tfsClosedir(tdir);
+    return;
+  }
+
+  sprintf(walRootDir, "%s/vnode/vnode%d", TFS_DISK_PATH(tfile->level, tfile->id), vgId);
+
+  tfsClosedir(tdir);
+}
+
 int32_t vnodeOpen(int32_t vgId) {
   char temp[TSDB_FILENAME_LEN * 3];
   char rootDir[TSDB_FILENAME_LEN * 2];
+  char walRootDir[TSDB_FILENAME_LEN * 2] = {0};
   snprintf(rootDir, TSDB_FILENAME_LEN * 2, "%s/vnode%d", tsVnodeDir, vgId);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
@@ -321,7 +338,21 @@ int32_t vnodeOpen(int32_t vgId) {
     }
   }
 
-  sprintf(temp, "%s/wal", rootDir);
+  // walRootDir for wal & syncInfo.path (not empty dir of /vnode/vnode{pVnode->vgId}/wal)
+  vnodeFindWalRootDir(pVnode->vgId, walRootDir);
+  if (walRootDir[0] == 0) {
+    int level = -1, id = -1;
+
+    tfsAllocDisk(TFS_PRIMARY_LEVEL, &level, &id);
+    if (level < 0 || id < 0) {
+      vnodeCleanUp(pVnode);
+      return terrno;
+    }
+
+    sprintf(walRootDir, "%s/vnode/vnode%d", TFS_DISK_PATH(level, id), vgId);
+  }
+
+  sprintf(temp, "%s/wal", walRootDir);
   pVnode->walCfg.vgId = pVnode->vgId;
   pVnode->wal = walOpen(temp, &pVnode->walCfg);
   if (pVnode->wal == NULL) { 
@@ -353,7 +384,7 @@ int32_t vnodeOpen(int32_t vgId) {
 
   pVnode->events = NULL;
 
-  vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
+  vDebug("vgId:%d, vnode is opened in %s - %s, pVnode:%p", pVnode->vgId, rootDir, walRootDir, pVnode);
 
   vnodeAddIntoHash(pVnode);
   
@@ -361,7 +392,7 @@ int32_t vnodeOpen(int32_t vgId) {
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
-  tstrncpy(syncInfo.path, rootDir, TSDB_FILENAME_LEN);
+  tstrncpy(syncInfo.path, walRootDir, TSDB_FILENAME_LEN);
   syncInfo.getWalInfoFp = vnodeGetWalInfo;
   syncInfo.writeToCacheFp = vnodeWriteToCache;
   syncInfo.confirmForward = vnodeConfirmForard; 
@@ -388,11 +419,16 @@ int32_t vnodeOpen(int32_t vgId) {
 }
 
 int32_t vnodeClose(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) return 0;
+  if (pVnode->dropped) {
+    vnodeRelease(pVnode);
+    return 0;
+  }
+
+  pVnode->preClose = 1;
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
-  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanUp(pVnode);
 
@@ -413,7 +449,11 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   if (pVnode->tsdb) {
-    code = tsdbCloseRepo(pVnode->tsdb, 1);
+    // the deleted vnode does not need to commit, so as to speed up the deletion
+    int toCommit = 1;
+    if (pVnode->dropped) toCommit = 0;
+
+    code = tsdbCloseRepo(pVnode->tsdb, toCommit);
     pVnode->tsdb = NULL;
   }
 
@@ -475,6 +515,8 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
 
   vnodeSetClosingStatus(pVnode);
 
+  vnodeRemoveFromHash(pVnode);
+
   // stop replication module
   if (pVnode->sync > 0) {
     int64_t sync = pVnode->sync;
@@ -516,6 +558,11 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
       walRemoveOneOldFile(pVnode->wal);
     }
     return vnodeSaveVersion(pVnode);
+  }
+
+  // timer thread callback
+  if(status == TSDB_STATUS_COMMIT_NOBLOCK) {
+    qSolveCommitNoBlock(pVnode->tsdb, pVnode->qMgmt);
   }
 
   return 0;

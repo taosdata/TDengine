@@ -36,6 +36,15 @@ static char monotonic_info_string[32];
 
 static long mono_ticksPerMicrosecond = 0;
 
+#ifdef _TD_NINGSI_60
+// implement __rdtsc in ningsi60
+uint64_t __rdtsc(){
+    unsigned int lo,hi;
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+#endif
+
 static monotime getMonotonicUs_x86() {
     return __rdtsc() / mono_ticksPerMicrosecond;
 }

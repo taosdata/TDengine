@@ -3,7 +3,6 @@ package com.taosdata.jdbc;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
-import com.taosdata.jdbc.rs.RestfulResultSet;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -15,6 +14,7 @@ import java.math.BigDecimal;
 import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 
 public class TSDBResultSetTest {
 
@@ -95,13 +95,13 @@ public class TSDBResultSetTest {
     @Test
     public void getBigDecimal() throws SQLException {
         BigDecimal f1 = rs.getBigDecimal("f1");
-        Assert.assertEquals(1609430400000l, f1.longValue());
+        Assert.assertEquals(1609430400000L, f1.longValue());
 
         BigDecimal f2 = rs.getBigDecimal("f2");
         Assert.assertEquals(1, f2.intValue());
 
         BigDecimal f3 = rs.getBigDecimal("f3");
-        Assert.assertEquals(100l, f3.longValue());
+        Assert.assertEquals(100L, f3.longValue());
 
         BigDecimal f4 = rs.getBigDecimal("f4");
         Assert.assertEquals(3.1415f, f4.floatValue(), 0.00000f);
@@ -125,16 +125,16 @@ public class TSDBResultSetTest {
         Assert.assertEquals(1, Ints.fromByteArray(f2));
 
         byte[] f3 = rs.getBytes("f3");
-        Assert.assertEquals(100l, Longs.fromByteArray(f3));
+        Assert.assertEquals(100L, Longs.fromByteArray(f3));
 
         byte[] f4 = rs.getBytes("f4");
-        Assert.assertEquals(3.1415f, Float.valueOf(new String(f4)), 0.000000f);
+        Assert.assertEquals(3.1415f, Float.parseFloat(new String(f4)), 0.000000f);
 
         byte[] f5 = rs.getBytes("f5");
-        Assert.assertEquals(3.1415926, Double.valueOf(new String(f5)), 0.000000f);
+        Assert.assertEquals(3.1415926, Double.parseDouble(new String(f5)), 0.000000f);
 
         byte[] f6 = rs.getBytes("f6");
-        Assert.assertEquals("abc", new String(f6));
+        Assert.assertTrue(Arrays.equals("abc".getBytes(), f6));
 
         byte[] f7 = rs.getBytes("f7");
         Assert.assertEquals((short) 10, Shorts.fromByteArray(f7));
@@ -177,7 +177,8 @@ public class TSDBResultSetTest {
         rs.getAsciiStream("f1");
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @SuppressWarnings("deprecation")
+	@Test(expected = SQLFeatureNotSupportedException.class)
     public void getUnicodeStream() throws SQLException {
         rs.getUnicodeStream("f1");
     }
@@ -222,7 +223,7 @@ public class TSDBResultSetTest {
 
         Object f3 = rs.getObject("f3");
         Assert.assertEquals(Long.class, f3.getClass());
-        Assert.assertEquals(100l, f3);
+        Assert.assertEquals(100L, f3);
 
         Object f4 = rs.getObject("f4");
         Assert.assertEquals(Float.class, f4.getClass());
@@ -326,7 +327,7 @@ public class TSDBResultSetTest {
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void getRow() throws SQLException {
-        int row = rs.getRow();
+        rs.getRow();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -405,12 +406,12 @@ public class TSDBResultSetTest {
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void updateByte() throws SQLException {
-        rs.updateByte(1, new Byte("0"));
+        rs.updateByte(1, (byte) 0);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void updateShort() throws SQLException {
-        rs.updateShort(1, new Short("0"));
+        rs.updateShort(1, (short) 0);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -420,7 +421,7 @@ public class TSDBResultSetTest {
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void updateLong() throws SQLException {
-        rs.updateLong(1, 1l);
+        rs.updateLong(1, 1L);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -646,7 +647,6 @@ public class TSDBResultSetTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             stmt = conn.createStatement();
             stmt.execute("create database if not exists restful_test");
@@ -656,10 +656,9 @@ public class TSDBResultSetTest {
             stmt.execute("insert into restful_test.weather values('2021-01-01 00:00:00.000', 1, 100, 3.1415, 3.1415926, 'abc', 10, 10, true, '涛思数据')");
             rs = stmt.executeQuery("select * from restful_test.weather");
             rs.next();
-        } catch (ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
             e.printStackTrace();
         }
-
     }
 
     @AfterClass

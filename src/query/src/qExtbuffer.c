@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "qExtbuffer.h"
 #include "os.h"
 #include "qAggMain.h"
 #include "queryLog.h"
@@ -20,6 +19,9 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tulog.h"
+#include "qExecutor.h"
+#include "qExtbuffer.h"
+#include "tcompare.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->pFields[colId].offset * (allrow) + (rowId) * (schema)->pFields[colId].field.bytes)
@@ -352,7 +354,19 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
   }
 }
 
-static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
+  if (k1 == k2) {
+    return 0;
+  }
+
+  if (order == TSDB_ORDER_DESC) {
+    return (k1 < k2)? 1:-1;
+  } else {
+    return (k1 < k2)? -1:1;
+  }
+}
+
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -378,11 +392,18 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
 
     };
     case TSDB_DATA_TYPE_NCHAR: { // todo handle the var string compare
-      int32_t ret = tasoUcs4Compare(f1, f2, bytes);
-      if (ret == 0) {
-        return 0;
+      int32_t len1 = varDataLen(f1);
+      int32_t len2 = varDataLen(f2);
+
+      if (len1 != len2) {
+        return len1 > len2 ? 1 : -1;
+      } else {
+        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1);
+        if (ret == 0) {
+          return 0;
+        }
+        return (ret < 0) ? -1 : 1;
       }
-      return (ret < 0) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_UTINYINT:  DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
     case TSDB_DATA_TYPE_USMALLINT: DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
@@ -414,6 +435,35 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
     } else {
       SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
       int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
+      if (ret == 0) {
+        continue;
+      } else {
+        return ret;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int32_t compare_aRv(SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColIndex* pColIndex = taosArrayGet(colIndex, i);
+    int32_t index = pColIndex->colIndex;
+
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index);
+    assert(pColIndex->colId == pColInfo->info.colId);
+
+    char* data = pColInfo->pData + rowIndex * pColInfo->info.bytes;
+    if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      int32_t ret = tsCompareFunc(GET_INT64_VAL(data), GET_INT64_VAL(buffer[i]), order);
+      if (ret == 0) {
+        continue; // The timestamps are identical
+      } else {
+        return ret;
+      }
+    } else {
+      int32_t ret = columnValueAscendingComparator(data, buffer[i], pColInfo->info.type, pColInfo->info.bytes);
       if (ret == 0) {
         continue;
       } else {
@@ -1052,4 +1102,58 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
 
   destroyColumnModel(pDesc->pColumnModel);
   tfree(pDesc);
+}
+
+void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn) {
+  assert(numOfRows > 0 && numOfCols > 0 && index >= 0 && index < numOfCols);
+
+  int32_t bytes = pSchema[index].bytes;
+  int32_t size = bytes + sizeof(int32_t);
+
+  char* buf = calloc(1, size * numOfRows);
+
+  for(int32_t i = 0; i < numOfRows; ++i) {
+    char* dest = buf + size * i;
+    memcpy(dest, ((char*) pCols[index]) + bytes * i, bytes);
+    *(int32_t*)(dest+bytes) = i;
+  }
+
+  qsort(buf, numOfRows, size, compareFn);
+
+  int32_t prevLength = 0;
+  char* p = NULL;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    int32_t bytes1 = pSchema[i].bytes;
+
+    if (i == index) {
+      for(int32_t j = 0; j < numOfRows; ++j){
+        char* src  = buf + (j * size);
+        char* dest = ((char*)pCols[i]) + (j * bytes1);
+        memcpy(dest, src, bytes1);
+      }
+    } else {
+      // make sure memory buffer is enough
+      if (prevLength < bytes1) {
+        char *tmp = realloc(p, bytes1 * numOfRows);
+        assert(tmp);
+
+        p = tmp;
+        prevLength = bytes1;
+      }
+
+      memcpy(p, pCols[i], bytes1 * numOfRows);
+
+      for(int32_t j = 0; j < numOfRows; ++j){
+        char* dest = ((char*)pCols[i]) + bytes1 * j;
+
+        int32_t newPos = *(int32_t*)(buf + (j * size) + bytes);
+        char* src = p + (newPos * bytes1);
+        memcpy(dest, src, bytes1);
+      }
+    }
+  }
+
+  tfree(buf);
+  tfree(p);
 }

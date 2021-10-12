@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "taosdef.h"
 #include <signal.h>
 
 #ifndef SIGALRM
@@ -57,4 +55,4 @@ void taosDflSignal(int32_t signum);
 }
 #endif
 
-#endif  // TDENGINE_TTIME_H
+#endif  // TDENGINE_OS_SIGNAL_H

@@ -20,7 +20,7 @@
 #include "tulog.h"
 #include "taoserror.h"
 
-#ifndef TAOS_OS_FUNC_SYSINFO
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined (_TD_DARWIN_64))
 
 #define PROCESS_ITEM 12
 
@@ -74,13 +74,14 @@ bool taosGetProcMemory(float *memoryUsedMB) {
     return false;
   }
 
+  ssize_t _bytes = 0;
   size_t len;
   char * line = NULL;
   while (!feof(fp)) {
     tfree(line);
     len = 0;
-    getline(&line, &len, fp);
-    if (line == NULL) {
+    _bytes = getline(&line, &len, fp);
+    if ((_bytes < 0) || (line == NULL)) {
       break;
     }
     if (strstr(line, "VmRSS:") != NULL) {
@@ -113,8 +114,8 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
   size_t len;
   char * line = NULL;
-  getline(&line, &len, fp);
-  if (line == NULL) {
+  ssize_t _bytes = getline(&line, &len, fp);
+  if ((_bytes < 0) || (line == NULL)) {
     uError("read file:%s failed", tsSysCpuFile);
     fclose(fp);
     return false;
@@ -138,8 +139,8 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 
   size_t len = 0;
   char * line = NULL;
-  getline(&line, &len, fp);
-  if (line == NULL) {
+  ssize_t _bytes = getline(&line, &len, fp);
+  if ((_bytes < 0) || (line == NULL)) {
     uError("read file:%s failed", tsProcCpuFile);
     fclose(fp);
     return false;
@@ -276,7 +277,7 @@ static void taosGetSystemLocale() {  // get and set default locale
   }
 }
 
-static int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
+int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
 
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   static uint64_t lastSysUsed = 0;
@@ -331,7 +332,7 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   }
 }
 
-static bool taosGetCardInfo(int64_t *bytes) {
+bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   *bytes = 0;
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
@@ -339,15 +340,16 @@ static bool taosGetCardInfo(int64_t *bytes) {
     return false;
   }
 
+  ssize_t _bytes = 0;
   size_t len = 2048;
   char * line = calloc(1, len);
 
   while (!feof(fp)) {
     memset(line, 0, len);
 
-    int64_t rbytes = 0;
+    int64_t o_rbytes = 0;
     int64_t rpackts = 0;
-    int64_t tbytes = 0;
+    int64_t o_tbytes = 0;
     int64_t tpackets = 0;
     int64_t nouse1 = 0;
     int64_t nouse2 = 0;
@@ -357,7 +359,12 @@ static bool taosGetCardInfo(int64_t *bytes) {
     int64_t nouse6 = 0;
     char    nouse0[200] = {0};
 
-    getline(&line, &len, fp);
+    _bytes = getline(&line, &len, fp);
+    if (_bytes < 0)
+    {
+      break;
+    }
+
     line[len - 1] = 0;
 
     if (strstr(line, "lo:") != NULL) {
@@ -367,8 +374,10 @@ static bool taosGetCardInfo(int64_t *bytes) {
     sscanf(line,
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
-           nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
-    *bytes += (rbytes + tbytes);
+           nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
+    if (rbytes) *rbytes = o_rbytes;
+    if (tbytes) *tbytes = o_tbytes;
+    *bytes += (o_rbytes + o_tbytes);
   }
 
   tfree(line);
@@ -383,7 +392,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   int64_t        curBytes = 0;
   time_t         curTime = time(NULL);
 
-  if (!taosGetCardInfo(&curBytes)) {
+  if (!taosGetCardInfo(&curBytes, NULL, NULL)) {
     return false;
   }
 
@@ -413,13 +422,14 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
-static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   FILE *fp = fopen(tsProcIOFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsProcIOFile);
     return false;
   }
 
+  ssize_t _bytes = 0;
   size_t len;
   char * line = NULL;
   char   tmp[10];
@@ -428,15 +438,15 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   while (!feof(fp)) {
     tfree(line);
     len = 0;
-    getline(&line, &len, fp);
-    if (line == NULL) {
+    _bytes = getline(&line, &len, fp);
+    if ((_bytes < 0) || (line == NULL)) {
       break;
     }
     if (strstr(line, "rchar:") != NULL) {
-      sscanf(line, "%s %" PRId64, tmp, readbyte);
+      sscanf(line, "%s %" PRId64, tmp, rchars);
       readIndex++;
     } else if (strstr(line, "wchar:") != NULL) {
-      sscanf(line, "%s %" PRId64, tmp, writebyte);
+      sscanf(line, "%s %" PRId64, tmp, wchars);
       readIndex++;
     } else {
     }
@@ -506,9 +516,6 @@ void taosPrintOsInfo() {
   uInfo(" os openMax:             %" PRId64, tsOpenMax);
   uInfo(" os streamMax:           %" PRId64, tsStreamMax);
   uInfo(" os numOfCores:          %d", tsNumOfCores);
-  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
-  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
-  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
   uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;
@@ -521,6 +528,14 @@ void taosPrintOsInfo() {
   uInfo(" os release:             %s", buf.release);
   uInfo(" os version:             %s", buf.version);
   uInfo(" os machine:             %s", buf.machine);
+}
+
+void taosPrintDiskInfo() {
+  uInfo("==================================");
+  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
+  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
+  uInfo("==================================");
 }
 
 void taosKillSystem() {

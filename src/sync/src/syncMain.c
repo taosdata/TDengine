@@ -43,7 +43,7 @@ static void    syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
 static void    syncRecoverFromMaster(SSyncPeer *pPeer);
 static void    syncCheckPeerConnection(void *param, void *tmrId);
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId);
-static void    syncProcessBrokenLink(int64_t rid);
+static void    syncProcessBrokenLink(int64_t rid, int32_t closedByApp);
 static int32_t syncProcessPeerMsg(int64_t rid, void *buffer);
 static void    syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    syncRemovePeer(SSyncPeer *pPeer);
@@ -389,17 +389,17 @@ int32_t syncForwardToPeer(int64_t rid, void *data, void *mhandle, int32_t qtype,
   return code;
 }
 
-void syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force) {
+void syncConfirmForward(int64_t rid, uint64_t _version, int32_t code, bool force) {
   SSyncNode *pNode = syncAcquireNode(rid);
   if (pNode == NULL) return;
 
   SSyncPeer *pPeer = pNode->pMaster;
   if (pPeer && (pNode->quorum > 1 || force)) {
     SFwdRsp rsp;
-    syncBuildSyncFwdRsp(&rsp, pNode->vgId, version, code);
+    syncBuildSyncFwdRsp(&rsp, pNode->vgId, _version, code);
 
     if (taosWriteMsg(pPeer->peerFd, &rsp, sizeof(SFwdRsp)) == sizeof(SFwdRsp)) {
-      sTrace("%s, forward-rsp is sent, code:0x%x hver:%" PRIu64, pPeer->id, code, version);
+      sTrace("%s, forward-rsp is sent, code:0x%x hver:%" PRIu64, pPeer->id, code, _version);
     } else {
       sDebug("%s, failed to send forward-rsp, restart", pPeer->id);
       syncRestartConnection(pPeer);
@@ -559,7 +559,8 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
 static void syncRemovePeer(SSyncPeer *pPeer) {
   sInfo("%s, it is removed", pPeer->id);
 
-  pPeer->ip = 0;
+  //pPeer->ip = 0;
+  pPeer->fqdn[0] = '\0';
   syncClosePeerConn(pPeer);
   //taosRemoveRef(tsPeerRefId, pPeer->rid);
   syncReleasePeer(pPeer);
@@ -585,20 +586,31 @@ static void syncStopCheckPeerConn(SSyncPeer *pPeer) {
   sDebug("%s, stop check peer connection", pPeer->id);
 }
 
+uint32_t syncResolvePeerFqdn(SSyncPeer *pPeer) {
+  uint32_t ip = taosGetIpv4FromFqdn(pPeer->fqdn);
+  if (ip == 0xFFFFFFFF) {
+    sError("failed to resolve peer fqdn:%s since %s", pPeer->fqdn, strerror(errno));
+    terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    return 0;
+  }
+
+  return ip;
+}
+
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
-  uint32_t ip = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
+  /*uint32_t ip = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ip == 0xFFFFFFFF) {
     sError("failed to add peer, can resolve fqdn:%s since %s", pInfo->nodeFqdn, strerror(errno));
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
     return NULL;
   }
-
+  */
   SSyncPeer *pPeer = calloc(1, sizeof(SSyncPeer));
   if (pPeer == NULL) return NULL;
 
   pPeer->nodeId = pInfo->nodeId;
   tstrncpy(pPeer->fqdn, pInfo->nodeFqdn, sizeof(pPeer->fqdn));
-  pPeer->ip = ip;
+  //pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   pPeer->fqdn[sizeof(pPeer->fqdn) - 1] = 0;
   snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, nodeId:%d", pNode->vgId, pPeer->nodeId);
@@ -709,7 +721,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
 }
 
 static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
-  int32_t onlineNum = 0;
+  int32_t onlineNum = 0, arbOnlineNum = 0;
   int32_t masterIndex = -1;
   int32_t replica = pNode->replica;
 
@@ -723,13 +735,15 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
   SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE) {
     onlineNum++;
+    ++arbOnlineNum;
     replica = pNode->replica + 1;
   }
 
   if (onlineNum <= replica * 0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
-       if (nodeRole == TAOS_SYNC_ROLE_MASTER && onlineNum == replica * 0.5 && onlineNum >= 1) {
+      if (nodeRole == TAOS_SYNC_ROLE_MASTER && onlineNum == replica * 0.5 && ((replica > 2 && onlineNum - arbOnlineNum > 1) || pNode->replica < 3)) {
          sInfo("vgId:%d, self keep work as master, online:%d replica:%d", pNode->vgId, onlineNum, replica);
+	 masterIndex = pNode->selfIndex;
        } else {
         nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
         sInfo("vgId:%d, self change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, replica);
@@ -855,14 +869,14 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   sDebug("%s, peer conn is restart and set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
 
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
-  if (ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
+  if (pPeer->nodeId == 0 || ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, check peer connection in 1000 ms", pPeer->id);
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
 }
 
 void syncRestartConnection(SSyncPeer *pPeer) {
-  if (pPeer->ip == 0) return;
+  if (pPeer->fqdn[0] == '\0') return;
 
   if (syncAcquirePeer(pPeer->rid) == NULL) return;
   
@@ -876,7 +890,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   sInfo("%s, sync-req is received", pPeer->id);
 
-  if (pPeer->ip == 0) return;
+  if (pPeer->fqdn[0] == '\0') return;
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
     sError("%s, I am not master anymore", pPeer->id);
@@ -1002,6 +1016,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     // nodeVersion = pHead->version;
     code = (*pNode->writeToCacheFp)(pNode->vgId, pHead, TAOS_QTYPE_FWD, NULL);
+    syncConfirmForward(pNode->rid, pHead->version, code, false);
   } else {
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       code = syncSaveIntoBuffer(pPeer, pHead);
@@ -1087,7 +1102,7 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
 }
 
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId) {
-  if (pPeer->peerFd < 0 || pPeer->ip == 0) {
+  if (pPeer->peerFd < 0 || pPeer->fqdn[0] == '\0') {
     sDebug("%s, failed to send status msg, restart fd:%d", pPeer->id, pPeer->peerFd);
     syncRestartConnection(pPeer);
     return -1;
@@ -1132,7 +1147,13 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     return;
   }
 
-  SOCKET connFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
+  uint32_t ip = syncResolvePeerFqdn(pPeer);
+  if (!ip) {
+    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    return;
+  }
+
+  SOCKET connFd = taosOpenTcpClientSocket(ip, pPeer->port, 0);
   if (connFd <= 0) {
     sDebug("%s, failed to open tcp socket since %s", pPeer->id, strerror(errno));
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
@@ -1147,7 +1168,12 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer->rid, connFd);
-    if (pPeer->isArb) tsArbOnline = 1;
+    if (pPeer->isArb) {
+      tsArbOnline = 1;
+      if (tsArbOnlineTimestamp == TSDB_ARB_DUMMY_TIME) {
+        tsArbOnlineTimestamp = taosGetTimestampMs();
+      }
+    }
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
     taosCloseSocket(connFd);
@@ -1282,7 +1308,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   pthread_mutex_unlock(&pNode->mutex);
 }
 
-static void syncProcessBrokenLink(int64_t rid) {
+static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return;
 
@@ -1290,9 +1316,10 @@ static void syncProcessBrokenLink(int64_t rid) {
 
   pthread_mutex_lock(&pNode->mutex);
 
-  sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d", pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd);
+  sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d closedByApp:%d",
+         pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd, closedByApp);
   pPeer->peerFd = -1;
-  if (pPeer->isArb) {
+  if (!closedByApp && pPeer->isArb) {
     tsArbOnline = 0;
   }
 
@@ -1302,14 +1329,14 @@ static void syncProcessBrokenLink(int64_t rid) {
   syncReleasePeer(pPeer);
 }
 
-static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
+static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t _version, void *mhandle) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   int64_t    time = taosGetTimestampMs();
 
   if (pSyncFwds->fwds >= SYNC_MAX_FWDS) {
     // pSyncFwds->first = (pSyncFwds->first + 1) % SYNC_MAX_FWDS;
     // pSyncFwds->fwds--;
-    sError("vgId:%d, failed to save fwd info, hver:%" PRIu64 " fwds:%d", pNode->vgId, version, pSyncFwds->fwds);
+    sError("vgId:%d, failed to save fwd info, hver:%" PRIu64 " fwds:%d", pNode->vgId, _version, pSyncFwds->fwds);
     return TSDB_CODE_SYN_TOO_MANY_FWDINFO;
   }
 
@@ -1319,12 +1346,12 @@ static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle
 
   SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + pSyncFwds->last;
   memset(pFwdInfo, 0, sizeof(SFwdInfo));
-  pFwdInfo->version = version;
+  pFwdInfo->version = _version;
   pFwdInfo->mhandle = mhandle;
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
-  sTrace("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
+  sTrace("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, _version, pSyncFwds->fwds);
 
   return 0;
 }
@@ -1404,7 +1431,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
       pthread_mutex_lock(&pNode->mutex);
       for (int32_t i = 0; i < pSyncFwds->fwds; ++i) {
         SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + (pSyncFwds->first + i) % SYNC_MAX_FWDS;
-        if (ABS(time - pFwdInfo->time) < 2000) break;
+        if (ABS(time - pFwdInfo->time) < 10000) break;
 
         sDebug("vgId:%d, forward info expired, hver:%" PRIu64 " curtime:%" PRIu64 " savetime:%" PRIu64, pNode->vgId,
                pFwdInfo->version, time, pFwdInfo->time);

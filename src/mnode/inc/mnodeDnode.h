@@ -77,7 +77,8 @@ void *  mnodeGetDnodeByEp(char *ep);
 void    mnodeUpdateDnode(SDnodeObj *pDnode);
 int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg);
 
-extern int32_t tsAccessSquence;
+int32_t mnodeCompactDnodes();
+extern int64_t tsAccessSquence;
 
 #ifdef __cplusplus
 }

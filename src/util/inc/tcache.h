@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 typedef void (*__cache_free_fn_t)(void*);
+typedef void (*__cache_trav_fn_t)(void*, void*);
 
 typedef struct SCacheStatis {
   int64_t missCount;
@@ -83,6 +84,7 @@ typedef struct {
   uint8_t         deleting;           // set the deleting flag to stop refreshing ASAP.
   pthread_t       refreshWorker;
   bool            extendLifespan;     // auto extend life span when one item is accessed.
+  int64_t         checkTick;          // tick used to record the check times of the refresh threads
 #if defined(LINUX)
   pthread_rwlock_t lock;
 #else
@@ -175,7 +177,12 @@ void taosCacheCleanup(SCacheObj *pCacheObj);
  * @param fp
  * @return
  */
-void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp);
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void* param1);
+
+/**
+ * stop background refresh worker thread
+ */
+void taosStopCacheRefreshWorker();
 
 #ifdef __cplusplus
 }

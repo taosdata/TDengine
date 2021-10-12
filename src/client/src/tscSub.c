@@ -151,6 +151,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   strtolower(pSql->sqlstr, pSql->sqlstr);
   pRes->qId = 0;
   pRes->numOfRows = 1;
+  pCmd->resColumnId = TSDB_RES_COL_ID;
 
   code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -173,7 +174,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 
   if (pSql->cmd.command != TSDB_SQL_SELECT && pSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     line = __LINE__;
-    code = TSDB_CODE_TSC_INVALID_SQL;
+    code = TSDB_CODE_TSC_INVALID_OPERATION;
     goto fail;
   }
 
@@ -215,7 +216,7 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
   taosTmrReset(tscProcessSubscriptionTimer, pSub->interval, pSub, tscTmr, &pSub->pTimer);
 }
 
-
+//TODO refactor: extract table list name not simply from the sql
 static SArray* getTableList( SSqlObj* pSql ) {
   const char* p = strstr( pSql->sqlstr, " from " );
   assert(p != NULL); // we are sure this is a 'select' statement
@@ -224,11 +225,11 @@ static SArray* getTableList( SSqlObj* pSql ) {
   
   SSqlObj* pNew = taos_query(pSql->pTscObj, sql);
   if (pNew == NULL) {
-    tscError("0x%"PRIx64"failed to retrieve table id: cannot create new sql object.", pSql->self);
+    tscError("0x%"PRIx64" failed to retrieve table id: cannot create new sql object.", pSql->self);
     return NULL;
 
   } else if (taos_errno(pNew) != TSDB_CODE_SUCCESS) {
-    tscError("0x%"PRIx64"failed to retrieve table id,error: %s", pSql->self, tstrerror(taos_errno(pNew)));
+    tscError("0x%"PRIx64" failed to retrieve table id,error: %s", pSql->self, tstrerror(taos_errno(pNew)));
     return NULL;
   }
 
@@ -264,9 +265,9 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   SSqlCmd* pCmd = &pSql->cmd;
 
-  pSub->lastSyncTime = taosGetTimestampMs();
+  TSDB_QUERY_CLEAR_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
 
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
     STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
     SSubscriptionProgress target = {.uid = pTableMeta->id.uid, .key = 0};
@@ -275,16 +276,19 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
       taosArrayClear(pSub->progress);
       taosArrayPush(pSub->progress, &target);
     }
+    
+    pSub->lastSyncTime = taosGetTimestampMs();
     return 1;
   }
 
   SArray* tables = getTableList(pSql);
   if (tables == NULL) {
+    pSub->lastSyncTime = 0;   //force to get table list next time
     return 0;
   }
   size_t numOfTables = taosArrayGetSize(tables);
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
   for( size_t i = 0; i < numOfTables; i++ ) {
     STidTags* tt = taosArrayGet( tables, i );
@@ -304,7 +308,11 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   taosArrayDestroy(tables);
 
-  TSDB_QUERY_SET_TYPE(tscGetQueryInfoDetail(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  if (pTableMetaInfo->pVgroupTables && taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0) {
+    TSDB_QUERY_SET_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  }
+
+  pSub->lastSyncTime = taosGetTimestampMs();
   return 1;
 }
 
@@ -482,18 +490,34 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSub *pSub = (SSub *)tsub;
   if (pSub == NULL) return NULL;
 
-  if (pSub->pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+  if (pSub->pTimer == NULL) {
+    int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
+    if (duration < (int64_t)(pSub->interval)) {
+      tscDebug("subscription consume too frequently, blocking...");
+      taosMsleep(pSub->interval - (int32_t)duration);
+    }
+  }
+
+  if (pSub->pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {  //may reach here when retireve stable vgroup failed
     SSqlObj* pSql = recreateSqlObj(pSub);
     if (pSql == NULL) {
       return NULL;
     }
+
     if (pSub->pSql->self != 0) {
       taosReleaseRef(tscObjRef, pSub->pSql->self);
     } else {
       tscFreeSqlObj(pSub->pSql);
     }
+
     pSub->pSql = pSql;
     pSql->pSubscription = pSub;
+    pSub->lastSyncTime = 0;
+
+    // no table list now, force to update it
+    tscDebug("begin table synchronization");
+    if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
+    tscDebug("table synchronization completed");    
   }
 
   tscSaveSubscriptionProgress(pSub);
@@ -501,8 +525,8 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSqlObj *pSql = pSub->pSql;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single table subscription
 
     size_t size = taosArrayGetSize(pSub->progress);
@@ -516,14 +540,6 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
 
     pQueryInfo->window.skey = s;
     tscDebug("subscribe:%s set next round subscribe skey:%"PRId64, pSub->topic, pQueryInfo->window.skey);
-  }
-
-  if (pSub->pTimer == NULL) {
-    int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
-    if (duration < (int64_t)(pSub->interval)) {
-      tscDebug("subscription consume too frequently, blocking...");
-      taosMsleep(pSub->interval - (int32_t)duration);
-    }
   }
 
   size_t size = taosArrayGetSize(pSub->progress) * sizeof(STableIdInfo);
@@ -555,7 +571,10 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->fp = asyncCallback;
     pSql->fetchFp = asyncCallback;
     pSql->param = pSub;
-    tscDoQuery(pSql);
+
+    pSql->cmd.active = pQueryInfo;
+    executeQuery(pSql, pQueryInfo);
+
     tsem_wait(&pSub->sem);
 
     if (pRes->code != TSDB_CODE_SUCCESS) {

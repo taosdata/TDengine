@@ -10,6 +10,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
 
 typedef struct ResultObj {
   int32_t numOfResult;

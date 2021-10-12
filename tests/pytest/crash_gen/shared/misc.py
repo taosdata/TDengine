@@ -35,7 +35,8 @@ class LoggingFilter(logging.Filter):
 
 class MyLoggingAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        return "[{:04d}] {}".format(threading.get_ident() % 10000, msg), kwargs
+        shortTid = threading.get_ident() % 10000
+        return "[{:04d}] {}".format(shortTid, msg), kwargs
         # return '[%s] %s' % (self.extra['connid'], msg), kwargs
 
 

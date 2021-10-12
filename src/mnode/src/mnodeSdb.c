@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "tref.h"
 #include "tbn.h"
+#include "tfs.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
@@ -226,6 +227,7 @@ void sdbUpdateMnodeRoles() {
     SMnodeObj *pMnode = mnodeGetMnode(roles.nodeId[i]);
     if (pMnode != NULL) {
       if (pMnode->role != roles.role[i]) {
+        pMnode->roleTime = taosGetTimestampMs();
         bnNotify();
       }
 
@@ -450,6 +452,12 @@ int32_t sdbInit() {
   }
 
   tsSdbMgmt.status = SDB_STATUS_SERVING;
+
+  if (tsCompactMnodeWal) {
+    mnodeCompactWal();
+    exit(EXIT_SUCCESS);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -649,8 +657,6 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     dnodeReportStep("mnode-sdb", stepDesc, 0);
   }
 
-  if (qtype == TAOS_QTYPE_QUERY) return sdbPerformDeleteAction(pHead, pTable);
-
   pthread_mutex_lock(&tsSdbMgmt.mutex);
   
   if (pHead->version == 0) {
@@ -665,10 +671,17 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
                pTable->name, actStr[action], sdbGetKeyStr(pTable, pHead->cont), qtype, pHead->version, tsSdbMgmt.version);
       return TSDB_CODE_SUCCESS;
     } else if (pHead->version != tsSdbMgmt.version + 1) {
-      pthread_mutex_unlock(&tsSdbMgmt.mutex);
-      sdbError("vgId:1, sdb:%s, failed to restore %s key:%s from source(%d), hver:%" PRIu64 " too large, mver:%" PRIu64,
-               pTable->name, actStr[action], sdbGetKeyStr(pTable, pHead->cont), qtype, pHead->version, tsSdbMgmt.version);
-      return TSDB_CODE_SYN_INVALID_VERSION;
+      if (qtype != TAOS_QTYPE_WAL) {
+        pthread_mutex_unlock(&tsSdbMgmt.mutex);
+        sdbError(
+            "vgId:1, sdb:%s, failed to restore %s key:%s from source(%d), hver:%" PRIu64 " too large, mver:%" PRIu64,
+            pTable->name, actStr[action], sdbGetKeyStr(pTable, pHead->cont), qtype, pHead->version, tsSdbMgmt.version);
+        return TSDB_CODE_SYN_INVALID_VERSION;
+      } else {
+        // If cksum is wrong when recovering wal, use this code
+        tsSdbMgmt.version = pHead->version;
+      }
+
     } else {
       tsSdbMgmt.version = pHead->version;
     }
@@ -683,7 +696,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   pthread_mutex_unlock(&tsSdbMgmt.mutex);
 
   // from app, row is created
-  if (pRow != NULL) {
+  if (pRow != NULL && tsCompactMnodeWal != 1) {
     // forward to peers
     pRow->processedCount = 0;
     int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
@@ -706,24 +719,30 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
-  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
+  if (tsCompactMnodeWal != 1) {
+    syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
+  }
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {
     return sdbPerformInsertAction(pHead, pTable);
   } else if (action == SDB_ACTION_DELETE) {
     if (qtype == TAOS_QTYPE_FWD) {
-      // Drop database/stable may take a long time and cause a timeout, so we confirm first then reput it into queue
-      sdbWriteFwdToQueue(1, hparam, TAOS_QTYPE_QUERY, unused);
-      return TSDB_CODE_SUCCESS;
-    } else {
-      return sdbPerformDeleteAction(pHead, pTable);
+      // Drop database/stable may take a long time and cause a timeout, so we confirm first
+      syncConfirmForward(tsSdbMgmt.sync, pHead->version, TSDB_CODE_SUCCESS, false);
     }
+    return sdbPerformDeleteAction(pHead, pTable);
   } else if (action == SDB_ACTION_UPDATE) {
     return sdbPerformUpdateAction(pHead, pTable);
   } else {
     return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
+}
+
+int32_t sdbInsertCompactRow(SSdbRow *pRow) {
+  SSdbTable *pTable = pRow->pTable;
+  if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+  return sdbWriteRowToQueue(pRow, SDB_ACTION_INSERT);
 }
 
 int32_t sdbInsertRow(SSdbRow *pRow) {
@@ -1095,6 +1114,7 @@ static void *sdbWorkerFp(void *pWorker) {
   void *   unUsed;
 
   taosBlockSIGPIPE();
+  setThreadName("sdbWorker");
 
   while (1) {
     int32_t numOfMsgs = taosReadAllQitemsFromQset(tsSdbWQset, tsSdbWQall, &unUsed);
@@ -1125,7 +1145,10 @@ static void *sdbWorkerFp(void *pWorker) {
         sdbConfirmForward(1, pRow, pRow->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code, false);
+          int32_t action = pRow->pHead.msgType % 10;
+          if (action != SDB_ACTION_DELETE) {
+            syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code, false);
+          }
         }
         sdbFreeFromQueue(pRow);
       }
@@ -1137,4 +1160,48 @@ static void *sdbWorkerFp(void *pWorker) {
 
 int32_t sdbGetReplicaNum() {
   return tsSdbMgmt.cfg.replica;
+}
+
+int32_t mnodeCompactWal() {
+  sdbInfo("vgId:1, start compact mnode wal...");
+
+  // close old wal
+  walFsync(tsSdbMgmt.wal, true);
+  walClose(tsSdbMgmt.wal);
+
+  // reset version,then compacted wal log can start from version 1
+  tsSdbMgmt.version = 0;
+
+  // change wal to wal_tmp dir
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
+  char    temp[TSDB_FILENAME_LEN] = {0};
+  sprintf(temp, "%s/wal", tsMnodeTmpDir);
+  tsSdbMgmt.wal = walOpen(temp, &walCfg);
+  walRenew(tsSdbMgmt.wal);
+
+  // compact memory tables info to wal tmp dir
+  if (mnodeCompactComponents() != 0) {
+    tfsRmdir(tsMnodeTmpDir);
+    return -1;
+  }
+
+  // close sdb and sync to disk
+  //walFsync(tsSdbMgmt.wal, true);
+  //walClose(tsSdbMgmt.wal);
+  sdbCleanUp();
+
+  // rename old wal to wal_bak
+  if (taosRename(tsMnodeDir, tsMnodeBakDir) != 0) {
+    return -1;
+  }
+
+  // rename wal_tmp to wal
+  if (taosRename(tsMnodeTmpDir, tsMnodeDir) != 0) {
+    return -1;
+  }
+  
+  // del wal_tmp dir
+  sdbInfo("vgId:1, compact mnode wal success");
+
+  return 0;
 }

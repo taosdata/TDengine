@@ -19,8 +19,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class TSDBStatement extends AbstractStatement {
-
-    private TSDBJNIConnector connector;
     /**
      * Status of current statement
      */
@@ -29,29 +27,27 @@ public class TSDBStatement extends AbstractStatement {
     private TSDBConnection connection;
     private TSDBResultSet resultSet;
 
-    public void setConnection(TSDBConnection connection) {
+    TSDBStatement(TSDBConnection connection) {
         this.connection = connection;
-    }
-
-    TSDBStatement(TSDBConnection connection, TSDBJNIConnector connector) {
-        this.connection = connection;
-        this.connector = connector;
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
-        // check if closed
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO: 如果在executeQuery方法中执行insert语句，那么先执行了SQL，再通过pSql来检查是否为一个insert语句，但这个insert SQL已经执行成功了
-
-        // execute query
-        long pSql = this.connector.executeQuery(sql);
+        }
+        //TODO:
+        // this is an unreasonable implementation, if the paratemer is a insert statement,
+        // the JNI connector will execute the sql at first and return a pointer: pSql,
+        // we use this pSql and invoke the isUpdateQuery(long pSql) method to decide .
+        // but the insert sql is already executed in database.
+        //execute query
+        long pSql = this.connection.getConnector().executeQuery(sql);
         // if pSql is create/insert/update/delete/alter SQL
-        if (this.connector.isUpdateQuery(pSql)) {
-            this.connector.freeResultSet(pSql);
+        if (this.connection.getConnector().isUpdateQuery(pSql)) {
+            this.connection.getConnector().freeResultSet(pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
         }
-        TSDBResultSet res = new TSDBResultSet(this, this.connector, pSql);
+        TSDBResultSet res = new TSDBResultSet(this, this.connection.getConnector(), pSql);
         res.setBatchFetch(this.connection.getBatchFetch());
         return res;
     }
@@ -60,14 +56,14 @@ public class TSDBStatement extends AbstractStatement {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
 
-        long pSql = this.connector.executeQuery(sql);
+        long pSql = this.connection.getConnector().executeQuery(sql);
         // if pSql is create/insert/update/delete/alter SQL
-        if (!this.connector.isUpdateQuery(pSql)) {
-            this.connector.freeResultSet(pSql);
+        if (!this.connection.getConnector().isUpdateQuery(pSql)) {
+            this.connection.getConnector().freeResultSet(pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEUPDATE);
         }
-        int affectedRows = this.connector.getAffectedRows(pSql);
-        this.connector.freeResultSet(pSql);
+        int affectedRows = this.connection.getConnector().getAffectedRows(pSql);
+        this.connection.getConnector().freeResultSet(pSql);
         return affectedRows;
     }
 
@@ -81,30 +77,29 @@ public class TSDBStatement extends AbstractStatement {
 
     public boolean execute(String sql) throws SQLException {
         // check if closed
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        }
+        
         // execute query
-        long pSql = this.connector.executeQuery(sql);
+        long pSql = this.connection.getConnector().executeQuery(sql);
         // if pSql is create/insert/update/delete/alter SQL
-        if (this.connector.isUpdateQuery(pSql)) {
-            this.affectedRows = this.connector.getAffectedRows(pSql);
-            this.connector.freeResultSet(pSql);
+        if (this.connection.getConnector().isUpdateQuery(pSql)) {
+            this.affectedRows = this.connection.getConnector().getAffectedRows(pSql);
+            this.connection.getConnector().freeResultSet(pSql);
             return false;
         }
 
-        this.resultSet = new TSDBResultSet(this, this.connector, pSql);
+        this.resultSet = new TSDBResultSet(this, this.connection.getConnector(), pSql);
         this.resultSet.setBatchFetch(this.connection.getBatchFetch());
         return true;
     }
 
     public ResultSet getResultSet() throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-//        long resultSetPointer = connector.getResultSet();
-//        TSDBResultSet resSet = null;
-//        if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-//            resSet = new TSDBResultSet(connector, resultSetPointer);
-//        }
+        }
+        
         return this.resultSet;
     }
 
@@ -115,11 +110,19 @@ public class TSDBStatement extends AbstractStatement {
     }
 
     public Connection getConnection() throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (this.connector == null)
+        }
+        
+        if (this.connection.getConnector() == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+        }
+        
         return this.connection;
+    }
+    
+    public void setConnection(TSDBConnection connection) {
+        this.connection = connection;
     }
 
     public boolean isClosed() throws SQLException {

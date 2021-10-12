@@ -24,6 +24,7 @@
 #include "tscSubquery.h"
 
 int tsParseInsertSql(SSqlObj *pSql);
+int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);
 
 ////////////////////////////////////////////////////////////////////////////////
 // functions for normal statement preparation
@@ -43,12 +44,51 @@ typedef struct SNormalStmt {
   tVariant*        params;
 } SNormalStmt;
 
+typedef struct SMultiTbStmt {
+  bool      nameSet;
+  bool      tagSet;
+  bool      subSet;
+  uint64_t  currentUid;
+  char     *sqlstr;
+  uint32_t  tbNum;
+  SStrToken tbname;
+  SStrToken stbname;
+  SStrToken values;
+  SArray   *tags;
+  STableDataBlocks *lastBlock;
+  SHashObj *pTableHash;
+  SHashObj *pTableBlockHashList;     // data block for each table
+} SMultiTbStmt;
+
+typedef enum {
+  STMT_INIT = 1,
+  STMT_PREPARE,
+  STMT_SETTBNAME,
+  STMT_BIND,
+  STMT_BIND_COL,
+  STMT_ADD_BATCH,
+  STMT_EXECUTE
+} STMT_ST;
+
 typedef struct STscStmt {
   bool isInsert;
+  bool multiTbInsert;
+  int16_t  last;
   STscObj* taos;
   SSqlObj* pSql;
+  SMultiTbStmt mtb;
   SNormalStmt normal;
 } STscStmt;
+
+#define STMT_RET(c) do {          \
+  int32_t _code = c;               \
+  if (pStmt && pStmt->pSql) { pStmt->pSql->res.code = _code; } else {terrno = _code;}   \
+  return _code;             \
+} while (0)
+
+static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
+  return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
+}
 
 static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_t len) {
   uint16_t size = stmt->numParts + 1;
@@ -135,8 +175,8 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       default:
-        tscDebug("param %d: type mismatch or invalid", i);
-        return TSDB_CODE_TSC_INVALID_VALUE;
+        tscError("0x%"PRIx64" bind column%d: type mismatch or invalid", stmt->pSql->self, i);
+        return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "bind type mismatch or invalid");
     }
   }
 
@@ -166,6 +206,8 @@ static int normalStmtPrepare(STscStmt* stmt) {
         return code;
       }
       start = i + token.n;
+    } else if (token.type == TK_ILLEGAL) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "invalid sql");
     }
 
     i += token.n;
@@ -253,14 +295,69 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
   return taosStringBuilderGetResult(&sb, NULL);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// functions for insertion statement preparation
-static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
-  if (bind->is_null != NULL && *(bind->is_null)) {
-    setNull(data + param->offset, param->type, param->bytes);
-    return TSDB_CODE_SUCCESS;
+static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
+  SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
+  int32_t offset = 0;
+  SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
+
+  for (int32_t i = 0; i < spd->numOfCols; ++i) {
+    if (spd->cols[i].valStat == VAL_STAT_NONE) {  // current column do not have any value to insert, set it to null
+      for (int32_t n = 0; n < rowNum; ++n) {
+        char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
+
+        if (schema[i].type == TSDB_DATA_TYPE_BINARY) {
+          varDataSetLen(ptr, sizeof(int8_t));
+          *(uint8_t*) varDataVal(ptr) = TSDB_DATA_BINARY_NULL;
+        } else if (schema[i].type == TSDB_DATA_TYPE_NCHAR) {
+          varDataSetLen(ptr, sizeof(int32_t));
+          *(uint32_t*) varDataVal(ptr) = TSDB_DATA_NCHAR_NULL;
+        } else {
+          setNull(ptr, schema[i].type, schema[i].bytes);
+        }
+      }
+    }
+
+    offset += schema[i].bytes;
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t fillTablesColumnsNull(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
+
+  STableDataBlocks* pOneTableBlock = *p;
+  while(pOneTableBlock) {
+    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
+    if (pBlocks->numOfRows > 0 && pOneTableBlock->boundColumnInfo.numOfBound < pOneTableBlock->boundColumnInfo.numOfCols) {
+      fillColumnsNull(pOneTableBlock, pBlocks->numOfRows);
+    }
+
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
+    if (p == NULL) {
+      break;
+    }
+
+    pOneTableBlock = *p;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// functions for insertion statement preparation
+static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParamInfo* param, TAOS_BIND* bind, int32_t colNum) {
+    if (bind->is_null != NULL && *(bind->is_null)) {
+      setNull(data + param->offset, param->type, param->bytes);
+      return TSDB_CODE_SUCCESS;
+    }
+
+#if 0
   if (0) {
     // allow user bind param data with different type
     union {
@@ -641,8 +738,10 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       }
     }
   }
+#endif
 
   if (bind->buffer_type != param->type) {
+    tscError("column type mismatch");
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -650,26 +749,31 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
   switch(param->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
-      size = 1;
+    case TSDB_DATA_TYPE_UTINYINT:
+      *(uint8_t *)(data + param->offset) = *(uint8_t *)bind->buffer;
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      size = 2;
+    case TSDB_DATA_TYPE_USMALLINT:
+      *(uint16_t *)(data + param->offset) = *(uint16_t *)bind->buffer;
       break;
 
     case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_FLOAT:
-      size = 4;
+      *(uint32_t *)(data + param->offset) = *(uint32_t *)bind->buffer;
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      size = 8;
+      *(uint64_t *)(data + param->offset) = *(uint64_t *)bind->buffer;
       break;
 
     case TSDB_DATA_TYPE_BINARY:
       if ((*bind->length) > (uintptr_t)param->bytes) {
+        tscError("column length is too big");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       size = (short)*bind->length;
@@ -679,6 +783,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t output = 0;
       if (!taosMbsToUcs4(bind->buffer, *bind->length, varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
+        tscError("convert nchar failed");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       varDataSetLen(data + param->offset, output);
@@ -689,30 +794,159 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  memcpy(data + param->offset, bind->buffer, size);
+  if (param->offset == 0) {
+    if (tsCheckTimestamp(pBlock, data + param->offset) != TSDB_CODE_SUCCESS) {
+      tscError("invalid timestamp");
+      return TSDB_CODE_TSC_INVALID_VALUE;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t insertStmtGenLastBlock(STableDataBlocks** lastBlock, STableDataBlocks* pBlock) {
+  *lastBlock = (STableDataBlocks*)malloc(sizeof(STableDataBlocks));
+  memcpy(*lastBlock, pBlock, sizeof(STableDataBlocks));
+  (*lastBlock)->cloned = true;
+  
+  (*lastBlock)->pData    = NULL;
+  (*lastBlock)->ordered  = true;
+  (*lastBlock)->prevTS   = INT64_MIN;
+  (*lastBlock)->size     = sizeof(SSubmitBlk);
+  (*lastBlock)->tsSource = -1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t insertStmtGenBlock(STscStmt* pStmt, STableDataBlocks** pBlock, STableMeta* pTableMeta, SName* name) {
+  int32_t code = 0;
+  
+  if (pStmt->mtb.lastBlock == NULL) {
+    tscError("no previous data block");
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  int32_t msize = tscGetTableMetaSize(pTableMeta);
+  int32_t tsize = sizeof(STableDataBlocks) + msize;
+
+  void *t = malloc(tsize);
+  *pBlock = t;
+
+  memcpy(*pBlock, pStmt->mtb.lastBlock, sizeof(STableDataBlocks));
+
+  t = (char *)t + sizeof(STableDataBlocks);
+  (*pBlock)->pTableMeta = t;
+  memcpy((*pBlock)->pTableMeta, pTableMeta, msize);
+
+  (*pBlock)->pData = malloc((*pBlock)->nAllocSize);
+
+  (*pBlock)->vgId     = (*pBlock)->pTableMeta->vgId;
+
+  tNameAssign(&(*pBlock)->tableName, name);
+  
+  SSubmitBlk* blk = (SSubmitBlk*)(*pBlock)->pData;
+  memset(blk, 0, sizeof(*blk));
+  
+  code = tsSetBlockInfo(blk, pTableMeta, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    STMT_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MULTI_BIND* bind, int32_t rowNum) {
+  if (bind->buffer_type != param->type || !isValidDataType(param->type)) {
+    tscError("column mismatch or invalid");
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (IS_VAR_DATA_TYPE(param->type) && bind->length == NULL) {
+    tscError("BINARY/NCHAR no length");
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  for (int i = 0; i < bind->num; ++i) {
+    char* data = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * (rowNum + i);
+
+    if (bind->is_null != NULL && bind->is_null[i]) {
+      setNull(data + param->offset, param->type, param->bytes);
+      continue;
+    }
+
+    if (!IS_VAR_DATA_TYPE(param->type)) {
+      memcpy(data + param->offset, (char *)bind->buffer + bind->buffer_length * i, tDataTypes[param->type].bytes);
+
+      if (param->offset == 0) {
+        if (tsCheckTimestamp(pBlock, data + param->offset) != TSDB_CODE_SUCCESS) {
+          tscError("invalid timestamp");
+          return TSDB_CODE_TSC_INVALID_VALUE;
+        }
+      }
+    } else if (param->type == TSDB_DATA_TYPE_BINARY) {
+      if (bind->length[i] > (uintptr_t)param->bytes) {
+        tscError("binary length too long, ignore it, max:%d, actual:%d", param->bytes, (int32_t)bind->length[i]);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      int16_t bsize = (short)bind->length[i];
+      STR_WITH_SIZE_TO_VARSTR(data + param->offset, (char *)bind->buffer + bind->buffer_length * i, bsize);
+    } else if (param->type == TSDB_DATA_TYPE_NCHAR) {
+      if (bind->length[i] > (uintptr_t)param->bytes) {
+        tscError("nchar string length too long, ignore it, max:%d, actual:%d", param->bytes, (int32_t)bind->length[i]);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+
+      int32_t output = 0;
+      if (!taosMbsToUcs4((char *)bind->buffer + bind->buffer_length * i, bind->length[i], varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
+        tscError("convert nchar string to UCS4_LE failed:%s", (char*)((char *)bind->buffer + bind->buffer_length * i));
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+
+      varDataSetLen(data + param->offset, output);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
   SSqlCmd* pCmd = &stmt->pSql->cmd;
-
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
-
-  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pCmd->pTableBlockHashList == NULL) {
-    pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-  }
+  STscStmt* pStmt = (STscStmt*)stmt;
 
   STableDataBlocks* pBlock = NULL;
 
-  int32_t ret =
-      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
-                              pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
-  if (ret != 0) {
-    // todo handle error
+  if (pStmt->multiTbInsert) {
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      tscError("0x%"PRIx64" Table block hash list is empty", pStmt->pSql->self);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->insertParam.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
+    if (t1 == NULL) {
+      tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pStmt->pSql->self, pStmt->mtb.currentUid);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    pBlock = *t1;
+  } else {
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    }
+
+    int32_t ret =
+        tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                                pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
+    if (ret != 0) {
+      return ret;
+    }
   }
 
-  uint32_t totalDataSize = sizeof(SSubmitBlk) + pCmd->batchSize * pBlock->rowSize;
+  uint32_t totalDataSize = sizeof(SSubmitBlk) + (pCmd->batchSize + 1) * pBlock->rowSize;
   if (totalDataSize > pBlock->nAllocSize) {
     const double factor = 1.5;
 
@@ -729,12 +963,135 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
   for (uint32_t j = 0; j < pBlock->numOfParams; ++j) {
     SParamInfo* param = &pBlock->params[j];
 
-    int code = doBindParam(data, param, &bind[param->idx]);
+    int code = doBindParam(pBlock, data, param, &bind[param->idx], 1);
     if (code != TSDB_CODE_SUCCESS) {
-      tscDebug("param %d: type mismatch or invalid", param->idx);
-      return code;
+      tscDebug("0x%"PRIx64" bind column %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
+      return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "bind column type mismatch or invalid");
     }
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int colIdx) {
+  SSqlCmd* pCmd = &stmt->pSql->cmd;
+  STscStmt* pStmt = (STscStmt*)stmt;
+  int rowNum = bind->num;
+
+  STableDataBlocks* pBlock = NULL;
+
+  if (pStmt->multiTbInsert) {
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      tscError("0x%"PRIx64" Table block hash list is empty", pStmt->pSql->self);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->insertParam.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
+    if (t1 == NULL) {
+      tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pStmt->pSql->self, pStmt->mtb.currentUid);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    pBlock = *t1;
+  } else {
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    }
+
+    int32_t ret =
+        tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                                pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
+    if (ret != 0) {
+      return ret;
+    }
+  }
+
+  if (!(colIdx == -1 || (colIdx >= 0 && colIdx < pBlock->numOfParams))) {
+    tscError("0x%"PRIx64" invalid colIdx:%d", pStmt->pSql->self, colIdx);
+    return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "invalid param colIdx");
+  }
+
+  uint32_t totalDataSize = sizeof(SSubmitBlk) + (pCmd->batchSize + rowNum) * pBlock->rowSize;
+  if (totalDataSize > pBlock->nAllocSize) {
+    const double factor = 1.5;
+
+    void* tmp = realloc(pBlock->pData, (uint32_t)(totalDataSize * factor));
+    if (tmp == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    pBlock->pData = (char*)tmp;
+    pBlock->nAllocSize = (uint32_t)(totalDataSize * factor);
+  }
+
+  if (colIdx == -1) {
+    for (uint32_t j = 0; j < pBlock->numOfParams; ++j) {
+      SParamInfo* param = &pBlock->params[j];
+      if (bind[param->idx].num != rowNum) {
+        tscError("0x%"PRIx64" param %d: num[%d:%d] not match", pStmt->pSql->self, param->idx, rowNum, bind[param->idx].num);
+        return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "bind row num mismatch");
+      }
+
+      int code = doBindBatchParam(pBlock, param, &bind[param->idx], pCmd->batchSize);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("0x%"PRIx64" bind column %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
+        return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "bind column type mismatch or invalid");
+      }
+    }
+
+    pCmd->batchSize += rowNum - 1;
+  } else {
+    SParamInfo* param = &pBlock->params[colIdx];
+
+    int code = doBindBatchParam(pBlock, param, bind, pCmd->batchSize);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("0x%"PRIx64" bind column %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
+      return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "bind column type mismatch or invalid");
+    }
+
+    if (colIdx == (pBlock->numOfParams - 1)) {
+      pCmd->batchSize += rowNum - 1;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int insertStmtUpdateBatch(STscStmt* stmt) {
+  SSqlObj* pSql = stmt->pSql;
+  SSqlCmd* pCmd = &pSql->cmd;
+  STableDataBlocks* pBlock = NULL;
+
+  if (pCmd->batchSize > INT16_MAX) {
+    tscError("too many record:%d", pCmd->batchSize);
+    return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "too many records");
+  }
+
+  if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->insertParam.pTableBlockHashList, (const char*)&stmt->mtb.currentUid, sizeof(stmt->mtb.currentUid));
+  if (t1 == NULL) {
+    tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pSql->self, stmt->mtb.currentUid);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  pBlock = *t1;
+
+  STableMeta* pTableMeta = pBlock->pTableMeta;
+
+  pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * pBlock->rowSize;
+  SSubmitBlk* pBlk = (SSubmitBlk*) pBlock->pData;
+  pBlk->numOfRows = pCmd->batchSize;
+  pBlk->dataLen = 0;
+  pBlk->uid = pTableMeta->id.uid;
+  pBlk->tid = pTableMeta->id.tid;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -742,6 +1099,11 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
 static int insertStmtAddBatch(STscStmt* stmt) {
   SSqlCmd* pCmd = &stmt->pSql->cmd;
   ++pCmd->batchSize;
+
+  if (stmt->multiTbInsert) {
+    return insertStmtUpdateBatch(stmt);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -750,9 +1112,9 @@ static int insertStmtReset(STscStmt* pStmt) {
   if (pCmd->batchSize > 2) {
     int32_t alloced = (pCmd->batchSize + 1) / 2;
 
-    size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+    size_t size = taosArrayGetSize(pCmd->insertParam.pDataBlocks);
     for (int32_t i = 0; i < size; ++i) {
-      STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
+      STableDataBlocks* pBlock = taosArrayGetP(pCmd->insertParam.pDataBlocks, i);
 
       uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
       pBlock->size = sizeof(SSubmitBlk) + totalDataSize / alloced;
@@ -763,7 +1125,7 @@ static int insertStmtReset(STscStmt* pStmt) {
   }
   pCmd->batchSize = 0;
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
   pTableMetaInfo->vgroupIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
@@ -771,25 +1133,25 @@ static int insertStmtReset(STscStmt* pStmt) {
 static int insertStmtExecute(STscStmt* stmt) {
   SSqlCmd* pCmd = &stmt->pSql->cmd;
   if (pCmd->batchSize == 0) {
-    return TSDB_CODE_TSC_INVALID_VALUE;
+    tscError("no records bind");
+    return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "no records bind");
   }
 
-  assert(pCmd->numOfClause == 1);
-  if (taosHashGetSize(pCmd->pTableBlockHashList) == 0) {
+  if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pCmd->pTableBlockHashList == NULL) {
-    pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  if (pCmd->insertParam.pTableBlockHashList == NULL) {
+    pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   }
 
   STableDataBlocks* pBlock = NULL;
 
   int32_t ret =
-      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+      tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                               pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
   assert(ret == 0);
   pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * pBlock->rowSize;
@@ -799,12 +1161,14 @@ static int insertStmtExecute(STscStmt* stmt) {
   pBlk->uid = pTableMeta->id.uid;
   pBlk->tid = pTableMeta->id.tid;
 
-  int code = tscMergeTableDataBlocks(stmt->pSql, false);
+  fillTablesColumnsNull(stmt->pSql);
+
+  int code = tscMergeTableDataBlocks(stmt->pSql, &stmt->pSql->cmd.insertParam, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  STableDataBlocks* pDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
+  STableDataBlocks* pDataBlock = taosArrayGetP(pCmd->insertParam.pDataBlocks, 0);
   code = tscCopyDataBlockToPayload(stmt->pSql, pDataBlock);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -815,24 +1179,274 @@ static int insertStmtExecute(STscStmt* stmt) {
   pRes->numOfRows  = 0;
   pRes->numOfTotal = 0;
 
-  tscProcessSql(pSql);
+  tscBuildAndSendRequest(pSql, NULL);
 
   // wait for the callback function to post the semaphore
   tsem_wait(&pSql->rspSem);
 
   // data block reset
   pCmd->batchSize = 0;
-  for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
-    if (pCmd->pTableNameList && pCmd->pTableNameList[i]) {
-      tfree(pCmd->pTableNameList[i]);
+  for(int32_t i = 0; i < pCmd->insertParam.numOfTables; ++i) {
+    if (pCmd->insertParam.pTableNameList && pCmd->insertParam.pTableNameList[i]) {
+      tfree(pCmd->insertParam.pTableNameList[i]);
     }
   }
 
-  pCmd->numOfTables = 0;
-  tfree(pCmd->pTableNameList);
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->insertParam.numOfTables = 0;
+  tfree(pCmd->insertParam.pTableNameList);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
 
   return pSql->res.code;
+}
+
+static void insertBatchClean(STscStmt* pStmt) {
+  SSqlCmd *pCmd = &pStmt->pSql->cmd;
+  SSqlObj *pSql = pStmt->pSql;
+  int32_t size = taosHashGetSize(pCmd->insertParam.pTableBlockHashList);
+
+  // data block reset
+  pCmd->batchSize = 0;
+
+  for(int32_t i = 0; i < size; ++i) {
+    if (pCmd->insertParam.pTableNameList && pCmd->insertParam.pTableNameList[i]) {
+      tfree(pCmd->insertParam.pTableNameList[i]);
+    }
+  }
+
+  tfree(pCmd->insertParam.pTableNameList);
+
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
+  pCmd->insertParam.numOfTables = 0;
+
+  taosHashClear(pCmd->insertParam.pTableBlockHashList);
+  tscFreeSqlResult(pSql);
+  tscFreeSubobj(pSql);
+  tfree(pSql->pSubs);
+  pSql->subState.numOfSub = 0;
+}
+
+static int insertBatchStmtExecute(STscStmt* pStmt) {
+  int32_t code = 0;
+  
+  if(pStmt->mtb.nameSet == false) {
+    tscError("0x%"PRIx64" no table name set", pStmt->pSql->self);
+    return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "no table name set");
+  }
+
+  pStmt->pSql->retry = pStmt->pSql->maxRetry + 1;  //no retry
+
+  if (taosHashGetSize(pStmt->pSql->cmd.insertParam.pTableBlockHashList) <= 0) { // merge according to vgId
+    tscError("0x%"PRIx64" no data block to insert", pStmt->pSql->self);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  fillTablesColumnsNull(pStmt->pSql);
+
+  if ((code = tscMergeTableDataBlocks(pStmt->pSql, &pStmt->pSql->cmd.insertParam, false)) != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tscHandleMultivnodeInsert(pStmt->pSql);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // wait for the callback function to post the semaphore
+  tsem_wait(&pStmt->pSql->rspSem);
+
+  code = pStmt->pSql->res.code;
+  
+  insertBatchClean(pStmt);
+
+  return code;
+}
+
+int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
+  SSqlCmd *pCmd    = &pSql->cmd;
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  if ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
+  int32_t index = 0;
+  SStrToken sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+  if (sToken.n == 0) {
+    tscError("table is is expected, sql:%s", pCmd->insertParam.sql);
+    return tscSQLSyntaxErrMsg(pCmd->payload, "table name is expected", pCmd->insertParam.sql);
+  }
+
+  if (sToken.n == 1 && sToken.type == TK_QUESTION) {
+    pStmt->multiTbInsert = true;
+    pStmt->mtb.tbname = sToken;
+    pStmt->mtb.nameSet = false;
+    if (pStmt->mtb.pTableHash == NULL) {
+      pStmt->mtb.pTableHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+    }
+
+    if (pStmt->mtb.pTableBlockHashList == NULL) {
+      pStmt->mtb.pTableBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    }
+
+    pStmt->mtb.tagSet = true;
+
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+    if (sToken.n > 0 && (sToken.type == TK_VALUES || sToken.type == TK_LP)) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (sToken.n <= 0 || sToken.type != TK_USING) {
+      tscError("keywords USING is expected, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "keywords USING is expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+    if (sToken.n <= 0 || ((sToken.type != TK_ID) && (sToken.type != TK_STRING))) {
+      tscError("invalid token, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "invalid token", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+    pStmt->mtb.stbname = sToken;
+
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+    if (sToken.n <= 0 || sToken.type != TK_TAGS) {
+      tscError("keyword TAGS expected, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+    if (sToken.n <= 0 || sToken.type != TK_LP) {
+      tscError("( expected, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "( expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+
+    pStmt->mtb.tags = taosArrayInit(4, sizeof(SStrToken));
+
+    int32_t loopCont = 1;
+
+    while (loopCont) {
+      sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+      if (sToken.n <= 0) {
+        tscError("unexpected sql end, sql:%s", pCmd->insertParam.sql);
+        return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected sql end", pCmd->insertParam.sql);
+      }
+
+      switch (sToken.type) {
+        case TK_RP:
+          loopCont = 0;
+          break;
+        case TK_VALUES:
+          tscError("unexpected token values, sql:%s", pCmd->insertParam.sql);
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected token", sToken.z);
+        case TK_QUESTION:
+          pStmt->mtb.tagSet = false; //continue
+        default:
+          taosArrayPush(pStmt->mtb.tags, &sToken);
+          break;
+      }
+    }
+
+    if (taosArrayGetSize(pStmt->mtb.tags) <= 0) {
+      tscError("no tags, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "no tags", pCmd->insertParam.sql);
+    }
+
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+    if (sToken.n <= 0 || (sToken.type != TK_VALUES && sToken.type != TK_LP)) {
+      tscError("sql error, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "sql error", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+
+    pStmt->mtb.values = sToken;
+
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAOS_BIND* tags) {
+  size_t tagNum = taosArrayGetSize(pStmt->mtb.tags);
+  size_t size = 1048576;
+  char *str = calloc(1, size);
+  size_t len = 0;
+  int32_t ret = 0;
+  int32_t j = 0;
+
+  while (1) {
+    len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s tags(", name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z);
+    if (len >= (size -1)) {
+      size *= 2;
+      free(str);
+      str = calloc(1, size);
+      continue;
+    }
+
+    j = 0;
+
+    for (size_t i = 0; i < tagNum && len < (size - 1); ++i) {
+      SStrToken *t = taosArrayGet(pStmt->mtb.tags, i);
+      if (t->type == TK_QUESTION) {
+        int32_t l = 0;
+        if (i > 0) {
+          str[len++] = ',';
+        }
+
+        if (tags[j].is_null && (*tags[j].is_null)) {
+          ret = converToStr(str + len, TSDB_DATA_TYPE_NULL, NULL, -1, &l);
+        } else {
+          if (tags[j].buffer == NULL) {
+            free(str);
+            tscError("empty tag value in params");
+            return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "empty tag value in params");
+          }
+
+          ret = converToStr(str + len, tags[j].buffer_type, tags[j].buffer, tags[j].length ? (int32_t)*tags[j].length : -1, &l);
+        }
+
+        ++j;
+
+        if (ret) {
+          free(str);
+          return ret;
+        }
+
+        len += l;
+      } else {
+        len += (size_t)snprintf(str + len, size - len - 1, i > 0 ? ",%.*s" : "%.*s", t->n, t->z);
+      }
+    }
+
+    if (len >= (size - 1)) {
+      size *= 2;
+      free(str);
+      str = calloc(1, size);
+      continue;
+    }
+
+    strcat(str, ") ");
+    len += 2;
+
+    if ((len + strlen(pStmt->mtb.values.z)) >= (size - 1)) {
+      size *= 2;
+      free(str);
+      str = calloc(1, size);
+      continue;
+    }
+
+    strcat(str, pStmt->mtb.values.z);
+
+    break;
+  }
+
+  if (pStmt->mtb.sqlstr == NULL) {
+    pStmt->mtb.sqlstr = pSql->sqlstr;
+  } else {
+    tfree(pSql->sqlstr);
+  }
+
+  pSql->sqlstr = str;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -840,13 +1454,15 @@ static int insertStmtExecute(STscStmt* stmt) {
 
 TAOS_STMT* taos_stmt_init(TAOS* taos) {
   STscObj* pObj = (STscObj*)taos;
+  STscStmt* pStmt = NULL;
+
   if (pObj == NULL || pObj->signature != pObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("connection disconnected");
     return NULL;
   }
 
-  STscStmt* pStmt = calloc(1, sizeof(STscStmt));
+  pStmt = calloc(1, sizeof(STscStmt));
   if (pStmt == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("failed to allocate memory for statement");
@@ -855,10 +1471,19 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pStmt->taos = pObj;
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+
   if (pSql == NULL) {
     free(pStmt);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("failed to allocate memory for statement");
+    return NULL;
+  }
+
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
+    free(pSql);
+    free(pStmt);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tscError("failed to malloc payload buffer");
     return NULL;
   }
 
@@ -867,6 +1492,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->pTscObj   = pObj;
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pStmt->pSql     = pSql;
+  pStmt->last     = STMT_INIT;
 
   return pStmt;
 }
@@ -875,9 +1501,20 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return TSDB_CODE_TSC_DISCONNECTED;
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
+
+  if (sql == NULL) {
+    tscError("sql is NULL");
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "sql is NULL"));
+  }
+
+  if (pStmt->last != STMT_INIT) {
+    tscError("prepare status error, last:%d", pStmt->last);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "prepare status error"));
+  }
+
+  pStmt->last = STMT_PREPARE;
 
   SSqlObj* pSql = pStmt->pSql;
   size_t   sqlLen = strlen(sql);
@@ -888,48 +1525,250 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pSql->fp         = waitForQueryRsp;
   pSql->fetchFp    = waitForQueryRsp;
   
-  pCmd->insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  pCmd->insertParam.objectId = pSql->self;
 
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
-    tscError("%p failed to malloc payload buffer", pSql);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
-
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);  
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
-    free(pCmd->payload);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
   }
 
   pRes->qId = 0;
   pRes->numOfRows = 1;
 
+  registerSqlObj(pSql);
+
   strtolower(pSql->sqlstr, sql);
-  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {
     pStmt->isInsert = true;
 
-    pSql->cmd.numOfParams = 0;
+    pSql->cmd.insertParam.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
 
-    registerSqlObj(pSql);
+    int32_t ret = stmtParseInsertTbTags(pSql, pStmt);
+    if (ret != TSDB_CODE_SUCCESS) {
+      STMT_RET(ret);
+    }
+
+    if (pStmt->multiTbInsert) {
+      STMT_RET(TSDB_CODE_SUCCESS);
+    }
+
+    memset(&pStmt->mtb, 0, sizeof(pStmt->mtb));
 
     int32_t code = tsParseSql(pSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       // wait for the callback function to post the semaphore
       tsem_wait(&pSql->rspSem);
-      return pSql->res.code;
+      STMT_RET(pSql->res.code);
     }
 
-    return code;
+    STMT_RET(code);
   }
 
   pStmt->isInsert = false;
-  return normalStmtPrepare(pStmt);
+  STMT_RET(normalStmtPrepare(pStmt));
 }
+
+int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+  int32_t code = 0;
+
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
+
+  SSqlObj* pSql = pStmt->pSql;
+  SSqlCmd* pCmd = &pSql->cmd;
+  uint32_t nameLen = (uint32_t)strlen(name);
+
+  if (name == NULL || nameLen <= 0) {
+    tscError("0x%"PRIx64" tbname is NULL", pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "name is NULL"));
+  }
+
+  if (pStmt->multiTbInsert == false || !tscIsInsertData(pSql->sqlstr)) {
+    tscError("0x%"PRIx64" not multiple table insert", pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "not multiple table insert"));
+  }
+
+  if (pStmt->last == STMT_INIT || pStmt->last == STMT_BIND || pStmt->last == STMT_BIND_COL) {
+    tscError("0x%"PRIx64" set_tbname_tags status error, last:%d", pSql->self, pStmt->last);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "set_tbname_tags status error"));
+  }
+
+  pStmt->last = STMT_SETTBNAME;
+
+  SStrToken tname = {0};
+  tname.type = TK_STRING;
+  tname.z = (char *)strdup(name);
+  tname.n = (uint32_t)strlen(name);
+
+  bool dbIncluded = false;
+  
+  // Check if the table name available or not
+  if (tscValidateName(&tname, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    tscError("0x%"PRIx64" tbname[%s] is invalid", pSql->self, name);
+    free(tname.z);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "name is invalid"));
+  }
+
+  uint64_t* uid = (uint64_t*)taosHashGet(pStmt->mtb.pTableHash, name, strlen(name));
+  if (uid != NULL) {
+    pStmt->mtb.currentUid = *uid;
+
+    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pStmt->mtb.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
+    if (t1 == NULL) {
+      tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pSql->self, pStmt->mtb.currentUid);
+      free(tname.z);
+      STMT_RET(TSDB_CODE_TSC_APP_ERROR);
+    }
+
+    SSubmitBlk* pBlk = (SSubmitBlk*) (*t1)->pData;
+    pCmd->batchSize = pBlk->numOfRows;
+    if (pBlk->numOfRows == 0) {
+      (*t1)->prevTS = INT64_MIN;
+    }
+
+    tsSetBlockInfo(pBlk, (*t1)->pTableMeta, pBlk->numOfRows);
+
+    taosHashPut(pCmd->insertParam.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)t1, POINTER_BYTES);
+
+    tscDebug("0x%"PRIx64" table:%s is already prepared, uid:%" PRIu64, pSql->self, name, pStmt->mtb.currentUid);
+    free(tname.z);
+    STMT_RET(TSDB_CODE_SUCCESS);
+  }
+
+  if (pStmt->mtb.subSet && taosHashGetSize(pStmt->mtb.pTableHash) > 0) {
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    char sTableName[TSDB_TABLE_FNAME_LEN] = {0};
+    tstrncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
+    SName fullname = {0};
+
+    tscSetTableFullName(&fullname, &tname, pSql, dbIncluded);
+    free(tname.z);
+
+    memcpy(&pTableMetaInfo->name, &fullname, sizeof(fullname));
+
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, true);
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT_RET(code);
+    }
+
+    pTableMeta = pTableMetaInfo->pTableMeta;
+
+    if (strcmp(sTableName, pTableMeta->sTableName)) {
+      tscError("0x%"PRIx64" only tables belongs to one stable is allowed", pSql->self);
+      STMT_RET(TSDB_CODE_TSC_APP_ERROR);
+    }
+
+    STableDataBlocks* pBlock = NULL;
+
+    insertStmtGenBlock(pStmt, &pBlock, pTableMeta, &pTableMetaInfo->name);
+
+    pCmd->batchSize = 0;
+    
+    pStmt->mtb.currentUid = pTableMeta->id.uid;
+    pStmt->mtb.tbNum++;
+    
+    taosHashPut(pCmd->insertParam.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)&pBlock, POINTER_BYTES);
+    taosHashPut(pStmt->mtb.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)&pBlock, POINTER_BYTES);
+    taosHashPut(pStmt->mtb.pTableHash, name, strlen(name), (char*) &pTableMeta->id.uid, sizeof(pTableMeta->id.uid));
+
+    tscDebug("0x%"PRIx64" table:%s is prepared, uid:%" PRIx64, pSql->self, name, pStmt->mtb.currentUid);
+    
+    STMT_RET(TSDB_CODE_SUCCESS);
+  }
+
+  free(tname.z);
+
+  if (pStmt->mtb.tagSet) {
+    pStmt->mtb.tbname = tscReplaceStrToken(&pSql->sqlstr, &pStmt->mtb.tbname, name);
+  } else {
+    if (tags == NULL) {
+      tscError("No tags set");
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "no tags set"));
+    }
+
+    int32_t ret = stmtGenInsertStatement(pSql, pStmt, name, tags);
+    if (ret != TSDB_CODE_SUCCESS) {
+      STMT_RET(ret);
+    }
+  }
+
+  pStmt->mtb.nameSet = true;
+
+  tscDebug("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
+
+  pSql->cmd.insertParam.numOfParams = 0;
+  pSql->cmd.batchSize   = 0;
+
+  if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
+    SHashObj* hashList = pCmd->insertParam.pTableBlockHashList;
+    pCmd->insertParam.pTableBlockHashList = NULL;
+    tscResetSqlCmd(pCmd, false, pSql->self);
+    pCmd->insertParam.pTableBlockHashList = hashList;
+  }
+
+  code = tsParseSql(pStmt->pSql, true);
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    // wait for the callback function to post the semaphore
+    tsem_wait(&pStmt->pSql->rspSem);
+
+    code = pStmt->pSql->res.code;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    STableDataBlocks* pBlock = NULL;
+    code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                              pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT_RET(code);
+    }
+
+    SSubmitBlk* blk = (SSubmitBlk*)pBlock->pData;
+    blk->numOfRows = 0;
+
+    pStmt->mtb.currentUid = pTableMeta->id.uid;
+    pStmt->mtb.tbNum++;
+
+    taosHashPut(pStmt->mtb.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)&pBlock, POINTER_BYTES);
+    taosHashPut(pStmt->mtb.pTableHash, name, strlen(name), (char*) &pTableMeta->id.uid, sizeof(pTableMeta->id.uid));
+
+    if (pStmt->mtb.lastBlock == NULL) {
+      insertStmtGenLastBlock(&pStmt->mtb.lastBlock, pBlock);
+    }
+
+    tscDebug("0x%"PRIx64" table:%s is prepared, uid:%" PRIx64, pSql->self, name, pStmt->mtb.currentUid);
+  }
+
+  STMT_RET(code);
+}
+
+
+int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+  pStmt->mtb.subSet = true;
+  return taos_stmt_set_tbname_tags(stmt, name, NULL);
+}
+
+
+
+int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+  pStmt->mtb.subSet = false;
+  return taos_stmt_set_tbname_tags(stmt, name, NULL);
+}
+
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -943,59 +1782,194 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
     free(normal->parts);
     free(normal->sql);
+  } else {
+    if (pStmt->multiTbInsert) {
+      taosHashCleanup(pStmt->mtb.pTableHash);
+      bool rmMeta = false;
+      if (pStmt->pSql && pStmt->pSql->res.code != 0) {
+        rmMeta = true;
+      }
+      tscDestroyDataBlock(pStmt->pSql, pStmt->mtb.lastBlock, rmMeta);
+      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->pSql, pStmt->mtb.pTableBlockHashList, rmMeta);
+      if (pStmt->pSql){
+        taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      }
+      pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
+      taosArrayDestroy(pStmt->mtb.tags);
+      tfree(pStmt->mtb.sqlstr);
+    }
   }
 
   taos_free_result(pStmt->pSql);
-  free(pStmt);
-  return TSDB_CODE_SUCCESS;
+  tfree(pStmt);
+  STMT_RET(TSDB_CODE_SUCCESS);
 }
 
 int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
+
   if (pStmt->isInsert) {
-    return insertStmtBindParam(pStmt, bind);
+    if (pStmt->multiTbInsert) {
+      if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH) {
+        tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+        STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error"));
+      }
+    } else {
+      if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_EXECUTE) {
+        tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+        STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error"));
+      }
+    }
+
+    pStmt->last = STMT_BIND;
+
+    tscDebug("tableId:%" PRIu64 ", try to bind one row", pStmt->mtb.currentUid);
+
+    STMT_RET(insertStmtBindParam(pStmt, bind));
   } else {
-    return normalStmtBindParam(pStmt, bind);
+    STMT_RET(normalStmtBindParam(pStmt, bind));
   }
 }
 
+
+int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
+
+  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
+    tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param"));
+  }
+
+  if (!pStmt->isInsert) {
+    tscError("0x%"PRIx64" not or invalid batch insert", pStmt->pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "not or invalid batch insert"));
+  }
+
+  if (pStmt->multiTbInsert) {
+    if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error"));
+    }
+  } else {
+    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_EXECUTE) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error"));
+    }
+  }
+
+  pStmt->last = STMT_BIND;
+
+  STMT_RET(insertStmtBindParamBatch(pStmt, bind, -1));
+}
+
+int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
+
+  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX || colIdx < 0) {
+    tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param"));
+  }
+
+  if (!pStmt->isInsert) {
+    tscError("0x%"PRIx64" not or invalid batch insert", pStmt->pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "not or invalid batch insert"));
+  }
+
+  if (pStmt->multiTbInsert) {
+    if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error"));
+    }
+  } else {
+    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL && pStmt->last != STMT_EXECUTE) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error"));
+    }
+  }
+
+  pStmt->last = STMT_BIND_COL;
+
+  STMT_RET(insertStmtBindParamBatch(pStmt, bind, colIdx));
+}
+
+
+
 int taos_stmt_add_batch(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (pStmt->isInsert) {
-    return insertStmtAddBatch(pStmt);
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
-  return TSDB_CODE_COM_OPS_NOT_SUPPORT;
+
+  if (pStmt->isInsert) {
+    if (pStmt->last != STMT_BIND && pStmt->last != STMT_BIND_COL) {
+      tscError("0x%"PRIx64" add batch status error, last:%d", pStmt->pSql->self, pStmt->last);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "add batch status error"));
+    }
+
+    pStmt->last = STMT_ADD_BATCH;
+
+    STMT_RET(insertStmtAddBatch(pStmt));
+  }
+
+  STMT_RET(TSDB_CODE_COM_OPS_NOT_SUPPORT);
 }
 
 int taos_stmt_reset(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
   if (pStmt->isInsert) {
-    return insertStmtReset(pStmt);
+    STMT_RET(insertStmtReset(pStmt));
   }
-  return TSDB_CODE_SUCCESS;
+  STMT_RET(TSDB_CODE_SUCCESS);
 }
 
 int taos_stmt_execute(TAOS_STMT* stmt) {
   int ret = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
+  }
+
   if (pStmt->isInsert) {
-    ret = insertStmtExecute(pStmt);
+    if (pStmt->last != STMT_ADD_BATCH) {
+      tscError("0x%"PRIx64" exec status error, last:%d", pStmt->pSql->self, pStmt->last);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "exec status error"));
+    }
+
+    pStmt->last = STMT_EXECUTE;
+
+    pStmt->pSql->cmd.insertParam.payloadType = PAYLOAD_TYPE_RAW;
+    if (pStmt->multiTbInsert) {
+      ret = insertBatchStmtExecute(pStmt);
+    } else {
+      ret = insertStmtExecute(pStmt);
+    }
   } else { // normal stmt query
     char* sql = normalStmtBuildSql(pStmt);
     if (sql == NULL) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
       if (pStmt->pSql != NULL) {
-        taos_free_result(pStmt->pSql);
+        tscFreeSqlObj(pStmt->pSql);
         pStmt->pSql = NULL;
       }
+
       pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
       ret = taos_errno(pStmt->pSql);
       free(sql);
     }
   }
 
-  return ret;
+  STMT_RET(ret);
 }
 
 TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
@@ -1019,32 +1993,30 @@ int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return TSDB_CODE_TSC_DISCONNECTED;
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
 
   if (insert) *insert = pStmt->isInsert;
 
-  return TSDB_CODE_SUCCESS;
+  STMT_RET(TSDB_CODE_SUCCESS);
 }
 
 int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return TSDB_CODE_TSC_DISCONNECTED;
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
 
   if (pStmt->isInsert) {
     SSqlObj* pSql = pStmt->pSql;
-    SSqlCmd *pCmd    = &pSql->cmd;
-    *nums = pCmd->numOfParams;
-    return TSDB_CODE_SUCCESS;
+    SSqlCmd *pCmd = &pSql->cmd;
+    *nums = pCmd->insertParam.numOfParams;
+    STMT_RET(TSDB_CODE_SUCCESS);
   } else {
     SNormalStmt* normal = &pStmt->normal;
     *nums = normal->numParams;
-    return TSDB_CODE_SUCCESS;
+    STMT_RET(TSDB_CODE_SUCCESS);
   }
 }
 
@@ -1052,41 +2024,53 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return TSDB_CODE_TSC_DISCONNECTED;
+    STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
 
   if (pStmt->isInsert) {
     SSqlCmd* pCmd = &pStmt->pSql->cmd;
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    if (pCmd->pTableBlockHashList == NULL) {
-      pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
     }
 
     STableDataBlocks* pBlock = NULL;
 
     int32_t ret =
-      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+      tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
           pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
     if (ret != 0) {
-      // todo handle error
+      STMT_RET(ret);
     }
 
     if (idx<0 || idx>=pBlock->numOfParams) {
-      tscError("param %d: out of range", idx);
-      abort();
+      tscError("0x%"PRIx64" param %d: out of range", pStmt->pSql->self, idx);
+      STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "idx out of range"));
     }
 
     SParamInfo* param = &pBlock->params[idx];
     if (type) *type = param->type;
     if (bytes) *bytes = param->bytes;
 
-    return TSDB_CODE_SUCCESS;
+    STMT_RET(TSDB_CODE_SUCCESS);
   } else {
-    return TSDB_CODE_TSC_APP_ERROR;
+    STMT_RET(TSDB_CODE_COM_OPS_NOT_SUPPORT);
   }
 }
+
+
+char *taos_stmt_errstr(TAOS_STMT *stmt) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (stmt == NULL) {
+    return (char*) tstrerror(terrno);
+  }
+
+  return taos_errstr(pStmt->pSql);
+}
+
+
 
 const char *taos_data_type(int type) {
   switch (type) {

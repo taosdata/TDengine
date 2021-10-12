@@ -27,9 +27,26 @@ typedef struct {
   int32_t  vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_KEY_LEN];
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN]; // size must same with SVnodeObj.db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN]
   FCqWrite cqWrite;
 } SCqCfg;
+
+// SCqContext
+typedef struct {
+  int32_t  vgId;
+  int32_t  master;
+  int32_t  num;      // number of continuous streams
+  char     user[TSDB_USER_LEN];
+  char     pass[TSDB_KEY_LEN];
+  char     db[TSDB_DB_NAME_LEN];
+  FCqWrite cqWrite;
+  struct SCqObj *pHead;
+  void    *dbConn;
+  void    *tmrCtrl;
+  pthread_mutex_t mutex;
+  int32_t delete;
+  int32_t cqObjNum;
+} SCqContext;
 
 // the following API shall be called by vnode
 void *cqOpen(void *ahandle, const SCqCfg *pCfg);

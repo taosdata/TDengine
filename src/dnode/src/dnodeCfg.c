@@ -21,6 +21,7 @@
 
 static SDnodeCfg tsCfg = {0};
 static pthread_mutex_t tsCfgMutex;
+static int32_t tsDnodeDropped;
 
 static int32_t dnodeReadCfg();
 static int32_t dnodeWriteCfg();
@@ -34,6 +35,10 @@ int32_t dnodeInitCfg() {
   if (ret == 0) {
     dInfo("dnode cfg is initialized");
   }
+  if (tsDnodeDropped) {
+    dInfo("dnode is dropped, exiting");
+    return -1;
+  }
   return ret;
 }
 
@@ -42,6 +47,14 @@ void dnodeCleanupCfg() { pthread_mutex_destroy(&tsCfgMutex); }
 void dnodeUpdateCfg(SDnodeCfg *cfg) {
   if (tsCfg.dnodeId != 0) return;
   dnodeResetCfg(cfg);
+}
+
+void dnodeSetDropped() {
+  pthread_mutex_lock(&tsCfgMutex);
+  tsDnodeDropped = 1;
+
+  dnodeWriteCfg();
+  pthread_mutex_unlock(&tsCfgMutex);
 }
 
 int32_t dnodeGetDnodeId() {
@@ -119,6 +132,14 @@ static int32_t dnodeReadCfg() {
   }
   cfg.dnodeId = (int32_t)dnodeId->valueint;
 
+  cJSON *dnodeDropped = cJSON_GetObjectItem(root, "dnodeDropped");
+  if (!dnodeDropped || dnodeDropped->type != cJSON_Number) {
+    dError("failed to read %s, dnodeDropped not found", file);
+    //goto PARSE_CFG_OVER;
+  } else {
+    tsDnodeDropped = (int32_t)dnodeDropped->valueint;
+  }
+
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
     dError("failed to read %s, clusterId not found", file);
@@ -154,11 +175,12 @@ static int32_t dnodeWriteCfg() {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", tsCfg.dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"dnodeDropped\": %d,\n", tsDnodeDropped);
   len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%s\"\n", tsCfg.clusterId);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fsync(fileno(fp));
+  taosFsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

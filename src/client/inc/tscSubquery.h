@@ -48,6 +48,14 @@ void tscLockByThread(int64_t *lockedBy);
 
 void tscUnlockByThread(int64_t *lockedBy);
 
+int tsInsertInitialCheck(SSqlObj *pSql);
+
+void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs);
+
+void tscFreeRetrieveSup(SSqlObj *pSql);
+
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,44 +7,51 @@ platform:
   arch: amd64
 
 steps:
-- name: smoke_test
-  image: python:3.8
+- name: build
+  image: gcc
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential gcc 
-  - pip3 install psutil
-  - pip3 install guppy3
-  - pip3 install src/connector/python/linux/python3/
+  - apt-get install -y cmake build-essential 
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
-  - cd ../tests
-  - ./test-all.sh smoke
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
-
-- name: crash_gen
-  image: python:3.8
-  commands:
-  - pip3 install requests
-  - pip3 install src/connector/python/linux/python3/
-  - pip3 install psutil
-  - pip3 install guppy3
-  - cd tests/pytest 
-  - ./crash_gen.sh -a -p -t 4 -s 2000
-  when:
-    branch:
-    - develop
-    - master
-
-
+    - 2.0
 ---
 kind: pipeline
-name: test_arm64
+name: test_arm64_bionic
+
+platform:
+  os: linux
+  arch: arm64
+steps:
+- name: build
+  image: arm64v8/ubuntu:bionic
+  commands:
+  - apt-get update
+  - apt-get install -y cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm64_focal
 
 platform:
   os: linux
@@ -52,21 +59,76 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: arm64v8/ubuntu:focal
   commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential
+  - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+  - apt-get update 
+  - apt-get install -y -qq cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
-name: test_arm
+name: test_arm64_centos7
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:7
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm64_centos8
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:8
+  commands:
+  - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm_bionic
 
 platform:
   os: linux
@@ -81,12 +143,15 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
+    - 2.0
 ---
 kind: pipeline
 name: build_trusty
@@ -105,12 +170,15 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
+    - 2.0
 ---
 kind: pipeline
 name: build_xenial
@@ -128,12 +196,15 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
+    - 2.0
 ---
 kind: pipeline
 name: build_bionic
@@ -150,31 +221,36 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
+    - 2.0
 ---
 kind: pipeline
-name: goodbye
-
+name: build_centos7
 platform:
   os: linux
   arch: amd64
 
 steps:
-- name: 64-bit
-  image: alpine
+- name: build
+  image: ansible/centos7-ansible
   commands:
-  - echo 64-bit is good.
+  - yum install -y gcc gcc-c++ make cmake
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
-
-depends_on:
-- test_arm64
-- test_amd64
+    - 2.0

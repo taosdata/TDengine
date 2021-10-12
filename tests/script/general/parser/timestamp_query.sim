@@ -24,6 +24,8 @@ $tsu = $tsu + $ts0
 print ==================>issue #3481, normal column not allowed,
 sql_error select ts,c1,min(c2) from ts_stb0
 
+print ==================>issue #4681, not equal operator on primary timestamp not allowed 
+sql_error select * from ts_stb0 where ts <> $ts0
 
 ##### select from supertable
 $tb = $tbPrefix . 0

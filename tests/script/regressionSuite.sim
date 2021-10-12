@@ -21,6 +21,11 @@ run general/compute/bottom.sim
 run general/compute/count.sim
 run general/compute/diff.sim
 run general/compute/diff2.sim
+run general/compute/mavg.sim
+run general/compute/mavg2.sim
+run general/compute/sample.sim
+run general/compute/csum.sim
+run general/compute/csum2.sim
 run general/compute/first.sim
 run general/compute/interval.sim
 run general/compute/last.sim
@@ -32,6 +37,7 @@ run general/compute/percentile.sim
 run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
+run general/compute/block_dist.sim
 run general/db/alter_option.sim
 run general/db/alter_tables_d2.sim
 run general/db/alter_tables_v1.sim
@@ -133,6 +139,7 @@ run general/parser/bug.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
 run general/parser/repeatAlter.sim
+run general/parser/precision_ns.sim
 ##unsupport run general/parser/slimit_alter_tags.sim
 run general/stable/disk.sim
 run general/stable/dnode3.sim

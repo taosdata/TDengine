@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class TSDBError {
-    private static Map<Integer, String> TSDBErrorMap = new HashMap<>();
+    private static final Map<Integer, String> TSDBErrorMap = new HashMap<>();
 
     static {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED, "connection already closed");
@@ -31,20 +31,23 @@ public class TSDBError {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_URL_NOT_SET, "url is not set");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_SQL, "invalid sql");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE, "numeric value out of range");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE, "unknown taos type in tdengine");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type in tdengine");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION, "unknown timestamp precision");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED, "user is required");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED, "password is required");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_JSON_FORMAT, "invalid json format");
 
-        /**************************************************/
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN, "unknown error");
-        /**************************************************/
+
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED, "failed to create subscription");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING, "Unsupported encoding");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database, please see taoslog for more details");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, "JNI connection is NULL");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL, "JNI result set is NULL");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0, "invalid num of fields");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_SQL_NULL, "empty sql string");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_FETCH_END, "fetch to the end of resultSet");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY, "JNI alloc memory failed");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY, "JNI alloc memory failed, please see taoslog for more details");
     }
 
     public static SQLException createSQLException(int errorCode) {

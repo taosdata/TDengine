@@ -39,11 +39,14 @@ extern int8_t   tsEnableTelemetryReporting;
 extern char     tsEmail[];
 extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
+extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
 extern int      tsRpcMaxTime;
+extern int      tsRpcForceTcp; // all commands go to tcp protocol if this is enabled
 extern int32_t  tsMaxConnections;
 extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
@@ -57,6 +60,8 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsCompressColData;
+extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
 //query buffer management
@@ -68,13 +73,15 @@ extern int8_t   tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsMaxSQLStringLen;
+extern int32_t tsMaxWildCardsLen;
+extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
 extern int32_t tsStreamCompStartDelay;
-extern int32_t tsStreamCompRetryDelay;
+extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
@@ -101,6 +108,9 @@ extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
 
+//tsdb 
+extern bool tsdbForceKeepFile;
+
 // balance
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
@@ -121,6 +131,7 @@ extern int32_t  tsHttpMaxThreads;
 extern int8_t   tsHttpEnableCompress;
 extern int8_t   tsHttpEnableRecordSql;
 extern int8_t   tsTelegrafUseFieldNum;
+extern int8_t   tsHttpDbNameMandatory;
 
 // mqtt
 extern int8_t tsEnableMqttModule;
@@ -141,16 +152,20 @@ extern int32_t tsMonitorInterval;
 extern int8_t tsEnableStream;
 
 // internal
+extern int8_t  tsCompactMnodeWal;
 extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;
 extern char    configDir[];
 extern char    tsVnodeDir[];
 extern char    tsDnodeDir[];
 extern char    tsMnodeDir[];
+extern char    tsMnodeBakDir[];
+extern char    tsMnodeTmpDir[];
 extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
-extern int64_t tsMsPerDay[3];
+extern int64_t tsTickPerDay[3];
+extern int32_t tsTopicBianryLen;
 
 // system info
 extern char    tsOsName[];
@@ -199,6 +214,21 @@ extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
+
+#ifdef TD_TSZ
+// lossy
+extern char lossyColumns[];
+extern double fPrecision;
+extern double dPrecision;
+extern uint32_t maxRange;
+extern uint32_t curRange;
+extern char Compressor[];
+#endif
+// long query
+extern int8_t tsDeadLockKillQuery;
+
+// schemaless
+extern char tsDefaultJSONStrType[];
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

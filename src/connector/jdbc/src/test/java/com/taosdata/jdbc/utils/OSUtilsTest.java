@@ -10,17 +10,17 @@ public class OSUtilsTest {
 
     @Test
     public void inWindows() {
-        Assert.assertEquals(OS.indexOf("win") >= 0, OSUtils.isWindows());
+        Assert.assertEquals(OS.contains("win"), OSUtils.isWindows());
     }
 
     @Test
     public void isMac() {
-        Assert.assertEquals(OS.indexOf("mac") >= 0, OSUtils.isMac());
+        Assert.assertEquals(OS.contains("mac"), OSUtils.isMac());
     }
 
     @Test
     public void isLinux() {
-        Assert.assertEquals(OS.indexOf("nux") >= 0, OSUtils.isLinux());
+        Assert.assertEquals(OS.contains("nux"), OSUtils.isLinux());
     }
 
     @Before

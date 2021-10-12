@@ -20,16 +20,108 @@
 extern "C" {
 #endif
 
+#if defined(_TD_DARWIN_64)
+  // specific
+  typedef int(*__compar_fn_t)(const void *, const void *);
+
+  // for send function in tsocket.c
+  #if defined(MSG_NOSIGNAL)
+    #undef MSG_NOSIGNAL
+  #endif
+
+  #define MSG_NOSIGNAL             0
+
+  #define SO_NO_CHECK              0x1234
+  #define SOL_TCP                  0x1234
+  #define TCP_KEEPIDLE             0x1234
+
+  #ifndef PTHREAD_MUTEX_RECURSIVE_NP
+    #define PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+  #endif
+#endif
+
+#if defined(_ALPINE)
+  typedef int(*__compar_fn_t)(const void *, const void *);
+  void  error (int, int, const char *);
+  #ifndef PTHREAD_MUTEX_RECURSIVE_NP
+    #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+  #endif
+#endif
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  char *stpcpy (char *dest, const char *src);
+  char *stpncpy (char *dest, const char *src, size_t n);
+
+  // specific
+  typedef int (*__compar_fn_t)(const void *, const void *);
+  #define ssize_t int
+  #define bzero(ptr, size) memset((ptr), 0, (size))
+  #define strcasecmp  _stricmp
+  #define strncasecmp _strnicmp
+  #define wcsncasecmp _wcsnicmp
+  #define strtok_r strtok_s
+  #define snprintf _snprintf
+  #define in_addr_t unsigned long
+  #define socklen_t int
+
+  struct tm *localtime_r(const time_t *timep, struct tm *result);
+  char *     strptime(const char *buf, const char *fmt, struct tm *tm);
+  char *     strsep(char **stringp, const char *delim);
+  char *     getpass(const char *prefix);
+  int        flock(int fd, int option);
+  char *     strndup(const char *s, size_t n);
+  int        gettimeofday(struct timeval *ptv, void *pTimeZone);
+
+  // for send function in tsocket.c
+  #define MSG_NOSIGNAL             0
+  #define SO_NO_CHECK              0x1234
+  #define SOL_TCP                  0x1234
+
+  #ifndef TCP_KEEPCNT
+  #define TCP_KEEPCNT              0x1234
+  #endif
+
+  #ifndef TCP_KEEPIDLE
+  #define TCP_KEEPIDLE             0x1234
+  #endif
+
+  #ifndef TCP_KEEPINTVL
+  #define TCP_KEEPINTVL            0x1234
+  #endif
+
+  #define SHUT_RDWR                SD_BOTH
+  #define SHUT_RD                  SD_RECEIVE
+  #define SHUT_WR                  SD_SEND
+
+  #define LOCK_EX 1
+  #define LOCK_NB 2
+  #define LOCK_UN 3
+
+  #ifndef PATH_MAX
+  #define PATH_MAX 256
+  #endif
+
+  typedef struct {
+    int    we_wordc;
+    char  *we_wordv[1];
+    int    we_offs;
+    char   wordPos[1025];
+  } wordexp_t;
+  int  wordexp(char *words, wordexp_t *pwordexp, int flags);
+  void wordfree(wordexp_t *pwordexp);
+
+  #define openlog(a, b, c)
+  #define closelog()
+  #define LOG_ERR 0
+  #define LOG_INFO 1
+  void syslog(int unused, const char *format, ...);
+#endif
+
 #ifndef WINDOWS
   #ifndef O_BINARY
     #define O_BINARY 0
   #endif
 #endif
-
-#define FD_VALID(x) ((x) > STDERR_FILENO)
-#define FD_INITIALIZER  ((int32_t)-1)
-
-// #define WCHAR wchar_t
 
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
@@ -40,10 +132,9 @@ extern "C" {
 #define ASSERT(x)
 #endif
 
-#ifdef UNUSED
-#undefine UNUSED
-#endif
+#ifndef UNUSED
 #define UNUSED(x) ((void)(x))
+#endif
 
 #ifdef UNUSED_FUNC
 #undefine UNUSED_FUNC
@@ -111,6 +202,31 @@ extern "C" {
   #define threadlocal __thread
 #else
   #define threadlocal __declspec( thread )
+#endif
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #define PRIzu "ld"  
+#else
+  #define PRIzu "zu"  
+#endif
+
+
+#if defined(_TD_LINUX_64) || defined(_TD_LINUX_32) || defined(_TD_MIPS_64)  || defined(_TD_ARM_32) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
+  #if defined(_TD_DARWIN_64)
+    // MacOS
+    #if !defined(_GNU_SOURCE)
+      #define setThreadName(name) do { pthread_setname_np((name)); } while (0)
+    #else
+      // pthread_setname_np not defined
+      #define setThreadName(name)
+    #endif
+  #else
+    // Linux, length of name must <= 16 (the last '\0' included)
+    #define setThreadName(name) do { prctl(PR_SET_NAME, (name)); } while (0)
+  #endif
+#else
+  // Windows
+  #define setThreadName(name)
 #endif
 
 #ifdef __cplusplus

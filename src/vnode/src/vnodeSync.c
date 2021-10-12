@@ -55,6 +55,11 @@ void vnodeNotifyRole(int32_t vgId, int8_t role) {
     vTrace("vgId:%d, vnode not found while notify role", vgId);
     return;
   }
+  if (pVnode->dropped) {
+    vTrace("vgId:%d, vnode dropped while notify role", vgId);
+    vnodeRelease(pVnode);
+    return;
+  }
 
   vInfo("vgId:%d, sync role changed from %s to %s", pVnode->vgId, syncRole[pVnode->role], syncRole[role]);
   pVnode->role = role;
@@ -75,6 +80,11 @@ void vnodeCtrlFlow(int32_t vgId, int32_t level) {
     vTrace("vgId:%d, vnode not found while flow ctrl", vgId);
     return;
   }
+  if (pVnode->dropped) {
+    vTrace("vgId:%d, vnode dropped while flow ctrl", vgId);
+    vnodeRelease(pVnode);
+    return;
+  }
 
   if (pVnode->flowctrlLevel != level) {
     vDebug("vgId:%d, set flowctrl level from %d to %d", pVnode->vgId, pVnode->flowctrlLevel, level);
@@ -85,7 +95,7 @@ void vnodeCtrlFlow(int32_t vgId, int32_t level) {
 }
 
 void vnodeStartSyncFile(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while start filesync", vgId);
     return;
@@ -116,9 +126,14 @@ void vnodeStopSyncFile(int32_t vgId, uint64_t fversion) {
 }
 
 void vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code) {
-  void *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while confirm forward", vgId);
+  }
+
+  if (code == TSDB_CODE_SYN_CONFIRM_EXPIRED && pVnode->status == TAOS_VN_STATUS_CLOSING) {
+    vDebug("vgId:%d, db:%s, vnode is closing while confirm forward", vgId, pVnode->db);
+    code = TSDB_CODE_VND_IS_CLOSING;
   }
 
   dnodeSendRpcVWriteRsp(pVnode, wparam, code);
@@ -129,6 +144,7 @@ int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rpara
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while write to cache", vgId);
+    vnodeRelease(pVnode);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 
@@ -139,7 +155,7 @@ int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rpara
 }
 
 int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while write to cache", vgId);
     return -1;

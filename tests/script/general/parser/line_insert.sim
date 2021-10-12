@@ -1,0 +1,53 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print =============== step1
+$db = testlp
+$mte = ste
+$mt = st
+sql drop database $db -x step1
+step1:
+sql create database $db precision 'us'
+sql use $db
+sql create stable $mte (ts timestamp, f int) TAGS(t1 bigint)
+
+line_insert st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"passit",c2=false,c4=4f64 1626006833639000000ns
+line_insert st,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin",c2=true,c4=5f64,c5=5f64 1626006833640000000ns
+line_insert ste,t2=5f64,t3=L"ste" c1=true,c2=4i64,c3="iam" 1626056811823316532ns
+line_insert stf,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns
+sql select * from st
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @21-07-11 20:33:53.639000@ then
+  return -1
+endi
+
+if $data02 != @passit@ then
+  return -1
+endi
+
+sql select * from stf
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from ste
+if $rows != 1 then
+  return -1
+endi
+
+#print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

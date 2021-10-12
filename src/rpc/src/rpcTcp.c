@@ -242,6 +242,7 @@ static void *taosAcceptTcpConnection(void *arg) {
 
   pServerObj = (SServerObj *)arg;
   tDebug("%s TCP server is ready, ip:0x%x:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
+  setThreadName("acceptTcpConn");
 
   while (1) {
     socklen_t addrlen = sizeof(caddr);
@@ -396,7 +397,11 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  if (fd == (SOCKET)-1) return NULL;
+#else
   if (fd <= 0) return NULL;
+#endif
 
   struct sockaddr_in sin;
   uint16_t localPort = 0;
@@ -529,9 +534,10 @@ static void *taosProcessTcpData(void *param) {
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
 
-#ifdef __APPLE__
-  taos_block_sigalrm();
-#endif // __APPLE__
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s-tcp", pThreadObj->label);
+  setThreadName(name);
+
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThreadObj->stop) {
@@ -579,7 +585,7 @@ static void *taosProcessTcpData(void *param) {
   }
 
   while (pThreadObj->pHead) {
-    SFdObj *pFdObj = pThreadObj->pHead;
+    pFdObj = pThreadObj->pHead;
     pThreadObj->pHead = pFdObj->next;
     taosReportBrokenLink(pFdObj);
   }

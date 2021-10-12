@@ -63,7 +63,7 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
     pHead->contLen = htonl(pHead->contLen);
 
     assert(pHead->contLen > 0);
-    void *pVnode = vnodeAcquire(pHead->vgId);
+    void *pVnode = vnodeAcquireNotClose(pHead->vgId);
     if (pVnode != NULL) {
       code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);
       if (code == TSDB_CODE_SUCCESS) queuedMsgNum++;
@@ -118,6 +118,12 @@ static void *dnodeProcessReadQueue(void *wparam) {
   SVReadMsg *  pRead;
   int32_t      qtype;
   void *       pVnode;
+
+  char* threadname  = strcmp(pPool->name, "vquery") == 0? "dnodeQueryQ":"dnodeFetchQ";
+
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s", threadname);
+  setThreadName(name);
 
   while (1) {
     if (taosReadQitemFromQset(pPool->qset, &qtype, (void **)&pRead, &pVnode) == 0) {

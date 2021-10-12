@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tlosertree.h"
 #include "os.h"
+#include "tlosertree.h"
 #include "taosmsg.h"
 #include "tulog.h"
 
@@ -90,12 +90,13 @@ void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
   SLoserTreeNode kLeaf = pTree->pNode[idx];
 
   while (parentId > 0) {
-    if (pTree->pNode[parentId].index == -1) {
+    SLoserTreeNode* pCur = &pTree->pNode[parentId];
+    if (pCur->index == -1) {
       pTree->pNode[parentId] = kLeaf;
       return;
     }
 
-    int32_t ret = pTree->comparFn(&pTree->pNode[parentId], &kLeaf, pTree->param);
+    int32_t ret = pTree->comparFn(pCur, &kLeaf, pTree->param);
     if (ret < 0) {
       SLoserTreeNode t = pTree->pNode[parentId];
       pTree->pNode[parentId] = kLeaf;

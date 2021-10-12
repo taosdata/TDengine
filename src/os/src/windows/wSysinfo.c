@@ -115,7 +115,7 @@ static void taosGetSystemLocale() {
   }
 }
 
-static int32_t taosGetCpuCores() {
+int32_t taosGetCpuCores() {
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   return (int32_t)info.dwNumberOfProcessors;
@@ -144,6 +144,13 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+}
+
+bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
+  if (bytes) *bytes = 0;
+  if (rbytes) *rbytes = 0;
+  if (tbytes) *tbytes = 0;
+  return true;
 }
 
 bool taosGetBandSpeed(float *bandSpeedKb) {
@@ -205,10 +212,15 @@ void taosGetSystemInfo() {
 
 void taosPrintOsInfo() {
   uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+  uInfo("==================================");
+}
+
+void taosPrintDiskInfo() {
+  uInfo("==================================");
   uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
   uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
   uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
-  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
   uInfo("==================================");
 }
 

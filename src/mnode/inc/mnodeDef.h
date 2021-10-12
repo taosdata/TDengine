@@ -48,9 +48,8 @@ typedef struct SDnodeObj {
   int32_t    dnodeId;
   int32_t    openVnodes;
   int64_t    createdTime;
-  int32_t    resever0;         // from dnode status msg, config information
+  int64_t    lastAccess;
   int32_t    customScore;      // config by user
-  uint32_t   lastAccess;
   uint16_t   numOfCores;       // from dnode status msg
   uint16_t   dnodePort;
   char       dnodeFqdn[TSDB_FQDN_LEN];
@@ -81,6 +80,7 @@ typedef struct SMnodeObj {
   int8_t     updateEnd[4];
   int32_t    refCount;
   int8_t     role;
+  int64_t    roleTime;
   int8_t     reserved2[3];
 } SMnodeObj;
 
@@ -145,6 +145,7 @@ typedef struct SVgObj {
   int8_t         reserved0[4];
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
   int32_t        vgCfgVersion;
+  int8_t         compact;
   int8_t         reserved1[8];
   int8_t         updateEnd[4];
   int32_t        refCount;
@@ -161,7 +162,7 @@ typedef struct {
   int32_t totalBlocks;
   int32_t maxTables;
   int32_t daysPerFile;
-  int32_t daysToKeep;
+  int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRowsPerFileBlock;
@@ -214,6 +215,23 @@ typedef struct SUserObj {
   struct SAcctObj * pAcct;
 } SUserObj;
 
+typedef struct SFuncObj {
+  char              name[TSDB_FUNC_NAME_LEN];
+  char              path[128];
+  int32_t           contLen;
+  char              cont[TSDB_FUNC_CODE_LEN];
+  int32_t           funcType;
+  int32_t           bufSize;
+  int64_t           createdTime;
+  uint8_t           resType;
+  int16_t           resBytes;
+  int64_t           sig;         // partial md5 sign
+  int16_t           type;        // [lua script|so|js]
+  int8_t            reserved[64];
+  int8_t            updateEnd[4];
+  int32_t           refCount;
+} SFuncObj;
+
 typedef struct {
   int64_t totalStorage;  // Total storage wrtten from this account
   int64_t compStorage;   // Compressed storage on disk
@@ -256,9 +274,10 @@ typedef struct {
   int32_t  rowSize;
   int32_t  numOfRows;
   void *   pIter;
+  void *   pVgIter;
   void **  ppShow;
   int16_t  offset[TSDB_MAX_COLUMNS];
-  int16_t  bytes[TSDB_MAX_COLUMNS];
+  int32_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
   int8_t   maxReplica;
   int8_t   reserved0[1];

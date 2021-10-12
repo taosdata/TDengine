@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tbn.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"
@@ -39,8 +38,8 @@
 #include "mnodePeer.h"
 #include "mnodeCluster.h"
 
-int32_t tsAccessSquence = 0;
-int64_t         tsDnodeRid = -1;
+int64_t        tsAccessSquence = 0;
+int64_t        tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
@@ -100,6 +99,8 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
     pDnode->lastAccess = tsAccessSquence;
     pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
   }
+
+  pDnode->customScore = 0;
 
   dnodeUpdateEp(pDnode->dnodeId, pDnode->dnodeEp, pDnode->dnodeFqdn, &pDnode->dnodePort);
   mnodeUpdateDnodeEps();
@@ -195,14 +196,20 @@ int32_t mnodeInitDnodes() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DNODE, mnodeProcessCreateDnodeMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DNODE, mnodeProcessDropDnodeMsg); 
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mnodeProcessCfgDnodeMsg);
+
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mnodeProcessCfgDnodeMsgRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mnodeProcessDnodeStatusMsg);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mnodeGetModuleMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mnodeRetrieveModules);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VARIABLES, mnodeGetConfigMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VARIABLES, mnodeRetrieveConfigs);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mnodeGetVnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mnodeRetrieveVnodes);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VNODES, mnodeCancelGetNextVgroup);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mnodeGetDnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mnodeRetrieveDnodes);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DNODE, mnodeCancelGetNextDnode);
@@ -297,7 +304,7 @@ void *mnodeGetDnodeByEp(char *ep) {
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
-    if (strcmp(ep, pDnode->dnodeEp) == 0) {
+    if (strncasecmp(ep, pDnode->dnodeEp, TSDB_EP_LEN) == 0) {
       mnodeCancelGetNextDnode(pIter);
       return pDnode;
     }
@@ -522,13 +529,13 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
 
-  uint32_t version = htonl(pStatus->version);
-  if (version != tsVersion) {
+  uint32_t _version = htonl(pStatus->version);
+  if (_version != tsVersion) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
       pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;
     }
-    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, version, tsVersion);
+    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, _version, tsVersion);
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
@@ -567,7 +574,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
-      mTrace("dnode:%d, status received, access times %d openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
+      mTrace("dnode:%d, status received, access times %" PRId64 " openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
              htons(pStatus->openVnodes), pDnode->openVnodes);
     }
   }
@@ -629,9 +636,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     bnNotify();
   }
 
-  if (!tsEnableBalance) {
-    int32_t numOfMnodes = mnodeGetMnodesNum();
-    if (numOfMnodes < tsNumOfMnodes) bnNotify();
+  int32_t numOfMnodes = mnodeGetMnodesNum();
+  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum()
+      && bnDnodeCanCreateMnode(pDnode)) {
+    bnNotify();
   }
 
   if (openVnodes != pDnode->openVnodes) {
@@ -799,7 +807,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "end_point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -941,7 +949,7 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = 0;
+    *(int64_t *)pWrite = tsArbOnlineTimestamp;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -1144,6 +1152,7 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_FLOAT:
+      case TAOS_CFG_VTYPE_DOUBLE:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
         varDataSetLen(pWrite, t);
         numOfRows++;
@@ -1178,7 +1187,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vnode");
+  strcpy(pSchema[cols].name, "vgId");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -1196,7 +1205,12 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
-    pDnode = mnodeGetDnodeByEp(pShow->payload);
+    char ep[TSDB_EP_LEN] = {0}; 
+    // not use tstrncpy to make runtime happy   
+    uint16_t len = (pShow->payloadLen + 1) > TSDB_EP_LEN ? TSDB_EP_LEN :(pShow->payloadLen + 1);
+    strncpy(ep, pShow->payload, len - 1);
+
+    pDnode = mnodeGetDnodeByEp(ep);
   } else {
     void *pIter = mnodeGetNextDnode(NULL, (SDnodeObj **)&pDnode);
     mnodeCancelGetNextDnode(pIter);
@@ -1224,13 +1238,12 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
 
   pDnode = (SDnodeObj *)(pShow->pIter);
   if (pDnode != NULL) {
-    void *pIter = NULL;
     SVgObj *pVgroup;
     while (1) {
-      pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+      pShow->pVgIter = mnodeGetNextVgroup(pShow->pVgIter, &pVgroup);
       if (pVgroup == NULL) break;
 
-      for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      for (int32_t i = 0; i < pVgroup->numOfVnodes && numOfRows < rows; ++i) {
         SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
         if (pVgid->pDnode == pDnode) {
           cols = 0;
@@ -1240,9 +1253,14 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           cols++;
 
           pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-          strcpy(pWrite, syncRole[pVgid->role]);
+          STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
           cols++;
+          numOfRows++;
+          
         }
+      }
+      if (numOfRows >= rows) {
+        break;
       }
 
       mnodeDecVgroupRef(pVgroup);
@@ -1270,3 +1288,30 @@ char* dnodeRoles[] = {
   "vnode",
   "any"
 };
+
+int32_t mnodeCompactDnodes() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+
+  mInfo("start to compact dnodes table...");
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDnodeSdb,
+      .pObj    = pDnode,
+      .rowSize = sizeof(SDnodeObj),
+    };
+
+    mInfo("compact dnode %d", pDnode->dnodeId);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact dnodes table...");
+
+  return 0;
+}

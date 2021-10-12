@@ -132,6 +132,7 @@ void *     syncRestoreData(void *param);
 int32_t    syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
 void       syncRestartConnection(SSyncPeer *pPeer);
 void       syncBroadcastStatus(SSyncNode *pNode);
+uint32_t   syncResolvePeerFqdn(SSyncPeer *pPeer);
 SSyncPeer *syncAcquirePeer(int64_t rid);
 void       syncReleasePeer(SSyncPeer *pPeer);
 

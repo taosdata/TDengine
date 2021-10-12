@@ -1,4 +1,4 @@
-from typing import Any, List, Dict, NewType
+from typing import Any, BinaryIO, List, Dict, NewType
 from enum import Enum
 
 DirPath = NewType('DirPath', str)
@@ -26,3 +26,5 @@ class TdDataType(Enum):
 
 TdColumns = Dict[str, TdDataType]
 TdTags    = Dict[str, TdDataType]
+
+IpcStream = NewType('IpcStream', BinaryIO)

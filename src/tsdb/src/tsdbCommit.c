@@ -14,12 +14,14 @@
  */
 #include "tsdbint.h"
 
+extern int32_t tsTsdbMetaCompactRatio;
+
 #define TSDB_MAX_SUBBLOCKS 8
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
-    return (int)((key + 1) / tsMsPerDay[precision] / days - 1);
+    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
   } else {
-    return (int)((key / tsMsPerDay[precision] / days));
+    return (int)((key / tsTickPerDay[precision] / days));
   }
 }
 
@@ -51,12 +53,13 @@ typedef struct {
 #define TSDB_COMMIT_LAST_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
 #define TSDB_COMMIT_BUF(ch) TSDB_READ_BUF(&((ch)->readh))
 #define TSDB_COMMIT_COMP_BUF(ch) TSDB_READ_COMP_BUF(&((ch)->readh))
-#define TSDB_COMMIT_DEFAULT_ROWS(ch) (TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock * 4 / 5)
+#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock)
 #define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static int  tsdbCommitMeta(STsdbRepo *pRepo);
-static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen);
+static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact);
 static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
+static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
 static int  tsdbCommitTSData(STsdbRepo *pRepo);
 static void tsdbStartCommit(STsdbRepo *pRepo);
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
@@ -72,7 +75,6 @@ static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
 static int  tsdbWriteBlockInfo(SCommitH *pCommih);
-static int  tsdbWriteBlockIdx(SCommitH *pCommih);
 static int  tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLimit, bool toData);
 static int  tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx);
 static int  tsdbMoveBlock(SCommitH *pCommith, int bidx);
@@ -86,10 +88,11 @@ static void tsdbCloseCommitFile(SCommitH *pCommith, bool hasError);
 static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *pInfo);
 static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
                                       TSKEY maxKey, int maxRows, int8_t update);
-static int  tsdbApplyRtn(STsdbRepo *pRepo);
-static int  tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
+  if (pRepo->imem == NULL) {
+    return NULL;
+  }
   tsdbStartCommit(pRepo);
 
   // Commit to update meta file
@@ -115,7 +118,181 @@ _err:
   return NULL;
 }
 
+int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
+  SDiskID   did;
+  SDFileSet nSet;
+  STsdbFS * pfs = REPO_FS(pRepo);
+  int       level;
+
+  ASSERT(pSet->fid >= pRtn->minFid);
+
+  level = tsdbGetFidLevel(pSet->fid, pRtn);
+
+  tfsAllocDisk(level, &(did.level), &(did.id));
+  if (did.level == TFS_UNDECIDED_LEVEL) {
+    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
+    return -1;
+  }
+
+  if (did.level > TSDB_FSET_LEVEL(pSet)) {
+    // Need to move the FSET to higher level
+    tsdbInitDFileSet(&nSet, did, REPO_ID(pRepo), pSet->fid, FS_TXN_VERSION(pfs));
+
+    if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
+      tsdbError("vgId:%d failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
+                TSDB_FSET_LEVEL(pSet), did.level, tstrerror(terrno));
+      return -1;
+    }
+
+    if (tsdbUpdateDFileSet(pfs, &nSet) < 0) {
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
+             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
+  } else {
+    // On a correct level
+    if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf,
+                           SBlockIdx *pIdx) {
+  size_t      nSupBlocks;
+  size_t      nSubBlocks;
+  uint32_t    tlen;
+  SBlockInfo *pBlkInfo;
+  int64_t     offset;
+  SBlock *    pBlock;
+
+  memset(pIdx, 0, sizeof(*pIdx));
+
+  nSupBlocks = taosArrayGetSize(pSupA);
+  nSubBlocks = (pSubA == NULL) ? 0 : taosArrayGetSize(pSubA);
+
+  if (nSupBlocks <= 0) {
+    // No data (data all deleted)
+    return 0;
+  }
+
+  tlen = (uint32_t)(sizeof(SBlockInfo) + sizeof(SBlock) * (nSupBlocks + nSubBlocks) + sizeof(TSCKSUM));
+  if (tsdbMakeRoom(ppBuf, tlen) < 0) return -1;
+  pBlkInfo = *ppBuf;
+
+  pBlkInfo->delimiter = TSDB_FILE_DELIMITER;
+  pBlkInfo->tid = TABLE_TID(pTable);
+  pBlkInfo->uid = TABLE_UID(pTable);
+
+  memcpy((void *)(pBlkInfo->blocks), taosArrayGet(pSupA, 0), nSupBlocks * sizeof(SBlock));
+  if (nSubBlocks > 0) {
+    memcpy((void *)(pBlkInfo->blocks + nSupBlocks), taosArrayGet(pSubA, 0), nSubBlocks * sizeof(SBlock));
+
+    for (int i = 0; i < nSupBlocks; i++) {
+      pBlock = pBlkInfo->blocks + i;
+
+      if (pBlock->numOfSubBlocks > 1) {
+        pBlock->offset += (sizeof(SBlockInfo) + sizeof(SBlock) * nSupBlocks);
+      }
+    }
+  }
+
+  taosCalcChecksumAppend(0, (uint8_t *)pBlkInfo, tlen);
+
+  if (tsdbAppendDFile(pHeadf, (void *)pBlkInfo, tlen, &offset) < 0) {
+    return -1;
+  }
+
+  tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(pBlkInfo, tlen - sizeof(TSCKSUM)));
+
+  // Set pIdx
+  pBlock = taosArrayGetLast(pSupA);
+
+  pIdx->tid = TABLE_TID(pTable);
+  pIdx->uid = TABLE_UID(pTable);
+  pIdx->hasLast = pBlock->last ? 1 : 0;
+  pIdx->maxKey = pBlock->keyLast;
+  pIdx->numOfBlocks = (uint32_t)nSupBlocks;
+  pIdx->len = tlen;
+  pIdx->offset = (uint32_t)offset;
+
+  return 0;
+}
+
+int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
+  SBlockIdx *pBlkIdx;
+  size_t     nidx = taosArrayGetSize(pIdxA);
+  int        tlen = 0, size;
+  int64_t    offset;
+
+  if (nidx <= 0) {
+    // All data are deleted
+    pHeadf->info.offset = 0;
+    pHeadf->info.len = 0;
+    return 0;
+  }
+
+  for (size_t i = 0; i < nidx; i++) {
+    pBlkIdx = (SBlockIdx *)taosArrayGet(pIdxA, i);
+
+    size = tsdbEncodeSBlockIdx(NULL, pBlkIdx);
+    if (tsdbMakeRoom(ppBuf, tlen + size) < 0) return -1;
+
+    void *ptr = POINTER_SHIFT(*ppBuf, tlen);
+    tsdbEncodeSBlockIdx(&ptr, pBlkIdx);
+
+    tlen += size;
+  }
+
+  tlen += sizeof(TSCKSUM);
+  if (tsdbMakeRoom(ppBuf, tlen) < 0) return -1;
+  taosCalcChecksumAppend(0, (uint8_t *)(*ppBuf), tlen);
+
+  if (tsdbAppendDFile(pHeadf, *ppBuf, tlen, &offset) < tlen) {
+    return -1;
+  }
+
+  tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(*ppBuf, tlen - sizeof(TSCKSUM)));
+  pHeadf->info.offset = (uint32_t)offset;
+  pHeadf->info.len = tlen;
+
+  return 0;
+}
+
+
 // =================== Commit Meta Data
+static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile* pMf, bool open) {
+  STsdbFS *  pfs = REPO_FS(pRepo);
+  SMFile *   pOMFile = pfs->cstatus->pmf;
+  SDiskID    did;
+
+  // Create/Open a meta file or open the existing file
+  if (pOMFile == NULL) {
+    // Create a new meta file
+    did.level = TFS_PRIMARY_LEVEL;
+    did.id = TFS_PRIMARY_ID;
+    tsdbInitMFile(pMf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+
+    if (open && tsdbCreateMFile(pMf, true) < 0) {
+      tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d meta file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMf));
+  } else {
+    tsdbInitMFileEx(pMf, pOMFile);
+    if (open && tsdbOpenMFile(pMf, O_WRONLY) < 0) {
+      tsdbError("vgId:%d failed to open META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 static int tsdbCommitMeta(STsdbRepo *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SMemTable *pMem = pRepo->imem;
@@ -124,34 +301,25 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   SActObj *  pAct = NULL;
   SActCont * pCont = NULL;
   SListNode *pNode = NULL;
-  SDiskID    did;
 
   ASSERT(pOMFile != NULL || listNEles(pMem->actList) > 0);
 
   if (listNEles(pMem->actList) <= 0) {
     // no meta data to commit, just keep the old meta file
     tsdbUpdateMFile(pfs, pOMFile);
+    if (tsTsdbMetaCompactRatio > 0) {
+      if (tsdbInitCommitMetaFile(pRepo, &mf, false) < 0) {
+        return -1;
+      }
+      int ret = tsdbCompactMetaFile(pRepo, pfs, &mf);
+      if (ret < 0) tsdbError("compact meta file error");
+
+      return ret;
+    }
     return 0;
   } else {
-    // Create/Open a meta file or open the existing file
-    if (pOMFile == NULL) {
-      // Create a new meta file
-      did.level = TFS_PRIMARY_LEVEL;
-      did.id = TFS_PRIMARY_ID;
-      tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
-
-      if (tsdbCreateMFile(&mf, true) < 0) {
-        tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
-
-      tsdbInfo("vgId:%d meta file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
-    } else {
-      tsdbInitMFileEx(&mf, pOMFile);
-      if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
-        tsdbError("vgId:%d failed to open META file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
+    if (tsdbInitCommitMetaFile(pRepo, &mf, true) < 0) {
+      return -1;
     }
   }
 
@@ -160,7 +328,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
     pAct = (SActObj *)pNode->data;
     if (pAct->act == TSDB_UPDATE_META) {
       pCont = (SActCont *)POINTER_SHIFT(pAct, sizeof(SActObj));
-      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
+      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len, false) < 0) {
         tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                   tstrerror(terrno));
         tsdbCloseMFile(&mf);
@@ -193,6 +361,10 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   tsdbCloseMFile(&mf);
   tsdbUpdateMFile(pfs, &mf);
 
+  if (tsTsdbMetaCompactRatio > 0 && tsdbCompactMetaFile(pRepo, pfs, &mf) < 0) {
+    tsdbError("compact meta file error");
+  }
+
   return 0;
 }
 
@@ -218,9 +390,9 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
   TSKEY     minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
-  minKey = now - pCfg->keep * tsMsPerDay[pCfg->precision];
-  midKey = now - pCfg->keep2 * tsMsPerDay[pCfg->precision];
-  maxKey = now - pCfg->keep1 * tsMsPerDay[pCfg->precision];
+  minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
+  midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
+  maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
 
   pRtn->minKey = minKey;
   pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
@@ -230,7 +402,7 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
 
-static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
+static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact) {
   char      buf[64] = "\0";
   void *    pBuf = buf;
   SKVRecord rInfo;
@@ -256,13 +428,18 @@ static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void
   }
 
   tsdbUpdateMFileMagic(pMFile, POINTER_SHIFT(cont, contLen - sizeof(TSCKSUM)));
-  SKVRecord *pRecord = taosHashGet(pfs->metaCache, (void *)&uid, sizeof(uid));
+
+  SHashObj* cache = compact ? pfs->metaCacheComp : pfs->metaCache;
+
+  pMFile->info.nRecords++;
+
+  SKVRecord *pRecord = taosHashGet(cache, (void *)&uid, sizeof(uid));
   if (pRecord != NULL) {
     pMFile->info.tombSize += (pRecord->size + sizeof(SKVRecord));
   } else {
     pMFile->info.nRecords++;
   }
-  taosHashPut(pfs->metaCache, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
+  taosHashPut(cache, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
 
   return 0;
 }
@@ -295,6 +472,129 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 
   taosHashRemove(pfs->metaCache, (void *)(&uid), sizeof(uid));
   return 0;
+}
+
+static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
+  float delPercent = (float)(pMFile->info.nDels) / (float)(pMFile->info.nRecords);
+  float tombPercent = (float)(pMFile->info.tombSize) / (float)(pMFile->info.size);
+  float compactRatio = (float)(tsTsdbMetaCompactRatio)/100;
+
+  if (delPercent < compactRatio && tombPercent < compactRatio) {
+    return 0;
+  }
+
+  if (tsdbOpenMFile(pMFile, O_RDONLY) < 0) {
+    tsdbError("open meta file %s compact fail", pMFile->f.rname);
+    return -1;
+  }
+
+  tsdbInfo("begin compact tsdb meta file, ratio:%d, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
+    tsTsdbMetaCompactRatio, pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
+
+  SMFile mf;
+  SDiskID did;
+
+  // first create tmp meta file
+  did.level = TFS_PRIMARY_LEVEL;
+  did.id = TFS_PRIMARY_ID;
+  tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)) + 1);
+
+  if (tsdbCreateMFile(&mf, true) < 0) {
+    tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d meta file %s is created to compact meta data", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
+
+  // second iterator metaCache
+  int code = -1;
+  int64_t maxBufSize = 1024;
+  SKVRecord *pRecord;
+  void *pBuf = NULL;
+
+  pBuf = malloc((size_t)maxBufSize);
+  if (pBuf == NULL) {
+    goto _err;
+  }
+
+  // init Comp
+  assert(pfs->metaCacheComp == NULL);
+  pfs->metaCacheComp = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pfs->metaCacheComp == NULL) {
+    goto _err;
+  }
+
+  pRecord = taosHashIterate(pfs->metaCache, NULL);
+  while (pRecord) {
+    if (tsdbSeekMFile(pMFile, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
+      tsdbError("vgId:%d failed to seek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+                tstrerror(terrno));
+      goto _err;
+    }
+    if (pRecord->size > maxBufSize) {
+      maxBufSize = pRecord->size;
+      void* tmp = realloc(pBuf, (size_t)maxBufSize);
+      if (tmp == NULL) {
+        goto _err;
+      }
+      pBuf = tmp;
+    }
+    int nread = (int)tsdbReadMFile(pMFile, pBuf, pRecord->size);
+    if (nread < 0) {
+      tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+        tstrerror(terrno));
+      goto _err;
+    }
+
+    if (nread < pRecord->size) {
+      tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRId64 " actual read:%d",
+                REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), pRecord->size, nread);
+      goto _err;
+    }
+
+    if (tsdbUpdateMetaRecord(pfs, &mf, pRecord->uid, pBuf, (int)pRecord->size, true) < 0) {
+      tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pRecord->uid,
+                tstrerror(terrno));
+      goto _err;
+    }
+
+    pRecord = taosHashIterate(pfs->metaCache, pRecord);
+  }
+  code = 0;
+
+_err:
+  if (code == 0) TSDB_FILE_FSYNC(&mf);
+  tsdbCloseMFile(&mf);
+  tsdbCloseMFile(pMFile);
+
+  if (code == 0) {
+    // rename meta.tmp -> meta
+    tsdbInfo("vgId:%d meta file rename %s -> %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf), TSDB_FILE_FULL_NAME(pMFile));
+    taosRename(mf.f.aname,pMFile->f.aname);
+    tstrncpy(mf.f.aname, pMFile->f.aname, TSDB_FILENAME_LEN);
+    tstrncpy(mf.f.rname, pMFile->f.rname, TSDB_FILENAME_LEN);
+    // update current meta file info
+    pfs->nstatus->pmf = NULL;
+    tsdbUpdateMFile(pfs, &mf);
+
+    taosHashCleanup(pfs->metaCache);
+    pfs->metaCache = pfs->metaCacheComp;
+    pfs->metaCacheComp = NULL;
+  } else {
+    // remove meta.tmp file
+    remove(mf.f.aname);
+    taosHashCleanup(pfs->metaCacheComp);
+    pfs->metaCacheComp = NULL;
+  }
+
+  tfree(pBuf);
+
+  ASSERT(mf.info.nDels == 0);
+  ASSERT(mf.info.tombSize == 0);
+
+  tsdbInfo("end compact tsdb meta file,code:%d,nRecords:%" PRId64 ",size:%" PRId64,
+    code,mf.info.nRecords,mf.info.size);
+  return code;
 }
 
 // =================== Commit Time-Series Data
@@ -444,7 +744,8 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
     }
   }
 
-  if (tsdbWriteBlockIdx(pCommith) < 0) {
+  if (tsdbWriteBlockIdx(TSDB_COMMIT_HEAD_FILE(pCommith), pCommith->aBlkIdx, (void **)(&(TSDB_COMMIT_BUF(pCommith)))) <
+      0) {
     tsdbError("vgId:%d failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     tsdbCloseCommitFile(pCommith, true);
     // revert the file change
@@ -576,7 +877,7 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
     return -1;
   }
 
-  pCommith->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pCommith->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pCommith->pDataCols == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyCommitH(pCommith);
@@ -752,23 +1053,21 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
   }
 }
 
-static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock, bool isLast,
-                          bool isSuper) {
-  STsdbRepo * pRepo = TSDB_COMMIT_REPO(pCommith);
+int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock,
+                       bool isLast, bool isSuper, void **ppBuf, void **ppCBuf) {
   STsdbCfg *  pCfg = REPO_CFG(pRepo);
   SBlockData *pBlockData;
   int64_t     offset = 0;
-  STable *    pTable = TSDB_COMMIT_TABLE(pCommith);
   int         rowsToWrite = pDataCols->numOfRows;
 
   ASSERT(rowsToWrite > 0 && rowsToWrite <= pCfg->maxRowsPerFileBlock);
   ASSERT((!isLast) || rowsToWrite < pCfg->minRowsPerFileBlock);
 
   // Make buffer space
-  if (tsdbMakeRoom((void **)(&TSDB_COMMIT_BUF(pCommith)), TSDB_BLOCK_STATIS_SIZE(pDataCols->numOfCols)) < 0) {
+  if (tsdbMakeRoom(ppBuf, TSDB_BLOCK_STATIS_SIZE(pDataCols->numOfCols)) < 0) {
     return -1;
   }
-  pBlockData = (SBlockData *)TSDB_COMMIT_BUF(pCommith);
+  pBlockData = (SBlockData *)(*ppBuf);
 
   // Get # of cols not all NULL(not including key column)
   int nColsNotAllNull = 0;
@@ -776,7 +1075,7 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
     SDataCol * pDataCol = pDataCols->cols + ncol;
     SBlockCol *pBlockCol = pBlockData->cols + nColsNotAllNull;
 
-    if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
+    if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
     }
 
@@ -814,23 +1113,23 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
     void *  tptr;
 
     // Make room
-    if (tsdbMakeRoom((void **)(&TSDB_COMMIT_BUF(pCommith)), lsize + tlen + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
+    if (tsdbMakeRoom(ppBuf, lsize + tlen + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
       return -1;
     }
-    pBlockData = (SBlockData *)TSDB_COMMIT_BUF(pCommith);
+    pBlockData = (SBlockData *)(*ppBuf);
     pBlockCol = pBlockData->cols + tcol;
     tptr = POINTER_SHIFT(pBlockData, lsize);
 
     if (pCfg->compression == TWO_STAGE_COMP &&
-        tsdbMakeRoom((void **)(&TSDB_COMMIT_COMP_BUF(pCommith)), tlen + COMP_OVERFLOW_BYTES) < 0) {
+        tsdbMakeRoom(ppCBuf, tlen + COMP_OVERFLOW_BYTES) < 0) {
       return -1;
     }
 
     // Compress or just copy
     if (pCfg->compression) {
       flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
-                                                      tlen + COMP_OVERFLOW_BYTES, pCfg->compression,
-                                                      TSDB_COMMIT_COMP_BUF(pCommith), tlen + COMP_OVERFLOW_BYTES);
+                                                      tlen + COMP_OVERFLOW_BYTES, pCfg->compression, *ppCBuf,
+                                                      tlen + COMP_OVERFLOW_BYTES);
     } else {
       flen = tlen;
       memcpy(tptr, pDataCol->pData, flen);
@@ -886,116 +1185,32 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
   return 0;
 }
 
+static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock, bool isLast,
+                          bool isSuper) {
+  return tsdbWriteBlockImpl(TSDB_COMMIT_REPO(pCommith), TSDB_COMMIT_TABLE(pCommith), pDFile, pDataCols, pBlock, isLast,
+                            isSuper, (void **)(&(TSDB_COMMIT_BUF(pCommith))),
+                            (void **)(&(TSDB_COMMIT_COMP_BUF(pCommith))));
+}
+
+
 static int tsdbWriteBlockInfo(SCommitH *pCommih) {
-  SDFile *    pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
-  SBlockIdx   blkIdx;
-  STable *    pTable = TSDB_COMMIT_TABLE(pCommih);
-  SBlock *    pBlock;
-  size_t      nSupBlocks;
-  size_t      nSubBlocks;
-  uint32_t    tlen;
-  SBlockInfo *pBlkInfo;
-  int64_t     offset;
+  SDFile *  pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
+  SBlockIdx blkIdx;
+  STable *  pTable = TSDB_COMMIT_TABLE(pCommih);
 
-  nSupBlocks = taosArrayGetSize(pCommih->aSupBlk);
-  nSubBlocks = taosArrayGetSize(pCommih->aSubBlk);
-
-  if (nSupBlocks <= 0) {
-    // No data (data all deleted)
-    return 0;
-  }
-
-  tlen = (uint32_t)(sizeof(SBlockInfo) + sizeof(SBlock) * (nSupBlocks + nSubBlocks) + sizeof(TSCKSUM));
-
-  // Write SBlockInfo part
-  if (tsdbMakeRoom((void **)(&(TSDB_COMMIT_BUF(pCommih))), tlen) < 0) return -1;
-  pBlkInfo = TSDB_COMMIT_BUF(pCommih);
-
-  pBlkInfo->delimiter = TSDB_FILE_DELIMITER;
-  pBlkInfo->tid = TABLE_TID(pTable);
-  pBlkInfo->uid = TABLE_UID(pTable);
-
-  memcpy((void *)(pBlkInfo->blocks), taosArrayGet(pCommih->aSupBlk, 0), nSupBlocks * sizeof(SBlock));
-  if (nSubBlocks > 0) {
-    memcpy((void *)(pBlkInfo->blocks + nSupBlocks), taosArrayGet(pCommih->aSubBlk, 0), nSubBlocks * sizeof(SBlock));
-
-    for (int i = 0; i < nSupBlocks; i++) {
-      pBlock = pBlkInfo->blocks + i;
-
-      if (pBlock->numOfSubBlocks > 1) {
-        pBlock->offset += (sizeof(SBlockInfo) + sizeof(SBlock) * nSupBlocks);
-      }
-    }
-  }
-
-  taosCalcChecksumAppend(0, (uint8_t *)pBlkInfo, tlen);
-
-  if (tsdbAppendDFile(pHeadf, TSDB_COMMIT_BUF(pCommih), tlen, &offset) < 0) {
+  if (tsdbWriteBlockInfoImpl(pHeadf, pTable, pCommih->aSupBlk, pCommih->aSubBlk, (void **)(&(TSDB_COMMIT_BUF(pCommih))),
+                             &blkIdx) < 0) {
     return -1;
   }
 
-  tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(pBlkInfo, tlen - sizeof(TSCKSUM)));
-
-  // Set blkIdx
-  pBlock = taosArrayGet(pCommih->aSupBlk, nSupBlocks - 1);
-
-  blkIdx.tid = TABLE_TID(pTable);
-  blkIdx.uid = TABLE_UID(pTable);
-  blkIdx.hasLast = pBlock->last ? 1 : 0;
-  blkIdx.maxKey = pBlock->keyLast;
-  blkIdx.numOfBlocks = (uint32_t)nSupBlocks;
-  blkIdx.len = tlen;
-  blkIdx.offset = (uint32_t)offset;
-
-  ASSERT(blkIdx.numOfBlocks > 0);
+  if (blkIdx.numOfBlocks == 0) {
+    return 0;
+  }
 
   if (taosArrayPush(pCommih->aBlkIdx, (void *)(&blkIdx)) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
-
-  return 0;
-}
-
-static int tsdbWriteBlockIdx(SCommitH *pCommih) {
-  SBlockIdx *pBlkIdx;
-  SDFile *   pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
-  size_t     nidx = taosArrayGetSize(pCommih->aBlkIdx);
-  int        tlen = 0, size;
-  int64_t    offset;
-
-  if (nidx <= 0) {
-    // All data are deleted
-    pHeadf->info.offset = 0;
-    pHeadf->info.len = 0;
-    return 0;
-  }
-
-  for (size_t i = 0; i < nidx; i++) {
-    pBlkIdx = (SBlockIdx *)taosArrayGet(pCommih->aBlkIdx, i);
-
-    size = tsdbEncodeSBlockIdx(NULL, pBlkIdx);
-    if (tsdbMakeRoom((void **)(&TSDB_COMMIT_BUF(pCommih)), tlen + size) < 0) return -1;
-
-    void *ptr = POINTER_SHIFT(TSDB_COMMIT_BUF(pCommih), tlen);
-    tsdbEncodeSBlockIdx(&ptr, pBlkIdx);
-
-    tlen += size;
-  }
-
-  tlen += sizeof(TSCKSUM);
-  if (tsdbMakeRoom((void **)(&TSDB_COMMIT_BUF(pCommih)), tlen) < 0) return -1;
-  taosCalcChecksumAppend(0, (uint8_t *)TSDB_COMMIT_BUF(pCommih), tlen);
-
-  if (tsdbAppendDFile(pHeadf, TSDB_COMMIT_BUF(pCommih), tlen, &offset) < tlen) {
-    tsdbError("vgId:%d failed to write block index part to file %s since %s", TSDB_COMMIT_REPO_ID(pCommih),
-              TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno));
-    return -1;
-  }
-
-  tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(TSDB_COMMIT_BUF(pCommih), tlen - sizeof(TSCKSUM)));
-  pHeadf->info.offset = (uint32_t)offset;
-  pHeadf->info.len = tlen;
 
   return 0;
 }
@@ -1149,7 +1364,7 @@ static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const
     return -1;
   }
 
-  if (pSubBlocks && taosArrayPushBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
+  if (pSubBlocks && taosArrayAddBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
@@ -1203,19 +1418,18 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
-    bool isRowDel = false;
-    SDataRow row = tsdbNextIterRow(pCommitIter->pIter);
-    if (row == NULL || dataRowKey(row) > maxKey) {
+    SMemRow row = tsdbNextIterRow(pCommitIter->pIter);
+    if (row == NULL || memRowKey(row) > maxKey) {
       key2 = INT64_MAX;
     } else {
-      key2 = dataRowKey(row);
-      isRowDel = dataRowDeleted(row);
+      key2 = memRowKey(row);
     }
 
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
 
     if (key1 < key2) {
       for (int i = 0; i < pDataCols->numOfCols; i++) {
+        //TODO: dataColAppendVal may fail
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                          pTarget->maxPoints);
       }
@@ -1223,35 +1437,33 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       pTarget->numOfRows++;
       (*iter)++;
     } else if (key1 > key2) {
-      if (!isRowDel) {
-        if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
-          ASSERT(pSchema != NULL);
-        }
-
-        tdAppendDataRowToDataCol(row, pSchema, pTarget);
+      if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+        ASSERT(pSchema != NULL);
       }
+
+      tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
-      if (update) {
-        if (!isRowDel) {
-          if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-            pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
-            ASSERT(pSchema != NULL);
-          }
-
-          tdAppendDataRowToDataCol(row, pSchema, pTarget);
-        }
-      } else {
-        ASSERT(!isRowDel);
-
+      if (update != TD_ROW_OVERWRITE_UPDATE) {
+        //copy disk data
         for (int i = 0; i < pDataCols->numOfCols; i++) {
+          //TODO: dataColAppendVal may fail
           dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                            pTarget->maxPoints);
         }
 
-        pTarget->numOfRows++;
+        if(update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
+      }
+      if (update != TD_ROW_DISCARD_UPDATE) {
+        //copy mem data
+        if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+          ASSERT(pSchema != NULL);
+        }
+
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
       }
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);
@@ -1428,7 +1640,7 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
   return false;
 }
 
-static int tsdbApplyRtn(STsdbRepo *pRepo) {
+int tsdbApplyRtn(STsdbRepo *pRepo) {
   SRtn       rtn;
   SFSIter    fsiter;
   STsdbFS *  pfs = REPO_FS(pRepo);
@@ -1446,48 +1658,6 @@ static int tsdbApplyRtn(STsdbRepo *pRepo) {
     }
 
     if (tsdbApplyRtnOnFSet(pRepo, pSet, &rtn) < 0) {
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-static int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
-  SDiskID   did;
-  SDFileSet nSet;
-  STsdbFS * pfs = REPO_FS(pRepo);
-  int       level;
-
-  ASSERT(pSet->fid >= pRtn->minFid);
-
-  level = tsdbGetFidLevel(pSet->fid, pRtn);
-
-  tfsAllocDisk(level, &(did.level), &(did.id));
-  if (did.level == TFS_UNDECIDED_LEVEL) {
-    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
-    return -1;
-  }
-
-  if (did.level > TSDB_FSET_LEVEL(pSet)) {
-    // Need to move the FSET to higher level
-    tsdbInitDFileSet(&nSet, did, REPO_ID(pRepo), pSet->fid, FS_TXN_VERSION(pfs));
-
-    if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
-      tsdbError("vgId:%d failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
-                TSDB_FSET_LEVEL(pSet), did.level, tstrerror(terrno));
-      return -1;
-    }
-
-    if (tsdbUpdateDFileSet(pfs, &nSet) < 0) {
-      return -1;
-    }
-
-    tsdbInfo("vgId:%d FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
-             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
-  } else {
-    // On a correct level
-    if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
       return -1;
     }
   }

@@ -47,9 +47,6 @@ public class TSDBSubscribe {
 
     /**
      * close subscription
-     *
-     * @param keepProgress
-     * @throws SQLException
      */
     public void close(boolean keepProgress) throws SQLException {
         if (this.connecter.isClosed())

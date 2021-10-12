@@ -117,6 +117,7 @@ static void httpProcessHttpData(void *param) {
   int32_t      fdNum;
 
   taosSetMaskSIGPIPE();
+  setThreadName("httpData");
 
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];
@@ -190,8 +191,6 @@ static void httpProcessHttpData(void *param) {
         if (httpReadData(pContext)) {
           (*(pThread->processData))(pContext);
           atomic_fetch_add_32(&pServer->requestNum, 1);
-        } else {
-          httpReleaseContext(pContext/*, false*/);
         }
       }
     }
@@ -208,6 +207,7 @@ static void *httpAcceptHttpConnection(void *arg) {
   int32_t            totalFds = 0;
 
   taosSetMaskSIGPIPE();
+  setThreadName("httpAcceptConn");
 
   pServer->fd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
 
@@ -269,7 +269,11 @@ static void *httpAcceptHttpConnection(void *arg) {
     sprintf(pContext->ipstr, "%s:%u", taosInetNtoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
 
     struct epoll_event event;
+#ifndef _TD_NINGSI_60    
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+#else
+    event.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+#endif    
     event.data.ptr = pContext;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
@@ -396,13 +400,17 @@ static bool httpReadData(HttpContext *pContext) {
     } else if (nread < 0) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
-        return false;  // later again
+        continue;  // later again
       } else {
         httpError("context:%p, fd:%d, read from socket error:%d, close connect", pContext, pContext->fd, errno);
+        taosCloseSocket(pContext->fd);
+        httpReleaseContext(pContext/*, false */);
         return false;
       }
     } else {
       httpError("context:%p, fd:%d, nread:%d, wait another event", pContext, pContext->fd, nread);
+      taosCloseSocket(pContext->fd);
+      httpReleaseContext(pContext/*, false */);
       return false;
     }
   }

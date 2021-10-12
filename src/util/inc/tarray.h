@@ -50,7 +50,31 @@ void* taosArrayInit(size_t size, size_t elemSize);
  * @param nEles
  * @return
  */
-void *taosArrayPushBatch(SArray *pArray, const void *pData, int nEles);
+void *taosArrayAddBatch(SArray *pArray, const void *pData, int nEles);
+
+/**
+ *
+ * @param pArray
+ * @param pData           position array list
+ * @param numOfElems      the number of removed position
+ */
+void taosArrayRemoveBatch(SArray *pArray, const int32_t* pData, int32_t numOfElems);
+
+/**
+ *
+ * @param pArray
+ * @param comparFn
+ * @param fp
+ */
+void taosArrayRemoveDuplicate(SArray *pArray, __compar_fn_t comparFn, void (*fp)(void*));
+
+/**
+ *  add all element from the source array list into the destination
+ * @param pArray
+ * @param pInput
+ * @return
+ */
+void* taosArrayAddAll(SArray* pArray, const SArray* pInput);
 
 /**
  *
@@ -59,7 +83,7 @@ void *taosArrayPushBatch(SArray *pArray, const void *pData, int nEles);
  * @return
  */
 static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
-  return taosArrayPushBatch(pArray, pData, 1);
+  return taosArrayAddBatch(pArray, pData, 1);
 }
 
 /**
@@ -97,6 +121,14 @@ void* taosArrayGetLast(const SArray* pArray);
  * @return
  */
 size_t taosArrayGetSize(const SArray* pArray);
+
+/**
+ * set the size of array
+ * @param pArray
+ * @param size size of the array
+ * @return
+ */
+void taosArraySetSize(SArray* pArray, size_t size);
 
 /**
  * insert data into array
@@ -181,8 +213,21 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
  */
 char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags);
 
+
+/**
+ * sort the pointer data in the array
+ * @param pArray
+ * @param compar 
+ * @param param  
+ * @return
+ */
+
+void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void *param);
+
 #ifdef __cplusplus
 }
 #endif
+
+
 
 #endif  // TDENGINE_TAOSARRAY_H

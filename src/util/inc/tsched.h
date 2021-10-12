@@ -28,10 +28,41 @@ typedef struct SSchedMsg {
   void *thandle;
 } SSchedMsg;
 
-void *taosInitScheduler(int queueSize, int numOfThreads, const char *label);
-void *taosInitSchedulerWithInfo(int queueSize, int numOfThreads, const char *label, void *tmrCtrl);
-int  taosScheduleTask(void *qhandle, SSchedMsg *pMsg);
-void taosCleanUpScheduler(void *param);
+/**
+ * Create a thread-safe ring-buffer based task queue and return the instance. A thread
+ * pool will be created to consume the messages in the queue.
+ * @param capacity the queue capacity
+ * @param numOfThreads the number of threads for the thread pool
+ * @param label the label of the queue
+ * @return the created queue scheduler
+ */
+void *taosInitScheduler(int capacity, int numOfThreads, const char *label);
+
+/**
+ * Create a thread-safe ring-buffer based task queue and return the instance.
+ * Same as taosInitScheduler, and it also print the queue status every 1 minite.
+ * @param capacity the queue capacity
+ * @param numOfThreads the number of threads for the thread pool
+ * @param label the label of the queue
+ * @param tmrCtrl the timer controller, tmr_ctrl_t*
+ * @return the created queue scheduler
+ */
+void *taosInitSchedulerWithInfo(int capacity, int numOfThreads, const char *label, void *tmrCtrl);
+
+/**
+ * Clean up the queue scheduler instance and free the memory.
+ * @param queueScheduler the queue scheduler to free
+ */
+void taosCleanUpScheduler(void *queueScheduler);
+
+/**
+ * Schedule a new task to run, the task is described by pMsg.
+ * The function may be blocked if no thread is available to execute the task.
+ * That may happen when all threads are busy.
+ * @param queueScheduler the queue scheduler instance
+ * @param pMsg the message for the task
+ */
+void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg);
 
 #ifdef __cplusplus
 }

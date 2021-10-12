@@ -6,27 +6,31 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.enums.TimestampPrecision;
+import com.taosdata.jdbc.enums.TimestampFormat;
+import com.taosdata.jdbc.utils.Utils;
 
 import java.math.BigDecimal;
 import java.sql.*;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
-    private volatile boolean isClosed;
-    private int pos = -1;
 
-
-    private final String database;
     private final Statement statement;
     // data
-    private final ArrayList<ArrayList<Object>> resultSet;
+    private final List<List<Object>> resultSet = new ArrayList<>();
     // meta
-    private ArrayList<String> columnNames;
-    private ArrayList<Field> columns;
-    private RestfulResultSetMetaData metaData;
+    private final List<String> columnNames = new ArrayList<>();
+    private final List<Field> columns = new ArrayList<>();
+    private final RestfulResultSetMetaData metaData;
+
+    private volatile boolean isClosed;
+    private int pos = -1;
 
     /**
      * 由一个result的Json构造结果集，对应执行show databases, show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
@@ -34,13 +38,45 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
      * @param resultJson: 包含data信息的结果集，有sql返回的结果集
      ***/
     public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
-        this.database = database;
         this.statement = statement;
 
-        // column metadata
+        // get head
+        JSONArray head = resultJson.getJSONArray("head");
+        // get column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
-        columnNames = new ArrayList<>();
-        columns = new ArrayList<>();
+        // get row data
+        JSONArray data = resultJson.getJSONArray("data");
+        // get rows
+        Integer rows = resultJson.getInteger("rows");
+
+        // parse column_meta
+        if (columnMeta != null) {
+            parseColumnMeta_new(columnMeta);
+        } else {
+            parseColumnMeta_old(head, data, rows);
+        }
+        this.metaData = new RestfulResultSetMetaData(database, columns, this);
+
+        if (data == null || data.isEmpty())
+            return;
+        // parse row data
+        for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
+            List<Object> row = new ArrayList<>();
+            JSONArray jsonRow = data.getJSONArray(rowIndex);
+            for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
+                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
+            }
+            resultSet.add(row);
+        }
+    }
+
+    /***
+     * use this method after TDengine-2.0.18.0 to parse column meta, restful add column_meta in resultSet
+     * @Param columnMeta
+     */
+    private void parseColumnMeta_new(JSONArray columnMeta) throws SQLException {
+        columnNames.clear();
+        columns.clear();
         for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
             JSONArray col = columnMeta.getJSONArray(colIndex);
             String col_name = col.getString(0);
@@ -50,23 +86,54 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             columnNames.add(col_name);
             columns.add(new Field(col_name, col_type, col_length, "", taos_type));
         }
-        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
+    }
 
-        // row data
-        JSONArray data = resultJson.getJSONArray("data");
-        resultSet = new ArrayList<>();
-        for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
-            ArrayList row = new ArrayList();
-            JSONArray jsonRow = data.getJSONArray(rowIndex);
-            for (int colIndex = 0; colIndex < jsonRow.size(); colIndex++) {
-                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
+    /**
+     * use this method before TDengine-2.0.18.0 to parse column meta
+     */
+    private void parseColumnMeta_old(JSONArray head, JSONArray data, int rows) {
+        columnNames.clear();
+        columns.clear();
+        for (int colIndex = 0; colIndex < head.size(); colIndex++) {
+            String col_name = head.getString(colIndex);
+            columnNames.add(col_name);
+
+            int col_type = Types.NULL;
+            int col_length = 0;
+            int taos_type = TSDBConstants.TSDB_DATA_TYPE_NULL;
+
+            JSONArray row0Json = data.getJSONArray(0);
+            if (colIndex < row0Json.size()) {
+                Object value = row0Json.get(colIndex);
+                if (value instanceof Boolean) {
+                    col_type = Types.BOOLEAN;
+                    col_length = 1;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
+                }
+                if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+                    col_type = Types.BIGINT;
+                    col_length = 8;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BIGINT;
+                }
+                if (value instanceof Float || value instanceof Double || value instanceof BigDecimal) {
+                    col_type = Types.DOUBLE;
+                    col_length = 8;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_DOUBLE;
+                }
+                if (value instanceof String) {
+                    col_type = Types.NCHAR;
+                    col_length = ((String) value).length();
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_NCHAR;
+                }
             }
-            resultSet.add(row);
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
         }
     }
 
     private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
         switch (taosType) {
+            case TSDBConstants.TSDB_DATA_TYPE_NULL:
+                return null;
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return row.getBoolean(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
@@ -81,44 +148,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 return row.getFloat(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
                 return row.getDouble(colIndex);
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
-                if (row.get(colIndex) == null)
-                    return null;
-                String timestampFormat = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
-                if ("TIMESTAMP".equalsIgnoreCase(timestampFormat)) {
-                    Long value = row.getLong(colIndex);
-                    //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
-                    if (value < 1_0000_0000_0000_0L)
-                        return new Timestamp(value);
-                    long epochSec = value / 1000_000l;
-                    long nanoAdjustment = value % 1000_000l * 1000l;
-                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-                }
-                if ("UTC".equalsIgnoreCase(timestampFormat)) {
-                    String value = row.getString(colIndex);
-                    long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
-                    int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
-                    long nanoAdjustment = 0;
-                    if (value.length() > 28) {
-                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
-                        nanoAdjustment = fractionalSec * 1000l;
-                    } else {
-                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
-                        nanoAdjustment = fractionalSec * 1000_000l;
-                    }
-                    ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
-                    Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
-                    return Timestamp.from(instant);
-                }
-                String value = row.getString(colIndex);
-                if (value.length() <= 23)    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
-                    return row.getTimestamp(colIndex);
-                // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
-                long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
-                long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000l;
-                Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-                return timestamp;
-            }
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return parseTimestampColumnData(row, colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -128,7 +159,66 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-    public class Field {
+    private Timestamp parseTimestampColumnData(JSONArray row, int colIndex) throws SQLException {
+        if (row.get(colIndex) == null)
+            return null;
+        String tsFormatUpperCase = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).toUpperCase();
+        TimestampFormat timestampFormat = TimestampFormat.valueOf(tsFormatUpperCase);
+        switch (timestampFormat) {
+            case TIMESTAMP: {
+                Long value = row.getLong(colIndex);
+                //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
+                if (value < 1_0000_0000_0000_0L)
+                    return new Timestamp(value);
+                long epochSec = value / 1000_000L;
+                long nanoAdjustment = value % 1000_000L * 1000L;
+                return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+            }
+            case UTC: {
+                String value = row.getString(colIndex);
+                long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
+                int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
+                long nanoAdjustment;
+                if (value.length() > 31) {
+                    // ns timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+0x00
+                    nanoAdjustment = fractionalSec;
+                } else if (value.length() > 28) {
+                    // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
+                    nanoAdjustment = fractionalSec * 1000L;
+                } else {
+                    // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
+                    nanoAdjustment = fractionalSec * 1000_000L;
+                }
+                ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
+                Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
+                return Timestamp.from(instant);
+            }
+            case STRING:
+            default: {
+                String value = row.getString(colIndex);
+                TimestampPrecision precision = Utils.guessTimestampPrecision(value);
+                if (precision == TimestampPrecision.MS) {
+                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
+                    return row.getTimestamp(colIndex);
+                }
+                if (precision == TimestampPrecision.US) {
+                    // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                    long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000L;
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                if (precision == TimestampPrecision.NS) {
+                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSSSSSSSS
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                    long nanoAdjustment = Integer.parseInt(value.substring(20));
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION);
+            }
+        }
+    }
+
+    public static class Field {
         String name;
         int type;
         int length;
@@ -142,6 +232,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.note = note;
             this.taos_type = taos_type;
         }
+
     }
 
     @Override
@@ -149,10 +240,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         pos++;
-        if (pos <= resultSet.size() - 1) {
-            return true;
-        }
-        return false;
+        return pos <= resultSet.size() - 1;
     }
 
     @Override
@@ -161,13 +249,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.isClosed = true;
         }
     }
-
-//    @Override
-//    public boolean wasNull() throws SQLException {
-//        if (isClosed())
-//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-//        return resultSet.isEmpty();
-//    }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
@@ -193,7 +274,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         wasNull = false;
         if (value instanceof Boolean)
             return (boolean) value;
-        return Boolean.valueOf(value.toString());
+        return Boolean.parseBoolean(value.toString());
     }
 
     @Override
@@ -265,6 +346,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             wasNull = true;
             return 0;
         }
+
         wasNull = false;
         if (value instanceof Timestamp) {
             return ((Timestamp) value).getTime();
@@ -290,8 +372,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return 0;
         }
         wasNull = false;
-        if (value instanceof Float || value instanceof Double)
+        if (value instanceof Float)
             return (float) value;
+        if (value instanceof Double)
+            return new Float((Double) value);
         return Float.parseFloat(value.toString());
     }
 
@@ -329,6 +413,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return Shorts.toByteArray((short) value);
         if (value instanceof Byte)
             return new byte[]{(byte) value};
+        if (value instanceof Timestamp) {
+            return Utils.formatTimestamp((Timestamp) value).getBytes();
+        }
 
         return value.toString().getBytes();
     }
@@ -342,7 +429,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return new Date(((Timestamp) value).getTime());
-        return Date.valueOf(value.toString());
+        return Utils.parseDate(value.toString());
     }
 
     @Override
@@ -354,7 +441,12 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return new Time(((Timestamp) value).getTime());
-        return Time.valueOf(value.toString());
+        Time time = null;
+        try {
+            time = Utils.parseTime(value.toString());
+        } catch (DateTimeParseException ignored) {
+        }
+        return time;
     }
 
     @Override
@@ -366,14 +458,20 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return (Timestamp) value;
-//        if (value instanceof Long) {
-//            if (1_0000_0000_0000_0L > (long) value)
-//                return Timestamp.from(Instant.ofEpochMilli((long) value));
-//            long epochSec = (long) value / 1000_000L;
-//            long nanoAdjustment = (long) ((long) value % 1000_000L * 1000);
-//            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-//        }
-        return Timestamp.valueOf(value.toString());
+        if (value instanceof Long) {
+            if (1_0000_0000_0000_0L > (long) value)
+                return Timestamp.from(Instant.ofEpochMilli((long) value));
+            long epochSec = (long) value / 1000_000L;
+            long nanoAdjustment = (long) value % 1000_000L * 1000;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        Timestamp ret;
+        try {
+            ret = Utils.parseTimestamp(value.toString());
+        } catch (Exception e) {
+            ret = null;
+        }
+        return ret;
     }
 
     @Override
@@ -410,12 +508,18 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
 
         if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
-            return new BigDecimal(Long.valueOf(value.toString()));
+            return new BigDecimal(Long.parseLong(value.toString()));
         if (value instanceof Double || value instanceof Float)
-            return new BigDecimal(Double.valueOf(value.toString()));
+            return BigDecimal.valueOf(Double.parseDouble(value.toString()));
         if (value instanceof Timestamp)
             return new BigDecimal(((Timestamp) value).getTime());
-        return new BigDecimal(value.toString());
+        BigDecimal ret;
+        try {
+            ret = new BigDecimal(value.toString());
+        } catch (Exception e) {
+            ret = null;
+        }
+        return ret;
     }
 
     @Override
@@ -516,36 +620,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-//        if (this.resultSet.size() == 0)
-//            return false;
-//
-//        if (row == 0) {
-//            beforeFirst();
-//            return false;
-//        } else if (row == 1) {
-//            return first();
-//        } else if (row == -1) {
-//            return last();
-//        } else if (row > this.resultSet.size()) {
-//            afterLast();
-//            return false;
-//        } else {
-//            if (row < 0) {
-//                // adjust to reflect after end of result set
-//                int newRowPosition = this.resultSet.size() + row + 1;
-//                if (newRowPosition <= 0) {
-//                    beforeFirst();
-//                    return false;
-//                } else {
-//                    return absolute(newRowPosition);
-//                }
-//            } else {
-//                row--; // adjust for index difference
-//                this.pos = row;
-//                return true;
-//            }
-//        }
-
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -588,6 +662,5 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public boolean isClosed() throws SQLException {
         return isClosed;
     }
-
 
 }

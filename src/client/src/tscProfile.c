@@ -16,11 +16,13 @@
 #include "os.h"
 #include "tscLog.h"
 #include "tsclient.h"
+#include "tsocket.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "taosmsg.h"
+#include "tcq.h"
 
 #include "taos.h"
+#include "tscUtil.h"
 
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
 TAOS *tscSlowQueryConn = NULL;
@@ -54,14 +56,14 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
   pSql->next = pObj->sqlList;
   if (pObj->sqlList) pObj->sqlList->prev = pSql;
   pObj->sqlList = pSql;
-  pSql->queryId = queryId++;
+  pSql->queryId = atomic_fetch_add_32(&queryId, 1);
 
   pthread_mutex_unlock(&pObj->mutex);
 
   pSql->stime = taosGetTimestampMs();
   pSql->listed = 1;
 
-  tscDebug("0x%"PRIx64" added into sqlList", pSql->self);
+  tscDebug("0x%"PRIx64" added into sqlList, queryId:%u", pSql->self, pSql->queryId);
 }
 
 void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
@@ -225,16 +227,16 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
 
 int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   SHeartBeatMsg *pHeartbeat = pMsg;
+
   int allocedQueriesNum = pHeartbeat->numOfQueries;
   int allocedStreamsNum = pHeartbeat->numOfStreams;
-  
+
   pHeartbeat->numOfQueries = 0;
   SQueryDesc *pQdesc = (SQueryDesc *)pHeartbeat->pData;
 
-  // We extract the lock to tscBuildHeartBeatMsg function.
-
   int64_t now = taosGetTimestampMs();
   SSqlObj *pSql = pObj->sqlList;
+
   while (pSql) {
     /*
      * avoid sqlobj may not be correctly removed from sql list
@@ -246,16 +248,55 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     }
 
     tstrncpy(pQdesc->sql, pSql->sqlstr, sizeof(pQdesc->sql));
-    pQdesc->stime = htobe64(pSql->stime);
-    pQdesc->queryId = htonl(pSql->queryId);
-    //pQdesc->useconds = htobe64(pSql->res.useconds);
-    pQdesc->useconds = htobe64(now - pSql->stime);  // use local time instead of sever rsp elapsed time
-    pQdesc->qHandle = htobe64(pSql->res.qId);
+    pQdesc->stime    = htobe64(pSql->stime);
+    pQdesc->queryId  = htonl(pSql->queryId);
+    pQdesc->useconds = htobe64(now - pSql->stime);
+    pQdesc->qId      = htobe64(pSql->res.qId);
+    pQdesc->sqlObjId = htobe64(pSql->self);
+    pQdesc->pid      = pHeartbeat->pid;
+    pQdesc->numOfSub = pSql->subState.numOfSub;
+
+    // todo race condition
+    pQdesc->stableQuery = 0;
+
+    char *p = pQdesc->subSqlInfo;
+    int32_t remainLen = sizeof(pQdesc->subSqlInfo);
+    if (pQdesc->numOfSub == 0) {
+      snprintf(p, remainLen, "N/A");
+    } else {
+//      SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+//      if (pQueryInfo != NULL) {
+//        pQdesc->stableQuery = (pQueryInfo->stableQuery)?1:0;
+//      } else {
+//        pQdesc->stableQuery = 0;
+//      }
+
+      if (pSql->pSubs != NULL && pSql->subState.states != NULL) {
+        for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
+          SSqlObj *psub = pSql->pSubs[i];
+          int64_t  self = (psub != NULL)? psub->self : 0;
+
+          int32_t len = snprintf(p, remainLen, "[%d]0x%" PRIx64 "(%c) ", i, self, pSql->subState.states[i] ? 'C' : 'I');
+          if (len > remainLen) {
+            break;
+          }
+
+          remainLen -= len;
+          p += len;
+        }
+      }
+    }
+
+    pQdesc->numOfSub = htonl(pQdesc->numOfSub);
+    taosGetFqdn(pQdesc->fqdn);
 
     pHeartbeat->numOfQueries++;
     pQdesc++;
+
     pSql = pSql->next;
-    if (pHeartbeat->numOfQueries >= allocedQueriesNum) break;
+    if (pHeartbeat->numOfQueries >= allocedQueriesNum) {
+      break;
+    }
   }
 
   pHeartbeat->numOfStreams = 0;
@@ -294,24 +335,34 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   return msgLen;
 }
 
+// cqContext->dbconn is killed then call this callback
+void cqConnKilledNotify(void* handle, void* conn) {
+  if (handle == NULL || conn == NULL){
+    return ;
+  } 
+
+  SCqContext* pContext = (SCqContext*) handle;
+  if (pContext->dbConn == conn){
+    atomic_store_ptr(&(pContext->dbConn), NULL);
+  } 
+}
+
 void tscKillConnection(STscObj *pObj) {
+  // get stream header by locked
   pthread_mutex_lock(&pObj->mutex);
-
-  SSqlObj *pSql = pObj->sqlList;
-  while (pSql) {
-    pSql = pSql->next;
-  }
-  
-
   SSqlStream *pStream = pObj->streamList;
+  pthread_mutex_unlock(&pObj->mutex);
+
   while (pStream) {
     SSqlStream *tmp = pStream->next;
+    // set associate variant to NULL
+    cqConnKilledNotify(pStream->cqhandle, pObj);
+    // taos_close_stream function call pObj->mutet lock , careful death-lock
     taos_close_stream(pStream);
     pStream = tmp;
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
-
   tscDebug("connection:%p is killed", pObj);
   taos_close(pObj);
 }
+

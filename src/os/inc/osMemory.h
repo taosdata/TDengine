@@ -22,6 +22,10 @@
 extern "C" {
 #endif
 
+#ifdef TD_JEMALLOC_ENABLED
+#include <jemalloc/jemalloc.h>
+#endif
+
 typedef enum {
   TAOS_ALLOC_MODE_DEFAULT = 0,
   TAOS_ALLOC_MODE_RANDOM_FAIL = 1,
@@ -43,9 +47,6 @@ void   taosTMemset(void *ptr, int c);
 #define tmalloc(size) malloc(size)
 #define tcalloc(num, size) calloc(num, size)
 #define trealloc(ptr, size) realloc(ptr, size)
-#define tstrdup(str) taosStrdupImp(str)
-#define tstrndup(str, size) taosStrndupImp(str, size)
-#define tgetline(lineptr, n, stream) taosGetlineImp(lineptr, n, stream)
 #define tfree(x)         \
   do {                   \
     if (x) {             \
@@ -71,15 +72,8 @@ void   taosTMemset(void *ptr, int c);
     #define tcalloc(num, size) taosCallocMem(num, size, __FILE__, __LINE__)
     #define trealloc(ptr, size) taosReallocMem(ptr, size, __FILE__, __LINE__)
     #define tfree(ptr) taosFreeMem(ptr, __FILE__, __LINE__) 
-    
-    // #undef tstrdup
-    // #undef tstrndup
-    // #undef tgetline
-    // #define taosStrdup(str) taos_strdup(str, __FILE__, __LINE__)
-    // #define taosStrndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
-    // #define tgetline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
   #endif  
-#endif 
+#endif
 
 #ifdef __cplusplus
 }

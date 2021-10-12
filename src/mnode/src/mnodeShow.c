@@ -261,7 +261,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   if (pConn == NULL) {
     // do not close existing links, otherwise
     // mError("failed to create connId, close connect");
-    // pRsp->killConnection = 1;
+    // pRsp->killConnection = 1;    
   } else {
     pRsp->connId = htonl(pConn->connId);
     mnodeSaveQueryStreamList(pConn, pHBMsg);
@@ -422,8 +422,13 @@ static void* mnodePutShowObj(SShowObj *pShow) {
 
 static void mnodeFreeShowObj(void *data) {
   SShowObj *pShow = *(SShowObj **)data;
-  if (tsMnodeShowFreeIterFp[pShow->type] != NULL && pShow->pIter != NULL) {
-    (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pIter);
+  if (tsMnodeShowFreeIterFp[pShow->type] != NULL) {
+    if (pShow->pVgIter != NULL) {
+      // only used in 'show vnodes "ep"'
+      (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pVgIter);
+    } else {
+      if (pShow->pIter != NULL) (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pIter);
+    }
   }
 
   mDebug("%p, show is destroyed, data:%p index:%d", pShow, data, pShow->index);

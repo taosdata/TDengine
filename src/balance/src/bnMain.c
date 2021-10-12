@@ -220,10 +220,6 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
 }
 
 static bool bnCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
-  if (pVgroup->lbTime + 5 * tsStatusInterval > tsAccessSquence) {
-    return false;
-  }
-
   int32_t rmVnodeVer = 0;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;
@@ -371,6 +367,7 @@ static bool bnMonitorBalance() {
         for (int32_t dest = 0; dest < src; dest++) {
           SDnodeObj *pDestDnode = tsBnDnodes.list[dest];
           if (bnCheckDnodeInVgroup(pDestDnode, pVgroup)) continue;
+          if (taosGetTimestampMs() - pDestDnode->createdTime < 2000) continue;
 
           float destScore = bnTryCalcDnodeScore(pDestDnode, 1);
           if (srcScore + 0.0001 < destScore) continue;
@@ -405,7 +402,7 @@ void bnReset() {
     if (pDnode == NULL) break;
 
     // while master change, should reset dnode to offline
-    mInfo("dnode:%d set access:%d to 0", pDnode->dnodeId, pDnode->lastAccess);
+    mInfo("dnode:%d set access:%" PRId64 " to 0", pDnode->dnodeId, pDnode->lastAccess);
     pDnode->lastAccess = 0;
     if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
       pDnode->status = TAOS_DN_STATUS_OFFLINE;
@@ -499,7 +496,7 @@ static bool bnMontiorDropping() {
       if (dnodeIsMasterEp(pDnode->dnodeEp)) continue; 
       if (mnodeGetDnodesNum() <= 1) continue;
 
-      mLInfo("dnode:%d, set to removing state for it offline:%d seconds", pDnode->dnodeId,
+      mLInfo("dnode:%d, set to removing state for it offline:%" PRId64 " seconds", pDnode->dnodeId,
               tsAccessSquence - pDnode->lastAccess);
 
       pDnode->status = TAOS_DN_STATUS_DROPPING;
@@ -574,8 +571,8 @@ void bnCheckStatus() {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;
-        mInfo("dnode:%d, set to offline state, access seq:%d last seq:%d laststat:%d", pDnode->dnodeId, tsAccessSquence,
-              pDnode->lastAccess, pDnode->status);
+        mInfo("dnode:%d, set to offline state, access seq:%" PRId64 " last seq:%" PRId64 " laststat:%d", pDnode->dnodeId,
+              tsAccessSquence, pDnode->lastAccess, pDnode->status);
         bnSetVgroupOffline(pDnode);
         bnStartTimer(3000);
       }
@@ -640,6 +637,19 @@ int32_t bnDropDnode(SDnodeObj *pDnode) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t bnDnodeCanCreateMnode(struct SDnodeObj *pDnode) {
+  if (pDnode == NULL)
+    return 0;
+
+  if (pDnode->isMgmt || pDnode->alternativeRole == TAOS_DN_ALTERNATIVE_ROLE_VNODE
+      || pDnode->status == TAOS_DN_STATUS_DROPPING
+      || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
 static void bnMonitorDnodeModule() {
   int32_t numOfMnodes = mnodeGetMnodesNum();
   if (numOfMnodes >= tsNumOfMnodes) return;
@@ -648,13 +658,7 @@ static void bnMonitorDnodeModule() {
     SDnodeObj *pDnode = tsBnDnodes.list[i];
     if (pDnode == NULL) break;
 
-    if (pDnode->isMgmt || pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-      continue;
-    }
-
-    if (pDnode->alternativeRole == TAOS_DN_ALTERNATIVE_ROLE_VNODE) {
-      continue;
-    }
+    if (!bnDnodeCanCreateMnode(pDnode)) continue;
 
     mLInfo("dnode:%d, numOfMnodes:%d expect:%d, create mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMnodes);
     mnodeCreateMnode(pDnode->dnodeId, pDnode->dnodeEp, true);

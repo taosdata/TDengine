@@ -15,6 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+import platform
 
 
 class TDTestCase:
@@ -36,6 +37,10 @@ class TDTestCase:
         tdSql.checkData(1, 1, '涛思数据')
 
         tdSql.error("insert into tb values (now, 'taosdata001')")
+
+        if platform.system() == "Linux" : tdSql.error("insert into tb(now, 😀)")
+        tdSql.query("select * from tb")
+        tdSql.checkRows(2)
         
     def stop(self):
         tdSql.close()

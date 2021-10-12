@@ -9,11 +9,6 @@ public class RestfulDriverTest {
     private static final String host = "127.0.0.1";
 
     @Test
-    public void connect() {
-
-    }
-
-    @Test
     public void acceptsURL() throws SQLException {
         Driver driver = new RestfulDriver();
         boolean isAccept = driver.acceptsURL("jdbc:TAOS-RS://" + host + ":6041");
@@ -27,9 +22,7 @@ public class RestfulDriverTest {
         Driver driver = new RestfulDriver();
         final String url = "";
         DriverPropertyInfo[] propertyInfo = driver.getPropertyInfo(url, null);
-        for (DriverPropertyInfo prop : propertyInfo) {
-            System.out.println(prop);
-        }
+        Assert.assertNotNull(propertyInfo);
     }
 
     @Test

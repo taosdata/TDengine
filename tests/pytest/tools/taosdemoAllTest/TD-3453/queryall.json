@@ -13,7 +13,7 @@
     "sqls":[
       {
         "sql": "select * from stb0",
-        "result": ""
+        "result": "./query_res.txt"
       }
     ]
   }

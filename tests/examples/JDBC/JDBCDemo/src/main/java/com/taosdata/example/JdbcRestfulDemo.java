@@ -4,14 +4,15 @@ import java.sql.*;
 import java.util.Properties;
 
 public class JdbcRestfulDemo {
-    private static final String host = "master";
+    private static final String host = "localhost";
+    private static final String dbname = "test";
+    private static final String user = "root";
+    private static final String password = "taosdata";
 
     public static void main(String[] args) {
         try {
-            // load JDBC-restful driver
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             // use port 6041 in url when use JDBC-restful
-            String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
+            String url = "jdbc:TAOS-RS://" + host + ":6041/?user=" + user + "&password=" + password;
 
             Properties properties = new Properties();
             properties.setProperty("charset", "UTF-8");
@@ -21,12 +22,12 @@ public class JdbcRestfulDemo {
             Connection conn = DriverManager.getConnection(url, properties);
             Statement stmt = conn.createStatement();
 
-            stmt.execute("drop database if exists restful_test");
-            stmt.execute("create database if not exists restful_test");
-            stmt.execute("use restful_test");
-            stmt.execute("create table restful_test.weather(ts timestamp, temperature float) tags(location nchar(64))");
-            stmt.executeUpdate("insert into t1 using restful_test.weather tags('北京') values(now, 18.2)");
-            ResultSet rs = stmt.executeQuery("select * from restful_test.weather");
+            stmt.execute("drop database if exists " + dbname);
+            stmt.execute("create database if not exists " + dbname);
+            stmt.execute("use " + dbname);
+            stmt.execute("create table " + dbname + ".weather(ts timestamp, temperature float) tags(location nchar(64))");
+            stmt.executeUpdate("insert into t1 using " + dbname + ".weather tags('北京') values(now, 18.2)");
+            ResultSet rs = stmt.executeQuery("select * from " + dbname + ".weather");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
                 for (int i = 1; i <= meta.getColumnCount(); i++) {
@@ -38,8 +39,6 @@ public class JdbcRestfulDemo {
             rs.close();
             stmt.close();
             conn.close();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         } catch (SQLException e) {
             e.printStackTrace();
         }

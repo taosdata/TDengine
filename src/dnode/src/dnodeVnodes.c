@@ -90,6 +90,7 @@ static void *dnodeOpenVnode(void *param) {
   char stepDesc[TSDB_STEP_DESC_LEN] = {0};
 
   dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
+  setThreadName("dnodeOpenVnode");
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     int32_t vgId = pThread->vnodeList[v];
@@ -202,6 +203,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
       char clusterId[TSDB_CLUSTER_ID_LEN];
       dnodeGetClusterId(clusterId);
       if (clusterId[0] != '\0') {
+        dnodeSetDropped();
         dError("exit zombie dropped dnode");
         exit(EXIT_FAILURE);
       }

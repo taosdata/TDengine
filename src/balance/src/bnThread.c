@@ -23,6 +23,8 @@
 static SBnThread tsBnThread;
 
 static void *bnThreadFunc(void *arg) {
+  setThreadName("balance");
+
   while (1) {
     pthread_mutex_lock(&tsBnThread.mutex);
     if (tsBnThread.stop) {
@@ -102,12 +104,12 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   if (tsBnThread.stop) return;
 
   tsBnThread.timer = NULL;
-  tsAccessSquence++;
-
   bnStartTimer(-1);
   bnCheckStatus();
 
   if (handle == NULL) {
+    ++tsAccessSquence;
+
     if (tsAccessSquence % tsBalanceInterval == 0) {
       mDebug("balance function is scheduled by timer");
       bnPostSignal();
@@ -122,8 +124,7 @@ static void bnProcessTimer(void *handle, void *tmrId) {
 void bnStartTimer(int32_t mseconds) {
   if (tsBnThread.stop) return;
 
-  bool updateSoon = (mseconds != -1);
-  if (updateSoon) {
+  if (mseconds != -1) {
     mTrace("balance function will be called after %d ms", mseconds);
     taosTmrReset(bnProcessTimer, mseconds, (void *)(int64_t)mseconds, tsMnodeTmr, &tsBnThread.timer);
   } else {
@@ -132,5 +133,5 @@ void bnStartTimer(int32_t mseconds) {
 }
 
 void bnNotify() {
-  bnStartTimer(500); 
+  bnStartTimer(500);
 }

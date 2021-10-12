@@ -11,22 +11,22 @@ tests_dir=`pwd`
 IN_TDINTERNAL="community"
 
 function stopTaosd {
-	echo "Stop taosd"
-  sudo systemctl stop taosd
+  echo "Stop taosd"
+  sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail'
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	while [ -n "$PID" ]
-	do
+  while [ -n "$PID" ]
+  do
     pkill -TERM -x taosd
     sleep 1
-  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	done
+    PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+  done
 }
 
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
-  core_file=`echo $corefile|cut -d " " -f2`
-  proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
+    core_file=`echo $corefile|cut -d " " -f2`
+    proc=`file $core_file|awk -F "execfn:"  '/execfn:/{print $2}'|tr -d \' |awk '{print $1}'|tr -d \,`
     echo 'taosd or taos has generated core'
     rm case.log
     if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]] && [[ $1 == 1 ]]; then
@@ -46,7 +46,7 @@ function dohavecore(){
       fi
     fi
     if [[ $1 == 1 ]];then
-      echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
+      echo '\n'|gdb $proc $core_file -ex "bt 10" -ex quit
       exit 8
     fi
   fi
@@ -179,6 +179,9 @@ function runPyCaseOneByOnefq() {
         start_time=`date +%s`
         date +%F\ %T | tee -a pytest-out.log
         echo -n $case
+        if [[ $1 =~ full ]] ; then
+          line=$line" -s"
+        fi
         $line > case.log 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
           echo -e "${RED} failed${NC}" | tee -a pytest-out.log 
@@ -230,9 +233,14 @@ totalPyFailed=0
 totalJDBCFailed=0
 totalUnitFailed=0
 totalExampleFailed=0
+totalApiFailed=0
 
 if [ "${OS}" == "Linux" ]; then
     corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
+    if [ -z "$corepath" ];then
+      echo "/coredump/core_%e_%p_%t" > /proc/sys/kernel/core_pattern || echo "Permission denied"
+      corepath="/coredump/"
+    fi
 fi
 
 if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" != "example" ]; then
@@ -525,7 +533,28 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo "demo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
+  echo "### run setconfig tests ###"
+
+  stopTaosd
+
+  cd $tests_dir
+  echo "current dir: "
   
+  pwd
+  
+  cd script/api
+  echo "building setcfgtest"
+  make > /dev/null
+  ./clientcfgtest
+  if [ $? != "0" ]; then
+    echo "clientcfgtest failed"
+    totalExampleFailed=`expr $totalExampleFailed + 1`    
+  else
+    echo "clientcfgtest pass"
+    totalExamplePass=`expr $totalExamplePass + 1`
+  fi
+
+
   if [ "$totalExamplePass" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalExamplePass examples succeed! ### ${NC}"
   fi
@@ -537,7 +566,13 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
   if [ "${OS}" == "Linux" ]; then
     dohavecore 1
   fi
+
+  
+
+
+
 fi
+
 
 
 exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed + $totalExampleFailed))

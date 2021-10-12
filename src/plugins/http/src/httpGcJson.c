@@ -133,6 +133,16 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
       int32_t len;
       len = snprintf(target, HTTP_GC_TARGET_SIZE, "%s{", aliasBuffer);
       for (int32_t i = dataFields + 1; i < num_fields; i++) {
+        if (row[i] == NULL) {
+          len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:nil", fields[i].name);
+
+          if (i < num_fields - 1) {
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
+          }
+
+          continue;
+        }
+
         switch (fields[i].type) {
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
@@ -189,7 +199,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
     for (int32_t i = dataFields; i >= 0; i--) {
       httpJsonItemToken(jsonBuf);
-      if (row[i] == NULL) {
+      if (row == NULL || i >= num_fields || row[i] == NULL) {
         httpJsonOriginString(jsonBuf, "null", 4);
         continue;
       }
@@ -218,13 +228,11 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
         case TSDB_DATA_TYPE_NCHAR:
           httpJsonStringForTransMean(jsonBuf, (char *)row[i], fields[i].bytes);
           break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          if (precision == TSDB_TIME_PRECISION_MILLI) {  // ms
-            httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
-          } else {
-            httpJsonInt64(jsonBuf, *((int64_t *)row[i]) / 1000);
-          }
+        case TSDB_DATA_TYPE_TIMESTAMP: {
+          int64_t ts = convertTimePrecision(*((int64_t *)row[i]), precision, TSDB_TIME_PRECISION_MILLI);
+          httpJsonInt64(jsonBuf, ts);
           break;
+        }
         default:
           httpJsonString(jsonBuf, "-", 1);
           break;

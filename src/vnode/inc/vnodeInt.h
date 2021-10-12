@@ -26,6 +26,7 @@ extern "C" {
 #include "vnode.h"
 
 extern int32_t vDebugFlag;
+extern int32_t vNumOfExistedQHandle;   // current initialized and existed query handle in current dnode
 
 #define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __VA_ARGS__); }}
 #define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __VA_ARGS__); }}
@@ -41,6 +42,8 @@ typedef struct {
   int32_t  queuedWMsg;
   int32_t  queuedRMsg;
   int32_t  flowctrlLevel;
+  int8_t   preClose;  // drop and close switch
+  int8_t   reserved[3];
   int64_t  sequence;  // for topic
   int8_t   status;
   int8_t   role;

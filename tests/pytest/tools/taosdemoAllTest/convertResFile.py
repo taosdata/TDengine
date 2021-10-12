@@ -2,6 +2,14 @@ from datetime import datetime
 import time
 import os
 
+# class  FileSeparaSpaceConvertcomma:
+#     def __init__(self):
+#         self.inputfile = ""
+#         self.oputfile = ""
+#         self.affectedRows = 0
+   
+#     def ConvertFile(self, inputfile,):
+
 os.system("awk -v  OFS=','  '{$1=$1;print$0}' ./all_query_res0.txt  > ./new_query_res0.txt")
 with open('./new_query_res0.txt','r+') as f0:
     contents = f0.readlines()

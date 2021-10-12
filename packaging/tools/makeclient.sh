@@ -41,10 +41,10 @@ fi
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
-    #strip ${build_dir}/bin/taosd 
+    #strip ${build_dir}/bin/taosd
     strip ${build_dir}/bin/taos
     bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
-  else  
+  else
     bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${build_dir}/bin/taosdemo \
                ${script_dir}/remove_client.sh ${script_dir}/set_core.sh ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
   fi
@@ -68,6 +68,39 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
+
+if [ -f ${build_dir}/bin/jemalloc-config ]; then
+    mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
+    cp ${build_dir}/bin/jemalloc-config ${install_dir}/jemalloc/bin
+    if [ -f ${build_dir}/bin/jemalloc.sh ]; then
+        cp ${build_dir}/bin/jemalloc.sh ${install_dir}/jemalloc/bin
+    fi
+    if [ -f ${build_dir}/bin/jeprof ]; then
+        cp ${build_dir}/bin/jeprof ${install_dir}/jemalloc/bin
+    fi
+    if [ -f ${build_dir}/include/jemalloc/jemalloc.h ]; then
+        cp ${build_dir}/include/jemalloc/jemalloc.h ${install_dir}/jemalloc/include/jemalloc
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc.so.2 ]; then
+        cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
+        ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+        cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+        cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+    fi
+    if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
+        cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
+    fi
+    if [ -f ${build_dir}/share/doc/jemalloc/jemalloc.html ]; then
+        cp ${build_dir}/share/doc/jemalloc/jemalloc.html ${install_dir}/jemalloc/share/doc/jemalloc
+    fi
+    if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
+        cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
+    fi
+fi
 
 cd ${install_dir}
 
@@ -106,7 +139,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/C#     ${install_dir}/examples
 fi
 # Copy driver
-mkdir -p ${install_dir}/driver 
+mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
 
 # Copy connector
@@ -117,38 +150,49 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
   fi
-  cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
-  cp -r ${connector_dir}/python        ${install_dir}/connector/
-  cp -r ${connector_dir}/go            ${install_dir}/connector
-  cp -r ${connector_dir}/nodejs        ${install_dir}/connector
+  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
+    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
+  else
+    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
+  fi
+  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+    cp -r ${connector_dir}/go ${install_dir}/connector
+  else
+    echo "WARNING: go connector not found, please check if want to use it!"
+  fi
+  cp -r ${connector_dir}/python             ${install_dir}/connector
+  cp -r ${connector_dir}/nodejs             ${install_dir}/connector
 fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
 
 # exit 1
 
-cd ${release_dir} 
+cd ${release_dir}
 
-if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${osType}-${cpuType}
-elif [ "$verMode" == "edge" ]; then
-  pkg_name=${install_dir}-${osType}-${cpuType}
+#  install_dir has been distinguishes  cluster from  edege, so comments this code
+pkg_name=${install_dir}-${osType}-${cpuType}
+
+# if [ "$verMode" == "cluster" ]; then
+#   pkg_name=${install_dir}-${osType}-${cpuType}
+# elif [ "$verMode" == "edge" ]; then
+#   pkg_name=${install_dir}-${osType}-${cpuType}
+# else
+#   echo "unknow verMode, nor cluster or edge"
+#   exit 1
+# fi
+
+if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
+elif [ "$verType" == "stable" ]; then
+  pkg_name=${pkg_name}
 else
-  echo "unknow verMode, nor cluster or edge"
+  echo "unknow verType, nor stabel or beta"
   exit 1
 fi
 
 if [ "$pagMode" == "lite" ]; then
   pkg_name=${pkg_name}-Lite
-fi
-
-if [ "$verType" == "beta" ]; then
-  pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then  
-  pkg_name=${pkg_name} 
-else
-  echo "unknow verType, nor stable or beta"
-  exit 1
 fi
 
 if [ "$osType" != "Darwin" ]; then

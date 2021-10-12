@@ -18,121 +18,9 @@
 #include "ttype.h"
 #include "tutil.h"
 #include "tarithoperator.h"
+#include "tcompare.h"
 
-#define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord)     \
-  {                                                                                                   \
-    int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 \
-    int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               \
-                                                                                                      \
-    if ((len1) == (len2)) {                                                                           \
-      for (; i < (len2) && i >= 0; i += step, (out) += 1) {                                           \
-        if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)&((right)[i]), _right_type)) { \
-          SET_DOUBLE_NULL(out);                                                                       \
-          continue;                                                                                   \
-        }                                                                                             \
-        *(out) = (double)(left)[i] op(right)[i];                                                      \
-      }                                                                                               \
-    } else if ((len1) == 1) {                                                                         \
-      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                           \
-        if (isNull((char *)(left), _left_type) || isNull((char *)&(right)[i], _right_type)) {         \
-          SET_DOUBLE_NULL(out);                                                                       \
-          continue;                                                                                   \
-        }                                                                                             \
-        *(out) = (double)(left)[0] op(right)[i];                                                      \
-      }                                                                                               \
-    } else if ((len2) == 1) {                                                                         \
-      for (; i >= 0 && i < (len1); i += step, (out) += 1) {                                           \
-        if (isNull((char *)&(left)[i], _left_type) || isNull((char *)(right), _right_type)) {         \
-          SET_DOUBLE_NULL(out);                                                                       \
-          continue;                                                                                   \
-        }                                                                                             \
-        *(out) = (double)(left)[i] op(right)[0];                                                      \
-      }                                                                                               \
-    }                                                                                                 \
-  }
-
-#define ARRAY_LIST_OP_REM(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord) \
-  {                                                                                                   \
-    int32_t i = (_ord == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                   \
-    int32_t step = (_ord == TSDB_ORDER_ASC) ? 1 : -1;                                                 \
-                                                                                                      \
-    if (len1 == (len2)) {                                                                             \
-      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                           \
-        if (isNull((char *)&(left[i]), _left_type) || isNull((char *)&(right[i]), _right_type)) {     \
-          SET_DOUBLE_NULL(out);                                                                       \
-          continue;                                                                                   \
-        }                                                                                             \
-        *(out) = (double)(left)[i] - ((int64_t)(((double)(left)[i]) / (right)[i])) * (right)[i];      \
-      }                                                                                               \
-    } else if (len1 == 1) {                                                                           \
-      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                           \
-        if (isNull((char *)(left), _left_type) || isNull((char *)&((right)[i]), _right_type)) {       \
-          SET_DOUBLE_NULL(out);                                                                       \
-          continue;                                                                                   \
-        }                                                                                             \
-        *(out) = (double)(left)[0] - ((int64_t)(((double)(left)[0]) / (right)[i])) * (right)[i];      \
-      }                                                                                               \
-    } else if ((len2) == 1) {                                                                         \
-      for (; i >= 0 && i < len1; i += step, (out) += 1) {                                             \
-        if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)(right), _right_type)) {       \
-          SET_DOUBLE_NULL(out);                                                                       \
-          continue;                                                                                   \
-        }                                                                                             \
-        *(out) = (double)(left)[i] - ((int64_t)(((double)(left)[i]) / (right)[0])) * (right)[0];      \
-      }                                                                                               \
-    }                                                                                                 \
-  }
-
-#define ARRAY_LIST_ADD(left, right, _left_type, _right_type, len1, len2, out, _ord) \
-  ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, +, TSDB_DATA_TYPE_DOUBLE, _ord)
-#define ARRAY_LIST_SUB(left, right, _left_type, _right_type, len1, len2, out, _ord) \
-  ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, -, TSDB_DATA_TYPE_DOUBLE, _ord)
-#define ARRAY_LIST_MULTI(left, right, _left_type, _right_type, len1, len2, out, _ord) \
-  ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, *, TSDB_DATA_TYPE_DOUBLE, _ord)
-#define ARRAY_LIST_DIV(left, right, _left_type, _right_type, len1, len2, out, _ord) \
-  ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, /, TSDB_DATA_TYPE_DOUBLE, _ord)
-#define ARRAY_LIST_REM(left, right, _left_type, _right_type, len1, len2, out, _ord) \
-  ARRAY_LIST_OP_REM(left, right, _left_type, _right_type, len1, len2, out, %, TSDB_DATA_TYPE_DOUBLE, _ord)
-
-#define TYPE_CONVERT_DOUBLE_RES(left, right, out, _type_left, _type_right, _type_res) \
-  _type_left * pLeft = (_type_left *)(left);                                          \
-  _type_right *pRight = (_type_right *)(right);                                       \
-  _type_res *  pOutput = (_type_res *)(out);
-
-#define DO_VECTOR_ADD(left, numLeft, leftType, leftOriginType, right, numRight, rightType, rightOriginType, _output, \
-                      _order)                                                                                        \
-  do {                                                                                                               \
-    TYPE_CONVERT_DOUBLE_RES(left, right, _output, leftOriginType, rightOriginType, double);                          \
-    ARRAY_LIST_ADD(pLeft, pRight, leftType, rightType, numLeft, numRight, pOutput, _order);                          \
-  } while (0)
-
-#define DO_VECTOR_SUB(left, numLeft, leftType, leftOriginType, right, numRight, rightType, rightOriginType, _output, \
-                      _order)                                                                                        \
-  do {                                                                                                               \
-    TYPE_CONVERT_DOUBLE_RES(left, right, _output, leftOriginType, rightOriginType, double);                          \
-    ARRAY_LIST_SUB(pLeft, pRight, leftType, rightType, numLeft, numRight, pOutput, _order);                          \
-  } while (0)
-
-#define DO_VECTOR_MULTIPLY(left, numLeft, leftType, leftOriginType, right, numRight, rightType, rightOriginType, \
-                           _output, _order)                                                                      \
-  do {                                                                                                           \
-    TYPE_CONVERT_DOUBLE_RES(left, right, _output, leftOriginType, rightOriginType, double);                      \
-    ARRAY_LIST_MULTI(pLeft, pRight, leftType, rightType, numLeft, numRight, pOutput, _order);                    \
-  } while (0)
-
-#define DO_VECTOR_DIVIDE(left, numLeft, leftType, leftOriginType, right, numRight, rightType, rightOriginType, \
-                         _output, _order)                                                                      \
-  do {                                                                                                         \
-    TYPE_CONVERT_DOUBLE_RES(left, right, _output, leftOriginType, rightOriginType, double);                    \
-    ARRAY_LIST_DIV(pLeft, pRight, leftType, rightType, numLeft, numRight, pOutput, _order);                    \
-  } while (0)
-
-#define DO_VECTOR_REMAINDER(left, numLeft, leftType, leftOriginType, right, numRight, rightType, rightOriginType, \
-                            _output, _order)                                                                      \
-  do {                                                                                                            \
-    TYPE_CONVERT_DOUBLE_RES(left, right, _output, leftOriginType, rightOriginType, double);                       \
-    ARRAY_LIST_REM(pLeft, pRight, leftType, rightType, numLeft, numRight, pOutput, _order);                       \
-  } while (0)
+//GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                
 
 void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight, void *output, int32_t order) {
   int32_t *pLeft = (int32_t *)left;
@@ -171,2389 +59,338 @@ void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight
   }
 }
 
-void vectorAdd(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight, int32_t rightType,
-               void *output, int32_t order) {
-  switch(leftType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
+typedef double (*_arithmetic_getVectorDoubleValue_fn_t)(void *src, int32_t index);
+
+double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
+  return (double)*((int8_t *)src + index);
+}
+double getVectorDoubleValue_UTINYINT(void *src, int32_t index) {
+  return (double)*((uint8_t *)src + index);
+}
+double getVectorDoubleValue_SMALLINT(void *src, int32_t index) {
+  return (double)*((int16_t *)src + index);
+}
+double getVectorDoubleValue_USMALLINT(void *src, int32_t index) {
+  return (double)*((uint16_t *)src + index);
+}
+double getVectorDoubleValue_INT(void *src, int32_t index) {
+  return (double)*((int32_t *)src + index);
+}
+double getVectorDoubleValue_UINT(void *src, int32_t index) {
+  return (double)*((uint32_t *)src + index);
+}
+double getVectorDoubleValue_BIGINT(void *src, int32_t index) {
+  return (double)*((int64_t *)src + index);
+}
+double getVectorDoubleValue_UBIGINT(void *src, int32_t index) {
+  return (double)*((uint64_t *)src + index);
+}
+double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
+  return (double)*((float *)src + index);
+}
+double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
+  return (double)*((double *)src + index);
+}
+_arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
+    _arithmetic_getVectorDoubleValue_fn_t p = NULL;
+    if(srcType==TSDB_DATA_TYPE_TINYINT) {
+        p = getVectorDoubleValue_TINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
+        p = getVectorDoubleValue_UTINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
+        p = getVectorDoubleValue_SMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
+        p = getVectorDoubleValue_USMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_INT) {
+        p = getVectorDoubleValue_INT;
+    }else if(srcType==TSDB_DATA_TYPE_UINT) {
+        p = getVectorDoubleValue_UINT;
+    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
+        p = getVectorDoubleValue_BIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
+        p = getVectorDoubleValue_UBIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
+        p = getVectorDoubleValue_FLOAT;
+    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
+        p = getVectorDoubleValue_DOUBLE;
+    }else {
+        assert(0);
     }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, int64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, uint64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, float, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_ADD(left, numLeft, leftType, double, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    default:;
-  }
+    return p;
 }
 
-void vectorSub(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight, int32_t rightType,
-               void *output, int32_t order) {
-  switch(leftType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, int64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, uint64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, float, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_SUB(left, numLeft, leftType, double, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    default:;
-  }
+
+typedef void* (*_arithmetic_getVectorValueAddr_fn_t)(void *src, int32_t index);
+
+void* getVectorValueAddr_TINYINT(void *src, int32_t index) {
+  return (void*)((int8_t *)src + index);
+}
+void* getVectorValueAddr_UTINYINT(void *src, int32_t index) {
+  return (void*)((uint8_t *)src + index);
+}
+void* getVectorValueAddr_SMALLINT(void *src, int32_t index) {
+  return (void*)((int16_t *)src + index);
+}
+void* getVectorValueAddr_USMALLINT(void *src, int32_t index) {
+  return (void*)((uint16_t *)src + index);
+}
+void* getVectorValueAddr_INT(void *src, int32_t index) {
+  return (void*)((int32_t *)src + index);
+}
+void* getVectorValueAddr_UINT(void *src, int32_t index) {
+  return (void*)((uint32_t *)src + index);
+}
+void* getVectorValueAddr_BIGINT(void *src, int32_t index) {
+  return (void*)((int64_t *)src + index);
+}
+void* getVectorValueAddr_UBIGINT(void *src, int32_t index) {
+  return (void*)((uint64_t *)src + index);
+}
+void* getVectorValueAddr_FLOAT(void *src, int32_t index) {
+  return (void*)((float *)src + index);
+}
+void* getVectorValueAddr_DOUBLE(void *src, int32_t index) {
+  return (void*)((double *)src + index);
 }
 
-void vectorMultiply(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight, int32_t rightType,
-               void *output, int32_t order) {
-  switch(leftType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
+_arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
+    _arithmetic_getVectorValueAddr_fn_t p = NULL;
+    if(srcType==TSDB_DATA_TYPE_TINYINT) {
+        p = getVectorValueAddr_TINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
+        p = getVectorValueAddr_UTINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
+        p = getVectorValueAddr_SMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
+        p = getVectorValueAddr_USMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_INT) {
+        p = getVectorValueAddr_INT;
+    }else if(srcType==TSDB_DATA_TYPE_UINT) {
+        p = getVectorValueAddr_UINT;
+    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
+        p = getVectorValueAddr_BIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
+        p = getVectorValueAddr_UBIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
+        p = getVectorValueAddr_FLOAT;
+    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
+        p = getVectorValueAddr_DOUBLE;
+    }else {
+        assert(0);
     }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, int64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, uint64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, float, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_MULTIPLY(left, numLeft, leftType, double, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    default:;
-  }
+    return p;
 }
 
-void vectorDivide(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight, int32_t rightType,
-                    void *output, int32_t order) {
-  switch(leftType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, int64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, uint64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, float, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_DIVIDE(left, numLeft, leftType, double, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    default:;
-  }
+void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+                                                                                                 
+  if ((len1) == (len2)) {                                                                           
+    for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len1) == 1) {                                                                         
+    for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) + getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len2) == 1) {                                                                         
+    for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,0));                                                        
+    }                                                                                               
+  }                                                                                                 
 }
-
-void vectorRemainder(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight, int32_t rightType,
-                    void *output, int32_t order) {
-  switch(leftType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint8_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint16_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint32_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, int64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, uint64_t, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, float, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      switch (rightType) {
-        case TSDB_DATA_TYPE_TINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, int8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, uint8_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, int16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, uint16_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, int32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, uint32_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, int64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, uint64_t, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, float, output, order);
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          DO_VECTOR_REMAINDER(left, numLeft, leftType, double, right, numRight, rightType, double, output, order);
-          break;
-        }
-        default:
-          assert(0);
-      }
-      break;
-    }
-    default:;
-  }
+void vectorSub(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+                                                                                                  
+  if ((len1) == (len2)) {                                                                           
+    for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len1) == 1) {                                                                         
+    for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) - getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len2) == 1) {                                                                         
+    for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,0));                                                        
+    }                                                                                               
+  }                                                                                                 
+}
+void vectorMultiply(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+                                                                                                  
+  if ((len1) == (len2)) {                                                                           
+    for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) * getVectorDoubleValueFnRight(right,i));    
+    }                                                                                               
+  } else if ((len1) == 1) {                                                                         
+    for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) * getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len2) == 1) {                                                                         
+    for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) * getVectorDoubleValueFnRight(right,0));                                                        
+    }                                                                                               
+  }                                                                                                 
+}
+void vectorDivide(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {                
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
+  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+                                                                                                    
+  if ((len1) == (len2)) {                                                                           
+    for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      double v, u = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) /getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len1) == 1) {                                                                         
+    for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      double v, u = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) /getVectorDoubleValueFnRight(right,i));                                                       
+    }                                                                                               
+  } else if ((len2) == 1) {                                                                         
+    for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      double v, u = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,0));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) /getVectorDoubleValueFnRight(right,0));                                                       
+    }                                                                                               
+  }                                                                                                 
+} 
+void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
+  int32_t i = (_ord == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                   
+  int32_t step = (_ord == TSDB_ORDER_ASC) ? 1 : -1;                                                 
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+                                                                                                    
+  if (len1 == (len2)) {                                                                             
+    for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {     
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      double v, u = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - ((int64_t)(getVectorDoubleValueFnLeft(left,i) / getVectorDoubleValueFnRight(right,i))) * getVectorDoubleValueFnRight(right,i));      
+    }                                                                                               
+  } else if (len1 == 1) {                                                                           
+    for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {       
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      double v, u = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) - ((int64_t)(getVectorDoubleValueFnLeft(left,0) / getVectorDoubleValueFnRight(right,i))) * getVectorDoubleValueFnRight(right,i));      
+    }                                                                                               
+  } else if ((len2) == 1) {                                                                         
+    for (; i >= 0 && i < len1; i += step, output += 1) {                                             
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {       
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      double v, u = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,0));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+        SET_DOUBLE_NULL(output);                                                                       
+        continue;                                                                                   
+      }                                                                                             
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - ((int64_t)(getVectorDoubleValueFnLeft(left,i) / getVectorDoubleValueFnRight(right,0))) * getVectorDoubleValueFnRight(right,0));      
+    }                                                                                               
+  }                                                                                                 
 }
 
 _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
@@ -2569,6 +406,7 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
     case TSDB_BINARY_OP_REMAINDER:
       return vectorRemainder;
     default:
+      assert(0);
       return NULL;
   }
 }

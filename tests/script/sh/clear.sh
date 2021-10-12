@@ -2,7 +2,7 @@
 
 echo "Executing clear.sh"
 
-if [ $# != 6 ]; then 
+if [ $# != 6 ]; then
   echo "argument list need input : "
   echo "  -n nodeName"
   echo "  -i nodeIp"
@@ -10,10 +10,12 @@ if [ $# != 6 ]; then
   exit 1
 fi
 
+UNAME_BIN=`which uname`
+OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 NODE_IP=
 MSATER_IP=
-while getopts "n:i:m:" arg 
+while getopts "n:i:m:" arg
 do
   case $arg in
     n)
@@ -34,7 +36,7 @@ done
 SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
-echo "SCRIPT_DIR: $SCRIPT_DIR" 
+echo "SCRIPT_DIR: $SCRIPT_DIR"
 
 IN_TDINTERNAL="community"
 if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
@@ -46,10 +48,16 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$OS_TYPE" != "Darwin" ]]; then
+  cut_opt="--field="
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+  cut_opt="-f "
+fi
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
@@ -88,7 +96,7 @@ TAOS_CFG=$NODE_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
 
 TAOS_FLAG=$SIM_DIR/tsim/flag
-if [ -f "$TAOS_FLAG" ] ; then 
+if [ -f "$TAOS_FLAG" ] ; then
   TAOS_CFG=/etc/taos/taos.cfg
   DATA_DIR=/var/lib/taos
   LOG_DIR=/var/log/taos
@@ -98,7 +106,7 @@ if [ -f "$TAOS_FLAG" ] ; then
   sudo rm -rf $LOG_DIR
 fi
 
-echo " "                                  >> $TAOS_CFG   
+echo " "                                  >> $TAOS_CFG
 echo "masterIp            $MASTER_IP"     >> $TAOS_CFG
 echo "dataDir             $DATA_DIR"      >> $TAOS_CFG
 echo "logDir              $LOG_DIR"       >> $TAOS_CFG

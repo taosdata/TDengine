@@ -14,6 +14,8 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
 import java.util.logging.Logger;
@@ -100,6 +102,11 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_TIMESTAMP_FORMAT = "timestampFormat";
 
+    /**
+     * continue process commands in executeBatch
+     */
+    public static final String PROPERTY_KEY_BATCH_ERROR_IGNORE = "batchErrorIgnore";
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {
@@ -111,9 +118,6 @@ public class TSDBDriver extends AbstractDriver {
     }
 
     public Connection connect(String url, Properties info) throws SQLException {
-        if (url == null)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
-
         if (!acceptsURL(url))
             return null;
 
@@ -122,9 +126,13 @@ public class TSDBDriver extends AbstractDriver {
             return null;
         }
 
+        if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
+        if (!props.containsKey(TSDBDriver.PROPERTY_KEY_PASSWORD))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED);
+
         try {
-            TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),
-                    (String) props.get(PROPERTY_KEY_CHARSET), (String) props.get(PROPERTY_KEY_TIME_ZONE));
+            TSDBJNIConnector.init(props);
             return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLWarning sqlWarning) {
             sqlWarning.printStackTrace();
@@ -176,7 +184,7 @@ public class TSDBDriver extends AbstractDriver {
         int beginningOfSlashes = url.indexOf("//");
         int index = url.indexOf("?");
         if (index != -1) {
-            String paramString = url.substring(index + 1, url.length());
+            String paramString = url.substring(index + 1);
             url = url.substring(0, index);
             StringTokenizer queryParams = new StringTokenizer(paramString, "&");
             while (queryParams.hasMoreElements()) {
@@ -193,6 +201,7 @@ public class TSDBDriver extends AbstractDriver {
         String dbProductName = url.substring(0, beginningOfSlashes);
         dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
         dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
+        urlProps.setProperty(TSDBDriver.PROPERTY_KEY_PRODUCT_NAME, dbProductName);
 
         // parse database name
         url = url.substring(beginningOfSlashes + 2);
@@ -213,7 +222,7 @@ public class TSDBDriver extends AbstractDriver {
             url = url.substring(0, indexOfColon);
         }
 
-        if (url != null && url.length() > 0 && url.trim().length() > 0) {
+        if (url.length() > 0 && url.trim().length() > 0) {
             urlProps.setProperty(TSDBDriver.PROPERTY_KEY_HOST, url);
         }
 
@@ -233,7 +242,7 @@ public class TSDBDriver extends AbstractDriver {
         return false;
     }
 
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+    public Logger getParentLogger() {
         return null;
     }
 

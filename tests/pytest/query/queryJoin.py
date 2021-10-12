@@ -13,6 +13,8 @@
 
 import sys
 import taos
+import string
+import random
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -22,6 +24,11 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+
+    def get_random_string(self, length):
+        letters = string.ascii_lowercase
+        result_str = ''.join(random.choice(letters) for i in range(length)) 
+        return result_str
 
     def run(self):
         tdSql.prepare()
@@ -176,7 +183,29 @@ class TDTestCase:
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2 order by join_mt0.t1 desc slimit 3")
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2, join_mt1.t1 order by join_mt0.ts desc, join_mt1.ts asc limit 10;")
         tdSql.error("select join_mt1.c1,join_mt0.c1 from join_mt1,join_mt0 where join_mt1.ts = join_mt0.ts and join_mt1.t1 = join_mt0.t1 order by t")
+        #TD-4458 join on database which using precision us 
+        tdSql.execute("create database test_join_us precision 'us'")
+        tdSql.execute("use test_join_us")
+        ts = 1538548685000000
+        for i in range(2):
+            tdSql.execute("create table t%d (ts timestamp, i int)"%i)
+            tdSql.execute("insert into t%d values(%d,11)(%d,12)"%(i,ts,ts+1))
+        tdSql.query("select t1.ts from t0,t1 where t0.ts = t1.ts")
+        tdSql.checkData(0,0,'2018-10-03 14:38:05.000000')
 
+        #TD-6425 join result more than 1MB
+        tdSql.execute("create database test_join")
+        tdSql.execute("use test_join")
+
+        ts = 1538548685000
+        tdSql.execute("create table stb(ts timestamp, c1 nchar(200)) tags(id int, loc binary(20))")
+        for i in range(2):
+            tdSql.execute("create table tb%d using stb tags(1, 'city%d')" % (i, i))
+            for j in range(1000):
+                tdSql.execute("insert into tb%d values(%d, '%s')" %  (i, ts + j, self.get_random_string(200)))
+
+        tdSql.query("select tb0.c1, tb1.c1 from tb0, tb1 where tb0.ts = tb1.ts")
+        tdSql.checkRows(1000)            
 
     def stop(self):
         tdSql.close()

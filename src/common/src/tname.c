@@ -33,15 +33,6 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
   return strlen(prefix);
 }
 
-SSchema tGetBlockDistColumnSchema() {
-  SSchema s = {0};
-  s.bytes = TSDB_MAX_BINARY_LEN;;
-  s.type  = TSDB_DATA_TYPE_BINARY;
-  s.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
-  tstrncpy(s.name, TSQL_BLOCK_DIST_L, TSDB_COL_NAME_LEN);
-  return s;
-}
-
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
   SSchema s = {0};
 
@@ -68,8 +59,9 @@ bool tscValidateTableNameLength(size_t len) {
   return len < TSDB_TABLE_NAME_LEN;
 }
 
+// TODO refactor
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
-  if (numOfFilters == 0) {
+  if (numOfFilters == 0 || src == NULL) {
     assert(src == NULL);
     return NULL;
   }
@@ -78,12 +70,11 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
 
   memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
   for (int32_t j = 0; j < numOfFilters; ++j) {
-
     if (pFilter[j].filterstr) {
       size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
       pFilter[j].pz = (int64_t) calloc(1, len);
 
-      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t)len);
+      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
     }
   }
 
@@ -160,6 +151,63 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
+
+char *tableNameGetPosition(SStrToken* pToken, char target) {
+  bool inEscape = false;
+  bool inQuote = false;
+  char quotaStr = 0;
+  
+  for (uint32_t i = 0; i < pToken->n; ++i) {
+    if (*(pToken->z + i) == target && (!inEscape) && (!inQuote)) {
+      return pToken->z + i;
+    }
+  
+    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
+      if (!inQuote) {
+        inEscape = !inEscape;
+      }
+    }
+  
+    if (*(pToken->z + i) == '\'' || *(pToken->z + i) == '"') {
+      if (!inEscape) {
+        if (!inQuote) {
+          quotaStr = *(pToken->z + i);
+          inQuote = !inQuote;
+        } else if (quotaStr == *(pToken->z + i)) {
+          inQuote = !inQuote;
+        }          
+      }
+    }
+  }
+
+  return NULL;
+}
+
+char *tableNameToStr(char *dst, char *src, char quote) {
+  *dst = 0;
+
+  if (src == NULL) {
+    return NULL;
+  }
+  
+  int32_t len = (int32_t)strlen(src);
+  if (len <= 0) {
+    return NULL;
+  }
+
+  int32_t j = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    if (*(src + i) == quote) {
+      *(dst + j++) = '\\';
+    }
+
+    *(dst + j++) = *(src + i);
+  }
+
+  return dst;
+}
+
+
 /*
  * tablePrefix.columnName
  * extract table name and save it in pTable, with only column name in pToken
@@ -171,12 +219,17 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
     return;
   }
 
-  char* r = strnchr(pToken->z, sep, pToken->n, false);
+  char* r = tableNameGetPosition(pToken, sep);  
 
-  if (r != NULL) {  // record the table name token
-    pTable->n = (uint32_t)(r - pToken->z);
-    pTable->z = pToken->z;
-
+  if (r != NULL) {  // record the table name token    
+    if (pToken->z[0] == TS_ESCAPE_CHAR && *(r - 1) == TS_ESCAPE_CHAR) {
+      pTable->n = (uint32_t)(r - pToken->z - 2);
+      pTable->z = pToken->z + 1;
+    } else {
+      pTable->n = (uint32_t)(r - pToken->z);
+      pTable->z = pToken->z;
+    }
+    
     r += 1;
     pToken->n -= (uint32_t)(r - pToken->z);
     pToken->z = r;
@@ -264,7 +317,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return -1;
   }
 
-  int32_t len = snprintf(dst, TSDB_ACCT_ID_LEN + 1 + TSDB_DB_NAME_LEN, "%s.%s", name->acctId, name->dbname);
+  int32_t len = snprintf(dst, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN, "%s.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
@@ -314,7 +367,7 @@ bool tIsValidName(const SName* name) {
 SName* tNameDup(const SName* name) {
   assert(name != NULL);
 
-  SName* p = calloc(1, sizeof(SName));
+  SName* p = malloc(sizeof(SName));
   memcpy(p, name, sizeof(SName));
   return p;
 }
@@ -327,7 +380,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
-  snprintf(dst, TSDB_ACCT_ID_LEN + TS_PATH_DELIMITER_LEN + TSDB_DB_NAME_LEN,
+  snprintf(dst, TSDB_ACCT_ID_LEN + TS_PATH_DELIMITER_LEN + TSDB_DB_NAME_LEN,    // there is a over write risk
       "%s.%s", name->acctId, name->dbname);
   return 0;
 }

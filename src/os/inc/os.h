@@ -20,58 +20,24 @@
 extern "C" {
 #endif
 
-#ifdef _TD_DARWIN_64
-#include "osDarwin.h"
-#endif
-
-#ifdef _TD_ARM_64
-#include "osArm64.h"
-#endif
-
-#ifdef _TD_ARM_32
-#include "osArm32.h"
-#endif
-
-#ifdef _TD_MIPS_64
-#include "osMips64.h"
-#endif
-
-#ifdef _TD_LINUX_64
-#include "osLinux64.h"
-#endif
-
-#ifdef _TD_LINUX_32
-#include "osLinux32.h"
-#endif
-
-#ifdef _ALPINE
-#include "osAlpine.h"
-#endif
-
-#ifdef _TD_NINGSI_60
-#include "osNingsi.h"
-#endif
-
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-#include "osWindows.h"
-#endif
-
+#include "osInc.h"
 #include "osDef.h"
 #include "osAtomic.h"
-#include "osCommon.h"
 #include "osDir.h"
 #include "osFile.h"
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
 #include "osRand.h"
-#include "osSemphone.h"
+#include "osSemaphore.h"
 #include "osSignal.h"
+#include "osSleep.h"
 #include "osSocket.h"
 #include "osString.h"
 #include "osSysinfo.h"
 #include "osTime.h"
 #include "osTimer.h"
+#include "osSystem.h"
 
 void osInit();
 

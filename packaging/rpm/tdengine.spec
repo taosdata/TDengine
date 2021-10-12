@@ -1,4 +1,5 @@
 %define homepath         /usr/local/taos
+%define userlocalpath    /usr/local
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
 
@@ -12,22 +13,22 @@ URL:		  www.taosdata.com
 AutoReqProv: no
 
 #BuildRoot:  %_topdir/BUILDROOT
-BuildRoot:   %{_tmppath}/%{name}-%{version}-%{release}-root 
+BuildRoot:   %{_tmppath}/%{name}-%{version}-%{release}-root
 
 #Prefix: /usr/local/taos
 
-#BuildRequires:	
-#Requires:	
+#BuildRequires:
+#Requires:
 
 %description
 Big Data Platform Designed and Optimized for IoT
 
-#"prep" Nothing needs to be done 
+#"prep" Nothing needs to be done
 #%prep
 #%setup -q
-#%setup -T 
+#%setup -T
 
-#"build" Nothing needs to be done 
+#"build" Nothing needs to be done
 #%build
 #%configure
 #make %{?_smp_mflags}
@@ -66,12 +67,61 @@ cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
-cp -r %{_compiledir}/../src/connector/grafanaplugin %{buildroot}%{homepath}/connector
+if [ -d %{_compiledir}/../src/connector/grafanaplugin/dist ]; then
+    cp -r %{_compiledir}/../src/connector/grafanaplugin/dist %{buildroot}%{homepath}/connector/grafanaplugin
+else
+    echo grafanaplugin bundled directory not found!
+    exit 1
+fi
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
-cp %{_compiledir}/build/lib/taos-jdbcdriver*dist.*  %{buildroot}%{homepath}/connector ||:
+cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
+
+
+if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
+    mkdir -p %{buildroot}%{userlocalpath}/bin
+    mkdir -p %{buildroot}%{userlocalpath}/lib
+    mkdir -p %{buildroot}%{userlocalpath}/lib/pkgconfig
+    mkdir -p %{buildroot}%{userlocalpath}/include
+    mkdir -p %{buildroot}%{userlocalpath}/include/jemalloc
+    mkdir -p %{buildroot}%{userlocalpath}/share
+    mkdir -p %{buildroot}%{userlocalpath}/share/doc
+    mkdir -p %{buildroot}%{userlocalpath}/share/doc/jemalloc
+    mkdir -p %{buildroot}%{userlocalpath}/share/man
+    mkdir -p %{buildroot}%{userlocalpath}/share/man/man3
+
+    cp %{_compiledir}/build/bin/jemalloc-config %{buildroot}%{userlocalpath}/bin/
+    if [ -f %{_compiledir}/build/bin/jemalloc.sh ]; then
+        cp %{_compiledir}/build/bin/jemalloc.sh %{buildroot}%{userlocalpath}/bin/
+    fi
+    if [ -f %{_compiledir}/build/bin/jeprof ]; then
+        cp %{_compiledir}/build/bin/jeprof %{buildroot}%{userlocalpath}/bin/
+    fi
+    if [ -f %{_compiledir}/build/include/jemalloc/jemalloc.h ]; then
+        cp %{_compiledir}/build/include/jemalloc/jemalloc.h %{buildroot}%{userlocalpath}/include/jemalloc/
+    fi
+    if [ -f %{_compiledir}/build/lib/libjemalloc.so.2 ]; then
+        cp %{_compiledir}/build/lib/libjemalloc.so.2 %{buildroot}%{userlocalpath}/lib/
+        ln -sf libjemalloc.so.2 %{buildroot}%{userlocalpath}/lib/libjemalloc.so
+    fi
+    if [ -f %{_compiledir}/build/lib/libjemalloc.a ]; then
+        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{userlocalpath}/lib/
+    fi
+    if [ -f %{_compiledir}/build/lib/libjemalloc_pic.a ]; then
+        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{userlocalpath}/lib/
+    fi
+    if [ -f %{_compiledir}/build/lib/pkgconfig/jemalloc.pc ]; then
+        cp %{_compiledir}/build/lib/pkgconfig/jemalloc.pc %{buildroot}%{userlocalpath}/lib/pkgconfig/
+    fi
+    if [ -f %{_compiledir}/build/share/doc/jemalloc/jemalloc.html ]; then
+        cp %{_compiledir}/build/share/doc/jemalloc/jemalloc.html %{buildroot}%{userlocalpath}/share/doc/jemalloc/
+    fi
+    if [ -f %{_compiledir}/build/share/man/man3/jemalloc.3 ]; then
+        cp %{_compiledir}/build/share/man/man3/jemalloc.3 %{buildroot}%{userlocalpath}/share/man/man3/
+    fi
+fi
 
 #Scripts executed before installation
 %pre
@@ -98,7 +148,7 @@ fi
 # if taos.cfg already softlink, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
-fi 
+fi
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo} rm -f %{homepath}/driver/libtaos*   || :
@@ -111,18 +161,18 @@ if command -v sudo > /dev/null; then
 fi
 cd %{homepath}/script
 ${csudo} ./post.sh
- 
+
 # Scripts executed before uninstall
 %preun
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo"
 fi
-# only remove package to call preun.sh, not but update(2) 
+# only remove package to call preun.sh, not but update(2)
 if [ $1 -eq 0 ];then
   #cd %{homepath}/script
   #${csudo} ./preun.sh
-  
+
   if [ -f %{homepath}/script/preun.sh ]; then
     cd %{homepath}/script
     ${csudo} ./preun.sh
@@ -130,7 +180,7 @@ if [ $1 -eq 0 ];then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
     inc_link_dir="/usr/include"
-    
+
     data_link_dir="/usr/local/taos/data"
     log_link_dir="/usr/local/taos/log"
     cfg_link_dir="/usr/local/taos/cfg"
@@ -144,20 +194,20 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
-    
+
     ${csudo} rm -f ${log_link_dir}            || :
     ${csudo} rm -f ${data_link_dir}           || :
-    
+
     pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
       ${csudo} kill -9 $pid   || :
-    fi    
-  fi  
+    fi
+  fi
 fi
- 
+
 # Scripts executed after uninstall
 %postun
- 
+
 # clean build dir
 %clean
 csudo=""

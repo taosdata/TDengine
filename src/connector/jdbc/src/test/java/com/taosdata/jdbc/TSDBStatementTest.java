@@ -15,24 +15,6 @@ public class TSDBStatementTest {
     private static Statement stmt;
 
     @Test
-    public void executeQuery() {
-        try {
-            ResultSet rs = stmt.executeQuery("show databases");
-            Assert.assertNotNull(rs);
-            ResultSetMetaData meta = rs.getMetaData();
-            while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-                }
-                System.out.println();
-            }
-            rs.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Test
     public void executeUpdate() {
         final String dbName = ("test_" + UUID.randomUUID()).replace("-", "_").substring(0, 32);
         try {
@@ -173,10 +155,6 @@ public class TSDBStatementTest {
             Assert.assertEquals(3, meta.getColumnCount());
             int count = 0;
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-                }
-                System.out.println();
                 count++;
             }
             Assert.assertEquals(1, count);
@@ -387,15 +365,12 @@ public class TSDBStatementTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
             stmt = conn.createStatement();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -13,9 +13,9 @@ import java.util.Random;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class InsertDbwithoutUseDbTest {
 
-    private static String host = "127.0.0.1";
+    private static final String host = "127.0.0.1";
     private static Properties properties;
-    private static Random random = new Random(System.currentTimeMillis());
+    private static final Random random = new Random(System.currentTimeMillis());
 
     @Test
     public void case001() throws ClassNotFoundException, SQLException {

@@ -64,6 +64,10 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
+char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char g_password[SHELL_MAX_PASSWORD_LEN];
+
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   wordexp_t full_path;
   for (int i = 1; i < argc; i++) {
@@ -77,10 +81,28 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
       // for password
-    else if (strcmp(argv[i], "-p") == 0) {
-      arguments->is_use_passwd = true;
+    else if ((strncmp(argv[i], "-p", 2) == 0)
+            || (strncmp(argv[i], "--password", 10) == 0)) {
+        strcpy(tsOsName, "Darwin");
+        printf(DARWINCLIENT_VERSION, tsOsName, taos_get_client_info());
+        if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
+            printf("Enter password: ");
+            taosSetConsoleEcho(false);
+            if (scanf("%s", g_password) > 1) {
+                fprintf(stderr, "password read error\n");
+            }
+            taosSetConsoleEcho(true);
+            getchar();
+        } else {
+            tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
+        }
+        arguments->password = g_password;
+        arguments->is_use_passwd = true;
+        strcpy(argv[i], "");
+        argc -= 1;
     }
-      // for management port
+    // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
         arguments->port = atoi(argv[++i]);
@@ -98,7 +120,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) { 
+      if (i < argc - 1) {
         if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
@@ -238,9 +260,15 @@ int32_t shellReadCommand(TAOS *con, char *command) {
             updateBuffer(&cmd);
           }
           break;
+        case 11:  // Ctrl + K;
+          clearLineAfter(&cmd);
+          break;
         case 12:  // Ctrl + L;
           system("clear");
           showOnScreen(&cmd);
+          break;
+        case 21:  // Ctrl + U
+          clearLineBefore(&cmd);
           break;
       }
     } else if (c == '\033') {
@@ -335,6 +363,8 @@ void *shellLoopQuery(void *arg) {
   }
 
   TAOS *con = (TAOS *)arg;
+
+  setThreadName("shellLoopQuery");
 
   pthread_cleanup_push(cleanup_handler, NULL);
 

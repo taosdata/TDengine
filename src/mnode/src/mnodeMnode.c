@@ -122,6 +122,7 @@ static int32_t mnodeMnodeActionRestored() {
     void *pIter = mnodeGetNextMnode(NULL, &pMnode);
     if (pMnode != NULL) {
       pMnode->role = TAOS_SYNC_ROLE_MASTER;
+      pMnode->roleTime = taosGetTimestampMs();
       mnodeDecMnodeRef(pMnode);
     }
     mnodeCancelGetNextMnode(pIter);
@@ -485,7 +486,7 @@ static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "end_point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -496,7 +497,13 @@ static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   strcpy(pSchema[cols].name, "role");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
-  
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "role_time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
@@ -553,6 +560,10 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pMnode->roleTime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int64_t *)pWrite = pMnode->createdTime;
     cols++;
     
@@ -565,4 +576,31 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
   pShow->numOfReads += numOfRows;
 
   return numOfRows;
+}
+
+int32_t mnodeCompactMnodes() {
+  void *pIter = NULL;
+  SMnodeObj *pMnode = NULL;
+
+  mInfo("start to compact mnodes table...");
+
+  while (1) {
+    pIter = mnodeGetNextMnode(pIter, &pMnode);
+    if (pMnode == NULL) break;
+
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsMnodeSdb,
+      .pObj    = pMnode,
+      .rowSize = sizeof(SMnodeObj),
+    };
+
+    mInfo("compact mnode %d", pMnode->mnodeId);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact mnodes table...");
+
+  return 0; 
 }
