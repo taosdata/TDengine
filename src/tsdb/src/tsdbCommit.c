@@ -844,7 +844,7 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
   memset(pCommith, 0, sizeof(*pCommith));
   tsdbGetRtnSnap(pRepo, &(pCommith->rtn));
 
-  TSDB_FSET_SET_INIT(TSDB_COMMIT_WRITE_FSET(pCommith));
+  TSDB_FSET_SET_CLOSED(TSDB_COMMIT_WRITE_FSET(pCommith));
 
   // Init read handle
   if (tsdbInitReadH(&(pCommith->readh), pRepo) < 0) {

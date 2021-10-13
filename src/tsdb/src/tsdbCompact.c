@@ -274,7 +274,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
     memset(pComph, 0, sizeof(*pComph));
 
-    TSDB_FSET_SET_INIT(TSDB_COMPACT_WSET(pComph));
+    TSDB_FSET_SET_CLOSED(TSDB_COMPACT_WSET(pComph));
 
     tsdbGetRtnSnap(pRepo, &(pComph->rtn));
     tsdbFSIterInit(&(pComph->fsIter), REPO_FS(pRepo), TSDB_FS_ITER_FORWARD);

@@ -1200,7 +1200,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     SDFileSet fset = {0};
 
-    TSDB_FSET_SET_INIT(&fset);
+    TSDB_FSET_SET_CLOSED(&fset);
 
     // Loop to recover ONE fset
     for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
@@ -1355,7 +1355,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     if (index == 0) {
       memset(&fset, 0, sizeof(SDFileSet));
-      TSDB_FSET_SET_INIT(&fset);
+      TSDB_FSET_SET_CLOSED(&fset);
       nDFiles = 1;
       fset.fid = tfid;
       pDFile->f = *pf;
@@ -1377,7 +1377,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         } else {
           // next FSet
           memset(&fset, 0, sizeof(SDFileSet));
-          TSDB_FSET_SET_INIT(&fset);
+          TSDB_FSET_SET_CLOSED(&fset);
           nDFiles = 1;
           fset.fid = tfid;
           pDFile->f = *pf;
@@ -1437,7 +1437,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
       // next FSet
       memset(&fset, 0, sizeof(SDFileSet));
-      TSDB_FSET_SET_INIT(&fset);
+      TSDB_FSET_SET_CLOSED(&fset);
       nDFiles = 1;
       fset.fid = tfid;
       pDFile->f = *pf;
