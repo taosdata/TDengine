@@ -1188,7 +1188,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
     return -1;
   }
 
-  uint32_t aggrStatus = ((nAggrCols > 0) && (rowsToWrite > 10)) ? 1 : 0;  // TODO: How to make the decision?
+  uint32_t aggrStatus = ((nAggrCols > 0) && (rowsToWrite > 8)) ? 1 : 0;  // TODO: How to make the decision?
   if (aggrStatus > 0) {
     pAggrBlkData->numOfCols = nColsNotAllNull;
 
