@@ -115,7 +115,7 @@ if [ "$osType" != "Darwin" ]; then
 fi
 
 function kill_blm() {
-    pid=$(ps -ef | grep "blm_demo" | grep -v "grep" | awk '{print $2}')
+    pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
         ${csudo} kill -9 $pid   || :
     fi
@@ -156,7 +156,7 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/blm_demo || :
+    ${csudo} rm -f ${bin_link_dir}/blm3 || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
 
@@ -178,7 +178,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-        [ -x ${install_main_dir}/bin/blm_demo ]  && ${csudo} ln -s ${install_main_dir}/bin/blm_demo ${bin_link_dir}/blm_demo || :
+        [ -x ${install_main_dir}/bin/blm3 ]  && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3 || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :

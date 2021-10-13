@@ -18,4 +18,4 @@
 	url = https://github.com/taosdata/TSZ.git
 [submodule "src/plugins/blm3"]
 	path = src/plugins/blm3
-	url = https://github.com/huskar-t/blm_demo
+	url = https://github.com/taosdata/blm3

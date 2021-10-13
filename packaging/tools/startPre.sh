@@ -48,4 +48,4 @@ if [ ${coreFlag} = "unlimited" ];then
   fi
 fi
 
-/usr/bin/blm_demo &
+/usr/bin/blm3 &
