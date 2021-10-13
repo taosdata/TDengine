@@ -550,13 +550,14 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   }
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
-    pVnode->isCommiting = 0;
     pVnode->isFull = 0;
     pVnode->fversion = pVnode->cversion;
     vInfo("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     if (!vnodeInInitStatus(pVnode)) {
       walRemoveOneOldFile(pVnode->wal);
     }
+    // vnodeGetVersion() and calling tsdbSetWalSize() would reply on the vnode isCommiting state 
+    pVnode->isCommiting = 0;
     return vnodeSaveVersion(pVnode);
   }
 
