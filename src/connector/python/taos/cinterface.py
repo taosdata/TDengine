@@ -817,13 +817,15 @@ except AttributeError:
 
 
 
-def taos_schemaless_insert(connection, lines, protocol):
+def taos_schemaless_insert(connection, lines, protocol, precision):
     # type: (c_void_p, list[str] | tuple(str)) -> None
     num_of_lines = len(lines)
     lines = (c_char_p(line.encode("utf-8")) for line in lines)
     lines_type = ctypes.c_char_p * num_of_lines
     p_lines = lines_type(*lines)
-    errno = _libtaos.taos_schemaless_insert(connection, p_lines, num_of_lines, protocol)
+    if precision != None:
+        precision = c_char_p(precision.encode("utf-8"))
+    errno = _libtaos.taos_schemaless_insert(connection, p_lines, num_of_lines, protocol, precision)
     if errno != 0:
         raise SchemalessError("schemaless insert error", errno)
 
