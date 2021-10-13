@@ -3362,6 +3362,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     tVariantCreateFromBinary(tag, val, bytes, type);
     memcpy(tag->pz + 1, tag->pz, bytes - 1);    // move back 1 byte for select type
     *(tag->pz) = SELECT_ALL_JSON_TAG;
+    tag->nLen++;
   }
   else {
     tVariantCreateFromBinary(tag, val, bytes, type);

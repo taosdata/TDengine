@@ -727,12 +727,14 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
     char* p = pRes->urow[i];
     for (int32_t k = 0; k < pRes->numOfRows; ++k) {
       char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+      p = varDataVal(p);
       char* realData = p + CHAR_BYTES;
       if (*p == SELECT_ALL_JSON_TAG){
         char* json = parseTagDatatoJson(realData, pInfo->field.type);
         if(json) {
           memcpy(varDataVal(dst), json, strlen(json));
           varDataSetLen(dst, strlen(json));
+          assert(varDataTLen(dst) <= pInfo->field.type);
           tfree(json);
         }
       }else if (*p == SELECT_ELEMENT_JSON_TAG){
