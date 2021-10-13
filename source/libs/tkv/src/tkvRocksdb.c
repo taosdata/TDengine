@@ -12,25 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "tsdbMemTable.h"
-
-STsdbMemTable *tsdbMemTableCreate(void *mallocator) {
-  STsdbMemTable *pTsdbMemTable = NULL;
-
-  pTsdbMemTable = (STsdbMemTable *)malloc(sizeof(*pTsdbMemTable));
-  if (pTsdbMemTable == NULL) {
-    return NULL;
-  }
-
-  // TODO
-
-  return pTsdbMemTable;
-}
-
-void tsdbMemTableDestroy(STsdbMemTable *pTsdbMemTable) {
-  if (pTsdbMemTable) {
-    // TODO
-    free(pTsdbMemTable);
-  }
-}

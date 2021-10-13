@@ -34,6 +34,7 @@ STkvDb *tkvOpen(const STkvOpts *options, const char *path);
 void    tkvClose(STkvDb *db);
 void    tkvPut(STkvDb *db, const STkvWriteOpts *, const char *key, size_t keylen, const char *val, size_t vallen);
 char *  tkvGet(STkvDb *db, const STkvReadOpts *, const char *key, size_t keylen, size_t *vallen);
+void    tkvCommit(STkvDb *db);
 
 // DB options
 STkvOpts *tkvOptsCreate();

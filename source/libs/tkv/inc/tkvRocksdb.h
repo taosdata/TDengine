@@ -13,24 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbMemTable.h"
+#ifndef _TD_TVK_ROCKSDB_H_
+#define _TD_TVK_ROCKSDB_H_
 
-STsdbMemTable *tsdbMemTableCreate(void *mallocator) {
-  STsdbMemTable *pTsdbMemTable = NULL;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  pTsdbMemTable = (STsdbMemTable *)malloc(sizeof(*pTsdbMemTable));
-  if (pTsdbMemTable == NULL) {
-    return NULL;
-  }
-
-  // TODO
-
-  return pTsdbMemTable;
+#ifdef __cplusplus
 }
+#endif
 
-void tsdbMemTableDestroy(STsdbMemTable *pTsdbMemTable) {
-  if (pTsdbMemTable) {
-    // TODO
-    free(pTsdbMemTable);
-  }
-}
+#endif /*_TD_TVK_ROCKSDB_H_*/
