@@ -68,6 +68,6 @@ IF (${NEED_DOWN})
   MESSAGE("Download external projects finished.")
 ENDIF()
 
-IF (NOT ${TSZ_ENABLED} MATCHES "false")
+IF (NOT "${TSZ_ENABLED}" MATCHES "false")
   ADD_SUBDIRECTORY(TSZ)  
 ENDIF()
