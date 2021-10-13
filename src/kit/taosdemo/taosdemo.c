@@ -3505,12 +3505,20 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     memset(response_buf, 0, RESP_BUF_LEN);
     resp_len = sizeof(response_buf) - 1;
     received = 0;
+
+    char resEncodingChunk[] = "Encoding: chunked";
+    char resHttp[] = "HTTP/1.1 ";
+    int resHttpLen = strlen(resHttp);
+    char resHttpOk[] = "HTTP/1.1 OK";
+    int resHttpOkLen = strlen(resHttpOk);
+
     do {
 #ifdef WINDOWS
         bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
 #else
         bytes = read(sockfd, response_buf + received, resp_len - received);
 #endif
+        verbosePrint("%s() LN%d: bytes:%d\n", __func__, __LINE__, bytes);
         if (bytes < 0) {
             free(request_buf);
             ERROR_EXIT("reading response from socket");
@@ -3518,6 +3526,19 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
         if (bytes == 0)
             break;
         received += bytes;
+
+        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                __func__, __LINE__, received, resp_len, response_buf);
+
+        if (((NULL == strstr(response_buf, resEncodingChunk))
+                    && (0 == strncmp(response_buf, resHttp, resHttpLen)))
+                || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
+                    && (NULL != strstr(response_buf, "\"status\":")))) {
+            debugPrint(
+                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                    __func__, __LINE__, received, resp_len, response_buf);
+            break;
+        }
     } while(received < resp_len);
 
     if (received == resp_len) {
@@ -3526,7 +3547,6 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     }
 
     response_buf[RESP_BUF_LEN - 1] = '\0';
-    printf("Response:\n%s\n", response_buf);
 
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
@@ -3540,6 +3560,11 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     close(sockfd);
 #endif
 
+    if (NULL == strstr(response_buf, "\"status\":\"succ\"")) {
+        errorPrint("%s() LN%d, Response:\n%s\n",
+                __func__, __LINE__, response_buf);
+        return -1;
+    }
     return 0;
 }
 
