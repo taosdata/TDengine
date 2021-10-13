@@ -1250,9 +1250,17 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         ++nDFiles;
         pDFile->f = *pf;
         // (1) the array ends
-        if ((index == fArraySize - 1) && tsdbIsDFileSetValid(nDFiles)) {
-          tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
-          isOneFSetFinish = true;
+        if (index == fArraySize - 1) {
+          if (tsdbIsDFileSetValid(nDFiles)) {
+            tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
+            isOneFSetFinish = true;
+          } else {
+            // return error in case of removing uncomplete DFileSets
+            terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
+            tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
+            taosArrayDestroy(fArray);
+            return -1;
+          }
         }
       } else {
         // (2) encounter different fid
@@ -1260,6 +1268,12 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
           isOneFSetFinish = true;
         } else {
+          // return error in case of removing uncomplete DFileSets
+          terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
+          tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
+          taosArrayDestroy(fArray);
+          return -1;
+#if 0
           // next FSet
           memset(&fset, 0, sizeof(SDFileSet));
           TSDB_FSET_SET_CLOSED(&fset);
@@ -1268,6 +1282,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           pDFile->f = *pf;
           isOneFSetFinish = false;
           continue;
+#endif
         }
       }
     }
