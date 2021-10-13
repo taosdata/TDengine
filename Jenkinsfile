@@ -68,6 +68,7 @@ def pre_test(){
     }
     sh'''
     cd ${WKC}
+    git submodule update --init --recursive
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -98,7 +99,7 @@ def pre_test(){
     sh '''
     cd ${WK}
     git pull >/dev/null 
-
+    git submodule update --init --recursive
     export TZ=Asia/Harbin
     date
     git clean -dfx
