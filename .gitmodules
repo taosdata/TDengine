@@ -13,6 +13,3 @@
 [submodule "deps/jemalloc"]
 	path = deps/jemalloc
 	url = https://github.com/jemalloc/jemalloc
-[submodule "deps/TSZ"]
-	path = deps/TSZ
-	url = https://github.com/taosdata/TSZ.git

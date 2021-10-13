@@ -1,0 +1,11 @@
+
+# TSZ
+ExternalProject_Add(TSZ
+        GIT_REPOSITORY https://github.com/taosdata/TSZ.git
+        GIT_TAG master
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/TSZ"
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )

@@ -39,5 +39,35 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
 ENDIF ()
 
 IF (${TSZ_ENABLED} MATCHES "true")
+  option(NEED_DOWN "" ON)
+ENDIF()
+
+#
+# below is download submodules
+#
+
+function(cat IN_FILE OUT_FILE)
+  file(READ ${IN_FILE} CONTENTS)
+  file(APPEND ${OUT_FILE} "${CONTENTS}")
+endfunction(cat IN_FILE OUT_FILE)
+
+IF (${NEED_DOWN})
+  MESSAGE("Start download external projects ...")
+  set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/deps/cmake")
+  set(DEPS_DOWN_DIR "${CMAKE_BINARY_DIR}/deps-download")
+  set(DEPS_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
+
+  configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+  IF (${TSZ_ENABLED} MATCHES "true")
+    cat("${CMAKE_SUPPORT_DIR}/TSZ_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+    MESSAGE(" external project TSZ add to download list.")
+  ENDIF()
+  configure_file(${DEPS_TMP_FILE} "${DEPS_DOWN_DIR}/CMakeLists.txt")
+  execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" WORKING_DIRECTORY "${DEPS_DOWN_DIR}")
+  execute_process(COMMAND "${CMAKE_COMMAND}" --build "${DEPS_DOWN_DIR}")
+  MESSAGE("Download external projects finished.")
+ENDIF()
+
+IF (${TSZ_ENABLED} MATCHES "true")
   ADD_SUBDIRECTORY(TSZ)  
 ENDIF()

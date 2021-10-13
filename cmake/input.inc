@@ -101,6 +101,8 @@ IF (${MEMORY_SANITIZER} MATCHES "true")
   SET(TD_MEMORY_SANITIZER TRUE)
 ENDIF ()
 
+# default build TSZ
+set(TSZ_ENABLED "true")
 IF (${TSZ_ENABLED} MATCHES "true")
   # define add 
   MESSAGE(STATUS "build with TSZ enabled")
