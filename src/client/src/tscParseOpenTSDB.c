@@ -55,7 +55,12 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
     }
 
     if (*cur == ' ') {
-      break;
+      if (*(cur + 1) != ' ') {
+        break;
+      } else {
+        cur++;
+        continue;
+      }
     }
 
     pSml->stableName[len] = *cur;
@@ -91,7 +96,12 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
 
   while(*cur != '\0') {
     if (*cur == ' ') {
-      break;
+      if (*(cur + 1) != ' ') {
+        break;
+      } else {
+        cur++;
+        continue;
+      }
     }
     cur++;
     len++;
@@ -135,7 +145,14 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
 
   while(*cur != '\0') {
     if (*cur == ' ') {
-      break;
+      if (*cur == ' ') {
+        if (*(cur + 1) != ' ') {
+          break;
+        } else {
+          cur++;
+          continue;
+        }
+      }
     }
     cur++;
     len++;
@@ -148,7 +165,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  if (!convertSmlValueType(pVal, value, len, info)) {
+  if (!convertSmlValueType(pVal, value, len, info, false)) {
     tscError("OTD:0x%"PRIx64" Failed to convert metric value string(%s) to any type",
             info->id, value);
     tfree(value);
@@ -219,7 +236,12 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
     if (*cur == ' ' || *cur == '\0') {
       // '\0' indicates end of value
       *is_last_kv = (*cur == '\0') ? true : false;
-      break;
+      if (*cur == ' ' && *(cur + 1) == ' ') {
+        cur++;
+        continue;
+      } else {
+        break;
+      }
     }
     cur++;
     len++;
@@ -233,7 +255,7 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
   value = tcalloc(len + 1, 1);
   memcpy(value, start, len);
   value[len] = '\0';
-  if (!convertSmlValueType(pKV, value, len, info)) {
+  if (!convertSmlValueType(pKV, value, len, info, true)) {
     tscError("OTD:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
     //free previous alocated key field
@@ -270,7 +292,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("OTD:0x%"PRIx64" Unable to parse value", info->id);
       return ret;
     }
-    if ((strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
+    if ((strcasecmp(pkv->key, "ID") == 0)) {
       ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
         return ret;
@@ -367,11 +389,13 @@ static int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, 
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines) {
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genUID();
+  info->tsType = tsType;
+  info->protocol = protocol;
 
   if (numLines <= 0 || numLines > 65536) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
@@ -529,7 +553,14 @@ static int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_k
       tsVal = taosGetTimestampNs();
     } else {
       tsVal = strtoll(timestamp->numberstring, NULL, 10);
-      tsVal = convertTimePrecision(tsVal, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
+      size_t tsLen = strlen(timestamp->numberstring);
+      if (tsLen == SML_TIMESTAMP_SECOND_DIGITS) {
+        tsVal = (int64_t)(tsVal * 1e9);
+      } else if (tsLen == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
+        tsVal = convertTimePrecision(tsVal, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_NANO);
+      } else {
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
     }
   } else if (cJSON_IsObject(timestamp)) {
     int32_t ret = parseTimestampFromJSONObj(timestamp, &tsVal, info);
@@ -738,28 +769,35 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
     }
     case cJSON_Number: {
       //convert default JSON Number type to BIGINT/DOUBLE
-      if (isValidInteger(root->numberstring)) {
-        pVal->type = TSDB_DATA_TYPE_BIGINT;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-        pVal->value = tcalloc(pVal->length, 1);
-        /* cJSON conversion of legit BIGINT may overflow,
-         * use original string to do the conversion.
-         */
-        errno = 0;
-        int64_t val = (int64_t)strtoll(root->numberstring, NULL, 10);
-        if (errno == ERANGE || !IS_VALID_BIGINT(val)) {
-          tscError("OTD:0x%"PRIx64" JSON value(%s) cannot fit in type(bigint)", info->id, root->numberstring);
-          return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-        }
-        *(int64_t *)(pVal->value) = val;
-      } else if (isValidFloat(root->numberstring)) {
+      //if (isValidInteger(root->numberstring)) {
+      //  pVal->type = TSDB_DATA_TYPE_BIGINT;
+      //  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      //  pVal->value = tcalloc(pVal->length, 1);
+      //  /* cJSON conversion of legit BIGINT may overflow,
+      //   * use original string to do the conversion.
+      //   */
+      //  errno = 0;
+      //  int64_t val = (int64_t)strtoll(root->numberstring, NULL, 10);
+      //  if (errno == ERANGE || !IS_VALID_BIGINT(val)) {
+      //    tscError("OTD:0x%"PRIx64" JSON value(%s) cannot fit in type(bigint)", info->id, root->numberstring);
+      //    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      //  }
+      //  *(int64_t *)(pVal->value) = val;
+      //} else if (isValidFloat(root->numberstring)) {
+      //  pVal->type = TSDB_DATA_TYPE_DOUBLE;
+      //  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      //  pVal->value = tcalloc(pVal->length, 1);
+      //  *(double *)(pVal->value) = (double)(root->valuedouble);
+      //} else {
+      //  return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+      //}
+      if (isValidInteger(root->numberstring) || isValidFloat(root->numberstring)) {
         pVal->type = TSDB_DATA_TYPE_DOUBLE;
         pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
         pVal->value = tcalloc(pVal->length, 1);
         *(double *)(pVal->value) = (double)(root->valuedouble);
-      } else {
-        return TSDB_CODE_TSC_INVALID_JSON_TYPE;
       }
+
       break;
     }
     case cJSON_String: {
@@ -831,6 +869,10 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
   //only pick up the first ID value as child table name
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
+    if (!cJSON_IsString(id)) {
+      tscError("OTD:0x%"PRIx64" ID must be JSON string", info->id);
+      return TSDB_CODE_TSC_INVALID_JSON;
+    }
     size_t idLen = strlen(id->valuestring);
     ret = isValidChildTableName(id->valuestring, (int16_t)idLen, info);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -965,7 +1007,7 @@ static int32_t tscParseMultiJSONPayload(char* payload, SArray* points, SSmlLines
 
   for (int32_t i = 0; i < payloadNum; ++i) {
     TAOS_SML_DATA_POINT point = {0};
-    cJSON *dataPoint = (payloadNum == 1) ? root : cJSON_GetArrayItem(root, i);
+    cJSON *dataPoint = (payloadNum == 1 && cJSON_IsObject(root)) ? root : cJSON_GetArrayItem(root, i);
 
     ret = tscParseJSONPayload(dataPoint, &point, info);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -983,11 +1025,13 @@ PARSE_JSON_OVER:
   return ret;
 }
 
-int taos_insert_json_payload(TAOS* taos, char* payload) {
+int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genUID();
+  info->tsType = tsType;
+  info->protocol = protocol;
 
   if (payload == NULL) {
     tscError("OTD:0x%"PRIx64" taos_insert_json_payload payload is NULL", info->id);
