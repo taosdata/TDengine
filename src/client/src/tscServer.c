@@ -1018,10 +1018,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *((int16_t *)pMsg) = htons(pCol->colId);
       pMsg += sizeof(pCol->colId);
 
-      *((int16_t *)pMsg) += htons(pCol->colIndex);
+      *((int16_t *)pMsg) = htons(pCol->colIndex);
       pMsg += sizeof(pCol->colIndex);
 
-      *((int16_t *)pMsg) += htons(pCol->flag);
+      *((int16_t *)pMsg) = htons(pCol->flag);
       pMsg += sizeof(pCol->flag);
 
       memcpy(pMsg, pCol->name, tListLen(pCol->name));
