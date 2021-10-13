@@ -185,6 +185,7 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
+    ${csudo} rm -f ${bin_link_dir}/blm3     || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
@@ -196,6 +197,7 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
     [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
+    [ -x ${install_main_dir}/bin/blm3 ] && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3                      || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
@@ -1002,7 +1004,7 @@ function install_TDengine() {
         echo
         echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
     fi
-    
+
     touch ~/.taos_history
     rm -rf $(tar -tf taos.tar.gz)
 }

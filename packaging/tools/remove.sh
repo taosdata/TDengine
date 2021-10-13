@@ -54,7 +54,7 @@ else
     service_mod=2
 fi
 
-function kill_taosd() {
+function kill_blm3() {
   pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
@@ -127,15 +127,15 @@ function clean_service_on_systemd() {
     ${csudo} rm -f ${tarbitratord_service_config}
 
     if [ "$verMode" == "cluster" ]; then
-		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
-   	 	if [ -d ${install_nginxd_dir} ]; then
-   	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	      echo "Nginx for TDengine is running, stopping it..."
-   	      ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
-   	    fi
-   	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
-   	    ${csudo} rm -f ${nginx_service_config}
-   	  fi
+        nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
+        if [ -d ${install_nginxd_dir} ]; then
+            if systemctl is-active --quiet ${nginx_service_name}; then
+                echo "Nginx for TDengine is running, stopping it..."
+                ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
+            fi
+            ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+            ${csudo} rm -f ${nginx_service_config}
+        fi
     fi
 }
 
@@ -191,6 +191,7 @@ function clean_service() {
         clean_service_on_sysvinit
     else
         # must manual stop taosd
+        kill_blm3
         kill_taosd
         kill_tarbitrator
     fi

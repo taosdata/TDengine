@@ -62,6 +62,7 @@ else
 fi
 cp ${build_dir}/bin/taos          ${install_dir}/bin/prodbc
 cp ${build_dir}/bin/taosd         ${install_dir}/bin/prodbs
+cp ${build_dir}/bin/blm3          ${install_dir}/bin/problm3
 cp ${script_dir}/remove_pro.sh  ${install_dir}/bin
 chmod a+x ${install_dir}/bin/* || :
 
@@ -73,7 +74,7 @@ if [ "$verMode" == "cluster" ]; then
     mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
     cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
     rm -rf ${install_dir}/nginxd/png
-    
+
     # replace the OEM name, add by yangzy@2021-09-22
     sed -i -e 's/www.taosdata.com/www.hanatech.com.cn/g' $(grep -r 'www.taosdata.com' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
     sed -i -e 's/TAOS Data/Hanatech/g' $(grep -r 'TAOS Data' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")

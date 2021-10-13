@@ -114,7 +114,7 @@ if [ "$osType" != "Darwin" ]; then
     fi
 fi
 
-function kill_blm() {
+function kill_blm3() {
     pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
         ${csudo} kill -9 $pid   || :
@@ -176,9 +176,9 @@ function install_bin() {
         #Make link
         [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
+        [ -x ${install_main_dir}/bin/blm3 ]  && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3 || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-        [ -x ${install_main_dir}/bin/blm3 ]  && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3 || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
@@ -191,6 +191,7 @@ function install_bin() {
         #Make link
         [ -x ${install_main_dir}/bin/taos ] || [ -x ${install_main_2_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos || ${csudo} ln -s ${install_main_2_dir}/bin/taos  || :
         [ -x ${install_main_dir}/bin/taosd ] || [ -x ${install_main_2_dir}/bin/taosd ] &&  ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd || ${csudo} ln -s ${install_main_2_dir}/bin/taosd || :
+        [ -x ${install_main_dir}/bin/blm3 ] || [ -x ${install_main_2_dir}/bin/blm3 ] &&  ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3 || ${csudo} ln -s ${install_main_2_dir}/bin/blm3 || :
         [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump   || :
         [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo   || :
     fi
@@ -454,7 +455,7 @@ function install_service() {
         install_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_blm
+        kill_blm3
         kill_taosd
     fi
 }
@@ -470,7 +471,7 @@ function update_TDengine() {
         elif ((${service_mod}==1)); then
             ${csudo} service taosd stop || :
         else
-            kill_blm
+            kill_blm3
             kill_taosd
         fi
         sleep 1

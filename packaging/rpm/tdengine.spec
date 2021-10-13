@@ -62,6 +62,7 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/blm3                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
@@ -188,6 +189,7 @@ if [ $1 -eq 0 ];then
     # Remove all links
     ${csudo} rm -f ${bin_link_dir}/taos       || :
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
+    ${csudo} rm -f ${bin_link_dir}/blm3       || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
     ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
