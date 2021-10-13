@@ -193,7 +193,7 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
-DLL_EXPORT int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol);
+DLL_EXPORT int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* precision);
 
 #ifdef __cplusplus
 }

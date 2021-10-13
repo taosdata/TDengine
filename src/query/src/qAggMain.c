@@ -17,6 +17,7 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "texpr.h"
+#include "tdigest.h"
 #include "ttype.h"
 #include "tsdb.h"
 #include "tglobal.h"
@@ -145,6 +146,7 @@ typedef struct SLeastsquaresInfo {
 
 typedef struct SAPercentileInfo {
   SHistogramInfo *pHisto;
+  TDigest* pTDigest;
 } SAPercentileInfo;
 
 typedef struct STSCompInfo {
@@ -337,7 +339,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_APERCT) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1) + sizeof(SHistogramInfo) + sizeof(SAPercentileInfo);
+      int16_t bytesHist = sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1) + sizeof(SHistogramInfo) + sizeof(SAPercentileInfo);
+      int16_t bytesDigest = (int16_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
+      *bytes = MAX(bytesHist, bytesDigest);
       *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
@@ -370,8 +374,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_APERCT) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interBytes =
-        sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1);
+    int16_t bytesHist = sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1);
+    int16_t bytesDigest = (int16_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
+    *interBytes = MAX(bytesHist, bytesDigest);
     return TSDB_CODE_SUCCESS;
   } else if (functionId == TSDB_FUNC_TWA) {
     *type = TSDB_DATA_TYPE_DOUBLE;
@@ -2490,17 +2495,135 @@ static SAPercentileInfo *getAPerctInfo(SQLFunctionCtx *pCtx) {
   } else {
     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   }
-
-  buildHistogramInfo(pInfo);
   return pInfo;
 }
 
+//
+//   ----------------- tdigest -------------------
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+static bool tdigest_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo *pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
+    return false;
+  }
+  
+  // new TDigest
+  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
+  pInfo->pTDigest = tdigestNewFrom(tmp, COMPRESSION);
+  return true;
+}
+
+static void tdigest_do(SQLFunctionCtx *pCtx) {
+  int32_t notNullElems = 0;
+
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SAPercentileInfo *  pAPerc = getAPerctInfo(pCtx);
+
+  assert(pAPerc->pTDigest != NULL);
+  if(pAPerc->pTDigest == NULL) {
+    qError("tdigest_do tdigest is null.");
+    return ;
+  }
+
+  for (int32_t i = 0; i < pCtx->size; ++i) {
+    char *data = GET_INPUT_DATA(pCtx, i);
+    if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      continue;
+    }
+    notNullElems += 1;
+
+    double v = 0; // value  
+    long long w = 1; // weigth
+    GET_TYPED_DATA(v, double, pCtx->inputType, data);
+    tdigestAdd(pAPerc->pTDigest, v, w);
+  }
+
+  if (!pCtx->hasNull) {
+    assert(pCtx->size == notNullElems);
+  }
+
+  SET_VAL(pCtx, notNullElems, 1);
+  if (notNullElems > 0) {
+    pResInfo->hasResult = DATA_SET_FLAG;
+  }
+}
+
+static void tdigest_merge(SQLFunctionCtx *pCtx) {
+  SAPercentileInfo *pInput = (SAPercentileInfo *)GET_INPUT_DATA_LIST(pCtx);
+  assert(pInput->pTDigest);
+  pInput->pTDigest = (TDigest*)((char*)pInput + sizeof(SAPercentileInfo));
+  tdigestAutoFill(pInput->pTDigest, COMPRESSION);
+
+  // input merge no elements , no need merge
+  if(pInput->pTDigest->num_centroids == 0 && pInput->pTDigest->num_buffered_pts == 0) {
+    return ;
+  }
+
+  SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
+  if(pOutput->pTDigest->num_centroids == 0) {
+    memcpy(pOutput->pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
+    tdigestAutoFill(pOutput->pTDigest, COMPRESSION);
+  } else {
+    tdigestMerge(pOutput->pTDigest, pInput->pTDigest);
+  }
+  
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->hasResult = DATA_SET_FLAG;
+  SET_VAL(pCtx, 1, 1);
+}
+
+static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
+  double q = (pCtx->param[0].nType == TSDB_DATA_TYPE_INT) ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SAPercentileInfo *  pAPerc = getAPerctInfo(pCtx);
+
+  if (pCtx->currentStage == MERGE_STAGE) {
+    if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
+      double res = tdigestQuantile(pAPerc->pTDigest, q/100);
+      memcpy(pCtx->pOutput, &res, sizeof(double));
+    } else {
+      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      return;
+    }
+  } else {
+    if (pAPerc->pTDigest->size > 0) {
+      double res = tdigestQuantile(pAPerc->pTDigest, q/100);
+      memcpy(pCtx->pOutput, &res, sizeof(double));
+    } else {  // no need to free
+      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      return;
+    }
+  }
+
+  pAPerc->pTDigest = NULL;
+  doFinalizer(pCtx);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+int32_t getAlgo(SQLFunctionCtx * pCtx) {
+  if(pCtx->numOfParams != 2){
+    return ALGO_DEFAULT;
+  }
+  if(pCtx->param[1].nType != TSDB_DATA_TYPE_INT) {
+    return ALGO_DEFAULT;
+  }
+  return (int32_t)pCtx->param[1].i64;
+}
+
 static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
+    return tdigest_setup(pCtx, pResultInfo);
+  }
+
   if (!function_setup(pCtx, pResultInfo)) {
     return false;
   }
   
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  buildHistogramInfo(pInfo);
   
   char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
   pInfo->pHisto = tHistogramCreateFrom(tmp, MAX_HISTOGRAM_BIN);
@@ -2508,10 +2631,16 @@ static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo*
 }
 
 static void apercentile_function(SQLFunctionCtx *pCtx) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
+    tdigest_do(pCtx);
+    return;
+  }
+
   int32_t notNullElems = 0;
   
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  buildHistogramInfo(pInfo);
 
   assert(pInfo->pHisto->elems != NULL);
   
@@ -2540,6 +2669,11 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
 }
 
 static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
+    tdigest_merge(pCtx);
+    return;
+  }
+
   SAPercentileInfo *pInput = (SAPercentileInfo *)GET_INPUT_DATA_LIST(pCtx);
   
   pInput->pHisto = (SHistogramInfo*) ((char *)pInput + sizeof(SAPercentileInfo));
@@ -2550,6 +2684,7 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
   }
   
   SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
+  buildHistogramInfo(pOutput);
   SHistogramInfo  *pHisto = pOutput->pHisto;
   
   if (pHisto->numOfElems <= 0) {
@@ -2570,6 +2705,11 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
 }
 
 static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
+  if (getAlgo(pCtx) == ALGO_TDIGEST) {
+    tdigest_finalizer(pCtx);
+    return;
+  }
+
   double v = (pCtx->param[0].nType == TSDB_DATA_TYPE_INT) ? pCtx->param[0].i64 : pCtx->param[0].dKey;
   
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);

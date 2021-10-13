@@ -7,12 +7,12 @@ conn.execute("create database if not exists %s precision 'us'" % dbname)
 conn.select_db(dbname)
 
 lines = [
-    'st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"pass",c2=false,c4=4f64 1626006833639000000ns',
+    'st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"pass",c2=false,c4=4f64 1626006833639000000',
 ]
-conn.schemaless_insert(lines, 0)
+conn.schemaless_insert(lines, 0, "ns")
 print("inserted")
 
-conn.schemaless_insert(lines, 0)
+conn.schemaless_insert(lines, 0, "ns")
 
 result = conn.query("show tables")
 for row in result:
