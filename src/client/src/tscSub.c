@@ -265,12 +265,14 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   SSqlCmd* pCmd = &pSql->cmd;
 
-  TSDB_QUERY_CLEAR_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+
+  TSDB_QUERY_CLEAR_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
     STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-    SSubscriptionProgress target = {.uid = pTableMeta->id.uid, .key = 0};
+    SSubscriptionProgress target = {.uid = pTableMeta->id.uid, .key = pQueryInfo->window.skey};
     SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
     if (p == NULL) {
       taosArrayClear(pSub->progress);
@@ -288,7 +290,6 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   size_t numOfTables = taosArrayGetSize(tables);
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
   for( size_t i = 0; i < numOfTables; i++ ) {
     STidTags* tt = taosArrayGet( tables, i );
