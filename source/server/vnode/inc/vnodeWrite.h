@@ -27,7 +27,7 @@ taos_queue vnodeAllocWriteQueue(SVnode *pVnode);
 void       vnodeFreeWriteQueue(taos_queue pQueue);
 
 void    vnodeProcessWriteMsg(SRpcMsg *pRpcMsg);
-//int32_t vnodeProcessWalMsg(SVnode *pVnode, SWalHead *pHead);
+int32_t vnodeProcessWalMsg(SVnode *pVnode, SWalHead *pHead);
 
 void vnodeStartWrite(SVnode *pVnode);
 void vnodeStopWrite(SVnode *pVnode);

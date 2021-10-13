@@ -83,7 +83,7 @@ typedef struct {
 #if 0  
   SSyncCfg syncCfg;
 #endif  
-  //SWalCfg  walCfg;
+  SWalCfg  walCfg;
   void *   qMgmt;
   char *   rootDir;
   tsem_t   sem;
