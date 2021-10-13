@@ -2740,7 +2740,11 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   
   assert(pCtx->inputBytes == pCtx->outputBytes);
 
-  tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+  if(IS_JSON_DATA_TYPE(pCtx->outputType)) {
+    tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, false);
+  }else {
+    tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+  }
   char* data = pCtx->pOutput;
   pCtx->pOutput += pCtx->outputBytes;
 
