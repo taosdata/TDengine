@@ -312,7 +312,7 @@ typedef enum {
 #define TSDB_LATEST_FSET_VER TSDB_FSET_VER_1
 
 // get nDFiles in SDFileSet
-static FORCE_INLINE uint16_t tsdbGetNFiles(SDFileSet* pSet) {
+static FORCE_INLINE uint8_t tsdbGetNFiles(SDFileSet* pSet) {
   switch (pSet->ver) {
     case TSDB_FSET_VER_0:
       return TSDB_FILE_MIN;
