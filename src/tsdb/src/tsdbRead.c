@@ -3792,7 +3792,13 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
     goto _error;
   }
   
-  tsdbQueryTableList(pTable, res, filterInfo);
+  ret = tsdbQueryTableList(pTable, res, filterInfo);
+  if (ret != TSDB_CODE_SUCCESS) {
+    terrno = ret;
+    tsdbUnlockRepoMeta(tsdb);
+    filterFreeInfo(filterInfo);
+    goto _error;
+  }
 
   filterFreeInfo(filterInfo);
   
@@ -4089,7 +4095,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   return TSDB_CODE_SUCCESS;
 }
 
-static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
+static int32_t queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
   // get all table in fields, and dumplicate it
   SArray* tabList = NULL;
   bool needQueryAll = false;
@@ -4108,11 +4114,9 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     if (needQueryAll) break;    // query all table
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema*      sch = fi->desc;
-    int32_t outLen = 0;
     char* key = sch->name;
-    outLen = strlen(sch->name);
 
-    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
+    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, TSDB_MAX_JSON_KEY_MD5_LEN);
     if(data == NULL) continue;
     if(tabList == NULL) {
       tabList = taosArrayDup(*data);
@@ -4135,7 +4139,7 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     tsdbError("json key not exist, no candidate table");
     terrno = TSDB_CODE_TDB_NO_JSON_TAG_KEY;
     taosArrayDestroy(tabList);
-    return;
+    return TSDB_CODE_TDB_NO_JSON_TAG_KEY;
   }
   int32_t size = taosArrayGetSize(tabList);
   int8_t *addToResult = NULL;
@@ -4151,13 +4155,14 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
   }
   tfree(addToResult);
   taosArrayDestroy(tabList);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo) {
   STSchema*   pTSSchema = pTable->tagSchema;
 
   if(pTSSchema->columns->type == TSDB_DATA_TYPE_JSON){
-    queryByJsonTag(pTable, filterInfo, pRes);
+    return queryByJsonTag(pTable, filterInfo, pRes);
   }else{
     bool indexQuery = false;
     SSkipList *pSkipList = pTable->pIndex;
