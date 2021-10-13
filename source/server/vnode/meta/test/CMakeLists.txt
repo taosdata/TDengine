@@ -2,6 +2,7 @@ add_executable(metaTest "")
 target_sources(metaTest
     PRIVATE
     "../src/meta.c"
+    "../src/metaUid.c"
     "metaTests.cpp"
 )
 target_include_directories(metaTest 
@@ -13,6 +14,11 @@ target_link_libraries(metaTest
     os
     util
     common
-    rocksdb
     gtest_main
+    tkv
+)
+enable_testing()
+add_test(
+    NAME meta_test
+    COMMAND metaTest
 )

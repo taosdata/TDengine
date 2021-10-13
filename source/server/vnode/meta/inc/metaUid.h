@@ -13,28 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#ifndef _TD_META_UID_H_
+#define _TD_META_UID_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-int32_t    vnodeInitWrite();
-void       vnodeCleanupWrite();
-taos_queue vnodeAllocWriteQueue(SVnode *pVnode);
-void       vnodeFreeWriteQueue(taos_queue pQueue);
+typedef uint64_t tb_uid_t;
+tb_uid_t         metaGenerateUid();
 
-void    vnodeProcessWriteMsg(SRpcMsg *pRpcMsg);
-int32_t vnodeProcessWalMsg(SVnode *pVnode, SWalHead *pHead);
-
-void vnodeStartWrite(SVnode *pVnode);
-void vnodeStopWrite(SVnode *pVnode);
-void vnodeWaitWriteCompleted(SVnode *pVnode);
+#define IVLD_TB_UID 0
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_WRITE_H_*/
+#endif /*_TD_META_UID_H_*/

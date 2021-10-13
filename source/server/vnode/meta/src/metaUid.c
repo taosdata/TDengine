@@ -13,28 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#include "metaUid.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "vnodeInt.h"
+static tb_uid_t nuid = IVLD_TB_UID;
 
-int32_t    vnodeInitWrite();
-void       vnodeCleanupWrite();
-taos_queue vnodeAllocWriteQueue(SVnode *pVnode);
-void       vnodeFreeWriteQueue(taos_queue pQueue);
-
-void    vnodeProcessWriteMsg(SRpcMsg *pRpcMsg);
-int32_t vnodeProcessWalMsg(SVnode *pVnode, SWalHead *pHead);
-
-void vnodeStartWrite(SVnode *pVnode);
-void vnodeStopWrite(SVnode *pVnode);
-void vnodeWaitWriteCompleted(SVnode *pVnode);
-
-#ifdef __cplusplus
+tb_uid_t metaGenerateUid() {
+  // TODO: need a more complex UID generator
+  return ++nuid;
 }
-#endif
-
-#endif /*_TD_VNODE_WRITE_H_*/

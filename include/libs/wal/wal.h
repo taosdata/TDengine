@@ -58,18 +58,25 @@ void     walStop(twalh);
 void     walClose(twalh);
 
 //write
-int64_t  walWrite(twalh, int8_t msgType, void* body, uint32_t bodyLen);
-void     walFsync(twalh, bool forceHint);
-//int32_t  walCommit(twalh, int64_t ver);
-//int32_t  walRollback(twalh, int64_t ver);
+int64_t  walWriteWithMsgType(twalh, int8_t msgType, void* body, int32_t bodyLen);
+int64_t  walWrite(twalh, void* body, int32_t bodyLen);
+int64_t  walWriteBatch(twalh, void* body, int32_t* bodyLen, int32_t batchSize);
+
+//apis for lifecycle management
+void     walFsync(twalh, bool force);
+int32_t  walCommit(twalh, int64_t ver);
+//truncate after
+int32_t  walRollback(twalh, int64_t ver);
+//notify that previous log can be pruned safely
+int32_t  walPrune(twalh, int64_t ver);
 
 //read
 int32_t  walRead(twalh, SWalHead **, int64_t ver);
 int32_t  walReadWithFp(twalh, FWalWrite writeFp, int64_t verStart, int readNum);
 
-//life cycle
-int32_t  walDataPersisted(twalh, int64_t ver);
+//lifecycle check
 int32_t  walFirstVer(twalh);
+int32_t  walPersistedVer(twalh);
 int32_t  walLastVer(twalh);
 //int32_t  walDataCorrupted(twalh);
 

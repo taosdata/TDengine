@@ -48,7 +48,7 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
 /**
  * Duplicate the schema and return a new object
  */
-STSchema *tdDupSchema(STSchema *pSchema) {
+STSchema *tdDupSchema(const STSchema *pSchema) {
 
   int tlen = sizeof(STSchema) + sizeof(STColumn) * schemaNCols(pSchema);
   STSchema *tSchema = (STSchema *)malloc(tlen);

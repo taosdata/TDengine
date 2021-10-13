@@ -63,4 +63,6 @@ FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
   return gettimeofday(tv, NULL);
 }
 
+int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
+
 #endif
