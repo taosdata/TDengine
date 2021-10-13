@@ -5221,7 +5221,7 @@ char* parseTagDatatoJson(void *p){
 
   int16_t nCols = kvRowNCols(p);
   ASSERT(nCols%2 == 1);
-  char tagJsonKey[TSDB_MAX_TAGS_LEN] = {0};
+  char tagJsonKey[TSDB_MAX_JSON_KEY_LEN + 1] = {0};
   for (int j = 0; j < nCols; ++j) {
     SColIdx * pColIdx = kvRowColIdxAt(p, j);
     void* val = (kvRowColVal(p, pColIdx));
@@ -5230,13 +5230,10 @@ char* parseTagDatatoJson(void *p){
       ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
       continue;
     }
-    if (j%2 != 0) { // json key
-      memset(tagJsonKey, 0, TSDB_MAX_TAGS_LEN);
-      int32_t length = taosUcs4ToMbs(varDataVal(val), varDataLen(val), tagJsonKey);
-      if (length == 0) {
-        tscError("charset:%s to %s. val:%s convert json key failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)val);
-        goto end;
-      }
+    if (j%2 != 0) { // json key  encode by binary
+      ASSERT(varDataLen(val) <= TSDB_MAX_JSON_KEY_LEN);
+      memset(tagJsonKey, 0, sizeof(tagJsonKey));
+      memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
     }else{  // json value
       char tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
       char* realData = POINTER_SHIFT(val, CHAR_BYTES);
