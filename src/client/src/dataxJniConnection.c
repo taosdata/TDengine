@@ -277,3 +277,8 @@ JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_inser
   jniDebug("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
   return code;
 }
+
+JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErrMsgByCode(JNIEnv *env, jobject jobj,
+                                                                                             jlong code) {
+  return (*env)->NewStringUTF(env, tstrerror(code));
+}

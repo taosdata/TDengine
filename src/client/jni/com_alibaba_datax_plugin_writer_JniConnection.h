@@ -9,6 +9,8 @@ extern "C" {
 #endif
 #undef com_alibaba_datax_plugin_writer_JniConnection_JNI_NULL_POINTER
 #define com_alibaba_datax_plugin_writer_JniConnection_JNI_NULL_POINTER 0LL
+#undef com_alibaba_datax_plugin_writer_JniConnection_JNI_SUCCESSFUL
+#define com_alibaba_datax_plugin_writer_JniConnection_JNI_SUCCESSFUL 0L
 /*
  * Class:     com_alibaba_datax_plugin_writer_JniConnection
  * Method:    initImp
@@ -63,6 +65,14 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErr
  * Signature: (J)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErrMsgImp
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     com_alibaba_datax_plugin_writer_JniConnection
+ * Method:    getErrMsgByCode
+ * Signature: (J)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErrMsgByCode
   (JNIEnv *, jobject, jlong);
 
 /*
