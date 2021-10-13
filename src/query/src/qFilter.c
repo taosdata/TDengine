@@ -1802,10 +1802,7 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == TSDB_RELATION_IN) {
-      SSchema *sch = FILTER_UNIT_COL_DESC(info, unit);
-      bool tolower = (sch->colId == -1) ? true : false;
-      
-      filterConvertSetFromBinary((void **)&fi->data, var->pz, var->nLen, type, tolower);
+      filterConvertSetFromBinary((void **)&fi->data, var->pz, var->nLen, type, false);
       CHK_LRET(fi->data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
 
       FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);

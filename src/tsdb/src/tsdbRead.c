@@ -851,15 +851,17 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
     if(update == TD_ROW_DISCARD_UPDATE){
       pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
       tSkipListIterNext(pCheckInfo->iter);
+      return r2;
     }
     else if(update == TD_ROW_OVERWRITE_UPDATE) {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
       tSkipListIterNext(pCheckInfo->iiter);
+      return r1;
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
+      return r1;
     }
-    return r1;
-  } else if (r1 < r2 && ASCENDING_TRAVERSE(order)) {
+  } else if ( (r1 < r2 && ASCENDING_TRAVERSE(order)) || (r1 > r2 && !ASCENDING_TRAVERSE(order)) ) {
     pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
     return r1;
   }
@@ -930,7 +932,7 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
         pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
         return rimem;
       } else {
-        pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
+        pCheckInfo->chosen = CHECKINFO_CHOSEN_MEM;
         return rmem;
       }
     }

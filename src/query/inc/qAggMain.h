@@ -112,6 +112,10 @@ extern "C" {
 #define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 #define TOP_BOTTOM_QUERY_LIMIT   100
 
+// apercentile(arg1,agr2,arg3) param arg3 value is below:
+#define ALGO_DEFAULT 0
+#define ALGO_TDIGEST 1
+
 enum {
   MASTER_SCAN   = 0x0u,
   REVERSE_SCAN  = 0x1u,
