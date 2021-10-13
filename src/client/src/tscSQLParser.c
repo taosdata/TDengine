@@ -464,7 +464,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (isBuildinFunc(createInfo->name.z, strlen(createInfo->name.z))) {
+      if (isBuildinFunc(createInfo->name.z, (int32_t)(strlen(createInfo->name.z)))) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
