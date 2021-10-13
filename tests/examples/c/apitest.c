@@ -344,12 +344,12 @@ int32_t verify_schema_less(TAOS* taos) {
   code = taos_schemaless_insert(taos, &lines5[0], 1, 0, "ns");
   code = taos_schemaless_insert(taos, &lines5[1], 1, 0, "ns");
 
-
   char* lines6[] = {
       "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
       "dgtyqodr,t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532"
   };
   code = taos_schemaless_insert(taos, lines6, 2, 0, "ns");
+
   return (code);
 }
 
