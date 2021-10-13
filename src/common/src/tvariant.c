@@ -853,7 +853,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
           *(uint8_t*) payload = TSDB_DATA_BINARY_NULL;
         } else {
-          if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+          if (pVariant->nType != TSDB_DATA_TYPE_BINARY && pVariant->nType != TSDB_DATA_TYPE_JSON_BINARY) {
             toBinary(pVariant, &payload, &pVariant->nLen);
           } else {
             strncpy(payload, pVariant->pz, pVariant->nLen);
@@ -865,7 +865,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         } else {
           char *p = varDataVal(payload);
 
-          if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+          if (pVariant->nType != TSDB_DATA_TYPE_BINARY && pVariant->nType != TSDB_DATA_TYPE_JSON_BINARY) {
             toBinary(pVariant, &p, &pVariant->nLen);
           } else {
             strncpy(p, pVariant->pz, pVariant->nLen);
@@ -892,7 +892,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
           *(uint32_t *)payload = TSDB_DATA_NCHAR_NULL;
         } else {
-          if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
+          if (pVariant->nType != TSDB_DATA_TYPE_NCHAR && pVariant->nType != TSDB_DATA_TYPE_JSON_NCHAR) {
             if (toNchar(pVariant, &payload, &newlen) != 0) {
               return -1;
             }
@@ -906,7 +906,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         } else {
           char *p = varDataVal(payload);
 
-          if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
+          if (pVariant->nType != TSDB_DATA_TYPE_NCHAR && pVariant->nType != TSDB_DATA_TYPE_JSON_NCHAR) {
             if (toNchar(pVariant, &p, &newlen) != 0) {
               return -1;
             }
