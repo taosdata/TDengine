@@ -2678,7 +2678,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
   STSchema* pTagSchema = tsdbGetTableTagSchema(pSuperTable);
-  if(pTagSchema && pTagSchema->numOfCols == 1 && IS_JSON_DATA_TYPE(pTagSchema->columns[0].type)){
+  if(pTagSchema && pTagSchema->numOfCols == 1 && pTagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     SArray** pRecord = taosHashIterate(pSuperTable->jsonKeyMap, NULL);
     SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
 
@@ -3662,7 +3662,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 //
 //int32_t dealWithTree(STable* pTable, tExprNode* expr){
 //  STSchema* pTagSchema = tsdbGetTableTagSchema(pTable);
-//  if(!IS_JSON_DATA_TYPE(pTagSchema->columns->type)){
+//  if(pTagSchema->columns->type != TSDB_DATA_TYPE_JSON){
 //    return TSDB_CODE_SUCCESS;
 //  }
 //
@@ -4081,7 +4081,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
-    void* jsonData = getJsonTagValue(pTable, name, strlen(name), pTable->pSuper->tagSchema->columns->type, NULL);
+    void* jsonData = getJsonTagValue(pTable, name, strlen(name), NULL);
     if (jsonData != NULL) jsonData += CHAR_BYTES;   // jump type
     *data = jsonData;
   }
@@ -4109,18 +4109,9 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     SSchema*      sch = fi->desc;
     int32_t outLen = 0;
-    char* key = NULL;
-    if(pTable->tagSchema->columns->type == TSDB_DATA_TYPE_JSON_NCHAR){
-      char tagKey[256] = {0};
-      if (!taosMbsToUcs4(sch->name, strlen(sch->name), tagKey, 256, &outLen)) {
-        tsdbError("json key to ucs4 error:%s|%s", strerror(errno), sch->name);
-        return;
-      }
-      key = tagKey;
-    }else{
-      key = sch->name;
-      outLen = strlen(sch->name);
-    }
+    char* key = sch->name;
+    outLen = strlen(sch->name);
+
     SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, outLen);
     if(data == NULL) continue;
     if(tabList == NULL) {
@@ -4165,7 +4156,7 @@ static void queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
 static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo) {
   STSchema*   pTSSchema = pTable->tagSchema;
 
-  if(IS_JSON_DATA_TYPE(pTSSchema->columns->type)){
+  if(pTSSchema->columns->type == TSDB_DATA_TYPE_JSON){
     queryByJsonTag(pTable, filterInfo, pRes);
   }else{
     bool indexQuery = false;

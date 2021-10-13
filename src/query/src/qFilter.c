@@ -199,8 +199,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_TIMESTAMP: comparFn = 3;  break;
     case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_JSON_BINARY:{
+    case TSDB_DATA_TYPE_BINARY:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
@@ -219,7 +218,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON_NCHAR:{
+    case TSDB_DATA_TYPE_JSON:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
@@ -1162,24 +1161,26 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     assert(info->pTable != NULL);
     SSchema* schema = pLeft->_node.pLeft->pSchema;
-    if(pLeft->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
-    memset(schema->name, 0, TSDB_COL_NAME_LEN);
-    strncpy(schema->name, pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen);
+    if(pLeft->_node.pRight->pVal->nLen >= TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+    jsonKeyMd5(pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen, keyMd5);
+    strncpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
-    void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), schema->type, &schema->colId);
+    void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), &schema->colId);
     if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
     schema->type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next and set value in filterInitValFieldData
-    assert(schema->type > TSDB_DATA_TYPE_NULL && schema->type < TSDB_DATA_TYPE_JSON_BINARY);
-    if((tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH)
-        && schema->type != TSDB_DATA_TYPE_BINARY)
-      return TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR;
+    assert(schema->type > TSDB_DATA_TYPE_NULL && schema->type < TSDB_DATA_TYPE_JSON);
+//    if((tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH)
+//        && schema->type != TSDB_DATA_TYPE_BINARY)
+//      return TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR;
 
     pLeft = pLeft->_node.pLeft;   // -> operation use left as input
   }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
     SSchema* schema = pLeft->pSchema;
-    if(tree->_node.pRight->pVal->nLen >= TSDB_COL_NAME_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
-    memset(schema->name, 0, TSDB_COL_NAME_LEN);
-    strncpy(schema->name, tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen);
+    if(tree->_node.pRight->pVal->nLen >= TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+    jsonKeyMd5(tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen, keyMd5);
+    strncpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
   }
 
   SFilterFieldId left = {0}, right = {0};
@@ -1835,10 +1836,10 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
       continue;
     }
 
-    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_JSON_BINARY) {
+    if (type == TSDB_DATA_TYPE_BINARY) {
       size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;
       fi->data = calloc(1, len + 1 + VARSTR_HEADER_SIZE);
-    } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON_NCHAR) {
+    } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
       size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;    
       fi->data = calloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     } else {

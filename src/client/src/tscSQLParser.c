@@ -162,7 +162,7 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
 
   tSqlExpr* item = ((tSqlExprItem*)(taosArrayGet(pList, 0)))->pNode;
   int32_t firstVarType = item->value.nType;
-  if(IS_JSON_DATA_TYPE(colType))  colType = firstVarType;
+  if(colType  == TSDB_DATA_TYPE_JSON)  colType = firstVarType;
 
   SBufferWriter bw = tbufInitWriter( NULL, false);
   tbufEnsureCapacity(&bw, 512);
@@ -1440,7 +1440,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   int32_t nLen = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pField = taosArrayGet(pFieldList, i);
-    if (!isValidDataType(pField->type) || IS_JSON_DATA_TYPE(pField->type)) {
+    if (!isValidDataType(pField->type) || pField->type == TSDB_DATA_TYPE_JSON) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       return false;
     }
@@ -1505,7 +1505,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       return false;
     }
 
-    if (IS_JSON_DATA_TYPE(p->type) && numOfTags != 1) {
+    if (p->type == TSDB_DATA_TYPE_JSON && numOfTags != 1) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
       return false;
     }
@@ -1592,7 +1592,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   //  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   //  return false;
   //}
-  if (IS_JSON_DATA_TYPE(pTagField->type)) {
+  if (pTagField->type == TSDB_DATA_TYPE_JSON) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
   }
 
@@ -1603,7 +1603,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
   int32_t  nLen = 0;
 
-  if (numOfTags == 1 && IS_JSON_DATA_TYPE(pTagSchema[0].type)){
+  if (numOfTags == 1 && pTagSchema[0].type == TSDB_DATA_TYPE_JSON){
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
   }
 
@@ -2319,7 +2319,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       }
 
       SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
-      if (tokenId == TK_ARROW && !IS_JSON_DATA_TYPE(pSchema->type)) {
+      if (tokenId == TK_ARROW && pSchema->type != TSDB_DATA_TYPE_JSON) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
 
@@ -4471,7 +4471,7 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       return invalidOperationMsg(msgBuf, msg2);
     }
 
-    if(pLeft->tokenId == TK_ARROW && pSchema[index].type == TSDB_DATA_TYPE_JSON_NCHAR){
+    if(pLeft->tokenId == TK_ARROW && pSchema[index].type == TSDB_DATA_TYPE_JSON){
       return invalidOperationMsg(msgBuf, msg4);
     }
 
@@ -4648,7 +4648,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
     }
 
     // check for json tag operation -> and ?
-    if (IS_JSON_DATA_TYPE(pSchema->type)){
+    if (pSchema->type == TSDB_DATA_TYPE_JSON){
       code = validateJsonTagExpr(*pExpr, tscGetErrorMsgPayload(pCmd));
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -6149,7 +6149,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       d += sizeof(STColumn);
     }
 
-    if (IS_JSON_DATA_TYPE(pTagsSchema->type)){
+    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON){
       SKVRowBuilder kvRowBuilder = {0};
       if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -6163,7 +6163,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       int8_t tagVal = TSDB_DATA_BINARY_PLACEHOLDER;
       tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
 
-      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId, pTagsSchema->type);
+      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return code;
@@ -6191,7 +6191,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     int32_t len = 0;
-    if(IS_JSON_DATA_TYPE(pTagsSchema->type)){
+    if(pTagsSchema->type == TSDB_DATA_TYPE_JSON){
       len = kvRowLen(pUpdateMsg->data + schemaLen);
     }else if (!IS_VAR_DATA_TYPE(pTagsSchema->type)) {
       len = tDataTypes[pTagsSchema->type].bytes;
@@ -7695,13 +7695,13 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
               } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
                 pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
               }
-            } else if (IS_JSON_DATA_TYPE(pSchema->type)) {
+            } else if (pSchema->type == TSDB_DATA_TYPE_JSON) {
               if (pItem->pVar.nLen > TSDB_MAX_TAGS_LEN) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
               }
             }
-            if(IS_JSON_DATA_TYPE(pSchema->type)){
+            if(pSchema->type == TSDB_DATA_TYPE_JSON){
               *((int8_t *)tagVal) = TSDB_DATA_BINARY_PLACEHOLDER;
             }else {
               ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
@@ -7757,13 +7757,13 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
           } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
             pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
           }
-        } else if (IS_JSON_DATA_TYPE(pSchema->type)) {
+        } else if (pSchema->type == TSDB_DATA_TYPE_JSON) {
           if (pItem->pVar.nLen > pSchema->bytes) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
         }
-        if(IS_JSON_DATA_TYPE(pSchema->type)){
+        if(pSchema->type == TSDB_DATA_TYPE_JSON){
           *((int8_t *)tagVal) = TSDB_DATA_BINARY_PLACEHOLDER;
         }else {
           ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
@@ -7787,7 +7787,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     }
 
     // encode json tag string
-    if(schemaSize == 1 && IS_JSON_DATA_TYPE(pTagSchema[0].type)){
+    if(schemaSize == 1 && pTagSchema[0].type == TSDB_DATA_TYPE_JSON){
       if (valSize != schemaSize) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
@@ -7798,7 +7798,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
-      ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId, pTagSchema[0].type);
+      ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
       if (ret != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return ret;
@@ -7812,7 +7812,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     }
     tdSortKVRowByColIdx(row);
     pTag->dataLen = kvRowLen(row);
-    if(schemaSize == 1 && IS_JSON_DATA_TYPE(pTagSchema[0].type)){
+    if(schemaSize == 1 && pTagSchema[0].type == TSDB_DATA_TYPE_JSON){
       if(kvRowLen(row) >= pTagSchema[0].bytes){   // reserve 1 byte for select
         char tmp[128]= {0};
         sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagSchema[0].bytes);

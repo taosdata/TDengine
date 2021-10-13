@@ -456,6 +456,16 @@ char *taosIpStr(uint32_t ipInt) {
   return ipStr;
 }
 
+void jsonKeyMd5(char *pMsg, int msgLen, void *pKey) {
+  MD5_CTX context;
+
+  MD5Init(&context);
+  MD5Update(&context, (uint8_t *)pMsg, msgLen);
+  MD5Final(&context);
+
+  memcpy(pKey, context.digest, sizeof(context.digest));
+}
+
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
 #if __STDC_VERSION__ >= 201112L
   static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");

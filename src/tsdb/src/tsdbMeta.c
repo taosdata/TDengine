@@ -14,6 +14,7 @@
  */
 #include "tsdbint.h"
 #include "tcompare.h"
+#include "tutil.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
@@ -211,7 +212,7 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
   }
 
   char *val = NULL;
-  if (IS_JSON_DATA_TYPE(pCol->type)){
+  if (pCol->type == TSDB_DATA_TYPE_JSON){
     val = ((STable*)pTable)->tagVal;
   }else{
     val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
@@ -394,7 +395,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
   }
 
   bool      isChangeIndexCol = (pMsg->colId == colColId(schemaColAt(pTable->pSuper->tagSchema, 0)))
-      || IS_JSON_DATA_TYPE(pMsg->type);
+      || pMsg->type == TSDB_DATA_TYPE_JSON;
   // STColumn *pCol = bsearch(&(pMsg->colId), pMsg->data, pMsg->numOfTags, sizeof(STColumn), colIdCompar);
   // ASSERT(pCol != NULL);
 
@@ -403,7 +404,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbRemoveTableFromIndex(pMeta, pTable);
   }
   TSDB_WLOCK_TABLE(pTable);
-  if (IS_JSON_DATA_TYPE(pMsg->type)){
+  if (pMsg->type == TSDB_DATA_TYPE_JSON){
     kvRowFree(pTable->tagVal);
     pTable->tagVal = tdKVRowDup(POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
   }else{
@@ -857,7 +858,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper, STable *pST
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    if(IS_JSON_DATA_TYPE(pCol->type)){
+    if(pCol->type == TSDB_DATA_TYPE_JSON){
       assert(pTable->tagSchema->numOfCols == 1);
       pTable->jsonKeyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
       if (pTable->jsonKeyMap == NULL) {
@@ -1096,7 +1097,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
 
   pTable->pSuper = pSTable;
 
-  if(IS_JSON_DATA_TYPE(pSTable->tagSchema->columns[0].type)){
+  if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
     ASSERT(nCols%2 == 1);
@@ -1110,8 +1111,10 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         continue;
       }
 
+      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+      jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
       SArray* tablistNew = NULL;
-      SArray** tablist = (SArray**)taosHashGet(pSTable->jsonKeyMap, varDataVal(val), varDataLen(val));
+      SArray** tablist = (SArray**)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
       if(tablist == NULL) {
         tablistNew = taosArrayInit(8, sizeof(JsonMapValue));
         if(tablistNew == NULL){
@@ -1119,7 +1122,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
           tsdbError("out of memory when alloc json tag array");
           return -1;
         }
-        if(taosHashPut(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val), &tablistNew, sizeof(void*)) < 0){
+        if(taosHashPut(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, &tablistNew, sizeof(void*)) < 0){
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           tsdbError("out of memory when put json tag array");
           return -1;
@@ -1167,7 +1170,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STable *pSTable = pTable->pSuper;
   ASSERT(pSTable != NULL);
 
-  if(IS_JSON_DATA_TYPE(pSTable->tagSchema->columns[0].type)){
+  if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
     ASSERT(nCols%2 == 1);
@@ -1450,7 +1453,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-      if(IS_JSON_DATA_TYPE(pCol->type)){
+      if(pCol->type == TSDB_DATA_TYPE_JSON){
         assert(pTable->tagSchema->numOfCols == 1);
         pTable->jsonKeyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
         if (pTable->jsonKeyMap == NULL) {

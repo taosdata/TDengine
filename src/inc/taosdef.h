@@ -221,6 +221,8 @@ do { \
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
+#define TSDB_MAX_JSON_KEY_LEN     256
+#define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16

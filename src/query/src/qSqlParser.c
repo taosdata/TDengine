@@ -702,18 +702,6 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
       break;
     }
 
-    if((type->n == 4) &&
-        (strncasecmp(type->z, "json", type->n) == 0) && JSON_TYPE_NCHAR){
-      i = TSDB_DATA_TYPE_JSON_NCHAR;
-      break;
-    }
-
-    if((type->n == 4) &&
-        (strncasecmp(type->z, "json", type->n) == 0) && JSON_TYPE_BINARY){
-      i = TSDB_DATA_TYPE_JSON_BINARY;
-      break;
-    }
-
     i += 1;
   }
 
@@ -728,7 +716,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   pField->type = i;
   pField->bytes = tDataTypes[i].bytes;
 
-  if (i == TSDB_DATA_TYPE_NCHAR || i == TSDB_DATA_TYPE_JSON_NCHAR) {
+  if (i == TSDB_DATA_TYPE_NCHAR || i == TSDB_DATA_TYPE_JSON) {
     /*
      * for nchar, the TOKENTYPE is the number of character, so the length is the
      * number of bytes in UCS-4 format, which is 4 times larger than the number of characters
@@ -745,7 +733,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
       }
       pField->bytes = (int16_t)bytes;
     }
-  } else if (i == TSDB_DATA_TYPE_BINARY || i == TSDB_DATA_TYPE_JSON_BINARY) {
+  } else if (i == TSDB_DATA_TYPE_BINARY) {
     /* for binary, the TOKENTYPE is the length of binary */
     if (type->type == 0) {
       pField->bytes = 0;

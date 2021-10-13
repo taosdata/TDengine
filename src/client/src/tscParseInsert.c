@@ -387,8 +387,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
       }
       break;
 
-    case TSDB_DATA_TYPE_JSON_BINARY:
-    case TSDB_DATA_TYPE_JSON_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       if (pToken->n >= pSchema->bytes) {    // reserve 1 byte for select
         return tscInvalidOperationMsg(msg, "json tag length too long", pToken->z);
       }
@@ -1082,7 +1081,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     // encode json tag string
-    if(spd.numOfBound == 1 && IS_JSON_DATA_TYPE(pTagSchema[spd.boundedColumns[0]].type)){
+    if(spd.numOfBound == 1 && pTagSchema[spd.boundedColumns[0]].type == TSDB_DATA_TYPE_JSON){
       char tmp = sToken.z[sToken.n];
       sToken.z[sToken.n] = 0;
 //      if(sToken.type != TK_STRING) {
@@ -1090,7 +1089,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 //        tscDestroyBoundColumnInfo(&spd);
 //        return tscSQLSyntaxErrMsg(pInsertParam->msg, "json type error, should be string", NULL);
 //      }
-      code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId, pTagSchema[spd.boundedColumns[0]].type);
+      code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         tscDestroyBoundColumnInfo(&spd);
@@ -1113,7 +1112,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "tag value expected", NULL);
     }
     // encode json tag string
-    if(spd.numOfBound == 1 && IS_JSON_DATA_TYPE(pTagSchema[spd.boundedColumns[0]].type)){
+    if(spd.numOfBound == 1 && pTagSchema[spd.boundedColumns[0]].type == TSDB_DATA_TYPE_JSON){
       if(kvRowLen(row) >= pTagSchema[spd.boundedColumns[0]].bytes){   // reserve 1 byte for select
         char tmp[128]= {0};
         sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagSchema[spd.boundedColumns[0]].bytes);

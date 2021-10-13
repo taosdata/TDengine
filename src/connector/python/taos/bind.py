@@ -124,7 +124,7 @@ class TaosBind(ctypes.Structure):
         self.buffer_length = length
         self.length = pointer(c_size_t(self.buffer_length))
 
-    def json_binary(self, value):
+    def json(self, value):
         buffer = None
         length = 0
         if isinstance(value, str):
@@ -134,22 +134,7 @@ class TaosBind(ctypes.Structure):
         else:
             buffer = value
             length = len(value)
-        self.buffer_type = FieldType.C_JSON_BINARY
-        self.buffer = cast(buffer, c_void_p)
-        self.buffer_length = length
-        self.length = pointer(c_size_t(self.buffer_length))
-
-    def json_nchar(self, value):
-        buffer = None
-        length = 0
-        if isinstance(value, str):
-            bytes = value.encode("utf-8")
-            buffer = create_string_buffer(bytes)
-            length = len(bytes)
-        else:
-            buffer = value
-            length = len(value)
-        self.buffer_type = FieldType.C_JSON_NCHAR
+        self.buffer_type = FieldType.C_JSON
         self.buffer = cast(buffer, c_void_p)
         self.buffer_length = length
         self.length = pointer(c_size_t(self.buffer_length))
@@ -386,13 +371,9 @@ class TaosMultiBind(ctypes.Structure):
         self.buffer_type = FieldType.C_NCHAR
         self._str_to_buffer(values)
 
-    def json_binary(self, values):
-        self.buffer_type = FieldType.C_JSON_BINARY
-        self._str_to_buffer(values)
-
-    def json_nchar(self, values):
+    def json(self, values):
         # type: (list[str]) -> None
-        self.buffer_type = FieldType.C_JSON_NCHAR
+        self.buffer_type = FieldType.C_JSON
         self._str_to_buffer(values)
 
     def tinyint_unsigned(self, values):
