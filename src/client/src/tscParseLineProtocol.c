@@ -2055,6 +2055,8 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
       ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
+        free(pkv->key);
+        free(pkv->value);
         goto error;
       }
       smlData->childTableName = malloc( pkv->length + 1);
