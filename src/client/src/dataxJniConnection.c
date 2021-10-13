@@ -267,7 +267,7 @@ JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_inser
 
   char *message[1];
   message[0] = payload;
-  int code = taos_schemaless_insert(taos, message, 0, 2);
+  int code = taos_schemaless_insert(taos, message, 0, SML_JSON_PROTOCOL, NULL);
   (*env)->ReleaseStringUTFChars(env, json, payload);
 
   if (code) {
