@@ -1164,9 +1164,9 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
     if(pLeft->_node.pRight->pVal->nLen >= TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
     jsonKeyMd5(pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen, keyMd5);
-    strncpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+    memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
-    void* data = getJsonTagValue(info->pTable, schema->name, strlen(schema->name), &schema->colId);
+    void* data = getJsonTagValue(info->pTable, schema->name, TSDB_MAX_JSON_KEY_MD5_LEN, &schema->colId);
     if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
     schema->type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next and set value in filterInitValFieldData
     assert(schema->type > TSDB_DATA_TYPE_NULL && schema->type < TSDB_DATA_TYPE_JSON);
@@ -1180,7 +1180,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
     if(tree->_node.pRight->pVal->nLen >= TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
     jsonKeyMd5(tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen, keyMd5);
-    strncpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+    memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
   }
 
   SFilterFieldId left = {0}, right = {0};
