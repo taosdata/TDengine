@@ -52,6 +52,7 @@ typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
+  uint8_t update;
   int16_t numOfColumns;
   int32_t rowSize;
 } STableComInfo;
