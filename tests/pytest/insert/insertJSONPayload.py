@@ -36,7 +36,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"`.stb.0.`",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	10,
 	    "tags":	{
 		"t1":	true,
@@ -46,7 +46,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `.stb.0.`")
@@ -57,7 +57,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_0",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	10,
 	    "tags":	{
 		"t1":	true,
@@ -67,16 +67,16 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_0")
-        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(1, 1, "DOUBLE")
 
         payload = ['''
         {
 	    "metric":	"stb0_1",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	true,
 	    "tags":	{
 		"t1":	true,
@@ -86,7 +86,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_1")
@@ -95,7 +95,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_2",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	false,
 	    "tags":	{
 		"t1":	true,
@@ -105,7 +105,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_2")
@@ -114,7 +114,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_3",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>",
 	    "tags":	{
 		"t1":	true,
@@ -124,7 +124,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_3")
@@ -133,7 +133,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_4",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	3.14,
 	    "tags":	{
 		"t1":	true,
@@ -143,7 +143,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_4")
@@ -152,7 +152,7 @@ class TDTestCase:
         payload = ['''
         {
 	    "metric":	"stb0_5",
-	    "timestamp":	1626006833610123,
+	    "timestamp":	1626006833610,
 	    "value":	3.14E-2,
 	    "tags":	{
 		"t1":	true,
@@ -162,7 +162,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_5")
@@ -184,9 +184,25 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
+        ### timestamp 10 digits second ###
+        payload = ['''
+        {
+	    "metric":	"stb0_7",
+	    "timestamp":	1626006833,
+	    "value":	123,
+	    "tags":	{
+		"t1":	true,
+		"t2":	false,
+		"t3":	10,
+		"t4":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, 2, None)
+        print("schemaless_insert result {}".format(code))
 
         print("============= step3 : test tags  ================")
         ### Default tag numeric types ###
@@ -200,11 +216,11 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_8")
-        tdSql.checkData(2, 1, "BIGINT")
+        tdSql.checkData(2, 1, "DOUBLE")
 
         payload = ['''
         {
@@ -216,7 +232,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_9")
@@ -232,7 +248,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_10")
@@ -258,7 +274,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_0")
@@ -281,7 +297,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_1")
@@ -304,7 +320,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_2")
@@ -327,7 +343,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_3")
@@ -351,7 +367,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         ### metric value ###
@@ -374,7 +390,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_0")
@@ -399,7 +415,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_1")
@@ -424,7 +440,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_2")
@@ -449,7 +465,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_3")
@@ -474,7 +490,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_4")
@@ -499,7 +515,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_5")
@@ -524,7 +540,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_6")
@@ -549,7 +565,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_7")
@@ -574,7 +590,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_8")
@@ -633,7 +649,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2)
+        code = self._conn.schemaless_insert(payload, 2, None)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb3_0")
