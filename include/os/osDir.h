@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-void taosRemoveDir(char *dirname);
+void taosRemoveDir(const char *dirname);
 bool taosDirExist(char *dirname);
 bool taosMkDir(char *dirname);
 void taosRemoveOldFiles(char *dirname, int32_t keepDays);

@@ -87,7 +87,7 @@ typedef struct {
 #define schemaColAt(s, i) ((s)->columns + i)
 #define tdFreeSchema(s) tfree((s))
 
-STSchema *tdDupSchema(STSchema *pSchema);
+STSchema *tdDupSchema(const STSchema *pSchema);
 int       tdEncodeSchema(void **buf, STSchema *pSchema);
 void *    tdDecodeSchema(void *buf, STSchema **pRSchema);
 
