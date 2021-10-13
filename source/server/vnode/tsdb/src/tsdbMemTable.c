@@ -13,18 +13,4 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
-#include "tkv.h"
 #include "tsdbMemTable.h"
-
-/* -------------- -------------- */
-struct STsdb {
-  STsdbMemTable *mem;
-  STsdbMemTable *imem;
-  STkvDb *       lrowdb;  // last row cache
-  STkvDb *       lastdb;  // last cache
-  // TODO
-};
-
-int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
-int tsdbCommit(STsdb *pTsdb) { return 0; }

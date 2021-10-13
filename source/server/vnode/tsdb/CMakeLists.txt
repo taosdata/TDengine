@@ -8,5 +8,7 @@ target_include_directories(
 target_link_libraries(
     tsdb
     PUBLIC os
-    PRIVATE common
+    PUBLIC util
+    PUBLIC common
+    PUBLIC tkv
 )

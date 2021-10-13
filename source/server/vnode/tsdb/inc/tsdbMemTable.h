@@ -13,18 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
-#include "tkv.h"
-#include "tsdbMemTable.h"
+#ifndef _TD_TSDB_MEMTABLE_H_
+#define _TD_TSDB_MEMTABLE_H_
 
-/* -------------- -------------- */
-struct STsdb {
-  STsdbMemTable *mem;
-  STsdbMemTable *imem;
-  STkvDb *       lrowdb;  // last row cache
-  STkvDb *       lastdb;  // last cache
-  // TODO
+#include "tdef.h"
+#include "thash.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct STsdbMemTable STsdbMemTable;
+
+/* --------------------- For compile and test only --------------------- */
+struct STsdbMemTable {
+  TSKEY     minKey;
+  TSKEY     maxKey;
+  SHashObj *tData;  // uid --> SSkipList
+  void *    mallocator;
+  T_REF_DECLARE()
 };
 
-int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
-int tsdbCommit(STsdb *pTsdb) { return 0; }
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TSDB_MEMTABLE_H_*/
