@@ -563,7 +563,7 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
 }
 
 // ============== Operations on SDFileSet
-void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t fsetVer) {
+void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver, uint16_t fsetVer) {
   pSet->fid = fid;
   pSet->state = 0;
   pSet->ver = fsetVer;
@@ -587,7 +587,7 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
   tlen += taosEncodeFixedI32(buf, pSet->fid);
-  tlen += taosEncodeFixedU8(buf, pSet->ver);
+  tlen += taosEncodeFixedU16(buf, pSet->ver);
   for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -603,7 +603,7 @@ void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet, uint32_t sfver) {
   pSet->fid = fid;
 
   if (sfver > TSDB_FS_VER_0) {
-    buf = taosDecodeFixedU8(buf, &(pSet->ver));
+    buf = taosDecodeFixedU16(buf, &(pSet->ver));
   }
 
   ASSERT_TSDB_FSET_NFILES_VALID(pSet);
@@ -617,7 +617,7 @@ int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
   tlen += taosEncodeFixedI32(buf, pSet->fid);
-  tlen += taosEncodeFixedU8(buf, pSet->ver);
+  tlen += taosEncodeFixedU16(buf, pSet->ver);
   for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     tlen += tsdbEncodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -629,7 +629,7 @@ void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
   int32_t fid;
 
   buf = taosDecodeFixedI32(buf, &(fid));
-  buf = taosDecodeFixedU8(buf, &(pSet->ver));
+  buf = taosDecodeFixedU16(buf, &(pSet->ver));
   pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     buf = tsdbDecodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));

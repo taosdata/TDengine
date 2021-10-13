@@ -300,7 +300,7 @@ static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
 typedef struct {
   int     fid;
   int     state;
-  uint8_t ver;  // fset version
+  uint16_t ver;  // fset version
   SDFile  files[TSDB_FILE_MAX];
 } SDFileSet;
 
@@ -312,7 +312,7 @@ typedef enum {
 #define TSDB_LATEST_FSET_VER TSDB_FSET_VER_1
 
 // get nDFiles in SDFileSet
-static FORCE_INLINE uint8_t tsdbGetNFiles(SDFileSet* pSet) {
+static FORCE_INLINE uint16_t tsdbGetNFiles(SDFileSet* pSet) {
   switch (pSet->ver) {
     case TSDB_FSET_VER_0:
       return TSDB_FILE_MIN;
@@ -338,7 +338,7 @@ static FORCE_INLINE uint8_t tsdbGetNFiles(SDFileSet* pSet) {
     }                                                                             \
   } while (0);
 
-void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver, uint8_t fsetVer);
+void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver, uint16_t fsetVer);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet, uint32_t sfver);
