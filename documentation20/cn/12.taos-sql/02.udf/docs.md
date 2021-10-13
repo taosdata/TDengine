@@ -107,7 +107,7 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 
   例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
   ```sql
-  CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT bufsize 128;
+  CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
   ```
 
 - 创建聚合函数：`CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize B;`
@@ -116,9 +116,9 @@ gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
   * typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
   * B：系统使用的中间临时缓冲区大小，单位是字节，最小 0，最大 512，通常可以设置为 128。
 
-  例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
+  例如，如下语句可以把 abs_max.so 创建为系统中可用的 UDF：
   ```sql
-  CREATE FUNCTION abs_max AS "/home/taos/udf_example/abs_max.so" OUTPUTTYPE BIGINT bufsize 128;
+  CREATE AGGREGATE FUNCTION abs_max AS "/home/taos/udf_example/abs_max.so" OUTPUTTYPE BIGINT bufsize 128;
   ```
 
 ### 管理 UDF

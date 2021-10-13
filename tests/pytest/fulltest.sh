@@ -198,7 +198,7 @@ python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
 python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
-python3 ./test.py -f update/bug_td2279.py
+python3 ./test.py -f update/update_options.py
 
 #======================p2-end===============
 #======================p3-start===============
@@ -219,6 +219,7 @@ python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 #taosdemo
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py 
 
 #query
 python3 test.py -f query/distinctOneColTb.py 
@@ -308,7 +309,7 @@ python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
-python3 client/twoClients.py
+#python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 # subscribe
@@ -345,6 +346,7 @@ python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
+python3 ./test.py -f functions/function_sample.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
@@ -398,7 +400,12 @@ python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsOr.py
+
+
+python3 ./test.py -f client/nettest.py
+
 python3 ./test.py -f query/queryRegex.py
+python3 ./test.py -f tools/taosdemoTestdatatype.py
 #======================p4-end===============
 
 

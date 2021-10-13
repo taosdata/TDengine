@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#define SML_TIMESTAMP_SECOND_DIGITS 10
+#define SML_TIMESTAMP_MILLI_SECOND_DIGITS 13
+
 typedef struct {
   char* key;
   uint8_t type;
@@ -41,14 +44,25 @@ typedef struct {
 
 typedef enum {
   SML_TIME_STAMP_NOW,
+  SML_TIME_STAMP_HOURS,
+  SML_TIME_STAMP_MINUTES,
   SML_TIME_STAMP_SECONDS,
   SML_TIME_STAMP_MILLI_SECONDS,
   SML_TIME_STAMP_MICRO_SECONDS,
-  SML_TIME_STAMP_NANO_SECONDS
+  SML_TIME_STAMP_NANO_SECONDS,
+  SML_TIME_STAMP_NOT_CONFIGURED
 } SMLTimeStampType;
+
+typedef enum {
+  SML_LINE_PROTOCOL = 0,
+  SML_TELNET_PROTOCOL = 1,
+  SML_JSON_PROTOCOL = 2,
+} SMLProtocolType;
 
 typedef struct {
   uint64_t id;
+  SMLProtocolType protocol;
+  SMLTimeStampType tsType;
   SHashObj* smlDataToSchema;
 } SSmlLinesInfo;
 
@@ -57,14 +71,22 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
 bool isValidInteger(char *str);
 bool isValidFloat(char *str);
 
-int32_t isValidChildTableName(const char *pTbName, int16_t len);
+int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* info);
 
 bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
-                         uint16_t len, SSmlLinesInfo* info);
+                         uint16_t len, SSmlLinesInfo* info, bool isTag);
 int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
                             uint16_t len, SSmlLinesInfo* info);
 
 void destroySmlDataPoint(TAOS_SML_DATA_POINT* point);
+
+int taos_insert_sml_lines(TAOS* taos, char* lines[], int numLines,
+                          SMLProtocolType protocol, SMLTimeStampType tsType);
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines,
+                             SMLProtocolType protocol, SMLTimeStampType tsType);
+int taos_insert_json_payload(TAOS* taos, char* payload,
+                             SMLProtocolType protocol, SMLTimeStampType tsType);
+
 
 #ifdef __cplusplus
 }
