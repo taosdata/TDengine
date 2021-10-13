@@ -101,13 +101,12 @@ IF (${MEMORY_SANITIZER} MATCHES "true")
   SET(TD_MEMORY_SANITIZER TRUE)
 ENDIF ()
 
-# default build TSZ
-set(TSZ_ENABLED "true")
-IF (${TSZ_ENABLED} MATCHES "true")
+# build TSZ by default
+IF ("${TSZ_ENABLED}" MATCHES "false")
+  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
+ELSE()
   # define add 
   MESSAGE(STATUS "build with TSZ enabled")
   ADD_DEFINITIONS(-DTD_TSZ)
   set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
-ELSE()
-  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
 ENDIF()  

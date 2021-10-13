@@ -38,8 +38,8 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   )
 ENDIF ()
 
-IF (${TSZ_ENABLED} MATCHES "true")
-  option(NEED_DOWN "" ON)
+IF (NOT "${TSZ_ENABLED}" MATCHES "false")
+  option(NEED_DOWN "need download file" ON)
 ENDIF()
 
 #
@@ -58,7 +58,7 @@ IF (${NEED_DOWN})
   set(DEPS_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 
   configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${DEPS_TMP_FILE})
-  IF (${TSZ_ENABLED} MATCHES "true")
+  IF (NOT "${TSZ_ENABLED}" MATCHES "false")
     cat("${CMAKE_SUPPORT_DIR}/TSZ_CMakeLists.txt.in" ${DEPS_TMP_FILE})
     MESSAGE(" external project TSZ add to download list.")
   ENDIF()
@@ -68,6 +68,6 @@ IF (${NEED_DOWN})
   MESSAGE("Download external projects finished.")
 ENDIF()
 
-IF (${TSZ_ENABLED} MATCHES "true")
+IF (NOT ${TSZ_ENABLED} MATCHES "false")
   ADD_SUBDIRECTORY(TSZ)  
 ENDIF()
