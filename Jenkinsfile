@@ -68,11 +68,11 @@ def pre_test(){
     }
     sh'''
     cd ${WKC}
-    git submodule update --init --recursive
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
     '''
