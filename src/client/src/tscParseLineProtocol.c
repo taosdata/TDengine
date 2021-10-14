@@ -1906,7 +1906,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 }
 
 
-static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
+static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
   char *value = NULL;
