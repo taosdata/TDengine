@@ -22,6 +22,56 @@
 extern "C" {
 #endif
 
+typedef struct tmqMsgHead {
+  int32_t headLen;
+  int32_t msgVer;
+  int64_t cgId;
+  int32_t topicLen;
+  char topic[];
+} tmqMsgHead;
+
+//TODO: put msgs into common
+typedef struct tmqConnectReq {
+  tmqMsgHead head;
+
+} tmqConnectReq;
+
+typedef struct tmqConnectResp {
+
+} tmqConnectResp;
+
+typedef struct tmqDisconnectReq {
+
+} tmqDisconnectReq;
+
+typedef struct tmqDisconnectResp {
+
+} tmqDiconnectResp;
+
+typedef struct tmqConsumeReq {
+
+} tmqConsumeReq;
+
+typedef struct tmqConsumeResp {
+
+} tmqConsumeResp;
+
+typedef struct tmqSubscribeReq {
+
+} tmqSubscribeReq;
+
+typedef struct tmqSubscribeResp {
+
+} tmqSubscribeResp;
+
+typedef struct tmqHeartbeatReq {
+
+} tmqHeartbeatReq;
+
+typedef struct tmqHeartbeatResp {
+
+} tmqHeartbeatResp;
+
 typedef struct tqTopicVhandle {
   //name
   //
@@ -29,7 +79,7 @@ typedef struct tqTopicVhandle {
   //
   //callback for mnode
   //
-} tqTopic;
+} tqTopicVhandle;
 
 typedef struct STQ {
   //the set for topics
@@ -50,7 +100,7 @@ int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
 
 //void* will be replace by a msg type
-int tqHandleMsg(STQ*, void* msg);
+int tqHandleConsumeMsg(STQ*, tmqConsumeReq* msg);
 
 #ifdef __cplusplus
 }

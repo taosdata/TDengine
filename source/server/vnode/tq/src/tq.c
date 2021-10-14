@@ -77,7 +77,7 @@ int tqCommit(STQ* pTq) {
   return 0;
 }
 
-int tqHandleMsg(STQ* pTq, void*msg) {
+int tqHandleConsumeMsg(STQ* pTq, tmqConsumeReq* msg) {
   //parse msg and extract topic and cgId
   //lookup handle
   //confirm message and send to consumer
