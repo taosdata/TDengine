@@ -502,6 +502,7 @@ typedef struct SThreadInfo_S {
     uint64_t  querySeq;   // sequence number of sql command
     TAOS_SUB*  tsub;
 
+    int       sockfd;
 } threadInfo;
 
 #ifdef WINDOWS
@@ -581,8 +582,7 @@ static void prompt();
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
-static int postProceSql(char *host, struct sockaddr_in *pServAddr,
-        uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
+static int postProceSql(char *host, uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
 static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
         int disorderRatio, int disorderRange);
 static bool getInfoFromJsonFile(char* file);
@@ -2212,7 +2212,7 @@ static void selectAndGetResult(
 
     } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
         int retCode = postProceSql(
-                g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
+                g_queryInfo.host, g_queryInfo.port,
                 command,
                 pThreadInfo);
         if (0 != retCode) {
@@ -3391,7 +3391,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
     free(dbInfos);
 }
 
-static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
+static int postProceSql(char *host, uint16_t port,
         char* sqlstr, threadInfo *pThreadInfo)
 {
     char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
@@ -3429,29 +3429,6 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
     char base64_buf[INPUT_BUF_LEN];
-#ifdef WINDOWS
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-    SOCKET sockfd;
-#else
-    int sockfd;
-#endif
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-#ifdef WINDOWS
-        errorPrint( "Could not create socket : %d" , WSAGetLastError());
-#endif
-        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
-        free(request_buf);
-        ERROR_EXIT("opening socket");
-    }
-
-    int retConn = connect(sockfd, (struct sockaddr *)pServAddr, sizeof(struct sockaddr));
-    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
-    if (retConn < 0) {
-        free(request_buf);
-        ERROR_EXIT("connecting");
-    }
 
     memset(base64_buf, 0, INPUT_BUF_LEN);
 
@@ -3491,9 +3468,9 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     sent = 0;
     do {
 #ifdef WINDOWS
-        bytes = send(sockfd, request_buf + sent, req_str_len - sent, 0);
+        bytes = send(pThreadInfo->sockfd, request_buf + sent, req_str_len - sent, 0);
 #else
-        bytes = write(sockfd, request_buf + sent, req_str_len - sent);
+        bytes = write(pThreadInfo->sockfd, request_buf + sent, req_str_len - sent);
 #endif
         if (bytes < 0)
             ERROR_EXIT("writing message to socket");
@@ -3514,9 +3491,9 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 
     do {
 #ifdef WINDOWS
-        bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
+        bytes = recv(pThreadInfo->sockfds, response_buf + received, resp_len - received, 0);
 #else
-        bytes = read(sockfd, response_buf + received, resp_len - received);
+        bytes = read(pThreadInfo->sockfd, response_buf + received, resp_len - received);
 #endif
         verbosePrint("%s() LN%d: bytes:%d\n", __func__, __LINE__, bytes);
         if (bytes < 0) {
@@ -3553,12 +3530,6 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     }
 
     free(request_buf);
-#ifdef WINDOWS
-    closesocket(sockfd);
-    WSACleanup();
-#else
-    close(sockfd);
-#endif
 
     if (NULL == strstr(response_buf, "\"status\":\"succ\"")) {
         errorPrint("%s() LN%d, Response:\n%s\n",
@@ -7007,7 +6978,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             verbosePrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
                     __func__, __LINE__, pThreadInfo->buffer);
 
-            if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
+            if (0 != postProceSql(g_Dbs.host, g_Dbs.port,
                         pThreadInfo->buffer, pThreadInfo)) {
                 affectedRows = -1;
                 printf("========restful return fail, threadID[%d]\n",
@@ -10546,6 +10517,33 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               pThreadInfo->start_time = pThreadInfo->start_time + rand_int() % 10000 - rand_tinyint();
               }
               */
+        
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            WSADATA wsaData;
+            WSAStartup(MAKEWORD(2, 2), &wsaData);
+            SOCKET sockfd;
+#else
+            int sockfd;
+#endif
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            if (sockfd < 0) {
+#ifdef WINDOWS
+                errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                ERROR_EXIT("opening socket");
+            }
+
+            int retConn = connect(sockfd, (struct sockaddr *)&(g_Dbs.serv_addr), sizeof(struct sockaddr));
+            debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+            if (retConn < 0) {
+                ERROR_EXIT("connecting");
+            }
+            pThreadInfo->sockfd = sockfd;
+        }
+        
+
         tsem_init(&(pThreadInfo->lock_sem), 0, 0);
         if (ASYNC_MODE == g_Dbs.asyncMode) {
             pthread_create(pids + i, NULL, asyncWrite, pThreadInfo);
@@ -10583,6 +10581,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         tmfree((char *)pThreadInfo->bind_ts_array);
         tmfree(pThreadInfo->bindParams);
         tmfree(pThreadInfo->is_null);
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            closesocket(sockfd);
+            WSACleanup();
+#else
+            close(pThreadInfo->sockfd);
+#endif
+        }
+
 #else
         if (pThreadInfo->sampleBindArray) {
             for (int k = 0; k < MAX_SAMPLES; k++) {
