@@ -3485,9 +3485,7 @@ static int postProceSql(char *host, uint16_t port,
 
     char resEncodingChunk[] = "Encoding: chunked";
     char resHttp[] = "HTTP/1.1 ";
-    int resHttpLen = strlen(resHttp);
     char resHttpOk[] = "HTTP/1.1 200 OK";
-    int resHttpOkLen = strlen(resHttpOk);
 
     do {
 #ifdef WINDOWS
@@ -3507,15 +3505,15 @@ static int postProceSql(char *host, uint16_t port,
         verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                 __func__, __LINE__, received, resp_len, response_buf);
 
-        if (((NULL == strstr(response_buf, resEncodingChunk))
-                    && (0 == strncmp(response_buf, resHttp, resHttpLen)))
-                || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
+        if (((NULL != strstr(response_buf, resEncodingChunk))
+                    && (NULL != strstr(response_buf, resHttp)))
+                || ((NULL != strstr(response_buf, resHttpOk))
                     && (NULL != strstr(response_buf, "\"status\":")))) {
             debugPrint(
                     "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                     __func__, __LINE__, received, resp_len, response_buf);
             break;
-        }
+        } 
     } while(received < resp_len);
 
     if (received == resp_len) {
@@ -3531,7 +3529,7 @@ static int postProceSql(char *host, uint16_t port,
 
     free(request_buf);
 
-    if (NULL == strstr(response_buf, "\"status\":\"succ\"")) {
+    if (NULL == strstr(response_buf, resHttpOk)) {
         errorPrint("%s() LN%d, Response:\n%s\n",
                 __func__, __LINE__, response_buf);
         return -1;
@@ -4583,9 +4581,8 @@ static void* createTable(void *sarg)
                     NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
         }
+        pThreadInfo->tables_created += batchNum;
     }
-    pThreadInfo->tables_created += batchNum;
-
     free(pThreadInfo->buffer);
     return NULL;
 }
