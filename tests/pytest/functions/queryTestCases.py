@@ -275,6 +275,12 @@ class TDTestCase:
         tdSql.query("show create stable db.stb1")
         tdSql.checkRows(1)
 
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("drop database if exists db1")
+        tdSql.execute("drop database if exists new")
+        tdSql.execute("drop database if exists db2")
+        tdSql.execute("drop database if exists private")
+
     def td4153(self):
         tdLog.printNoPrefix("==========TD-4153==========")
 
@@ -772,7 +778,7 @@ class TDTestCase:
         tdSql.query(f"select distinct  c1,c2 from (select * from t1 where c1 < {tbnum}) ")
         tdSql.checkRows(3)
         tdSql.query(f"select distinct  c1,c2 from (select * from stb1 where t2 !=0 and t2 != 1) ")
-        tdSql.checkRows(4)
+        tdSql.checkRows(0)
         tdSql.error("select distinct  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.error("select  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.query("select distinct  c1, c2 from (select c2, c1 from stb1 where c1 > 2 ) where  c1 < 4")
@@ -1545,10 +1551,7 @@ class TDTestCase:
 
     def run(self):
 
-        # develop branch
         self.td4097()
-        #self.td4889()
-        self.td5798()
 
         # master branch
         self.td3690()
@@ -1561,6 +1564,10 @@ class TDTestCase:
         # self.td5168()
         # self.td5433()
         # self.td5798()
+
+        # develop branch
+        #self.td4889()
+        self.td5798()
 
     def stop(self):
         tdSql.close()
