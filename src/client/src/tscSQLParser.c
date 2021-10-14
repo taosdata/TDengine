@@ -5420,9 +5420,13 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "fill only available for interval query";
   const char* msg6 = "not supported function now";
+  const char* msg7 = "join query not supported fill operation";
 
   if ((!isTimeWindowQuery(pQueryInfo)) && (!tscIsPointInterpQuery(pQueryInfo))) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+  }
+  if(QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   /*
