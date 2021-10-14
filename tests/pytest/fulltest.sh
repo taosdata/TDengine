@@ -30,7 +30,7 @@ python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 python3 ./test.py -f insert/specialSql.py
 
-# timezone 
+# timezone
 
 python3 ./test.py -f TimeZone/TestCaseTimeZone.py
 
@@ -49,7 +49,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -174,8 +174,8 @@ python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
 # restful test for python
-python3 test.py -f restful/restful_bind_db1.py
-python3 test.py -f restful/restful_bind_db2.py
+# python3 test.py -f restful/restful_bind_db1.py
+# python3 test.py -f restful/restful_bind_db2.py
 
 # nano support
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
@@ -185,7 +185,7 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_ste
 python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 #
-python3 ./test.py -f tsdb/tsdbComp.py 
+python3 ./test.py -f tsdb/tsdbComp.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -218,12 +218,12 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 
 #query
-python3 test.py -f query/distinctOneColTb.py 
+python3 test.py -f query/distinctOneColTb.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
@@ -318,7 +318,7 @@ python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
-#python3 test.py -f subscribe/stability.py  
+#python3 test.py -f subscribe/stability.py
 python3 test.py -f subscribe/supertable.py
 # topic
 python3 ./test.py -f topic/topicQuery.py
@@ -328,7 +328,7 @@ python3 ./test.py -f topic/topicQuery.py
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
-python3 ./test.py -f wal/sdbComp.py 
+python3 ./test.py -f wal/sdbComp.py
 
 # function
 python3 ./test.py -f functions/all_null_value.py
@@ -344,7 +344,7 @@ python3 ./test.py -f functions/function_last_row.py -r 1
 python3 ./test.py -f functions/function_leastsquares.py -r 1
 python3 ./test.py -f functions/function_max.py -r 1
 python3 ./test.py -f functions/function_min.py -r 1
-python3 ./test.py -f functions/function_operations.py -r 1 
+python3 ./test.py -f functions/function_operations.py -r 1
 python3 ./test.py -f functions/function_percentile.py -r 1
 python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
@@ -395,7 +395,7 @@ python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
-python3 ./test.py -f query/querySession.py 
+python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
 #python3 ./test.py -f insert/schemalessInsert.py
