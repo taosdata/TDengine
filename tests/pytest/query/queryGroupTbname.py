@@ -46,7 +46,7 @@ class TDTestCase:
         
         for i in range(100):
             tdSql.query(f'select {table_name_sub1},{table_name_sub2},{table_name_sub3},{table_name_sub4},{table_name_sub5},{table_name_sub6},{table_name_sub7},{table_name_sub8},{table_name_sub9} from {table_name} where tbname in ("{table_name_sub1}","{table_name_sub2}","{table_name_sub3}","{table_name_sub4}","{table_name_sub5}","{table_name_sub6}","{table_name_sub7}","{table_name_sub8}","{table_name_sub9}") and ts >= "1980-01-01 00:00:00.000"')
-            tdSql.checkRows(90)
+            tdSql.checkRows(0)
 
     def run(self):
         tdSql.prepare()
