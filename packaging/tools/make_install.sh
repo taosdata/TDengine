@@ -201,40 +201,38 @@ function install_jemalloc() {
     if [ "$osType" != "Darwin" ]; then
         /usr/bin/install -c -d /usr/local/bin
 
-        if [ -f ${binary_dir}/build/bin/jemalloc-config ]; then
+        if [ -f "${binary_dir}/build/bin/jemalloc-config" ]; then
             /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
         fi
-        if [ -f ${binary_dir}/build/bin/jemalloc.sh ]; then
+        if [ -f "${binary_dir}/build/bin/jemalloc.sh" ]; then
             /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc.sh /usr/local/bin
         fi
-        if [ -f ${binary_dir}/build/bin/jeprof ]; then
+        if [ -f "${binary_dir}/build/bin/jeprof" ]; then
             /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jeprof /usr/local/bin
         fi
-        if [ -f ${binary_dir}/build/include/jemalloc/jemalloc.h ]; then
+        if [ -f "${binary_dir}/build/include/jemalloc/jemalloc.h" ]; then
             /usr/bin/install -c -d /usr/local/include/jemalloc
             /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
         fi
-        if [ -f ${binary_dir}/build/lib/libjemalloc.so.2 ]; then
+        if [ -f "${binary_dir}/build/lib/libjemalloc.so.2" ]; then
             /usr/bin/install -c -d /usr/local/lib
             /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
             ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
             /usr/bin/install -c -d /usr/local/lib
-            if [ -f ${binary_dir}/build/lib/libjemalloc.a ]; then
+            [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
                 /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
-            fi
-            if [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ]; then
+            [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
                 /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
-            fi
-            if [ -f ${binary_dir}/build/lib/pkgconfig/jemalloc.pc ]; then
+            if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
                 /usr/bin/install -c -d /usr/local/lib/pkgconfig
                 /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
             fi
         fi
-        if [ -f ${binary_dir}/build/share/doc/jemalloc/jemalloc.html ]; then
+        if [ -f "${binary_dir}/build/share/doc/jemalloc/jemalloc.html" ]; then
             /usr/bin/install -c -d /usr/local/share/doc/jemalloc
             /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
         fi
-        if [ -f ${binary_dir}/build/share/man/man3/jemalloc.3 ]; then
+        if [ -f "${binary_dir}/build/share/man/man3/jemalloc.3" ]; then
             /usr/bin/install -c -d /usr/local/share/man/man3
             /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
@@ -295,15 +293,33 @@ function install_header() {
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
 
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/../cfg/taos.cfg ] &&
         ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
-        ${csudo} chmod 644 ${cfg_install_dir}/*
+        ${csudo} chmod 644 ${cfg_install_dir}/taos.cfg
         ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-        ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+        ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg/taos.cfg
     else
         ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org || ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_2_dir}/cfg/taos.cfg.org
+    fi
+}
+
+function install_blm3_config() {
+    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+        ${csudo} mkdir -p ${cfg_install_dir}
+        [ -f ${binary_dir}/test/cfg/blm.toml ] &&
+            ${csudo} cp ${binary_dir}/test/cfg/blm.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/blm.toml ] &&
+            ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+        [ -f ${binary_dir}/test/cfg//blm.toml ] &&
+            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
+        [ -f ${cfg_install_dir}/blm.toml ] &&
+            ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
+    else
+        [ -f ${binary_dir}/test/cfg//blm.toml ] &&
+            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org \
+                || ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_2_dir}/cfg/blm.toml.org
     fi
 }
 
@@ -492,6 +508,7 @@ function update_TDengine() {
     fi
 
     install_config
+    install_blm3_config
 
     if [ "$osType" != "Darwin" ]; then
         echo
@@ -499,6 +516,7 @@ function update_TDengine() {
         echo
 
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        echo -e "${GREEN_DARK}To configure blm3 (if has) ${NC}: edit /etc/taos/blm.toml"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
         elif ((${service_mod}==1)); then
@@ -544,6 +562,7 @@ function install_TDengine() {
     fi
 
     install_config
+    install_blm3_config
 
     if [ "$osType" != "Darwin" ]; then
         # Ask if to start the service
@@ -551,6 +570,7 @@ function install_TDengine() {
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        echo -e "${GREEN_DARK}To configure blm (if has) ${NC}: edit /etc/taos/blm.toml"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
         elif ((${service_mod}==1)); then

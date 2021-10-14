@@ -271,8 +271,27 @@ function local_fqdn_check() {
   fi
 }
 
+function install_blm3_config() {
+    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+        [ ! -d %{cfg_install_dir} ] &&
+            ${csudo} ${csudo} mkdir -p ${cfg_install_dir}
+        [ -f ${cfg_dir}/blm.toml ] && ${csudo} cp ${cfg_dir}/blm.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/blm.toml ] &&
+            ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+    fi
+
+    # restore the backup standard input, and turn off 6
+    exec 0<&6 6<&-
+
+    [ -f ${cfg_dir}/blm.toml ] &&
+        ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.org
+
+    [ -f ${cfg_install_dir}/blm.toml ] &&
+        ${csudo} ln -s ${cfg_install_dir}/blm.toml ${cfg_dir}
+}
+
 function install_config() {
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
         ${csudo} ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${cfg_dir}/taos.cfg ] && ${csudo} cp ${cfg_dir}/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
@@ -461,6 +480,7 @@ function install_TDengine() {
     install_bin
     install_service
     install_config
+    install_blm3_config
 
     # Ask if to start the service
     #echo

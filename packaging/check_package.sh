@@ -177,6 +177,13 @@ function check_header_path() {
     echo -e "Check bin  path:\033[32mOK\033[0m!"
 }
 
+function check_blm3_config_dir() {
+	# check all config
+	check_file ${cfg_install_dir} blm3.toml
+	check_file ${install_main_dir}/cfg blm.toml.org
+	echo -e "Check conf path:\033[32mOK\033[0m!"
+}
+
 function check_config_dir() {
 	# check all config
 	check_file ${cfg_install_dir} taos.cfg
@@ -214,6 +221,7 @@ function test_TDengine() {
     check_lib_path
     check_header_path
     check_config_dir
+    check_blm3_config_dir
     check_log_path
     check_data_path
     result=`taos -s 'create database test ;create table test.tt(ts timestamp ,i int);insert into test.tt values(now,11);select * from test.tt' 2>&1 ||:`

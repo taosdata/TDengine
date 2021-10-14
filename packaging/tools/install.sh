@@ -447,10 +447,27 @@ function local_fqdn_check() {
   fi
 }
 
+function install_blm3_config() {
+    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+        ${csudo} mkdir -p ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/blm.toml ] && ${csudo} cp ${script_dir}/cfg/blm.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/blm.toml ] && ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+    fi
+
+    [ -f ${script_dir}/cfg/blm.toml ] &&
+        ${csudo} cp -f ${script_dir}/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
+
+    [ -f ${cfg_install_dir}/blm.toml ] &&
+        ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
+
+    [ ! -z $1 ] && return 0 || : # only install client
+
+}
+
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
 
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
@@ -862,6 +879,7 @@ function update_TDengine() {
         install_bin
         install_service
         install_config
+        install_blm3_config
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then

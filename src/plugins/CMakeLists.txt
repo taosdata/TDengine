@@ -42,7 +42,7 @@ ELSE ()
     BUILD_IN_SOURCE     1
     CONFIGURE_COMMAND cmake -E echo "blm3 no need cmake to config"
     BUILD_COMMAND  CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build
-    INSTALL_COMMAND cmake -E copy blm3 ${CMAKE_BINARY_DIR}/build/bin
+    INSTALL_COMMAND cmake -E copy blm3 ${CMAKE_BINARY_DIR}/build/bin COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/ COMMAND cmake -E copy ./example/config/blm.toml ${CMAKE_BINARY_DIR}/test/cfg/
   )
 ENDIF ()
 
