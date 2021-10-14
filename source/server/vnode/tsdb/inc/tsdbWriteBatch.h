@@ -13,34 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_MEMTABLE_H_
-#define _TD_TSDB_MEMTABLE_H_
-
-#include "tdef.h"
-#include "thash.h"
-#include "amalloc.h"
+#ifndef _TD_TSDB_WRITE_BATCH_H_
+#define _TD_TSDB_WRITE_BATCH_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STsdbMemTable STsdbMemTable;
+typedef struct STsdbWriteBatch STsdbWriteBatch;
 
-STsdbMemTable *tsdbMemTableCreate(SMemAllocator *);
-void           tsdbMemTableDestroy(STsdbMemTable *);
-int            tsdbMemTableWriteBatch(STsdbMemTable *pTsdbMemTable, void *batch);
-
-/* --------------------- For compile and test only --------------------- */
-struct STsdbMemTable {
-  TSKEY          minKey;
-  TSKEY          maxKey;
-  SHashObj *     tData;  // uid --> SSkipList
-  SMemAllocator *ma;
-  T_REF_DECLARE()
+/* ------------------------- ------------------------- */
+struct STsdbWriteBatch {
+  // TODO
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TSDB_MEMTABLE_H_*/
+#endif /*_TD_TSDB_WRITE_BATCH_H_*/

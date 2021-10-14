@@ -15,7 +15,7 @@
 
 #include "tsdbMemTable.h"
 
-STsdbMemTable *tsdbMemTableCreate(void *mallocator) {
+STsdbMemTable *tsdbMemTableCreate(SMemAllocator *ma) {
   STsdbMemTable *pTsdbMemTable = NULL;
 
   pTsdbMemTable = (STsdbMemTable *)malloc(sizeof(*pTsdbMemTable));
@@ -24,6 +24,13 @@ STsdbMemTable *tsdbMemTableCreate(void *mallocator) {
   }
 
   // TODO
+  pTsdbMemTable->minKey = TSKEY_INITIAL_VAL;
+  pTsdbMemTable->maxKey = TSKEY_INITIAL_VAL;
+  pTsdbMemTable->ma = ma;
+  pTsdbMemTable->tData = taosHashInit(1024, taosIntHash_64, true /* TODO */, HASH_NO_LOCK);
+  if (pTsdbMemTable->tData == NULL) {
+    // TODO
+  }
 
   return pTsdbMemTable;
 }
@@ -33,4 +40,10 @@ void tsdbMemTableDestroy(STsdbMemTable *pTsdbMemTable) {
     // TODO
     free(pTsdbMemTable);
   }
+}
+
+int tsdbMemTableWriteBatch(STsdbMemTable *pTsdbMemTable, void *batch) {
+  // TODO
+
+  return 0;
 }
