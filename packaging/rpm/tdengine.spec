@@ -62,7 +62,9 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/bin/blm3                    %{buildroot}%{homepath}/bin
+if [ -f %{_compiledir}/build/bin/blm3 ]; then
+    cp %{_compiledir}/build/bin/blm3                    %{buildroot}%{homepath}/bin ||:
+fi
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver

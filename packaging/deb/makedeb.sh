@@ -50,7 +50,9 @@ cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/blm3                    ${pkg_dir}${install_home_path}/bin
+if [ -f ${compile_dir}/build/bin/blm3 ]; then
+    cp ${compile_dir}/build/bin/blm3                    ${pkg_dir}${install_home_path}/bin ||:
+fi
 cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
