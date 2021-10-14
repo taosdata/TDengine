@@ -199,8 +199,8 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbGetNumOfWaitCommit(STsdbRepo *pRepo, int *nNum) {
-  if (sem_getvalue(&pRepo->readyToCommit, nNum) != 0) {
+int tsdbGetValOfWaitCommit(STsdbRepo *pRepo, int *nVal) {
+  if (sem_getvalue(&pRepo->readyToCommit, nVal) != 0) {
     tsdbError("vgId:%d failed to sem_getvalue of readyToCommit", REPO_ID(pRepo));
     return -1;
   }
