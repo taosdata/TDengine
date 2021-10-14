@@ -7193,7 +7193,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
               jsonKeyMd5(pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, keyMd5);
               char* strStr = NULL;
               int len = 0;
-              findTagValue(item->pTable, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, strStr, &len);
+              findTagValue(item->pTable, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, &strStr, &len);
               *dst++ = SELECT_ELEMENT_JSON_TAG;   // select tag->element
               doSetTagValueToResultBuf(dst, strStr, type, len);
             }else{

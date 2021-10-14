@@ -5176,13 +5176,13 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-void findTagValue(STable* data, char* key, int32_t keyLen, char* out, int* len){
+void findTagValue(STable* data, char* key, int32_t keyLen, char** out, int* len){
   void* result = getJsonTagValue(data, key, keyLen, NULL);
   if (result == NULL){    // json key no result
     return;
   }
 
-  out = result;
+  *out = result;
   char* realData = POINTER_SHIFT(result, CHAR_BYTES);
   if(*(char*)result == TSDB_DATA_TYPE_NCHAR) {
     *len = varDataTLen(realData) + CHAR_BYTES;
