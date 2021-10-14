@@ -26,14 +26,15 @@ extern "C" {
 
 typedef struct tqBufferItem {
   int64_t offset;
-  void *content;
+  void* executor;
+  void* content;
 } tqBufferItem;
 
 
 typedef struct tqGroupHandle {
-  char* topic;
-  void* ahandle;
+  char* topic; //c style, end with '\0'
   int64_t cgId;
+  void* ahandle;
   int64_t consumeOffset;
   int32_t head;
   int32_t tail;
