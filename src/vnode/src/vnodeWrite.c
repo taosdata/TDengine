@@ -36,6 +36,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
+static int32_t vnodeCheckWal(SVnodeObj *pVnode);
 
 int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -167,6 +168,20 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   return code;
 }
 
+static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
+  // no need to check wal size to trigger commit if:
+  // 1) vnode in committing state;
+  // 2) other instance wait to commit;
+  int nWaitCommit = 0;
+  if (tsdbGetNumOfWaitCommit(pVnode->tsdb, &nWaitCommit) != 0) {
+    return -1;
+  }
+  if ((nWaitCommit > 0) && (pVnode->isCommiting == 0)) {
+    return tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
+  }
+  return 0;
+}
+
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int code = TSDB_CODE_SUCCESS;
 
@@ -181,9 +196,8 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     ASSERT(code != 0);
   }
 
-  // no need to set wal size to trigger commit if vnode in committing state
-  if ((((++pVnode->tblMsgVer) & 32767) == 0) && (pVnode->isCommiting == 0)) {  // lazy check
-    tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
+  if (((++pVnode->tblMsgVer) & 16383) == 0) {  // lazy check
+    vnodeCheckWal(pVnode);
   }
 
   tsdbClearTableCfg(pCfg);

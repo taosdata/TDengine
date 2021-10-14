@@ -421,6 +421,8 @@ bool tsdbNoProblem(STsdbRepo* pRepo);
 // unit of walSize: MB
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
 
+int tsdbGetNumOfWaitCommit(STsdbRepo *pRepo, int *nNum);
+
 #ifdef __cplusplus
 }
 #endif
