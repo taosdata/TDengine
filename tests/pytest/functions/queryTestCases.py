@@ -398,21 +398,33 @@ class TDTestCase:
 
     def td4889(self):
         tdLog.printNoPrefix("==========TD-4889==========")
+        cfg = {
+            'minRowsPerFileBlock': '10',
+            'maxRowsPerFileBlock': '200',
+            'minRows': '10',
+            'maxRows': '200',
+            'maxVgroupsPerDb': '100',
+            'maxTablesPerVnode': '1200',
+        }
+        tdSql.query("show dnodes")
+        dnode_index = tdSql.getData(0,0)
+        tdDnodes.stop(dnode_index)
+        tdDnodes.deploy(dnode_index, cfg)
+        tdDnodes.start(dnode_index)
+
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database  if not exists db keep 3650 blocks 3")
+        tdSql.execute("create database  if not exists db keep 3650 blocks 3 minrows 10 maxrows 200")
 
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t1 int)")
 
         for i in range(1000):
             tdSql.execute(f"create table db.t1{i} using db.stb1 tags({i})")
-            for j in range(60):
+            for j in range(260):
                 tdSql.execute(f"insert into db.t1{i} values (now-100d, {i+j})")
 
-        tdSql.query("show dnodes")
-        index = tdSql.getData(0,0)
-        tdDnodes.stop(index)
-        tdDnodes.start(index)
+        # tdDnodes.stop(dnode_index)
+        # tdDnodes.start(dnode_index)
 
         tdSql.query("show vgroups")
         index = tdSql.getData(0,0)
@@ -427,8 +439,7 @@ class TDTestCase:
             run_time = time.time()-start_time
             if run_time > 3:
                 tdLog.exit("compacting not occured")
-            time.sleep(0.1)
-
+            # time.sleep(0.1)
 
         pass
 
@@ -1566,7 +1577,7 @@ class TDTestCase:
         # self.td5798()
 
         # develop branch
-        #self.td4889()
+        self.td4889()
         self.td5798()
 
     def stop(self):
