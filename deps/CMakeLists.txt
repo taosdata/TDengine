@@ -36,7 +36,7 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # leveldb
 if(${BUILD_WITH_LEVELDB})
-option(LEVELDB_BUILD_TESTS "" OFF)
+    option(LEVELDB_BUILD_TESTS "" OFF)
     add_subdirectory(leveldb)
     target_include_directories(
         leveldb
