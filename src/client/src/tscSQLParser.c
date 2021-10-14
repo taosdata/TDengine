@@ -5945,7 +5945,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg10 = "invalid tag name";
   const char* msg11 = "primary tag cannot be dropped";
   const char* msg12 = "update normal column not supported";
-  const char* msg13 = "invalid tag value";
+  //const char* msg13 = "invalid tag value";
   const char* msg14 = "tag value too long";
   
   const char* msg15 = "no columns can be dropped";
@@ -6116,6 +6116,32 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (IS_VAR_DATA_TYPE(pTagsSchema->type) && (pItem->pVar.nLen > pTagsSchema->bytes)) {
       return invalidOperationMsg(pMsg, msg14);
     }
+    SKVRowBuilder kvRowBuilder = {0};
+    if (pTagsSchema->type == TSDB_DATA_TYPE_JSON) {
+
+      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+        tscError("json type error, should be string");
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidOperationMsg(pMsg, msg25);
+      }
+      if (pItem->pVar.nType > TSDB_MAX_TAGS_LEN / TSDB_NCHAR_SIZE) {
+        tscError("json tag too long");
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidOperationMsg(pMsg, msg14);
+      }
+
+      int8_t tagVal = TSDB_DATA_BINARY_PLACEHOLDER;
+      tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
+
+      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
+      if (code != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return code;
+      }
+    }
 
     int32_t schemaLen = sizeof(STColumn) * numOfTags;
     int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
@@ -6150,49 +6176,18 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     if (pTagsSchema->type == TSDB_DATA_TYPE_JSON){
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
-      }
-      if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
-        tscError("json type error, should be string");
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidOperationMsg(pMsg, msg25);
-      }
-      if(pItem->pVar.nType > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
-        tscError("json tag too long");
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidOperationMsg(pMsg, msg14);
-      }
-
-      int8_t tagVal = TSDB_DATA_BINARY_PLACEHOLDER;
-      tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
-
-      code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
-      if (code != TSDB_CODE_SUCCESS) {
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return code;
-      }
       SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
       tdDestroyKVRowBuilder(&kvRowBuilder);
       if (row == NULL) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
       tdSortKVRowByColIdx(row);
-      if(kvRowLen(row) >= pTagsSchema->bytes){    // reserve 1 byte for select
-        char tmp[128]= {0};
-        sprintf(tmp, "tag value is too small, can not contain encoded json tag:%d|%d", kvRowLen(row), pTagsSchema->bytes);
-        return invalidOperationMsg(pMsg, tmp);
-      }
 
       kvRowCpy(pUpdateMsg->data + schemaLen, row);
       free(row);
     }else{
       // copy the tag value to pMsg body
-      if (tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true)
-          != TSDB_CODE_SUCCESS){
-        return invalidOperationMsg(pMsg, msg13);
-      }
+      tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true);
     }
 
     int32_t len = 0;
