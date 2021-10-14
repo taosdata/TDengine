@@ -861,11 +861,10 @@ static int rpcProcessReqHead(SRpcConn *pConn, SRpcHead *pHead) {
 
     pConn->inTranId = pHead->tranId;
     pConn->inType = pHead->msgType;
-
     // start the progress timer to monitor the response from server app
     if (pConn->connType != RPC_CONN_TCPS) 
       pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pConn->pRpc->tmrCtrl);
- 
+
     return 0;
 }
 
