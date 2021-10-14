@@ -153,7 +153,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
 }
 
 int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
 
   pReadh->pTable = pTable;
 
