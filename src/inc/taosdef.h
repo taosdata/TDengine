@@ -39,7 +39,7 @@ extern "C" {
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[17];
+extern const int32_t TYPE_BYTES[16];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES    sizeof(char)
@@ -50,6 +50,7 @@ extern const int32_t TYPE_BYTES[17];
 #define DOUBLE_BYTES  sizeof(double)
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
+#define JSON_BYTES (TSDB_MAX_TAGS_LEN)
 #define TSDB_KEYSIZE            sizeof(TSKEY)
 
 #if LINUX

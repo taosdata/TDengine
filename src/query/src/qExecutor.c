@@ -3359,7 +3359,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
   } else if(type == TSDB_DATA_TYPE_JSON){
     assert(kvRowLen(val) < bytes);
-    tVariantCreateFromBinary(tag, val, bytes, type);
+    tVariantCreateFromBinary(tag, val, kvRowLen(val), type);
     memcpy(tag->pz + 1, tag->pz, bytes - 1);    // move back 1 byte for select type
     *(tag->pz) = SELECT_ALL_JSON_TAG;
     tag->nLen++;
@@ -7189,18 +7189,15 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
           data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
           if(type == TSDB_DATA_TYPE_JSON){
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
-              char* tagJsonElementData = calloc(bytes, 1);
               char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
               jsonKeyMd5(pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, keyMd5);
-              findTagValue(item->pTable, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, tagJsonElementData, bytes);
-              *dst = SELECT_ELEMENT_JSON_TAG;   // select tag->element
-              dst++;
-              assert(varDataTLen(tagJsonElementData) < bytes);
-              doSetTagValueToResultBuf(dst, tagJsonElementData, type, bytes - CHAR_BYTES);
-              tfree(tagJsonElementData);
+              char* strStr = NULL;
+              int len = 0;
+              findTagValue(item->pTable, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, strStr, &len);
+              *dst++ = SELECT_ELEMENT_JSON_TAG;   // select tag->element
+              doSetTagValueToResultBuf(dst, strStr, type, len);
             }else{
-              *dst = SELECT_ALL_JSON_TAG;   // select tag
-              dst++;
+              *dst++ = SELECT_ALL_JSON_TAG;   // select tag
               assert(kvRowLen(data) < bytes);
               doSetTagValueToResultBuf(dst, data, type, bytes - CHAR_BYTES);
             }

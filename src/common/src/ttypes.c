@@ -18,7 +18,7 @@
 #include "ttokendef.h"
 #include "tscompression.h"
 
-const int32_t TYPE_BYTES[17] = {
+const int32_t TYPE_BYTES[16] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     sizeof(int8_t),          // TSDB_DATA_TYPE_BOOL
     sizeof(int8_t),          // TSDB_DATA_TYPE_TINYINT
@@ -384,7 +384,7 @@ tDataTypeDescriptor tDataTypes[16] = {
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
   {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    0,          UINT64_MAX,     tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
-  {TSDB_DATA_TYPE_JSON,4,  0,     "JSON",               0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_JSON,4,  JSON_BYTES,     "JSON",               0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {
@@ -438,6 +438,9 @@ void setVardataNull(void* val, int32_t type) {
     varDataSetLen(val, sizeof(int8_t));
     *(uint8_t*) varDataVal(val) = TSDB_DATA_BINARY_NULL;
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    varDataSetLen(val, sizeof(int32_t));
+    *(uint32_t*) varDataVal(val) = TSDB_DATA_NCHAR_NULL;
+  } else if (type == TSDB_DATA_TYPE_JSON) {
     varDataSetLen(val, sizeof(int32_t));
     *(uint32_t*) varDataVal(val) = TSDB_DATA_NCHAR_NULL;
   } else {
@@ -507,6 +510,7 @@ void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON:
       for (int32_t i = 0; i < numOfElems; ++i) {
         setVardataNull(POINTER_SHIFT(val, i * bytes), type);
       }

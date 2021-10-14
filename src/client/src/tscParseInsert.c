@@ -1089,6 +1089,11 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 //        tscDestroyBoundColumnInfo(&spd);
 //        return tscSQLSyntaxErrMsg(pInsertParam->msg, "json type error, should be string", NULL);
 //      }
+      if(sToken.n > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        tscDestroyBoundColumnInfo(&spd);
+        return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
+      }
       code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);

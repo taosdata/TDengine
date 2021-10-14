@@ -6159,6 +6159,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(pMsg, msg25);
       }
+      if(pItem->pVar.nType > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
+        tscError("json tag too long");
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidOperationMsg(pMsg, msg14);
+      }
 
       int8_t tagVal = TSDB_DATA_BINARY_PLACEHOLDER;
       tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
@@ -7763,11 +7768,8 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
         }
-        if(pSchema->type == TSDB_DATA_TYPE_JSON){
-          *((int8_t *)tagVal) = TSDB_DATA_BINARY_PLACEHOLDER;
-        }else {
-          ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
-        }
+        ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+
         // check again after the convert since it may be converted from binary to nchar.
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
           int16_t len = varDataTLen(tagVal);
@@ -7797,6 +7799,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         tscError("json type error, should be string");
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+      if(pItem->pVar.nLen > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
+        tscError("json tag too long");
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
       ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
       if (ret != TSDB_CODE_SUCCESS) {

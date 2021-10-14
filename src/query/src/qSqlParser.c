@@ -716,7 +716,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   pField->type = i;
   pField->bytes = tDataTypes[i].bytes;
 
-  if (i == TSDB_DATA_TYPE_NCHAR || i == TSDB_DATA_TYPE_JSON) {
+  if (i == TSDB_DATA_TYPE_NCHAR) {
     /*
      * for nchar, the TOKENTYPE is the number of character, so the length is the
      * number of bytes in UCS-4 format, which is 4 times larger than the number of characters
