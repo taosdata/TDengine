@@ -1021,7 +1021,7 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
 }
 
 static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
 
   pCommith->pTable = pTable;
 
@@ -1438,7 +1438,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       (*iter)++;
     } else if (key1 > key2) {
       if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+        pSchema =
+            tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row), (int8_t)memRowType(row));
         ASSERT(pSchema != NULL);
       }
 
@@ -1459,7 +1460,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       if (update != TD_ROW_DISCARD_UPDATE) {
         //copy mem data
         if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
+          pSchema =
+              tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row), (int8_t)memRowType(row));
           ASSERT(pSchema != NULL);
         }
 

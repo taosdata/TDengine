@@ -2919,7 +2919,7 @@ static YYACTIONTYPE yy_reduce(
 { setDefaultCreateDbOption(&yymsp[1].minor.yy90); yymsp[1].minor.yy90.dbType = TSDB_DB_TYPE_DEFAULT;}
         break;
       case 133: /* typename ::= ids */
-{ 
+{
   yymsp[0].minor.yy0.type = 0;
   tSetColumnType (&yylhsminor.yy183, &yymsp[0].minor.yy0);
 }
