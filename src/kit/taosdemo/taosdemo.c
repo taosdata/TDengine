@@ -10580,13 +10580,12 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         tmfree(pThreadInfo->is_null);
         if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
 #ifdef WINDOWS
-            closesocket(sockfd);
+            closesocket(pThreadInfo->sockfd);
             WSACleanup();
 #else
             close(pThreadInfo->sockfd);
 #endif
         }
-
 #else
         if (pThreadInfo->sampleBindArray) {
             for (int k = 0; k < MAX_SAMPLES; k++) {
@@ -11249,6 +11248,31 @@ static int queryTestProcess() {
                     }
                 }
 
+                if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+#ifdef WINDOWS
+                    WSADATA wsaData;
+                    WSAStartup(MAKEWORD(2, 2), &wsaData);
+                    SOCKET sockfd;
+#else
+                    int sockfd;
+#endif
+                    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                    if (sockfd < 0) {
+#ifdef WINDOWS
+                        errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                        ERROR_EXIT("opening socket");
+                    }
+
+                    int retConn = connect(sockfd, (struct sockaddr *)&(g_queryInfo.serv_addr),
+                         sizeof(struct sockaddr));
+                    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+                    if (retConn < 0) {
+                        ERROR_EXIT("connecting");
+                    }
+                    pThreadInfo->sockfd = sockfd;
+                }
                 pThreadInfo->taos = NULL;// workaround to use separate taos connection;
 
                 pthread_create(pids + seq, NULL, specifiedTableQuery,
@@ -11300,6 +11324,31 @@ static int queryTestProcess() {
             pThreadInfo->end_table_to = i < b ? tableFrom + a : tableFrom + a - 1;
             tableFrom = pThreadInfo->end_table_to + 1;
             pThreadInfo->taos = NULL; // workaround to use separate taos connection;
+            if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+#ifdef WINDOWS
+                WSADATA wsaData;
+                WSAStartup(MAKEWORD(2, 2), &wsaData);
+                SOCKET sockfd;
+#else
+                int sockfd;
+#endif
+                sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                if (sockfd < 0) {
+#ifdef WINDOWS
+                    errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                    debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                    ERROR_EXIT("opening socket");
+                }
+
+                int retConn = connect(sockfd, (struct sockaddr *)&(g_queryInfo.serv_addr),
+                        sizeof(struct sockaddr));
+                debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+                if (retConn < 0) {
+                    ERROR_EXIT("connecting");
+                }
+                pThreadInfo->sockfd = sockfd;
+            }
             pthread_create(pidsOfSub + i, NULL, superTableQuery, pThreadInfo);
         }
 
@@ -11312,6 +11361,15 @@ static int queryTestProcess() {
         for (int i = 0; i < nConcurrent; i++) {
             for (int j = 0; j < nSqlCount; j++) {
                 pthread_join(pids[i * nSqlCount + j], NULL);
+                if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+                    threadInfo *pThreadInfo = infos + i * nSqlCount + j;
+#ifdef WINDOWS
+                    closesocket(pThreadInfo->sockfd);
+                    WSACleanup();
+#else
+                    close(pThreadInfo->sockfd);
+#endif
+                }
             }
         }
     }
@@ -11321,6 +11379,15 @@ static int queryTestProcess() {
 
     for (int i = 0; i < g_queryInfo.superQueryInfo.threadCnt; i++) {
         pthread_join(pidsOfSub[i], NULL);
+        if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+            threadInfo *pThreadInfo = infosOfSub + i;
+#ifdef WINDOWS
+            closesocket(pThreadInfo->sockfd);
+            WSACleanup();
+#else
+            close(pThreadInfo->sockfd);
+#endif
+        }
     }
 
     tmfree((char*)pidsOfSub);
