@@ -1972,6 +1972,17 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
   STMT_RET(ret);
 }
 
+int taos_stmt_affected_rows(TAOS_STMT* stmt) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (pStmt == NULL || pStmt->pSql == NULL || pStmt->pSql->signature != pStmt->pSql) {
+    tscError("statement is invalid");
+    return 0;
+  }
+
+  return pStmt->pSql->res.numOfRows;
+}
+
 TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
   if (stmt == NULL) {
     tscError("statement is invalid.");
