@@ -12,18 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "tsdb.h"
-#include "tkv.h"
-#include "tsdbMemTable.h"
-
-/* -------------- -------------- */
-struct STsdb {
-  STkvDb *tsdb;    // original time-series data
-  STkvDb *lrowdb;  // last row cache
-  STkvDb *lastdb;  // last cache
-  STkvDb *fivemindb;
-};
-
-int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
-int tsdbCommit(STsdb *pTsdb) { return 0; }
