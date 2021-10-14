@@ -1159,7 +1159,6 @@ static int64_t dumpNormalTable(
 
         // create child-table using super-table
         dumpCreateMTableClause(dbName, stable, tableDes, colCount, fp);
-
     } else {  // dump table definition
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
