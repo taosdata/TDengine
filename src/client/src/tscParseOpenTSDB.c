@@ -42,13 +42,13 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   if (isdigit(*cur)) {
-    tscError("OTD:0x%"PRIx64" Metric cannot start with digit", info->id);
+    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
   while (*cur != '\0') {
-    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+    if (len > TSDB_TABLE_NAME_LEN - 1) {
       tscError("OTD:0x%"PRIx64" Metric cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       tfree(pSml->stableName);
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
@@ -188,11 +188,11 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
 
   //key field cannot start with digit
   if (isdigit(*cur)) {
-    tscError("OTD:0x%"PRIx64" Tag key cannot start with digit", info->id);
+    tscError("OTD:0x%"PRIx64" Tag key cannnot start with digit", info->id);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
-    if (len >= TSDB_COL_NAME_LEN - 1) {
+    if (len > TSDB_COL_NAME_LEN - 1) {
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
@@ -476,7 +476,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
   }
 
   if (isdigit(metric->valuestring[0])) {
-    tscError("OTD:0x%"PRIx64" Metric cannot start with digit in JSON", info->id);
+    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit in JSON", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_INVALID_JSON;
   }

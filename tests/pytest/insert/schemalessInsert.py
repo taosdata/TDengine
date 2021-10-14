@@ -13,7 +13,6 @@
 
 import traceback
 import random
-import string
 from taos.error import SchemalessError
 import time
 from copy import deepcopy
@@ -21,9 +20,8 @@ import numpy as np
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.common import tdCom
 import threading
-
-
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -39,27 +37,14 @@ class TDTestCase:
             tdSql.execute(f"create database if not exists {name} precision 'us' update 1")
         tdSql.execute(f'use {name}')
 
-    def getLongName(self, len, mode = "mixed"):
-        """
-            generate long name
-            mode could be numbers/letters/mixed
-        """    
-        if mode is "numbers": 
-            chars = ''.join(random.choice(string.digits) for i in range(len))
-        elif mode is "letters": 
-            chars = ''.join(random.choice(string.ascii_letters.lower()) for i in range(len))
-        else:
-            chars = ''.join(random.choice(string.ascii_letters.lower() + string.digits) for i in range(len))
-        return chars
-
     def timeTrans(self, time_value):
-        if time_value.endswith("ns"):
+        if time_value.lower().endswith("ns") or len(time_value) == 19:
             ts = int(''.join(list(filter(str.isdigit, time_value))))/1000000000
-        elif time_value.endswith("us") or time_value.isdigit() and int(time_value) != 0:
+        elif time_value.lower().endswith("us") or time_value.isdigit() and int(time_value) != 0:
             ts = int(''.join(list(filter(str.isdigit, time_value))))/1000000
-        elif time_value.endswith("ms"):
+        elif time_value.lower().endswith("ms"):
             ts = int(''.join(list(filter(str.isdigit, time_value))))/1000
-        elif time_value.endswith("s") and list(time_value)[-1] not in "num":
+        elif time_value.lower().endswith("s") and list(time_value)[-1] not in "num":
             ts = int(''.join(list(filter(str.isdigit, time_value))))/1
         elif int(time_value) == 0:
             ts = time.time()
@@ -81,44 +66,59 @@ class TDTestCase:
     def dateToTs(self, datetime_input):
         return int(time.mktime(time.strptime(datetime_input, "%Y-%m-%d %H:%M:%S.%f")))
 
-    def getTdTypeValue(self, value):
-        if value.endswith("i8"):
-            td_type = "TINYINT"
-            td_tag_value = ''.join(list(value)[:-2])
-        elif value.endswith("i16"):
-            td_type = "SMALLINT"
-            td_tag_value = ''.join(list(value)[:-3])
-        elif value.endswith("i32"):
-            td_type = "INT"
-            td_tag_value = ''.join(list(value)[:-3])
-        elif value.endswith("i64"):
-            td_type = "BIGINT"
-            td_tag_value = ''.join(list(value)[:-3])
-        elif value.endswith("u64"):
-            td_type = "BIGINT UNSIGNED"
-            td_tag_value = ''.join(list(value)[:-3])
-        elif value.endswith("f32"):
-            td_type = "FLOAT"
-            td_tag_value = ''.join(list(value)[:-3])
-            td_tag_value = '{}'.format(np.float32(td_tag_value))
-        elif value.endswith("f64"):
-            td_type = "DOUBLE"
-            td_tag_value = ''.join(list(value)[:-3])
-        elif value.startswith('L"'):
+    def getTdTypeValue(self, value, vtype="col"):
+        """
+            vtype must be col or tag
+        """
+        if vtype == "col":
+            if value.lower().endswith("i8"):
+                td_type = "TINYINT"
+                td_tag_value = ''.join(list(value)[:-2])
+            elif value.lower().endswith("i16"):
+                td_type = "SMALLINT"
+                td_tag_value = ''.join(list(value)[:-3])
+            elif value.lower().endswith("i32"):
+                td_type = "INT"
+                td_tag_value = ''.join(list(value)[:-3])
+            elif value.lower().endswith("i64"):
+                td_type = "BIGINT"
+                td_tag_value = ''.join(list(value)[:-3])
+            elif value.lower().lower().endswith("u64"):
+                td_type = "BIGINT UNSIGNED"
+                td_tag_value = ''.join(list(value)[:-3])
+            elif value.lower().endswith("f32"):
+                td_type = "FLOAT"
+                td_tag_value = ''.join(list(value)[:-3])
+                td_tag_value = '{}'.format(np.float32(td_tag_value))
+            elif value.lower().endswith("f64"):
+                td_type = "DOUBLE"
+                td_tag_value = ''.join(list(value)[:-3])
+                if "e" in value.lower():
+                    td_tag_value = str(float(td_tag_value))
+            elif value.lower().startswith('l"'):
+                td_type = "NCHAR"
+                td_tag_value = ''.join(list(value)[2:-1])
+            elif value.startswith('"') and value.endswith('"'):
+                td_type = "BINARY"
+                td_tag_value = ''.join(list(value)[1:-1])
+            elif value.lower() == "t" or value.lower() == "true":
+                td_type = "BOOL"
+                td_tag_value = "True"
+            elif value.lower() == "f" or value.lower() == "false":
+                td_type = "BOOL"
+                td_tag_value = "False"
+            elif value.isdigit():
+                td_type = "DOUBLE"
+                td_tag_value = str(float(value))
+            else:
+                td_type = "DOUBLE"
+                if "e" in value.lower():
+                    td_tag_value = str(float(value))
+                else:
+                    td_tag_value = value
+        elif vtype == "tag":
             td_type = "NCHAR"
-            td_tag_value = ''.join(list(value)[2:-1])
-        elif value.startswith('"') and value.endswith('"'):
-            td_type = "BINARY"
-            td_tag_value = ''.join(list(value)[1:-1])
-        elif value.lower() == "t" or value == "true" or value == "True":
-            td_type = "BOOL"
-            td_tag_value = "True"
-        elif value.lower() == "f" or value == "false" or value == "False":
-            td_type = "BOOL"
-            td_tag_value = "False"
-        else:
-            td_type = "FLOAT"
-            td_tag_value = value
+            td_tag_value = str(value)
         return td_type, td_tag_value
 
     def typeTrans(self, type_list):
@@ -172,11 +172,11 @@ class TDTestCase:
             if "id=" in elm.lower():
                 tb_name = elm.split('=')[1]
             else:
-                tag_name_list.append(elm.split("=")[0])
+                tag_name_list.append(elm.split("=")[0].lower())
                 tag_value_list.append(elm.split("=")[1])
                 tb_name = ""
-                td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1])[1])
-                td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1])[0])
+                td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
+                td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
         
         for elm in stb_col_list:
             col_name_list.append(elm.split("=")[0])
@@ -205,10 +205,11 @@ class TDTestCase:
                         t8="L\"ncharTagValue\"", c0="", c1="127i8", c2="32767i16", c3="2147483647i32",
                         c4="9223372036854775807i64", c5="11.12345f32", c6="22.123456789f64", c7="\"binaryColValue\"", 
                         c8="L\"ncharColValue\"", c9="7u64", ts="1626006833639000000ns",
-                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None,
-                        ct_add_tag=None, ct_am_tag=None, ct_ma_tag=None, ct_min_tag=None):
+                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
+                        ct_add_tag=None, ct_am_tag=None, ct_ma_tag=None, ct_min_tag=None, c_multi_tag=None, t_multi_tag=None,
+                        c_blank_tag=None, t_blank_tag=None, chinese_tag=None):
         if stb_name == "":
-            stb_name = self.getLongName(len=6, mode="letters")
+            stb_name = tdCom.getLongName(len=6, mode="letters")
         if tb_name == "":
             tb_name = f'{stb_name}_{random.randint(0, 65535)}_{random.randint(0, 65535)}'
         if t0 == "":
@@ -220,27 +221,41 @@ class TDTestCase:
             id = "ID"
         else:
             id = "id"
-        sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+        if id_mixul_tag is not None:
+            id = random.choice(["iD", "Id"])
+        else:
+            id = "id"
+        sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if id_noexist_tag is not None:
             sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
             if ct_add_tag is not None:
                 sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t9={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if id_change_tag is not None:
-            sql_seq = f'{stb_name},t0={t0},t1={t1},{id}=\"{tb_name}\",t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            sql_seq = f'{stb_name},t0={t0},t1={t1},{id}={tb_name},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if id_double_tag is not None:
             sql_seq = f'{stb_name},{id}=\"{tb_name}_1\",t0={t0},t1={t1},{id}=\"{tb_name}_2\",t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if ct_add_tag is not None:
-            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
         if ct_am_tag is not None:
-            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
             if id_noexist_tag is not None:
                     sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
         if ct_ma_tag is not None:
-            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
             if id_noexist_tag is not None:
                 sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
         if ct_min_tag is not None:
-            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+        if c_multi_tag is not None:
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} c10={c9} {ts}'
+        if t_multi_tag is not None:
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} t9={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+        if c_blank_tag is not None:
+            sql_seq = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} {ts}'
+        if t_blank_tag is not None:
+            sql_seq = f'{stb_name},{id}={tb_name} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+        if chinese_tag is not None:
+            sql_seq = f'{stb_name},to=L"涛思数据" c0=L"涛思数据" {ts}'
         return sql_seq, stb_name
     
     def genMulTagColStr(self, genType, count):
@@ -265,12 +280,12 @@ class TDTestCase:
             return col_str
 
     def genLongSql(self, tag_count, col_count):
-        stb_name = self.getLongName(7, mode="letters")
+        stb_name = tdCom.getLongName(7, mode="letters")
         tb_name = f'{stb_name}_1'
         tag_str = self.genMulTagColStr("tag", tag_count)
         col_str = self.genMulTagColStr("col", col_count)
         ts = "1626006833640000000ns"
-        long_sql = stb_name + ',' + f'id=\"{tb_name}\"' + ',' + tag_str + col_str + ts
+        long_sql = stb_name + ',' + f'id={tb_name}' + ',' + tag_str + col_str + ts
         return long_sql, stb_name
 
     def getNoIdTbName(self, stb_name):
@@ -292,9 +307,12 @@ class TDTestCase:
         res_type_list = col_info[1]
         return res_row_list, res_field_list_without_ts, res_type_list
 
-    def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, id=True, none_check_tag=None):
+    def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, id=True, none_check_tag=None, precision=None):
         expect_list = self.inputHandle(input_sql)
-        self._conn.schemaless_insert([input_sql], 0)
+        if precision == None:
+            self._conn.schemaless_insert([input_sql], 0, None)
+        else:
+            self._conn.schemaless_insert([input_sql], 0, precision)
         query_sql = f"{query_sql} {stb_name} {condition}"
         res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True)
         if ts == 0:
@@ -329,7 +347,7 @@ class TDTestCase:
         """
             normal tags and cols, one for every elm
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
 
@@ -337,7 +355,7 @@ class TDTestCase:
         """
             check all normal type
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
             input_sql, stb_name = self.genFullTypeSql(c0=t_type, t0=t_type)
@@ -351,7 +369,7 @@ class TDTestCase:
             please test :
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
-        self.cleanStb()
+        tdCom.cleanTb()
         binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\"'
         nchar_symbols = f'L{binary_symbols}'
         input_sql, stb_name = self.genFullTypeSql(c7=binary_symbols, c8=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
@@ -362,28 +380,148 @@ class TDTestCase:
             test ts list --> ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006822639022"]
             # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
-        self.cleanStb()
-        ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006822639022", 0]
+        tdCom.cleanTb()
+        ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006833639000000", 0]
         for ts in ts_list:
             input_sql, stb_name = self.genFullTypeSql(ts=ts)
             self.resCmp(input_sql, stb_name, ts=ts)
+        
+        tdSql.execute(f"drop database if exists test_ts")
+        tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        tdSql.execute("use test_ts")
+        input_sql = ['test_ms,t0=t c0=t 1626006833640ms', 'test_ms,t0=t c0=f 1626006833641ms']
+        self._conn.schemaless_insert(input_sql, 0, None)
+        res = tdSql.query('select * from test_ms', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.640000")
+        tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
+
+        tdSql.execute(f"drop database if exists test_ts")
+        tdSql.execute(f"create database if not exists test_ts precision 'us'")
+        tdSql.execute("use test_ts")
+        input_sql = ['test_us,t0=t c0=t 1626006833639000us', 'test_us,t0=t c0=f 1626006833639001us']
+        self._conn.schemaless_insert(input_sql, 0, None)
+        res = tdSql.query('select * from test_us', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000")
+        tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639001")
+
+        tdSql.execute(f"drop database if exists test_ts")
+        tdSql.execute(f"create database if not exists test_ts precision 'ns'")
+        tdSql.execute("use test_ts")
+        input_sql = ['test_ns,t0=t c0=t 1626006833639000000ns', 'test_ns,t0=t c0=f 1626006833639000001ns']
+        self._conn.schemaless_insert(input_sql, 0, None)
+        res = tdSql.query('select * from test_ns', True)
+        tdSql.checkEqual(str(res[0][0]), "1626006833639000000")
+        tdSql.checkEqual(str(res[1][0]), "1626006833639000001")
+
+        self.createDb()
+
+    def tsPriorityCheckCase(self):
+        tdCom.cleanTb()
+        input_sql_list = [f'tbname_1,t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639019us',
+                            f'tbname_2,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789 1626006833640ms',
+                            f'tbname_3,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=10e5F32 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=10e5F64 1626006834s',
+                            f'tbname_4,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=-10.0e5 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=-10.0e5 1626006833639000000ns']
+        for input_sql in input_sql_list:
+            stb_name = input_sql.split(",")[0]
+            self.resCmp(input_sql, stb_name, precision="ms")
     
+    def zeroTsCheckCase(self):
+        tdCom.cleanTb()
+        for ts_tag in ["h", "m", "s", "u", "ns"]:
+            input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 0'
+            stb_name = input_sql.split(",")[0]
+            self.resCmp(input_sql, stb_name, ts=0, precision=ts_tag)
+    
+    def influxTsCheckCase(self):
+        tdCom.cleanTb()
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 100'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "h")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 2'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "h")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 3'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "m")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 4'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "m")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 5'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "s")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 6'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "s")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 7'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "ms")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 8'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "ms")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 9'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "u")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 10'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "u")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 11'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "ns")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 12'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, "ns")
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkData(0, 0, 0)
+
+    def iuCheckCase(self):
+        tdCom.cleanTb()
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127 c1=9223372036854775807i,c2=1u 0'
+        stb_name = input_sql.split(",")[0]
+        self._conn.schemaless_insert([input_sql], 0, None)
+        res = tdSql.query(f'describe {stb_name}', True)
+        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(2, 1, "BIGINT UNSIGNED")
+
     def idSeqCheckCase(self):
         """
             check id.index in tags
             eg: t0=**,id=**,t1=**
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
         self.resCmp(input_sql, stb_name)
     
-    def idUpperCheckCase(self):
+    def idLetterCheckCase(self):
         """
             check id param
             eg: id and ID
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True)
+        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(id_mixul_tag=True)
         self.resCmp(input_sql, stb_name)
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -392,7 +530,7 @@ class TDTestCase:
         """
             id not exist
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         query_sql = f"select tbname from {stb_name}"
@@ -408,170 +546,117 @@ class TDTestCase:
             max col count is ??
         """
         for input_sql in [self.genLongSql(128, 1)[0], self.genLongSql(1, 4094)[0]]:
-            self.cleanStb()
-            self._conn.schemaless_insert([input_sql], 0)
+            tdCom.cleanTb()
+            self._conn.schemaless_insert([input_sql], 0, None)
         for input_sql in [self.genLongSql(129, 1)[0], self.genLongSql(1, 4095)[0]]:
-            self.cleanStb()
+            tdCom.cleanTb()
             try:
-                self._conn.schemaless_insert([input_sql], 0)
-            except SchemalessError:
-                pass
+                self._conn.schemaless_insert([input_sql], 0, None)
+                raise Exception("should not reach here")
+            except SchemalessError as err:
+                tdSql.checkNotEqual(err.errno, 0)
             
     def idIllegalNameCheckCase(self):
         """
             test illegal id name
             mix "`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?"
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         rstr = list("`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
-            input_sql = self.genFullTypeSql(tb_name=f"\"aaa{i}bbb\"")[0]
+            input_sql = self.genFullTypeSql(tb_name=f"aaa{i}bbb")[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
-            except SchemalessError:
-                pass
+                self._conn.schemaless_insert([input_sql], 0, None)
+                raise Exception("should not reach here")
+            except SchemalessError as err:
+                tdSql.checkNotEqual(err.errno, 0)
 
     def idStartWithNumCheckCase(self):
         """
             id is start with num
         """
-        self.cleanStb()
-        input_sql = self.genFullTypeSql(tb_name=f"\"1aaabbb\"")[0]
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(tb_name=f"1aaabbb")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 0)
-        except SchemalessError:
-            pass
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
     def nowTsCheckCase(self):
         """
             check now unsupported
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="now")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 0)
-        except SchemalessError:
-            pass
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
     def dateFormatTsCheckCase(self):
         """
             check date format ts unsupported
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 0)
-        except SchemalessError:
-            pass
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
     
     def illegalTsCheckCase(self):
         """
             check ts format like 16260068336390us19
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="16260068336390us19")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 0)
-        except SchemalessError:
-            pass
+            self._conn.schemaless_insert([input_sql], 0, None)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+
+    def tbnameCheckCase(self):
+        """
+            check length 192
+            check upper tbname
+            chech upper tag
+            length of stb_name tb_name <= 192
+        """
+        stb_name_192 = tdCom.getLongName(len=192, mode="letters")
+        tb_name_192 = tdCom.getLongName(len=192, mode="letters")
+        tdCom.cleanTb()
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name_192, tb_name=tb_name_192)
+        self.resCmp(input_sql, stb_name)
+        tdSql.query(f'select * from {stb_name}')
+        tdSql.checkRows(1)
+        for input_sql in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
+            try:
+                self._conn.schemaless_insert([input_sql], 0, None)
+                raise Exception("should not reach here")
+            except SchemalessError as err:
+                tdSql.checkNotEqual(err.errno, 0)
+
+        input_sql = 'Abcdffgg,id=Abcddd,T1=127i8 c0=False 1626006833639000000ns'
+        stb_name = "Abcdffgg"
+        self.resCmp(input_sql, stb_name)
 
     def tagValueLengthCheckCase(self):
         """
             check full type tag value limit
         """
-        self.cleanStb()
-        # i8
-        for t1 in ["-127i8", "127i8"]:
-            input_sql, stb_name = self.genFullTypeSql(t1=t1)
-            self.resCmp(input_sql, stb_name)
-        for t1 in ["-128i8", "128i8"]:
-            input_sql = self.genFullTypeSql(t1=t1)[0]
-            try:
-                self._conn.schemaless_insert([input_sql], 0)
-            except SchemalessError:
-                pass
-
-        #i16
-        for t2 in ["-32767i16", "32767i16"]:
-            input_sql, stb_name = self.genFullTypeSql(t2=t2)
-            self.resCmp(input_sql, stb_name)
-        for t2 in ["-32768i16", "32768i16"]:
-            input_sql = self.genFullTypeSql(t2=t2)[0]
-            try:
-                self._conn.schemaless_insert([input_sql], 0)
-            except SchemalessError:
-                pass
-
-        #i32
-        for t3 in ["-2147483647i32", "2147483647i32"]:
-            input_sql, stb_name = self.genFullTypeSql(t3=t3)
-            self.resCmp(input_sql, stb_name)
-        for t3 in ["-2147483648i32", "2147483648i32"]:
-            input_sql = self.genFullTypeSql(t3=t3)[0]
-            try:
-                self._conn.schemaless_insert([input_sql], 0)
-            except SchemalessError:
-                pass
-
-        #i64
-        for t4 in ["-9223372036854775807i64", "9223372036854775807i64"]:
-            input_sql, stb_name = self.genFullTypeSql(t4=t4)
-            self.resCmp(input_sql, stb_name)
-        for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
-            input_sql = self.genFullTypeSql(t4=t4)[0]
-            try:
-                self._conn.schemaless_insert([input_sql], 0)
-            except SchemalessError:
-                pass
-
-        # f32
-        for t5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
-            input_sql, stb_name = self.genFullTypeSql(t5=t5)
-            self.resCmp(input_sql, stb_name)
-        # * limit set to 4028234664*(10**38)
-        for t5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
-            input_sql = self.genFullTypeSql(t5=t5)[0]
-            try:
-                self._conn.schemaless_insert([input_sql], 0)
-                raise Exception("should not reach here")
-            except SchemalessError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-
-
-        # f64
-        for t6 in [f'{-1.79769*(10**308)}f64', f'{-1.79769*(10**308)}f64']:
-            input_sql, stb_name = self.genFullTypeSql(t6=t6)
-            self.resCmp(input_sql, stb_name)
-        # * limit set to 1.797693134862316*(10**308)
-        for c6 in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
-            input_sql = self.genFullTypeSql(c6=c6)[0]
-            try:
-                self._conn.schemaless_insert([input_sql], 0)
-                raise Exception("should not reach here")
-            except SchemalessError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-
-        # binary 
-        stb_name = self.getLongName(7, "letters")
-        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}" c0=f 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
-        
-        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16375, "letters")}" c0=f 1626006833639000000ns'
-        try:
-            self._conn.schemaless_insert([input_sql], 0)
-            raise Exception("should not reach here")
-        except SchemalessError as err:
-            pass
-
+        tdCom.cleanTb()
         # nchar
         # * legal nchar could not be larger than 16374/4
-        stb_name = self.getLongName(7, "letters")
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}" c0=f 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
+        stb_name = tdCom.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t,t1={tdCom.getLongName(4093, "letters")} c0=f 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
 
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4094, "letters")}" c0=f 1626006833639000000ns'
+        input_sql = f'{stb_name},t0=t,t1={tdCom.getLongName(4094, "letters")} c0=f 1626006833639000000ns'
         try:
-            self._conn.schemaless_insert([input_sql], 0)
+            self._conn.schemaless_insert([input_sql], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -580,7 +665,7 @@ class TDTestCase:
         """
             check full type col value limit
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         # i8
         for c1 in ["-127i8", "127i8"]:
             input_sql, stb_name = self.genFullTypeSql(c1=c1)
@@ -589,7 +674,7 @@ class TDTestCase:
         for c1 in ["-128i8", "128i8"]:
             input_sql = self.genFullTypeSql(c1=c1)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -600,7 +685,7 @@ class TDTestCase:
         for c2 in ["-32768i16", "32768i16"]:
             input_sql = self.genFullTypeSql(c2=c2)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -612,7 +697,7 @@ class TDTestCase:
         for c3 in ["-2147483648i32", "2147483648i32"]:
             input_sql = self.genFullTypeSql(c3=c3)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -624,7 +709,7 @@ class TDTestCase:
         for c4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
             input_sql = self.genFullTypeSql(c4=c4)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -637,7 +722,7 @@ class TDTestCase:
         for c5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
             input_sql = self.genFullTypeSql(c5=c5)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -650,32 +735,31 @@ class TDTestCase:
         for c6 in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
             input_sql = self.genFullTypeSql(c6=c6)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # # binary 
-        stb_name = self.getLongName(7, "letters")
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
-        
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16375, "letters")}" 1626006833639000000ns'
+        stb_name = tdCom.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}" 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16375, "letters")}" 1626006833639000000ns'
         try:
-            self._conn.schemaless_insert([input_sql], 0)
+            self._conn.schemaless_insert([input_sql], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
         # nchar
         # * legal nchar could not be larger than 16374/4
-        stb_name = self.getLongName(7, "letters")
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}" 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
+        stb_name = tdCom.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{tdCom.getLongName(4093, "letters")}" 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
 
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4094, "letters")}" 1626006833639000000ns'
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{tdCom.getLongName(4094, "letters")}" 1626006833639000000ns'
         try:
-            self._conn.schemaless_insert([input_sql], 0)
+            self._conn.schemaless_insert([input_sql], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -685,30 +769,16 @@ class TDTestCase:
         """
             test illegal tag col value
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
-            input_sql1 = self.genFullTypeSql(t0=i)[0]
-            try:
-                self._conn.schemaless_insert([input_sql1], 0)
-                raise Exception("should not reach here")
-            except SchemalessError as err:
-                tdSql.checkNotEqual(err.errno, 0)
-            input_sql2 = self.genFullTypeSql(c0=i)[0]
-            try:
-                self._conn.schemaless_insert([input_sql2], 0)
-                raise Exception("should not reach here")
-            except SchemalessError as err:
-                tdSql.checkNotEqual(err.errno, 0)
+            input_sql1, stb_name = self.genFullTypeSql(t0=i)
+            self.resCmp(input_sql1, stb_name)
+            input_sql2, stb_name = self.genFullTypeSql(c0=i)
+            self.resCmp(input_sql2, stb_name)
 
         # i8 i16 i32 i64 f32 f64
         for input_sql in [
-                self.genFullTypeSql(t1="1s2i8")[0], 
-                self.genFullTypeSql(t2="1s2i16")[0],
-                self.genFullTypeSql(t3="1s2i32")[0],
-                self.genFullTypeSql(t4="1s2i64")[0],
-                self.genFullTypeSql(t5="11.1s45f32")[0],
-                self.genFullTypeSql(t6="11.1s45f64")[0], 
                 self.genFullTypeSql(c1="1s2i8")[0], 
                 self.genFullTypeSql(c2="1s2i16")[0],
                 self.genFullTypeSql(c3="1s2i32")[0],
@@ -718,20 +788,20 @@ class TDTestCase:
                 self.genFullTypeSql(c9="1s1u64")[0]
             ]:
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # check binary and nchar blank
-        stb_name = self.getLongName(7, "letters")
+        stb_name = tdCom.getLongName(7, "letters")
         input_sql1 = f'{stb_name},t0=t c0=f,c1="abc aaa" 1626006833639000000ns'
         input_sql2 = f'{stb_name},t0=t c0=f,c1=L"abc aaa" 1626006833639000000ns'
         input_sql3 = f'{stb_name},t0=t,t1="abc aaa" c0=f 1626006833639000000ns'
         input_sql4 = f'{stb_name},t0=t,t1=L"abc aaa" c0=f 1626006833639000000ns'
         for input_sql in [input_sql1, input_sql2, input_sql3, input_sql4]:
             try:
-                self._conn.schemaless_insert([input_sql], 0)
+                self._conn.schemaless_insert([input_sql], 0, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -741,18 +811,18 @@ class TDTestCase:
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_sql1 = f'{stb_name},t0=t c0=f,c1="abc{symbol}aaa" 1626006833639000000ns'
             input_sql2 = f'{stb_name},t0=t,t1="abc{symbol}aaa" c0=f 1626006833639000000ns'
-            self._conn.schemaless_insert([input_sql1], 0)
-            self._conn.schemaless_insert([input_sql2], 0)
+            self._conn.schemaless_insert([input_sql1], 0, None)
+            self._conn.schemaless_insert([input_sql2], 0, None)
         
 
     def duplicateIdTagColInsertCheckCase(self):
         """
             check duplicate Id Tag Col
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql_id = self.genFullTypeSql(id_double_tag=True)[0]
         try:
-            self._conn.schemaless_insert([input_sql_id], 0)
+            self._conn.schemaless_insert([input_sql_id], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -760,7 +830,7 @@ class TDTestCase:
         input_sql = self.genFullTypeSql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         try:
-            self._conn.schemaless_insert([input_sql_tag], 0)
+            self._conn.schemaless_insert([input_sql_tag], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -768,7 +838,7 @@ class TDTestCase:
         input_sql = self.genFullTypeSql()[0]
         input_sql_col = input_sql.replace("c5", "c6")
         try:
-            self._conn.schemaless_insert([input_sql_col], 0)
+            self._conn.schemaless_insert([input_sql_col], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -776,7 +846,7 @@ class TDTestCase:
         input_sql = self.genFullTypeSql()[0]
         input_sql_col = input_sql.replace("c5", "C6")
         try:
-            self._conn.schemaless_insert([input_sql_col], 0)
+            self._conn.schemaless_insert([input_sql_col], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -786,33 +856,32 @@ class TDTestCase:
         """
             case no id when stb exist
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(tb_name="sub_table_0123456", t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, id_noexist_tag=True, t0="f", c0="f")
         self.resCmp(input_sql, stb_name, condition='where tbname like "t_%"')
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
-        # TODO cover other case
 
     def duplicateInsertExistCheckCase(self):
         """
             check duplicate insert when stb exist
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
-        self._conn.schemaless_insert([input_sql], 0)
+        self._conn.schemaless_insert([input_sql], 0, None)
         self.resCmp(input_sql, stb_name)
 
     def tagColBinaryNcharLengthCheckCase(self):
         """
             check length increase
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
-        tb_name = self.getLongName(5, "letters")
+        tb_name = tdCom.getLongName(5, "letters")
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name,t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"", c7="\"binaryTagValuebinaryTagValue\"", c8="L\"ncharTagValuencharTagValue\"")
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
 
@@ -825,28 +894,40 @@ class TDTestCase:
             * col is added without value when update==0
             * col is added with value when update==1
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
                 self.createDb("test_update", db_update_tag=db_update_tag)
-            input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", c0="f")
+            input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="t", c0="t")
             self.resCmp(input_sql, stb_name)
-            self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t0="f", c0="f", ct_add_tag=True)
+            input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t0="t", c0="f", ct_add_tag=True)
             if db_update_tag == 1 :
-                self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
-            else:
                 self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
+                tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+                tdSql.checkData(0, 11, "ncharColValue")  
+                tdSql.checkData(0, 12, True)  
+                tdSql.checkData(0, 22, None)  
+                tdSql.checkData(0, 23, None)  
+            else:
+                self._conn.schemaless_insert([input_sql], 0, None)
+                tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+                tdSql.checkData(0, 1, True)  
+                tdSql.checkData(0, 11, None)  
+                tdSql.checkData(0, 12, None)  
+                tdSql.checkData(0, 22, None)  
+                tdSql.checkData(0, 23, None)  
+            self.createDb()
 
     def tagColAddCheckCase(self):
         """
             check column and tag count add
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
-        tb_name_1 = self.getLongName(7, "letters")
+        tb_name_1 = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name_1, t0="f", c0="f", ct_add_tag=True)
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name_1}"')
         res_row_list = self.resHandle(f"select c10,c11,t10,t11 from {tb_name}", True)[0]
@@ -858,7 +939,7 @@ class TDTestCase:
             condition: stb not change
             insert two table, keep tag unchange, change col
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(t0="f", c0="f", id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         tb_name1 = self.getNoIdTbName(stb_name)
@@ -869,7 +950,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True, ct_add_tag=True)
-        self._conn.schemaless_insert([input_sql], 0)
+        self._conn.schemaless_insert([input_sql], 0, None)
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -880,74 +961,59 @@ class TDTestCase:
         """
             every binary and nchar must be length+2
         """
-        self.cleanStb()
-        stb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
-        input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
-
-        # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
-        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(5, "letters")}" c0=f 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
-        
-        tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
-        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(6, "letters")}" c0=f 1626006833639000000ns'
-        try:
-            self._conn.schemaless_insert([input_sql], 0)
-            raise Exception("should not reach here")
-        except SchemalessError:
-            pass
-        tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
+        input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
 
         # # * check col，col+ts max in describe ---> 16143
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}",c2="{tdCom.getLongName(16374, "letters")}",c3="{tdCom.getLongName(16374, "letters")}",c4="{tdCom.getLongName(12, "letters")}" 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
 
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(3)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(13, "letters")}" 1626006833639000000ns'
+        tdSql.checkRows(2)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}",c2="{tdCom.getLongName(16374, "letters")}",c3="{tdCom.getLongName(16374, "letters")}",c4="{tdCom.getLongName(13, "letters")}" 1626006833639000000ns'
         try:
-            self._conn.schemaless_insert([input_sql], 0)
+            self._conn.schemaless_insert([input_sql], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
     
     # * tag nchar max is 16374/4, col+ts nchar max  49151
     def tagColNcharMaxLengthCheckCase(self):
         """
             check nchar length limit
         """
-        self.cleanStb()
-        stb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
-        input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
-        code = self._conn.schemaless_insert([input_sql], 0)
+        input_sql = f'{stb_name},id={tb_name},t2={tdCom.getLongName(1, "letters")} c0=f 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
 
         # * legal nchar could not be larger than 16374/4
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(1, "letters")}" c0=f 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
+        input_sql = f'{stb_name},t1={tdCom.getLongName(4093, "letters")},t2={tdCom.getLongName(1, "letters")} c0=f 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
+        input_sql = f'{stb_name},t1={tdCom.getLongName(4093, "letters")},t2={tdCom.getLongName(2, "letters")} c0=f 1626006833639000000ns'
         try:
-            self._conn.schemaless_insert([input_sql], 0)
+            self._conn.schemaless_insert([input_sql], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
 
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}",c4=L"{self.getLongName(4, "letters")}" 1626006833639000000ns'
-        self._conn.schemaless_insert([input_sql], 0)
+        input_sql = f'{stb_name},t2={tdCom.getLongName(1, "letters")} c0=f,c1=L"{tdCom.getLongName(4093, "letters")}",c2=L"{tdCom.getLongName(4093, "letters")}",c3=L"{tdCom.getLongName(4093, "letters")}",c4=L"{tdCom.getLongName(4, "letters")}" 1626006833639000000ns'
+        self._conn.schemaless_insert([input_sql], 0, None)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(3)
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}",c4=L"{self.getLongName(5, "letters")}" 1626006833639000000ns'
+        input_sql = f'{stb_name},t2={tdCom.getLongName(1, "letters")} c0=f,c1=L"{tdCom.getLongName(4093, "letters")}",c2=L"{tdCom.getLongName(4093, "letters")}",c3=L"{tdCom.getLongName(4093, "letters")}",c4=L"{tdCom.getLongName(5, "letters")}" 1626006833639000000ns'
         try:
-            self._conn.schemaless_insert([input_sql], 0)
+            self._conn.schemaless_insert([input_sql], 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -958,8 +1024,8 @@ class TDTestCase:
         """
             test batch insert
         """
-        self.cleanStb()
-        stb_name = self.getLongName(8, "letters")
+        tdCom.cleanTb()
+        stb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
                 "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns",
@@ -969,36 +1035,127 @@ class TDTestCase:
                 f"{stb_name},t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532ns",
                 f"{stb_name},t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32i8,c6=64i16,c7=32i32,c8=88.88f32 1626056812843316532ns",
                 "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns",
-                "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000ns"
+                "st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64   c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64   1626006933641000000ns"
                 ]
-        self._conn.schemaless_insert(lines, 0)
+        self._conn.schemaless_insert(lines, 0, None)
+        tdSql.query('show stables')
+        tdSql.checkRows(3)
+        tdSql.query('show tables')
+        tdSql.checkRows(6)
+        tdSql.query('select * from st123456')
+        tdSql.checkRows(5)
     
     def multiInsertCheckCase(self, count):
             """
                 test multi insert
             """
-            self.cleanStb()
+            tdCom.cleanTb()
             sql_list = []
-            stb_name = self.getLongName(8, "letters")
-            tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
+            stb_name = tdCom.getLongName(8, "letters")
+            tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
             for i in range(count):
-                input_sql = self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True)[0]
+                input_sql = self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True)[0]
                 sql_list.append(input_sql)
-            self._conn.schemaless_insert(sql_list, 0)
+            self._conn.schemaless_insert(sql_list, 0, None)
+            tdSql.query('show tables')
+            tdSql.checkRows(count)
 
     def batchErrorInsertCheckCase(self):
         """
             test batch error insert
         """
-        self.cleanStb()
-        stb_name = self.getLongName(8, "letters")
-        lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+        tdCom.cleanTb()
+        stb_name = tdCom.getLongName(8, "letters")
+        lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i 64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
                 f"{stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"]
         try:
-            self._conn.schemaless_insert(lines, 0)
+            self._conn.schemaless_insert(lines, 0, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
+
+    def multiColsInsertCheckCase(self):
+        """
+            test multi cols insert
+        """
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(c_multi_tag=True)[0]
+        try:
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+    
+    def multiTagsInsertCheckCase(self):
+        """
+            test multi tags insert
+        """
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(t_multi_tag=True)[0]
+        try:
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+    
+    def blankColInsertCheckCase(self):
+        """
+            test blank col insert
+        """
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(c_blank_tag=True)[0]
+        try:
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+
+    def blankTagInsertCheckCase(self):
+        """
+            test blank tag insert
+        """
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(t_blank_tag=True)[0]
+        try:
+            self._conn.schemaless_insert([input_sql], 0, None)
+            raise Exception("should not reach here")
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+    
+    def chineseCheckCase(self):
+        """
+            check nchar ---> chinese
+        """
+        tdCom.cleanTb()
+        input_sql, stb_name = self.genFullTypeSql(chinese_tag=True)
+        self.resCmp(input_sql, stb_name)
+
+    def spellCheckCase(self):
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql_list = [f'{stb_name}_1,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000Ns',
+                            f'{stb_name}_2,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000nS',
+                            f'{stb_name}_3,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000NS',
+                            f'{stb_name}_4,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639019Us',
+                            f'{stb_name}_5,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639019uS',
+                            f'{stb_name}_6,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639019US',
+                            f'{stb_name}_7,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833640Ms',
+                            f'{stb_name}_8,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833640mS',
+                            f'{stb_name}_9,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833640MS',
+                            f'{stb_name}_10,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006834S']
+        for input_sql in input_sql_list:
+            stb_name = input_sql.split(',')[0]
+            self.resCmp(input_sql, stb_name)
+
+    def defaultTypeCheckCase(self):
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql_list = [f'{stb_name}_1,t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000Ns',
+                            f'{stb_name}_2,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789 1626006833639000000nS',
+                            f'{stb_name}_3,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=10e5F32 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=10e5F64 1626006833639000000NS',
+                            f'{stb_name}_4,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=10.0e5f64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=10.0e5f32 1626006833639019Us',
+                            f'{stb_name}_5,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=-10.0e5 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=-10.0e5 1626006833639019uS']
+        for input_sql in input_sql_list:
+            stb_name = input_sql.split(",")[0]
+            self.resCmp(input_sql, stb_name)
 
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
@@ -1027,18 +1184,18 @@ class TDTestCase:
         s_stb_d_tb_d_ts_a_tag_m_col_list = list()
         for i in range(count):
             d_stb_d_tb_list.append(self.genFullTypeSql(t0="f", c0="f"))
-            s_stb_s_tb_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"'))
-            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ct_add_tag=True))
-            s_stb_s_tb_m_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ct_min_tag=True))
-            s_stb_d_tb_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True))
-            s_stb_d_tb_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ct_am_tag=True))
-            s_stb_d_tb_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ct_ma_tag=True))
-            s_stb_s_tb_d_ts_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ts=0))
-            s_stb_s_tb_d_ts_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ts=0, ct_am_tag=True))
-            s_stb_s_tb_d_ts_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ts=0, ct_ma_tag=True))
-            s_stb_d_tb_d_ts_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0))
-            s_stb_d_tb_d_ts_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, ct_am_tag=True))
-            s_stb_d_tb_d_ts_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, ct_ma_tag=True))
+            s_stb_s_tb_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"'))
+            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', ct_add_tag=True))
+            s_stb_s_tb_m_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', ct_min_tag=True))
+            s_stb_d_tb_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True))
+            s_stb_d_tb_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ct_am_tag=True))
+            s_stb_d_tb_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ct_ma_tag=True))
+            s_stb_s_tb_d_ts_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', ts=0))
+            s_stb_s_tb_d_ts_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', ts=0, ct_am_tag=True))
+            s_stb_s_tb_d_ts_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', ts=0, ct_ma_tag=True))
+            s_stb_d_tb_d_ts_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0))
+            s_stb_d_tb_d_ts_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, ct_am_tag=True))
+            s_stb_d_tb_d_ts_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', c7=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, ct_ma_tag=True))
 
         return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_col_a_tag_list, s_stb_s_tb_m_col_m_tag_list, \
             s_stb_d_tb_list, s_stb_d_tb_a_col_m_tag_list, s_stb_d_tb_a_tag_m_col_list, s_stb_s_tb_d_ts_list, \
@@ -1049,7 +1206,7 @@ class TDTestCase:
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
-            t = threading.Thread(target=self._conn.schemaless_insert,args=([insert_sql[0]], 0))
+            t = threading.Thread(target=self._conn.schemaless_insert,args=([insert_sql[0]], 0, None))
             tlist.append(t)
         return tlist
 
@@ -1063,7 +1220,7 @@ class TDTestCase:
         """
             thread input different stb
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql = self.genSqlList()[0]
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
         tdSql.query(f"show tables;")
@@ -1073,8 +1230,8 @@ class TDTestCase:
         """
             thread input same stb tb, different data, result keep first data
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[1]
@@ -1090,8 +1247,8 @@ class TDTestCase:
         """
             thread input same stb tb, different data, add columes and tags,  result keep first data
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_a_col_a_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[2]
@@ -1107,8 +1264,8 @@ class TDTestCase:
         """
             thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_m_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[3]
@@ -1124,7 +1281,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_list = self.genSqlList(stb_name=stb_name)[4]
@@ -1136,15 +1293,15 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data, add col, mul tag
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         # s_stb_d_tb_a_col_m_tag_list = self.genSqlList(stb_name=stb_name)[5]
         s_stb_d_tb_a_col_m_tag_list = [(f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ngxgzdzs",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 1626006833639000000ns', 'hpxbys'), \
                                         (f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vvfrdtty",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=True 1626006833639000000ns', 'hpxbys'), \
-                                        (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="kzscucnt",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=f 1626006833639000000ns', 'hpxbys'), \
-                                        (f'{stb_name},t0=false,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="asegdbqk",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=false 1626006833639000000ns', 'hpxbys'), \
-                                        (f'{stb_name},t0=T,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="yvqnhgmn",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=T 1626006833639000000ns', 'hpxbys')]
+                                        (f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="kzscucnt",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=f 1626006833639000000ns', 'hpxbys'), \
+                                        (f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="asegdbqk",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=false 1626006833639000000ns', 'hpxbys'), \
+                                        (f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="yvqnhgmn",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=T 1626006833639000000ns', 'hpxbys')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_a_col_m_tag_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(3)
@@ -1153,7 +1310,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data, add tag, mul col
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_a_tag_m_col_list = self.genSqlList(stb_name=stb_name)[6]
@@ -1165,8 +1322,8 @@ class TDTestCase:
         """
             thread input same stb tb, different ts
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         # s_stb_s_tb_d_ts_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[7]
@@ -1186,8 +1343,8 @@ class TDTestCase:
         """
             thread input same stb tb, different ts, add col, mul tag
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[8]
@@ -1205,16 +1362,16 @@ class TDTestCase:
         """
             thread input same stb tb, different ts, add tag, mul col
         """
-        self.cleanStb()
-        tb_name = self.getLongName(7, "letters")
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         # s_stb_s_tb_d_ts_a_tag_m_col_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[9]
-        s_stb_s_tb_d_ts_a_tag_m_col_list = [(f'{stb_name},id="{tb_name}",t0=T,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="xsajdfjc",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
-                                            (f'{stb_name},id="{tb_name}",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="qzeyolgt",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
-                                            (f'{stb_name},id="{tb_name}",t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="suxqziwh",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
-                                            (f'{stb_name},id="{tb_name}",t0=false,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vapolpgr",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
-                                            (f'{stb_name},id="{tb_name}",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="eustwpfl",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb')]
+        s_stb_s_tb_d_ts_a_tag_m_col_list = [(f'{stb_name},id={tb_name},t0=T,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="xsajdfjc",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
+                                            (f'{stb_name},id={tb_name},t0=T,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="qzeyolgt",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
+                                            (f'{stb_name},id={tb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="suxqziwh",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
+                                            (f'{stb_name},id={tb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="vapolpgr",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb'), \
+                                            (f'{stb_name},id={tb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="eustwpfl",t8=L"ncharTagValue",t11=127i8,t10=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0', 'rgqcfb')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_a_tag_m_col_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(1)
@@ -1231,7 +1388,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, data, ts
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.genSqlList(stb_name=stb_name)[10]
@@ -1243,42 +1400,38 @@ class TDTestCase:
         """
             thread input same stb, different tb, data, ts, add col, mul tag
         """
-        self.cleanStb()
+        tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         # s_stb_d_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name)[11]
         s_stb_d_tb_d_ts_a_col_m_tag_list = [(f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="eltflgpz",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=True 0', 'ynnlov'), \
-                                            (f'{stb_name},t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ysznggwl",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'ynnlov'), \
+                                            (f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="ysznggwl",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 0', 'ynnlov'), \
                                             (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="nxwjucch",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=f 0', 'ynnlov'), \
-                                            (f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="fzseicnt",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 0', 'ynnlov'), \
-                                            (f'{stb_name},t0=False,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zwgurhdp",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=False 0', 'ynnlov')]
+                                            (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="fzseicnt",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=F 0', 'ynnlov'), \
+                                            (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zwgurhdp",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=False 0', 'ynnlov')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_d_ts_a_col_m_tag_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(3)
 
     def test(self):
-        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006933640000000ns"
-        input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006933640000000ns"
+        input_sql1 = "rfasta,id=rfasta_1,t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006933640000000ns"
+        input_sql2 = "rfasta,id=rfasta_1,t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006933640000000ns"
         try:
-            self._conn.schemaless_insert([input_sql1], 0)
-            self._conn.schemaless_insert([input_sql2], 0)
+            self._conn.schemaless_insert([input_sql1])
+            self._conn.schemaless_insert([input_sql2])
         except SchemalessError as err:
             print(err.errno)
-        # self._conn.schemaless_insert([input_sql2], 0)
-        # input_sql3 = f'abcd,id="cc¥Ec",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
-        # print(input_sql3)
-        # input_sql4 = 'hmemeb,id="kilrcrldgf",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="fysodjql",t8=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="waszbfvc",c8=L"ncharColValue",c9=7u64 0'
-        # code = self._conn.schemaless_insert([input_sql3], 0)
-        # print(code)
-        # self._conn.schemaless_insert([input_sql4], 0)
 
     def runAll(self):
         self.initCheckCase()
         self.boolTypeCheckCase()
         self.symbolsCheckCase()
         self.tsCheckCase()
+        self.tsPriorityCheckCase()
+        self.zeroTsCheckCase()
+        self.iuCheckCase()
         self.idSeqCheckCase()
-        self.idUpperCheckCase()
+        self.idLetterCheckCase()
         self.noIdCheckCase()
         self.maxColTagCheckCase()
         self.idIllegalNameCheckCase()
@@ -1286,6 +1439,7 @@ class TDTestCase:
         self.nowTsCheckCase()
         self.dateFormatTsCheckCase()
         self.illegalTsCheckCase()
+        self.tbnameCheckCase()
         self.tagValueLengthCheckCase()
         self.colValueLengthCheckCase()
         self.tagColIllegalValueCheckCase()
@@ -1299,22 +1453,30 @@ class TDTestCase:
         self.tagColBinaryMaxLengthCheckCase()
         self.tagColNcharMaxLengthCheckCase()
         self.batchInsertCheckCase()
-        self.multiInsertCheckCase(1000)
+        self.multiInsertCheckCase(100)
         self.batchErrorInsertCheckCase()
-        # MultiThreads
+        self.multiColsInsertCheckCase()
+        self.multiTagsInsertCheckCase()
+        self.blankColInsertCheckCase()
+        self.blankTagInsertCheckCase()
+        self.chineseCheckCase()
+        self.spellCheckCase()
+        self.defaultTypeCheckCase()
+
+        ## MultiThreads
         self.stbInsertMultiThreadCheckCase()
         self.sStbStbDdataInsertMultiThreadCheckCase()
         self.sStbStbDdataAtcInsertMultiThreadCheckCase()
         self.sStbStbDdataMtcInsertMultiThreadCheckCase()
         self.sStbDtbDdataInsertMultiThreadCheckCase()
 
-        # # ! concurrency conflict
+        # ! concurrency conflict
         self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
         self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
 
         self.sStbStbDdataDtsInsertMultiThreadCheckCase()
 
-        # # ! concurrency conflict
+        # ! concurrency conflict
         self.sStbStbDdataDtsAcMtInsertMultiThreadCheckCase()
         self.sStbStbDdataDtsAtMcInsertMultiThreadCheckCase()
 
@@ -1329,6 +1491,7 @@ class TDTestCase:
         print("running {}".format(__file__))
         self.createDb()
         try:
+            # self.influxTsCheckCase()
             self.runAll()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
