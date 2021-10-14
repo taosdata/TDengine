@@ -94,8 +94,6 @@ struct STsdbRepo {
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code;  // Commit code
-  int64_t         commitWalSize;  // last commit wal size. MB
-  int64_t         walSize;        // current wal size. MB
 
   SMergeBuf       mergeBuf;  //used when update=2
   int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
@@ -111,7 +109,7 @@ struct STsdbRepo {
 int        tsdbLockRepo(STsdbRepo* pRepo);
 int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
-int        tsdbCheckCommit(STsdbRepo* pRepo, bool checkWal);
+int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
 int        tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
 void       tsdbGetRootDir(int repoid, char dirName[]);

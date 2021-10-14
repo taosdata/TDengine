@@ -176,15 +176,14 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     return terrno;
   }
 
-  // no need to set wal size to trigger commit if vnode in committing state
-  // TODO: retrieve pVnode->isCommiting need atomic operation?
-  if (((pVnode->version & 8191) == 0) && (pVnode->isCommiting == 0)) {
-    tsdbSetWalSize(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
-  }
-
   if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
     code = terrno;
     ASSERT(code != 0);
+  }
+
+  // no need to set wal size to trigger commit if vnode in committing state
+  if ((((++pVnode->tblMsgVer) & 32767) == 0) && (pVnode->isCommiting == 0)) {  // lazy check
+    tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
   }
 
   tsdbClearTableCfg(pCfg);

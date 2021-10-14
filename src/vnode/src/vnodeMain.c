@@ -556,7 +556,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     if (!vnodeInInitStatus(pVnode)) {
       walRemoveOneOldFile(pVnode->wal);
     }
-    // vnodeGetVersion() and calling tsdbSetWalSize() would reply on the vnode isCommiting state 
+    // vnodeGetVersion() and calling tsdbCheckWal() would reply on the vnode isCommiting state
     pVnode->isCommiting = 0;
     return vnodeSaveVersion(pVnode);
   }

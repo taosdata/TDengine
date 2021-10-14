@@ -140,7 +140,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
     goto _err;
   }
 
-  if (tsdbCheckCommit(pRepo, true) < 0) return -1;
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
 
   return 0;
 
@@ -191,7 +191,7 @@ int tsdbDropTable(STsdbRepo *repo, STableId tableId) {
   tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   free(tbname);
 
-  if (tsdbCheckCommit(pRepo, false) < 0) goto _err;
+  if (tsdbCheckCommit(pRepo) < 0) goto _err;
 
   return 0;
 
@@ -416,7 +416,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
   }
   tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pTable);
 
-  if (tsdbCheckCommit(pRepo, false) < 0) return -1;
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
 
   return 0;
 }
