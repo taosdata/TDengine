@@ -16,10 +16,11 @@
 #ifndef _TD_VNODE_MAIN_H_
 #define _TD_VNODE_MAIN_H_
 
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
 int32_t vnodeInitMain();
 void    vnodeCleanupMain();

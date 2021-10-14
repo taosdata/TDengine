@@ -22,8 +22,26 @@
 extern "C" {
 #endif
 
-typedef struct STQ STQ;
+typedef struct tqTopicVhandle {
+  //name
+  //
+  //executor for filter
+  //
+  //callback for mnode
+  //
+} tqTopic;
 
+typedef struct STQ {
+  //the set for topics
+  //key=topicName: str
+  //value=tqTopicVhandle
+
+  //a map
+  //key=<topic: str, cgId: int64_t>
+  //value=consumeOffset: int64_t
+} STQ;
+
+//init in each vnode
 STQ* tqInit(void* ref_func(void*), void* unref_func(void*));
 void tqCleanUp(STQ*);
 
