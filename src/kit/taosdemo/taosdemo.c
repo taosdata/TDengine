@@ -3502,7 +3502,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     char resEncodingChunk[] = "Encoding: chunked";
     char resHttp[] = "HTTP/1.1 ";
     int resHttpLen = strlen(resHttp);
-    char resHttpOk[] = "HTTP/1.1 OK";
+    char resHttpOk[] = "HTTP/1.1 200 OK";
     int resHttpOkLen = strlen(resHttpOk);
 
     do {
