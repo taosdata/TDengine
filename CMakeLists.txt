@@ -10,6 +10,7 @@ project(
 # DEPENDENCIES
 # ============================================================================
 set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/cmake")
+include(${CMAKE_SUPPORT_DIR}/cmake.options)
 
 function(cat IN_FILE OUT_FILE)
     file(READ ${IN_FILE} CONTENTS)
@@ -20,8 +21,6 @@ set(DEPS_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
 ## googletest
-option(BUILD_TEST "If build unit tests using googletest" ON)
-
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_TEST})
@@ -36,20 +35,17 @@ cat("${CMAKE_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 cat("${CMAKE_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 
 ## leveldb
-option(BUILD_WITH_LEVELDB "If build with leveldb" OFF)
 if(${BUILD_WITH_LEVELDB})
     cat("${CMAKE_SUPPORT_DIR}/leveldb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_WITH_LEVELDB})
 
 ## rocksdb
-option(BUILD_WITH_ROCKSDB "If build with rocksdb" OFF)
 if(${BUILD_WITH_ROCKSDB})
     cat("${CMAKE_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
 ## lucene
-option(BUILD_WITH_LUCENE "If build with lucene" OFF)
 if(${BUILD_WITH_LUCENE})
     cat("${CMAKE_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_WITH_LUCENE})

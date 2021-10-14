@@ -1,0 +1,26 @@
+# =========================================================
+# Deps options
+# =========================================================
+option(
+    BUILD_TEST 
+    "If build unit tests using googletest" 
+    ON
+)
+
+option(
+    BUILD_WITH_LEVELDB 
+    "If build with leveldb" 
+    OFF
+)
+
+option(
+    BUILD_WITH_ROCKSDB 
+    "If build with rocksdb" 
+    OFF
+)
+
+option(
+    BUILD_WITH_LUCENE 
+    "If build with lucene" 
+    OFF
+)
