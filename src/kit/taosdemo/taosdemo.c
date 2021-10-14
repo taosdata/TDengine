@@ -4599,7 +4599,6 @@ static void* createTable(void *sarg)
             return NULL;
         }
         pThreadInfo->tables_created += batchNum;
-
         uint64_t currentPrintTime = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
             printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
@@ -4614,6 +4613,7 @@ static void* createTable(void *sarg)
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
         }
     }
+    pThreadInfo->tables_created += batchNum;
 
     free(pThreadInfo->buffer);
     return NULL;
