@@ -221,6 +221,7 @@ taosd -C
 | 103   | numOfCommitThreads      | YES      | **S**    |          | 设置写入线程的最大数量                                       |                                                              |                                                              |                                                              |
 | 104   | maxWildCardsLength      |          | **C**    | bytes    | 设定 LIKE 算子的通配符字符串允许的最大长度                     | 0-16384                                                       | 100                                                          | 2.1.6.1 版本新增。                                                     |
 | 105  | compressColData         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对服务器端查询结果进行列压缩的阈值。 | 0: 对所有查询结果均进行压缩  >0: 查询结果中任意列大小超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           | 2.3.0.0 版本新增。                     |
+| 106    | tsdbMetaCompactRatio      |          | **C**    |          | tsdb meta文件中冗余数据超过多少阈值，开启meta文件的压缩功能                                  | 0：不开启，[1-100]：冗余数据比例                                                 | 0                                                            |  |
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
