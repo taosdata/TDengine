@@ -3360,7 +3360,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
   } else if(type == TSDB_DATA_TYPE_JSON){
     assert(kvRowLen(val) < bytes);
     tVariantCreateFromBinary(tag, val, kvRowLen(val), type);
-    memcpy(tag->pz + 1, tag->pz, bytes - 1);    // move back 1 byte for select type
+    memcpy(tag->pz + 1, tag->pz, kvRowLen(val) - 1);    // move back 1 byte for select type
     *(tag->pz) = SELECT_ALL_JSON_TAG;
     tag->nLen++;
   }
