@@ -1845,11 +1845,26 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   return false;
 }
 
+int32_t checkKeywordMatch(char *key, int32_t *len) {
+  if (*len >= TSDB_COL_NAME_LEN) {
+    return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+  }
+  if (taosIsKeyWordToken(key, *len)) {
+    memmove(key + 1, key, *len + 1);
+    key[0] = '_';
+    *len += 1;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash, SSmlLinesInfo* info) {
   const char *cur = *index;
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
-  uint16_t len = 0;
+  int32_t len = 0;
 
+  //TODO: remove the following
+  key[len] = '_';
+  len++;
   //key field cannot start with digit
   if (isdigit(*cur)) {
     tscError("SML:0x%"PRIx64" Tag key cannnot start with digit", info->id);
@@ -1876,6 +1891,11 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
   if (checkDuplicateKey(key, pHash, info)) {
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  }
+
+  int32_t ret = checkKeywordMatch(key, &len);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
   }
 
   pKV->key = calloc(len + 1, 1);
@@ -1940,12 +1960,15 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   if (pSml->stableName == NULL){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  if (isdigit(*cur)) {
-    tscError("SML:0x%"PRIx64" Measurement field cannnot start with digit", info->id);
-    free(pSml->stableName);
-    pSml->stableName = NULL;
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
+  //TODO: remove the following
+  pSml->stableName[len] = '_';
+  len++;
+  //if (isdigit(*cur)) {
+  //  tscError("SML:0x%"PRIx64" Measurement field cannnot start with digit", info->id);
+  //  free(pSml->stableName);
+  //  pSml->stableName = NULL;
+  //  return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  //}
 
   while (*cur != '\0') {
     if (len >= TSDB_TABLE_NAME_LEN - 1) {
@@ -2033,15 +2056,23 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
+    if (!isField && (strcasecmp(pkv->key, "_ID") == 0)) {
       ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
         goto error;
       }
-      smlData->childTableName = malloc( pkv->length + 1);
-      memcpy(smlData->childTableName, pkv->value, pkv->length);
+      //smlData->childTableName = malloc( pkv->length + 1);
+      //memcpy(smlData->childTableName, pkv->value, pkv->length);
+      //TODO: remove the following
+      smlData->childTableName = malloc(pkv->length + 2);
+      smlData->childTableName[0] = '_';
+      memcpy(smlData->childTableName + 1, pkv->value, pkv->length);
+
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
-      smlData->childTableName[pkv->length] = '\0';
+      //smlData->childTableName[pkv->length] = '\0';
+      //TODO: remove the following
+      smlData->childTableName[pkv->length + 1] = '\0';
+
       free(pkv->key);
       free(pkv->value);
     } else {

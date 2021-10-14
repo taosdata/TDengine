@@ -41,11 +41,16 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   if (pSml->stableName == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  if (isdigit(*cur)) {
-    tscError("OTD:0x%"PRIx64" Metric cannot start with digit", info->id);
-    tfree(pSml->stableName);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
+
+  //TODO: remove the following
+  pSml->stableName[len] = '_';
+  len++;
+
+  //if (isdigit(*cur)) {
+  //  tscError("OTD:0x%"PRIx64" Metric cannot start with digit", info->id);
+  //  tfree(pSml->stableName);
+  //  return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  //}
 
   while (*cur != '\0') {
     if (len >= TSDB_TABLE_NAME_LEN - 1) {
@@ -186,6 +191,9 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
   char key[TSDB_COL_NAME_LEN];
   uint16_t len = 0;
 
+  //TODO: remove the following
+  key[len] = '_';
+  len++;
   //key field cannot start with digit
   if (isdigit(*cur)) {
     tscError("OTD:0x%"PRIx64" Tag key cannot start with digit", info->id);
@@ -292,14 +300,21 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("OTD:0x%"PRIx64" Unable to parse value", info->id);
       return ret;
     }
-    if ((strcasecmp(pkv->key, "ID") == 0)) {
+    if ((strcasecmp(pkv->key, "_ID") == 0)) {
       ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
         return ret;
       }
-      *childTableName = malloc(pkv->length + 1);
-      memcpy(*childTableName, pkv->value, pkv->length);
-      (*childTableName)[pkv->length] = '\0';
+      //*childTableName = malloc(pkv->length + 1);
+      //memcpy(*childTableName, pkv->value, pkv->length);
+      //TODO: remove the following
+      *childTableName = malloc(pkv->length + 2);
+      *childTableName[0] = '_';
+      memcpy(*childTableName + 1, pkv->value, pkv->length);
+
+      //(*childTableName)[pkv->length] = '\0';
+      //TODO: remove the following
+      (*childTableName)[pkv->length + 1] = '\0';
       strntolower_s(*childTableName, *childTableName, (int32_t)pkv->length);
       tfree(pkv->key);
       tfree(pkv->value);
@@ -880,6 +895,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     }
     *childTableName = tcalloc(idLen + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
+
     strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
 
     //check duplicate IDs
@@ -917,6 +933,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     }
     pkv->key = tcalloc(keyLen + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
+
     //value
     ret = parseValueFromJSON(tag, pkv, info);
     if (ret != TSDB_CODE_SUCCESS) {
