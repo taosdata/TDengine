@@ -88,6 +88,15 @@ To install Apache Maven:
 sudo dnf install -y maven
 ```
 
+### Setup golang environment
+TDengine includes few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
+
+Please use version 1.14+. For the user in China, we recommend using a proxy to accelerate package downloading.
+```
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.io,direct
+```
+
 ## Get the source codes
 
 First of all, you may clone the source codes from github:

@@ -118,6 +118,11 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [数据复制](/architecture/replica)：支持实时同步、异步复制，保证系统的High Availibility
 * [技术博客](https://www.taosdata.com/cn/blog/?categories=3)：更多的技术分析和架构设计文章
 
+## [应用 TDengine 快速搭建 IT 运维系统](/devops)
+
+* [devops](/devops/telegraf)：使用 TDengine + Telegraf + Grafana 快速搭建 IT 运维系统
+* [devops](/devops/collectd)：使用 TDengine + collectd_statsd + Grafana 快速搭建 IT 运维系统
+
 ## 常用工具
 
 * [TDengine样例导入工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
