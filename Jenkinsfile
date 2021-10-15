@@ -99,7 +99,7 @@ def pre_test(){
     sh '''
     cd ${WK}
     git pull >/dev/null 
-    git submodule update --init --recursive
+    
     export TZ=Asia/Harbin
     date
     git clean -dfx
@@ -149,6 +149,7 @@ def pre_test_win(){
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd C:\\workspace\\TDinternal
     git reset --hard HEAD~10
     '''
@@ -469,35 +470,35 @@ pipeline {
           }
         } 
         
-        stage('build'){
-          agent{label " wintest "}
-          steps {
-            pre_test()
-            script{             
-                while(win_stop == 0){
-                  sleep(1)
-                  }
-              }
-            }
-        }
-        stage('test'){
-          agent{label "win"}
-          steps{
+        // stage('build'){
+        //   agent{label " wintest "}
+        //   steps {
+        //     pre_test()
+        //     script{             
+        //         while(win_stop == 0){
+        //           sleep(1)
+        //           }
+        //       }
+        //     }
+        // }
+        // stage('test'){
+        //   agent{label "win"}
+        //   steps{
             
-            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat Wintest
-                '''
-                }
-            }     
-            script{
-              win_stop=1
-            }
-          }
-        }
+        //     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+        //         pre_test_win()
+        //         timeout(time: 20, unit: 'MINUTES'){
+        //         bat'''
+        //         cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+        //         .\\test-all.bat Wintest
+        //         '''
+        //         }
+        //     }     
+        //     script{
+        //       win_stop=1
+        //     }
+        //   }
+        // }
           
                
     }
