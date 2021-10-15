@@ -1102,13 +1102,20 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
     int16_t nCols = kvRowNCols(pTable->tagVal);
     ASSERT(nCols%2 == 0);
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j%2 != 0) continue; // jump value
+      if (j != 0 && j != 1 && j%2 != 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void* val = (kvRowColVal(pTable->tagVal, pColIdx));
       if (j == 0){        // json value is the first
         int8_t jsonVal = *(int8_t*)val;
         ASSERT(jsonVal == TSDB_DATA_JSON_PLACEHOLDER);
         continue;
+      }
+
+      char nullData[VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
+      if( j == 1 && *(uint8_t*)val == TSDB_DATA_JSON_NULL){   // for null json data, add index to jsonKeyMap
+        varDataSetLen(nullData, CHAR_BYTES);
+        *(uint8_t*)(varDataVal(nullData)) = TSDB_DATA_JSON_NULL;
+        val = nullData;
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};

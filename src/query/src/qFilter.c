@@ -1178,6 +1178,12 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
     jsonKeyMd5(tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen, keyMd5);
     memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+  }else if(tree->_node.optr == TSDB_RELATION_ISNULL || tree->_node.optr == TSDB_RELATION_NOTNULL){
+    SSchema* schema = pLeft->pSchema;
+    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+    uint8_t nullData = TSDB_DATA_JSON_NULL;
+    jsonKeyMd5(&nullData, 1, keyMd5);
+    memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
   }
 
   SFilterFieldId left = {0}, right = {0};

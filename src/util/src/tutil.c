@@ -456,7 +456,7 @@ char *taosIpStr(uint32_t ipInt) {
   return ipStr;
 }
 
-void jsonKeyMd5(char *pMsg, int msgLen, void *pKey) {
+void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
   MD5_CTX context;
 
   MD5Init(&context);

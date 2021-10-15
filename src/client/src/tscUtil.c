@@ -5305,10 +5305,10 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     uint8_t typeVal = TSDB_DATA_JSON_NULL;
     tdAddColToKVRow(kvRowBuilder, startColId++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
     return TSDB_CODE_SUCCESS;
-  }else{
-    int8_t typeVal = TSDB_DATA_JSON_OBJECT;
-    tdAddColToKVRow(kvRowBuilder, startColId++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
   }
+  int jsonIndex = ++startColId;
+  int8_t typeVal = TSDB_DATA_JSON_OBJECT;
+  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
 
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
@@ -5324,7 +5324,6 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
 
   int retCode = 0;
   SHashObj* keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
-  int jsonIndex = ++startColId;
   for(int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {
@@ -5392,6 +5391,11 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);
       goto end;
     }
+  }
+
+  if(taosHashGetSize(keyHash) == 0){
+    typeVal = TSDB_DATA_JSON_NULL;
+    memcpy(kvRowBuilder->buf, &typeVal, CHAR_BYTES);
   }
 
 end:
