@@ -186,10 +186,10 @@ select * from apiserver_request_latencies_bucket;
 ## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 BLM v3)
 TDengine 新版本（2.3.0.0+）将包含一个 BLM3 独立程序，负责接受其他多种应用的数据写入。
 
-配置方法，假设 TDengine 和 Telegraf 在同一台机器上部署，且假设 TDengine 使用默认用户名 root 和密码 taosdata。在 /etc/telegraf/telegraf.conf 增加如下文字：
+配置方法，假设 TDengine 使用默认用户名 root 和密码 taosdata。在 /etc/telegraf/telegraf.conf 增加如下文字：
 ```
 [[outputs.http]]
-  url = "http://127.0.0.1:6041/influxdb/v1/write?db=metrics"
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=metrics"
   method = "POST"
   timeout = "5s"
   username = "root"
@@ -227,17 +227,12 @@ BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 BLM v3)
 安装 StatsD
-```
-1. git clone https://github.com/etsy/statsd.git
-2. cd statsd
-3. cp exampleConfig.js config.js
-4. node stats.js config.js
-```
+请参考[官方文档](https://github.com/statsd/statsd)。
 
 在 config.js 文件中增加如下内容后启动 StatsD：
 ```
 backends 部分添加 "./backends/repeater"
-repeater 部分添加 { host:'host to blm3', port: 8126 }
+repeater 部分添加 { host:'<TDengine server/cluster host>', port: 8126 }
 ```
 
 实例配置文件：
