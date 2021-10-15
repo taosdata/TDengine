@@ -189,6 +189,7 @@ bool tsdbIsNeedCommit(STsdbRepo *pRepo) {
   int nVal = 0;
   if (sem_getvalue(&pRepo->readyToCommit, &nVal) != 0) {
     tsdbError("vgId:%d failed to sem_getvalue of readyToCommit", REPO_ID(pRepo));
+    return false;
   }
   return nVal > 0;
 }
