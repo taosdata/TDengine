@@ -41,7 +41,10 @@ steps:
   commands:
   - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
   - apt-get update 
-  - apt-get install -y -qq git cmake build-essential golang-go
+  - apt-get install -y -qq git cmake build-essential wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
