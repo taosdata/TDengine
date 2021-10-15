@@ -1484,27 +1484,26 @@ Query OK, 1 row(s) in set (0.001238s)
 
     嵌套子查询支持：适用于内层查询和外层查询。
 
+    说明：
+      支持 +、-、*、/ 运算，如 ceil(col1) + ceil(col2)。
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+      该函数可以应用在普通表和超级表上。
 
-  说明：
-    支持 +、-、*、/ 运算，如 ceil(col1) + ceil(col2)。
-    只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-    该函数可以应用在普通表和超级表上。
-
-  支持版本：指定计算算法的功能从 2.2.0.x 版本开始，2.2.0.0 之前的版本不支持指定使用算法的功能。
+    支持版本：指定计算算法的功能从 2.2.0.x 版本开始，2.2.0.0 之前的版本不支持指定使用算法的功能。
   
 - **FLOOR**
     ```mysql
     SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：获得指定列的向下取整数的结果。  
-    其他说明见上述的 Ceil 使用说明。
+    其他使用说明参见Ceil函数描述。
 
 - **ROUND**
     ```mysql
     SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：获得指定列的四舍五入的结果。  
-    其他说明见上述的 Ceil 使用说明。    
+    其他使用说明参见Ceil函数描述。
 
 - **四则运算**
 
