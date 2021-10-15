@@ -10,7 +10,7 @@ steps:
   image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake  git build-essential 
+  - apt-get install -y cmake  git build-essential wget
   - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
   - export PATH=$PATH:/usr/local/go/bin
@@ -68,7 +68,7 @@ steps:
   image: arm64v8/centos:7
   commands:
   - yum install -y epel-release
-  - yum install -y gcc gcc-c++ make cmake git  golang
+  - yum install -y gcc gcc-c++ make cmake git golang
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -148,7 +148,7 @@ steps:
   image: ubuntu:trusty
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 
+  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 wget 
   - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
   - export PATH=$PATH:/usr/local/go/bin
@@ -178,8 +178,7 @@ steps:
   image: ubuntu:xenial
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential  git
-  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 
+  - apt-get install -y gcc cmake build-essential  git wget
   - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
   - export PATH=$PATH:/usr/local/go/bin
@@ -208,8 +207,7 @@ steps:
   image: ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential  git
-  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 
+  - apt-get install -y gcc cmake build-essential  git wget
   - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
   - export PATH=$PATH:/usr/local/go/bin
@@ -238,7 +236,7 @@ steps:
   image: ansible/centos7-ansible
   commands:
   - yum install -y epel-release
-  - yum install -y gcc gcc-c++ make cmake  golang git
+  - yum install -y gcc gcc-c++ make cmake  golang git 
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
