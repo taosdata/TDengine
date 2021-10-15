@@ -470,35 +470,35 @@ pipeline {
           }
         } 
         
-        stage('build'){
-          agent{label " wintest "}
-          steps {
-            pre_test()
-            script{             
-                while(win_stop == 0){
-                  sleep(1)
-                  }
-              }
-            }
-        }
-        stage('test'){
-          agent{label "win"}
-          steps{
+        // stage('build'){
+        //   agent{label " wintest "}
+        //   steps {
+        //     pre_test()
+        //     script{             
+        //         while(win_stop == 0){
+        //           sleep(1)
+        //           }
+        //       }
+        //     }
+        // }
+        // stage('test'){
+        //   agent{label "win"}
+        //   steps{
             
-            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat Wintest
-                '''
-                }
-            }     
-            script{
-              win_stop=1
-            }
-          }
-        }
+        //     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+        //         pre_test_win()
+        //         timeout(time: 20, unit: 'MINUTES'){
+        //         bat'''
+        //         cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+        //         .\\test-all.bat Wintest
+        //         '''
+        //         }
+        //     }     
+        //     script{
+        //       win_stop=1
+        //     }
+        //   }
+        // }
           
                
     }
