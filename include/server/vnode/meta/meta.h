@@ -58,9 +58,12 @@ SMetaQueryOpts *metaQueryOptionsCreate();
 void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
 // STableOpts
-#define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0};
+#define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}
 void metaNormalTableOptsInit(STableOpts *, const char *name, const STSchema *pSchema);
-void metaTableOptsDestroy(STableOpts *);
+void metaSuperTableOptsInit(STableOpts *, const char *name, tb_uid_t uid, const STSchema *pSchema,
+                            const STSchema *pTagSchema);
+void metaChildTableOptsInit(STableOpts *, const char *name, tb_uid_t suid, const SKVRow tags);
+void metaTableOptsClear(STableOpts *);
 
 /* ------------------------ Impl should hidden ------------------------ */
 typedef enum { META_INIT_TABLE = 0, META_SUPER_TABLE = 1, META_CHILD_TABLE = 2, META_NORMAL_TABLE = 3 } EMetaTableT;

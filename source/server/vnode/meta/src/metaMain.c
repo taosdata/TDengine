@@ -167,7 +167,7 @@ static int metaCreateChildTable(SMeta *pMeta, const char *tbname, const SChildTa
   vallen = 0;
   pBuf = (void *)buffer;
   vallen += taosEncodeString(&pBuf, tbname);
-  vallen += taosEncodeFixedU64(pBuf, pChildTableOpts->suid);
+  vallen += taosEncodeFixedU64(&pBuf, pChildTableOpts->suid);
   tkvPut(pMeta->tableDb, NULL, (char *)(&uid), sizeof(uid), buffer, vallen);
 
   // Put tbname -> uid
@@ -218,18 +218,42 @@ void metaNormalTableOptsInit(STableOpts *pTableOpts, const char *name, const STS
   pTableOpts->normalOpts.pSchema = tdDupSchema(pSchema);
 }
 
-void metaTableOptsDestroy(STableOpts *pTableOpts) {
+void metaSuperTableOptsInit(STableOpts *pTableOpts, const char *name, tb_uid_t uid, const STSchema *pSchema,
+                            const STSchema *pTagSchema) {
+  pTableOpts->type = META_SUPER_TABLE;
+  pTableOpts->name = strdup(name);
+  pTableOpts->superOpts.uid = uid;
+  pTableOpts->superOpts.pSchema = tdDupSchema(pSchema);
+  pTableOpts->superOpts.pTagSchema = tdDupSchema(pTagSchema);
+}
+
+void metaChildTableOptsInit(STableOpts *pTableOpts, const char *name, tb_uid_t suid, const SKVRow tags) {
+  pTableOpts->type = META_CHILD_TABLE;
+  pTableOpts->name = strdup(name);
+  pTableOpts->childOpts.suid = suid;
+  pTableOpts->childOpts.tags = tdKVRowDup(tags);
+}
+
+void metaTableOptsClear(STableOpts *pTableOpts) {
   switch (pTableOpts->type) {
     case META_NORMAL_TABLE:
       tfree(pTableOpts->name);
       tdFreeSchema(pTableOpts->normalOpts.pSchema);
       break;
+    case META_SUPER_TABLE:
+      tdFreeSchema(pTableOpts->superOpts.pTagSchema);
+      tdFreeSchema(pTableOpts->superOpts.pSchema);
+      tfree(pTableOpts->name);
+      break;
+    case META_CHILD_TABLE:
+      kvRowFree(pTableOpts->childOpts.tags);
+      tfree(pTableOpts->name);
+      break;
     default:
       break;
   }
 
-  // TODO
-  pTableOpts->type = META_INIT_TABLE;
+  memset(pTableOpts, 0, sizeof(*pTableOpts));
 }
 
 void metaDestroy(const char *path) { taosRemoveDir(path); }
