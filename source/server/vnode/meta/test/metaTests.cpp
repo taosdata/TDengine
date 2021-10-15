@@ -18,7 +18,7 @@ static STSchema *metaGetSimpleSchema() {
   return pSchema;
 }
 
-TEST(MetaTest, meta_open_test) {
+TEST(MetaTest, meta_create_1m_normal_tables_test) {
   // Open Meta
   SMeta *meta = metaOpen(NULL);
   std::cout << "Meta is opened!" << std::endl;
