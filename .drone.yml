@@ -74,6 +74,7 @@ steps:
   - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
   - export PATH=$PATH:/usr/local/go/bin
+  - go version
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
