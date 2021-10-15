@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tkv.h"
 #include "thash.h"
+#include "tkv.h"
 #include "tlist.h"
 #include "tlockfree.h"
 #include "ttypes.h"
@@ -43,13 +43,14 @@ typedef struct STableObj {
 struct SMeta {
   pthread_rwlock_t rwLock;
 
-  SHashObj *pTableObjHash;  // uid --> STableObj
-  SList *   stbList;        // super table list
-  STkvDb *  tbnameDb;       // tbname --> uid
-  STkvDb *  tagDb;          // uid --> tag
-  STkvDb *  schemaDb;
-  STkvDb *  tagIdx;
-  size_t    totalUsed;
+  STableUidGenerator uidGenerator;
+  SHashObj *         pTableObjHash;  // uid --> STableObj
+  SList *            stbList;        // super table list
+  STkvDb *           tbnameDb;       // tbname --> uid
+  STkvDb *           tagDb;          // uid --> tag
+  STkvDb *           schemaDb;
+  STkvDb *           tagIdx;
+  size_t             totalUsed;
 };
 
 static STable *   metaTableNew(tb_uid_t uid, const char *name, int32_t sver);
@@ -68,6 +69,7 @@ SMeta *metaOpen(SMetaOpts *options) {
 
   pthread_rwlock_init(&(pMeta->rwLock), NULL);
 
+  tableUidGeneratorInit(&(pMeta->uidGenerator), IVLD_TB_UID);
   pMeta->pTableObjHash = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
   pMeta->stbList = tdListNew(sizeof(STableObj *));
@@ -109,9 +111,9 @@ void metaClose(SMeta *pMeta) {
 }
 
 int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
-  size_t        vallen;
-  STkvReadOpts *ropt;
-  STableObj *   pTableObj = NULL;
+  size_t         vallen;
+  STkvReadOpts * ropt;
+  STableObj *    pTableObj = NULL;
   STkvWriteOpts *wopt;
 
   // Check if table already exists
@@ -133,7 +135,8 @@ int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
   }
 
   // Create table object
-  pTableObj->pTable = metaTableNew(metaGenerateUid(), pTableOpts->name, schemaVersion(pTableOpts->pSchema));
+  pTableObj->pTable =
+      metaTableNew(generateUid(&(pMeta->uidGenerator)), pTableOpts->name, schemaVersion(pTableOpts->pSchema));
   if (pTableObj->pTable == NULL) {
     // TODO
   }
@@ -147,7 +150,7 @@ int metaCreateTable(SMeta *pMeta, STableOpts *pTableOpts) {
 
   // Add to tbname db
   tkvPut(pMeta->tbnameDb, wopt, pTableOpts->name, strlen(pTableOpts->name), (char *)&pTableObj->pTable->uid,
-              sizeof(tb_uid_t));
+         sizeof(tb_uid_t));
 
   // Add to schema db
   char  id[12];

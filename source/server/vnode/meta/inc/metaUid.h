@@ -22,10 +22,22 @@
 extern "C" {
 #endif
 
-typedef uint64_t tb_uid_t;
-tb_uid_t         metaGenerateUid();
+/* ------------------------ APIS EXPOSED ------------------------ */
+typedef uint64_t                  tb_uid_t;
+typedef struct STableUidGenerator STableUidGenerator;
 
+// tb_uid_t
 #define IVLD_TB_UID 0
+tb_uid_t generateUid(STableUidGenerator *);
+
+// STableUidGenerator
+void tableUidGeneratorInit(STableUidGenerator *, tb_uid_t suid);
+#define tableUidGeneratorClear(ug)
+
+/* ------------------------ FOR TEST AND COMPILE ONLY ------------------------ */
+struct STableUidGenerator {
+  tb_uid_t nextUid;
+};
 
 #ifdef __cplusplus
 }
