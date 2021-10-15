@@ -398,7 +398,6 @@ python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
-#python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
@@ -412,9 +411,12 @@ python3 ./test.py -f client/nettest.py
 python3 ./test.py -f query/queryGroupTbname.py
 python3 ./test.py -f insert/verifyMemToDiskCrash.py
 
-
 python3 ./test.py -f query/queryRegex.py
 python3 ./test.py -f tools/taosdemoTestdatatype.py
+python3 ./test.py -f insert/schemalessInsert.py
+python3 ./test.py -f insert/openTsdbTelnetLinesInsert.py
+python3 ./test.py -f insert/openTsdbJsonInsert.py
+
 #======================p4-end===============
 
 
