@@ -10,7 +10,7 @@ steps:
   image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake  git build-essential golang-go-linux-arm
+  - apt-get install -y cmake  git build-essential 
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -118,7 +118,7 @@ steps:
   image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential golang-go git golang-go-linux-arm
+  - apt-get install -y cmake build-essential golang-go git
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
