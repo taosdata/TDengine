@@ -9,6 +9,7 @@ steps:
 - name: build
   image: arm64v8/ubuntu:bionic
   commands:
+  - add-apt-repository ppa:longsleep/golang-backports
   - apt-get update
   - apt-get install -y cmake  git build-essential golang-go
   - git submodule update --init --recursive
@@ -116,6 +117,7 @@ steps:
 - name: build
   image: arm32v7/ubuntu:bionic
   commands:
+  - add-apt-repository ppa:longsleep/golang-backports
   - apt-get update
   - apt-get install -y cmake build-essential golang-go git
   - git submodule update --init --recursive
