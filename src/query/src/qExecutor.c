@@ -2262,19 +2262,19 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_Project: {  // TODO refactor to remove arith operator.
         SOperatorInfo* prev = pRuntimeEnv->proot;
         if (i == 0) {
-          pRuntimeEnv->proot = createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput, pQueryAttr->order.order);
+          pRuntimeEnv->proot = createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput, pQueryAttr->order.order, true);
           if (pRuntimeEnv->proot != NULL && prev->operatorType != OP_DummyInput && prev->operatorType != OP_Join) {  // TODO refactor
             setTableScanFilterOperatorInfo(prev->info, pRuntimeEnv->proot);
           }
         } else {
           prev = pRuntimeEnv->proot;
           assert(pQueryAttr->pExpr2 != NULL);
-          if (prev->operatorType == OP_Project) {
+          if (prev->operatorType == OP_Project || pQueryAttr->stableQuery) {
             pRuntimeEnv->proot =
-                createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2, TSDB_ORDER_ASC);
+                createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2, TSDB_ORDER_ASC, false);
           } else {
             pRuntimeEnv->proot =
-                createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2, pQueryAttr->order.order);
+                createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2, pQueryAttr->order.order, true);
           }
         }
         break;
@@ -5837,7 +5837,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
 
     projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-    if (pTableQueryInfo != NULL) {
+    if (pTableQueryInfo != NULL && pProjectInfo->updateTableQueryInfo) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, pRuntimeEnv->pQueryAttr->order.order);
     }
 
@@ -5898,7 +5898,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
 
     projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-    if (pTableQueryInfo != NULL) {
+    if (pTableQueryInfo != NULL && pProjectInfo->updateTableQueryInfo) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, pRuntimeEnv->pQueryAttr->order.order);
     }
 
@@ -6751,12 +6751,14 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   return pOperator;
 }
 
-SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, uint32_t order) {
+SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
+                                         SExprInfo* pExpr, int32_t numOfOutput, uint32_t order, bool updateTableQueryInfo) {
   SProjectOperatorInfo* pInfo = calloc(1, sizeof(SProjectOperatorInfo));
 
   pInfo->seed = rand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
   pInfo->order = order;
+  pInfo->updateTableQueryInfo = updateTableQueryInfo;
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
