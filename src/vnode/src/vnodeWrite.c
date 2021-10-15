@@ -169,14 +169,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 }
 
 static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
-  int nVal = 0;
-  if (tsdbGetValOfWaitCommit(pVnode->tsdb, &nVal) != 0) {
-    return -1;
-  }
-  // no need to check wal size to trigger commit if:
-  // 1) have instances waiting to commit;
-  // or 2) vnode in committing state;
-  if ((nVal > 0) && (pVnode->isCommiting == 0)) {
+  if (tsdbIsNeedCommit(pVnode->tsdb)) {
     return tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
   }
   return 0;
