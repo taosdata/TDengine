@@ -70,8 +70,10 @@ steps:
 - name: build
   image: arm64v8/centos:7
   commands:
-  - yum install -y epel-release
-  - yum install -y gcc gcc-c++ make cmake git golang
+  - yum install -y gcc gcc-c++ make cmake git wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -239,7 +241,10 @@ steps:
   image: ansible/centos7-ansible
   commands:
   - yum install -y epel-release
-  - yum install -y gcc gcc-c++ make cmake  golang git 
+  - yum install -y gcc gcc-c++ make cmake  wget git 
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
