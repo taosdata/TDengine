@@ -734,6 +734,8 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
           varDataSetLen(dst, strlen(json));
           assert(varDataTLen(dst) <= pInfo->field.bytes);
           tfree(json);
+        }else{
+          setNull(dst, TSDB_DATA_TYPE_JSON);
         }
       }else if (*p == SELECT_ELEMENT_JSON_TAG){
         if (isNull(realData, TSDB_DATA_TYPE_JSON)) {
