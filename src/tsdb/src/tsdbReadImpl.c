@@ -42,14 +42,14 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
     return -1;
   }
 
-  pReadh->pDCols[0] = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[0] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pReadh->pDCols[0] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
     return -1;
   }
 
-  pReadh->pDCols[1] = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[1] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pReadh->pDCols[1] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
@@ -153,7 +153,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
 }
 
 int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
 
   pReadh->pTable = pTable;
 
@@ -463,7 +463,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
     if (dcol != 0 && ccol >= pBlockData->numOfCols) {
       // Set current column as NULL and forward
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+      dataColReset(pDataCol);
       dcol++;
       continue;
     }
@@ -503,7 +503,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       ccol++;
     } else {
       // Set current column as NULL and forward
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+      dataColReset(pDataCol);
       dcol++;
     }
   }
@@ -608,7 +608,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       }
 
       if (pBlockCol == NULL) {
-        dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+        dataColReset(pDataCol);
         continue;
       }
 

@@ -44,15 +44,25 @@ mkdir -p ${pkg_dir}${install_home_path}/init.d
 mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
+if [ -f "${compile_dir}/test/cfg/blm.toml" ]; then
+    cp ${compile_dir}/test/cfg/blm.toml                 ${pkg_dir}${install_home_path}/cfg
+fi
+
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
+
 cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
+
+if [ -f "${compile_dir}/build/bin/blm3" ]; then
+    cp ${compile_dir}/build/bin/blm3                    ${pkg_dir}${install_home_path}/bin ||:
+fi
+
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include

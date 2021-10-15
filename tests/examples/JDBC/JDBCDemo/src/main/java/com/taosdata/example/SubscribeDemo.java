@@ -34,9 +34,8 @@ public class SubscribeDemo {
             System.out.println(usage);
             return;
         }
-        /*********************************************************************************************/
+
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");

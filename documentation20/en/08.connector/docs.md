@@ -2,7 +2,7 @@
 
 TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.
 
-![image-connector](page://images/connector.png)
+![image-connector](../images/connector.png)
 
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
@@ -66,7 +66,11 @@ Run install_client.sh to install.
 
 Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to End Point of the TDengine server, for example: [h1.taos.com](http://h1.taos.com/):6030.
 
-**Tip: If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+**Tip: **
+
+**1. If no TDengine service deployed in this machine, but only the application driver is installed, only firstEP needs to be configured in taos.cfg, and FQDN does not.**
+
+**2. To prevent “unable to resolve FQDN” error when connecting to the server, ensure that the hosts file of the client has the correct FQDN value.**
 
 **Windows x64/x86**
 
@@ -128,7 +132,7 @@ taos>
 
 **Windows (x64/x86) environment:**
 
-Under cmd, enter the c:\ tdengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
+Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
 
 ```mysql
   C:\TDengine>taos     
@@ -296,9 +300,7 @@ Asynchronous APIs have relatively high requirements for users, who can selective
 The asynchronous APIs of TDengine all use non-blocking calling mode. Applications can use multithreading to open multiple tables at the same time, and can query or insert to each open table at the same time. It should be pointed out that the **application client must ensure that the operation on the same table is completely serialized**, that is, when the insertion or query operation on the same table is not completed (when no result returned), the second insertion or query operation cannot be performed.
 
 
-
 <a class="anchor" id="stmt"></a>
-
 ### Parameter binding API
 
 In addition to calling `taos_query` directly for queries, TDengine also provides a Prepare API that supports parameter binding. Like MySQL, these APIs currently only support using question mark `?` to represent the parameters to be bound, as follows:
@@ -405,17 +407,17 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 - python 2.7 or >= 3.4 installed
 - pip or pip3 installed
 
-### Python client installation
+### Python connector installation
 
 #### Linux
 
 Users can find the connector package for python2 and python3 in the source code src/connector/python (or tar.gz/connector/python) folder. Users can install it through `pip` command:
 
-`pip install src/connector/python/linux/python2/`
+`pip install src/connector/python/`
 
 or
 
- `pip3 install src/connector/python/linux/python3/`
+ `pip3 install src/connector/python/`
 
 #### Windows
 
@@ -538,7 +540,7 @@ Refer to help (taos.TDengineCursor) in python. This class corresponds to the wri
 
 Used to generate an instance of taos.TDengineConnection.
 
-### Python client code sample
+### Python connector code sample
 
 In tests/examples/python, we provide a sample Python program read_example. py to guide you to design your own write and query program. After installing the corresponding client, introduce the taos class through `import taos`. The steps are as follows:
 
@@ -608,11 +610,11 @@ The return value is in JSON format, as follows:
 ```json
 {
     "status": "succ",
-    "head": ["ts","current", …],
-    "column_meta": [["ts",9,8],["current",6,4], …],
+    "head": ["ts","current",...],
+    "column_meta": [["ts",9,8],["current",6,4], ...],
     "data": [
-        ["2018-10-03 14:38:05.000", 10.3, …],
-        ["2018-10-03 14:38:15.000", 12.6, …]
+        ["2018-10-03 14:38:05.000", 10.3, ...],
+        ["2018-10-03 14:38:15.000", 12.6, ...]
     ],
     "rows": 2
 } 
@@ -823,12 +825,12 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 The TDengine provides the GO driver taosSql. taosSql implements the GO language's built-in interface database/sql/driver. Users can access TDengine in the application by simply importing the package as follows, see https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go for details.
 
-Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/tests/examples/go and the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1951.html).
+Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/tests/examples/go .
 
 ```Go
 import (
     "database/sql"
-    _ "github.com/taosdata/driver-go/taosSql"
+    _ "github.com/taosdata/driver-go/v2/taosSql"
 )
 ```
 
@@ -838,6 +840,8 @@ import (
 go env -w GO111MODULE=on  
 go env -w GOPROXY=https://goproxy.io,direct  
 ```
+
+`taosSql` v2 completed refactoring of the v1 version and separated the built-in database operation interface `database/sql/driver` to the directory `taosSql`, and put other advanced functions such as subscription and stmt into the directory `af`.
 
 ### Common APIs
 
@@ -937,7 +941,7 @@ After installing the TDengine client, the nodejsChecker.js program can verify wh
 
 Steps:
 
-1. Create a new installation verification directory, for example: ~/tdengine-test, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）.
+1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）.
 
 2. Execute the following command:
 

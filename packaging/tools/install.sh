@@ -102,6 +102,12 @@ elif  echo $osinfo | grep -qwi "centos" ; then
 elif echo $osinfo | grep -qwi "fedora" ; then
 #  echo "This is fedora system"
   os_type=2
+elif echo $osinfo | grep -qwi "Linx" ; then
+#  echo "This is Linx system"
+  os_type=1
+  service_mod=0
+  initd_mod=0
+  service_config_dir="/etc/systemd/system"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
@@ -179,6 +185,7 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
+    ${csudo} rm -f ${bin_link_dir}/blm3     || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
@@ -190,6 +197,7 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
     [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
+    [ -x ${install_main_dir}/bin/blm3 ] && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3                      || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
@@ -439,10 +447,27 @@ function local_fqdn_check() {
   fi
 }
 
+function install_blm3_config() {
+    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+        ${csudo} mkdir -p ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/blm.toml ] && ${csudo} cp ${script_dir}/cfg/blm.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/blm.toml ] && ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+    fi
+
+    [ -f ${script_dir}/cfg/blm.toml ] &&
+        ${csudo} cp -f ${script_dir}/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
+
+    [ -f ${cfg_install_dir}/blm.toml ] &&
+        ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
+
+    [ ! -z $1 ] && return 0 || : # only install client
+
+}
+
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
 
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
@@ -854,6 +879,7 @@ function update_TDengine() {
         install_bin
         install_service
         install_config
+        install_blm3_config
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then
@@ -996,6 +1022,7 @@ function install_TDengine() {
         echo
         echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
     fi
+
     touch ~/.taos_history
     rm -rf $(tar -tf taos.tar.gz)
 }

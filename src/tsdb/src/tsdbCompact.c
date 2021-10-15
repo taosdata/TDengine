@@ -296,7 +296,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       return -1;
     }
 
-    pComph->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+    pComph->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
     if (pComph->pDataCols == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       tsdbDestroyCompactH(pComph);
@@ -431,7 +431,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
       if (pTh->pTable == NULL || pTh->pBlkIdx == NULL) continue;
 
-      pSchema = tsdbGetTableSchemaImpl(pTh->pTable, true, true, -1);
+      pSchema = tsdbGetTableSchemaImpl(pTh->pTable, true, true, -1, -1);
       taosArrayClear(pComph->aSupBlk);
       if ((tdInitDataCols(pComph->pDataCols, pSchema) < 0) || (tdInitDataCols(pReadh->pDCols[0], pSchema) < 0) ||
           (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0)) {

@@ -206,6 +206,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
     } else {
       assert(pFillInfo->currentKey == ts);
       initBeforeAfterDataBuf(pFillInfo, prev);
+      if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
+        initBeforeAfterDataBuf(pFillInfo, next);
+        ++pFillInfo->index;
+        copyCurrentRowIntoBuf(pFillInfo, srcData, *next);
+        --pFillInfo->index;
+      }
 
       // assign rows to dst buffer
       for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
@@ -227,6 +233,15 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
           } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
             assignVal(output, src, pCol->col.bytes, pCol->col.type);
             memcpy(*prev + pCol->col.offset, src, pCol->col.bytes);
+          } else if (pFillInfo->type == TSDB_FILL_NEXT) {
+            if (*next) {
+              assignVal(output, *next + pCol->col.offset, pCol->col.bytes, pCol->col.type);
+            } else {
+              setNull(output, pCol->col.type, pCol->col.bytes);
+            }
+            if (!FILL_IS_ASC_FILL(pFillInfo)) {
+              memcpy(*prev + pCol->col.offset, output, pCol->col.bytes);
+            }
           } else {
             assignVal(output, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
           }
@@ -418,7 +433,7 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
     pFillInfo->pData[i] = pColData->pData;
 
-    if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
+    if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??
