@@ -64,7 +64,8 @@ steps:
 - name: build
   image: arm64v8/centos:7
   commands:
-  - yum install -y gcc gcc-c++ make cmake git epel-release golang
+  - yum install -y epel-release
+  - yum install -y gcc gcc-c++ make cmake git  golang
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -222,7 +223,8 @@ steps:
 - name: build
   image: ansible/centos7-ansible
   commands:
-  - yum install -y gcc gcc-c++ make cmake epel-release golang git
+  - yum install -y epel-release
+  - yum install -y gcc gcc-c++ make cmake  golang git
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
