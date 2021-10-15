@@ -161,6 +161,9 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin'")
         tdSql.checkRows(2)
 
+        tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json and jtag->'location' match 'jin'")
+        tdSql.checkRows(2)
+
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
 
     def stop(self):

@@ -396,7 +396,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
       } else if (pToken->type != TK_STRING){
         tscInvalidOperationMsg(msg, "invalid json data", pToken->z);
       } else{
-        *((int8_t *)payload) = TSDB_DATA_BINARY_PLACEHOLDER;
+        *((int8_t *)payload) = TSDB_DATA_JSON_PLACEHOLDER;
       }
       break;
 

@@ -288,7 +288,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica")
 #define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070D)  //"invalid time condition")
 #define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070E)  //"System error")
-#define TSDB_CODE_QRY_JSON_KEY_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x070F)  //"json tag key not exist")
+//#define TSDB_CODE_QRY_JSON_KEY_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x070F)  //"json tag key not exist")
 #define TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR       TAOS_DEF_ERROR_CODE(0, 0x0710)  //"json tag key type not match")
 #define TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR    TAOS_DEF_ERROR_CODE(0, 0x0711)  //"json tag key must be string in match/nmatch")
 

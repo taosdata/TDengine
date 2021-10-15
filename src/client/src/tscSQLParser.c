@@ -5319,7 +5319,8 @@ _ret:
 
 
 
-int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
+int32_t
+validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -6120,7 +6121,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(pMsg, msg14);
       }
 
-      int8_t tagVal = TSDB_DATA_BINARY_PLACEHOLDER;
+      int8_t tagVal = TSDB_DATA_JSON_PLACEHOLDER;
       tdAddColToKVRow(&kvRowBuilder, pTagsSchema->colId, pTagsSchema->type, &tagVal, false);
 
       code = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, pMsg, pTagsSchema->colId);
@@ -7688,11 +7689,8 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
               }
             }
-            if(pSchema->type == TSDB_DATA_TYPE_JSON){
-              *((int8_t *)tagVal) = TSDB_DATA_BINARY_PLACEHOLDER;
-            }else {
-              ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
-            }
+            ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+
             // check again after the convert since it may be converted from binary to nchar.
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
               int16_t len = varDataTLen(tagVal);
