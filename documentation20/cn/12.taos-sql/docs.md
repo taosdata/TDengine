@@ -1496,14 +1496,14 @@ Query OK, 1 row(s) in set (0.001238s)
     SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：获得指定列的向下取整数的结果。  
-    其他使用说明参见Ceil函数描述。
+    其他使用说明参见CEIL函数描述。
 
 - **ROUND**
     ```mysql
     SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：获得指定列的四舍五入的结果。  
-    其他使用说明参见Ceil函数描述。
+    其他使用说明参见CEIL函数描述。
 
 - **四则运算**
 
