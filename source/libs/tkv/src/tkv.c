@@ -16,7 +16,14 @@
 #include "tkv.h"
 #include "tkvDef.h"
 
+static pthread_once_t isInit = PTHREAD_ONCE_INIT;
+static STkvReadOpts   defaultReadOpts;
+static STkvWriteOpts  defaultWriteOpts;
+
+static void tkvInit();
+
 STkvDb *tkvOpen(const STkvOpts *options, const char *path) {
+  pthread_once(&isInit, tkvInit);
   STkvDb *pDb = NULL;
 
   pDb = (STkvDb *)malloc(sizeof(*pDb));
@@ -46,7 +53,7 @@ void tkvClose(STkvDb *pDb) {
 void tkvPut(STkvDb *pDb, const STkvWriteOpts *pwopts, const char *key, size_t keylen, const char *val, size_t vallen) {
 #ifdef USE_ROCKSDB
   char *err = NULL;
-  rocksdb_put(pDb->db, pwopts->wopts, key, keylen, val, vallen, &err);
+  rocksdb_put(pDb->db, pwopts ? pwopts->wopts : defaultWriteOpts.wopts, key, keylen, val, vallen, &err);
   // TODO: check error
 #endif
 }
@@ -56,7 +63,7 @@ char *tkvGet(STkvDb *pDb, const STkvReadOpts *propts, const char *key, size_t ke
 
 #ifdef USE_ROCKSDB
   char *err = NULL;
-  ret = rocksdb_get(pDb->db, propts->ropts, key, keylen, vallen, &err);
+  ret = rocksdb_get(pDb->db, propts ? propts->ropts : defaultReadOpts.ropts, key, keylen, vallen, &err);
   // TODD: check error
 #endif
 
@@ -144,5 +151,19 @@ void tkvWriteOptsDestroy(STkvWriteOpts *pWriteOpts) {
 #endif
     free(pWriteOpts);
   }
-  // TODO
+}
+
+/* ------------------------ STATIC METHODS ------------------------ */
+static void tkvInit() {
+#ifdef USE_ROCKSDB
+  defaultReadOpts.ropts = rocksdb_readoptions_create();
+  defaultWriteOpts.wopts = rocksdb_writeoptions_create();
+#endif
+}
+
+static void tkvClear() {
+#ifdef USE_ROCKSDB
+  rocksdb_readoptions_destroy(defaultReadOpts.ropts);
+  rocksdb_writeoptions_destroy(defaultWriteOpts.wopts);
+#endif
 }
