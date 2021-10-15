@@ -14,34 +14,19 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ![IT-DevOps-Solutions-Collectd-StatsD.png](../../images/IT-DevOps-Solutions-Collectd-StatsD.png)
 
 ## 安装步骤
-安装 collectd， StatsD， Grafana 和 TDengine 请参考相关官方文档，这里仅假设使用 Ubuntu 20.04 LTS 为操作系统为例。
+安装 collectd， StatsD， Grafana 和 TDengine 请参考相关官方文档。
 
 ### 安装 collectd
-```
-apt-get install collectd
-```
+请参考[官方文档](https://collectd.org/documentation.shtml)。
+
 ### 安装 StatsD
-```
-1. git clone https://github.com/etsy/statsd.git
-2. cd statsd
-3. cp exampleConfig.js config.js
-4. node stats.js config.js
-```
+请参考[官方文档](https://github.com/statsd/statsd)。
 
 ### 安装 Grafana
-```
-1. wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
-2. echo "deb https://packages.grafana.com/enterprise/deb stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list
-3. sudo apt-get update
-4. sudo apt-get install grafana
-5. sudo systemctl start grafana-server.service
-```
+请参考[官方文档](https://grafana.com/grafana/download)。
+
 ### 安装 TDengine
-从涛思数据官网下载页面 （http://taosdata.com/cn/all-downloads/）最新 TDengine-server 2.3.0.0 版本，以 deb 安装包为例。
-```
-1. sudo dpkg -i TDengine-server-2.3.0.0-Linux-x64.deb
-2. sudo systemctl start taosd
-```
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/）页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
 
 ## 数据链路设置
 ### 复制 TDengine 插件到 grafana 插件目录
@@ -57,7 +42,7 @@ apt-get install collectd
 ```
 LoadPlugin network
 <Plugin network>
-  Server "192.168.17.180" "25826"
+  Server "<TDengine server/cluster host>" "25826"
 </Plugin>
 
 sudo systemctl start collectd
@@ -67,7 +52,7 @@ sudo systemctl start collectd
 在 config.js 文件中增加如下内容后启动 StatsD：
 ```
 backends 部分添加 "./backends/repeater"
-repeater 部分添加 { host:'host to blm3', port: 8126 }
+repeater 部分添加 { host:'<TDengine server/cluster host>', port: 8126 }
 ```
 
 ### 导入 Dashboard
@@ -77,14 +62,14 @@ repeater 部分添加 { host:'host to blm3', port: 8126 }
 
 #### 导入 collectd 仪表盘
 
-点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json 文件，然后应该可以看到如下界面的仪表板界面：
+点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 文件。如果按照 Grafana 的机器上没有安装 TDengine，可以从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件再导入。之后可以看到如下界面的仪表盘：
 
 ![IT-DevOps-Solutions-collectd-dashboard.png](../../images/IT-DevOps-Solutions-collectd-dashboard.png)
 
 #### 导入 StatsD 仪表盘
 
-点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 文件，然后应该可以看到如下界面的仪表板界面：
-![IT-DevOps-Solutions-collectd-dashboard.png](../../images/IT-DevOps-Solutions-collectd-dashboard.png)
+点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 文件。如果安装 Grafana 的机器上没有安装 TDengine，可以从 https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 下载 dashboard json 文件再导入。之后可以看到如下界面的仪表盘：
+![IT-DevOps-Solutions-statsd-dashboard.png](../../images/IT-DevOps-Solutions-statsd-dashboard.png)
 
 ## 总结
 TDengine 作为新兴的时序大数据平台，具备极强的高性能、高可靠、易管理、易维护的优势。得力于 TDengine 2.3.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统或者适配一个已存在的系统。

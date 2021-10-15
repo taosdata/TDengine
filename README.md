@@ -94,7 +94,7 @@ TDengine includes few components developed by Go language. Please refer to golan
 Please use version 1.14+. For the user in China, we recommend using a proxy to accelerate package downloading.
 ```
 go env -w GO111MODULE=on
-go env -w GOPROXY=https://goproxy.io,direct
+go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
 ## Get the source codes
