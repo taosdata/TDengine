@@ -13,39 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_ROCKSDB
-#include <rocksdb/c.h>
-#endif
-
 #include "tkv.h"
-
-struct STkvDb {
-#ifdef USE_ROCKSDB
-  rocksdb_t *db;
-#endif
-};
-
-struct STkvOpts {
-#ifdef USE_ROCKSDB
-  rocksdb_options_t *opts;
-#endif
-};
-
-struct STkvCache {
-  // TODO
-};
-
-struct STkvReadOpts {
-#ifdef USE_ROCKSDB
-  rocksdb_readoptions_t *ropts;
-#endif
-};
-
-struct STkvWriteOpts {
-#ifdef USE_ROCKSDB
-  rocksdb_writeoptions_t *wopts;
-#endif
-};
+#include "tkvDef.h"
 
 STkvDb *tkvOpen(const STkvOpts *options, const char *path) {
   STkvDb *pDb = NULL;

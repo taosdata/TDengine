@@ -13,15 +13,46 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_INT_H_
-#define _TD_TKV_INT_H_
+#ifndef _TD_TKV_DEF_H_
+#define _TD_TKV_DEF_H_
+
+#ifdef USE_ROCKSDB
+#include <rocksdb/c.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+struct STkvDb {
+#ifdef USE_ROCKSDB
+  rocksdb_t *db;
+#endif
+};
+
+struct STkvOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_options_t *opts;
+#endif
+};
+
+struct STkvCache {
+  // TODO
+};
+
+struct STkvReadOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_readoptions_t *ropts;
+#endif
+};
+
+struct STkvWriteOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_writeoptions_t *wopts;
+#endif
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_INT_H_*/
+#endif /*_TD_TKV_DEF_H_*/
