@@ -38,7 +38,7 @@ int    metaCreate(const char *path);
 void   metaDestroy(const char *path);
 SMeta *metaOpen(SMetaOpts *);
 void   metaClose(SMeta *);
-int    metaCreateTable(SMeta *, STableOpts *);
+int    metaCreateTable(SMeta *, const STableOpts *);
 int    metaDropTable(SMeta *, uint64_t tuid_t);
 int    metaAlterTable(SMeta *, void *);
 int    metaCommit(SMeta *);
@@ -58,13 +58,6 @@ void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
 // STableOpts
 void metaTableOptsInit(STableOpts *, int8_t type, const char *name, const STSchema *pSchema);
-
-/* -------------------------------- Hided implementations -------------------------------- */
-struct STableOpts {
-  int8_t    type;
-  char *    name;
-  STSchema *pSchema;
-};
 
 #ifdef __cplusplus
 }
