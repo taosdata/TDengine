@@ -58,10 +58,12 @@ SMetaQueryOpts *metaQueryOptionsCreate();
 void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
 // STableOpts
-void metaTableOptsInit(STableOpts *, int8_t type, const char *name, const STSchema *pSchema);
+#define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0};
+void metaNormalTableOptsInit(STableOpts *, const char *name, const STSchema *pSchema);
+void metaTableOptsDestroy(STableOpts *);
 
 /* ------------------------ Impl should hidden ------------------------ */
-typedef enum { META_SUPER_TABLE = 0, META_CHILD_TABLE = 1, META_NORMAL_TABLE = 2 } EMetaTableT;
+typedef enum { META_INIT_TABLE = 0, META_SUPER_TABLE = 1, META_CHILD_TABLE = 2, META_NORMAL_TABLE = 3 } EMetaTableT;
 typedef struct SSuperTableOpts {
   tb_uid_t  uid;
   STSchema *pSchema;     // (ts timestamp, a int)
@@ -78,8 +80,8 @@ typedef struct SNormalTableOpts {
 } SNormalTableOpts;
 
 struct STableOpts {
-  EMetaTableT type;
-  char *      name;
+  int8_t type;
+  char * name;
   union {
     SSuperTableOpts  superOpts;
     SChildTableOpts  childOpts;

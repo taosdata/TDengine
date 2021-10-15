@@ -4,30 +4,36 @@
 
 #include "meta.h"
 
+static STSchema *metaGetSimpleSchema() {
+  STSchema *      pSchema = NULL;
+  STSchemaBuilder sb;
+
+  tdInitTSchemaBuilder(&sb, 0);
+  tdAddColToSchema(&sb, TSDB_DATA_TYPE_TIMESTAMP, 0, 8);
+  tdAddColToSchema(&sb, TSDB_DATA_TYPE_INT, 1, 4);
+
+  pSchema = tdGetSchemaFromBuilder(&sb);
+  tdDestroyTSchemaBuilder(&sb);
+
+  return pSchema;
+}
+
 TEST(MetaTest, meta_open_test) {
   // Open Meta
   SMeta *meta = metaOpen(NULL);
   std::cout << "Meta is opened!" << std::endl;
 
-#if 0
-  // Create tables
-  STableOpts      tbOpts;
-  char            tbname[128];
-  STSchema *      pSchema;
-  STSchemaBuilder sb;
-  tdInitTSchemaBuilder(&sb, 0);
-  for (size_t i = 0; i < 10; i++) {
-    tdAddColToSchema(&sb, TSDB_DATA_TYPE_TIMESTAMP, i, 8);
-  }
-  pSchema = tdGetSchemaFromBuilder(&sb);
-  tdDestroyTSchemaBuilder(&sb);
-  for (size_t i = 0; i < 1000000; i++) {
-    sprintf(tbname, "tb%ld", i);
-    metaTableOptsInit(&tbOpts, 0, tbname, pSchema);
+  // Create 1000000 normal tables
+  META_TABLE_OPTS_DECLARE(tbOpts)
+  STSchema *pSchema = metaGetSimpleSchema();
+  char      tbname[128];
 
+  for (size_t i = 0; i < 1000000; i++) {
+    sprintf(tbname, "ntb%ld", i);
+    metaNormalTableOptsInit(&tbOpts, tbname, pSchema);
     metaCreateTable(meta, &tbOpts);
+    metaTableOptsDestroy(&tbOpts);
   }
-#endif
 
   // Close Meta
   metaClose(meta);

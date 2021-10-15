@@ -212,6 +212,26 @@ static int metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormal
   return 0;
 }
 
+void metaNormalTableOptsInit(STableOpts *pTableOpts, const char *name, const STSchema *pSchema) {
+  pTableOpts->type = META_NORMAL_TABLE;
+  pTableOpts->name = strdup(name);
+  pTableOpts->normalOpts.pSchema = tdDupSchema(pSchema);
+}
+
+void metaTableOptsDestroy(STableOpts *pTableOpts) {
+  switch (pTableOpts->type) {
+    case META_NORMAL_TABLE:
+      tfree(pTableOpts->name);
+      tdFreeSchema(pTableOpts->normalOpts.pSchema);
+      break;
+    default:
+      break;
+  }
+
+  // TODO
+  pTableOpts->type = META_INIT_TABLE;
+}
+
 #if 0
 /* -------------------- Structures -------------------- */
 static STable *   metaTableNew(tb_uid_t uid, const char *name, int32_t sver);
