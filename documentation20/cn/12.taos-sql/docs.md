@@ -1472,6 +1472,40 @@ Query OK, 1 row(s) in set (0.001238s)
     Query OK, 1 row(s) in set (0.000836s)
     ```
 
+- **CEIL**
+    ```mysql
+    SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：获得指定列的向上取整数的结果。
+    
+    返回结果类型：与指定列的原始数据类型一致。例如，如果指定列的原始数据类型为 Float，那么返回的数据类型也为 Float；如果指定列的原始数据类型为 Double，那么返回的数据类型也为 Double。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列，无论 tag 列的类型是什么类型。
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+
+  说明：
+    支持 +、-、*、/ 运算，如 ceil(col1) + ceil(col2)。
+    只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+    该函数可以应用在普通表和超级表上。
+
+  支持版本：指定计算算法的功能从 2.2.0.x 版本开始，2.2.0.0 之前的版本不支持指定使用算法的功能。
+  
+- **FLOOR**
+    ```mysql
+    SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：获得指定列的向下取整数的结果。  
+    其他说明见上述的 Ceil 使用说明。
+
+- **ROUND**
+    ```mysql
+    SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：获得指定列的四舍五入的结果。  
+    其他说明见上述的 Ceil 使用说明。    
+
 - **四则运算**
 
     ```mysql
