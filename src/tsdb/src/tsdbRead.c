@@ -4089,7 +4089,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   } else {
     void* jsonData = getJsonTagValue(pTable, name, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
     // jsonData == NULL for ? operation
-    if(jsonData != NULL); jsonData += CHAR_BYTES;   // jump type
+    if(jsonData != NULL) jsonData += CHAR_BYTES;   // jump type
     *data = jsonData;
   }
 
