@@ -736,7 +736,11 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
           tfree(json);
         }
       }else if (*p == SELECT_ELEMENT_JSON_TAG){
-        parseTagValue2Dst(realData, dst);
+        if (isNull(realData, TSDB_DATA_TYPE_JSON)) {
+          memcpy(dst, realData, varDataTLen(realData));
+        }else{
+          parseTagValue2Dst(realData, dst);
+        }
       }else{
         tscError("construct json error");
       }
@@ -5248,7 +5252,7 @@ char* parseTagDatatoJson(void *p){
       continue;
     }
     if (j == 1 && *(uint8_t*)val == TSDB_DATA_JSON_NULL){
-      break;
+      goto end;
     }
     if (j%2 == 0) { // json key  encode by binary
       ASSERT(varDataLen(val) <= TSDB_MAX_JSON_KEY_LEN);
