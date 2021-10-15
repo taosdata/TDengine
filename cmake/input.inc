@@ -90,10 +90,10 @@ IF (${BUILD_JDBC} MATCHES "false")
   SET(TD_BUILD_JDBC FALSE)
 ENDIF ()
 
-SET(TD_BUILD_HTTP TRUE)
+SET(TD_BUILD_HTTP FALSE)
 
-IF (${BUILD_HTTP} MATCHES "false")
-  SET(TD_BUILD_HTTP FALSE)
+IF (${BUILD_HTTP} MATCHES "true")
+  SET(TD_BUILD_HTTP TRUE)
 ENDIF ()
 
 SET(TD_MEMORY_SANITIZER FALSE)
@@ -108,10 +108,10 @@ IF (${VERBOSE} MATCHES "true")
 ENDIF ()
 
 IF (${TSZ_ENABLED} MATCHES "true")
-  # define add 
+  # define add
   MESSAGE(STATUS "build with TSZ enabled")
   ADD_DEFINITIONS(-DTD_TSZ)
   set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
 ELSE()
   set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
-ENDIF()  
+ENDIF()

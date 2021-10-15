@@ -1908,6 +1908,9 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     cur++;
     len++;
   }
+  if (len == 0) {
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  }
   key[len] = '\0';
 
   if (checkDuplicateKey(key, pHash, info)) {
@@ -1922,7 +1925,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 }
 
 
-static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
+static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
   char *value = NULL;
@@ -1947,6 +1950,11 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     }
     cur++;
     len++;
+  }
+  if (len == 0) {
+    free(pKV->key);
+    pKV->key = NULL;
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
   value = calloc(len + 1, 1);
@@ -2012,6 +2020,11 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     pSml->stableName[len] = tolower(*cur);
     cur++;
     len++;
+  }
+  if (len == 0) {
+    free(pSml->stableName);
+    pSml->stableName = NULL;
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   pSml->stableName[len] = '\0';
   *index = cur + 1;
