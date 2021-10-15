@@ -11,6 +11,9 @@ steps:
   commands:
   - apt-get update
   - apt-get install -y cmake  git build-essential 
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -145,7 +148,10 @@ steps:
   image: ubuntu:trusty
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 golang-go
+  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
