@@ -39,7 +39,7 @@ TEST(MetaTest, meta_create_1m_normal_tables_test) {
   metaClose(meta);
   std::cout << "Meta is closed!" << std::endl;
 
-  // // Destroy Meta
-  // metaDestroy("meta");
-  // std::cout << "Meta is destroyed!" << std::endl;
+  // Destroy Meta
+  metaDestroy("meta");
+  std::cout << "Meta is destroyed!" << std::endl;
 }

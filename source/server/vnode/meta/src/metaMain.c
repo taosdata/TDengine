@@ -232,17 +232,4 @@ void metaTableOptsDestroy(STableOpts *pTableOpts) {
   pTableOpts->type = META_INIT_TABLE;
 }
 
-#if 0
-/* -------------------- Structures -------------------- */
-static STable *   metaTableNew(tb_uid_t uid, const char *name, int32_t sver);
-
 void metaDestroy(const char *path) { taosRemoveDir(path); }
-
-int metaCommit(SMeta *meta) { return 0; }
-
-void metaTableOptsInit(STableOpts *pTableOpts, int8_t type, const char *name, const STSchema *pSchema) {
-  pTableOpts->type = type;
-  pTableOpts->name = strdup(name);
-  pTableOpts->pSchema = tdDupSchema(pSchema);
-}
-#endif
