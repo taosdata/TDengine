@@ -1,30 +1,4 @@
----
-kind: pipeline
-name: test_amd64
 
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: build
-  image: gcc
-  commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential 
-  - git submodule update --init --recursive
-  - mkdir debug
-  - cd debug
-  - cmake .. 
-  - make -j4 
-  trigger:
-    event:
-      - pull_request
-  when:
-    branch:
-    - develop
-    - master
-    - 2.0
 ---
 kind: pipeline
 name: test_arm64_bionic
@@ -33,16 +7,11 @@ platform:
   os: linux
   arch: arm64
 steps:
-- name: submodules
-  image: alpine/git
-  commands:
-  - git submodule init
-  - git submodule update --recursive --remote
 - name: build
   image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential golang-go
+  - apt-get install -y cmake  git build-essential golang-go
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -65,17 +34,12 @@ platform:
   arch: arm64
 
 steps:
-- name: submodules
-  image: alpine/git
-  commands:
-  - git submodule init
-  - git submodule update --recursive --remote
 - name: build
   image: arm64v8/ubuntu:focal
   commands:
   - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
   - apt-get update 
-  - apt-get install -y -qq cmake build-essential golang-go
+  - apt-get install -y -qq git cmake build-essential golang-go
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -150,16 +114,11 @@ platform:
   arch: arm
 
 steps:
-- name: submodules
-  image: alpine/git
-  commands:
-  - git submodule init
-  - git submodule update --recursive --remote
 - name: build
   image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential golang-go
+  - apt-get install -y cmake build-essential golang-go git
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -209,16 +168,11 @@ platform:
   arch: amd64
 
 steps:
-- name: submodules
-  image: alpine/git
-  commands:
-  - git submodule init
-  - git submodule update --recursive --remote
 - name: build
   image: ubuntu:xenial
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential golang-go
+  - apt-get install -y gcc cmake build-essential golang-go git
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -240,16 +194,11 @@ platform:
   arch: amd64
 
 steps:
-- name: submodules
-  image: alpine/git
-  commands:
-  - git submodule init
-  - git submodule update --recursive --remote
 - name: build
   image: ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential golang-go
+  - apt-get install -y gcc cmake build-essential golang-go git
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -271,15 +220,10 @@ platform:
   arch: amd64
 
 steps:
-- name: submodules
-  image: alpine/git
-  commands:
-  - git submodule init
-  - git submodule update --recursive --remote
 - name: build
   image: ansible/centos7-ansible
   commands:
-  - yum install -y gcc gcc-c++ make cmake golang
+  - yum install -y gcc gcc-c++ make cmake golang git
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
