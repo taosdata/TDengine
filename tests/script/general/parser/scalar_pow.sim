@@ -6,9 +6,9 @@ system sh/exec.sh -n dnode1 -s start
 sleep 500
 sql connect
 
-$dbPrefix = m_di_db
-$tbPrefix = m_di_tb
-$mtPrefix = m_di_mt
+$dbPrefix = db
+$tbPrefix = ct
+$mtPrefix = st
 $tbNum = 2
 $rowNum = 50
 
