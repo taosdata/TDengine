@@ -1,3 +1,6 @@
+# ================================================================================================
+# DEPENDENCIES
+# ================================================================================================
 # googletest
 if(${BUILD_TEST})
     add_subdirectory(googletest)
@@ -63,3 +66,10 @@ if(${BUILD_WITH_LUCENE})
     option(ENABLE_TEST "Enable the tests" OFF)
     add_subdirectory(lucene)
 endif(${BUILD_WITH_LUCENE})
+
+# ================================================================================================
+# DEPENDENCY TEST
+# ================================================================================================
+if(${BUILD_DEPENDENCY_TESTS})
+    add_subdirectory(test)
+endif(${BUILD_DEPENDENCY_TESTS})

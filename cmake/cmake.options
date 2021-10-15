@@ -24,3 +24,9 @@ option(
     "If build with lucene" 
     OFF
 )
+
+option(
+    BUILD_DEPENDENCY_TESTS 
+    "If build dependency tests" 
+    OFF
+)

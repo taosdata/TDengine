@@ -99,3 +99,4 @@ TAGS
 
 deps/*
 !deps/CMakeLists.txt
+!deps/test
