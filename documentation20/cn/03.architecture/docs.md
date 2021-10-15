@@ -382,17 +382,17 @@ dataDir [path] <level> <primary>
    各级存储之间的数据流向：0级存储 -> 1级存储 -> 2级存储。   
    同一存储等级可挂载多个硬盘，同一存储等级上的数据文件分布在该存储等级的所有硬盘上。   
    需要说明的是，数据在不同级别的存储介质上的移动，是由系统自动完成的，用户无需干预。
--  primary: 是否为主挂载点，0（是）或1（否），省略默认为1。
+-  primary: 是否为主挂载点，0（否）或1（是），省略默认为1。
 
-在配置中，只允许一个主挂载点的存在（level=0, primary=0），例如采用如下的配置方式：
+在配置中，只允许一个主挂载点的存在（level=0, primary=1），例如采用如下的配置方式：
 
 ```
-dataDir /mnt/data1 0 0
-dataDir /mnt/data2 0 1
-dataDir /mnt/data3 1 1
-dataDir /mnt/data4 1 1
-dataDir /mnt/data5 2 1
-dataDir /mnt/data6 2 1
+dataDir /mnt/data1 0 1
+dataDir /mnt/data2 0 0
+dataDir /mnt/data3 1 0
+dataDir /mnt/data4 1 0
+dataDir /mnt/data5 2 0
+dataDir /mnt/data6 2 0
 ```
 
 注意：
