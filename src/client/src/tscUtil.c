@@ -5352,7 +5352,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     int32_t outLen = 0;
     strncpy(varDataVal(tagKey), jsonKey, strlen(jsonKey));
     outLen = strlen(jsonKey);
-    taosHashPut(keyHash, jsonKey, strlen(jsonKey), 0, CHAR_BYTES);
+    taosHashPut(keyHash, jsonKey, outLen, &outLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
 
     varDataSetLen(tagKey, outLen);
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagKey, false);   // add json key
