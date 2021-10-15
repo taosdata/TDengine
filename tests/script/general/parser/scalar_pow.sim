@@ -319,31 +319,50 @@ if $data15 != 2.000000000 then
 endi
 
 print ====> step 4.3 select exprs... from (select * from super_tb ) order by ts desc;
-sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $stb ) order by ts desc
-
+#sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $stb ) order by ts desc
+#if $data00 != 49 then
+#  return -1
+#endi
+#if $data01 != 5.614709844 then
+#  return -1
+#endi
+#if $data02 != 2401.000000000 then
+#  return -1
+#endi
+#if $data03 != 2403.000000000 then
+#  return -1
+#endi
+#if $data04 !=  120055.614709844 then
+#  return -1
+#endi
+#if $data05 !=  40356008.000000000 then
+#  return -1
+#endi
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $stb )
 print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
-if $data00 != 49 then
+if $data00 != 0 then
   return -1
 endi
-if $data01 != 5.614709844 then
+if $data01 != -2.000000000 then
   return -1
 endi
-if $data02 != 2401.000000000 then
+if $data02 != 0.000000000 then
   return -1
 endi
-if $data03 != 2403.000000000 then
+if $data03 != 2.062500000 then
   return -1
 endi
-if $data04 !=  120055.614709844 then
+if $data04 != -inf then
   return -1
 endi
-if $data05 !=  40356008.000000000 then
+if $data05 != 0.000000000 then
   return -1
 endi
 
 print ====> step 4.4 select exprs... from (select * from child_tb) order by ts limit 2;
 
-sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $tb ) order by ts limit 2;
+#sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $tb ) order by ts limit 2;
+sql select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from $tb ) limit 2;
 print ===> $data00 , $data01 , $data02 , $data03 , $data04 , $data05
 print ===> $data10 , $data11 , $data12 , $data13 , $data14 , $data15
 if $data00 != 0 then
