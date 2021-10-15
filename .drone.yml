@@ -1,4 +1,3 @@
-
 ---
 kind: pipeline
 name: test_arm64_bionic
