@@ -72,12 +72,13 @@ static int32_t shellShowTables(TAOS *con, char *db) {
       int32_t tbIndex = tbNum++;
       if (tbMallocNum < tbNum) {
         tbMallocNum = (tbMallocNum * 2 + 1);
-        tbNames = realloc(tbNames, tbMallocNum * sizeof(char *));
-        if (tbNames == NULL) {
+        char** tbNames1 = realloc(tbNames, tbMallocNum * sizeof(char *));
+        if (tbNames1 == NULL) {
           fprintf(stdout, "failed to malloc tablenames, num:%d\n", tbMallocNum);
           code = TSDB_CODE_TSC_OUT_OF_MEMORY;
           break;
         }
+        tbNames = tbNames1;
       }
 
       tbNames[tbIndex] = malloc(TSDB_TABLE_NAME_LEN);
@@ -110,6 +111,7 @@ static void *shellCheckThreadFp(void *arg) {
   int32_t start = pThread->threadIndex * interval;
   int32_t end = (pThread->threadIndex + 1) * interval;
 
+  if (start >= tbNum) return NULL;
   if (end > tbNum) end = tbNum + 1;
 
   char file[32] = {0};
@@ -192,9 +194,11 @@ void shellCheck(TAOS *con, SShellArguments *_args) {
     return;
   }
 
-  fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, _args->threadNum);
-  shellRunCheckThreads(con, _args);
-
+  if (tbNum > 0) {
+    fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, _args->threadNum);
+    shellRunCheckThreads(con, _args);
+  }
+  
   int64_t end = taosGetTimestampMs();
   fprintf(stdout, "total %d tables checked, failed:%d, time spent %.2f seconds\n", checkedNum, errorNum,
           (end - start) / 1000.0);

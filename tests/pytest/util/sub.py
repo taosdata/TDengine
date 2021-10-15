@@ -29,9 +29,10 @@ class TDSub:
 		self.sub.close(keepProgress)	
 
 	def consume(self):
-		self.data = self.sub.consume()
-		self.consumedRows = len(self.data)
-		self.consumedCols = len(self.sub.fields)
+		self.result = self.sub.consume()
+		self.result.fetch_all()
+		self.consumedRows = self.result.row_count
+		self.consumedCols = self.result.field_count
 		return self.consumedRows
 
 	def checkRows(self, expectRows):

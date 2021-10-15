@@ -289,6 +289,13 @@ static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
   int64_t queuedSize = atomic_add_fetch_64(&pVnode->queuedWMsgSize, pWrite->walHead.len);
 
   if (queued > MAX_QUEUED_MSG_NUM || queuedSize > MAX_QUEUED_MSG_SIZE) {
+    if (pWrite->qtype == TAOS_QTYPE_FWD) {
+      queued = atomic_sub_fetch_32(&pVnode->queuedWMsg, 1);
+      queuedSize = atomic_sub_fetch_64(&pVnode->queuedWMsgSize, pWrite->walHead.len);
+
+      return -1;
+    }
+
     int32_t ms = (queued / MAX_QUEUED_MSG_NUM) * 10 + 3;
     if (ms > 100) ms = 100;
     vDebug("vgId:%d, too many msg:%d in vwqueue, flow control %dms", pVnode->vgId, queued, ms);

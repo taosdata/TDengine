@@ -24,8 +24,7 @@ typedef struct STable {
   tstr*          name;  // NOTE: there a flexible string here
   uint64_t       suid;
   struct STable* pSuper;  // super table pointer
-  uint8_t        numOfSchemas;
-  STSchema*      schema[TSDB_MAX_TABLE_SCHEMAS];
+  SArray*        schema;
   STSchema*      tagSchema;
   SKVRow         tagVal;
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
@@ -75,7 +74,7 @@ void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
-STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version);
+STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version, int8_t rowType);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
@@ -100,20 +99,23 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
   }
 }
 
-static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
-  STable*   pDTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version, int8_t rowType) {
+  STable*   pDTable = (pTable->pSuper != NULL) ? pTable->pSuper : pTable;  // for performance purpose
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
 
   if (lock) TSDB_RLOCK_TABLE(pDTable);
   if (_version < 0) {  // get the latest version of schema
-    pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
+    pTSchema = *(STSchema **)taosArrayGetLast(pDTable->schema);
   } else {  // get the schema with version
-    void* ptr = taosbsearch(&_version, pDTable->schema, pDTable->numOfSchemas, sizeof(STSchema*),
-                            tsdbCompareSchemaVersion, TD_EQ);
+    void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-      goto _exit;
+      if (rowType == SMEM_ROW_KV) {
+        ptr = taosArrayGetLast(pDTable->schema);
+      } else {
+        terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+        goto _exit;
+      }
     }
     pTSchema = *(STSchema**)ptr;
   }
@@ -132,7 +134,7 @@ _exit:
 }
 
 static FORCE_INLINE STSchema* tsdbGetTableSchema(STable* pTable) {
-  return tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  return tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
 }
 
 static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {

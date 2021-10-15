@@ -30,6 +30,7 @@
 #include "httpGcHandle.h"
 #include "httpRestHandle.h"
 #include "httpTgHandle.h"
+#include "httpMetricsHandle.h"
 
 #ifndef _ADMIN
 void adminInitHandle(HttpServer* pServer) {}
@@ -52,7 +53,7 @@ int32_t httpInitSystem() {
   gcInitHandle(&tsHttpServer);
   tgInitHandle(&tsHttpServer);
   opInitHandle(&tsHttpServer);
-
+  metricsInitHandle(&tsHttpServer);
   return 0;
 }
 

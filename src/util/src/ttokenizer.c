@@ -53,6 +53,7 @@ static SKeyword keywordTable[] = {
     {"NOTNULL",      TK_NOTNULL},
     {"IS",           TK_IS},
     {"LIKE",         TK_LIKE},
+    {"MATCH",        TK_MATCH},
     {"GLOB",         TK_GLOB},
     {"BETWEEN",      TK_BETWEEN},
     {"IN",           TK_IN},
@@ -137,9 +138,11 @@ static SKeyword keywordTable[] = {
     {"COMMA",        TK_COMMA},
     {"NULL",         TK_NULL},
     {"SELECT",       TK_SELECT},
+    {"EVERY",        TK_EVERY},
     {"FROM",         TK_FROM},
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
+    {"EVERY",        TK_EVERY},
     {"SESSION",      TK_SESSION},
     {"STATE_WINDOW", TK_STATE_WINDOW},
     {"FILL",         TK_FILL},
@@ -193,6 +196,7 @@ static SKeyword keywordTable[] = {
     {"INITIALLY",    TK_INITIALLY},
     {"INSTEAD",      TK_INSTEAD},
     {"MATCH",        TK_MATCH},
+    {"NMATCH",       TK_NMATCH},
     {"KEY",          TK_KEY},
     {"OF",           TK_OF},
     {"RAISE",        TK_RAISE},
@@ -225,7 +229,7 @@ static SKeyword keywordTable[] = {
     {"FUNCTIONS",    TK_FUNCTIONS},
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
-    {"BUFSIZE",      TK_BUFSIZE},
+    {"BUFSIZE",      TK_BUFSIZE}
 };
 
 static const char isIdChar[] = {
@@ -439,6 +443,17 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
 
       break;
     }
+    case '`': {
+      for (i = 1; z[i]; i++) {
+        if (z[i] == '`') {
+          i++;
+          *tokenId = TK_ID;
+          return i;
+        }
+      }
+
+      break;
+    }
     case '.': {
       /*
        * handle the the float number with out integer part
@@ -608,7 +623,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
 
     int32_t numOfComma = 0;
     char t = str[*i];
-    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
+    while (isspace(t) || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;

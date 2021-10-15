@@ -17,6 +17,7 @@
 #include "tscLog.h"
 
 #include "taos.h"
+#include "tscParseLine.h"
 
 typedef struct  {
   char sTableName[TSDB_TABLE_NAME_LEN];
@@ -27,44 +28,19 @@ typedef struct  {
   uint8_t precision;
 } SSmlSTableSchema;
 
-typedef struct {
-  char* key;
-  uint8_t type;
-  int16_t length;
-  char* value;
+//=================================================================================================
 
-  //===================================
-  uint32_t fieldSchemaIdx;
-} TAOS_SML_KV;
+static uint64_t linesSmlHandleId = 0;
 
-typedef struct {
-  char* stableName;
-
-  char* childTableName;
-  TAOS_SML_KV* tags;
-  int32_t tagNum;
-
-  // first kv must be timestamp
-  TAOS_SML_KV* fields;
-  int32_t fieldNum;
-
-  //================================
-  uint32_t schemaIdx;
-} TAOS_SML_DATA_POINT;
-
-typedef enum {
-  SML_TIME_STAMP_NOW,
-  SML_TIME_STAMP_SECONDS,
-  SML_TIME_STAMP_MILLI_SECONDS,
-  SML_TIME_STAMP_MICRO_SECONDS,
-  SML_TIME_STAMP_NANO_SECONDS
-} SMLTimeStampType;
-
-typedef struct {
+uint64_t genLinesSmlId() {
   uint64_t id;
 
-} SSmlLinesInfo;
-//=================================================================================================
+  do {
+    id = atomic_add_fetch_64(&linesSmlHandleId, 1);
+  } while (id == 0);
+
+  return id;
+}
 
 int compareSmlColKv(const void* p1, const void* p2) {
   TAOS_SML_KV* kv1 = (TAOS_SML_KV*)p1;
@@ -173,6 +149,40 @@ static int32_t buildSmlKvSchema(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* arra
   return 0;
 }
 
+static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableName, int* tableNameLen,
+                                       SSmlLinesInfo* info) {
+  tscDebug("SML:0x%"PRIx64" taos_sml_insert get child table name through md5", info->id);
+  qsort(point->tags, point->tagNum, sizeof(TAOS_SML_KV), compareSmlColKv);
+
+  SStringBuilder sb; memset(&sb, 0, sizeof(sb));
+  char sTableName[TSDB_TABLE_NAME_LEN] = {0};
+  strtolower(sTableName, point->stableName);
+  taosStringBuilderAppendString(&sb, sTableName);
+  for (int j = 0; j < point->tagNum; ++j) {
+    taosStringBuilderAppendChar(&sb, ',');
+    TAOS_SML_KV* tagKv = point->tags + j;
+    char tagName[TSDB_COL_NAME_LEN] = {0};
+    strtolower(tagName, tagKv->key);
+    taosStringBuilderAppendString(&sb, tagName);
+    taosStringBuilderAppendChar(&sb, '=');
+    taosStringBuilderAppend(&sb, tagKv->value, tagKv->length);
+  }
+  size_t len = 0;
+  char* keyJoined = taosStringBuilderGetResult(&sb, &len);
+  MD5_CTX context;
+  MD5Init(&context);
+  MD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
+  MD5Final(&context);
+  *tableNameLen = snprintf(tableName, *tableNameLen,
+                           "t_%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
+                           context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
+                           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
+                           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
+  taosStringBuilderDestroy(&sb);
+  tscDebug("SML:0x%"PRIx64" child table name: %s", info->id, tableName);
+  return 0;
+}
+
 static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, SArray* stableSchemas, SSmlLinesInfo* info) {
   int32_t code = 0;
   SHashObj* sname2shema = taosHashInit(32,
@@ -203,6 +213,15 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
 
     for (int j = 0; j < point->tagNum; ++j) {
       TAOS_SML_KV* tagKv = point->tags + j;
+      if (!point->childTableName) {
+        char childTableName[TSDB_TABLE_NAME_LEN];
+        int32_t tableNameLen = TSDB_TABLE_NAME_LEN;
+        getSmlMd5ChildTableName(point, childTableName, &tableNameLen, info);
+        point->childTableName = calloc(1, tableNameLen+1);
+        strncpy(point->childTableName, childTableName, tableNameLen);
+        point->childTableName[tableNameLen] = '\0';
+      }
+
       code = buildSmlKvSchema(tagKv, pStableSchema->tagHash, pStableSchema->tags, info);
       if (code != 0) {
         tscError("SML:0x%"PRIx64" build data point schema failed. point no.: %d, tag key: %s", info->id, i, tagKv->key);
@@ -319,7 +338,23 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       buildColumnDescription(action->alterSTable.field, result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      char* errStr = taos_errstr(res);
+      char* begin = strstr(errStr, "duplicated column names");
+      bool tscDupColNames = (begin != NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error: %s", info->id, errStr);
+      }
       taos_free_result(res);
+
+      if (code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || code == TSDB_CODE_MND_TAG_ALREAY_EXIST || tscDupColNames) {
+        TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+        code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
+        taos_free_result(res2);
+        taosMsleep(500);
+      }
       break;
     }
     case SCHEMA_ACTION_ADD_TAG: {
@@ -328,7 +363,23 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      char* errStr = taos_errstr(res);
+      char* begin = strstr(errStr, "duplicated column names");
+      bool tscDupColNames = (begin != NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       taos_free_result(res);
+
+      if (code == TSDB_CODE_MND_TAG_ALREAY_EXIST || code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || tscDupColNames) {
+        TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+        code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
+        taos_free_result(res2);
+        taosMsleep(500);
+      }
       break;
     }
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
@@ -337,7 +388,20 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       taos_free_result(res);
+
+      if (code == TSDB_CODE_MND_INVALID_COLUMN_LENGTH || code == TSDB_CODE_TSC_INVALID_COLUMN_LENGTH) {
+        TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+        code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
+        taos_free_result(res2);
+        taosMsleep(500);
+      }
       break;
     }
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
@@ -346,7 +410,20 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       taos_free_result(res);
+
+      if (code == TSDB_CODE_MND_INVALID_TAG_LENGTH || code == TSDB_CODE_TSC_INVALID_TAG_LENGTH) {
+        TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+        code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
+        taos_free_result(res2);
+        taosMsleep(500);
+      }
       break;
     }
     case SCHEMA_ACTION_CREATE_STABLE: {
@@ -375,7 +452,20 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       outBytes = snprintf(pos, freeBytes, ")");
       TAOS_RES* res = taos_query(taos, result);
       code = taos_errno(res);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       taos_free_result(res);
+
+      if (code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
+        TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+        code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
+        taos_free_result(res2);
+        taosMsleep(500);
+      }
       break;
     }
 
@@ -385,7 +475,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
 
   free(result);
   if (code != 0) {
-    tscError("SML:0x%"PRIx64 "apply schema action failure. %s", info->id, tstrerror(code));
+    tscError("SML:0x%"PRIx64 " apply schema action failure. %s", info->id, tstrerror(code));
   }
   return code;
 }
@@ -398,69 +488,11 @@ static int32_t destroySmlSTableSchema(SSmlSTableSchema* schema) {
   return 0;
 }
 
-int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSmlLinesInfo* info) {
-  int32_t code = 0;
-
-  STscObj *pObj = (STscObj *)taos;
-  if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return TSDB_CODE_TSC_DISCONNECTED;
-  }
-
-  tscDebug("SML:0x%"PRIx64" load table schema. super table name: %s", info->id, tableName);
-
-  char tableNameLowerCase[TSDB_TABLE_NAME_LEN];
-  strtolower(tableNameLowerCase, tableName);
-
-  char sql[256];
-  snprintf(sql, 256, "describe %s", tableNameLowerCase);
-  TAOS_RES* res = taos_query(taos, sql);
-  code = taos_errno(res);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" describe table failure. %s", info->id, taos_errstr(res));
-    taos_free_result(res);
-    return code;
-  }
-  taos_free_result(res);
-
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
-  if (pSql == NULL){
-      tscError("failed to allocate memory, reason:%s", strerror(errno));
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      return code;
-  }
-  pSql->pTscObj = taos;
-  pSql->signature = pSql;
-  pSql->fp = NULL;
-
-  SStrToken tableToken = {.z=tableNameLowerCase, .n=(uint32_t)strlen(tableNameLowerCase), .type=TK_ID};
-  tGetToken(tableNameLowerCase, &tableToken.type);
-  // Check if the table name available or not
-  if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-    sprintf(pSql->cmd.payload, "table name is invalid");
-    tscFreeSqlObj(pSql);
-    return code;
-  }
-
-  SName sname = {0};
-  if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObj(pSql);
-    return code;
-  }
-  char  fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
-  memset(fullTableName, 0, tListLen(fullTableName));
-  tNameExtractFullName(&sname, fullTableName);
-  tscFreeSqlObj(pSql);
-
+static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSchema* schema, SSmlLinesInfo* info) {
   schema->tags = taosArrayInit(8, sizeof(SSchema));
   schema->fields = taosArrayInit(64, sizeof(SSchema));
   schema->tagHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
   schema->fieldHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
-
-  size_t size = 0; 
-  STableMeta* tableMeta = NULL; 
-  taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void **)&tableMeta, &size);
 
   tstrncpy(schema->sTableName, tableName, strlen(tableName)+1);
   schema->precision = tableMeta->tableInfo.precision;
@@ -484,9 +516,95 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSm
     size_t tagIndex = taosArrayGetSize(schema->tags) - 1;
     taosHashPut(schema->tagHash, field.name, strlen(field.name), &tagIndex, sizeof(tagIndex));
   }
-  tscDebug("SML:0x%"PRIx64 " load table meta succeed. table name: %s, columns number: %d, tag number: %d, precision: %d",
+  tscDebug("SML:0x%"PRIx64 " load table schema succeed. table name: %s, columns number: %d, tag number: %d, precision: %d",
            info->id, tableName, tableMeta->tableInfo.numOfColumns, tableMeta->tableInfo.numOfTags, schema->precision);
-  free(tableMeta); tableMeta = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTableMeta, SSmlLinesInfo* info) {
+  int32_t code = 0;
+  int32_t retries = 0;
+  STableMeta* tableMeta = NULL;
+  while (retries++ < TSDB_MAX_REPLICA && tableMeta == NULL) {
+    STscObj* pObj = (STscObj*)taos;
+    if (pObj == NULL || pObj->signature != pObj) {
+      terrno = TSDB_CODE_TSC_DISCONNECTED;
+      return TSDB_CODE_TSC_DISCONNECTED;
+    }
+
+    tscDebug("SML:0x%" PRIx64 " retrieve table meta. super table name: %s", info->id, tableName);
+
+    char tableNameLowerCase[TSDB_TABLE_NAME_LEN];
+    strtolower(tableNameLowerCase, tableName);
+
+    char sql[256];
+    snprintf(sql, 256, "describe %s", tableNameLowerCase);
+    TAOS_RES* res = taos_query(taos, sql);
+    code = taos_errno(res);
+    if (code != 0) {
+      tscError("SML:0x%" PRIx64 " describe table failure. %s", info->id, taos_errstr(res));
+      taos_free_result(res);
+      return code;
+    }
+    taos_free_result(res);
+
+    SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+    if (pSql == NULL) {
+      tscError("SML:0x%" PRIx64 " failed to allocate memory, reason:%s", info->id, strerror(errno));
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return code;
+    }
+    pSql->pTscObj = taos;
+    pSql->signature = pSql;
+    pSql->fp = NULL;
+
+    registerSqlObj(pSql);
+    SStrToken tableToken = {.z = tableNameLowerCase, .n = (uint32_t)strlen(tableNameLowerCase), .type = TK_ID};
+    tGetToken(tableNameLowerCase, &tableToken.type);
+    bool dbIncluded = false;
+    // Check if the table name available or not
+    if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+      sprintf(pSql->cmd.payload, "table name is invalid");
+      taosReleaseRef(tscObjRef, pSql->self);
+      return code;
+    }
+
+    SName sname = {0};
+    if ((code = tscSetTableFullName(&sname, &tableToken, pSql, dbIncluded)) != TSDB_CODE_SUCCESS) {
+      taosReleaseRef(tscObjRef, pSql->self);
+      return code;
+    }
+
+    char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
+    memset(fullTableName, 0, tListLen(fullTableName));
+    tNameExtractFullName(&sname, fullTableName);
+
+    size_t size = 0;
+    taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+    taosReleaseRef(tscObjRef, pSql->self);
+  }
+
+  if (tableMeta != NULL) {
+    *pTableMeta = tableMeta;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    tscError("SML:0x%" PRIx64 " failed to retrieve table meta. super table name: %s", info->id, tableName);
+    return TSDB_CODE_TSC_NO_META_CACHED;
+  }
+}
+
+static int32_t loadTableSchemaFromDB(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSmlLinesInfo* info) {
+  int32_t code = 0;
+  STableMeta* tableMeta = NULL;
+  code = retrieveTableMeta(taos, tableName, &tableMeta, info);
+  if (code == TSDB_CODE_SUCCESS) {
+    assert(tableMeta != NULL);
+    fillDbSchema(tableMeta, tableName, schema, info);
+    free(tableMeta);
+    tableMeta = NULL;
+  }
+
   return code;
 }
 
@@ -498,7 +616,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
     SSmlSTableSchema  dbSchema;
     memset(&dbSchema, 0, sizeof(SSmlSTableSchema));
 
-    code = loadTableMeta(taos, pointSchema->sTableName, &dbSchema, info);
+    code = loadTableSchemaFromDB(taos, pointSchema->sTableName, &dbSchema, info);
     if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
@@ -507,7 +625,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
       schemaAction.createSTable.tags = pointSchema->tags;
       schemaAction.createSTable.fields = pointSchema->fields;
       applySchemaAction(taos, &schemaAction, info);
-      code = loadTableMeta(taos, pointSchema->sTableName, &dbSchema, info);
+      code = loadTableSchemaFromDB(taos, pointSchema->sTableName, &dbSchema, info);
       if (code != 0) {
         tscError("SML:0x%"PRIx64" reconcile point schema failed. can not create %s", info->id, pointSchema->sTableName);
         return code;
@@ -567,74 +685,6 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
   return 0;
 }
 
-static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableName, int* tableNameLen,
-                                       SSmlLinesInfo* info) {
-  tscDebug("SML:0x%"PRIx64" taos_sml_insert get child table name through md5", info->id);
-  qsort(point->tags, point->tagNum, sizeof(TAOS_SML_KV), compareSmlColKv);
-
-  SStringBuilder sb; memset(&sb, 0, sizeof(sb));
-  char sTableName[TSDB_TABLE_NAME_LEN] = {0};
-  strtolower(sTableName, point->stableName);
-  taosStringBuilderAppendString(&sb, sTableName);
-  for (int j = 0; j < point->tagNum; ++j) {
-    taosStringBuilderAppendChar(&sb, ',');
-    TAOS_SML_KV* tagKv = point->tags + j;
-    char tagName[TSDB_COL_NAME_LEN] = {0};
-    strtolower(tagName, tagKv->key);
-    taosStringBuilderAppendString(&sb, tagName);
-    taosStringBuilderAppendChar(&sb, '=');
-    taosStringBuilderAppend(&sb, tagKv->value, tagKv->length);
-  }
-  size_t len = 0;
-  char* keyJoined = taosStringBuilderGetResult(&sb, &len);
-  MD5_CTX context;
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
-  MD5Final(&context);
-  *tableNameLen = snprintf(tableName, *tableNameLen,
-                           "t_%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
-                           context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
-                           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
-                           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
-  taosStringBuilderDestroy(&sb);
-  tscDebug("SML:0x%"PRIx64" child table name: %s", info->id, tableName);
-  return 0;
-}
-
-
-static int32_t changeChildTableTagValue(TAOS* taos, const char* cTableName, const char* tagName, TAOS_BIND* bind, SSmlLinesInfo* info) {
-  char sql[512];
-  sprintf(sql, "alter table %s set tag %s=?", cTableName, tagName);
-
-  int32_t code;
-  TAOS_STMT* stmt = taos_stmt_init(taos);
-  code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
-
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    return code;
-  }
-
-  code = taos_stmt_bind_param(stmt, bind);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    return code;
-  }
-
-  code = taos_stmt_execute(stmt);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    return code;
-  }
-
-  code = taos_stmt_close(stmt);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    return code;
-  }
-  return code;
-}
-
 static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, const char* sTableName,
                                           SArray* tagsSchema, SArray* tagsBind, SSmlLinesInfo* info) {
   size_t numTags = taosArrayGetSize(tagsSchema);
@@ -673,34 +723,114 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
   free(sql);
 
   if (code != 0) {
-    tfree(stmt);
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
+    tscError("SML:0x%"PRIx64" taos_stmt_prepare returns %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_bind_param(stmt, TARRAY_GET_START(tagsBind));
   if (code != 0) {
-    tfree(stmt);
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
+    tscError("SML:0x%"PRIx64" taos_stmt_bind_param returns %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_execute(stmt);
   if (code != 0) {
-    tfree(stmt);
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
+    tscError("SML:0x%"PRIx64" taos_stmt_execute returns %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_close(stmt);
   if (code != 0) {
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
+    tscError("SML:0x%"PRIx64" taos_stmt_close return %d:%s", info->id, code, tstrerror(code));
     return code;
   }
   return code;
 }
 
-static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind, SSmlLinesInfo* info) {
+static int32_t doInsertChildTableWithStmt(TAOS* taos, char* sql, char* cTableName, SArray* batchBind, SSmlLinesInfo* info) {
+  int32_t code = 0;
+
+  TAOS_STMT* stmt = taos_stmt_init(taos);
+  if (stmt == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+
+  if (code != 0) {
+    tscError("SML:0x%"PRIx64" taos_stmt_prepare return %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
+    return code;
+  }
+
+  bool tryAgain = false;
+  int32_t try = 0;
+  do {
+    code = taos_stmt_set_tbname(stmt, cTableName);
+    if (code != 0) {
+      tscError("SML:0x%"PRIx64" taos_stmt_set_tbname return %d:%s", info->id, code, tstrerror(code));
+      taos_stmt_close(stmt);
+      return code;
+    }
+
+    size_t rows = taosArrayGetSize(batchBind);
+    for (int32_t i = 0; i < rows; ++i) {
+      TAOS_BIND* colsBinds = taosArrayGetP(batchBind, i);
+      code = taos_stmt_bind_param(stmt, colsBinds);
+      if (code != 0) {
+        tscError("SML:0x%"PRIx64" taos_stmt_bind_param return %d:%s", info->id, code, tstrerror(code));
+        taos_stmt_close(stmt);
+        return code;
+      }
+      code = taos_stmt_add_batch(stmt);
+      if (code != 0) {
+        tscError("SML:0x%"PRIx64" taos_stmt_add_batch return %d:%s", info->id, code, tstrerror(code));
+        taos_stmt_close(stmt);
+        return code;
+      }
+    }
+
+    code = taos_stmt_execute(stmt);
+    if (code != 0) {
+      tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s, try:%d", info->id, code, tstrerror(code), try);
+    }
+
+    tryAgain = false;
+    if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID
+         || code == TSDB_CODE_VND_INVALID_VGROUP_ID
+         || code == TSDB_CODE_TDB_TABLE_RECONFIGURE
+         || code == TSDB_CODE_APP_NOT_READY
+         || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && try++ < TSDB_MAX_REPLICA) {
+      tryAgain = true;
+    }
+
+    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+      TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+      int32_t   code2 = taos_errno(res2);
+      if (code2 != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%" PRIx64 " insert child table. reset query cache. error: %s", info->id, taos_errstr(res2));
+      }
+      taos_free_result(res2);
+      if (tryAgain) {
+        taosMsleep(100 * (2 << try));
+      }
+    }
+    if (code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      if (tryAgain) {
+        taosMsleep( 100 * (2 << try));
+      }
+    }
+  } while (tryAgain);
+
+
+  taos_stmt_close(stmt);
+  return code;
+}
+
+static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind, size_t rowSize, SSmlLinesInfo* info) {
   size_t numCols = taosArrayGetSize(colsSchema);
   char* sql = malloc(tsMaxSQLStringLen+1);
   if (sql == NULL) {
@@ -723,63 +853,32 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
   sql[strlen(sql)] = '\0';
 
-  tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu", info->id, cTableName, taosArrayGetSize(rowsBind));
-
-  int32_t code = 0;
-  int32_t try = 0;
-
-  TAOS_STMT* stmt = taos_stmt_init(taos);
-  if (stmt == NULL) {
-    tfree(sql);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  size_t rows = taosArrayGetSize(rowsBind);
+  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
+  size_t batchSize = MIN(maxBatchSize, rows);
+  tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu, batch size: %zu",
+           info->id, cTableName, rows, batchSize);
+  SArray* batchBind = taosArrayInit(batchSize, POINTER_BYTES);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int i = 0; i < rows;) {
+    int j = i;
+    for (; j < i + batchSize && j<rows; ++j) {
+      taosArrayPush(batchBind, taosArrayGet(rowsBind, j));
+    }
+    if (j > i) {
+      tscDebug("SML:0x%"PRIx64" insert child table batch from line %d to line %d.", info->id, i, j - 1);
+      code = doInsertChildTableWithStmt(taos, sql, cTableName, batchBind, info);
+      if (code != 0) {
+        taosArrayDestroy(batchBind);
+        tfree(sql);
+        return code;
+      }
+      taosArrayClear(batchBind);
+    }
+    i = j;
   }
-  code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+  taosArrayDestroy(batchBind);
   tfree(sql);
-
-  if (code != 0) {
-    tfree(stmt);
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    return code;
-  }
-
-  do {
-    code = taos_stmt_set_tbname(stmt, cTableName);
-    if (code != 0) {
-      tfree(stmt);
-      tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-      return code;
-    }
-
-    size_t rows = taosArrayGetSize(rowsBind);
-    for (int32_t i = 0; i < rows; ++i) {
-      TAOS_BIND* colsBinds = taosArrayGetP(rowsBind, i);
-      code = taos_stmt_bind_param(stmt, colsBinds);
-      if (code != 0) {
-        tfree(stmt);
-        tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-        return code;
-      }
-      code = taos_stmt_add_batch(stmt);
-      if (code != 0) {
-        tfree(stmt);
-        tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-        return code;
-      }
-    }
-
-    code = taos_stmt_execute(stmt);
-    if (code != 0) {
-      tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    }
-  } while (code == TSDB_CODE_TDB_TABLE_RECONFIGURE && try++ < TSDB_MAX_REPLICA);
-
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" %s", info->id, taos_stmt_errstr(stmt));
-    taos_stmt_close(stmt);
-  } else {
-    taos_stmt_close(stmt);
-  }
-
   return code;
 }
 
@@ -787,15 +886,6 @@ static int32_t arrangePointsByChildTableName(TAOS_SML_DATA_POINT* points, int nu
                                              SHashObj* cname2points, SArray* stableSchemas, SSmlLinesInfo* info) {
   for (int32_t i = 0; i < numPoints; ++i) {
     TAOS_SML_DATA_POINT * point = points + i;
-    if (!point->childTableName) {
-      char childTableName[TSDB_TABLE_NAME_LEN];
-      int32_t tableNameLen = TSDB_TABLE_NAME_LEN;
-      getSmlMd5ChildTableName(point, childTableName, &tableNameLen, info);
-      point->childTableName = calloc(1, tableNameLen+1);
-      strncpy(point->childTableName, childTableName, tableNameLen);
-      point->childTableName[tableNameLen] = '\0';
-    }
-
     SSmlSTableSchema* stableSchema = taosArrayGet(stableSchemas, point->schemaIdx);
 
     for (int j = 0; j < point->tagNum; ++j) {
@@ -843,15 +933,6 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
       tagKVs[kv->fieldSchemaIdx] = kv;
     }
   }
-
-  int32_t notNullTagsIndices[TSDB_MAX_TAGS] = {0};
-  int32_t numNotNullTags = 0;
-  for (int32_t i = 0; i < numTags; ++i) {
-    if (tagKVs[i] != NULL) {
-      notNullTagsIndices[numNotNullTags] = i;
-      ++numNotNullTags;
-    }
-  }
   
   SArray* tagBinds = taosArrayInit(numTags, sizeof(TAOS_BIND));
   taosArraySetSize(tagBinds, numTags);
@@ -871,65 +952,8 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
     bind->is_null = NULL;
   }
 
-  // select tag1,tag2,... from stable where tbname in (ctable)
-  char* sql = malloc(tsMaxSQLStringLen+1);
-  int freeBytes = tsMaxSQLStringLen + 1;
-  snprintf(sql, freeBytes, "select tbname, ");
-  for (int i = 0; i < numNotNullTags ; ++i)  {
-    snprintf(sql + strlen(sql), freeBytes-strlen(sql), "%s,", tagKVs[notNullTagsIndices[i]]->key);
-  }
-  snprintf(sql + strlen(sql) - 1, freeBytes - strlen(sql) + 1,
-           " from %s where tbname in (\'%s\')", sTableName, cTableName);
-  sql[strlen(sql)] = '\0';
+  int32_t code = creatChildTableIfNotExists(taos, cTableName, sTableName, sTableSchema->tags, tagBinds, info);
 
-  TAOS_RES* result = taos_query(taos, sql);
-  free(sql);
-
-  int32_t code = taos_errno(result);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" get child table %s tags failed. error string %s", info->id, cTableName, taos_errstr(result));
-    goto cleanup;
-  }
-
-  // check tag value and set tag values if different
-  TAOS_ROW row = taos_fetch_row(result);
-  if (row != NULL) {
-    int numFields = taos_field_count(result);
-    TAOS_FIELD* fields = taos_fetch_fields(result);
-    int* lengths = taos_fetch_lengths(result);
-    for (int i = 1; i < numFields; ++i) {
-      uint8_t dbType = fields[i].type;
-      int32_t length = lengths[i];
-      char* val = row[i];
-
-      TAOS_SML_KV* tagKV = tagKVs[notNullTagsIndices[i-1]];
-      if (tagKV->type != dbType) {
-        tscError("SML:0x%"PRIx64" child table %s tag %s type mismatch. point type : %d, db type : %d",
-                 info->id, cTableName, tagKV->key, tagKV->type, dbType);
-        return TSDB_CODE_TSC_INVALID_VALUE;
-      }
-
-      assert(tagKV->value);
-
-      if (val == NULL || length != tagKV->length || memcmp(tagKV->value, val, length) != 0) {
-        TAOS_BIND* bind = taosArrayGet(tagBinds, tagKV->fieldSchemaIdx);
-        code = changeChildTableTagValue(taos, cTableName, tagKV->key, bind, info);
-        if (code != 0) {
-          tscError("SML:0x%"PRIx64" change child table tag failed. table name %s, tag %s", info->id, cTableName, tagKV->key);
-          goto cleanup;
-        }
-      }
-    }
-    tscDebug("SML:0x%"PRIx64" successfully applied point tags. child table: %s", info->id, cTableName);
-  } else {
-    code = creatChildTableIfNotExists(taos, cTableName, sTableName, sTableSchema->tags, tagBinds, info);
-    if (code != 0) {
-      goto cleanup;
-    }
-  }
-
-cleanup:
-  taos_free_result(result);
   for (int i = 0; i < taosArrayGetSize(tagBinds); ++i) {
     TAOS_BIND* bind = taosArrayGet(tagBinds, i);
     free(bind->length);
@@ -939,13 +963,14 @@ cleanup:
 }
 
 static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema, char* cTableName,
-                                     SArray* cTablePoints, SSmlLinesInfo* info) {
+                                     SArray* cTablePoints, size_t rowSize, SSmlLinesInfo* info) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   size_t numCols = taosArrayGetSize(sTableSchema->fields);
   size_t rows = taosArrayGetSize(cTablePoints);
   SArray* rowsBind = taosArrayInit(rows, POINTER_BYTES);
 
+  int isNullColBind = TSDB_TRUE;
   for (int i = 0; i < rows; ++i) {
     TAOS_SML_DATA_POINT* point = taosArrayGetP(cTablePoints, i);
 
@@ -956,7 +981,6 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
-    int isNullColBind = TSDB_TRUE;
     for (int j = 0; j < numCols; ++j) {
       TAOS_BIND* bind = colBinds + j;
       bind->is_null = &isNullColBind;
@@ -973,7 +997,7 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
     taosArrayPush(rowsBind, &colBinds);
   }
 
-  code = insertChildTableBatch(taos, cTableName, sTableSchema->fields, rowsBind, info);
+  code = insertChildTableBatch(taos, cTableName, sTableSchema->fields, rowsBind, rowSize, info);
   if (code != 0) {
     tscError("SML:0x%"PRIx64" insert into child table %s failed. error %s", info->id, cTableName, tstrerror(code));
   }
@@ -1000,7 +1024,6 @@ static int32_t applyDataPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t 
   while (pCTablePoints) {
     SArray* cTablePoints = *pCTablePoints;
 
-
     TAOS_SML_DATA_POINT* point = taosArrayGetP(cTablePoints, 0);
     SSmlSTableSchema*    sTableSchema = taosArrayGet(stableSchemas, point->schemaIdx);
 
@@ -1011,10 +1034,17 @@ static int32_t applyDataPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t 
       goto cleanup;
     }
 
-    tscDebug("SML:0x%"PRIx64" apply child table points. child table: %s", info->id, point->childTableName);
-    code = applyChildTableFields(taos, sTableSchema, point->childTableName, cTablePoints, info);
+    size_t rowSize = 0;
+    size_t numCols = taosArrayGetSize(sTableSchema->fields);
+    for (int i = 0; i < numCols; ++i) {
+      SSchema* colSchema = taosArrayGet(sTableSchema->fields, i);
+      rowSize += colSchema->bytes;
+    }
+
+    tscDebug("SML:0x%"PRIx64" apply child table points. child table: %s, row size: %zu", info->id, point->childTableName, rowSize);
+    code = applyChildTableFields(taos, sTableSchema, point->childTableName, cTablePoints, rowSize, info);
     if (code != 0) {
-      tscError("Apply child table fields failed. child table %s, error %s", point->childTableName, tstrerror(code));
+      tscError("SML:0x%"PRIx64" Apply child table fields failed. child table %s, error %s", info->id, point->childTableName, tstrerror(code));
       goto cleanup;
     }
 
@@ -1034,7 +1064,7 @@ cleanup:
   return code;
 }
 
-int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info) {
+int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info) {
   tscDebug("SML:0x%"PRIx64" taos_sml_insert. number of points: %d", info->id, numPoint);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1067,6 +1097,14 @@ clean_up:
     taosArrayDestroy(schema->tags);
   }
   taosArrayDestroy(stableSchemas);
+  return code;
+}
+
+int tsc_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
+  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
+  info->id = genLinesSmlId();
+  int code = tscSmlInsert(taos, points, numPoint, info);
+  free(info);
   return code;
 }
 
@@ -1120,7 +1158,7 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-static bool isValidInteger(char *str) {
+bool isValidInteger(char *str) {
   char *c = str;
   if (*c != '+' && *c != '-' && !isdigit(*c)) {
     return false;
@@ -1135,7 +1173,7 @@ static bool isValidInteger(char *str) {
   return true;
 }
 
-static bool isValidFloat(char *str) {
+bool isValidFloat(char *str) {
   char *c = str;
   uint8_t has_dot, has_exp, has_sign;
   has_dot = 0;
@@ -1191,11 +1229,27 @@ static bool isValidFloat(char *str) {
   return true;
 }
 
+static bool isInteger(char *pVal, uint16_t len, bool *has_sign) {
+  if (len <= 1) {
+    return false;
+  }
+  if (pVal[len - 1] == 'i') {
+    *has_sign = true;
+    return true;
+  }
+  if (pVal[len - 1] == 'u') {
+    *has_sign = false;
+    return true;
+  }
+
+  return false;
+}
+
 static bool isTinyInt(char *pVal, uint16_t len) {
   if (len <= 2) {
     return false;
   }
-  if (!strcmp(&pVal[len - 2], "i8")) {
+  if (!strcasecmp(&pVal[len - 2], "i8")) {
     //printf("Type is int8(%s)\n", pVal);
     return true;
   }
@@ -1209,7 +1263,7 @@ static bool isTinyUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (!strcmp(&pVal[len - 2], "u8")) {
+  if (!strcasecmp(&pVal[len - 2], "u8")) {
     //printf("Type is uint8(%s)\n", pVal);
     return true;
   }
@@ -1220,7 +1274,7 @@ static bool isSmallInt(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (!strcmp(&pVal[len - 3], "i16")) {
+  if (!strcasecmp(&pVal[len - 3], "i16")) {
     //printf("Type is int16(%s)\n", pVal);
     return true;
   }
@@ -1234,7 +1288,7 @@ static bool isSmallUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "u16") == 0) {
+  if (strcasecmp(&pVal[len - 3], "u16") == 0) {
     //printf("Type is uint16(%s)\n", pVal);
     return true;
   }
@@ -1245,7 +1299,7 @@ static bool isInt(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "i32") == 0) {
+  if (strcasecmp(&pVal[len - 3], "i32") == 0) {
     //printf("Type is int32(%s)\n", pVal);
     return true;
   }
@@ -1259,7 +1313,7 @@ static bool isUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "u32") == 0) {
+  if (strcasecmp(&pVal[len - 3], "u32") == 0) {
     //printf("Type is uint32(%s)\n", pVal);
     return true;
   }
@@ -1270,7 +1324,7 @@ static bool isBigInt(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "i64") == 0) {
+  if (strcasecmp(&pVal[len - 3], "i64") == 0) {
     //printf("Type is int64(%s)\n", pVal);
     return true;
   }
@@ -1284,7 +1338,7 @@ static bool isBigUint(char *pVal, uint16_t len) {
   if (pVal[0] == '-') {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "u64") == 0) {
+  if (strcasecmp(&pVal[len - 3], "u64") == 0) {
     //printf("Type is uint64(%s)\n", pVal);
     return true;
   }
@@ -1295,7 +1349,7 @@ static bool isFloat(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "f32") == 0) {
+  if (strcasecmp(&pVal[len - 3], "f32") == 0) {
     //printf("Type is float(%s)\n", pVal);
     return true;
   }
@@ -1306,7 +1360,7 @@ static bool isDouble(char *pVal, uint16_t len) {
   if (len <= 3) {
     return false;
   }
-  if (strcmp(&pVal[len - 3], "f64") == 0) {
+  if (strcasecmp(&pVal[len - 3], "f64") == 0) {
     //printf("Type is double(%s)\n", pVal);
     return true;
   }
@@ -1314,34 +1368,24 @@ static bool isDouble(char *pVal, uint16_t len) {
 }
 
 static bool isBool(char *pVal, uint16_t len, bool *bVal) {
-  if ((len == 1) &&
-      (pVal[len - 1] == 't' ||
-       pVal[len - 1] == 'T')) {
+  if ((len == 1) && !strcasecmp(&pVal[len - 1], "t")) {
     //printf("Type is bool(%c)\n", pVal[len - 1]);
     *bVal = true;
     return true;
   }
 
-  if ((len == 1) &&
-      (pVal[len - 1] == 'f' ||
-       pVal[len - 1] == 'F')) {
+  if ((len == 1) && !strcasecmp(&pVal[len - 1], "f")) {
     //printf("Type is bool(%c)\n", pVal[len - 1]);
     *bVal = false;
     return true;
   }
 
-  if((len == 4) &&
-     (!strcmp(&pVal[len - 4], "true") ||
-      !strcmp(&pVal[len - 4], "True") ||
-      !strcmp(&pVal[len - 4], "TRUE"))) {
+  if((len == 4) && !strcasecmp(&pVal[len - 4], "true")) {
     //printf("Type is bool(%s)\n", &pVal[len - 4]);
     *bVal = true;
     return true;
   }
-  if((len == 5) &&
-     (!strcmp(&pVal[len - 5], "false") ||
-      !strcmp(&pVal[len - 5], "False") ||
-      !strcmp(&pVal[len - 5], "FALSE"))) {
+  if((len == 5) && !strcasecmp(&pVal[len - 5], "false")) {
     //printf("Type is bool(%s)\n", &pVal[len - 5]);
     *bVal = false;
     return true;
@@ -1367,31 +1411,42 @@ static bool isNchar(char *pVal, uint16_t len) {
   if (len < 3) {
     return false;
   }
-  if (pVal[0] == 'L' && pVal[1] == '"' && pVal[len - 1] == '"') {
+  if ((pVal[0] == 'l' || pVal[0] == 'L')&& pVal[1] == '"' && pVal[len - 1] == '"') {
     //printf("Type is nchar(%s)\n", pVal);
     return true;
   }
   return false;
 }
 
-static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType) {
+static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSmlLinesInfo* info) {
   if (len == 0) {
     return true;
   }
   if ((len == 1) && pVal[0] == '0') {
     *tsType = SML_TIME_STAMP_NOW;
-    //printf("Type is timestamp(%s)\n", pVal);
     return true;
   }
-  if (len < 2) {
-    return false;
-  }
-  //No appendix use usec as default
+
+  //Default no appendix
   if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
-    *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-    //printf("Type is timestamp(%s)\n", pVal);
+    if (info->protocol == SML_LINE_PROTOCOL) {
+      if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
+        *tsType = info->tsType;
+      } else {
+        *tsType = SML_TIME_STAMP_NANO_SECONDS;
+      }
+    } else if (info->protocol == SML_TELNET_PROTOCOL) {
+      if (len == SML_TIMESTAMP_SECOND_DIGITS) {
+        *tsType = SML_TIME_STAMP_SECONDS;
+      } else if (len == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
+        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+      } else {
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
+    }
     return true;
   }
+
   if (pVal[len - 1] == 's') {
     switch (pVal[len - 2]) {
       case 'm':
@@ -1417,7 +1472,7 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType) {
   return false;
 }
 
-static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str, SSmlLinesInfo* info) {
+static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info) {
   errno = 0;
   uint8_t type = pVal->type;
   int16_t length = pVal->length;
@@ -1425,6 +1480,7 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str, SSmlLinesInfo* info)
   uint64_t val_u;
   double val_d;
 
+  strntolower_s(str, str, (int32_t)strlen(str));
   if (IS_FLOAT_TYPE(type)) {
     val_d = strtod(str, NULL);
   } else {
@@ -1517,13 +1573,32 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str, SSmlLinesInfo* info)
   return true;
 }
 //len does not include '\0' from value.
-static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
-                                uint16_t len, SSmlLinesInfo* info) {
+bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
+                         uint16_t len, SSmlLinesInfo* info, bool isTag) {
   if (len <= 0) {
     return false;
   }
 
+  //convert tags value to Nchar
+  if (isTag) {
+    pVal->type = TSDB_DATA_TYPE_NCHAR;
+    pVal->length = len;
+    pVal->value = calloc(pVal->length, 1);
+    memcpy(pVal->value, value, pVal->length);
+    return true;
+  }
+
   //integer number
+  bool has_sign;
+  if (isInteger(value, len, &has_sign)) {
+    pVal->type = has_sign ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_UBIGINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    value[len - 1] = '\0';
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value, info)) {
+      return false;
+    }
+    return true;
+  }
   if (isTinyInt(value, len)) {
     pVal->type = TSDB_DATA_TYPE_TINYINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
@@ -1642,9 +1717,10 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     memcpy(pVal->value, &bVal, pVal->length);
     return true;
   }
-  //Handle default(no appendix) as float
+
+  //Handle default(no appendix) type as DOUBLE
   if (isValidInteger(value) || isValidFloat(value)) {
-    pVal->type = TSDB_DATA_TYPE_FLOAT;
+    pVal->type = TSDB_DATA_TYPE_DOUBLE;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     if (!convertStrToNumber(pVal, value, info)) {
       return false;
@@ -1655,20 +1731,18 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
 }
 
 static int32_t getTimeStampValue(char *value, uint16_t len,
-                                 SMLTimeStampType type, int64_t *ts) {
+                                 SMLTimeStampType type, int64_t *ts, SSmlLinesInfo* info) {
 
   if (len >= 2) {
     for (int i = 0; i < len - 2; ++i) {
       if(!isdigit(value[i])) {
-        return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
     }
   }
+
   //No appendix or no timestamp given (len = 0)
-  if (len >= 1 && isdigit(value[len - 1]) && type != SML_TIME_STAMP_NOW) {
-    type = SML_TIME_STAMP_MICRO_SECONDS;
-  }
-  if (len != 0) {
+  if (len != 0 && type != SML_TIME_STAMP_NOW) {
     *ts = (int64_t)strtoll(value, NULL, 10);
   } else {
     type = SML_TIME_STAMP_NOW;
@@ -1676,6 +1750,14 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
   switch (type) {
     case SML_TIME_STAMP_NOW: {
       *ts = taosGetTimestampNs();
+      break;
+    }
+    case SML_TIME_STAMP_HOURS: {
+      *ts = (int64_t)(*ts * 3600 * 1e9);
+      break;
+    }
+    case SML_TIME_STAMP_MINUTES: {
+      *ts = (int64_t)(*ts * 60 * 1e9);
       break;
     }
     case SML_TIME_STAMP_SECONDS: {
@@ -1695,23 +1777,24 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
       break;
     }
     default: {
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
-                                   uint16_t len, SSmlLinesInfo* info) {
+int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
+                            uint16_t len, SSmlLinesInfo* info) {
   int32_t ret;
   SMLTimeStampType type;
   int64_t tsVal;
 
-  if (!isTimeStamp(value, len, &type)) {
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  strntolower_s(value, value, len);
+  if (!isTimeStamp(value, len, &type, info)) {
+    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
   }
 
-  ret = getTimeStampValue(value, len, type, &tsVal);
+  ret = getTimeStampValue(value, len, type, &tsVal, info);
   if (ret) {
     return ret;
   }
@@ -1757,7 +1840,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index, SSmlLine
   return ret;
 }
 
-static bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
+bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   char *val = NULL;
   char *cur = key;
   char keyLower[TSDB_COL_NAME_LEN];
@@ -1792,9 +1875,9 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
-    if (len > TSDB_COL_NAME_LEN) {
-      tscError("SML:0x%"PRIx64" Key field cannot exceeds 65 characters", info->id);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    if (len >= TSDB_COL_NAME_LEN - 1) {
+      tscError("SML:0x%"PRIx64" Key field cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     //unescaped '=' identifies a tag key
     if (*cur == '=' && *(cur - 1) != '\\') {
@@ -1807,6 +1890,9 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     key[len] = *cur;
     cur++;
     len++;
+  }
+  if (len == 0) {
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   key[len] = '\0';
 
@@ -1822,8 +1908,8 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 }
 
 
-static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
-                          bool *is_last_kv, SSmlLinesInfo* info) {
+static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
+                          bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
   char *value = NULL;
   uint16_t len = 0;
@@ -1834,7 +1920,12 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     if ((*cur == ',' || *cur == ' ' || *cur == '\0') && *(cur - 1) != '\\') {
       //unescaped ' ' or '\0' indicates end of value
       *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
-      break;
+      if (*cur == ' ' && *(cur + 1) == ' ') {
+        cur++;
+        continue;
+      } else {
+        break;
+      }
     }
     //Escape special character
     if (*cur == '\\') {
@@ -1843,18 +1934,23 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     cur++;
     len++;
   }
+  if (len == 0) {
+    free(pKV->key);
+    pKV->key = NULL;
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  }
 
   value = calloc(len + 1, 1);
   memcpy(value, start, len);
   value[len] = '\0';
-  if (!convertSmlValueType(pKV, value, len, info)) {
+  if (!convertSmlValueType(pKV, value, len, info, isTag)) {
     tscError("SML:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
     //free previous alocated key field
     free(pKV->key);
     pKV->key = NULL;
     free(value);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
   free(value);
 
@@ -1879,11 +1975,11 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   }
 
   while (*cur != '\0') {
-    if (len > TSDB_TABLE_NAME_LEN) {
-      tscError("SML:0x%"PRIx64" Measurement field cannot exceeds 193 characters", info->id);
+    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+      tscError("SML:0x%"PRIx64" Measurement field cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       free(pSml->stableName);
       pSml->stableName = NULL;
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     }
     //first unescaped comma or space identifies measurement
     //if space detected first, meaning no tag in the input
@@ -1892,15 +1988,26 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
       break;
     }
     if (*cur == ' ' && *(cur - 1) != '\\') {
-      break;
+      if (*(cur + 1) != ' ') {
+        break;
+      }
+      else {
+        cur++;
+        continue;
+      }
     }
     //Comma, Space, Backslash needs to be escaped if any
     if (*cur == '\\') {
       escapeSpecialCharacter(1, &cur);
     }
-    pSml->stableName[len] = *cur;
+    pSml->stableName[len] = tolower(*cur);
     cur++;
     len++;
+  }
+  if (len == 0) {
+    free(pSml->stableName);
+    pSml->stableName = NULL;
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   pSml->stableName[len] = '\0';
   *index = cur + 1;
@@ -1910,7 +2017,11 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 }
 
 //Table name can only contain digits(0-9),alphebet(a-z),underscore(_)
-static int32_t isValidChildTableName(const char *pTbName, int16_t len) {
+int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* info) {
+  if (len > TSDB_TABLE_NAME_LEN - 1) {
+    tscError("SML:0x%"PRIx64" child table name cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
   const char *cur = pTbName;
   for (int i = 0; i < len; ++i) {
     if(!isdigit(cur[i]) && !isalpha(cur[i]) && (cur[i] != '_')) {
@@ -1949,19 +2060,21 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse key", info->id);
       goto error;
     }
-    ret = parseSmlValue(pkv, &cur, &is_last_kv, info);
+    ret = parseSmlValue(pkv, &cur, &is_last_kv, info, !isField);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField &&
-        (strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
-      ret = isValidChildTableName(pkv->value, pkv->length);
+    if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
+      ret = isValidChildTableName(pkv->value, pkv->length, info);
       if (ret) {
+        free(pkv->key);
+        free(pkv->value);
         goto error;
       }
       smlData->childTableName = malloc( pkv->length + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
+      strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
       smlData->childTableName[pkv->length] = '\0';
       free(pkv->key);
       free(pkv->value);
@@ -2076,18 +2189,6 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
 
 //=========================================================================
 
-static uint64_t linesSmlHandleId = 0;
-
-uint64_t genLinesSmlId() {
-  uint64_t id;
-
-  do {
-    id = atomic_add_fetch_64(&linesSmlHandleId, 1);
-  } while (id == 0);
-
-  return id;
-}
-
 void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
   for (int i=0; i<point->tagNum; ++i) {
     free((point->tags+i)->key);
@@ -2110,24 +2211,27 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
     if (code != TSDB_CODE_SUCCESS) {
       tscError("SML:0x%"PRIx64" data point line parse failed. line %d : %s", info->id, i, lines[i]);
       destroySmlDataPoint(&point);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      return code;
     } else {
       tscDebug("SML:0x%"PRIx64" data point line parse success. line %d", info->id, i);
     }
 
     taosArrayPush(points, &point);
   }
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
+int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
   int32_t code = 0;
 
-  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
+  SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genLinesSmlId();
+  info->tsType = tsType;
+  info->protocol = protocol;
 
   if (numLines <= 0 || numLines > 65536) {
     tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
+    tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
@@ -2135,7 +2239,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   for (int i = 0; i < numLines; ++i) {
     if (lines[i] == NULL) {
       tscError("SML:0x%"PRIx64" taos_insert_lines line %d is NULL", info->id, i);
-      free(info);
+      tfree(info);
       code = TSDB_CODE_TSC_APP_ERROR;
       return code;
     }
@@ -2144,7 +2248,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
   if (lpPoints == NULL) {
     tscError("SML:0x%"PRIx64" taos_insert_lines failed to allocate memory", info->id);
-    free(info);
+    tfree(info);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -2157,7 +2261,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   }
 
   TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
-  code = taos_sml_insert(taos, points, (int)numPoints, info);
+  code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_sml_insert error: %s", info->id, tstrerror((code)));
   }
@@ -2172,7 +2276,102 @@ cleanup:
 
   taosArrayDestroy(lpPoints);
 
-  free(info);
+  tfree(info);
   return code;
 }
 
+int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
+  if (precision == NULL) {
+    *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(precision, "μ") == 0) {
+    *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t len = (int32_t)strlen(precision);
+  if (len == 1) {
+    switch (precision[0]) {
+      case 'u':
+        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+        break;
+      case 's':
+        *tsType = SML_TIME_STAMP_SECONDS;
+        break;
+      case 'm':
+        *tsType = SML_TIME_STAMP_MINUTES;
+        break;
+      case 'h':
+        *tsType = SML_TIME_STAMP_HOURS;
+        break;
+      default:
+        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
+    }
+  } else if (len == 2 && precision[1] == 's') {
+    switch (precision[0]) {
+      case 'm':
+        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+        break;
+      case 'n':
+        *tsType = SML_TIME_STAMP_NANO_SECONDS;
+        break;
+      default:
+        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
+    }
+  } else {
+    return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * taos_schemaless_insert() parse and insert data points into database according to
+ * different protocol.
+ *
+ * @param $lines input array may contain multiple lines, each line indicates a data point.
+ *               If protocol=2 is used input array should contain single JSON
+ *               string(e.g. char *lines[] = {"$JSON_string"}). If need to insert
+ *               multiple data points in JSON format, should include them in $JSON_string
+ *               as a JSON array.
+ * @param $numLines indicates how many data points in $lines.
+ *                  If protocol = 2 is used this param will be ignored as $lines should
+ *                  contain single JSON string.
+ * @param $protocol indicates which protocol to use for parsing:
+ *                  0 - influxDB line protocol
+ *                  1 - OpenTSDB telnet line protocol
+ *                  2 - OpenTSDB JSON format protocol
+ * @return return zero for successful insertion. Otherwise return none-zero error code of
+ *         failure reason.
+ *
+ */
+
+int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* timePrecision) {
+  int code;
+  SMLTimeStampType tsType;
+
+  if (protocol == SML_LINE_PROTOCOL) {
+    code = convertPrecisionStrType(timePrecision, &tsType);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  switch (protocol) {
+    case SML_LINE_PROTOCOL:
+      code = taos_insert_lines(taos, lines, numLines, protocol, tsType);
+      break;
+    case SML_TELNET_PROTOCOL:
+      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType);
+      break;
+    case SML_JSON_PROTOCOL:
+      code = taos_insert_json_payload(taos, *lines, protocol, tsType);
+      break;
+    default:
+      code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
+      break;
+  }
+
+  return code;
+}

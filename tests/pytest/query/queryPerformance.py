@@ -17,6 +17,7 @@ import os
 import taos
 import time
 import argparse
+import json
 
 
 class taosdemoQueryPerformace:
@@ -31,7 +32,7 @@ class taosdemoQueryPerformace:
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
-        self.config = "/etc/taosperf"
+        self.config = "/etc/perf"
         self.conn = taos.connect(
             self.host,
             self.user,
@@ -48,7 +49,7 @@ class taosdemoQueryPerformace:
         cursor2 = self.conn2.cursor()
         cursor2.execute("create database if not exists %s" % self.dbName)
         cursor2.execute("use %s" % self.dbName)
-        cursor2.execute("create table if not exists %s(ts timestamp, query_time float, commit_id binary(50), branch binary(50), type binary(20)) tags(query_id int, query_sql binary(300))" % self.stbName)
+        cursor2.execute("create table if not exists %s(ts timestamp, query_time_avg float, query_time_max float, query_time_min float, commit_id binary(50), branch binary(50), type binary(20)) tags(query_id int, query_sql binary(300))" % self.stbName)
 
         sql = "select count(*) from test.meters"
         tableid = 1
@@ -74,7 +75,7 @@ class taosdemoQueryPerformace:
         tableid = 6
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
-        sql = "select * from meters"
+        sql = "select * from meters limit 10000"
         tableid = 7
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
         
@@ -87,37 +88,96 @@ class taosdemoQueryPerformace:
         cursor2.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
 
         cursor2.close()
+    
+    def generateQueryJson(self):
+        
+        sqls = []
+        cursor2 = self.conn2.cursor()
+        cursor2.execute("select query_id, query_sql from %s.%s" % (self.dbName, self.stbName))
+        i = 0
+        for data in cursor2:
+            sql = {
+                "sql": data[1],
+                "result_mode": "onlyformat",
+                "result_file": "./query_sql_res%d.txt" % i
+            }
+            sqls.append(sql)
+            i += 1
+
+        query_data = {
+            "filetype": "query",
+            "cfgdir": "/etc/perf",
+            "host": "127.0.0.1",
+            "port": 6030,
+            "user": "root",
+            "password": "taosdata",
+            "databases": "test",
+            "specified_table_query": {
+                "query_times": 100,
+                "concurrent": 1,
+                "sqls": sqls
+            }
+        }        
+
+        query_json_file = f"/tmp/query.json"
+
+        with open(query_json_file, 'w') as f:
+            json.dump(query_data, f)
+        return query_json_file
+
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosdemo" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root) - len("/build/bin")]
+                    break
+        return buildPath
+    
+    def getCMDOutput(self, cmd):
+        cmd = os.popen(cmd)
+        output = cmd.read()
+        cmd.close()
+        return output
 
     def query(self): 
-        cursor = self.conn.cursor() 
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            print("taosdemo not found!")
+            sys.exit(1)
+            
+        binPath = buildPath + "/build/bin/"
+        os.system(
+            "%sperfMonitor -f %s > query_res.txt" %
+            (binPath, self.generateQueryJson()))
+
+        cursor = self.conn2.cursor() 
         print("==================== query performance ====================")
-
         cursor.execute("use %s" % self.dbName)
-        cursor.execute("select tbname, query_id, query_sql from %s" % self.stbName)      
+        cursor.execute("select tbname, query_sql from %s" % self.stbName)      
 
+        i = 0
         for data in cursor:
             table_name = data[0]
-            query_id = data[1]
-            sql = data[2]            
-            
-            totalTime = 0            
-            cursor2 = self.conn.cursor()
-            cursor2.execute("use test")
-            for i in range(100):       
-                if(self.clearCache == True):
-                    # root permission is required
-                    os.system("echo 3 > /proc/sys/vm/drop_caches")                
-                
-                startTime = time.time()      
-                cursor2.execute(sql)
-                totalTime += time.time() - startTime
-            cursor2.close()
-            print("query time for: %s %f seconds" % (sql, totalTime / 100))
-                        
-            cursor3 = self.conn2.cursor()
-            cursor3.execute("insert into %s.%s values(now, %f, '%s', '%s', '%s')" % (self.dbName, table_name, totalTime / 100, self.commitID, self.branch, self.type))
+            sql = data[1]
 
-        cursor3.close()
+            self.avgDelay = self.getCMDOutput("grep 'avgDelay' query_res.txt | awk 'NR==%d{print $2}'" % (i + 1))
+            self.maxDelay = self.getCMDOutput("grep 'avgDelay' query_res.txt | awk 'NR==%d{print $5}'" % (i + 1))
+            self.minDelay = self.getCMDOutput("grep 'avgDelay' query_res.txt | awk 'NR==%d{print $8}'" % (i + 1))
+            i += 1
+            
+            print("query time for: %s %f seconds" % (sql, float(self.avgDelay)))
+            c = self.conn2.cursor()
+            c.execute("insert into %s.%s values(now, %f, %f, %f, '%s', '%s', '%s')" % (self.dbName, table_name, float(self.avgDelay), float(self.maxDelay), float(self.minDelay), self.commitID, self.branch, self.type))            
+            
+        c.close()    
         cursor.close()
 
 if __name__ == '__main__':

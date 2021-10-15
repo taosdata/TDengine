@@ -99,17 +99,22 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     STsdbBufPool *pBufPool = pRepo->pPool;
 
     SListNode *pNode = NULL;
-    bool recycleBlocks = pBufPool->nRecycleBlocks > 0;
+    bool addNew = false;
     if (tsdbLockRepo(pRepo) < 0) return -1;
     while ((pNode = tdListPopHead(pMemTable->bufBlockList)) != NULL) {
       if (pBufPool->nRecycleBlocks > 0) {
-        tsdbRecycleBufferBlock(pBufPool, pNode);
+        tsdbRecycleBufferBlock(pBufPool, pNode, false);
         pBufPool->nRecycleBlocks -= 1;
       } else {
-        tdListAppendNode(pBufPool->bufBlockList, pNode);
+        if(pBufPool->nElasticBlocks > 0 && listNEles(pBufPool->bufBlockList) > 2) {
+          tsdbRecycleBufferBlock(pBufPool, pNode, true);
+        } else {
+          tdListAppendNode(pBufPool->bufBlockList, pNode);
+          addNew = true;
+        }
       }      
     }
-    if (!recycleBlocks) {
+    if (addNew) {
       int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
       if (code != 0) {
         if (tsdbUnlockRepo(pRepo) < 0) return -1;
@@ -582,7 +587,7 @@ static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
 static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row) {
   if (pCols) {
     if (*ppSchema == NULL || schemaVersion(*ppSchema) != memRowVersion(row)) {
-      *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row));
+      *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row), (int8_t)memRowType(row));
       if (*ppSchema == NULL) {
         ASSERT(false);
         return -1;
@@ -702,11 +707,12 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
 }
 
 //row1 has higher priority
-static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* pAffectedRows, int64_t* pPoints, SMemRow* pLastRow) {
+static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo,
+                                     STSchema **ppSchema1, STSchema **ppSchema2,
+                                     STable* pTable, int32_t* pPoints, SMemRow* pLastRow) {
   
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
-    (*pAffectedRows)++;
     (*pPoints)++;
     return NULL;
   }
@@ -715,7 +721,6 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     void* pMem = tsdbAllocBytes(pRepo, memRowTLen(row1));
     if(pMem == NULL) return NULL;
     memRowCpy(pMem, row1);
-    (*pAffectedRows)++;
     (*pPoints)++;
     *pLastRow = pMem;
     return pMem;
@@ -730,7 +735,7 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     if(pSchema2 != NULL && schemaVersion(pSchema2) == dv1) {
       *ppSchema1 = pSchema2;
     } else {
-      *ppSchema1 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row1));
+      *ppSchema1 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row1), (int8_t)memRowType(row1));
     }
     pSchema1 = *ppSchema1;
   }
@@ -739,7 +744,7 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     if(schemaVersion(pSchema1) == dv2) {
       pSchema2 = pSchema1;
     } else {
-      *ppSchema2 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row2));
+      *ppSchema2 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row2), (int8_t)memRowType(row2));
       pSchema2 = *ppSchema2;
     }
   }
@@ -750,18 +755,16 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
   if(pMem == NULL) return NULL;
   memRowCpy(pMem, tmp);
 
-  (*pAffectedRows)++;
   (*pPoints)++;
-
   *pLastRow = pMem;
   return pMem;
 }
 
 static void* tsdbInsertDupKeyMergePacked(void** args) {
-  return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7], args[8]);
+  return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7]);
 }
 
-static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pAffectedRows, int64_t* pPoints, SMemRow* pLastRow) {
+static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pPoints, SMemRow* pLastRow) {
 
   if(pSkipList->insertHandleFn == NULL) {
     tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 9);
@@ -769,17 +772,16 @@ static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STa
     dupHandleSavedFunc->args[3] = NULL;
     dupHandleSavedFunc->args[4] = NULL;
     dupHandleSavedFunc->args[5] = pTable;
-    dupHandleSavedFunc->args[6] = pAffectedRows;
-    dupHandleSavedFunc->args[7] = pPoints;
-    dupHandleSavedFunc->args[8] = pLastRow;
     pSkipList->insertHandleFn = dupHandleSavedFunc;
   }
+  pSkipList->insertHandleFn->args[6] = pPoints;
+  pSkipList->insertHandleFn->args[7] = pLastRow;
 }
 
 static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *pAffectedRows) {
 
   STsdbMeta       *pMeta = pRepo->tsdbMeta;
-  int64_t          points = 0;
+  int32_t          points = 0;
   STable          *pTable = NULL;
   SSubmitBlkIter   blkIter = {0};
   SMemTable       *pMemTable = NULL;
@@ -830,9 +832,10 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
 
   SMemRow lastRow = NULL;
   int64_t osize = SL_SIZE(pTableData->pData);
-  tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, pAffectedRows, &points, &lastRow);
+  tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow);
   tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
+  (*pAffectedRows) += points;
 
 
   if(lastRow != NULL) {
@@ -849,7 +852,7 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
     }
   }
 
-  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
+  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion, -1);
   pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
   pRepo->stat.totalStorage += points * schemaVLen(pSchema);
 
@@ -896,7 +899,7 @@ static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
 static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable) {
   ASSERT(pTable != NULL);
 
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
   int       sversion = schemaVersion(pSchema);
 
   if (pBlock->sversion == sversion) {
@@ -953,7 +956,7 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
     }
   } else {
     ASSERT(pBlock->sversion >= 0);
-    if (tsdbGetTableSchemaImpl(pTable, false, false, pBlock->sversion) == NULL) {
+    if (tsdbGetTableSchemaImpl(pTable, false, false, pBlock->sversion, -1) == NULL) {
       tsdbError("vgId:%d invalid submit schema version %d to table %s tid %d from client", REPO_ID(pRepo),
                 pBlock->sversion, TABLE_CHAR_NAME(pTable), TABLE_TID(pTable));
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
@@ -974,7 +977,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     return;
   }
 
-  pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row));
+  pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row), (int8_t)memRowType(row));
   if (pSchema == NULL) {
     return;
   }

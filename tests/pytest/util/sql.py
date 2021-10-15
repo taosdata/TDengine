@@ -1,4 +1,4 @@
-﻿###################################################################
+###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
@@ -21,7 +21,15 @@ import shutil
 import pandas as pd
 from util.log import *
 
-
+def _parse_datetime(timestr):
+    try:
+        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
+    except ValueError:
+        pass
+    try:
+        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        pass
 
 class TDSql:
     def __init__(self):
@@ -80,6 +88,22 @@ class TDSql:
         if row_tag:
             return self.queryResult
         return self.queryRows
+
+    def getVariable(self, search_attr):
+        '''
+            get variable of search_attr access "show variables"
+        '''
+        try:
+            sql = 'show variables'
+            param_list = self.query(sql, row_tag=True)
+            for param in param_list:
+                if param[0] == search_attr:
+                    return param[1], param_list
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
 
     def getColNameList(self, sql, col_tag=None):
         self.sql = sql
@@ -160,12 +184,16 @@ class TDSql:
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
                 # suppose user want to check nanosecond timestamp if a longer data passed
-                if (len(data) >= 28):
+                if isinstance(data, int) or isinstance(data, float):
+                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
+                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
+                            (self.sql, row, col, self.queryResult[row][col], data))
+                elif (len(data) >= 28):
                     if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
                         tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 else:
-                    if self.queryResult[row][col] == datetime.datetime.fromisoformat(data):
+                    if self.queryResult[row][col] == _parse_datetime(data):
                         tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return
@@ -198,6 +226,43 @@ class TDSql:
         else:
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
                        (self.sql, row, col, self.queryResult[row][col], data))
+
+    def checkDeviaRation(self, row, col, data, deviation=0.001):
+        self.checkRowCol(row, col)
+        if data is None:
+            self.checkData(row, col, None)
+            return
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        if data is not None and len(self.queryResult)==0:
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, data:{data}, "
+                       f"expect result is not None but it is")
+        args = (
+            caller.filename, caller.lineno, self.sql, data, type(data),
+            deviation, type(deviation), self.queryResult[row][col], type(self.queryResult[row][col])
+        )
+
+        if not(isinstance(data,int) or isinstance(data, float)):
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, data:{args[3]}, "
+                       f"expect type: int or float, actual type: {args[4]}")
+        if not(isinstance(deviation,int) or isinstance(deviation, float)) or  type(data)==type(True):
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, deviation:{args[5]}, "
+                       f"expect type: int or float, actual type: {args[6]}")
+        if not(isinstance(self.queryResult[row][col], int) or isinstance(self.queryResult[row][col], float)):
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, result:{args[7]}, "
+                       f"expect type: int or float, actual type: {args[8]}")
+
+        if data == 0:
+            devia = abs(self.queryResult[row][col])
+        else:
+            devia = abs((data - self.queryResult[row][col])/data)
+        if devia <= deviation:
+            tdLog.info(f"sql:{args[2]}, row:{row}, col:{col}, result data:{args[7]}, expect data:{args[3]}, "
+                       f"actual deviation:{devia} <= expect deviation:{args[5]}")
+        else:
+            tdLog.exit(f"{args[0]}({args[1]}) failed: sql:{args[2]}, row:{row}, col:{col}, "
+                       f"result data:{args[7]}, expect data:{args[3]},"
+                       f"actual deviation:{devia} > expect deviation:{args[5]}")
+        pass
 
     def getData(self, row, col):
         self.checkRowCol(row, col)

@@ -113,7 +113,7 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
 
     pQueryInfo->command = TSDB_SQL_SELECT;
 
-    pSql->fp = tscProcessStreamQueryCallback;
+    pSql->fp      = tscProcessStreamQueryCallback;
     pSql->fetchFp = tscProcessStreamQueryCallback;
     executeQuery(pSql, pQueryInfo);
     tscIncStreamExecutionCount(pStream);
@@ -142,6 +142,7 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
   if(pSql == NULL) {
     return ;
   }
+
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   tscDebug("0x%"PRIx64" add into timer", pSql->self);
 
@@ -186,13 +187,15 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
   }
 
   // launch stream computing in a new thread
-  SSchedMsg schedMsg = { 0 };
-  schedMsg.fp = tscProcessStreamLaunchQuery;
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp      = tscProcessStreamLaunchQuery;
   schedMsg.ahandle = pStream;
   schedMsg.thandle = (void *)1;
-  schedMsg.msg = NULL;
+  schedMsg.msg     = NULL;
   taosScheduleTask(tscQhandle, &schedMsg);
 }
+
+static void cbParseSql(void* param, TAOS_RES* res, int code);
 
 static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlStream *pStream = (SSqlStream *)param;
@@ -201,24 +204,26 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
     tscError("0x%"PRIx64" stream:%p, query data failed, code:0x%08x, retry in %" PRId64 "ms", pStream->pSql->self,
         pStream, numOfRows, retryDelay);
 
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0);
+    SSqlObj* pSql = pStream->pSql;
 
-    char name[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameExtractFullName(&pTableMetaInfo->name, name);
+    tscFreeSqlResult(pSql);
+    tscFreeSubobj(pSql);
+    tfree(pSql->pSubs);
+    pSql->subState.numOfSub = 0;
 
-    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    int32_t code = tsParseSql(pSql, true);
+    if (code == TSDB_CODE_SUCCESS) {
+      cbParseSql(pStream, pSql, code);
+    } else if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+      tscDebug("0x%"PRIx64" CQ taso_open_stream IN Process", pSql->self);
+    } else {
+      tscError("0x%"PRIx64" open stream failed, code:%s", pSql->self, tstrerror(code));
+      taosReleaseRef(tscObjRef, pSql->self);
+      free(pStream);
+    }
 
-    tfree(pTableMetaInfo->pTableMeta);
-
-    tscFreeSqlResult(pStream->pSql);
-    tscFreeSubobj(pStream->pSql);
-    tfree(pStream->pSql->pSubs);
-    pStream->pSql->subState.numOfSub = 0;
-
-    pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
-
-    tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
-    return;
+//    tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
+//    return;
   }
 
   taos_fetch_rows_a(tres, tscProcessStreamRetrieveResult, param);
@@ -555,7 +560,6 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
     tscError("0x%"PRIx64" open stream failed, sql:%s, reason:%s, code:%s", pSql->self, pSql->sqlstr, pCmd->payload, tstrerror(code));
-
     pStream->fp(pStream->param, NULL, NULL);
     return;
   }
@@ -582,9 +586,10 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
 
   // set stime with ltime if ltime > stime
   const char* dstTable = pStream->dstTable? pStream->dstTable: "";
-  tscDebug(" CQ table=%s ltime is %"PRId64, dstTable, pStream->ltime);
+  tscDebug("0x%"PRIx64" CQ table %s ltime is %"PRId64, pSql->self, dstTable, pStream->ltime);
+
   if(pStream->ltime != INT64_MIN && pStream->ltime > pStream->stime) {
-    tscWarn(" CQ set stream %s stime=%"PRId64" replace with ltime=%"PRId64" if ltime>0  ", dstTable, pStream->stime, pStream->ltime);
+    tscWarn("0x%"PRIx64" CQ set stream %s stime=%"PRId64" replace with ltime=%"PRId64" if ltime > 0", pSql->self, dstTable, pStream->stime, pStream->ltime);
     pStream->stime = pStream->ltime;
   }
 
@@ -592,7 +597,6 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   pCmd->command = TSDB_SQL_SELECT;
 
   tscAddIntoStreamList(pStream);
-
   taosTmrReset(tscProcessStreamTimer, (int32_t)starttime, pStream, tscTmr, &pStream->pTimer);
 
   tscDebug("0x%"PRIx64" stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql->self,
@@ -659,10 +663,9 @@ void cbParseSql(void* param, TAOS_RES* res, int code) {
   char sql[128] = "";
   sprintf(sql, "select last_row(*) from %s;", pStream->dstTable); 
   taos_query_a(pSql->pTscObj, sql, fpStreamLastRow, param);
-  return ;
 }
 
-TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const char *sqlstr, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
                               int64_t stime, void *param, void (*callback)(void *), void* cqhandle) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) return NULL;
@@ -679,6 +682,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 
   pSql->signature = pSql;
   pSql->pTscObj = pObj;
+  pSql->rootObj = pSql;
 
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
@@ -697,14 +701,12 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pStream->param = param;
   pStream->pSql = pSql;
   pStream->cqhandle = cqhandle;
-  pSql->pStream = pStream;
-  pSql->param = pStream;
-  pSql->maxRetry = TSDB_MAX_REPLICA;
   tscSetStreamDestTable(pStream, dstTable);
 
   pSql->pStream  = pStream;
   pSql->param    = pStream;
   pSql->maxRetry = TSDB_MAX_REPLICA;
+
   pSql->sqlstr   = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
@@ -725,14 +727,13 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 
   pSql->fp      = cbParseSql;
   pSql->fetchFp = cbParseSql;
-
   registerSqlObj(pSql);
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_SUCCESS) {
     cbParseSql(pStream, pSql, code);
   } else if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-     tscDebug(" CQ taso_open_stream IN Process. sql=%s", sqlstr);
+     tscDebug("0x%"PRIx64" CQ taso_open_stream IN Process", pSql->self);
   } else {
     tscError("0x%"PRIx64" open stream failed, sql:%s, code:%s", pSql->self, sqlstr, tstrerror(code));
     taosReleaseRef(tscObjRef, pSql->self);
@@ -743,7 +744,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   return pStream;
 }
 
-TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
                               int64_t stime, void *param, void (*callback)(void *)) {  
   return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback, NULL);
 }

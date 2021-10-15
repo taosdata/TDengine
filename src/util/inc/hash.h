@@ -36,13 +36,13 @@ typedef struct SHashNode {
   uint32_t          dataLen;     // length of data
   uint32_t          keyLen;      // length of the key
   int8_t            removed;     // flag to indicate removed
-  int8_t            count;       // reference count
+  int32_t           count;       // reference count
   char              data[];
 } SHashNode;
 
 #define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
-#define GET_HASH_PNODE(_n) ((char*)(_n) - sizeof(SHashNode));
+#define GET_HASH_PNODE(_n) ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
@@ -169,6 +169,10 @@ size_t taosHashGetMemSize(const SHashObj *pHashObj);
 void *taosHashIterate(SHashObj *pHashObj, void *p);
 
 void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
+
+void *taosHashGetDataKey(SHashObj *pHashObj, void *data);
+
+uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data);
 
 #ifdef __cplusplus
 }

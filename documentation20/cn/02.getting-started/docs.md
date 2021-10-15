@@ -22,7 +22,20 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
-## <a class="anchor" id="start"></a>轻松启动
+### 使用 apt-get 安装
+
+如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 从官方仓库安装，设置方法为：
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[ beta 版安装包仓库为可选安装项 ] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
+
+<a class="anchor" id="start"></a>
+## 轻松启动
 
 安装成功后，用户可使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
@@ -30,7 +43,7 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 $ systemctl start taosd
 ```
 
-检查服务是否正常工作。
+检查服务是否正常工作：
 ```bash
 $ systemctl status taosd
 ```
@@ -40,20 +53,20 @@ $ systemctl status taosd
 **注意：**  
 
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
-- 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting, 将其设为 0，就可将其关闭。
+- 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting，将其设为 0，就可将其关闭。
 - TDengine 采用 FQDN (一般就是 hostname )作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 hostname，在客户端应用运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 
-* TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
+* TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 Linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
 
   ```bash
   $ which systemctl
   ```
 
-  如果系统中不支持 systemd，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
+  如果系统中不支持 `systemd`，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
 
-  
-## <a class="anchor" id="console"></a>TDengine 命令行程序
+<a class="anchor" id="console"></a>
+## TDengine 命令行程序
 
 执行 TDengine 命令行程序，您只要在 Linux 终端执行 `taos` 即可。
 
@@ -83,14 +96,14 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine 终端检查系统运行状态，添加删除用户账号等。
+除执行 SQL 语句外，系统管理员还可以从 TDengine 终端进行检查系统运行状态、添加删除用户账号等操作。
 
-### 命令行参数
+**命令行参数**
 
 您可通过配置命令行参数来改变 TDengine 终端的行为。以下为常用的几个命令行参数：
 
-- -c, --config-dir: 指定配置文件目录，默认为 _/etc/taos_
-- -h, --host: 指定服务的 FQDN 地址（也可以使用 IP），默认为连接本地服务
+- -c, --config-dir: 指定配置文件目录，默认为 `/etc/taos`
+- -h, --host: 指定服务的 FQDN 地址或 IP 地址，默认为连接本地服务
 - -s, --commands: 在不进入终端的情况下运行 TDengine 命令
 - -u, --user: 连接 TDengine 服务器的用户名，缺省为 root
 - -p, --password: 连接TDengine服务器的密码，缺省为 taosdata
@@ -99,24 +112,25 @@ Query OK, 2 row(s) in set (0.003128s)
 示例：
 
 ```bash
-$ taos -h 192.168.0.1 -s "use db; show tables;"
+$ taos -h h1.taos.com -s "use db; show tables;"
 ```
 
-### 运行 SQL 命令脚本
+**运行 SQL 命令脚本**
 
-TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
+TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 
 ```mysql
 taos> source <filename>;
 ```
 
-### Shell 小技巧
+**Shell 小技巧**
 
 - 可以使用上下光标键查看历史输入的指令
-- 修改用户密码，在 shell 中使用 alter user 指令
+- 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
 - ctrl+c 中止正在进行中的查询
-- 执行 `RESET QUERY CACHE` 清空本地缓存的表 schema
-
+- 执行 `RESET QUERY CACHE` 可清除本地缓存的表 schema
+- 批量执行 SQL 语句。可以将一系列的 shell 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 shell 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
+- 输入 q 回车，退出 taos shell
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
 
@@ -161,9 +175,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
+## <a class="anchor" id="taosdemo"></a> taosdemo 详细功能列表
 
-**Note:** taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
-
+taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
+taosdemo 详细使用方法请参照 [如何使用taosdemo对TDengine进行性能测试？](https://www.taosdata.com/cn/documentation/getting-started/taosdemo )。
 
 ## 客户端和报警模块
 
@@ -171,7 +186,6 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 报警模块的 Linux 和 Windows 安装包请在 [所有下载链接](https://www.taosdata.com/cn/all-downloads/) 页面搜索“TDengine Alert Linux”章节或“TDengine Alert Windows”章节进行下载。使用方法请参考 [报警模块的使用方法](https://github.com/taosdata/TDengine/blob/master/alert/README_cn.md)。
 
-  
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
 ### TDengine 服务器支持的平台列表
@@ -191,8 +205,6 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
 
-
-
 ### TDengine 客户端和连接器支持的平台列表
 
 目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/Alpha 等硬件平台，以及 Linux/Win64/Win32 等开发环境。
@@ -210,7 +222,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 | **C#**      | ●               | ●         | ○         | ○               | ○         | ○         | ○                   | --                   | --                 |
 | **RESTful** | ●               | ●         | ●         | ●               | ●         | ●         | ●                   | ●                    | ●                  |
 
-注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+注：● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 请跳转到 [连接器](https://www.taosdata.com/cn/documentation/connector) 查看更详细的信息。
 

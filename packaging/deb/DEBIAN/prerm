@@ -17,7 +17,7 @@ else
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
     inc_link_dir="/usr/include"
-    
+
     data_link_dir="/usr/local/taos/data"
     log_link_dir="/usr/local/taos/log"
     cfg_link_dir="/usr/local/taos/cfg"
@@ -25,15 +25,16 @@ else
     # Remove all links
     ${csudo} rm -f ${bin_link_dir}/taos       || :
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
+    ${csudo} rm -f ${bin_link_dir}/blm3       || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
     ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :
     ${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
-    
+
     ${csudo} rm -f ${log_link_dir}            || :
     ${csudo} rm -f ${data_link_dir}           || :
-    
+
     pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
         ${csudo} kill -9 $pid   || :

@@ -27,7 +27,7 @@ class TDTestCase:
 
     def restart_taosd(self,db):
         tdDnodes.stop(1)
-        tdDnodes.startWithoutSleep(1)
+        tdDnodes.start(1)
         tdSql.execute("use %s;" % db)
 
     def date_to_timestamp_microseconds(self, date):
