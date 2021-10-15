@@ -99,7 +99,7 @@ def pre_test(){
     sh '''
     cd ${WK}
     git pull >/dev/null 
-    git submodule update --init --recursive
+    
     export TZ=Asia/Harbin
     date
     git clean -dfx
@@ -149,6 +149,7 @@ def pre_test_win(){
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd C:\\workspace\\TDinternal
     git reset --hard HEAD~10
     '''
