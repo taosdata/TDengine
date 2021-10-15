@@ -436,7 +436,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
       if (pTh->pTable == NULL || pTh->pBlkIdx == NULL) continue;
 
-      pSchema = tsdbGetTableSchemaImpl(pTh->pTable, true, true, -1);
+      pSchema = tsdbGetTableSchemaImpl(pTh->pTable, true, true, -1, -1);
       taosArrayClear(pComph->aSupBlk);
       if ((tdInitDataCols(pComph->pDataCols, pSchema) < 0) || (tdInitDataCols(pReadh->pDCols[0], pSchema) < 0) ||
           (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0)) {

@@ -183,7 +183,78 @@ use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
 
-## <a class="anchor" id="telegraf"></a>Telegraf 直接写入
+## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 BLM v3)
+TDengine 新版本（2.3.0.0+）将包含一个 BLM3 独立程序，负责接受其他多种应用的数据写入。
+
+配置方法，假设 TDengine 和 Telegraf 在同一台机器上部署，且假设 TDengine 使用默认用户名 root 和密码 taosdata。在 /etc/telegraf/telegraf.conf 增加如下文字：
+```
+[[outputs.http]]
+  url = "http://127.0.0.1:6041/influxdb/v1/write?db=metrics"
+  method = "POST"
+  timeout = "5s"
+  username = "root"
+  password = "taosdata"
+  data_format = "influx"
+  influx_max_line_bytes = 250
+```
+
+然后重启 telegraf：
+```
+sudo systemctl start telegraf
+```
+即可在 TDengine 中查询 metrics 数据库中 Telegraf 写入的数据。
+
+BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
+
+## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 BLM v3)
+安装 collectd
+```
+apt-get install collectd
+```
+
+在 /etc/collectd/collectd.conf 文件中增加如下内容：
+```
+LoadPlugin network
+<Plugin network>
+  Server "192.168.17.180" "25826"
+</Plugin>
+```
+重启 collectd
+```
+sudo systemctl start collectd
+```
+BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
+
+## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 BLM v3)
+安装 StatsD
+```
+1. git clone https://github.com/etsy/statsd.git
+2. cd statsd
+3. cp exampleConfig.js config.js
+4. node stats.js config.js
+```
+
+在 config.js 文件中增加如下内容后启动 StatsD：
+```
+backends 部分添加 "./backends/repeater"
+repeater 部分添加 { host:'host to blm3', port: 8126 }
+```
+
+实例配置文件：
+```
+{
+port: 8125
+, backends: ["./backends/repeater"]
+, repeater: [{ host: '127.0.0.1', port: 8126}]
+}
+```
+
+BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
+
+
+## <a class="anchor" id="blm2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
+
+*注意：TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 BLM v3，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 即之前版本将逐步不再维护。
 
 [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)是一流行的IT运维数据采集开源工具，TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Telegraf做简单配置，无需任何代码，就可将Telegraf采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
