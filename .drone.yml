@@ -1,4 +1,3 @@
-
 ---
 kind: pipeline
 name: test_arm64_bionic
@@ -11,7 +10,10 @@ steps:
   image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake  git build-essential golang-go
+  - apt-get install -y cmake  git build-essential wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -39,7 +41,10 @@ steps:
   commands:
   - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
   - apt-get update 
-  - apt-get install -y -qq git cmake build-essential golang-go
+  - apt-get install -y -qq git cmake build-essential wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -65,7 +70,10 @@ steps:
 - name: build
   image: arm64v8/centos:7
   commands:
-  - yum install -y gcc gcc-c++ make cmake git golang
+  - yum install -y gcc gcc-c++ make cmake git wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -145,7 +153,10 @@ steps:
   image: ubuntu:trusty
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 golang-go
+  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 wget 
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -172,7 +183,10 @@ steps:
   image: ubuntu:xenial
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential golang-go git
+  - apt-get install -y gcc cmake build-essential  git wget
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -198,7 +212,10 @@ steps:
   image: ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential golang-go git
+  - apt-get install -y gcc cmake build-essential  git wget
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
@@ -223,7 +240,11 @@ steps:
 - name: build
   image: ansible/centos7-ansible
   commands:
-  - yum install -y gcc gcc-c++ make cmake golang git
+  - yum install -y epel-release
+  - yum install -y gcc gcc-c++ make cmake  wget git 
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
   - git submodule update --init --recursive
   - mkdir debug
   - cd debug
