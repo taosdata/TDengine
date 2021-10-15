@@ -92,6 +92,10 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len);
 
 void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
 
+char *tableNameGetPosition(SStrToken* pToken, char target);
+
+char *tableNameToStr(char *dst, char *src, char quote);
+
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name);
 
 bool tscValidateTableNameLength(size_t len);
