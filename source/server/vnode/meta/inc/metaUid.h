@@ -16,14 +16,13 @@
 #ifndef _TD_META_UID_H_
 #define _TD_META_UID_H_
 
-#include "os.h"
+#include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ APIS EXPOSED ------------------------ */
-typedef uint64_t                  tb_uid_t;
 typedef struct STableUidGenerator STableUidGenerator;
 
 // tb_uid_t

@@ -24,9 +24,10 @@
 extern "C" {
 #endif
 
-typedef uint64_t tuid_t;
+/* ------------------------ APIs Exposed ------------------------ */
 
 // Types exported
+typedef uint64_t                tb_uid_t;
 typedef struct SMeta            SMeta;
 typedef struct SMetaOpts        SMetaOpts;
 typedef struct SMetaQueryHandle SMetaQueryHandle;
@@ -58,6 +59,33 @@ void            metaQueryOptionsDestroy(SMetaQueryOpts *);
 
 // STableOpts
 void metaTableOptsInit(STableOpts *, int8_t type, const char *name, const STSchema *pSchema);
+
+/* ------------------------ Impl should hidden ------------------------ */
+typedef enum { META_SUPER_TABLE = 0, META_CHILD_TABLE = 1, META_NORMAL_TABLE = 2 } EMetaTableT;
+typedef struct SSuperTableOpts {
+  tb_uid_t  uid;
+  STSchema *pSchema;     // (ts timestamp, a int)
+  STSchema *pTagSchema;  // (tag1 binary(10), tag2 int)
+} SSuperTableOpts;
+
+typedef struct SChildTableOpts {
+  tb_uid_t suid;  // super table uid
+  SKVRow   tags;  // tag value of the child table
+} SChildTableOpts;
+
+typedef struct SNormalTableOpts {
+  STSchema *pSchema;
+} SNormalTableOpts;
+
+struct STableOpts {
+  EMetaTableT type;
+  char *      name;
+  union {
+    SSuperTableOpts  superOpts;
+    SChildTableOpts  childOpts;
+    SNormalTableOpts normalOpts;
+  };
+};
 
 #ifdef __cplusplus
 }
