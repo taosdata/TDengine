@@ -5302,8 +5302,9 @@ end:
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
   if (strtrim(json) == 0 || strcasecmp(json, "null") == 0){
-    int8_t typeVal = TSDB_DATA_JSON_NULL;
+    uint8_t typeVal = TSDB_DATA_JSON_NULL;
     tdAddColToKVRow(kvRowBuilder, startColId++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
+    return TSDB_CODE_SUCCESS;
   }else{
     int8_t typeVal = TSDB_DATA_JSON_OBJECT;
     tdAddColToKVRow(kvRowBuilder, startColId++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
