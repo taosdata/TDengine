@@ -117,8 +117,9 @@ steps:
 - name: build
   image: arm32v7/ubuntu:bionic
   commands:
-  - add-apt-repository ppa:longsleep/golang-backports
   - apt-get update
+  - apt-get -y python-software-properties software-properties-common
+  - add-apt-repository ppa:longsleep/golang-backports
   - apt-get install -y cmake build-essential golang-go git
   - git submodule update --init --recursive
   - mkdir debug
