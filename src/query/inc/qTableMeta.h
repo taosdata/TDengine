@@ -38,12 +38,6 @@ typedef struct SJoinInfo {
 } SJoinInfo;
 
 typedef struct STagCond {
-  // relation between tbname list and query condition, including : TK_AND or TK_OR
-  int16_t relType;
-
-  // tbname query condition, only support tbname query condition on one table
-  SCond tbnameCond;
-
   // join condition, only support two tables join currently
   SJoinInfo joinInfo;
 
@@ -62,6 +56,7 @@ typedef struct SGroupbyExpr {
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
+  uint8_t update;
   int16_t numOfColumns;
   int32_t rowSize;
 } STableComInfo;
@@ -93,6 +88,7 @@ typedef struct STableMetaInfo {
   SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
+  int32_t       joinTagNum;
 } STableMetaInfo;
 
 struct   SQInfo;      // global merge operator
@@ -100,7 +96,7 @@ struct   SQueryAttr;     // query object
 
 typedef struct STableFilter {
   uint64_t uid;
-  SFilterInfo info;
+  void    *info;
 } STableFilter;
 
 typedef struct SQueryInfo {
@@ -165,6 +161,7 @@ typedef struct SQueryInfo {
   bool               orderProjectQuery;
   bool               stateWindow;
   bool               globalMerge;
+  bool               multigroupResult;
 } SQueryInfo;
 
 /**

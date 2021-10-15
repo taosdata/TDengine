@@ -74,6 +74,7 @@ extern int8_t   tsKeepOriginalColumnName;
 // client
 extern int32_t tsMaxSQLStringLen;
 extern int32_t tsMaxWildCardsLen;
+extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
@@ -107,6 +108,9 @@ extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
 
+//tsdb 
+extern bool tsdbForceKeepFile;
+
 // balance
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
@@ -127,6 +131,7 @@ extern int32_t  tsHttpMaxThreads;
 extern int8_t   tsHttpEnableCompress;
 extern int8_t   tsHttpEnableRecordSql;
 extern int8_t   tsTelegrafUseFieldNum;
+extern int8_t   tsHttpDbNameMandatory;
 
 // mqtt
 extern int8_t tsEnableMqttModule;
@@ -160,6 +165,7 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsTickPerDay[3];
+extern int32_t tsTopicBianryLen;
 
 // system info
 extern char    tsOsName[];
@@ -210,7 +216,7 @@ extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
 #ifdef TD_TSZ
-// lossy 
+// lossy
 extern char lossyColumns[];
 extern double fPrecision;
 extern double dPrecision;
@@ -218,6 +224,11 @@ extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char Compressor[];
 #endif
+// long query
+extern int8_t tsDeadLockKillQuery;
+
+// schemaless
+extern char tsDefaultJSONStrType[];
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

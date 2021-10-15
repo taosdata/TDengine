@@ -223,8 +223,11 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
 static void shrinkBuffer(STSList* ptsData) {
   // shrink tmp buffer size if it consumes too many memory compared to the pre-defined size
   if (ptsData->allocSize >= ptsData->threshold * 2) {
-    ptsData->rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
-    ptsData->allocSize = MEM_BUF_SIZE;
+    char* rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
+    if(rawBuf) {
+      ptsData->rawBuf = rawBuf;
+      ptsData->allocSize = MEM_BUF_SIZE;
+    }
   }
 }
 
@@ -372,6 +375,16 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   sz = fread(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
 
   if (decomp) {
+    if (pBlock->numOfElem * TSDB_KEYSIZE > pTSBuf->tsData.allocSize) {
+      pTSBuf->tsData.rawBuf = realloc(pTSBuf->tsData.rawBuf, pBlock->numOfElem * TSDB_KEYSIZE);
+      pTSBuf->tsData.allocSize = pBlock->numOfElem * TSDB_KEYSIZE;
+    }
+
+    if (pBlock->numOfElem * TSDB_KEYSIZE > pTSBuf->bufSize) {
+      pTSBuf->assistBuf = realloc(pTSBuf->assistBuf, pBlock->numOfElem * TSDB_KEYSIZE);
+      pTSBuf->bufSize = pBlock->numOfElem * TSDB_KEYSIZE;
+    }    
+    
     pTSBuf->tsData.len =
         tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
                               pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
@@ -468,7 +481,7 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, i
   
   // the size of raw data exceeds the size of the default prepared buffer, so
   // during getBufBlock, the output buffer needs to be large enough.
-  if (ptsData->len >= ptsData->threshold) {
+  if (ptsData->len >= ptsData->threshold - TSDB_KEYSIZE) {
     writeDataToDisk(pTSBuf);
     shrinkBuffer(ptsData);
   }
@@ -600,6 +613,10 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
     expandBuffer(&pTSBuf->tsData, (int32_t)s);
   }
   
+  if (s > pTSBuf->bufSize) {
+    pTSBuf->assistBuf = realloc(pTSBuf->assistBuf, s);
+    pTSBuf->bufSize = (int32_t)s;
+  }    
   pTSBuf->tsData.len =
       tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
                             pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);

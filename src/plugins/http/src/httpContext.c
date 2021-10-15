@@ -188,11 +188,12 @@ void httpCloseContextByApp(HttpContext *pContext) {
   pContext->parsed = false;
   bool keepAlive = true;
 
-  if (parser && parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
+  if (pContext->error == true) {
+    keepAlive = false;
+  } else if (parser && parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
     keepAlive = false;
   } else if (parser && parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
     keepAlive = false;
-  } else {
   }
 
   if (keepAlive) {

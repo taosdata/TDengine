@@ -25,10 +25,14 @@
 #define MAX_USERNAME_SIZE      64
 #define MAX_DBNAME_SIZE        64
 #define MAX_IP_SIZE            20
-#define MAX_PASSWORD_SIZE      20
 #define MAX_HISTORY_SIZE       1000
 #define MAX_COMMAND_SIZE       1048586
-#define HISTORY_FILE           ".taos_history"
+
+#ifdef _TD_PRO_
+    #define HISTORY_FILE           ".prodb_history"
+#else
+    #define HISTORY_FILE           ".taos_history"
+#endif
 
 #define DEFAULT_RES_SHOW_NUM   100
 

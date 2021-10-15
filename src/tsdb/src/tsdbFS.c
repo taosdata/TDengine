@@ -38,7 +38,6 @@ static int  tsdbProcessExpiredFS(STsdbRepo *pRepo);
 static int  tsdbCreateMeta(STsdbRepo *pRepo);
 
 // For backward compatibility
-bool tsdbForceKeepFile = false;
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   int tlen = 0;
@@ -217,6 +216,7 @@ STsdbFS *tsdbNewFS(STsdbCfg *pCfg) {
   }
 
   pfs->intxn = false;
+  pfs->metaCacheComp = NULL;
 
   pfs->nstatus = tsdbNewFSStatus(maxFSet);
   if (pfs->nstatus == NULL) {

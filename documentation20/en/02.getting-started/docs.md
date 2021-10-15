@@ -10,15 +10,28 @@ Please visit our [TDengine github page](https://github.com/taosdata/TDengine) fo
 
 ### Install from Docker Container
 
-Please visit our [TDengine Official Docker Image: Distribution, Downloading, and Usage](https://www.taosdata.com/blog/2020/05/13/1509.html).
+For the time being, it is not recommended to use Docker to deploy the client or server side of TDengine in production environments, but it is convenient to use Docker to deploy in development environments or when trying it for the first time. In particular, with Docker, it is easy to try TDengine in Mac OS X and Windows environments.
+
+Please refer to the detailed operation in [Quickly experience TDengine through Docker](https://www.taosdata.com/en/documentation/getting-started/docker).
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
-It’s extremely easy to install for TDengine, which takes only a few seconds from downloaded to successful installed. The server installation package includes clients and connectors. We provide 3 installation packages, which you can choose according to actual needs:
+Three different packages for TDengine server are provided, please pick up the one you like. (Lite packages only have execution files and connector of C/C++, but standard packages support connectors of nearly all programming languages.) Beta version has more features, but we suggest you to install stable version for production or testing.
 
-Click [here](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85) to download the install package.
+Click [here](https://www.taosdata.com/en/getting-started/#Install-from-Package) to download the install package.
 
-For more about installation process, please refer [TDengine Installation Packages: Install and Uninstall](https://www.taosdata.com/blog/2019/08/09/566.html), and [Video Tutorials](https://www.taosdata.com/blog/2020/11/11/1941.html).
+### Install TDengine by apt-get
+
+If you use Debian or Ubuntu system you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
 
 ## <a class="anchor" id="start"></a>Quick Launch
 
@@ -131,7 +144,7 @@ After starting the TDengine server, you can execute the command `taosdemo` in th
 $ taosdemo
 ```
 
-Using this command, a STable named `meters` will be created in the database `test` There are 10k tables under this stable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
+Using this command, a STable named `meters` will be created in the database `test`. There are 10k tables under this STable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
 
 It takes about 10 minutes to execute this command. Once finished, 1 billion rows of records will be inserted.
 
@@ -167,7 +180,10 @@ taos> select avg(f1), max(f2), min(f3) from test.meters where areaid=10;
 taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 ```
 
-**Note**: you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
+## <a class="anchor" id="taosdemo"></a> Using taosdemo in detail
+
+you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
+Please refer to [How to use taosdemo to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosdemo) for detail.
 
 ## Client and Alarm Module
 
@@ -201,7 +217,7 @@ Note: ● has been verified by official tests; ○ has been verified by unoffici
 
 List of platforms supported by TDengine client and connectors
 
-At the moment, TDengine connectors can support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32.
+At the moment, TDengine connectors can support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and operating system such as Linux/Win64/Win32.
 
 Comparison matrix as following:
 
@@ -218,4 +234,4 @@ Comparison matrix as following:
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests.
 
-Please visit [Connectors](https://www.taosdata.com/en/documentation/connector) section for more detailed information.
+Please visit Connectors section for more detailed information.

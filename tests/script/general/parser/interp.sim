@@ -68,7 +68,6 @@ print ================== server restart completed
 
 run general/parser/interp_test.sim
 
-
 print ================= TD-5931
 sql create stable st5931(ts timestamp, f int) tags(t int)
 sql create table ct5931 using st5931 tags(1)
@@ -76,6 +75,7 @@ sql create table nt5931(ts timestamp, f int)
 sql select interp(*) from nt5931 where ts=now
 sql select interp(*) from st5931 where ts=now
 sql select interp(*) from ct5931 where ts=now
+
 if $rows != 0 then
   return -1
 endi

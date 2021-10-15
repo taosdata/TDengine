@@ -10,7 +10,8 @@ steps:
   image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential
+  - apt-get install -y cmake build-essential 
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -22,6 +23,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: test_arm64_focal
@@ -77,7 +79,9 @@ steps:
 - name: build
   image: arm64v8/ubuntu:bionic
   commands:
-  - yum install -y gcc gcc-c++ make cmake git
+  - apt-get update
+  - apt-get install -y cmake build-essential
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -105,6 +109,7 @@ steps:
   - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
   - apt-get update 
   - apt-get install -y -qq cmake build-essential
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -130,6 +135,7 @@ steps:
   image: arm64v8/centos:7
   commands:
   - yum install -y gcc gcc-c++ make cmake git
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -155,6 +161,7 @@ steps:
   image: arm64v8/centos:8
   commands:
   - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -181,6 +188,7 @@ steps:
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
@@ -192,6 +200,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_trusty
@@ -206,7 +215,7 @@ steps:
   commands:
   - apt-get update
   - apt-get install -y gcc cmake3 build-essential git binutils-2.26
- 
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -218,6 +227,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_xenial
@@ -232,6 +242,7 @@ steps:
   commands:
   - apt-get update
   - apt-get install -y gcc cmake build-essential
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -243,7 +254,7 @@ steps:
     branch:
     - develop
     - master
-
+    - 2.0
 ---
 kind: pipeline
 name: build_bionic
@@ -257,6 +268,7 @@ steps:
   commands:
   - apt-get update
   - apt-get install -y gcc cmake build-essential
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -268,6 +280,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: test_amd64
@@ -280,9 +293,8 @@ steps:
 - name: build
   image: gcc
   commands:
-  - gcc -v
-  - apt-get update
-  - apt-get install -y cmake build-essential git 
+  - yum install -y gcc gcc-c++ make cmake
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -294,3 +306,4 @@ steps:
     branch:
     - develop
     - master
+    - 2.0

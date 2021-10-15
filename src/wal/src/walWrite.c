@@ -540,7 +540,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     pWal->version = pHead->version;
 
-    //wInfo("writeFp: %ld", offset);
+    // wInfo("writeFp: %ld", offset);
     if (0 != walSMemRowCheck(pHead)) {
       wError("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
              pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);

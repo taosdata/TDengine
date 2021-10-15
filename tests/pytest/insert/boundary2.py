@@ -37,17 +37,17 @@ class TDTestCase:
         startTime = time.time()
         print("==============step1")
         sql = "create table stb(ts timestamp, "
-        for i in range(1022):
-            sql += "col%d binary(14), " % (i + 1)
-        sql += "col1023 binary(22))"        
+        for i in range(15):
+            sql += "col%d binary(1022), " % (i + 1)
+        sql += "col1023 binary(1014))"        
         tdSql.execute(sql)
 
         for i in range(4096):
             sql = "insert into stb values(%d, "
-            for j in range(1022):
-                str = "'%s', " % self.get_random_string(14)                
+            for j in range(15):
+                str = "'%s', " % self.get_random_string(1022)                
                 sql += str
-            sql += "'%s')" % self.get_random_string(22)
+            sql += "'%s')" % self.get_random_string(1014)
             tdSql.execute(sql % (self.ts + i))
 
         time.sleep(10)
@@ -62,6 +62,12 @@ class TDTestCase:
         tdSql.checkData(0, 0, 4096)
 
         endTime = time.time()
+
+        sql = "create table stb(ts timestamp, "
+        for i in range(15):
+            sql += "col%d binary(1022), " % (i + 1)
+        sql += "col1023 binary(1015))"
+        tdSql.error(sql)
 
         print("total time %ds" % (endTime - startTime))
 

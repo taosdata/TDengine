@@ -22,6 +22,18 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
+### 使用 apt-get 安装
+
+如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 从官方仓库安装，设置方法为：
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[ beta 版安装包仓库为可选安装项 ] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
+
 <a class="anchor" id="start"></a>
 ## 轻松启动
 
@@ -105,7 +117,7 @@ $ taos -h h1.taos.com -s "use db; show tables;"
 
 **运行 SQL 命令脚本**
 
-TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
+TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 
 ```mysql
 taos> source <filename>;
@@ -163,9 +175,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
+## <a class="anchor" id="taosdemo"></a> taosdemo 详细功能列表
 
-**Note:** taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
-
+taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
+taosdemo 详细使用方法请参照 [如何使用taosdemo对TDengine进行性能测试？](https://www.taosdata.com/cn/documentation/getting-started/taosdemo )。
 
 ## 客户端和报警模块
 
@@ -173,7 +186,6 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 报警模块的 Linux 和 Windows 安装包请在 [所有下载链接](https://www.taosdata.com/cn/all-downloads/) 页面搜索“TDengine Alert Linux”章节或“TDengine Alert Windows”章节进行下载。使用方法请参考 [报警模块的使用方法](https://github.com/taosdata/TDengine/blob/master/alert/README_cn.md)。
 
-  
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
 ### TDengine 服务器支持的平台列表
@@ -193,8 +205,6 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
 
-
-
 ### TDengine 客户端和连接器支持的平台列表
 
 目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/Alpha 等硬件平台，以及 Linux/Win64/Win32 等开发环境。
@@ -212,7 +222,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 | **C#**      | ●               | ●         | ○         | ○               | ○         | ○         | ○                   | --                   | --                 |
 | **RESTful** | ●               | ●         | ●         | ●               | ●         | ●         | ●                   | ●                    | ●                  |
 
-注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+注：● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 请跳转到 [连接器](https://www.taosdata.com/cn/documentation/connector) 查看更详细的信息。
 

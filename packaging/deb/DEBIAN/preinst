@@ -24,9 +24,13 @@ fi
 # if taos.cfg already softlink, remove it
 cfg_install_dir="/etc/taos"
 install_main_dir="/usr/local/taos"
-if [ -f ${cfg_install_dir}/taos.cfg ]; then
+if [ -f "${install_main_dir}/taos.cfg" ]; then
     ${csudo} rm -f ${install_main_dir}/cfg/taos.cfg   || :
 fi
 
+if [ -f "${install_main_dir}/blm.toml" ]; then
+    ${csudo} rm -f ${install_main_dir}/cfg/blm.toml     || :
+fi
+
 # there can not libtaos.so*, otherwise ln -s  error
-${csudo} rm -f ${install_main_dir}/driver/libtaos*   || :    
+${csudo} rm -f ${install_main_dir}/driver/libtaos*   || :
