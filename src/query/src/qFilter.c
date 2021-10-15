@@ -1167,13 +1167,10 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
     memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
     void* data = getJsonTagValue(info->pTable, schema->name, TSDB_MAX_JSON_KEY_MD5_LEN, &schema->colId);
-    if(data == NULL) return TSDB_CODE_QRY_JSON_KEY_NOT_EXIST;
-    schema->type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next and set value in filterInitValFieldData
-    assert(schema->type > TSDB_DATA_TYPE_NULL && schema->type < TSDB_DATA_TYPE_JSON);
-//    if((tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH)
-//        && schema->type != TSDB_DATA_TYPE_BINARY)
-//      return TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR;
-
+    if(data != NULL){
+      schema->type = *(char*)data;  // if exist json tag-> operation get type so that can set data if (tree->_node.optr == TSDB_RELATION_IN_IN) the next and set value in filterInitValFieldData
+      assert(schema->type > TSDB_DATA_TYPE_NULL && schema->type < TSDB_DATA_TYPE_JSON);
+    }
     pLeft = pLeft->_node.pLeft;   // -> operation use left as input
   }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
     SSchema* schema = pLeft->pSchema;

@@ -5237,17 +5237,20 @@ char* parseTagDatatoJson(void *p){
   }
 
   int16_t nCols = kvRowNCols(p);
-  ASSERT(nCols%2 == 1);
+  ASSERT(nCols%2 == 0);
   char tagJsonKey[TSDB_MAX_JSON_KEY_LEN + 1] = {0};
   for (int j = 0; j < nCols; ++j) {
     SColIdx * pColIdx = kvRowColIdxAt(p, j);
     void* val = (kvRowColVal(p, pColIdx));
-    if (j == 0){        // json value is the first
+    if (j == 0){
       int8_t jsonVal = *(int8_t*)val;
-      ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
+      ASSERT(jsonVal == TSDB_DATA_JSON_PLACEHOLDER);
       continue;
     }
-    if (j%2 != 0) { // json key  encode by binary
+    if (j == 1 && *(uint8_t*)val == TSDB_DATA_JSON_NULL){
+      break;
+    }
+    if (j%2 == 0) { // json key  encode by binary
       ASSERT(varDataLen(val) <= TSDB_MAX_JSON_KEY_LEN);
       memset(tagJsonKey, 0, sizeof(tagJsonKey));
       memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
@@ -5298,20 +5301,28 @@ end:
 }
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+  if (strtrim(json) == 0 || strcasecmp(json, "null") == 0){
+    int8_t typeVal = TSDB_DATA_JSON_NULL;
+    tdAddColToKVRow(kvRowBuilder, startColId++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
+  }else{
+    int8_t typeVal = TSDB_DATA_JSON_OBJECT;
+    tdAddColToKVRow(kvRowBuilder, startColId++, TSDB_DATA_TYPE_JSON, &typeVal, false);   // add json type
+  }
+
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
     tscError("json parse error");
     return tscSQLSyntaxErrMsg(errMsg, "json parse error", NULL);
   }
 
-  int retCode = 0;
   int size = cJSON_GetArraySize(root);
-  if(!cJSON_IsObject(root) || size == 0){
+  if(!cJSON_IsObject(root)){
     tscError("json error invalide value");
-    retCode = tscSQLSyntaxErrMsg(errMsg, "json error invalide value", NULL);
-    goto end;
+    return tscSQLSyntaxErrMsg(errMsg, "json error invalide value", NULL);
   }
 
+  int retCode = 0;
+  SHashObj* keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
   int jsonIndex = ++startColId;
   for(int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
@@ -5320,29 +5331,42 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json inner error", NULL);
       goto end;
     }
-    if(strlen(item->string) > TSDB_MAX_JSON_KEY_LEN){
+
+    char *jsonKey = item->string;
+    if(strtrim(jsonKey) == 0) continue;
+    if (item->type == cJSON_NULL){
+      continue;
+    }
+
+    if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){
       tscError("json key too long error");
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);
       goto end;
+    }
+    if(taosHashGet(keyHash, jsonKey, strlen(jsonKey)) != NULL){
+      continue;
     }
 
     // json key encode by binary
     char tagKey[TSDB_MAX_JSON_KEY_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t outLen = 0;
-    strncpy(varDataVal(tagKey), item->string, strlen(item->string));
-    outLen = strlen(item->string);
+    strncpy(varDataVal(tagKey), jsonKey, strlen(jsonKey));
+    outLen = strlen(jsonKey);
+    taosHashPut(keyHash, jsonKey, strlen(jsonKey), 0, CHAR_BYTES);
 
     varDataSetLen(tagKey, outLen);
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagKey, false);   // add json key
 
     if(item->type == cJSON_String){     // add json value  format: type|data
+      char *jsonValue = item->valuestring;
+      strtrim(jsonValue);
       outLen = 0;
       char tagVal[TSDB_MAX_TAGS_LEN + VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
-      if (!taosMbsToUcs4(item->valuestring, strlen(item->valuestring), varDataVal(tagData),
+      if (!taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
                          TSDB_MAX_TAGS_LEN, &outLen)) {
-        tscError("json string error:%s|%s", strerror(errno), item->string);
+        tscError("json string error:%s|%s", strerror(errno), jsonValue);
         retCode = tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
         goto end;
       }
@@ -5356,13 +5380,21 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       if(*tagVal == TSDB_DATA_TYPE_DOUBLE) *((double *)tagData) = item->valuedouble;
       else if(*tagVal == TSDB_DATA_TYPE_BIGINT) *((int64_t *)tagData) = item->valueint;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal, true);
-    }else{
+    }else if(item->type == cJSON_True || item->type == cJSON_False){
+      char tagVal[CHAR_BYTES + CHAR_BYTES] = {0};
+      *tagVal = jsonType2DbType(item->valueint, item->type);    // type
+      char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
+      *tagData = item->valueint;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BOOL, tagVal, true);
+    }
+    else{
       retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);
       goto end;
     }
   }
 
 end:
+  taosHashCleanup(keyHash);
   cJSON_Delete(root);
   return retCode;
 }

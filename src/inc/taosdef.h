@@ -71,7 +71,9 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
 #define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL           0xFF
-#define TSDB_DATA_BINARY_PLACEHOLDER    0x7F
+#define TSDB_DATA_JSON_PLACEHOLDER      0x7F
+#define TSDB_DATA_JSON_NULL             0xFF
+#define TSDB_DATA_JSON_OBJECT           0x01
 
 #define TSDB_DATA_UTINYINT_NULL         0xFF
 #define TSDB_DATA_USMALLINT_NULL        0xFFFF

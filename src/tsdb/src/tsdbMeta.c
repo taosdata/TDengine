@@ -1100,14 +1100,14 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
   if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
-    ASSERT(nCols%2 == 1);
+    ASSERT(nCols%2 == 0);
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j%2 == 0) continue; // jump value
+      if (j != 0 && j%2 != 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void* val = (kvRowColVal(pTable->tagVal, pColIdx));
       if (j == 0){        // json value is the first
         int8_t jsonVal = *(int8_t*)val;
-        ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
+        ASSERT(jsonVal == TSDB_DATA_JSON_PLACEHOLDER);
         continue;
       }
 
@@ -1173,14 +1173,14 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
-    ASSERT(nCols%2 == 1);
+    ASSERT(nCols%2 == 0);
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j%2 == 0) continue; // jump value
+      if (j != 0 && j%2 != 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void* val = (kvRowColVal(pTable->tagVal, pColIdx));
       if (j == 0){        // json value is the first
         int8_t jsonVal = *(int8_t*)val;
-        ASSERT(jsonVal == TSDB_DATA_BINARY_PLACEHOLDER);
+        ASSERT(jsonVal == TSDB_DATA_JSON_PLACEHOLDER);
         continue;
       }
 
