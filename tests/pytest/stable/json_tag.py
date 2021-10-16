@@ -161,7 +161,7 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin'")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json and jtag->'location' match 'jin'")
+        tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json' and jtag->'location' match 'jin'")
         tdSql.checkRows(2)
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
@@ -176,7 +176,7 @@ class TDTestCase:
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_10 using db_json_tag_test.jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
         tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json and jtag->'location' match 'jin'")
         tdSql.checkRows(2)
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

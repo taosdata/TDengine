@@ -5310,7 +5310,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   char nullTypeKey[VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
   varDataSetLen(nullTypeKey, CHAR_BYTES);
   *(uint8_t*)(varDataVal(nullTypeKey)) = jsonNULL;
-  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, nullTypeKey, false);   // add json null type
+  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
   if (strtrim(json) == 0 || strcasecmp(json, "null") == 0){
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &jsonNULL, false);   // add json null value
     return TSDB_CODE_SUCCESS;
