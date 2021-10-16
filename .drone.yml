@@ -71,7 +71,6 @@ steps:
   image: arm64v8/centos:7
   commands:
   - yum install -y epel-release
-  - yum update
   - yum install -y gcc gcc-c++ make cmake3  wget git 
   - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
@@ -245,7 +244,6 @@ steps:
   image: ansible/centos7-ansible
   commands:
   - yum install -y epel-release
-  - yum update
   - yum install -y gcc gcc-c++ make cmake3  wget git 
   - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
   - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
