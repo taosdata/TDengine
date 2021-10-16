@@ -5249,12 +5249,17 @@ char* parseTagDatatoJson(void *p){
       int8_t jsonPlaceHolder = *(int8_t*)val;
       ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
       continue;
-    }else if(j == 1){
+    }
+    if(j == 1){
       uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
       ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
-    }else if (j == 2 && *(uint8_t*)val == TSDB_DATA_JSON_NULL){
-      goto end;
-    }else if (j%2 == 1) { // json key  encode by binary
+      continue;
+    }
+    if (j == 2){
+      if(*(uint8_t*)val == TSDB_DATA_JSON_NULL) goto end;
+      continue;
+    }
+    if (j%2 == 1) { // json key  encode by binary
       ASSERT(varDataLen(val) <= TSDB_MAX_JSON_KEY_LEN);
       memset(tagJsonKey, 0, sizeof(tagJsonKey));
       memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
