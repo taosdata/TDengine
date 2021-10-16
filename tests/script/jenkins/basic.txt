@@ -102,7 +102,7 @@ cd ../../../debug; make
 #======================b2-start===============
 
 
-./test.sh -f general/wal/sync.sim
+#./test.sh -f general/wal/sync.sim
 ./test.sh -f general/wal/kill.sim
 ./test.sh -f general/wal/maxtables.sim
 
