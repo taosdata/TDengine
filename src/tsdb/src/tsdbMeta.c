@@ -1145,7 +1145,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         void* data1 = tdGetKVRowValOfCol(((STable *)(tmp->table))->tagVal, tmp->colId + 1);
         SColIdx * pInsertColIdx = kvRowColIdxAt(pTable->tagVal, j + 1);
         void* data2 = (kvRowColVal(pTable->tagVal, pInsertColIdx));
-        if(*(char*)data1 != *(char*)data2){
+        if(*(uint8_t*)data1 != *(uint8_t*)data2){
           terrno = TSDB_CODE_TDB_IVLD_SAME_JSON_VALUE;
           tsdbError("invalidate same json tag value");
           return -1;
