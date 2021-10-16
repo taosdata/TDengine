@@ -5292,6 +5292,14 @@ char* parseTagDatatoJson(void *p){
           goto end;
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if (type == TSDB_DATA_TYPE_BOOL) {
+        char jsonVd = *(char*)(realData);
+        cJSON* value = cJSON_CreateBool(jsonVd);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
       }
       else{
         tscError("unsupportted json value");
