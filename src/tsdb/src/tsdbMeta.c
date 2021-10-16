@@ -1101,9 +1101,8 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
     ASSERT(nCols%2 == 1);
-    void* jsonTypeKey = NULL;
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j != 2 && j%2 == 0) continue; // jump value
+      if (j != 0 && j%2 == 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void* val = (kvRowColVal(pTable->tagVal, pColIdx));
       if (j == 0){        // json value is the first
@@ -1114,12 +1113,10 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
       if (j == 1){
         uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
-        jsonTypeKey = val;
-        continue;
-      }
-      if (j == 2){
-        if(*(uint8_t*)val == TSDB_DATA_JSON_NOT_NULL) continue;
-        else val = jsonTypeKey;
+
+        SColIdx * pColIdxNull = kvRowColIdxAt(pTable->tagVal, j+1);
+        void* valNull = (kvRowColVal(pTable->tagVal, pColIdxNull));
+        if(*(uint8_t*)valNull == TSDB_DATA_JSON_NOT_NULL) continue;   // do not add null type if json is not null
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
@@ -1185,7 +1182,6 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
     ASSERT(nCols%2 == 1);
-    void* jsonTypeKey = NULL;
     for (int j = 0; j < nCols; ++j) {
       if (j != 0 && j != 2 && j%2 == 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
@@ -1198,12 +1194,9 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
       if (j == 1){
         uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
-        jsonTypeKey = val;
-        continue;
-      }
-      if (j == 2){
-        if(*(uint8_t*)val == TSDB_DATA_JSON_NOT_NULL) continue;
-        else val = jsonTypeKey;
+        SColIdx * pColIdxNull = kvRowColIdxAt(pTable->tagVal, j+1);
+        void* valNull = (kvRowColVal(pTable->tagVal, pColIdxNull));
+        if(*(uint8_t*)valNull == TSDB_DATA_JSON_NOT_NULL) continue;
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
