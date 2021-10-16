@@ -61,9 +61,12 @@ class TDTestCase:
         #tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'=4")
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->location='beijing'")
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location'")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->''")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->''=9")
         tdSql.error("select jtag->location from db_json_tag_test.jsons1")
         tdSql.error("select jtag?location from db_json_tag_test.jsons1")
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag?location")
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag?''")
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag?'location'='beijing'")
 
         # test select condition
@@ -170,12 +173,33 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('efwewf')")
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
+        tdSql.query("select jtag from db_json_tag_test.jsons1_6")
+        tdSql.checkData(0, 0, "NULL")
+
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_7 using db_json_tag_test.jsons1 tags('{}')")
+        tdSql.query("select jtag from db_json_tag_test.jsons1_7")
+        tdSql.checkData(0, 0, "NULL")
+
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_8 using db_json_tag_test.jsons1 tags('null')")
+        tdSql.query("select jtag from db_json_tag_test.jsons1_8")
+        tdSql.checkData(0, 0, "NULL")
+
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_9 using db_json_tag_test.jsons1 tags('{\"\":4, \"time\":null}')")
+        tdSql.query("select jtag from db_json_tag_test.jsons1_9")
+        tdSql.checkData(0, 0, "NULL")
+
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_10 using db_json_tag_test.jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
-        tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json and jtag->'location' match 'jin'")
-        tdSql.checkRows(2)
+        tdSql.query("select jtag from db_json_tag_test.jsons1_10")
+        tdSql.checkData(0, 0, "{\"k1\":\"\",\"k2\":true,\"k3\":false,\"k4\":55}")
+
+        tdSql.query("select jtag->'k2' from db_json_tag_test.jsons1_10")
+        tdSql.checkData(0, 0, "true")
+
+        tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag->'k1'=''")
+        tdSql.checkRows(1)
+
+        tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag->'k2'=true")
+        tdSql.checkRows(1)
 
     def stop(self):
         tdSql.close()

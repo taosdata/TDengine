@@ -4420,7 +4420,7 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 // check for match expression
 static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
   const char* msg1 = "not support json tag column filter";
-  const char* msg2 = "tag json key is too long, exceed to 64";
+  const char* msg2 = "tag json key is invalidate";
   const char* msg3 = "tag json key must be string";
 
   tSqlExpr* pLeft = pExpr->pLeft;
@@ -4430,17 +4430,17 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
     if (pRight != NULL && !IS_VAR_DATA_TYPE(pRight->value.nType))
       return invalidOperationMsg(msgBuf, msg3);
 
-    if (pRight != NULL && pRight->value.nLen >= TSDB_COL_NAME_LEN)
+    if (pRight != NULL && (pRight->value.nLen > TSDB_MAX_JSON_KEY_LEN || pRight->value.nLen <= 0))
       return invalidOperationMsg(msgBuf, msg2);
   } else {
-    if (pLeft != NULL && pLeft->tokenId == TK_ID && pExpr->tokenId != TK_NULL) {
+    if (pLeft != NULL && pLeft->tokenId == TK_ID && pExpr->tokenId != TK_ISNULL && pExpr->tokenId != TK_NOTNULL) {
       return invalidOperationMsg(msgBuf, msg1);
     }
 
     if (pLeft != NULL && pLeft->tokenId == TK_ARROW) {
       if (pLeft->pRight && !IS_VAR_DATA_TYPE(pLeft->pRight->value.nType))
         return invalidOperationMsg(msgBuf, msg3);
-      if (pLeft->pRight && pLeft->pRight->value.nLen >= TSDB_COL_NAME_LEN)
+      if (pLeft->pRight && (pLeft->pRight->value.nLen > TSDB_MAX_JSON_KEY_LEN || pLeft->pRight->value.nLen <= 0))
         return invalidOperationMsg(msgBuf, msg2);
     }
   }

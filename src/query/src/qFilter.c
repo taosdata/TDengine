@@ -1161,7 +1161,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   if(pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.optr == TSDB_RELATION_ARROW){    // json tag -> operation
     assert(info->pTable != NULL);
     SSchema* schema = pLeft->_node.pLeft->pSchema;
-    if(pLeft->_node.pRight->pVal->nLen >= TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    if(pLeft->_node.pRight->pVal->nLen > TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
     jsonKeyMd5(pLeft->_node.pRight->pVal->pz, pLeft->_node.pRight->pVal->nLen, keyMd5);
     memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
@@ -1174,7 +1174,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
     pLeft = pLeft->_node.pLeft;   // -> operation use left as input
   }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
     SSchema* schema = pLeft->pSchema;
-    if(tree->_node.pRight->pVal->nLen >= TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    if(tree->_node.pRight->pVal->nLen > TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
     jsonKeyMd5(tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen, keyMd5);
     memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);

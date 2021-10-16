@@ -5210,7 +5210,7 @@ void parseTagValue2Dst(char* result, char* dst){
     char    tagJsonValue[TSDB_MAX_TAGS_LEN] = {0};
     int32_t length = taosUcs4ToMbs(varDataVal(realData),
                                    varDataLen(realData), tagJsonValue);
-    if (length == 0) {
+    if (length < 0) {
       tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
                (char*)result);
       return;
