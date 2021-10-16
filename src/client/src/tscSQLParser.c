@@ -7360,7 +7360,7 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
         SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
         STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);
         bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-        if ((!isSTable) || groupbyTbname(pUp)) {
+        if ((!isSTable) || groupbyTbname(pUp)||pUp->interval.interval > 0) {
           return TSDB_CODE_SUCCESS;
         }
       }

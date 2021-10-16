@@ -1,6 +1,6 @@
 # 高效写入数据
 
-TDengine支持多种接口写入数据，包括SQL, Prometheus, Telegraf, EMQ MQTT Broker, HiveMQ Broker, CSV文件等，后续还将提供Kafka, OPC等接口。数据可以单条插入，也可以批量插入，可以插入一个数据采集点的数据，也可以同时插入多个数据采集点的数据。支持多线程插入，支持时间乱序数据插入，也支持历史数据插入。
+TDengine支持多种接口写入数据，包括SQL，Prometheus，Telegraf，collectd，StatsD，EMQ MQTT Broker，HiveMQ Broker，CSV文件等，后续还将提供Kafka，OPC等接口。数据可以单条插入，也可以批量插入，可以插入一个数据采集点的数据，也可以同时插入多个数据采集点的数据。支持多线程插入，支持时间乱序数据插入，也支持历史数据插入。
 
 ## <a class="anchor" id="sql"></a>SQL 写入
 
@@ -98,7 +98,7 @@ Schemaless 按照如下原则来处理行数据：
 
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 - Linux操作系统的服务器
-- 安装好Golang，1.10版本以上
+- 安装好Golang，1.14版本以上
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
@@ -184,12 +184,14 @@ select * from apiserver_request_latencies_bucket;
 ```
 
 ## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 BLM v3)
-TDengine 新版本（2.3.0.0+）将包含一个 BLM3 独立程序，负责接受其他多种应用的数据写入。
+安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
-配置方法，假设 TDengine 和 Telegraf 在同一台机器上部署，且假设 TDengine 使用默认用户名 root 和密码 taosdata。在 /etc/telegraf/telegraf.conf 增加如下文字：
+TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
+
+配置方法，假设 TDengine 使用默认用户名 root 和密码 taosdata。在 /etc/telegraf/telegraf.conf 增加如下文字：
 ```
 [[outputs.http]]
-  url = "http://127.0.0.1:6041/influxdb/v1/write?db=metrics"
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=metrics"
   method = "POST"
   timeout = "5s"
   username = "root"
@@ -207,16 +209,15 @@ sudo systemctl start telegraf
 BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 BLM v3)
-安装 collectd
-```
-apt-get install collectd
-```
+安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
+
+TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 collectd 的多种应用的数据写入。
 
 在 /etc/collectd/collectd.conf 文件中增加如下内容：
 ```
 LoadPlugin network
 <Plugin network>
-  Server "192.168.17.180" "25826"
+  Server "<TDengine cluster/server host>" "25826"
 </Plugin>
 ```
 重启 collectd
@@ -227,20 +228,17 @@ BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 BLM v3)
 安装 StatsD
-```
-1. git clone https://github.com/etsy/statsd.git
-2. cd statsd
-3. cp exampleConfig.js config.js
-4. node stats.js config.js
-```
+请参考[官方文档](https://github.com/statsd/statsd)。
+
+TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
 
 在 config.js 文件中增加如下内容后启动 StatsD：
 ```
 backends 部分添加 "./backends/repeater"
-repeater 部分添加 { host:'host to blm3', port: 8126 }
+repeater 部分添加 { host:'<TDengine server/cluster host>', port: 8126 }
 ```
 
-实例配置文件：
+示例配置文件：
 ```
 {
 port: 8125
