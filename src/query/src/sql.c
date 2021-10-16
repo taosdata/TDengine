@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <assert.h>
 /************ Begin %include sections from the grammar ************************/
-#line 23 "sql.y"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +37,6 @@
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
-#line 42 "sql.c"
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols
 ** in a format understandable to "makeheaders".  This section is blank unless
@@ -1515,9 +1513,7 @@ static void yy_destructor(
     case 250: /* selcollist */
     case 264: /* sclp */
 {
-#line 762 "sql.y"
 tSqlExprListDestroy((yypminor->yy421));
-#line 1521 "sql.c"
 }
       break;
     case 221: /* intitemlist */
@@ -1531,32 +1527,24 @@ tSqlExprListDestroy((yypminor->yy421));
     case 272: /* sortlist */
     case 276: /* grouplist */
 {
-#line 256 "sql.y"
 taosArrayDestroy((yypminor->yy421));
-#line 1537 "sql.c"
 }
       break;
     case 242: /* create_table_list */
 {
-#line 364 "sql.y"
 destroyCreateTableSql((yypminor->yy438));
-#line 1544 "sql.c"
 }
       break;
     case 247: /* select */
 {
-#line 484 "sql.y"
 destroySqlNode((yypminor->yy56));
-#line 1551 "sql.c"
 }
       break;
     case 251: /* from */
     case 268: /* tablelist */
     case 269: /* sub */
 {
-#line 539 "sql.y"
 destroyRelationInfo((yypminor->yy8));
-#line 1560 "sql.c"
 }
       break;
     case 252: /* where_opt */
@@ -1564,23 +1552,17 @@ destroyRelationInfo((yypminor->yy8));
     case 266: /* expr */
     case 277: /* expritem */
 {
-#line 691 "sql.y"
 tSqlExprDestroy((yypminor->yy439));
-#line 1570 "sql.c"
 }
       break;
     case 263: /* union */
 {
-#line 492 "sql.y"
 destroyAllSqlNode((yypminor->yy421));
-#line 1577 "sql.c"
 }
       break;
     case 273: /* sortitem */
 {
-#line 624 "sql.y"
 tVariantDestroy(&(yypminor->yy430));
-#line 1584 "sql.c"
 }
       break;
 /********* End destructor definitions *****************************************/
@@ -2555,347 +2537,227 @@ static YYACTIONTYPE yy_reduce(
       case 139: /* cmd ::= CREATE TABLE create_table_args */ yytestcase(yyruleno==139);
       case 140: /* cmd ::= CREATE TABLE create_stable_args */ yytestcase(yyruleno==140);
       case 141: /* cmd ::= CREATE STABLE create_stable_args */ yytestcase(yyruleno==141);
-#line 63 "sql.y"
 {}
-#line 2561 "sql.c"
         break;
       case 1: /* cmd ::= SHOW DATABASES */
-#line 66 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_DB, 0, 0);}
-#line 2566 "sql.c"
         break;
       case 2: /* cmd ::= SHOW TOPICS */
-#line 67 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_TP, 0, 0);}
-#line 2571 "sql.c"
         break;
       case 3: /* cmd ::= SHOW FUNCTIONS */
-#line 68 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_FUNCTION, 0, 0);}
-#line 2576 "sql.c"
         break;
       case 4: /* cmd ::= SHOW MNODES */
-#line 69 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_MNODE, 0, 0);}
-#line 2581 "sql.c"
         break;
       case 5: /* cmd ::= SHOW DNODES */
-#line 70 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_DNODE, 0, 0);}
-#line 2586 "sql.c"
         break;
       case 6: /* cmd ::= SHOW ACCOUNTS */
-#line 71 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_ACCT, 0, 0);}
-#line 2591 "sql.c"
         break;
       case 7: /* cmd ::= SHOW USERS */
-#line 72 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_USER, 0, 0);}
-#line 2596 "sql.c"
         break;
       case 8: /* cmd ::= SHOW MODULES */
-#line 74 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_MODULE, 0, 0);  }
-#line 2601 "sql.c"
         break;
       case 9: /* cmd ::= SHOW QUERIES */
-#line 75 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_QUERIES, 0, 0);  }
-#line 2606 "sql.c"
         break;
       case 10: /* cmd ::= SHOW CONNECTIONS */
-#line 76 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_CONNS, 0, 0);}
-#line 2611 "sql.c"
         break;
       case 11: /* cmd ::= SHOW STREAMS */
-#line 77 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_STREAMS, 0, 0);  }
-#line 2616 "sql.c"
         break;
       case 12: /* cmd ::= SHOW VARIABLES */
-#line 78 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_VARIABLES, 0, 0);  }
-#line 2621 "sql.c"
         break;
       case 13: /* cmd ::= SHOW SCORES */
-#line 79 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0);   }
-#line 2626 "sql.c"
         break;
       case 14: /* cmd ::= SHOW GRANTS */
-#line 80 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
-#line 2631 "sql.c"
         break;
       case 15: /* cmd ::= SHOW VNODES */
-#line 82 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
-#line 2636 "sql.c"
         break;
       case 16: /* cmd ::= SHOW VNODES ids */
-#line 83 "sql.y"
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &yymsp[0].minor.yy0, 0); }
-#line 2641 "sql.c"
         break;
       case 17: /* dbPrefix ::= */
-#line 87 "sql.y"
 {yymsp[1].minor.yy0.n = 0; yymsp[1].minor.yy0.type = 0;}
-#line 2646 "sql.c"
         break;
       case 18: /* dbPrefix ::= ids DOT */
-#line 88 "sql.y"
 {yylhsminor.yy0 = yymsp[-1].minor.yy0;  }
-#line 2651 "sql.c"
   yymsp[-1].minor.yy0 = yylhsminor.yy0;
         break;
       case 19: /* cpxName ::= */
-#line 91 "sql.y"
 {yymsp[1].minor.yy0.n = 0;  }
-#line 2657 "sql.c"
         break;
       case 20: /* cpxName ::= DOT ids */
-#line 92 "sql.y"
 {yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; yymsp[-1].minor.yy0.n += 1;    }
-#line 2662 "sql.c"
         break;
       case 21: /* cmd ::= SHOW CREATE TABLE ids cpxName */
-#line 94 "sql.y"
 {
    yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &yymsp[-1].minor.yy0);
 }
-#line 2670 "sql.c"
         break;
       case 22: /* cmd ::= SHOW CREATE STABLE ids cpxName */
-#line 98 "sql.y"
 {
    yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &yymsp[-1].minor.yy0);
 }
-#line 2678 "sql.c"
         break;
       case 23: /* cmd ::= SHOW CREATE DATABASE ids */
-#line 103 "sql.y"
 {
   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &yymsp[0].minor.yy0);
 }
-#line 2685 "sql.c"
         break;
       case 24: /* cmd ::= SHOW dbPrefix TABLES */
-#line 107 "sql.y"
 {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &yymsp[-1].minor.yy0, 0);
 }
-#line 2692 "sql.c"
         break;
       case 25: /* cmd ::= SHOW dbPrefix TABLES LIKE ids */
-#line 111 "sql.y"
 {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2699 "sql.c"
         break;
       case 26: /* cmd ::= SHOW dbPrefix STABLES */
-#line 115 "sql.y"
 {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &yymsp[-1].minor.yy0, 0);
 }
-#line 2706 "sql.c"
         break;
       case 27: /* cmd ::= SHOW dbPrefix STABLES LIKE ids */
-#line 119 "sql.y"
 {
     SStrToken token;
     tSetDbName(&token, &yymsp[-3].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &yymsp[0].minor.yy0);
 }
-#line 2715 "sql.c"
         break;
       case 28: /* cmd ::= SHOW dbPrefix VGROUPS */
-#line 125 "sql.y"
 {
     SStrToken token;
     tSetDbName(&token, &yymsp[-1].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
-#line 2724 "sql.c"
         break;
       case 29: /* cmd ::= SHOW dbPrefix VGROUPS ids */
-#line 131 "sql.y"
 {
     SStrToken token;
     tSetDbName(&token, &yymsp[-2].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &yymsp[0].minor.yy0);
 }
-#line 2733 "sql.c"
         break;
       case 30: /* cmd ::= DROP TABLE ifexists ids cpxName */
-#line 138 "sql.y"
 {
     yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
     setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &yymsp[-1].minor.yy0, &yymsp[-2].minor.yy0, -1, -1);
 }
-#line 2741 "sql.c"
         break;
       case 31: /* cmd ::= DROP STABLE ifexists ids cpxName */
-#line 144 "sql.y"
 {
     yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
     setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &yymsp[-1].minor.yy0, &yymsp[-2].minor.yy0, -1, TSDB_SUPER_TABLE);
 }
-#line 2749 "sql.c"
         break;
       case 32: /* cmd ::= DROP DATABASE ifexists ids */
-#line 149 "sql.y"
 { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &yymsp[0].minor.yy0, &yymsp[-1].minor.yy0, TSDB_DB_TYPE_DEFAULT, -1); }
-#line 2754 "sql.c"
         break;
       case 33: /* cmd ::= DROP TOPIC ifexists ids */
-#line 150 "sql.y"
 { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &yymsp[0].minor.yy0, &yymsp[-1].minor.yy0, TSDB_DB_TYPE_TOPIC, -1); }
-#line 2759 "sql.c"
         break;
       case 34: /* cmd ::= DROP FUNCTION ids */
-#line 151 "sql.y"
 { setDropFuncInfo(pInfo, TSDB_SQL_DROP_FUNCTION, &yymsp[0].minor.yy0); }
-#line 2764 "sql.c"
         break;
       case 35: /* cmd ::= DROP DNODE ids */
-#line 153 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &yymsp[0].minor.yy0);    }
-#line 2769 "sql.c"
         break;
       case 36: /* cmd ::= DROP USER ids */
-#line 154 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_DROP_USER, 1, &yymsp[0].minor.yy0);     }
-#line 2774 "sql.c"
         break;
       case 37: /* cmd ::= DROP ACCOUNT ids */
-#line 155 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &yymsp[0].minor.yy0);  }
-#line 2779 "sql.c"
         break;
       case 38: /* cmd ::= USE ids */
-#line 158 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_USE_DB, 1, &yymsp[0].minor.yy0);}
-#line 2784 "sql.c"
         break;
       case 39: /* cmd ::= DESCRIBE ids cpxName */
       case 40: /* cmd ::= DESC ids cpxName */ yytestcase(yyruleno==40);
-#line 161 "sql.y"
 {
     yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &yymsp[-1].minor.yy0);
 }
-#line 2793 "sql.c"
         break;
       case 41: /* cmd ::= ALTER USER ids PASS ids */
-#line 170 "sql.y"
 { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, NULL);    }
-#line 2798 "sql.c"
         break;
       case 42: /* cmd ::= ALTER USER ids PRIVILEGE ids */
-#line 171 "sql.y"
 { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &yymsp[-2].minor.yy0, NULL, &yymsp[0].minor.yy0);}
-#line 2803 "sql.c"
         break;
       case 43: /* cmd ::= ALTER DNODE ids ids */
-#line 172 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);          }
-#line 2808 "sql.c"
         break;
       case 44: /* cmd ::= ALTER DNODE ids ids ids */
-#line 173 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &yymsp[-2].minor.yy0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);      }
-#line 2813 "sql.c"
         break;
       case 45: /* cmd ::= ALTER LOCAL ids */
-#line 174 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &yymsp[0].minor.yy0);              }
-#line 2818 "sql.c"
         break;
       case 46: /* cmd ::= ALTER LOCAL ids ids */
-#line 175 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);          }
-#line 2823 "sql.c"
         break;
       case 47: /* cmd ::= ALTER DATABASE ids alter_db_optr */
       case 48: /* cmd ::= ALTER TOPIC ids alter_topic_optr */ yytestcase(yyruleno==48);
-#line 176 "sql.y"
 { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy90, &t);}
-#line 2829 "sql.c"
         break;
       case 49: /* cmd ::= ALTER ACCOUNT ids acct_optr */
-#line 179 "sql.y"
 { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &yymsp[-1].minor.yy0, NULL, &yymsp[0].minor.yy171);}
-#line 2834 "sql.c"
         break;
       case 50: /* cmd ::= ALTER ACCOUNT ids PASS ids acct_optr */
-#line 180 "sql.y"
 { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy171);}
-#line 2839 "sql.c"
         break;
       case 51: /* cmd ::= COMPACT VNODES IN LP exprlist RP */
-#line 184 "sql.y"
 { setCompactVnodeSql(pInfo, TSDB_SQL_COMPACT_VNODE, yymsp[-1].minor.yy421);}
-#line 2844 "sql.c"
         break;
       case 52: /* ids ::= ID */
       case 53: /* ids ::= STRING */ yytestcase(yyruleno==53);
-#line 190 "sql.y"
 {yylhsminor.yy0 = yymsp[0].minor.yy0; }
-#line 2850 "sql.c"
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
       case 54: /* ifexists ::= IF EXISTS */
-#line 194 "sql.y"
 { yymsp[-1].minor.yy0.n = 1;}
-#line 2856 "sql.c"
         break;
       case 55: /* ifexists ::= */
       case 57: /* ifnotexists ::= */ yytestcase(yyruleno==57);
       case 181: /* distinct ::= */ yytestcase(yyruleno==181);
-#line 195 "sql.y"
 { yymsp[1].minor.yy0.n = 0;}
-#line 2863 "sql.c"
         break;
       case 56: /* ifnotexists ::= IF NOT EXISTS */
-#line 198 "sql.y"
 { yymsp[-2].minor.yy0.n = 1;}
-#line 2868 "sql.c"
         break;
       case 58: /* cmd ::= CREATE DNODE ids */
-#line 203 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &yymsp[0].minor.yy0);}
-#line 2873 "sql.c"
         break;
       case 59: /* cmd ::= CREATE ACCOUNT ids PASS ids acct_optr */
-#line 205 "sql.y"
 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy171);}
-#line 2878 "sql.c"
         break;
       case 60: /* cmd ::= CREATE DATABASE ifnotexists ids db_optr */
       case 61: /* cmd ::= CREATE TOPIC ifnotexists ids topic_optr */ yytestcase(yyruleno==61);
-#line 206 "sql.y"
 { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy90, &yymsp[-2].minor.yy0);}
-#line 2884 "sql.c"
         break;
       case 62: /* cmd ::= CREATE FUNCTION ids AS ids OUTPUTTYPE typename bufsize */
-#line 208 "sql.y"
 { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy183, &yymsp[0].minor.yy0, 1);}
-#line 2889 "sql.c"
         break;
       case 63: /* cmd ::= CREATE AGGREGATE FUNCTION ids AS ids OUTPUTTYPE typename bufsize */
-#line 209 "sql.y"
 { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy183, &yymsp[0].minor.yy0, 2);}
-#line 2894 "sql.c"
         break;
       case 64: /* cmd ::= CREATE USER ids PASS ids */
-#line 210 "sql.y"
 { setCreateUserSql(pInfo, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);}
-#line 2899 "sql.c"
         break;
       case 65: /* bufsize ::= */
       case 67: /* pps ::= */ yytestcase(yyruleno==67);
@@ -2907,9 +2769,7 @@ static YYACTIONTYPE yy_reduce(
       case 79: /* users ::= */ yytestcase(yyruleno==79);
       case 81: /* conns ::= */ yytestcase(yyruleno==81);
       case 83: /* state ::= */ yytestcase(yyruleno==83);
-#line 212 "sql.y"
 { yymsp[1].minor.yy0.n = 0;   }
-#line 2913 "sql.c"
         break;
       case 66: /* bufsize ::= BUFSIZE INTEGER */
       case 68: /* pps ::= PPS INTEGER */ yytestcase(yyruleno==68);
@@ -2921,12 +2781,9 @@ static YYACTIONTYPE yy_reduce(
       case 80: /* users ::= USERS INTEGER */ yytestcase(yyruleno==80);
       case 82: /* conns ::= CONNS INTEGER */ yytestcase(yyruleno==82);
       case 84: /* state ::= STATE ids */ yytestcase(yyruleno==84);
-#line 213 "sql.y"
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0;     }
-#line 2927 "sql.c"
         break;
       case 85: /* acct_optr ::= pps tseries storage streams qtime dbs users conns state */
-#line 243 "sql.y"
 {
     yylhsminor.yy171.maxUsers   = (yymsp[-2].minor.yy0.n>0)?atoi(yymsp[-2].minor.yy0.z):-1;
     yylhsminor.yy171.maxDbs     = (yymsp[-3].minor.yy0.n>0)?atoi(yymsp[-3].minor.yy0.z):-1;
@@ -2938,21 +2795,16 @@ static YYACTIONTYPE yy_reduce(
     yylhsminor.yy171.maxConnections   = (yymsp[-1].minor.yy0.n>0)?atoi(yymsp[-1].minor.yy0.z):-1;
     yylhsminor.yy171.stat    = yymsp[0].minor.yy0;
 }
-#line 2942 "sql.c"
   yymsp[-8].minor.yy171 = yylhsminor.yy171;
         break;
       case 86: /* intitemlist ::= intitemlist COMMA intitem */
       case 155: /* tagitemlist ::= tagitemlist COMMA tagitem */ yytestcase(yyruleno==155);
-#line 259 "sql.y"
 { yylhsminor.yy421 = tVariantListAppend(yymsp[-2].minor.yy421, &yymsp[0].minor.yy430, -1);    }
-#line 2949 "sql.c"
   yymsp[-2].minor.yy421 = yylhsminor.yy421;
         break;
       case 87: /* intitemlist ::= intitem */
       case 156: /* tagitemlist ::= tagitem */ yytestcase(yyruleno==156);
-#line 260 "sql.y"
 { yylhsminor.yy421 = tVariantListAppend(NULL, &yymsp[0].minor.yy430, -1); }
-#line 2956 "sql.c"
   yymsp[0].minor.yy421 = yylhsminor.yy421;
         break;
       case 88: /* intitem ::= INTEGER */
@@ -2960,15 +2812,11 @@ static YYACTIONTYPE yy_reduce(
       case 158: /* tagitem ::= FLOAT */ yytestcase(yyruleno==158);
       case 159: /* tagitem ::= STRING */ yytestcase(yyruleno==159);
       case 160: /* tagitem ::= BOOL */ yytestcase(yyruleno==160);
-#line 262 "sql.y"
 { toTSDBType(yymsp[0].minor.yy0.type); tVariantCreate(&yylhsminor.yy430, &yymsp[0].minor.yy0); }
-#line 2966 "sql.c"
   yymsp[0].minor.yy430 = yylhsminor.yy430;
         break;
       case 89: /* keep ::= KEEP intitemlist */
-#line 266 "sql.y"
 { yymsp[-1].minor.yy421 = yymsp[0].minor.yy421; }
-#line 2972 "sql.c"
         break;
       case 90: /* cache ::= CACHE INTEGER */
       case 91: /* replica ::= REPLICA INTEGER */ yytestcase(yyruleno==91);
@@ -2985,142 +2833,99 @@ static YYACTIONTYPE yy_reduce(
       case 102: /* update ::= UPDATE INTEGER */ yytestcase(yyruleno==102);
       case 103: /* cachelast ::= CACHELAST INTEGER */ yytestcase(yyruleno==103);
       case 104: /* partitions ::= PARTITIONS INTEGER */ yytestcase(yyruleno==104);
-#line 268 "sql.y"
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; }
-#line 2991 "sql.c"
         break;
       case 105: /* db_optr ::= */
-#line 285 "sql.y"
 {setDefaultCreateDbOption(&yymsp[1].minor.yy90); yymsp[1].minor.yy90.dbType = TSDB_DB_TYPE_DEFAULT;}
-#line 2996 "sql.c"
         break;
       case 106: /* db_optr ::= db_optr cache */
-#line 287 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.cacheBlockSize = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3001 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 107: /* db_optr ::= db_optr replica */
       case 124: /* alter_db_optr ::= alter_db_optr replica */ yytestcase(yyruleno==124);
-#line 288 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.replica = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3008 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 108: /* db_optr ::= db_optr quorum */
       case 125: /* alter_db_optr ::= alter_db_optr quorum */ yytestcase(yyruleno==125);
-#line 289 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.quorum = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3015 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 109: /* db_optr ::= db_optr days */
-#line 290 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.daysPerFile = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3021 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 110: /* db_optr ::= db_optr minrows */
-#line 291 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.minRowsPerBlock = strtod(yymsp[0].minor.yy0.z, NULL); }
-#line 3027 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 111: /* db_optr ::= db_optr maxrows */
-#line 292 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.maxRowsPerBlock = strtod(yymsp[0].minor.yy0.z, NULL); }
-#line 3033 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 112: /* db_optr ::= db_optr blocks */
       case 127: /* alter_db_optr ::= alter_db_optr blocks */ yytestcase(yyruleno==127);
-#line 293 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.numOfBlocks = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3040 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 113: /* db_optr ::= db_optr ctime */
-#line 294 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.commitTime = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3046 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 114: /* db_optr ::= db_optr wal */
-#line 295 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.walLevel = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3052 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 115: /* db_optr ::= db_optr fsync */
-#line 296 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.fsyncPeriod = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3058 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 116: /* db_optr ::= db_optr comp */
       case 128: /* alter_db_optr ::= alter_db_optr comp */ yytestcase(yyruleno==128);
-#line 297 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.compressionLevel = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3065 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 117: /* db_optr ::= db_optr prec */
-#line 298 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.precision = yymsp[0].minor.yy0; }
-#line 3071 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 118: /* db_optr ::= db_optr keep */
       case 126: /* alter_db_optr ::= alter_db_optr keep */ yytestcase(yyruleno==126);
-#line 299 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.keep = yymsp[0].minor.yy421; }
-#line 3078 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 119: /* db_optr ::= db_optr update */
       case 129: /* alter_db_optr ::= alter_db_optr update */ yytestcase(yyruleno==129);
-#line 300 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.update = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3085 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 120: /* db_optr ::= db_optr cachelast */
       case 130: /* alter_db_optr ::= alter_db_optr cachelast */ yytestcase(yyruleno==130);
-#line 301 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.cachelast = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3092 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 121: /* topic_optr ::= db_optr */
       case 131: /* alter_topic_optr ::= alter_db_optr */ yytestcase(yyruleno==131);
-#line 305 "sql.y"
 { yylhsminor.yy90 = yymsp[0].minor.yy90; yylhsminor.yy90.dbType = TSDB_DB_TYPE_TOPIC; }
-#line 3099 "sql.c"
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
       case 122: /* topic_optr ::= topic_optr partitions */
       case 132: /* alter_topic_optr ::= alter_topic_optr partitions */ yytestcase(yyruleno==132);
-#line 306 "sql.y"
 { yylhsminor.yy90 = yymsp[-1].minor.yy90; yylhsminor.yy90.partitions = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3106 "sql.c"
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
       case 123: /* alter_db_optr ::= */
-#line 309 "sql.y"
 { setDefaultCreateDbOption(&yymsp[1].minor.yy90); yymsp[1].minor.yy90.dbType = TSDB_DB_TYPE_DEFAULT;}
-#line 3112 "sql.c"
         break;
       case 133: /* typename ::= ids */
-#line 329 "sql.y"
-{ 
+{
   yymsp[0].minor.yy0.type = 0;
   tSetColumnType (&yylhsminor.yy183, &yymsp[0].minor.yy0);
 }
-#line 3120 "sql.c"
   yymsp[0].minor.yy183 = yylhsminor.yy183;
         break;
       case 134: /* typename ::= ids LP signed RP */
-#line 335 "sql.y"
 {
   if (yymsp[-1].minor.yy325 <= 0) {
     yymsp[-3].minor.yy0.type = 0;
@@ -3130,42 +2935,30 @@ static YYACTIONTYPE yy_reduce(
     tSetColumnType(&yylhsminor.yy183, &yymsp[-3].minor.yy0);
   }
 }
-#line 3134 "sql.c"
   yymsp[-3].minor.yy183 = yylhsminor.yy183;
         break;
       case 135: /* typename ::= ids UNSIGNED */
-#line 346 "sql.y"
 {
   yymsp[-1].minor.yy0.type = 0;
   yymsp[-1].minor.yy0.n = ((yymsp[0].minor.yy0.z + yymsp[0].minor.yy0.n) - yymsp[-1].minor.yy0.z);
   tSetColumnType (&yylhsminor.yy183, &yymsp[-1].minor.yy0);
 }
-#line 3144 "sql.c"
   yymsp[-1].minor.yy183 = yylhsminor.yy183;
         break;
       case 136: /* signed ::= INTEGER */
-#line 353 "sql.y"
 { yylhsminor.yy325 = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3150 "sql.c"
   yymsp[0].minor.yy325 = yylhsminor.yy325;
         break;
       case 137: /* signed ::= PLUS INTEGER */
-#line 354 "sql.y"
 { yymsp[-1].minor.yy325 = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-#line 3156 "sql.c"
         break;
       case 138: /* signed ::= MINUS INTEGER */
-#line 355 "sql.y"
 { yymsp[-1].minor.yy325 = -strtol(yymsp[0].minor.yy0.z, NULL, 10);}
-#line 3161 "sql.c"
         break;
       case 142: /* cmd ::= CREATE TABLE create_table_list */
-#line 361 "sql.y"
 { pInfo->type = TSDB_SQL_CREATE_TABLE; pInfo->pCreateTableInfo = yymsp[0].minor.yy438;}
-#line 3166 "sql.c"
         break;
       case 143: /* create_table_list ::= create_from_stable */
-#line 365 "sql.y"
 {
   SCreateTableSql* pCreateTable = calloc(1, sizeof(SCreateTableSql));
   pCreateTable->childTableInfo = taosArrayInit(4, sizeof(SCreatedTableInfo));
@@ -3174,20 +2967,16 @@ static YYACTIONTYPE yy_reduce(
   pCreateTable->type = TSQL_CREATE_TABLE_FROM_STABLE;
   yylhsminor.yy438 = pCreateTable;
 }
-#line 3178 "sql.c"
   yymsp[0].minor.yy438 = yylhsminor.yy438;
         break;
       case 144: /* create_table_list ::= create_table_list create_from_stable */
-#line 374 "sql.y"
 {
   taosArrayPush(yymsp[-1].minor.yy438->childTableInfo, &yymsp[0].minor.yy152);
   yylhsminor.yy438 = yymsp[-1].minor.yy438;
 }
-#line 3187 "sql.c"
   yymsp[-1].minor.yy438 = yylhsminor.yy438;
         break;
       case 145: /* create_table_args ::= ifnotexists ids cpxName LP columnlist RP */
-#line 380 "sql.y"
 {
   yylhsminor.yy438 = tSetCreateTableInfo(yymsp[-1].minor.yy421, NULL, NULL, TSQL_CREATE_TABLE);
   setSqlInfo(pInfo, yylhsminor.yy438, NULL, TSDB_SQL_CREATE_TABLE);
@@ -3195,11 +2984,9 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
   setCreatedTableName(pInfo, &yymsp[-4].minor.yy0, &yymsp[-5].minor.yy0);
 }
-#line 3199 "sql.c"
   yymsp[-5].minor.yy438 = yylhsminor.yy438;
         break;
       case 146: /* create_stable_args ::= ifnotexists ids cpxName LP columnlist RP TAGS LP columnlist RP */
-#line 390 "sql.y"
 {
   yylhsminor.yy438 = tSetCreateTableInfo(yymsp[-5].minor.yy421, yymsp[-1].minor.yy421, NULL, TSQL_CREATE_STABLE);
   setSqlInfo(pInfo, yylhsminor.yy438, NULL, TSDB_SQL_CREATE_TABLE);
@@ -3207,43 +2994,33 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-8].minor.yy0.n += yymsp[-7].minor.yy0.n;
   setCreatedTableName(pInfo, &yymsp[-8].minor.yy0, &yymsp[-9].minor.yy0);
 }
-#line 3211 "sql.c"
   yymsp[-9].minor.yy438 = yylhsminor.yy438;
         break;
       case 147: /* create_from_stable ::= ifnotexists ids cpxName USING ids cpxName TAGS LP tagitemlist RP */
-#line 401 "sql.y"
 {
   yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
   yymsp[-8].minor.yy0.n += yymsp[-7].minor.yy0.n;
   yylhsminor.yy152 = createNewChildTableInfo(&yymsp[-5].minor.yy0, NULL, yymsp[-1].minor.yy421, &yymsp[-8].minor.yy0, &yymsp[-9].minor.yy0);
 }
-#line 3221 "sql.c"
   yymsp[-9].minor.yy152 = yylhsminor.yy152;
         break;
       case 148: /* create_from_stable ::= ifnotexists ids cpxName USING ids cpxName LP tagNamelist RP TAGS LP tagitemlist RP */
-#line 407 "sql.y"
 {
   yymsp[-8].minor.yy0.n += yymsp[-7].minor.yy0.n;
   yymsp[-11].minor.yy0.n += yymsp[-10].minor.yy0.n;
   yylhsminor.yy152 = createNewChildTableInfo(&yymsp[-8].minor.yy0, yymsp[-5].minor.yy421, yymsp[-1].minor.yy421, &yymsp[-11].minor.yy0, &yymsp[-12].minor.yy0);
 }
-#line 3231 "sql.c"
   yymsp[-12].minor.yy152 = yylhsminor.yy152;
         break;
       case 149: /* tagNamelist ::= tagNamelist COMMA ids */
-#line 415 "sql.y"
 {taosArrayPush(yymsp[-2].minor.yy421, &yymsp[0].minor.yy0); yylhsminor.yy421 = yymsp[-2].minor.yy421;  }
-#line 3237 "sql.c"
   yymsp[-2].minor.yy421 = yylhsminor.yy421;
         break;
       case 150: /* tagNamelist ::= ids */
-#line 416 "sql.y"
 {yylhsminor.yy421 = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(yylhsminor.yy421, &yymsp[0].minor.yy0);}
-#line 3243 "sql.c"
   yymsp[0].minor.yy421 = yylhsminor.yy421;
         break;
       case 151: /* create_table_args ::= ifnotexists ids cpxName AS select */
-#line 420 "sql.y"
 {
   yylhsminor.yy438 = tSetCreateTableInfo(NULL, NULL, yymsp[0].minor.yy56, TSQL_CREATE_STREAM);
   setSqlInfo(pInfo, yylhsminor.yy438, NULL, TSDB_SQL_CREATE_TABLE);
@@ -3251,266 +3028,186 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-3].minor.yy0.n += yymsp[-2].minor.yy0.n;
   setCreatedTableName(pInfo, &yymsp[-3].minor.yy0, &yymsp[-4].minor.yy0);
 }
-#line 3255 "sql.c"
   yymsp[-4].minor.yy438 = yylhsminor.yy438;
         break;
       case 152: /* columnlist ::= columnlist COMMA column */
-#line 431 "sql.y"
 {taosArrayPush(yymsp[-2].minor.yy421, &yymsp[0].minor.yy183); yylhsminor.yy421 = yymsp[-2].minor.yy421;  }
-#line 3261 "sql.c"
   yymsp[-2].minor.yy421 = yylhsminor.yy421;
         break;
       case 153: /* columnlist ::= column */
-#line 432 "sql.y"
 {yylhsminor.yy421 = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(yylhsminor.yy421, &yymsp[0].minor.yy183);}
-#line 3267 "sql.c"
   yymsp[0].minor.yy421 = yylhsminor.yy421;
         break;
       case 154: /* column ::= ids typename */
-#line 436 "sql.y"
 {
   tSetColumnInfo(&yylhsminor.yy183, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy183);
 }
-#line 3275 "sql.c"
   yymsp[-1].minor.yy183 = yylhsminor.yy183;
         break;
       case 161: /* tagitem ::= NULL */
-#line 451 "sql.y"
 { yymsp[0].minor.yy0.type = 0; tVariantCreate(&yylhsminor.yy430, &yymsp[0].minor.yy0); }
-#line 3281 "sql.c"
   yymsp[0].minor.yy430 = yylhsminor.yy430;
         break;
       case 162: /* tagitem ::= NOW */
-#line 452 "sql.y"
 { yymsp[0].minor.yy0.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreate(&yylhsminor.yy430, &yymsp[0].minor.yy0);}
-#line 3287 "sql.c"
   yymsp[0].minor.yy430 = yylhsminor.yy430;
         break;
       case 163: /* tagitem ::= MINUS INTEGER */
       case 164: /* tagitem ::= MINUS FLOAT */ yytestcase(yyruleno==164);
       case 165: /* tagitem ::= PLUS INTEGER */ yytestcase(yyruleno==165);
       case 166: /* tagitem ::= PLUS FLOAT */ yytestcase(yyruleno==166);
-#line 454 "sql.y"
 {
     yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
     yymsp[-1].minor.yy0.type = yymsp[0].minor.yy0.type;
     toTSDBType(yymsp[-1].minor.yy0.type);
     tVariantCreate(&yylhsminor.yy430, &yymsp[-1].minor.yy0);
 }
-#line 3301 "sql.c"
   yymsp[-1].minor.yy430 = yylhsminor.yy430;
         break;
       case 167: /* select ::= SELECT selcollist from where_opt interval_option sliding_opt session_option windowstate_option fill_opt groupby_opt having_opt orderby_opt slimit_opt limit_opt */
-#line 485 "sql.y"
 {
   yylhsminor.yy56 = tSetQuerySqlNode(&yymsp[-13].minor.yy0, yymsp[-12].minor.yy421, yymsp[-11].minor.yy8, yymsp[-10].minor.yy439, yymsp[-4].minor.yy421, yymsp[-2].minor.yy421, &yymsp[-9].minor.yy400, &yymsp[-7].minor.yy147, &yymsp[-6].minor.yy40, &yymsp[-8].minor.yy0, yymsp[-5].minor.yy421, &yymsp[0].minor.yy166, &yymsp[-1].minor.yy166, yymsp[-3].minor.yy439);
 }
-#line 3309 "sql.c"
   yymsp[-13].minor.yy56 = yylhsminor.yy56;
         break;
       case 168: /* select ::= LP select RP */
-#line 489 "sql.y"
 {yymsp[-2].minor.yy56 = yymsp[-1].minor.yy56;}
-#line 3315 "sql.c"
         break;
       case 169: /* union ::= select */
-#line 493 "sql.y"
 { yylhsminor.yy421 = setSubclause(NULL, yymsp[0].minor.yy56); }
-#line 3320 "sql.c"
   yymsp[0].minor.yy421 = yylhsminor.yy421;
         break;
       case 170: /* union ::= union UNION ALL select */
-#line 494 "sql.y"
 { yylhsminor.yy421 = appendSelectClause(yymsp[-3].minor.yy421, yymsp[0].minor.yy56); }
-#line 3326 "sql.c"
   yymsp[-3].minor.yy421 = yylhsminor.yy421;
         break;
       case 171: /* cmd ::= union */
-#line 496 "sql.y"
 { setSqlInfo(pInfo, yymsp[0].minor.yy421, NULL, TSDB_SQL_SELECT); }
-#line 3332 "sql.c"
         break;
       case 172: /* select ::= SELECT selcollist */
-#line 503 "sql.y"
 {
   yylhsminor.yy56 = tSetQuerySqlNode(&yymsp[-1].minor.yy0, yymsp[0].minor.yy421, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
-#line 3339 "sql.c"
   yymsp[-1].minor.yy56 = yylhsminor.yy56;
         break;
       case 173: /* sclp ::= selcollist COMMA */
-#line 515 "sql.y"
 {yylhsminor.yy421 = yymsp[-1].minor.yy421;}
-#line 3345 "sql.c"
   yymsp[-1].minor.yy421 = yylhsminor.yy421;
         break;
       case 174: /* sclp ::= */
       case 206: /* orderby_opt ::= */ yytestcase(yyruleno==206);
-#line 516 "sql.y"
 {yymsp[1].minor.yy421 = 0;}
-#line 3352 "sql.c"
         break;
       case 175: /* selcollist ::= sclp distinct expr as */
-#line 517 "sql.y"
 {
    yylhsminor.yy421 = tSqlExprListAppend(yymsp[-3].minor.yy421, yymsp[-1].minor.yy439,  yymsp[-2].minor.yy0.n? &yymsp[-2].minor.yy0:0, yymsp[0].minor.yy0.n?&yymsp[0].minor.yy0:0);
 }
-#line 3359 "sql.c"
   yymsp[-3].minor.yy421 = yylhsminor.yy421;
         break;
       case 176: /* selcollist ::= sclp STAR */
-#line 521 "sql.y"
 {
    tSqlExpr *pNode = tSqlExprCreateIdValue(NULL, TK_ALL);
    yylhsminor.yy421 = tSqlExprListAppend(yymsp[-1].minor.yy421, pNode, 0, 0);
 }
-#line 3368 "sql.c"
   yymsp[-1].minor.yy421 = yylhsminor.yy421;
         break;
       case 177: /* as ::= AS ids */
-#line 529 "sql.y"
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0;    }
-#line 3374 "sql.c"
         break;
       case 178: /* as ::= ids */
-#line 530 "sql.y"
 { yylhsminor.yy0 = yymsp[0].minor.yy0;    }
-#line 3379 "sql.c"
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
       case 179: /* as ::= */
-#line 531 "sql.y"
 { yymsp[1].minor.yy0.n = 0;  }
-#line 3385 "sql.c"
         break;
       case 180: /* distinct ::= DISTINCT */
-#line 534 "sql.y"
 { yylhsminor.yy0 = yymsp[0].minor.yy0;  }
-#line 3390 "sql.c"
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
       case 182: /* from ::= FROM tablelist */
       case 183: /* from ::= FROM sub */ yytestcase(yyruleno==183);
-#line 540 "sql.y"
 {yymsp[-1].minor.yy8 = yymsp[0].minor.yy8;}
-#line 3397 "sql.c"
         break;
       case 184: /* sub ::= LP union RP */
-#line 545 "sql.y"
 {yymsp[-2].minor.yy8 = addSubqueryElem(NULL, yymsp[-1].minor.yy421, NULL);}
-#line 3402 "sql.c"
         break;
       case 185: /* sub ::= LP union RP ids */
-#line 546 "sql.y"
 {yymsp[-3].minor.yy8 = addSubqueryElem(NULL, yymsp[-2].minor.yy421, &yymsp[0].minor.yy0);}
-#line 3407 "sql.c"
         break;
       case 186: /* sub ::= sub COMMA LP union RP ids */
-#line 547 "sql.y"
 {yylhsminor.yy8 = addSubqueryElem(yymsp[-5].minor.yy8, yymsp[-2].minor.yy421, &yymsp[0].minor.yy0);}
-#line 3412 "sql.c"
   yymsp[-5].minor.yy8 = yylhsminor.yy8;
         break;
       case 187: /* tablelist ::= ids cpxName */
-#line 551 "sql.y"
 {
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
   yylhsminor.yy8 = setTableNameList(NULL, &yymsp[-1].minor.yy0, NULL);
 }
-#line 3421 "sql.c"
   yymsp[-1].minor.yy8 = yylhsminor.yy8;
         break;
       case 188: /* tablelist ::= ids cpxName ids */
-#line 556 "sql.y"
 {
   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
   yylhsminor.yy8 = setTableNameList(NULL, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 3430 "sql.c"
   yymsp[-2].minor.yy8 = yylhsminor.yy8;
         break;
       case 189: /* tablelist ::= tablelist COMMA ids cpxName */
-#line 561 "sql.y"
 {
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
   yylhsminor.yy8 = setTableNameList(yymsp[-3].minor.yy8, &yymsp[-1].minor.yy0, NULL);
 }
-#line 3439 "sql.c"
   yymsp[-3].minor.yy8 = yylhsminor.yy8;
         break;
       case 190: /* tablelist ::= tablelist COMMA ids cpxName ids */
-#line 566 "sql.y"
 {
   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
   yylhsminor.yy8 = setTableNameList(yymsp[-4].minor.yy8, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 3448 "sql.c"
   yymsp[-4].minor.yy8 = yylhsminor.yy8;
         break;
       case 191: /* tmvar ::= VARIABLE */
-#line 573 "sql.y"
 {yylhsminor.yy0 = yymsp[0].minor.yy0;}
-#line 3454 "sql.c"
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
       case 192: /* interval_option ::= intervalKey LP tmvar RP */
-#line 576 "sql.y"
 {yylhsminor.yy400.interval = yymsp[-1].minor.yy0; yylhsminor.yy400.offset.n = 0; yylhsminor.yy400.token = yymsp[-3].minor.yy104;}
-#line 3460 "sql.c"
   yymsp[-3].minor.yy400 = yylhsminor.yy400;
         break;
       case 193: /* interval_option ::= intervalKey LP tmvar COMMA tmvar RP */
-#line 577 "sql.y"
 {yylhsminor.yy400.interval = yymsp[-3].minor.yy0; yylhsminor.yy400.offset = yymsp[-1].minor.yy0;   yylhsminor.yy400.token = yymsp[-5].minor.yy104;}
-#line 3466 "sql.c"
   yymsp[-5].minor.yy400 = yylhsminor.yy400;
         break;
       case 194: /* interval_option ::= */
-#line 578 "sql.y"
 {memset(&yymsp[1].minor.yy400, 0, sizeof(yymsp[1].minor.yy400));}
-#line 3472 "sql.c"
         break;
       case 195: /* intervalKey ::= INTERVAL */
-#line 581 "sql.y"
 {yymsp[0].minor.yy104 = TK_INTERVAL;}
-#line 3477 "sql.c"
         break;
       case 196: /* intervalKey ::= EVERY */
-#line 582 "sql.y"
 {yymsp[0].minor.yy104 = TK_EVERY;   }
-#line 3482 "sql.c"
         break;
       case 197: /* session_option ::= */
-#line 585 "sql.y"
 {yymsp[1].minor.yy147.col.n = 0; yymsp[1].minor.yy147.gap.n = 0;}
-#line 3487 "sql.c"
         break;
       case 198: /* session_option ::= SESSION LP ids cpxName COMMA tmvar RP */
-#line 586 "sql.y"
 {
    yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
    yymsp[-6].minor.yy147.col = yymsp[-4].minor.yy0;
    yymsp[-6].minor.yy147.gap = yymsp[-1].minor.yy0;
 }
-#line 3496 "sql.c"
         break;
       case 199: /* windowstate_option ::= */
-#line 593 "sql.y"
 { yymsp[1].minor.yy40.col.n = 0; yymsp[1].minor.yy40.col.z = NULL;}
-#line 3501 "sql.c"
         break;
       case 200: /* windowstate_option ::= STATE_WINDOW LP ids RP */
-#line 594 "sql.y"
 { yymsp[-3].minor.yy40.col = yymsp[-1].minor.yy0; }
-#line 3506 "sql.c"
         break;
       case 201: /* fill_opt ::= */
-#line 598 "sql.y"
 { yymsp[1].minor.yy421 = 0;     }
-#line 3511 "sql.c"
         break;
       case 202: /* fill_opt ::= FILL LP ID COMMA tagitemlist RP */
-#line 599 "sql.y"
 {
     tVariant A = {0};
     toTSDBType(yymsp[-3].minor.yy0.type);
@@ -3519,402 +3216,272 @@ static YYACTIONTYPE yy_reduce(
     tVariantListInsert(yymsp[-1].minor.yy421, &A, -1, 0);
     yymsp[-5].minor.yy421 = yymsp[-1].minor.yy421;
 }
-#line 3523 "sql.c"
         break;
       case 203: /* fill_opt ::= FILL LP ID RP */
-#line 608 "sql.y"
 {
     toTSDBType(yymsp[-1].minor.yy0.type);
     yymsp[-3].minor.yy421 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
 }
-#line 3531 "sql.c"
         break;
       case 204: /* sliding_opt ::= SLIDING LP tmvar RP */
-#line 614 "sql.y"
 {yymsp[-3].minor.yy0 = yymsp[-1].minor.yy0;     }
-#line 3536 "sql.c"
         break;
       case 205: /* sliding_opt ::= */
-#line 615 "sql.y"
 {yymsp[1].minor.yy0.n = 0; yymsp[1].minor.yy0.z = NULL; yymsp[1].minor.yy0.type = 0;   }
-#line 3541 "sql.c"
         break;
       case 207: /* orderby_opt ::= ORDER BY sortlist */
-#line 627 "sql.y"
 {yymsp[-2].minor.yy421 = yymsp[0].minor.yy421;}
-#line 3546 "sql.c"
         break;
       case 208: /* sortlist ::= sortlist COMMA item sortorder */
-#line 629 "sql.y"
 {
     yylhsminor.yy421 = tVariantListAppend(yymsp[-3].minor.yy421, &yymsp[-1].minor.yy430, yymsp[0].minor.yy96);
 }
-#line 3553 "sql.c"
   yymsp[-3].minor.yy421 = yylhsminor.yy421;
         break;
       case 209: /* sortlist ::= item sortorder */
-#line 633 "sql.y"
 {
   yylhsminor.yy421 = tVariantListAppend(NULL, &yymsp[-1].minor.yy430, yymsp[0].minor.yy96);
 }
-#line 3561 "sql.c"
   yymsp[-1].minor.yy421 = yylhsminor.yy421;
         break;
       case 210: /* item ::= ids cpxName */
-#line 638 "sql.y"
 {
   toTSDBType(yymsp[-1].minor.yy0.type);
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
 
   tVariantCreate(&yylhsminor.yy430, &yymsp[-1].minor.yy0);
 }
-#line 3572 "sql.c"
   yymsp[-1].minor.yy430 = yylhsminor.yy430;
         break;
       case 211: /* sortorder ::= ASC */
-#line 646 "sql.y"
 { yymsp[0].minor.yy96 = TSDB_ORDER_ASC; }
-#line 3578 "sql.c"
         break;
       case 212: /* sortorder ::= DESC */
-#line 647 "sql.y"
 { yymsp[0].minor.yy96 = TSDB_ORDER_DESC;}
-#line 3583 "sql.c"
         break;
       case 213: /* sortorder ::= */
-#line 648 "sql.y"
 { yymsp[1].minor.yy96 = TSDB_ORDER_ASC; }
-#line 3588 "sql.c"
         break;
       case 214: /* groupby_opt ::= */
-#line 656 "sql.y"
 { yymsp[1].minor.yy421 = 0;}
-#line 3593 "sql.c"
         break;
       case 215: /* groupby_opt ::= GROUP BY grouplist */
-#line 657 "sql.y"
 { yymsp[-2].minor.yy421 = yymsp[0].minor.yy421;}
-#line 3598 "sql.c"
         break;
       case 216: /* grouplist ::= grouplist COMMA item */
-#line 659 "sql.y"
 {
   yylhsminor.yy421 = tVariantListAppend(yymsp[-2].minor.yy421, &yymsp[0].minor.yy430, -1);
 }
-#line 3605 "sql.c"
   yymsp[-2].minor.yy421 = yylhsminor.yy421;
         break;
       case 217: /* grouplist ::= item */
-#line 663 "sql.y"
 {
   yylhsminor.yy421 = tVariantListAppend(NULL, &yymsp[0].minor.yy430, -1);
 }
-#line 3613 "sql.c"
   yymsp[0].minor.yy421 = yylhsminor.yy421;
         break;
       case 218: /* having_opt ::= */
       case 228: /* where_opt ::= */ yytestcase(yyruleno==228);
       case 272: /* expritem ::= */ yytestcase(yyruleno==272);
-#line 670 "sql.y"
 {yymsp[1].minor.yy439 = 0;}
-#line 3621 "sql.c"
         break;
       case 219: /* having_opt ::= HAVING expr */
       case 229: /* where_opt ::= WHERE expr */ yytestcase(yyruleno==229);
-#line 671 "sql.y"
 {yymsp[-1].minor.yy439 = yymsp[0].minor.yy439;}
-#line 3627 "sql.c"
         break;
       case 220: /* limit_opt ::= */
       case 224: /* slimit_opt ::= */ yytestcase(yyruleno==224);
-#line 675 "sql.y"
 {yymsp[1].minor.yy166.limit = -1; yymsp[1].minor.yy166.offset = 0;}
-#line 3633 "sql.c"
         break;
       case 221: /* limit_opt ::= LIMIT signed */
       case 225: /* slimit_opt ::= SLIMIT signed */ yytestcase(yyruleno==225);
-#line 676 "sql.y"
 {yymsp[-1].minor.yy166.limit = yymsp[0].minor.yy325;  yymsp[-1].minor.yy166.offset = 0;}
-#line 3639 "sql.c"
         break;
       case 222: /* limit_opt ::= LIMIT signed OFFSET signed */
-#line 678 "sql.y"
 { yymsp[-3].minor.yy166.limit = yymsp[-2].minor.yy325;  yymsp[-3].minor.yy166.offset = yymsp[0].minor.yy325;}
-#line 3644 "sql.c"
         break;
       case 223: /* limit_opt ::= LIMIT signed COMMA signed */
-#line 680 "sql.y"
 { yymsp[-3].minor.yy166.limit = yymsp[0].minor.yy325;  yymsp[-3].minor.yy166.offset = yymsp[-2].minor.yy325;}
-#line 3649 "sql.c"
         break;
       case 226: /* slimit_opt ::= SLIMIT signed SOFFSET signed */
-#line 686 "sql.y"
 {yymsp[-3].minor.yy166.limit = yymsp[-2].minor.yy325;  yymsp[-3].minor.yy166.offset = yymsp[0].minor.yy325;}
-#line 3654 "sql.c"
         break;
       case 227: /* slimit_opt ::= SLIMIT signed COMMA signed */
-#line 688 "sql.y"
 {yymsp[-3].minor.yy166.limit = yymsp[0].minor.yy325;  yymsp[-3].minor.yy166.offset = yymsp[-2].minor.yy325;}
-#line 3659 "sql.c"
         break;
       case 230: /* expr ::= LP expr RP */
-#line 701 "sql.y"
 {yylhsminor.yy439 = yymsp[-1].minor.yy439; yylhsminor.yy439->exprToken.z = yymsp[-2].minor.yy0.z; yylhsminor.yy439->exprToken.n = (yymsp[0].minor.yy0.z - yymsp[-2].minor.yy0.z + 1);}
-#line 3664 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 231: /* expr ::= ID */
-#line 703 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_ID);}
-#line 3670 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 232: /* expr ::= ID DOT ID */
-#line 704 "sql.y"
 { yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[-2].minor.yy0, TK_ID);}
-#line 3676 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 233: /* expr ::= ID DOT STAR */
-#line 705 "sql.y"
 { yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[-2].minor.yy0, TK_ALL);}
-#line 3682 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 234: /* expr ::= INTEGER */
-#line 707 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_INTEGER);}
-#line 3688 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 235: /* expr ::= MINUS INTEGER */
       case 236: /* expr ::= PLUS INTEGER */ yytestcase(yyruleno==236);
-#line 708 "sql.y"
 { yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_INTEGER; yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[-1].minor.yy0, TK_INTEGER);}
-#line 3695 "sql.c"
   yymsp[-1].minor.yy439 = yylhsminor.yy439;
         break;
       case 237: /* expr ::= FLOAT */
-#line 710 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_FLOAT);}
-#line 3701 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 238: /* expr ::= MINUS FLOAT */
       case 239: /* expr ::= PLUS FLOAT */ yytestcase(yyruleno==239);
-#line 711 "sql.y"
 { yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_FLOAT; yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[-1].minor.yy0, TK_FLOAT);}
-#line 3708 "sql.c"
   yymsp[-1].minor.yy439 = yylhsminor.yy439;
         break;
       case 240: /* expr ::= STRING */
-#line 713 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_STRING);}
-#line 3714 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 241: /* expr ::= NOW */
-#line 714 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_NOW); }
-#line 3720 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 242: /* expr ::= VARIABLE */
-#line 715 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_VARIABLE);}
-#line 3726 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 243: /* expr ::= PLUS VARIABLE */
       case 244: /* expr ::= MINUS VARIABLE */ yytestcase(yyruleno==244);
-#line 716 "sql.y"
 { yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_VARIABLE; yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[-1].minor.yy0, TK_VARIABLE);}
-#line 3733 "sql.c"
   yymsp[-1].minor.yy439 = yylhsminor.yy439;
         break;
       case 245: /* expr ::= BOOL */
-#line 718 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_BOOL);}
-#line 3739 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 246: /* expr ::= NULL */
-#line 719 "sql.y"
 { yylhsminor.yy439 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_NULL);}
-#line 3745 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 247: /* expr ::= ID LP exprlist RP */
-#line 722 "sql.y"
 { tStrTokenAppend(pInfo->funcs, &yymsp[-3].minor.yy0); yylhsminor.yy439 = tSqlExprCreateFunction(yymsp[-1].minor.yy421, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type); }
-#line 3751 "sql.c"
   yymsp[-3].minor.yy439 = yylhsminor.yy439;
         break;
       case 248: /* expr ::= ID LP STAR RP */
-#line 725 "sql.y"
 { tStrTokenAppend(pInfo->funcs, &yymsp[-3].minor.yy0); yylhsminor.yy439 = tSqlExprCreateFunction(NULL, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type); }
-#line 3757 "sql.c"
   yymsp[-3].minor.yy439 = yylhsminor.yy439;
         break;
       case 249: /* expr ::= expr IS NULL */
-#line 728 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, NULL, TK_ISNULL);}
-#line 3763 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 250: /* expr ::= expr IS NOT NULL */
-#line 729 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-3].minor.yy439, NULL, TK_NOTNULL);}
-#line 3769 "sql.c"
   yymsp[-3].minor.yy439 = yylhsminor.yy439;
         break;
       case 251: /* expr ::= expr LT expr */
-#line 732 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_LT);}
-#line 3775 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 252: /* expr ::= expr GT expr */
-#line 733 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_GT);}
-#line 3781 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 253: /* expr ::= expr LE expr */
-#line 734 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_LE);}
-#line 3787 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 254: /* expr ::= expr GE expr */
-#line 735 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_GE);}
-#line 3793 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 255: /* expr ::= expr NE expr */
-#line 736 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_NE);}
-#line 3799 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 256: /* expr ::= expr EQ expr */
-#line 737 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_EQ);}
-#line 3805 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 257: /* expr ::= expr BETWEEN expr AND expr */
-#line 739 "sql.y"
 { tSqlExpr* X2 = tSqlExprClone(yymsp[-4].minor.yy439); yylhsminor.yy439 = tSqlExprCreate(tSqlExprCreate(yymsp[-4].minor.yy439, yymsp[-2].minor.yy439, TK_GE), tSqlExprCreate(X2, yymsp[0].minor.yy439, TK_LE), TK_AND);}
-#line 3811 "sql.c"
   yymsp[-4].minor.yy439 = yylhsminor.yy439;
         break;
       case 258: /* expr ::= expr AND expr */
-#line 741 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_AND);}
-#line 3817 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 259: /* expr ::= expr OR expr */
-#line 742 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_OR); }
-#line 3823 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 260: /* expr ::= expr PLUS expr */
-#line 745 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_PLUS);  }
-#line 3829 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 261: /* expr ::= expr MINUS expr */
-#line 746 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_MINUS); }
-#line 3835 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 262: /* expr ::= expr STAR expr */
-#line 747 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_STAR);  }
-#line 3841 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 263: /* expr ::= expr SLASH expr */
-#line 748 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_DIVIDE);}
-#line 3847 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 264: /* expr ::= expr REM expr */
-#line 749 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_REM);   }
-#line 3853 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 265: /* expr ::= expr LIKE expr */
-#line 752 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_LIKE);  }
-#line 3859 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 266: /* expr ::= expr MATCH expr */
-#line 755 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_MATCH);  }
-#line 3865 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 267: /* expr ::= expr NMATCH expr */
-#line 756 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-2].minor.yy439, yymsp[0].minor.yy439, TK_NMATCH);  }
-#line 3871 "sql.c"
   yymsp[-2].minor.yy439 = yylhsminor.yy439;
         break;
       case 268: /* expr ::= expr IN LP exprlist RP */
-#line 759 "sql.y"
 {yylhsminor.yy439 = tSqlExprCreate(yymsp[-4].minor.yy439, (tSqlExpr*)yymsp[-1].minor.yy421, TK_IN); }
-#line 3877 "sql.c"
   yymsp[-4].minor.yy439 = yylhsminor.yy439;
         break;
       case 269: /* exprlist ::= exprlist COMMA expritem */
-#line 767 "sql.y"
 {yylhsminor.yy421 = tSqlExprListAppend(yymsp[-2].minor.yy421,yymsp[0].minor.yy439,0, 0);}
-#line 3883 "sql.c"
   yymsp[-2].minor.yy421 = yylhsminor.yy421;
         break;
       case 270: /* exprlist ::= expritem */
-#line 768 "sql.y"
 {yylhsminor.yy421 = tSqlExprListAppend(0,yymsp[0].minor.yy439,0, 0);}
-#line 3889 "sql.c"
   yymsp[0].minor.yy421 = yylhsminor.yy421;
         break;
       case 271: /* expritem ::= expr */
-#line 769 "sql.y"
 {yylhsminor.yy439 = yymsp[0].minor.yy439;}
-#line 3895 "sql.c"
   yymsp[0].minor.yy439 = yylhsminor.yy439;
         break;
       case 273: /* cmd ::= RESET QUERY CACHE */
-#line 773 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
-#line 3901 "sql.c"
         break;
       case 274: /* cmd ::= SYNCDB ids REPLICA */
-#line 776 "sql.y"
 { setDCLSqlElems(pInfo, TSDB_SQL_SYNC_DB_REPLICA, 1, &yymsp[-1].minor.yy0);}
-#line 3906 "sql.c"
         break;
       case 275: /* cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
-#line 779 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3915 "sql.c"
         break;
       case 276: /* cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids */
-#line 785 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
@@ -3924,28 +3491,22 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3928 "sql.c"
         break;
       case 277: /* cmd ::= ALTER TABLE ids cpxName MODIFY COLUMN columnlist */
-#line 795 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3937 "sql.c"
         break;
       case 278: /* cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
-#line 802 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3946 "sql.c"
         break;
       case 279: /* cmd ::= ALTER TABLE ids cpxName DROP TAG ids */
-#line 807 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
@@ -3955,10 +3516,8 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3959 "sql.c"
         break;
       case 280: /* cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids */
-#line 817 "sql.y"
 {
     yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
 
@@ -3971,10 +3530,8 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3975 "sql.c"
         break;
       case 281: /* cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem */
-#line 830 "sql.y"
 {
     yymsp[-6].minor.yy0.n += yymsp[-5].minor.yy0.n;
 
@@ -3985,28 +3542,22 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-6].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3989 "sql.c"
         break;
       case 282: /* cmd ::= ALTER TABLE ids cpxName MODIFY TAG columnlist */
-#line 841 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 3998 "sql.c"
         break;
       case 283: /* cmd ::= ALTER STABLE ids cpxName ADD COLUMN columnlist */
-#line 848 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4007 "sql.c"
         break;
       case 284: /* cmd ::= ALTER STABLE ids cpxName DROP COLUMN ids */
-#line 854 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
@@ -4016,28 +3567,22 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4020 "sql.c"
         break;
       case 285: /* cmd ::= ALTER STABLE ids cpxName MODIFY COLUMN columnlist */
-#line 864 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4029 "sql.c"
         break;
       case 286: /* cmd ::= ALTER STABLE ids cpxName ADD TAG columnlist */
-#line 871 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4038 "sql.c"
         break;
       case 287: /* cmd ::= ALTER STABLE ids cpxName DROP TAG ids */
-#line 876 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
@@ -4047,10 +3592,8 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4051 "sql.c"
         break;
       case 288: /* cmd ::= ALTER STABLE ids cpxName CHANGE TAG ids ids */
-#line 886 "sql.y"
 {
     yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
 
@@ -4063,10 +3606,8 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4067 "sql.c"
         break;
       case 289: /* cmd ::= ALTER STABLE ids cpxName SET TAG ids EQ tagitem */
-#line 899 "sql.y"
 {
     yymsp[-6].minor.yy0.n += yymsp[-5].minor.yy0.n;
 
@@ -4077,31 +3618,22 @@ static YYACTIONTYPE yy_reduce(
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-6].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4081 "sql.c"
         break;
       case 290: /* cmd ::= ALTER STABLE ids cpxName MODIFY TAG columnlist */
-#line 910 "sql.y"
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
-#line 4090 "sql.c"
         break;
       case 291: /* cmd ::= KILL CONNECTION INTEGER */
-#line 917 "sql.y"
 {setKillSql(pInfo, TSDB_SQL_KILL_CONNECTION, &yymsp[0].minor.yy0);}
-#line 4095 "sql.c"
         break;
       case 292: /* cmd ::= KILL STREAM INTEGER COLON INTEGER */
-#line 918 "sql.y"
 {yymsp[-2].minor.yy0.n += (yymsp[-1].minor.yy0.n + yymsp[0].minor.yy0.n); setKillSql(pInfo, TSDB_SQL_KILL_STREAM, &yymsp[-2].minor.yy0);}
-#line 4100 "sql.c"
         break;
       case 293: /* cmd ::= KILL QUERY INTEGER COLON INTEGER */
-#line 919 "sql.y"
 {yymsp[-2].minor.yy0.n += (yymsp[-1].minor.yy0.n + yymsp[0].minor.yy0.n); setKillSql(pInfo, TSDB_SQL_KILL_QUERY, &yymsp[-2].minor.yy0);}
-#line 4105 "sql.c"
         break;
       default:
         break;
@@ -4163,7 +3695,6 @@ static void yy_syntax_error(
   ParseCTX_FETCH
 #define TOKEN yyminor
 /************ Begin %syntax_error code ****************************************/
-#line 37 "sql.y"
 
   pInfo->valid = false;
   int32_t outputBufLen = tListLen(pInfo->msg);
@@ -4186,7 +3717,6 @@ static void yy_syntax_error(
   }
 
   assert(len <= outputBufLen);
-#line 4190 "sql.c"
 /************ End %syntax_error code ******************************************/
   ParseARG_STORE /* Suppress warning about unused %extra_argument variable */
   ParseCTX_STORE
@@ -4212,8 +3742,7 @@ static void yy_accept(
   /* Here code is inserted which will be executed whenever the
   ** parser accepts */
 /*********** Begin %parse_accept code *****************************************/
-#line 61 "sql.y"
-#line 4217 "sql.c"
+
 /*********** End %parse_accept code *******************************************/
   ParseARG_STORE /* Suppress warning about unused %extra_argument variable */
   ParseCTX_STORE

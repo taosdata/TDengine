@@ -134,7 +134,8 @@ cDebugFlag 135
 rpcDebugFlag 135
 qDebugFlag 135
 # httpDebugFlag 143
-# asyncLog 0
+asyncLog 0
+debugflag 143
 # tables 10
 maxtablesPerVnode 10
 rpcMaxTime 101
