@@ -33,11 +33,11 @@ class TDTestCase:
         tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
-        tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, 'json2')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, true, 'json2')")
         tdSql.error("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags(3)")
-        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 1, 'json1')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 3, 'json3')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"shanghai\",\"name\":\"name4\"}') values (now, 4, 'json4')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 1, false, 'json1')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 3, false 'json3')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"shanghai\",\"name\":\"name4\"}') values (now, 4, true, 'json4')")
 
         print("==============step2")
         tdLog.info("alter stable add tag")
@@ -49,7 +49,7 @@ class TDTestCase:
 
         tdSql.execute("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35, \"isKey\":true}'")
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
-        tdSql.checkData(0, 0, "{\"sex\":\"femail\",\"age\":35}")
+        tdSql.checkData(0, 0, "{\"sex\":\"femail\",\"age\":35,\"isKey\":true}")
 
         print("==============step3")
         tdLog.info("select table")
