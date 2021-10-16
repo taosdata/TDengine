@@ -6,7 +6,7 @@
 
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
-English | [简体中文](./README-CN.md) 
+English | [简体中文](./README-CN.md)
 We are hiring, check [here](https://www.taosdata.com/en/careers/)
 
 # What is TDengine？
@@ -32,7 +32,7 @@ For user manual, system design and architecture, engineering blogs, refer to [TD
 # Building
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
-To build TDengine, use [CMake](https://cmake.org/) 2.8.12.x or higher versions in the project directory. 
+To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
 ## Install tools
 
@@ -47,7 +47,7 @@ sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
 export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
-To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 
+To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed.
 To install openjdk-8:
 ```bash
 sudo apt-get install -y openjdk-8-jdk
@@ -60,7 +60,10 @@ sudo apt-get install -y  maven
 
 ### Centos 7:
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake git
+sudo yum install epel-release
+sudo yum update
+sudo yum install -y gcc gcc-c++ make cmake3 git
+sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 To install openjdk-8:
@@ -94,7 +97,7 @@ TDengine includes few components developed by Go language. Please refer to golan
 Please use version 1.14+. For the user in China, we recommend using a proxy to accelerate package downloading.
 ```
 go env -w GO111MODULE=on
-go env -w GOPROXY=https://goproxy.io,direct
+go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
 ## Get the source codes
@@ -236,7 +239,7 @@ In another terminal, use the TDengine shell to connect the server:
 ./build/bin/taos -c test/cfg
 ```
 
-option "-c test/cfg" specifies the system configuration file directory. 
+option "-c test/cfg" specifies the system configuration file directory.
 
 # Try TDengine
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
