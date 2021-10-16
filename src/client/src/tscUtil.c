@@ -5256,7 +5256,7 @@ char* parseTagDatatoJson(void *p){
       continue;
     }
     if (j == 2){
-      if(*(uint8_t*)val == TSDB_DATA_JSON_NULL) goto end;
+      if(*(uint8_t*)(val+CHAR_BYTES) == TSDB_DATA_JSON_NULL) goto end;
       continue;
     }
     if (j%2 == 1) { // json key  encode by binary
@@ -5318,6 +5318,7 @@ end:
 }
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+  uint8_t nullTypeVal[CHAR_BYTES + CHAR_BYTES] = {0};
   uint8_t jsonNULL = TSDB_DATA_JSON_NULL;
   int jsonIndex = startColId + 1;
   char nullTypeKey[VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
@@ -5325,11 +5326,13 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   *(uint8_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
   if (strtrim(json) == 0 || strcasecmp(json, "null") == 0){
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &jsonNULL, false);   // add json null value
+    nullTypeVal[1] = jsonNULL;
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;
   }
   int8_t jsonNotNull = TSDB_DATA_JSON_NOT_NULL;
-  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &jsonNotNull, false);   // add json type
+  nullTypeVal[1] = jsonNotNull;
+  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &nullTypeVal, true);   // add json type
 
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
@@ -5415,7 +5418,8 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   }
 
   if(taosHashGetSize(keyHash) == 0){  // set json NULL true
-    memcpy(POINTER_SHIFT(kvRowBuilder->buf, kvRowBuilder->pColIdx[2].offset), &jsonNULL, CHAR_BYTES);
+    nullTypeVal[1] = jsonNULL;
+    memcpy(POINTER_SHIFT(kvRowBuilder->buf, kvRowBuilder->pColIdx[2].offset), &nullTypeVal, CHAR_BYTES + CHAR_BYTES);
   }
 
 end:

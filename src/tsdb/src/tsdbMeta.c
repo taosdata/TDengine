@@ -1116,7 +1116,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
 
         SColIdx * pColIdxNull = kvRowColIdxAt(pTable->tagVal, j+1);
         void* valNull = (kvRowColVal(pTable->tagVal, pColIdxNull));
-        if(*(uint8_t*)valNull == TSDB_DATA_JSON_NOT_NULL) continue;   // do not add null type if json is not null
+        if(*(uint8_t*)(valNull+CHAR_BYTES) == TSDB_DATA_JSON_NOT_NULL) continue;   // do not add null type if json is not null
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
@@ -1196,7 +1196,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
         SColIdx * pColIdxNull = kvRowColIdxAt(pTable->tagVal, j+1);
         void* valNull = (kvRowColVal(pTable->tagVal, pColIdxNull));
-        if(*(uint8_t*)valNull == TSDB_DATA_JSON_NOT_NULL) continue;
+        if(*(uint8_t*)(valNull+CHAR_BYTES) == TSDB_DATA_JSON_NOT_NULL) continue;
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
