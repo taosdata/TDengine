@@ -399,7 +399,6 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" !=
   rm -rf /var/lib/taos/*
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
-  nohup build/bin/blm3 >/dev/null 2>&1 &
   
   cd $tests_dir/../src/connector/jdbc  
   
