@@ -13,20 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _TD_MNODE_SDB_H_
+#define _TD_MNODE_SDB_H_
+
 #include "mnodeInt.h"
 
-int32_t mnodeInit(SMnodePara para) { return 0; }
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void mnodeCleanup() {}
+int32_t sdbInit();
+void sdbCleanup();
 
-int32_t mnodeDeploy(struct SMInfos *minfos) { return 0; }
 
-void mnodeUnDeploy() {}
+#ifdef __cplusplus
+}
+#endif
 
-bool mnodeIsServing() { return false; }
-
-int32_t mnodeGetStatistics(SMnodeStat *stat) { return 0; }
-
-int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
-
-void mnodeProcessMsg(SRpcMsg *rpcMsg) {}
+#endif /*_TD_MNODE_INT_H_*/
