@@ -1206,7 +1206,9 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
         else val = jsonTypeKey;
       }
 
-      SArray** tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));
+      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+      jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
+      SArray** tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
       if(tablist == NULL) {
         tsdbError("json tag no key error,%d", j);
         continue;
