@@ -1075,6 +1075,8 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
 
 bool simExecuteLineInsertCmd(SScript *script, char *rest) {
   char buf[TSDB_MAX_BINARY_LEN];
+  char msg[512] = {0};
+  int  a_lines = 0;
 
   simVisuallizeOption(script, rest, buf);
   rest = buf;
@@ -1084,20 +1086,22 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char *  lines[] = {rest};
-  int32_t ret = taos_schemaless_insert(script->taos, lines, 1, 0, "ns");
+  int32_t ret = taos_schemaless_insert(script->taos, lines, 1, 0, "ns", &a_lines, msg, sizeof(msg));
   if (ret == TSDB_CODE_SUCCESS) {
     simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
     script->linePos++;
     return true;
   } else {
     sprintf(script->error, "lineNum: %d. line: %s failed, ret:%d:%s", line->lineNum, rest,
-            ret & 0XFFFF, tstrerror(ret));
+            ret & 0XFFFF, msg);
     return false;
   }
 }
 
 bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
   char buf[TSDB_MAX_BINARY_LEN];
+  char msg[512] = {0};
+  int  a_lines = 0;
 
   simVisuallizeOption(script, rest, buf);
   rest = buf;
@@ -1107,14 +1111,14 @@ bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char *  lines[] = {rest};
-  int32_t ret = taos_schemaless_insert(script->taos, lines, 1, 0, "ns");
+  int32_t ret = taos_schemaless_insert(script->taos, lines, 1, 0, "ns", &a_lines, msg, sizeof(msg));
   if (ret == TSDB_CODE_SUCCESS) {
     sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName, script->taos, rest);
     script->linePos++;
     return false;
   } else {
     simDebug("lineNum: %d. line: %s failed, ret:%d:%s. Expect failed, so success", line->lineNum, rest,
-            ret & 0XFFFF, tstrerror(ret));
+            ret & 0XFFFF, msg);
     return true;
   }
 }

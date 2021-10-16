@@ -100,6 +100,8 @@ jmethodID g_blockdataSetNumOfColsFp;
 #define JNI_FETCH_END -6
 #define JNI_OUT_OF_MEMORY -7
 
+#define JNI_ERR_MSG_BUF_LEN 50
+
 static void jniGetGlobalMethod(JNIEnv *env) {
   // make sure init function executed once
   switch (atomic_val_compare_exchange_32(&__init, 0, 1)) {
@@ -1054,6 +1056,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JNIEnv *env, jobject jobj,
                                                                                jobjectArray lines, jlong conn) {
+  int a_lines = 0;
+  char errMsg[JNI_ERR_MSG_BUF_LEN] = {0};
+
   TAOS *taos = (TAOS *)conn;
   if (taos == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
@@ -1071,7 +1076,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
     c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
   }
 
-  int code = taos_schemaless_insert(taos, c_lines, numLines, SML_LINE_PROTOCOL, "ms");
+  int code = taos_schemaless_insert(taos, c_lines, numLines, SML_LINE_PROTOCOL, "ms", &a_lines, errMsg, JNI_ERR_MSG_BUF_LEN);
 
   for (int i = 0; i < numLines; ++i) {
     jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
@@ -1080,7 +1085,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
 
   tfree(c_lines);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
+    jniError("jobj:%p, conn:%p, code:%s, affected lines:%d", jobj, taos, errMsg, a_lines);
 
     return JNI_TDENGINE_ERROR;
   }

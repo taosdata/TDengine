@@ -37,16 +37,17 @@ typedef struct  {
 
 static void* insertLines(void* args) {
   SThreadInsertArgs* insertArgs = (SThreadInsertArgs*) args;
-  char tidBuf[32] = {0};
+  char tidBuf[32] = {0}, errMsg[512] = {0};
+  int  a_lines = 0;
   printThreadId(pthread_self(), tidBuf);
   for (int i = 0; i < insertArgs->numBatches; ++i) {
     SThreadLinesBatch* batch = insertArgs->batches + i;
     printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
     int64_t begin = getTimeInUs();
-    int32_t code = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, 0, "ms");
+    int32_t code = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, 0, "ms", &a_lines, errMsg, sizeof(errMsg));
     int64_t end = getTimeInUs();
     insertArgs->costTime += end - begin;
-    printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);
+    printf("code: %d, %s. affected lines:%d time used:%"PRId64", thread: 0x%s\n", code, errMsg, a_lines, end - begin, tidBuf);
   }
   return NULL;
 }

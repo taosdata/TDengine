@@ -87,10 +87,10 @@ void destroySmlDataPoint(TAOS_SML_DATA_POINT* point);
 
 int taos_insert_sml_lines(TAOS* taos, char* lines[], int numLines,
                           SMLProtocolType protocol, SMLTimeStampType tsType);
-int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines,
-                             SMLProtocolType protocol, SMLTimeStampType tsType);
-int taos_insert_json_payload(TAOS* taos, char* payload,
-                             SMLProtocolType protocol, SMLTimeStampType tsType);
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol,
+                             SMLTimeStampType tsType, int* affectedRows);
+int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol,
+                             SMLTimeStampType tsType, int* affectedRows);
 
 
 #ifdef __cplusplus

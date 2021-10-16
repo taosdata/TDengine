@@ -2238,7 +2238,7 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
+int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int *affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -2282,6 +2282,9 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType p
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_sml_insert error: %s", info->id, tstrerror((code)));
   }
+  if (affectedRows != NULL) {
+    *affectedRows = info->affectedRows;
+  }
 
 cleanup:
   tscDebug("SML:0x%"PRIx64" taos_insert_lines finish inserting %d lines. code: %d", info->id, numLines, code);
@@ -2297,7 +2300,7 @@ cleanup:
   return code;
 }
 
-int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
+int32_t convertPrecisionStrType(const char* precision, SMLTimeStampType *tsType) {
   if (precision == NULL) {
     *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
     return TSDB_CODE_SUCCESS;
@@ -2364,30 +2367,38 @@ int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
  *
  */
 
-int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* timePrecision) {
+int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, const char* precision,
+                           int* affectedRows, char* msg, int msgBufLen) {
   int code;
   SMLTimeStampType tsType;
 
   if (protocol == SML_LINE_PROTOCOL) {
-    code = convertPrecisionStrType(timePrecision, &tsType);
+    code = convertPrecisionStrType(precision, &tsType);
     if (code != TSDB_CODE_SUCCESS) {
+      if (msg != NULL) {
+        tstrncpy(msg, tstrerror(code), msgBufLen);
+      }
       return code;
     }
   }
 
   switch (protocol) {
     case SML_LINE_PROTOCOL:
-      code = taos_insert_lines(taos, lines, numLines, protocol, tsType);
+      code = taos_insert_lines(taos, lines, numLines, protocol, tsType, affectedRows);
       break;
     case SML_TELNET_PROTOCOL:
-      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType);
+      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, affectedRows);
       break;
     case SML_JSON_PROTOCOL:
-      code = taos_insert_json_payload(taos, *lines, protocol, tsType);
+      code = taos_insert_json_payload(taos, *lines, protocol, tsType, affectedRows);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
       break;
+  }
+
+  if (msg != NULL) {
+    tstrncpy(msg, tstrerror(code), msgBufLen);
   }
 
   return code;
