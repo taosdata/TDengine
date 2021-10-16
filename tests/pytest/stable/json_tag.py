@@ -168,7 +168,7 @@ class TDTestCase:
 
         # test json
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('efwewf')")
-        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
+        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_7 using db_json_tag_test.jsons1 tags('{}')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_8 using db_json_tag_test.jsons1 tags('null')")

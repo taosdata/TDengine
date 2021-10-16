@@ -5269,7 +5269,7 @@ char* parseTagDatatoJson(void *p){
       char type = *(char*)val;
       if(type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
-        if (length == 0) {
+        if (length < 0) {
           tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
                    (char*)val);
           goto end;
