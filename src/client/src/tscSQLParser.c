@@ -4433,11 +4433,11 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
     if (pRight != NULL && pRight->value.nLen >= TSDB_COL_NAME_LEN)
       return invalidOperationMsg(msgBuf, msg2);
   } else {
-    if (pLeft != NULL && (pLeft->tokenId == TK_ID)) {
+    if (pLeft != NULL && pLeft->tokenId == TK_ID && pExpr->tokenId != TK_NULL) {
       return invalidOperationMsg(msgBuf, msg1);
     }
 
-    if (pLeft != NULL && (pLeft->tokenId == TK_ARROW)) {
+    if (pLeft != NULL && pLeft->tokenId == TK_ARROW) {
       if (pLeft->pRight && !IS_VAR_DATA_TYPE(pLeft->pRight->value.nType))
         return invalidOperationMsg(msgBuf, msg3);
       if (pLeft->pRight && pLeft->pRight->value.nLen >= TSDB_COL_NAME_LEN)

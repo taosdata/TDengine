@@ -1100,22 +1100,26 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
   if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
-    ASSERT(nCols%2 == 0);
+    ASSERT(nCols%2 == 1);
+    void* jsonTypeKey = NULL;
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j != 1 && j%2 != 0) continue; // jump value
+      if (j != 0 && j != 2 && j%2 == 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void* val = (kvRowColVal(pTable->tagVal, pColIdx));
       if (j == 0){        // json value is the first
-        int8_t jsonVal = *(int8_t*)val;
-        ASSERT(jsonVal == TSDB_DATA_JSON_PLACEHOLDER);
+        int8_t jsonPlaceHolder = *(int8_t*)val;
+        ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
         continue;
       }
-
-      char nullData[VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
-      if( j == 1 && *(uint8_t*)val == TSDB_DATA_JSON_NULL){   // for null json data, add index to jsonKeyMap
-        varDataSetLen(nullData, CHAR_BYTES);
-        *(uint8_t*)(varDataVal(nullData)) = TSDB_DATA_JSON_NULL;
-        val = nullData;
+      if (j == 1){
+        uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
+        ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
+        jsonTypeKey = val;
+        continue;
+      }
+      if (j == 2){
+        if(*(uint8_t*)val == TSDB_DATA_JSON_NOT_NULL) continue;
+        else val = jsonTypeKey;
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
@@ -1180,15 +1184,26 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
-    ASSERT(nCols%2 == 0);
+    ASSERT(nCols%2 == 1);
+    void* jsonTypeKey = NULL;
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j%2 != 0) continue; // jump value
+      if (j != 0 && j != 2 && j%2 == 0) continue; // jump value
       SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void* val = (kvRowColVal(pTable->tagVal, pColIdx));
       if (j == 0){        // json value is the first
-        int8_t jsonVal = *(int8_t*)val;
-        ASSERT(jsonVal == TSDB_DATA_JSON_PLACEHOLDER);
+        int8_t jsonPlaceHolder = *(int8_t*)val;
+        ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
         continue;
+      }
+      if (j == 1){
+        uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
+        ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
+        jsonTypeKey = val;
+        continue;
+      }
+      if (j == 2){
+        if(*(uint8_t*)val == TSDB_DATA_JSON_NOT_NULL) continue;
+        else val = jsonTypeKey;
       }
 
       SArray** tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, varDataVal(val) ,varDataLen(val));

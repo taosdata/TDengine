@@ -4087,13 +4087,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
-    int16_t colId = 0;
-    void* jsonData = getJsonTagValue(pTable, name, TSDB_MAX_JSON_KEY_MD5_LEN, &colId);
-    if(colId == id + 1){      // if find json tag is NULL
-      if(jsonData != NULL) *data = NULL;
-      else *data = pTable;
-      return TSDB_CODE_SUCCESS;
-    }
+    void* jsonData = getJsonTagValue(pTable, name, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
     // jsonData == NULL for ? operation
     if(jsonData != NULL) jsonData += CHAR_BYTES;   // jump type
     *data = jsonData;
