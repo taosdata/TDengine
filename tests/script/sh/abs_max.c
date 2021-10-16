@@ -29,7 +29,7 @@ void abs_max(char* data, short itype, short ibytes, int numOfRows, long long* ts
        }
 
        *numOfOutput=1;
-       long v = abs(*((long *)data + i));
+       long v = labs(*((long *)data + i));
        if (v > r) {
           r = v;
        }
