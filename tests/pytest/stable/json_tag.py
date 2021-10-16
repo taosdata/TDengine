@@ -30,7 +30,7 @@ class TDTestCase:
         print("==============step1")
         tdLog.info("create database and table")
         tdSql.execute("create database db_json_tag_test")
-        tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(128))")
+        tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
         tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, 'json2')")
@@ -47,7 +47,7 @@ class TDTestCase:
 
         tdSql.error("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag=4")
 
-        tdSql.execute("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35}'")
+        tdSql.execute("ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{\"sex\":\"femail\",\"age\":35, \"isKey\":true}'")
         tdSql.query("select jtag from db_json_tag_test.jsons1_1")
         tdSql.checkData(0, 0, "{\"sex\":\"femail\",\"age\":35}")
 
@@ -166,6 +166,17 @@ class TDTestCase:
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
 
+        # test json
+        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('efwewf')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_7 using db_json_tag_test.jsons1 tags('{}')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_8 using db_json_tag_test.jsons1 tags('null')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_9 using db_json_tag_test.jsons1 tags('{\"\":4, \"time\":null}')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_10 using db_json_tag_test.jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
+        tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json and jtag->'location' match 'jin'")
+        tdSql.checkRows(2)
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

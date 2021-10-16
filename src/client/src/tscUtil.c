@@ -5402,7 +5402,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   }
 
   if(taosHashGetSize(keyHash) == 0){  // set json NULL true
-    memcpy(POINTER_SHIFT(kvRowBuilder->buf, sizeof(nullTypeKey)), &jsonNULL, CHAR_BYTES);
+    memcpy(POINTER_SHIFT(kvRowBuilder->buf, kvRowBuilder->pColIdx[2].offset), &jsonNULL, CHAR_BYTES);
   }
 
 end:
