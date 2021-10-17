@@ -96,7 +96,7 @@ static int32_t sdbReadDataFile() {
   snprintf(file, sizeof(file), "%ssdb.data", tsSdb.currDir);
   fp = fopen(file, "r");
   if (!fp) {
-    mError("failed to open file:%s for read since %s", file, strerror(errno));
+    mDebug("failed to open file:%s for read since %s", file, strerror(errno));
     goto PARSE_SDB_DATA_ERROR;
   }
 
@@ -137,12 +137,15 @@ static int32_t sdbReadDataFile() {
       continue;
     }
 
-    SdbDecodeFp func = tsSdb.decodeFp[type->valueint];
-    SdbHead    *pHead = (*func)(root);
+    SdbDecodeFp decodeFp = tsSdb.decodeFp[type->valueint];
+    SdbHead    *pHead = (*decodeFp)(root);
     if (pHead == NULL) {
       mError("failed to parse since decode error, %s", line);
       goto PARSE_SDB_DATA_ERROR;
     }
+
+    pHead->type = type->valueint;
+    pHead->status = MN_SDB_STAT_AVAIL;
 
     sdbInsertRow(pHead->type, pHead);
     cJSON_Delete(root);
@@ -176,12 +179,12 @@ static int32_t sdbWriteDataFile() {
     SHashObj *hash = tsSdb.hashObj[i];
     if (!hash) continue;
 
-    SdbEncodeFp fp = tsSdb.encodeFp[i];
-    if (!fp) continue;
+    SdbEncodeFp encodeFp = tsSdb.encodeFp[i];
+    if (!encodeFp) continue;
 
     SdbHead *pHead = taosHashIterate(hash, NULL);
     while (pHead != NULL) {
-      len = (*fp)(pHead, buf, maxLen);
+      len = (*encodeFp)(pHead, buf, maxLen);
       if (len >= 0) {
         taosWriteFile(fd, buf, len);
       }
