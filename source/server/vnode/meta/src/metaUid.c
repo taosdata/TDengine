@@ -15,9 +15,12 @@
 
 #include "metaUid.h"
 
-static tb_uid_t nuid = IVLD_TB_UID;
+tb_uid_t generateUid(STableUidGenerator *pGen) {
+  // Generate a new table UID
+  return ++(pGen->nextUid);
+}
 
-tb_uid_t metaGenerateUid() {
-  // TODO: need a more complex UID generator
-  return ++nuid;
+void tableUidGeneratorInit(STableUidGenerator *pGen, tb_uid_t suid) {
+  // Init a generator
+  pGen->nextUid = suid;
 }

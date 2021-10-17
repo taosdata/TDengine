@@ -13,33 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_UID_H_
-#define _TD_META_UID_H_
-
-#include "meta.h"
+#ifndef _TD_TSDB_WRITE_BATCH_H_
+#define _TD_TSDB_WRITE_BATCH_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* ------------------------ APIS EXPOSED ------------------------ */
-typedef struct STableUidGenerator STableUidGenerator;
+typedef struct STsdbWriteBatch STsdbWriteBatch;
 
-// tb_uid_t
-#define IVLD_TB_UID 0
-tb_uid_t generateUid(STableUidGenerator *);
-
-// STableUidGenerator
-void tableUidGeneratorInit(STableUidGenerator *, tb_uid_t suid);
-#define tableUidGeneratorClear(ug)
-
-/* ------------------------ FOR TEST AND COMPILE ONLY ------------------------ */
-struct STableUidGenerator {
-  tb_uid_t nextUid;
+/* ------------------------- ------------------------- */
+struct STsdbWriteBatch {
+  // TODO
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_META_UID_H_*/
+#endif /*_TD_TSDB_WRITE_BATCH_H_*/
