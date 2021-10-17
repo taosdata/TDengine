@@ -16,3 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "mnodeInt.h"
+
+int32_t mnodeInitSync() { return 0; }
+void    mnodeCleanUpSync() {}

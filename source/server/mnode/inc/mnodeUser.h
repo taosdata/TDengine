@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+int32_t mnodeInitUser();
+void    mnodeCleanupUser();
+
 #ifdef __cplusplus
 }
 #endif

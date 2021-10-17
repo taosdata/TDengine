@@ -13,20 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_CLUSTER_H_
-#define _TD_MNODE_CLUSTER_H_
-
-#include "mnodeInt.h"
+#ifndef _TD_MNODE_OPER_H_
+#define _TD_MNODE_OPER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mnodeInitCluster();
-void    mnodeCleanupCluster();
+int32_t mnodeInitOper();
+void    mnodeCleanupOper();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MNODE_CLUSTER_H_*/
+#endif /*_TD_MNODE_OPER_H_*/

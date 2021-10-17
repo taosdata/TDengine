@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+int32_t mnodeInitVgroup();
+void    mnodeCleanupVgroup();
+
 #ifdef __cplusplus
 }
 #endif

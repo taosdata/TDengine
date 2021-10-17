@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_CLUSTER_H_
-#define _TD_MNODE_CLUSTER_H_
+#ifndef _TD_MNODE_PROFILE_H_
+#define _TD_MNODE_PROFILE_H_
 
 #include "mnodeInt.h"
 
@@ -22,11 +22,11 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitCluster();
-void    mnodeCleanupCluster();
+int32_t mnodeInitProfile();
+void    mnodeCleanupProfile();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MNODE_CLUSTER_H_*/
+#endif /*_TD_MNODE_PROFILE_H_*/

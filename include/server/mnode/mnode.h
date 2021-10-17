@@ -79,10 +79,9 @@ void mnodeCleanup();
 /**
  * Deploy mnode instances in dnode.
  *
- * @param minfos, server information used to deploy the mnode instance.
  * @return Error Code.
  */
-int32_t mnodeDeploy(struct SMInfos *minfos);
+int32_t mnodeDeploy();
 
 /**
  * Delete the mnode instance deployed in dnode.

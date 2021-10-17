@@ -13,6 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "os.h"
+#ifndef _TD_MNODE_FUNC_H_
+#define _TD_MNODE_FUNC_H_
+
 #include "mnodeInt.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t mnodeInitFunc();
+void    mnodeCleanupFunc();
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MNODE_FUNC_H_*/

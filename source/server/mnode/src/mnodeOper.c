@@ -13,17 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_TABLE_H_
-#define _TD_MNODE_TABLE_H_
-
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "mnodeInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MNODE_TABLE_H_*/
+int32_t mnodeInitOper() { return 0; }
+void    mnodeCleanupOper() {}

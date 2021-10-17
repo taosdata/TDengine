@@ -22,9 +22,14 @@
 extern "C" {
 #endif
 
-int32_t sdbInit();
-void sdbCleanup();
+int32_t mnodeInitSdb();
+void    mnodeCleanupSdb();
 
+int32_t mnodeDeploySdb();
+void    mnodeUnDeploySdb();
+
+int32_t mnodeReadSdb();
+int32_t mnodeCommitSdb();
 
 #ifdef __cplusplus
 }

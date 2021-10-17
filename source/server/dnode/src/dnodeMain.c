@@ -237,7 +237,7 @@ static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
 
   if (mnodeIsServing()) return 0;
 
-  return mnodeDeploy(&pCfg->mnodes);
+  return mnodeDeploy();
 }
 
 void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg) {

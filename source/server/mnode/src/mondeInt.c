@@ -17,22 +17,23 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tstep.h"
-#include "mnodeInt.h"
-
+#include "mnodeAcct.h"
+#include "mnodeAuth.h"
+#include "mnodeBalance.h"
 #include "mnodeCluster.h"
 #include "mnodeDb.h"
 #include "mnodeDnode.h"
 #include "mnodeFunc.h"
 #include "mnodeMnode.h"
+#include "mnodeOper.h"
 #include "mnodeProfile.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
-#include "mnodeTable.h"
+#include "mnodeStable.h"
+#include "mnodeSync.h"
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 #include "mnodeWorker.h"
-#include "mnodeDb.h"
-#include "mnodeRaft.h"
 
 static struct {
   int32_t  state;
@@ -40,7 +41,8 @@ static struct {
   char     clusterId[TSDB_CLUSTER_ID_LEN];
   tmr_h    timer;
   SMnodeFp fp;
-  SSteps * steps;
+  SSteps * steps1;
+  SSteps * steps2;
 } tsMint;
 
 tmr_h mnodeGetTimer() { return tsMint.timer; }
@@ -49,7 +51,7 @@ int32_t mnodeGetDnodeId() { return tsMint.dnodeId; }
 
 char *mnodeGetClusterId() { return tsMint.clusterId; }
 
-bool mnodeIsServing() { return tsMint.state == TAOS_MN_STATUS_READY; }
+bool mnodeIsServing() { return tsMint.state == MN_STATUS_READY; }
 
 void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
   (*tsMint.fp.SendMsgToDnode)(epSet, rpcMsg);
@@ -75,50 +77,6 @@ static int32_t mnodeSetPara(SMnodePara para) {
   return 0;
 }
 
-static bool mnodeNeedDeploy() {
-  if (tsMint.dnodeId > 0) return false;
-  if (tsMint.clusterId[0] != 0) return false;
-  if (strcmp(tsFirst, tsLocalEp) != 0) return false;
-  return true;
-}
-
-static bool mnodeIsDeployed() {
-  struct stat dirstat;
-  char        filename[PATH_MAX + 20] = {0};
-  snprintf(filename, sizeof(filename), "%s/wal/wal0", tsMnodeDir);
-
-  return (stat(filename, &dirstat) == 0);
-}
-
-int32_t mnodeDeploy(struct SMInfos *pMinfos) {
-  if (pMinfos == NULL) {  // first deploy
-    tsMint.dnodeId = 1;
-    bool getuid = taosGetSystemUid(tsMint.clusterId);
-    if (!getuid) {
-      strcpy(tsMint.clusterId, "tdengine3.0");
-      mError("deploy new mnode but failed to get uid, set to default val %s", tsMint.clusterId);
-    } else {
-      mDebug("deploy new mnode and uid is %s", tsMint.clusterId);
-    }
-  } else {  // todo
-  }
-
-  if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
-    mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
-    return -1;
-  }
-
-  return 0;
-}
-
-void mnodeUnDeploy() {
-  if (remove(tsMnodeDir) != 0) {
-    mInfo("failed to remove mnode file, reason:%s", strerror(errno));
-  } else {
-    mInfo("mnode file is removed");
-  }
-}
-
 static int32_t mnodeInitTimer() {
   if (tsMint.timer == NULL) {
     tsMint.timer = taosTmrInit(tsMaxShellConns, 200, 3600000, "MND");
@@ -134,95 +92,153 @@ static void mnodeCleanupTimer() {
   }
 }
 
-static int32_t mnodeInitSteps() {
-  struct SSteps *steps = taosStepInit(20, NULL);
+static int32_t mnodeInitStep1() {
+  struct SSteps *steps = taosStepInit(16, NULL);
   if (steps == NULL) return -1;
 
-  taosStepAdd(steps, "mnode-timer",   mnodeInitTimer,   NULL);
-  taosStepAdd(steps, "mnode-worker",  mnodeInitWorker, NULL);
-  taosStepAdd(steps, "mnode-sdbref",  sdbInitRef,       sdbCleanUpRef);
-  taosStepAdd(steps, "mnode-profile", mnodeInitProfile, mnodeCleanupProfile);
-  taosStepAdd(steps, "mnode-funcs",   mnodeInitFuncs,   mnodeCleanupFuncs);
-  taosStepAdd(steps, "mnode-dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes);
-  taosStepAdd(steps, "mnode-dbs",     mnodeInitDbs,     mnodeCleanupDbs);
-  taosStepAdd(steps, "mnode-vgroups", mnodeInitVgroups, mnodeCleanupVgroups);
-  taosStepAdd(steps, "mnode-tables",  mnodeInitTables,  mnodeCleanupTables);  
-  taosStepAdd(steps, "mnode-mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes);
-  taosStepAdd(steps, "mnode-sdb",     sdbInit,          sdbCleanUp);
-  taosStepAdd(steps, "mnode-balance", bnInit,           bnCleanUp);
-  taosStepAdd(steps, "mnode-grant",   grantInit,        grantCleanUp);
-  taosStepAdd(steps, "mnode-show",    mnodeInitShow,    mnodeCleanUpShow);
-  taosStepAdd(steps, "mnode-kv",      mnodeInitKv,      mnodeCleanupKv);
-  taosStepAdd(steps, "mnode-raft",    mnodeInitRaft,    mnodeCleanupRaft);
+  taosStepAdd(steps, "mnode-sdb", mnodeInitSdb, mnodeCleanupSdb);
   taosStepAdd(steps, "mnode-cluster", mnodeInitCluster, mnodeCleanupCluster);
-  taosStepAdd(steps, "mnode-users",   mnodeInitUsers,   mnodeCleanupUsers);
-  taosStepAdd(steps, "mnode-worker",  NULL,             mnodeCleanupWorker);
-  taosStepAdd(steps, "mnode-timer",   NULL,             mnodeCleanupTimer);
+  taosStepAdd(steps, "mnode-dnode", mnodeInitDnode, mnodeCleanupDnode);
+  taosStepAdd(steps, "mnode-mnode", mnodeInitMnode, mnodeCleanupMnode);
+  taosStepAdd(steps, "mnode-acct", mnodeInitAcct, mnodeCleanupAcct);
+  taosStepAdd(steps, "mnode-auth", mnodeInitAuth, mnodeCleanupAuth);
+  taosStepAdd(steps, "mnode-user", mnodeInitUser, mnodeCleanupUser);
+  taosStepAdd(steps, "mnode-db", mnodeInitDb, mnodeCleanupDb);
+  taosStepAdd(steps, "mnode-vgroup", mnodeInitVgroup, mnodeCleanupVgroup);
+  taosStepAdd(steps, "mnode-stable", mnodeInitStable, mnodeCleanupStable);
+  taosStepAdd(steps, "mnode-func", mnodeInitFunc, mnodeCleanupFunc);
+  taosStepAdd(steps, "mnode-oper", mnodeInitOper, mnodeCleanupOper);
 
-  tsMint.steps = steps;
-  return taosStepExec(tsMint.steps);
+  tsMint.steps1 = steps;
+  return taosStepExec(tsMint.steps1);
 }
 
-static void mnodeCleanupSteps() { taosStepCleanup(tsMint.steps); }
+static int32_t mnodeInitStep2() {
+  struct SSteps *steps = taosStepInit(12, NULL);
+  if (steps == NULL) return -1;
 
+  taosStepAdd(steps, "mnode-timer", mnodeInitTimer, NULL);
+  taosStepAdd(steps, "mnode-worker", mnodeInitWorker, NULL);
+  taosStepAdd(steps, "mnode-balance", mnodeInitBalance, mnodeCleanupBalance);
+  taosStepAdd(steps, "mnode-profile", mnodeInitProfile, mnodeCleanupProfile);
+  taosStepAdd(steps, "mnode-show", mnodeInitShow, mnodeCleanUpShow);
+  taosStepAdd(steps, "mnode-sync", mnodeInitSync, mnodeCleanUpSync);
+  taosStepAdd(steps, "mnode-worker", NULL, mnodeCleanupWorker);
+  taosStepAdd(steps, "mnode-timer", NULL, mnodeCleanupTimer);
 
-int32_t mnodeInit(SMnodePara para) {
-  int32_t code = 0;
-  if (tsMint.state != TAOS_MN_STATUS_UNINIT) {
+  tsMint.steps2 = steps;
+  return taosStepExec(tsMint.steps2);
+}
+
+static void mnodeCleanupStep1() { taosStepCleanup(tsMint.steps1); }
+
+static void mnodeCleanupStep2() { taosStepCleanup(tsMint.steps2); }
+
+static bool mnodeNeedDeploy() {
+  if (tsMint.dnodeId > 0) return false;
+  if (tsMint.clusterId[0] != 0) return false;
+  if (strcmp(tsFirst, tsLocalEp) != 0) return false;
+  return true;
+}
+
+int32_t mnodeDeploy() {
+  if (tsMint.state != MN_STATUS_UNINIT) {
+    mError("failed to deploy mnode since its deployed");
     return 0;
   } else {
-    tsMint.state = TAOS_MN_STATUS_INIT;
+    tsMint.state = MN_STATUS_INIT;
   }
 
-  code = mnodeSetPara(para);
+  if (tsMint.dnodeId <= 0 || tsMint.clusterId[0] == 0) {
+    mError("failed to deploy mnode since cluster not ready");
+    return TSDB_CODE_MND_NOT_READY;
+  }
+
+  mInfo("starting to deploy mnode");
+
+  int32_t code = mnodeInitStep1();
   if (code != 0) {
-    tsMint.state = TAOS_MN_STATUS_UNINIT;
-    return code;
+    mError("failed to deploy mnode since init step1 error");
+    tsMint.state = MN_STATUS_UNINIT;
+    return TSDB_CODE_MND_SDB_ERROR;
   }
 
-  
+  code = mnodeInitStep2();
+  if (code != 0) {
+    mnodeCleanupStep1();
+    mError("failed to deploy mnode since init step2 error");
+    tsMint.state = MN_STATUS_UNINIT;
+    return TSDB_CODE_MND_SDB_ERROR;
+  }
 
-  bool needDeploy = mnodeNeedDeploy();
-  bool deployed = mnodeIsDeployed();
+  mDebug("mnode is deployed and waiting for raft to confirm");
+  tsMint.state = MN_STATUS_READY;
+  return 0;
+}
 
-  if (!deployed) {
-    if (needDeploy) {
-      code = mnodeDeploy(NULL);
-      if (code != 0) {
-        tsMint.state = TAOS_MN_STATUS_UNINIT;
-        return code;
-      }
-    } else {
-      tsMint.state = TAOS_MN_STATUS_UNINIT;
-      return 0;
-    }
+void mnodeUnDeploy() {
+  mnodeUnDeploySdb();
+  mnodeCleanup();
+}
+
+int32_t mnodeInit(SMnodePara para) {
+  if (tsMint.state != MN_STATUS_UNINIT) {
+    return 0;
+  } else {
+    tsMint.state = MN_STATUS_INIT;
   }
 
   mInfo("starting to initialize mnode ...");
 
-  code = mnodeInitSteps();
+  int32_t code = mnodeSetPara(para);
   if (code != 0) {
-    tsMint.state = TAOS_MN_STATUS_UNINIT;
+    tsMint.state = MN_STATUS_UNINIT;
+    return code;
+  }
+
+  code = mnodeInitStep1();
+  if (code != 0) {
+    tsMint.state = MN_STATUS_UNINIT;
     return -1;
   }
 
-  // todo
-  grantReset(TSDB_GRANT_ALL, 0);
-  sdbUpdateSync(NULL);
+  code = mnodeReadSdb();
+  if (code != 0) {
+    if (mnodeNeedDeploy()) {
+      code = mnodeDeploySdb();
+      if (code != 0) {
+        mnodeCleanupStep1();
+        tsMint.state = MN_STATUS_UNINIT;
+        return -1;
+      }
+    } else {
+      mnodeCleanupStep1();
+      tsMint.state = MN_STATUS_UNINIT;
+      return -1;
+    }
+  }
 
-  tsMint.state = TAOS_MN_STATUS_READY;
+  code = mnodeInitStep2();
+  if (code != 0) {
+    mnodeCleanupStep1();
+    tsMint.state = MN_STATUS_UNINIT;
+    return -1;
+  }
+
+  tsMint.state = MN_STATUS_READY;
   mInfo("mnode is initialized successfully");
   return 0;
 }
 
 void mnodeCleanup() {
-  if (tsMint.state != TAOS_MN_STATUS_UNINIT && tsMint.state != TAOS_MN_STATUS_CLOSING) {
+  if (tsMint.state != MN_STATUS_UNINIT && tsMint.state != MN_STATUS_CLOSING) {
     mInfo("starting to clean up mnode");
-    tsMint.state = TAOS_MN_STATUS_CLOSING;
-    
-    mnodeCleanupSteps();
+    tsMint.state = MN_STATUS_CLOSING;
 
-    tsMint.state = TAOS_MN_STATUS_UNINIT;
+    mnodeCleanupStep2();
+    mnodeCleanupStep1();
+
+    tsMint.state = MN_STATUS_UNINIT;
     mInfo("mnode is cleaned up");
   }
 }
