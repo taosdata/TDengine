@@ -229,6 +229,9 @@ int main(int argc, char *argv[]) {
     PRINT_SUCCESS
     printf("Successfully execute insert statement.\n");
 
+    int affectedRows = taos_stmt_affected_rows(stmt);
+    printf("Successfully inserted %d rows", affectedRows);
+
     taos_stmt_close(stmt);
     for (int i = 0; i < 10; i++) {
         check_result(taos, i, 1);
