@@ -46,7 +46,6 @@ static int32_t dnodeInitVnodeModule(void **unused) {
 
 static int32_t dnodeInitMnodeModule(void **unused) {
   SMnodePara para;
-  para.fp.GetDnodeEp = dnodeGetDnodeEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
   para.fp.SendRedirectMsg = dnodeSendRedirectMsg;

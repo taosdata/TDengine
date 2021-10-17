@@ -22,14 +22,28 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitSdb();
-void    mnodeCleanupSdb();
+typedef void (*SdbDeployFp)();
+typedef void *(*SdbDecodeFp)(cJSON *root);
+typedef int32_t (*SdbEncodeFp)(void *pHead, char *buf, int32_t maxLen);
 
-int32_t mnodeDeploySdb();
-void    mnodeUnDeploySdb();
+int32_t sdbInit();
+void    sdbCleanup();
 
-int32_t mnodeReadSdb();
-int32_t mnodeCommitSdb();
+int32_t sdbRead();
+int32_t sdbCommit();
+
+int32_t sdbDeploy();
+void    sdbUnDeploy();
+
+void   *sdbInsertRow(EMnSdb sdb, void *pObj);
+void    sdbDeleteRow(EMnSdb sdb, void *pHead);
+void   *sdbUpdateRow(EMnSdb sdb, void *pHead);
+void   *sdbGetRow(EMnSdb sdb, void *pKey);
+void   *sdbFetchRow(EMnSdb sdb, void *pIter);
+void    sdbCancelFetch(EMnSdb sdb, void *pIter);
+int32_t sdbGetCount(EMnSdb sdb);
+
+void sdbSetFp(EMnSdb, EMnKey, SdbDeployFp, SdbEncodeFp, SdbDecodeFp, int32_t dataSize);
 
 #ifdef __cplusplus
 }

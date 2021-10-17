@@ -51,7 +51,7 @@ int32_t mnodeGetDnodeId() { return tsMint.dnodeId; }
 
 char *mnodeGetClusterId() { return tsMint.clusterId; }
 
-bool mnodeIsServing() { return tsMint.state == MN_STATUS_READY; }
+EMnStatus mnodeIsServing() { return tsMint.state; }
 
 void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
   (*tsMint.fp.SendMsgToDnode)(epSet, rpcMsg);
@@ -68,7 +68,6 @@ static int32_t mnodeSetPara(SMnodePara para) {
   tsMint.dnodeId = para.dnodeId;
   strncpy(tsMint.clusterId, para.clusterId, TSDB_CLUSTER_ID_LEN);
 
-  if (tsMint.fp.GetDnodeEp == NULL) return -1;
   if (tsMint.fp.SendMsgToDnode == NULL) return -1;
   if (tsMint.fp.SendMsgToMnode == NULL) return -1;
   if (tsMint.fp.SendRedirectMsg == NULL) return -1;
@@ -96,7 +95,7 @@ static int32_t mnodeInitStep1() {
   struct SSteps *steps = taosStepInit(16, NULL);
   if (steps == NULL) return -1;
 
-  taosStepAdd(steps, "mnode-sdb", mnodeInitSdb, mnodeCleanupSdb);
+  taosStepAdd(steps, "mnode-sdb", sdbInit, sdbCleanup);
   taosStepAdd(steps, "mnode-cluster", mnodeInitCluster, mnodeCleanupCluster);
   taosStepAdd(steps, "mnode-dnode", mnodeInitDnode, mnodeCleanupDnode);
   taosStepAdd(steps, "mnode-mnode", mnodeInitMnode, mnodeCleanupMnode);
@@ -177,11 +176,12 @@ int32_t mnodeDeploy() {
 }
 
 void mnodeUnDeploy() {
-  mnodeUnDeploySdb();
+  sdbUnDeploy();
   mnodeCleanup();
 }
 
 int32_t mnodeInit(SMnodePara para) {
+  mDebugFlag = 207;
   if (tsMint.state != MN_STATUS_UNINIT) {
     return 0;
   } else {
@@ -202,10 +202,10 @@ int32_t mnodeInit(SMnodePara para) {
     return -1;
   }
 
-  code = mnodeReadSdb();
+  code = sdbRead();
   if (code != 0) {
     if (mnodeNeedDeploy()) {
-      code = mnodeDeploySdb();
+      code = sdbDeploy();
       if (code != 0) {
         mnodeCleanupStep1();
         tsMint.state = MN_STATUS_UNINIT;

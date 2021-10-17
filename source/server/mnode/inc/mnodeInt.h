@@ -22,10 +22,10 @@
 extern "C" {
 #endif
 
-tmr_h   mnodeGetTimer();
-int32_t mnodeGetDnodeId();
-char   *mnodeGetClusterId();
-bool    mnodeIsRunning();
+tmr_h     mnodeGetTimer();
+int32_t   mnodeGetDnodeId();
+char     *mnodeGetClusterId();
+EMnStatus mnodeIsServing();
 
 void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
