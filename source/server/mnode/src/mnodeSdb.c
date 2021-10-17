@@ -152,9 +152,9 @@ static int32_t sdbReadDataFile() {
   code = 0;
 
 PARSE_SDB_DATA_ERROR:
-  tfree(line);
-  fclose(fp);
-  cJSON_Delete(root);
+  if (line) free(line);
+  if (fp) fclose(fp);
+  if (root) cJSON_Delete(root);
 
   return code;
 }
