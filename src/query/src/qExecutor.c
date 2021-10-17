@@ -2376,7 +2376,13 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_Order: {
-        pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &pQueryAttr->order);
+        if (pQueryAttr->pExpr2 != NULL) {
+          pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2,
+                                                       pQueryAttr->numOfExpr2, &pQueryAttr->order);
+        } else {
+          pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
+                                                       pQueryAttr->numOfOutput, &pQueryAttr->order);
+        }
         break;
       }
 
