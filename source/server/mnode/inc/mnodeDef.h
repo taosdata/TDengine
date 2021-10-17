@@ -143,32 +143,18 @@ typedef struct {
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
-  int32_t maxConnections;
   int32_t maxStreams;
-  int32_t maxPointsPerSecond;
   int64_t maxStorage;    // In unit of GB
-  int64_t maxQueryTime;  // In unit of hour
-  int64_t maxInbound;
-  int64_t maxOutbound;
   int8_t  accessState;  // Configured only by command
 } SAcctCfg;
 
 typedef struct {
-  int64_t totalStorage;  // Total storage wrtten from this account
-  int64_t compStorage;   // Compressed storage on disk
-  int64_t queryTime;
-  int64_t totalPoints;
-  int64_t inblound;
-  int64_t outbound;
-  int64_t sKey;
   int32_t numOfUsers;
   int32_t numOfDbs;
   int32_t numOfTimeSeries;
-  int32_t numOfPointsPerSecond;
-  int32_t numOfConns;
-  int32_t numOfQueries;
   int32_t numOfStreams;
-  int8_t  accessState;   // Checked by mgmt heartbeat message
+  int64_t totalStorage;  // Total storage wrtten from this account
+  int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
 typedef struct SAcctObj {

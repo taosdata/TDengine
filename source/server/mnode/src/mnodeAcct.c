@@ -25,13 +25,8 @@ static void mnodeCreateDefaultAcct() {
   acctObj.cfg = (SAcctCfg){.maxUsers = 128,
                            .maxDbs = 128,
                            .maxTimeSeries = INT32_MAX,
-                           .maxConnections = 1024,
                            .maxStreams = 1000,
-                           .maxPointsPerSecond = 10000000,
                            .maxStorage = INT64_MAX,
-                           .maxQueryTime = INT64_MAX,
-                           .maxInbound = 0,
-                           .maxOutbound = 0,
                            .accessState = TSDB_VN_ALL_ACCCESS};
   acctObj.acctId = 1;
   acctObj.createdTime = taosGetTimestampMs();
@@ -47,13 +42,8 @@ int32_t mnodeEncodeAcct(SAcctObj *pAcct, char *buf, int32_t maxLen) {
   len += snprintf(buf + len, maxLen - len, "\"maxUsers\":\"%d\", ", pAcct->cfg.maxUsers);
   len += snprintf(buf + len, maxLen - len, "\"maxDbs\":\"%d\", ", pAcct->cfg.maxDbs);
   len += snprintf(buf + len, maxLen - len, "\"maxTimeSeries\":\"%d\", ", pAcct->cfg.maxTimeSeries);
-  len += snprintf(buf + len, maxLen - len, "\"maxConnections\":\"%d\", ", pAcct->cfg.maxConnections);
   len += snprintf(buf + len, maxLen - len, "\"maxStreams\":\"%d\", ", pAcct->cfg.maxStreams);
-  len += snprintf(buf + len, maxLen - len, "\"maxPointsPerSecond\":\"%d\", ", pAcct->cfg.maxPointsPerSecond);
-  len += snprintf(buf + len, maxLen - len, "\"maxUsers\":\"%" PRIu64 "\", ", pAcct->cfg.maxStorage);
-  len += snprintf(buf + len, maxLen - len, "\"maxQueryTime\":\"%" PRIu64 "\", ", pAcct->cfg.maxQueryTime);
-  len += snprintf(buf + len, maxLen - len, "\"maxInbound\"\":%" PRIu64 "\", ", pAcct->cfg.maxInbound);
-  len += snprintf(buf + len, maxLen - len, "\"maxOutbound\":\"%" PRIu64 "\", ", pAcct->cfg.maxOutbound);
+  len += snprintf(buf + len, maxLen - len, "\"maxStorage\":\"%" PRIu64 "\", ", pAcct->cfg.maxStorage);
   len += snprintf(buf + len, maxLen - len, "\"accessState\":\"%d\", ", pAcct->cfg.accessState);
   len += snprintf(buf + len, maxLen - len, "\"createdTime\":\"%" PRIu64 "\", ", pAcct->createdTime);
   len += snprintf(buf + len, maxLen - len, "\"updateTime\":\"%" PRIu64 "\"}\n", pAcct->updateTime);
