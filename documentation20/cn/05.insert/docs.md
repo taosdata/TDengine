@@ -209,15 +209,26 @@ sudo systemctl start telegraf
 BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 BLM v3)
+<<<<<<< HEAD
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 
 TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 collectd 的多种应用的数据写入。
+=======
+安装 collectd
+```
+apt-get install collectd
+```
+>>>>>>> 6d84b5c2c (update techdoc to include telegraf/collectd/statsd)
 
 在 /etc/collectd/collectd.conf 文件中增加如下内容：
 ```
 LoadPlugin network
 <Plugin network>
+<<<<<<< HEAD
   Server "<TDengine cluster/server host>" "25826"
+=======
+  Server "192.168.17.180" "25826"
+>>>>>>> 6d84b5c2c (update techdoc to include telegraf/collectd/statsd)
 </Plugin>
 ```
 重启 collectd
@@ -228,17 +239,33 @@ BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 BLM v3)
 安装 StatsD
+<<<<<<< HEAD
 请参考[官方文档](https://github.com/statsd/statsd)。
 
 TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
+=======
+```
+1. git clone https://github.com/etsy/statsd.git
+2. cd statsd
+3. cp exampleConfig.js config.js
+4. node stats.js config.js
+```
+>>>>>>> 6d84b5c2c (update techdoc to include telegraf/collectd/statsd)
 
 在 config.js 文件中增加如下内容后启动 StatsD：
 ```
 backends 部分添加 "./backends/repeater"
+<<<<<<< HEAD
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: 8126 }
 ```
 
 示例配置文件：
+=======
+repeater 部分添加 { host:'host to blm3', port: 8126 }
+```
+
+实例配置文件：
+>>>>>>> 6d84b5c2c (update techdoc to include telegraf/collectd/statsd)
 ```
 {
 port: 8125
