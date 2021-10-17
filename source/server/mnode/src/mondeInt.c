@@ -96,7 +96,7 @@ static int32_t mnodeInitStep1() {
   struct SSteps *steps = taosStepInit(16, NULL);
   if (steps == NULL) return -1;
 
-  taosStepAdd(steps, "mnode-sdb", mnodeInitSdb, mnodeCleanupSdb);
+  taosStepAdd(steps, "mnode-sdb", sdbInit, sdbCleanup);
   taosStepAdd(steps, "mnode-cluster", mnodeInitCluster, mnodeCleanupCluster);
   taosStepAdd(steps, "mnode-dnode", mnodeInitDnode, mnodeCleanupDnode);
   taosStepAdd(steps, "mnode-mnode", mnodeInitMnode, mnodeCleanupMnode);
@@ -177,11 +177,12 @@ int32_t mnodeDeploy() {
 }
 
 void mnodeUnDeploy() {
-  mnodeUnDeploySdb();
+  sdbUnDeploy();
   mnodeCleanup();
 }
 
 int32_t mnodeInit(SMnodePara para) {
+  mDebugFlag = 207;
   if (tsMint.state != MN_STATUS_UNINIT) {
     return 0;
   } else {
@@ -202,10 +203,10 @@ int32_t mnodeInit(SMnodePara para) {
     return -1;
   }
 
-  code = mnodeReadSdb();
+  code = sdbRead();
   if (code != 0) {
     if (mnodeNeedDeploy()) {
-      code = mnodeDeploySdb();
+      code = sdbDeploy();
       if (code != 0) {
         mnodeCleanupStep1();
         tsMint.state = MN_STATUS_UNINIT;

@@ -20,6 +20,7 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
+#include "cJSON.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -94,15 +95,16 @@ typedef enum {
   MN_AUTH_MAX
 } EMnAuthOp;
 
-typedef enum {
-  MN_STATUS_UNINIT = 0,
-  MN_STATUS_INIT = 1,
-  MN_STATUS_READY = 2,
-  MN_STATUS_CLOSING = 3
-} EMnStatus;
+typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
 
+typedef enum { MN_SDB_STAT_AVAIL = 0, MN_SDB_STAT_DROPPED = 1 } EMnSdbStat;
 
+typedef struct {
+  int8_t type;
+  int8_t status;
+} SdbHead;
 typedef struct SClusterObj {
+  SdbHead head;
   int64_t id;
   char    uid[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
@@ -110,6 +112,7 @@ typedef struct SClusterObj {
 } SClusterObj;
 
 typedef struct SDnodeObj {
+  SdbHead  head;
   int32_t  id;
   int32_t  vnodes;
   int64_t  createdTime;
@@ -126,6 +129,7 @@ typedef struct SDnodeObj {
 } SDnodeObj;
 
 typedef struct SMnodeObj {
+  SdbHead    head;
   int32_t    id;
   int8_t     status;
   int8_t     role;
@@ -169,6 +173,7 @@ typedef struct {
 } SAcctInfo;
 
 typedef struct SAcctObj {
+  SdbHead   head;
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
@@ -179,6 +184,7 @@ typedef struct SAcctObj {
 } SAcctObj;
 
 typedef struct SUserObj {
+  SdbHead   head;
   char      user[TSDB_USER_LEN];
   char      pass[TSDB_KEY_LEN];
   char      acct[TSDB_USER_LEN];
@@ -212,6 +218,7 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
+  SdbHead   head;
   char      name[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -255,6 +262,7 @@ typedef struct SVgObj {
 } SVgObj;
 
 typedef struct SSTableObj {
+  SdbHead    head;
   char       tableId[TSDB_TABLE_NAME_LEN];
   uint64_t   uid;
   int64_t    createdTime;
@@ -265,6 +273,7 @@ typedef struct SSTableObj {
 } SSTableObj;
 
 typedef struct SFuncObj {
+  SdbHead head;
   char    name[TSDB_FUNC_NAME_LEN];
   char    path[128];
   int32_t contLen;
