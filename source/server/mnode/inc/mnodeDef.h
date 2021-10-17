@@ -102,6 +102,7 @@ typedef struct {
   int8_t status;
   int8_t align[6];
 } SdbHead;
+
 typedef struct SClusterObj {
   SdbHead head;
   int64_t id;

@@ -30,6 +30,7 @@ static void mnodeCreateDefaultAcct() {
                            .accessState = TSDB_VN_ALL_ACCCESS};
   acctObj.acctId = 1;
   acctObj.createdTime = taosGetTimestampMs();
+  acctObj.updateTime = taosGetTimestampMs();
 
   sdbInsertRow(MN_SDB_ACCT, &acctObj);
 }
