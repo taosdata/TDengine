@@ -188,14 +188,14 @@ select * from apiserver_request_latencies_bucket;
 
 TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
 
-配置方法，假设 TDengine 使用默认用户名 root 和密码 taosdata。在 /etc/telegraf/telegraf.conf 增加如下文字：
+配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username和 password 填写 TDengine 实际值：
 ```
 [[outputs.http]]
-  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=metrics"
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
   method = "POST"
   timeout = "5s"
-  username = "root"
-  password = "taosdata"
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
   data_format = "influx"
   influx_max_line_bytes = 250
 ```
@@ -213,11 +213,11 @@ BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 collectd 的多种应用的数据写入。
 
-在 /etc/collectd/collectd.conf 文件中增加如下内容：
+在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 BLM3 配置的实际值：
 ```
 LoadPlugin network
 <Plugin network>
-  Server "<TDengine cluster/server host>" "25826"
+  Server "<TDengine cluster/server host>" "<port for collectd>"
 </Plugin>
 ```
 重启 collectd
@@ -232,10 +232,10 @@ BLM v3 相关配置参数请参考 blm3 --help 命令输出以及相关文档。
 
 TDengine 新版本（2.3.0.0+）包含一个 BLM3 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
 
-在 config.js 文件中增加如下内容后启动 StatsD：
+在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 BLM3 配置的实际值：
 ```
 backends 部分添加 "./backends/repeater"
-repeater 部分添加 { host:'<TDengine server/cluster host>', port: 8126 }
+repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
 ```
 
 示例配置文件：
