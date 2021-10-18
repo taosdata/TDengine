@@ -42,12 +42,6 @@ enum SQL_NODE_FROM_TYPE {
   SQL_NODE_FROM_TABLELIST  = 2,
 };
 
-//enum SQL_EXPR_FLAG {
-//  EXPR_FLAG_TS_ERROR = 1,
-//  EXPR_FLAG_NS_TIMESTAMP = 2,
-//  EXPR_FLAG_TIMESTAMP_VAR = 3,
-//};
-
 extern char tTokenTypeSwitcher[13];
 
 #define toTSDBType(x)                          \
