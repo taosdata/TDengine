@@ -4519,8 +4519,8 @@ static void* createTable(void *sarg)
             i <= pThreadInfo->end_table_to; i++) {
         if (0 == g_Dbs.use_metric) {
             snprintf(pThreadInfo->buffer, buff_len,
-                    stbInfo->escapeChar ? 
-                    "CREATE TABLE IF NOT EXISTS %s.`%s%"PRIu64" %s`;" :
+                    g_args.escapeChar ? 
+                    "CREATE TABLE IF NOT EXISTS %s.`%s%"PRIu64"` %s;" :
                     "CREATE TABLE IF NOT EXISTS %s.%s%"PRIu64" %s;",
                     pThreadInfo->db_name,
                     g_args.tb_prefix, i,
