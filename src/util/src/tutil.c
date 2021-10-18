@@ -95,7 +95,7 @@ size_t strtrim(char *z) {
   int32_t j = 0;
 
   int32_t delta = 0;
-  while (z[j] == ' ') {
+  while (isspace(z[j])) {
     ++j;
   }
 
@@ -108,9 +108,9 @@ size_t strtrim(char *z) {
 
   int32_t stop = 0;
   while (z[j] != 0) {
-    if (z[j] == ' ' && stop == 0) {
+    if (isspace(z[j]) && stop == 0) {
       stop = j;
-    } else if (z[j] != ' ' && stop != 0) {
+    } else if (!isspace(z[j]) && stop != 0) {
       stop = 0;
     }
 

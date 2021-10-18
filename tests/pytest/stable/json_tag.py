@@ -173,7 +173,7 @@ class TDTestCase:
 
         # test json string parse
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('efwewf')")
-        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
         #tdSql.query("select jtag from db_json_tag_test.jsons1_6")
         #tdSql.checkData(0, 0, "NULL")
@@ -204,7 +204,7 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag is null")
-        tdSql.checkRows(4)
+        tdSql.checkRows(5)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag is not null")
         tdSql.checkRows(5)
@@ -213,7 +213,7 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         tdSql.query("select tbname,jtag from db_json_tag_test.jsons1 where jtag->'location' is null")
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num' is not null")
         tdSql.checkRows(2)

@@ -905,8 +905,6 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
       }
 
       varDataSetLen(data + param->offset, output);
-    } else if (param->type == TSDB_DATA_TYPE_JSON) {   // todo json
-
     }
   }
 
