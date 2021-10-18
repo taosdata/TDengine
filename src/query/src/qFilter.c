@@ -1184,27 +1184,29 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
         free(v);
       }
     }
-  }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
+  }
+
+  if(tree->_node.optr == TSDB_RELATION_QUESTION){
     SSchema* schema = pLeft->pSchema;
     if(tree->_node.pRight->pVal->nLen > TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
     jsonKeyMd5(tree->_node.pRight->pVal->pz, tree->_node.pRight->pVal->nLen, keyMd5);
     memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
   }
+
   SSchema* schema = pLeft->pSchema;
-  if(schema->type == TSDB_DATA_TYPE_JSON) {
-    if(tree->_node.optr == TSDB_RELATION_ISNULL || tree->_node.optr == TSDB_RELATION_NOTNULL){
-      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+  if(tree->_node.optr == TSDB_RELATION_ISNULL || tree->_node.optr == TSDB_RELATION_NOTNULL){
+    if(pLeft->pSchema->type == TSDB_DATA_TYPE_JSON) {
+      char    keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
       uint8_t nullData = TSDB_DATA_JSON_NULL;
       jsonKeyMd5(&nullData, 1, keyMd5);
       memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
-    }else if(tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH || tree->_node.optr == TSDB_RELATION_LIKE){
-      if(!IS_VAR_DATA_TYPE(schema->type)){
-        return TSDB_CODE_QRY_JSON_INVALID_EXP;
-      }
+    }
+  }else if(tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH || tree->_node.optr == TSDB_RELATION_LIKE){
+    if(!IS_VAR_DATA_TYPE(schema->type)){
+      return TSDB_CODE_QRY_JSON_INVALID_EXP;
     }
   }
-
 
   SFilterFieldId left = {0}, right = {0};
   filterAddFieldFromNode(info, pLeft, &left);
