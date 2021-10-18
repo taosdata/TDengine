@@ -699,7 +699,7 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
       if (isNull(p, TSDB_DATA_TYPE_NCHAR) && pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
         memcpy(dst, p, varDataTLen(p));
-      } else if(isNull(p, TSDB_DATA_TYPE_JSON && pInfo->field.type == TSDB_DATA_TYPE_JSON)) {
+      } else if(isNull(p, TSDB_DATA_TYPE_JSON) && pInfo->field.type == TSDB_DATA_TYPE_JSON) {
         memcpy(dst, p, varDataTLen(p));
       }else if (varDataLen(p) > 0) {
         int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
@@ -5158,11 +5158,12 @@ void getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, i
     return;
   }
 
-  char out[TSDB_MAX_TAGS_LEN] = {0};
+  char out[20] = {0};
   char* realData = POINTER_SHIFT(result, CHAR_BYTES);
   if(*(char*)result == TSDB_DATA_TYPE_NCHAR) {
-    assert(varDataTLen(result) <= TSDB_MAX_TAGS_LEN);
-    varDataCopy(out, result);
+    assert(varDataTLen(realData) <= bytes);
+    varDataCopy(dst, realData);
+    return;
   }else if (*(char*)result == TSDB_DATA_TYPE_DOUBLE) {
     double jsonVd = *(double*)(realData);
     sprintf(varDataVal(out), "%.9lf", jsonVd);

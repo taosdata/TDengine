@@ -176,19 +176,19 @@ class TDTestCase:
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_6")
-        tdSql.checkData(0, 0, "")
+        tdSql.checkData(0, 0, None)
 
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_7 using db_json_tag_test.jsons1 tags('{}')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_7")
-        tdSql.checkData(0, 0, "")
+        tdSql.checkData(0, 0, None)
 
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_8 using db_json_tag_test.jsons1 tags('null')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_8")
-        tdSql.checkData(0, 0, "")
+        tdSql.checkData(0, 0, None)
 
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_9 using db_json_tag_test.jsons1 tags('{\"\":4, \"time\":null}')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_9")
-        tdSql.checkData(0, 0, "")
+        tdSql.checkData(0, 0, None)
 
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_10 using db_json_tag_test.jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_10")
