@@ -145,6 +145,8 @@ class TDTestCase:
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34) and jtag->'class'=55")
         tdSql.checkRows(0)
 
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' like '5%'")
+
         # test where condition in
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' in ('beijing')")
         tdSql.checkRows(2)
@@ -169,7 +171,7 @@ class TDTestCase:
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
 
-        # test json
+        # test json string parse
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('efwewf')")
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
@@ -206,6 +208,12 @@ class TDTestCase:
 
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag is not null")
         tdSql.checkRows(5)
+
+        #tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='null'")
+        #tdSql.checkRows(5)
+
+        #tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num'='null'")
+        #tdSql.checkRows(5)
 
     def stop(self):
         tdSql.close()

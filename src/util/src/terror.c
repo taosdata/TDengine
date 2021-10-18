@@ -294,9 +294,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        "Query buffer limit ha
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in replica")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
-//TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_NOT_EXIST,       "json tag key not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_SUPPORT_ERROR,       "only support is [not] null")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR,      "json tag key type not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR,   "json tag key must be string in match/nmatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_INVALID_EXP,         "invalid regular expression")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

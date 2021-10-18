@@ -4371,7 +4371,7 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 
   if (pRight->tokenId == TK_STRING) {
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if (IS_VAR_DATA_TYPE(pSchema[index].type)) {
+    if (IS_VAR_DATA_TYPE(pSchema[index].type) || pSchema[index].type == TSDB_DATA_TYPE_JSON) {
       return TSDB_CODE_SUCCESS;
     }
     
