@@ -5699,8 +5699,8 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       for(int32_t i = 0; i < numOfOutput; ++i) {
         SColumnInfoData col = {{0}};
         col.info.colId = pExpr[i].base.colInfo.colId;
-        col.info.bytes = pExpr[i].base.colBytes;
-        col.info.type  = pExpr[i].base.colType;
+        col.info.bytes = pExpr[i].base.resBytes;
+        col.info.type  = pExpr[i].base.resType;
         taosArrayPush(pDataBlock->pDataBlock, &col);
 
         if (col.info.colId == pOrderVal->orderColId) {
