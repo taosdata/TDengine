@@ -325,6 +325,9 @@ static int32_t monBuildIoSql(char *sql) {
     monDebug("failed to get io info");
   }
 
+  readKB = readKB/tsMonitorInterval;
+  writeKB = writeKB/tsMonitorInterval;
+
   return sprintf(sql, ", %f, %f", readKB, writeKB);
 }
 
