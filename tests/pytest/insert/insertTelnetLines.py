@@ -29,7 +29,6 @@ class TDTestCase:
         tdSql.execute("create database if not exists test precision 'us'")
         tdSql.execute('use test')
 
-
         ### metric ###
         print("============= step1 : test metric  ================")
         lines0 = [
