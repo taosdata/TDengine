@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  printf("presss any key to exit\n");
+  printf("press any key to exit\n");
   getchar();
 
   taos_close_stream(pStream);
