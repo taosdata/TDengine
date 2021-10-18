@@ -176,7 +176,7 @@ class TDTestCase:
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t')")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('')")
         #tdSql.query("select jtag from db_json_tag_test.jsons1_6")
-        #tdSql.checkData(0, 0, "NULL")
+        tdSql.checkData(0, 0, "NULL")
 
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_7 using db_json_tag_test.jsons1 tags('{}')")
         #tdSql.query("select jtag from db_json_tag_test.jsons1_7")

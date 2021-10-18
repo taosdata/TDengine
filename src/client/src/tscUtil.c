@@ -699,7 +699,7 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
       if (isNull(p, TSDB_DATA_TYPE_NCHAR) && pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
         memcpy(dst, p, varDataTLen(p));
-      } else if(isNull(p, TSDB_DATA_TYPE_JSON && pInfo->field.type == TSDB_DATA_TYPE_JSON)) {
+      } else if(isNuselect jtag from db_json_tag_test.jsons1_6ll(p, TSDB_DATA_TYPE_JSON && pInfo->field.type == TSDB_DATA_TYPE_JSON)) {
         memcpy(dst, p, varDataTLen(p));
       }else if (varDataLen(p) > 0) {
         int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
@@ -5222,7 +5222,7 @@ char* parseTagDatatoJson(void *p){
       continue;
     }
     if (j == 2){
-      if(*(uint8_t*)(val+CHAR_BYTES) == TSDB_DATA_JSON_NULL) goto end;
+      if(*(uint8_t*)(varDataVal(val)) == TSDB_DATA_JSON_NULL) goto end;
       continue;
     }
     if (j%2 == 1) { // json key  encode by binary
@@ -5284,7 +5284,7 @@ end:
 }
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
-  uint8_t nullTypeVal[CHAR_BYTES + CHAR_BYTES] = {0};
+  uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
   uint8_t jsonNULL = TSDB_DATA_JSON_NULL;
   int jsonIndex = startColId + 1;
   char nullTypeKey[VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
@@ -5292,13 +5292,13 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   *(uint8_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
   if (strtrim(json) == 0 || strcasecmp(json, "null") == 0){
-    nullTypeVal[1] = jsonNULL;
-    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &nullTypeVal, true);   // add json null value
+    *(uint8_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
+    tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, &nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;
   }
   int8_t jsonNotNull = TSDB_DATA_JSON_NOT_NULL;
-  nullTypeVal[1] = jsonNotNull;
-  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_JSON, &nullTypeVal, true);   // add json type
+  *(uint8_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNotNull;
+  tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, &nullTypeVal, true);   // add json type
 
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
@@ -5384,8 +5384,8 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   }
 
   if(taosHashGetSize(keyHash) == 0){  // set json NULL true
-    nullTypeVal[1] = jsonNULL;
-    memcpy(POINTER_SHIFT(kvRowBuilder->buf, kvRowBuilder->pColIdx[2].offset), &nullTypeVal, CHAR_BYTES + CHAR_BYTES);
+    *(uint8_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
+    memcpy(POINTER_SHIFT(kvRowBuilder->buf, kvRowBuilder->pColIdx[2].offset), &nullTypeVal, CHAR_BYTES + VARSTR_HEADER_SIZE + CHAR_BYTES);
   }
 
 end:
