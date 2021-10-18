@@ -209,11 +209,19 @@ class TDTestCase:
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag is not null")
         tdSql.checkRows(5)
 
-        #tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='null'")
-        #tdSql.checkRows(5)
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' is not null")
+        tdSql.checkRows(3)
 
-        #tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num'='null'")
-        #tdSql.checkRows(5)
+        tdSql.query("select tbname,jtag from db_json_tag_test.jsons1 where jtag->'location' is null")
+        tdSql.checkRows(6)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num' is not null")
+        tdSql.checkRows(2)
+
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='null'")
+        tdSql.checkRows(0)
+
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num'='null'")
 
     def stop(self):
         tdSql.close()
