@@ -224,6 +224,10 @@ class TDTestCase:
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num'='null'")
 
+        # test distinct
+        tdSql.query("select distinct jtag from db_json_tag_test.jsons1")
+        tdSql.checkRows(6)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
