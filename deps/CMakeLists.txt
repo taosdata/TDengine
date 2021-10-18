@@ -1,3 +1,6 @@
+# ================================================================================================
+# DEPENDENCIES
+# ================================================================================================
 # googletest
 if(${BUILD_TEST})
     add_subdirectory(googletest)
@@ -36,7 +39,7 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # leveldb
 if(${BUILD_WITH_LEVELDB})
-option(LEVELDB_BUILD_TESTS "" OFF)
+    option(LEVELDB_BUILD_TESTS "" OFF)
     add_subdirectory(leveldb)
     target_include_directories(
         leveldb
@@ -45,6 +48,7 @@ option(LEVELDB_BUILD_TESTS "" OFF)
 endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
+# To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
@@ -55,3 +59,17 @@ if(${BUILD_WITH_ROCKSDB})
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
     )
 endif(${BUILD_WITH_ROCKSDB})
+
+# lucene
+# To support build on ubuntu: sudo apt-get install libboost-all-dev
+if(${BUILD_WITH_LUCENE})
+    option(ENABLE_TEST "Enable the tests" OFF)
+    add_subdirectory(lucene)
+endif(${BUILD_WITH_LUCENE})
+
+# ================================================================================================
+# DEPENDENCY TEST
+# ================================================================================================
+if(${BUILD_DEPENDENCY_TESTS})
+    add_subdirectory(test)
+endif(${BUILD_DEPENDENCY_TESTS})

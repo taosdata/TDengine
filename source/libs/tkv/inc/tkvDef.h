@@ -13,33 +13,46 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_UID_H_
-#define _TD_META_UID_H_
+#ifndef _TD_TKV_DEF_H_
+#define _TD_TKV_DEF_H_
 
-#include "meta.h"
+#ifdef USE_ROCKSDB
+#include <rocksdb/c.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+struct STkvDb {
+#ifdef USE_ROCKSDB
+  rocksdb_t *db;
+#endif
+};
 
-/* ------------------------ APIS EXPOSED ------------------------ */
-typedef struct STableUidGenerator STableUidGenerator;
+struct STkvOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_options_t *opts;
+#endif
+};
 
-// tb_uid_t
-#define IVLD_TB_UID 0
-tb_uid_t generateUid(STableUidGenerator *);
+struct STkvCache {
+  // TODO
+};
 
-// STableUidGenerator
-void tableUidGeneratorInit(STableUidGenerator *, tb_uid_t suid);
-#define tableUidGeneratorClear(ug)
+struct STkvReadOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_readoptions_t *ropts;
+#endif
+};
 
-/* ------------------------ FOR TEST AND COMPILE ONLY ------------------------ */
-struct STableUidGenerator {
-  tb_uid_t nextUid;
+struct STkvWriteOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_writeoptions_t *wopts;
+#endif
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_META_UID_H_*/
+#endif /*_TD_TKV_DEF_H_*/

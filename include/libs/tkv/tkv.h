@@ -32,13 +32,15 @@ typedef struct STkvWriteOpts STkvWriteOpts;
 // DB operations
 STkvDb *tkvOpen(const STkvOpts *options, const char *path);
 void    tkvClose(STkvDb *db);
-void    tkvPut(STkvDb *db, STkvWriteOpts *, char *key, size_t keylen, char *val, size_t vallen);
-char *  tkvGet(STkvDb *db, STkvReadOpts *, char *key, size_t keylen, size_t *vallen);
+void    tkvPut(STkvDb *db, const STkvWriteOpts *, const char *key, size_t keylen, const char *val, size_t vallen);
+char *  tkvGet(STkvDb *db, const STkvReadOpts *, const char *key, size_t keylen, size_t *vallen);
+void    tkvCommit(STkvDb *db);
 
 // DB options
-STkvOpts *tkvOptionsCreate();
-void      tkvOptionsDestroy(STkvOpts *);
+STkvOpts *tkvOptsCreate();
+void      tkvOptsDestroy(STkvOpts *);
 void      tkvOptionsSetCache(STkvOpts *, STkvCache *);
+void      tkvOptsSetCreateIfMissing(STkvOpts *, unsigned char);
 
 // DB cache
 typedef enum { TKV_LRU_CACHE = 0, TKV_LFU_CACHE = 1 } ETkvCacheType;
