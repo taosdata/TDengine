@@ -148,6 +148,7 @@ static int32_t sdbReadDataFile() {
     pHead->status = MN_SDB_STAT_AVAIL;
 
     sdbInsertRow(pHead->type, pHead);
+    free(pHead);
     cJSON_Delete(root);
     root = NULL;
   }

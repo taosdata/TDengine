@@ -20,6 +20,7 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
+#include "thash.h"
 #include "cJSON.h"
 #include "mnode.h"
 
@@ -177,6 +178,7 @@ typedef struct SUserObj {
   int64_t   createdTime;
   int64_t   updateTime;
   int8_t    rootAuth;
+  SHashObj *prohibitDbHash;
   SAcctObj *pAcct;
 } SUserObj;
 
