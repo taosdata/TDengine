@@ -38,6 +38,7 @@ run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
 run general/compute/block_dist.sim
+run general/compute/scalar_pow.sim
 run general/db/alter_option.sim
 run general/db/alter_tables_d2.sim
 run general/db/alter_tables_v1.sim
