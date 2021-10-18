@@ -15,6 +15,7 @@ cd ../../../debug; make
 ./test.sh -f general/field/smallint.sim
 ./test.sh -f general/field/tinyint.sim
 
+
 # ./test.sh -f general/http/autocreate.sim
 # ./test.sh -f general/http/chunked.sim
 # ./test.sh -f general/http/gzip.sim
@@ -102,7 +103,7 @@ cd ../../../debug; make
 #======================b2-start===============
 
 
-./test.sh -f general/wal/sync.sim
+#./test.sh -f general/wal/sync.sim
 ./test.sh -f general/wal/kill.sim
 ./test.sh -f general/wal/maxtables.sim
 
