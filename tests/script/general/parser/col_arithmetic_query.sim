@@ -13,6 +13,7 @@ sql use $db
 $tb = $tbPrefix . 0
 $stb = $stbPrefix . $i
 
+
 ## TBASE-344
 sql select c1*2 from $tb
 if $rows != $rowNum then
