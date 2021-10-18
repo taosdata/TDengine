@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "query.h"
 #include "vnodeStatus.h"
+#include "tgrant.h"
 
 int32_t vNumOfExistedQHandle;   // current initialized and existed query handle in current dnode
 
@@ -225,6 +226,16 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   // qHandle needs to be freed correctly
   if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     vError("error rpc msg in query, %s", tstrerror(pRead->code));
+  }
+
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
+    SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
+    pRsp->code = TSDB_CODE_GRANT_EXPIRED;
+    pRsp->qId = 0;
+
+    pRet->len = sizeof(SQueryTableRsp);
+    pRet->rsp = pRsp;
+    return pRsp->code;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;

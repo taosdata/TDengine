@@ -191,9 +191,11 @@ static int32_t mnodeUpdateFunc(SFuncObj *pFunc, void *pMsg) {
 }
 */
 int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, int32_t bufSize, SMnodeMsg *pMsg) {
+#ifdef GRANT_CHECK_WRITE
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_GRANT_EXPIRED;
   }
+#endif
 
   if (!pMsg->pUser->writeAuth) {
     return TSDB_CODE_MND_NO_RIGHTS;
@@ -203,12 +205,12 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-
+#ifdef GRANT_CHECK_WRITE
   code = grantCheck(TSDB_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-
+#endif
   if (name[0] == 0) {
     return TSDB_CODE_MND_INVALID_FUNC_NAME;
   }

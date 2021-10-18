@@ -429,8 +429,10 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
     }
   }
 
+#ifdef GRANT_CHECK_WRITE
   code = grantCheck(TSDB_GRANT_DB);
   if (code != 0) return code;
+#endif
 
   pDb = calloc(1, sizeof(SDbObj));
   tstrncpy(pDb->name, pCreate->db, sizeof(pDb->name));
@@ -927,9 +929,12 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
   
   int32_t code;
+#ifdef GRANT_CHECK_WRITE
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (!pMsg->pUser->writeAuth) {
+  } else
+#endif
+      if (!pMsg->pUser->writeAuth) {
     code = TSDB_CODE_MND_NO_RIGHTS;
   } else {
     code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate, pMsg);

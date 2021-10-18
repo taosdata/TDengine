@@ -663,11 +663,12 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
+#ifndef GRANT_CHECK_WRITE
   int32_t grantCode = grantCheck(TSDB_GRANT_DNODE);
   if (grantCode != TSDB_CODE_SUCCESS) {
     return grantCode;
   }
-
+#endif
   char dnodeEp[TSDB_EP_LEN] = {0};
   tstrncpy(dnodeEp, ep, TSDB_EP_LEN);
   strtrim(dnodeEp);
