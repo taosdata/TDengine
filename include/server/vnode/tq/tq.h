@@ -103,6 +103,15 @@ int tqCommit(STQ*);
 //void* will be replace by a msg type
 int tqHandleConsumeMsg(STQ*, tmqConsumeReq* msg);
 
+int tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+int tqCloseTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+int tqMoveOffsetToNext(STQ*, int64_t topicId, int64_t cgId);
+int tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
+int tqFetchMsg(STQ*, int64_t topicId, int64_t cgId);
+int tqRegisterContext(STQ*, int64_t topicId, int64_t cgId, void* ahandle);
+int tqLaunchQuery(STQ*, int64_t topicId, int64_t cgId, void* query);
+int tqSendLaunchQuery(STQ*, int64_t topicId, int64_t cgId, void* query);
+
 #ifdef __cplusplus
 }
 #endif
