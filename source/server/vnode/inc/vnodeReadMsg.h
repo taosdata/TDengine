@@ -36,6 +36,8 @@ typedef struct SReadMsg {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead);
+int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead);
+int32_t vnodeProcessTqQueryMsg(SVnode *pVnode, SReadMsg *pRead);
 
 #ifdef __cplusplus
 }
