@@ -225,6 +225,7 @@ typedef struct SArguments_S {
     char *   database;
     int      replica;
     char *   tb_prefix;
+    bool     escapeChar;
     char *   sqlFile;
     bool     use_metric;
     bool     drop_database;
@@ -298,6 +299,7 @@ typedef struct SSuperTable_S {
     StrColumn    tags[TSDB_MAX_TAGS];
 
     char*        childTblName;
+    bool         escapeChar;
     char*        colsOfCreateChildTable;
     uint64_t     lenOfOneRow;
     uint64_t     lenOfTagOfOneRow;
@@ -638,6 +640,7 @@ SArguments g_args = {
     "test",         // database
     1,              // replica
     "d",             // tb_prefix
+    false,           // escapeChar
     NULL,            // sqlFile
     true,            // use_metric
     true,            // drop_database
@@ -1777,6 +1780,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+        } else if ((0 == strncmp(argv[i], "-E", strlen("-E")))
+                || (0 == strncmp(argv[i], "--escape-character", strlen("--escape-character")))) {
+            arguments->escapeChar = true;
         } else if ((strcmp(argv[i], "-N") == 0)
                 || (0 == strcmp(argv[i], "--normal-table"))) {
             arguments->demo_mode = false;
@@ -4513,6 +4519,8 @@ static void* createTable(void *sarg)
             i <= pThreadInfo->end_table_to; i++) {
         if (0 == g_Dbs.use_metric) {
             snprintf(pThreadInfo->buffer, buff_len,
+                    g_args.escapeChar ? 
+                    "CREATE TABLE IF NOT EXISTS %s.`%s%"PRIu64"` %s;" :
                     "CREATE TABLE IF NOT EXISTS %s.%s%"PRIu64" %s;",
                     pThreadInfo->db_name,
                     g_args.tb_prefix, i,
@@ -4550,7 +4558,8 @@ static void* createTable(void *sarg)
                     ERROR_EXIT("use metric, but tag buffer is NULL\n");
                 }
                 len += snprintf(pThreadInfo->buffer + len,
-                        buff_len - len,
+                        buff_len - len, stbInfo->escapeChar ?
+                        "if not exists %s.`%s%"PRIu64"` using %s.`%s` tags %s " :
                         "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
                         pThreadInfo->db_name, stbInfo->childTblPrefix,
                         i, pThreadInfo->db_name,
@@ -5530,6 +5539,24 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             }
             tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
                     TBNAME_PREFIX_LEN);
+
+            cJSON *escapeChar = cJSON_GetObjectItem(stbInfo, "escape_character");
+            if (escapeChar
+                    && escapeChar->type == cJSON_String
+                    && escapeChar->valuestring != NULL) {
+                if ((0 == strncasecmp(escapeChar->valuestring, "yes", 3))) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = true;
+                } else if (0 == strncasecmp(escapeChar->valuestring, "no", 2)) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                } else {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                }
+            } else if (!escapeChar) {
+                g_Dbs.db[i].superTbls[j].escapeChar = false;
+            } else {
+                errorPrint("%s", "failed to read json, escape_character not found\n");
+                goto PARSE_OVER;
+            }
 
             cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
             if (autoCreateTbl
@@ -7021,7 +7048,8 @@ static void getTableName(char *pTblName,
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
             if (stbInfo->childTblLimit > 0) {
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+                        stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName +
                         (tableSeq - stbInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
             } else {
@@ -7029,15 +7057,17 @@ static void getTableName(char *pTblName,
                         pThreadInfo->threadID, __func__, __LINE__,
                         pThreadInfo->start_table_from,
                         pThreadInfo->ntables, tableSeq);
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
             }
         } else {
-            snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+            snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+            stbInfo->escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                     stbInfo->childTblPrefix, tableSeq);
         }
     } else {
-        snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+        snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+        g_args.escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                 g_args.tb_prefix, tableSeq);
     }
 }
@@ -11868,6 +11898,7 @@ static void setParaFromArg() {
         g_Dbs.db[0].superTblCount = 1;
         tstrncpy(g_Dbs.db[0].superTbls[0].stbName, "meters", TSDB_TABLE_NAME_LEN);
         g_Dbs.db[0].superTbls[0].childTblCount = g_args.ntables;
+        g_Dbs.db[0].superTbls[0].escapeChar = g_args.escapeChar;
         g_Dbs.threadCount = g_args.nthreads;
         g_Dbs.threadCountForCreateTbl = g_args.nthreads;
         g_Dbs.asyncMode = g_args.async_mode;
