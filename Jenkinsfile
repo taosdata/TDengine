@@ -422,11 +422,12 @@ pipeline {
               ./test-all.sh b4fq
               cd ${WKC}/tests
               ./test-all.sh p4
-              cd ${WKC}/tests
-              ./test-all.sh full jdbc
-              cd ${WKC}/tests
-              ./test-all.sh full unit
-              date'''
+              '''
+              // cd ${WKC}/tests
+              // ./test-all.sh full jdbc
+              // cd ${WKC}/tests
+              // ./test-all.sh full unit
+              
             }
           }
         }

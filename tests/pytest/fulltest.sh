@@ -218,9 +218,9 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
+#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 
 #query
 python3 test.py -f query/distinctOneColTb.py
