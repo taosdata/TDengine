@@ -1327,28 +1327,28 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     last_row(current)   |
     =======================
                 12.30000 |
-Query OK, 1 row(s) in set (0.001238s)
+    Query OK, 1 row(s) in set (0.001238s)
     
     taos> SELECT LAST_ROW(current) FROM d1002;
     last_row(current)   |
     =======================
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
-```
+    ```
     
 - **INTERP**
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
-    功能说明：返回表/超级表的指定时间截面、指定字段的记录。
+功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
-    返回结果数据类型：同字段类型。
+返回结果数据类型：同字段类型。
 
-    应用字段：数值型字段。
+应用字段：数值型字段。
 
-    适用于：**表、超级表**。
+适用于：**表、超级表**。
 
-    说明：（从 2.0.15.0 版本开始新增此函数）
+说明：（从 2.0.15.0 版本开始新增此函数）
 
     1）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。
 
@@ -1357,7 +1357,7 @@ Query OK, 1 row(s) in set (0.001238s)
     3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。
 
     示例：
-    ```sql
+    ```mysql
     taos> SELECT INTERP(*) FROM meters WHERE ts='2017-7-14 18:40:00.004';
            interp(ts)        |   interp(current)    | interp(voltage) |    interp(phase)     |
     ==========================================================================================
@@ -1365,9 +1365,9 @@ Query OK, 1 row(s) in set (0.001238s)
     Query OK, 1 row(s) in set (0.002652s)
     ```
     
-    如果给定的时间戳无对应的数据，在不指定插值生成策略的情况下，不会返回结果，如果指定了插值策略，会根据插值策略返回结果。
+   如果给定的时间戳无对应的数据，在不指定插值生成策略的情况下，不会返回结果，如果指定了插值策略，会根据插值策略返回结果。
     
-    ```sql
+    ```mysql
     taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005';
     Query OK, 0 row(s) in set (0.004022s)
     
@@ -1380,14 +1380,13 @@ Query OK, 1 row(s) in set (0.001238s)
 
     如下所示代码表示在时间区间 `['2017-7-14 18:40:00', '2017-7-14 18:40:00.014']`  中每隔 5 毫秒 进行一次断面计算。
 
-    ```sql
+    ```mysql
     taos> SELECT INTERP(current) FROM d636 WHERE ts>='2017-7-14 18:40:00' AND ts<='2017-7-14 18:40:00.014' EVERY(5a);
                ts            |   interp(current)    |
     =================================================
      2017-07-14 18:40:00.000 |             10.04179 |
      2017-07-14 18:40:00.010 |             10.16123 |
-    Query OK, 2 row(s) in set (0.003487s)
-    
+    Query OK, 2 row(s) in set (0.003487s)    
     ```
 
 ### 计算函数
