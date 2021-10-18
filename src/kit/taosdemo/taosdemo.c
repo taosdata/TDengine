@@ -298,6 +298,7 @@ typedef struct SSuperTable_S {
     StrColumn    tags[TSDB_MAX_TAGS];
 
     char*        childTblName;
+    bool         escapeChar;
     char*        colsOfCreateChildTable;
     uint64_t     lenOfOneRow;
     uint64_t     lenOfTagOfOneRow;
@@ -5531,6 +5532,24 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
                     TBNAME_PREFIX_LEN);
 
+            cJSON *escapeChar = cJSON_GetObjectItem(stbInfo, "escape_character");
+            if (escapeChar
+                    && escapeChar->type == cJSON_String
+                    && escapeChar->valuestring != NULL) {
+                if ((0 == strncasecmp(escapeChar->valuestring, "yes", 3))) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = true;
+                } else if (0 == strncasecmp(escapeChar->valuestring, "no", 2)) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                } else {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                }
+            } else if (!escapeChar) {
+                g_Dbs.db[i].superTbls[j].escapeChar = false;
+            } else {
+                errorPrint("%s", "failed to read json, escape_character not found\n");
+                goto PARSE_OVER;
+            }
+
             cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
             if (autoCreateTbl
                     && autoCreateTbl->type == cJSON_String
@@ -7021,7 +7040,8 @@ static void getTableName(char *pTblName,
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
             if (stbInfo->childTblLimit > 0) {
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+                        stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName +
                         (tableSeq - stbInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
             } else {
@@ -7029,15 +7049,17 @@ static void getTableName(char *pTblName,
                         pThreadInfo->threadID, __func__, __LINE__,
                         pThreadInfo->start_table_from,
                         pThreadInfo->ntables, tableSeq);
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
             }
         } else {
-            snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+            snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+            stbInfo->escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                     stbInfo->childTblPrefix, tableSeq);
         }
     } else {
-        snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+        snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+        stbInfo->escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                 g_args.tb_prefix, tableSeq);
     }
 }
