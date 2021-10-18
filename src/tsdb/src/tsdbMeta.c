@@ -866,6 +866,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper, STable *pST
         tsdbFreeTable(pTable);
         return NULL;
       }
+      taosHashSetFreeFp(pTable->jsonKeyMap, (_hash_free_fn_t)taosArrayDestroy);
     }else{
       pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
                                        SL_ALLOW_DUP_KEY, getTagIndexKey);
@@ -925,21 +926,6 @@ _err:
   return NULL;
 }
 
-static void* tsdbDestroyTagJsonHashTable(SHashObj* hashObj) {
-  if (hashObj == NULL) {
-    return NULL;
-  }
-
-  SArray * p = taosHashIterate(hashObj, NULL);
-  while(p) {
-    taosArrayDestroy(p);
-    p = taosHashIterate(hashObj, p);
-  }
-
-  taosHashCleanup(hashObj);
-  return NULL;
-}
-
 static void tsdbFreeTable(STable *pTable) {
   if (pTable) {
     if (pTable->name != NULL)
@@ -957,7 +943,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
-    tsdbDestroyTagJsonHashTable(pTable->jsonKeyMap);
+    taosHashCleanup(pTable->jsonKeyMap);
     taosTZfree(pTable->lastRow);    
     tfree(pTable->sql);
 
