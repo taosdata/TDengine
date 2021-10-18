@@ -4111,6 +4111,16 @@ static int32_t queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
       break;
     }
   }
+  for (uint16_t i = 0; i < info->unitNum; ++i) {  // is null operation need query all table
+    SFilterUnit* unit = &info->units[i];
+    if (unit->compare.optr == TSDB_RELATION_ISNULL) {
+      tabList = taosArrayInit(32, sizeof(JsonMapValue));
+      getAllTableList(pTable, tabList);   // query all table
+      needQueryAll = true;
+      break;
+    }
+  }
+
   for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     if (needQueryAll) break;    // query all table
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
