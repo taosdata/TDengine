@@ -510,13 +510,9 @@ void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
-      for (int32_t i = 0; i < numOfElems; ++i) {
-        setVardataNull(POINTER_SHIFT(val, i * bytes), type);
-      }
-      break;
     case TSDB_DATA_TYPE_JSON:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_JSON_NULL;
+        setVardataNull(POINTER_SHIFT(val, i * bytes), type);
       }
       break;
     default: {
