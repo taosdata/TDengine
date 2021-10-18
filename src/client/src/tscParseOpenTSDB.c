@@ -865,10 +865,8 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
   if (tags == NULL || tags->type != cJSON_Object) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
-  tscError("Gavin 0");
   //only pick up the first ID value as child table name
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
-  tscError("Gavin 1");
   if (id != NULL) {
     if (!cJSON_IsString(id)) {
       tscError("OTD:0x%"PRIx64" ID must be JSON string", info->id);
@@ -890,25 +888,21 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       return TSDB_CODE_TSC_DUP_TAG_NAMES;
     }
   }
-  tscError("Gavin 2");
   int32_t tagNum = cJSON_GetArraySize(tags);
   //at least one tag pair required
   if (tagNum <= 0) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
-  tscError("Gavin 3");
 
   //allocate memory for tags
   *pKVs = tcalloc(tagNum, sizeof(TAOS_SML_KV));
   TAOS_SML_KV *pkv = *pKVs;
 
   for (int32_t i = 0; i < tagNum; ++i) {
-    tscError("Gavin 4 %d", i);
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     if (tag == NULL) {
       return TSDB_CODE_TSC_INVALID_JSON;
     }
-    tscError("Gavin 5 %d", i);
     //check duplicate keys
     if (checkDuplicateKey(tag->string, pHash, info)) {
       return TSDB_CODE_TSC_DUP_TAG_NAMES;
@@ -919,12 +913,10 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters in JSON", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
-    tscError("Gavin 6 %d", i);
     pkv->key = tcalloc(keyLen + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
     //value
     ret = parseValueFromJSON(tag, pkv, info);
-    tscError("Gavin 7 %d", i);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
