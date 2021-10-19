@@ -3736,6 +3736,25 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
+
+void tscSetQuerySort(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr) {
+  if (pQueryInfo->interval.interval <= 0) {
+    return;
+  }
+  
+  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+    size_t size = taosArrayGetSize(pQueryInfo->pUpstream);
+    for(int32_t i = 0; i < size; ++i) {
+      SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, i);
+      if (pq->groupbyTag && pq->interval.interval > 0) {
+        pQueryAttr->needSort = true;
+        return;
+      }
+    }
+  }
+}
+
+
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pSourceOperator,
                                char* sql, void* merger, int32_t stage, uint64_t qId) {
   assert(pQueryInfo != NULL);
@@ -3838,6 +3857,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   SArray* pa = NULL;
   if (stage == MASTER_SCAN) {
     pQueryAttr->createFilterOperator = false;  // no need for parent query
+    tscSetQuerySort(pQueryInfo, pQueryAttr);
     pa = createExecOperatorPlan(pQueryAttr);
   } else {
     pa = createGlobalMergePlan(pQueryAttr);
