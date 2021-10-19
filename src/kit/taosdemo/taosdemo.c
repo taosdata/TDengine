@@ -800,6 +800,8 @@ static void printHelp() {
             "Set the replica parameters of the database, By default use 1, min: 1, max: 3.");
     printf("%s%s%s%s\n", indent, "-m, --table-prefix=TABLEPREFIX", "\t",
             "Table prefix name. By default use 'd'.");
+    printf("%s%s%s%s\n", indent, "-E, --escape-character", "\t",
+            "Use escape character for Both Stable and normmal table name");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
             "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t", "Use normal table flag.");
