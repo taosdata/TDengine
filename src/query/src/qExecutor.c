@@ -2408,8 +2408,10 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     tfree(pRuntimeEnv->sasArray);
   }
 
-  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
-
+  if (!pRuntimeEnv->udfIsCopy) {
+    destroyUdfInfo(pRuntimeEnv->pUdfInfo);
+  }
+  
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
 
@@ -8038,7 +8040,7 @@ static char* getUdfFuncName(char* funcname, char* name, int type) {
 }
 
 int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
-  if (pUdfInfo == NULL) {
+  if (pUdfInfo == NULL || pUdfInfo->handle) {
     return TSDB_CODE_SUCCESS;
   }
   //qError("script len: %d", pUdfInfo->contLen);

@@ -8564,6 +8564,11 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
         info.functionId = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo) * (-1) - 1;;
         taosArrayPush(pQueryInfo->pUdfInfo, &info);
+
+        if ((int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
+          code = tscInvalidOperationMsg(tscGetErrorMsgPayload(pCmd), "only one udf allowed in one sql", NULL);
+          goto _end;
+        }
       }
     }
   }
