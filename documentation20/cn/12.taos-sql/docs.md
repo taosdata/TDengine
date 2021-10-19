@@ -1336,8 +1336,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     Query OK, 1 row(s) in set (0.001042s)
     ```
     
-- **INTERP**
-
+- **INTERP** 
+    
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
@@ -1357,7 +1357,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。
 
-    示例：
+    示例:
+        
     ```mysql
     taos> SELECT INTERP(*) FROM meters WHERE ts='2017-7-14 18:40:00.004';
            interp(ts)        |   interp(current)    | interp(voltage) |    interp(phase)     |
@@ -1378,9 +1379,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
      2017-07-14 18:40:00.005 |              9.88150 |             217 |              0.32500 |
     Query OK, 1 row(s) in set (0.003056s)
     ```
-
+    
     如下所示代码表示在时间区间 `['2017-7-14 18:40:00', '2017-7-14 18:40:00.014']`  中每隔 5 毫秒 进行一次断面计算。
-
+    
     ```mysql
     taos> SELECT INTERP(current) FROM d636 WHERE ts>='2017-7-14 18:40:00' AND ts<='2017-7-14 18:40:00.014' EVERY(5a);
                ts            |   interp(current)    |
