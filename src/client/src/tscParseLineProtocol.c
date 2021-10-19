@@ -2300,51 +2300,51 @@ cleanup:
   return code;
 }
 
-int32_t convertPrecisionStrType(const char* precision, SMLTimeStampType *tsType) {
-  if (precision == NULL) {
-    *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcmp(precision, "μ") == 0) {
-    *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t len = (int32_t)strlen(precision);
-  if (len == 1) {
-    switch (precision[0]) {
-      case 'u':
-        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-        break;
-      case 's':
-        *tsType = SML_TIME_STAMP_SECONDS;
-        break;
-      case 'm':
-        *tsType = SML_TIME_STAMP_MINUTES;
-        break;
-      case 'h':
-        *tsType = SML_TIME_STAMP_HOURS;
-        break;
-      default:
-        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
-    }
-  } else if (len == 2 && precision[1] == 's') {
-    switch (precision[0]) {
-      case 'm':
-        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-        break;
-      case 'n':
-        *tsType = SML_TIME_STAMP_NANO_SECONDS;
-        break;
-      default:
-        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
-    }
-  } else {
-    return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
+static int32_t convertPrecisionType(int precision, SMLTimeStampType *tsType) {
+  switch (precision) {
+    case SML_TIMESTAMP_NOT_CONFIGURED:
+      *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
+      break;
+    case SML_TIMESTAMP_HOURS:
+      *tsType = SML_TIME_STAMP_HOURS;
+      break;
+    case SML_TIMESTAMP_MILLI_SECONDS:
+      *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+      break;
+    case SML_TIMESTAMP_NANO_SECONDS:
+      *tsType = SML_TIME_STAMP_NANO_SECONDS;
+      break;
+    case SML_TIMESTAMP_MICRO_SECONDS:
+      *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+      break;
+    case SML_TIMESTAMP_SECONDS:
+      *tsType = SML_TIME_STAMP_SECONDS;
+      break;
+    case SML_TIMESTAMP_MINUTES:
+      *tsType = SML_TIME_STAMP_MINUTES;
+      break;
+    default:
+      return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
   }
 
   return TSDB_CODE_SUCCESS;
 }
+
+static SSqlObj* createSmlQueryObj(int32_t affected_rows, int32_t code) {
+  SSqlObj *pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  if (pNew == NULL) {
+    return NULL;
+  }
+  pNew->signature = pNew;
+  tsem_init(&pNew->rspSem, 0, 0);
+  registerSqlObj(pNew);
+
+  pNew->res.numOfRows = affected_rows;
+  pNew->res.code = code;
+
+  return pNew;
+}
+
 
 /**
  * taos_schemaless_insert() parse and insert data points into database according to
@@ -2367,39 +2367,35 @@ int32_t convertPrecisionStrType(const char* precision, SMLTimeStampType *tsType)
  *
  */
 
-int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, const char* precision,
-                           int* affectedRows, char* msg, int msgBufLen) {
-  int code;
+TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
+  int code = TSDB_CODE_SUCCESS;
+  int affected_rows = 0;
   SMLTimeStampType tsType;
 
   if (protocol == SML_LINE_PROTOCOL) {
-    code = convertPrecisionStrType(precision, &tsType);
+    code = convertPrecisionType(precision, &tsType);
     if (code != TSDB_CODE_SUCCESS) {
-      if (msg != NULL) {
-        tstrncpy(msg, tstrerror(code), msgBufLen);
-      }
-      return code;
+      return NULL;
     }
   }
 
   switch (protocol) {
     case SML_LINE_PROTOCOL:
-      code = taos_insert_lines(taos, lines, numLines, protocol, tsType, affectedRows);
+      code = taos_insert_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
       break;
     case SML_TELNET_PROTOCOL:
-      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, affectedRows);
+      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
       break;
     case SML_JSON_PROTOCOL:
-      code = taos_insert_json_payload(taos, *lines, protocol, tsType, affectedRows);
+      code = taos_insert_json_payload(taos, *lines, protocol, tsType, &affected_rows);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
       break;
   }
 
-  if (msg != NULL) {
-    tstrncpy(msg, tstrerror(code), msgBufLen);
-  }
 
-  return code;
+  SSqlObj *pSql = createSmlQueryObj(affected_rows, code);
+
+  return (TAOS_RES*)pSql;
 }

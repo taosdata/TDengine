@@ -23,6 +23,8 @@ extern "C" {
 #define SML_TIMESTAMP_SECOND_DIGITS 10
 #define SML_TIMESTAMP_MILLI_SECOND_DIGITS 13
 
+typedef SML_PROTOCOL_TYPE SMLProtocolType;
+
 typedef struct {
   char* key;
   uint8_t type;
@@ -46,21 +48,15 @@ typedef struct {
 } TAOS_SML_DATA_POINT;
 
 typedef enum {
-  SML_TIME_STAMP_NOW,
+  SML_TIME_STAMP_NOT_CONFIGURED,
   SML_TIME_STAMP_HOURS,
   SML_TIME_STAMP_MINUTES,
   SML_TIME_STAMP_SECONDS,
   SML_TIME_STAMP_MILLI_SECONDS,
   SML_TIME_STAMP_MICRO_SECONDS,
   SML_TIME_STAMP_NANO_SECONDS,
-  SML_TIME_STAMP_NOT_CONFIGURED
+  SML_TIME_STAMP_NOW
 } SMLTimeStampType;
-
-typedef enum {
-  SML_LINE_PROTOCOL = 0,
-  SML_TELNET_PROTOCOL = 1,
-  SML_JSON_PROTOCOL = 2,
-} SMLProtocolType;
 
 typedef struct {
   uint64_t id;

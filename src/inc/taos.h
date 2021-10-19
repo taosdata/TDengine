@@ -72,6 +72,22 @@ typedef enum {
   SET_CONF_RET_ERR_TOO_LONG = -6
 } SET_CONF_RET_CODE;
 
+typedef enum {
+  SML_LINE_PROTOCOL = 1,
+  SML_TELNET_PROTOCOL = 2,
+  SML_JSON_PROTOCOL = 3,
+} SML_PROTOCOL_TYPE;
+
+typedef enum {
+  SML_TIMESTAMP_NOT_CONFIGURED = 0,
+  SML_TIMESTAMP_HOURS,
+  SML_TIMESTAMP_MINUTES,
+  SML_TIMESTAMP_SECONDS,
+  SML_TIMESTAMP_MILLI_SECONDS,
+  SML_TIMESTAMP_MICRO_SECONDS,
+  SML_TIMESTAMP_NANO_SECONDS,
+} SML_TIMESTAMP_TYPE;
+
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
   SET_CONF_RET_CODE retCode;
@@ -188,8 +204,7 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
-DLL_EXPORT int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, const char* precision,
-                                      int* affectedRows, char* msg, int msgBufLen);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
 
 #ifdef __cplusplus
 }
