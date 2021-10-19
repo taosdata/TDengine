@@ -33,21 +33,24 @@ typedef struct  {
   int numBatches;
   SThreadLinesBatch batches[MAX_THREAD_LINE_BATCHES];
   int64_t costTime;
+  int tsPrecision;
+  int lineProtocol;
 } SThreadInsertArgs;
 
 static void* insertLines(void* args) {
   SThreadInsertArgs* insertArgs = (SThreadInsertArgs*) args;
-  char tidBuf[32] = {0}, errMsg[512] = {0};
-  int  a_lines = 0;
+  char tidBuf[32] = {0};
   printThreadId(pthread_self(), tidBuf);
   for (int i = 0; i < insertArgs->numBatches; ++i) {
     SThreadLinesBatch* batch = insertArgs->batches + i;
     printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
     int64_t begin = getTimeInUs();
-    int32_t code = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, 0, "ms", &a_lines, errMsg, sizeof(errMsg));
+    TAOS_RES *res = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, insertArgs->lineProtocol, insertArgs->tsPrecision);
+    int32_t code = taos_errno(res);
     int64_t end = getTimeInUs();
     insertArgs->costTime += end - begin;
-    printf("code: %d, %s. affected lines:%d time used:%"PRId64", thread: 0x%s\n", code, errMsg, a_lines, end - begin, tidBuf);
+    printf("code: %d, %s. affected lines:%d time used:%"PRId64", thread: 0x%s\n", code, taos_errstr(res), taos_affected_rows(res), end - begin, tidBuf);
+    taos_free_result(res);
   }
   return NULL;
 }
@@ -96,9 +99,11 @@ int main(int argc, char* argv[]) {
   int numFields = 13;
 
   int maxLinesPerBatch = 16384;
+  int tsPrecision = SML_TIMESTAMP_NOT_CONFIGURED;
+  int lineProtocol = SML_UNKNOWN_PROTOCOL;
 
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:h")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:p:P:h")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
@@ -117,6 +122,12 @@ int main(int argc, char* argv[]) {
         break;
       case 'm':
         maxLinesPerBatch = atoi(optarg);
+        break;
+      case 'p':
+        tsPrecision = atoi(optarg);
+        break;
+      case 'P':
+        lineProtocol = atoi(optarg);
         break;
       case 'h':
         fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
@@ -179,6 +190,8 @@ int main(int argc, char* argv[]) {
     args.taos = taos;
     args.batches[0].lines = linesStb;
     args.batches[0].numLines = numSuperTables;
+    args.tsPrecision = tsPrecision;
+    args.lineProtocol = lineProtocol;
     insertLines(&args);
     for (int i = 0; i < numSuperTables; ++i) {
       free(linesStb[i]);

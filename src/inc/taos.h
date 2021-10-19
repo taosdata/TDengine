@@ -73,6 +73,7 @@ typedef enum {
 } SET_CONF_RET_CODE;
 
 typedef enum {
+  SML_UNKNOWN_PROTOCOL = 0,
   SML_LINE_PROTOCOL = 1,
   SML_TELNET_PROTOCOL = 2,
   SML_JSON_PROTOCOL = 3,
