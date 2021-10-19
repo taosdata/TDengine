@@ -5311,7 +5311,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 MAX_DB_COUNT);
         goto PARSE_OVER;
     }
-
+    g_Dbs.db = calloc(1, sizeof(SDataBase)*dbSize);
+    assert(g_Dbs.db);
     g_Dbs.dbCount = dbSize;
     for (int i = 0; i < dbSize; ++i) {
         cJSON* dbinfos = cJSON_GetArrayItem(dbs, i);
@@ -5511,7 +5512,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     MAX_SUPER_TABLE_COUNT);
             goto PARSE_OVER;
         }
-
+        g_Dbs.db[i].superTbls = calloc(1, stbSize * sizeof(SSuperTable));
+        assert(g_Dbs.db[i].superTbls);
         g_Dbs.db[i].superTblCount = stbSize;
         for (int j = 0; j < stbSize; ++j) {
             cJSON* stbInfo = cJSON_GetArrayItem(stables, j);
@@ -6402,9 +6404,12 @@ static bool getInfoFromJsonFile(char* file) {
     }
 
     if (INSERT_TEST == g_args.test_mode) {
+        memset(&g_Dbs, 0, sizeof(SDbs));
+        g_Dbs.use_metric = g_args.use_metric;
         ret = getMetaFromInsertJsonFile(root);
     } else if ((QUERY_TEST == g_args.test_mode)
             || (SUBSCRIBE_TEST == g_args.test_mode)) {
+        memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
         ret = getMetaFromQueryJsonFile(root);
     } else {
         errorPrint("%s",
@@ -11922,29 +11927,6 @@ static int subscribeTestProcess() {
     return 0;
 }
 
-static void initOfInsertMeta() {
-    memset(&g_Dbs, 0, sizeof(SDbs));
-
-    // set default values
-    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
-    g_Dbs.port = 6030;
-    tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
-    g_Dbs.threadCount = 2;
-
-    g_Dbs.use_metric = g_args.use_metric;
-}
-
-static void initOfQueryMeta() {
-    memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
-
-    // set default values
-    tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
-    g_queryInfo.port = 6030;
-    tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
-}
-
 static void setParaFromArg() {
     char type[20];
     char length[20];
@@ -12254,8 +12236,6 @@ int main(int argc, char *argv[]) {
 
     if (g_args.metaFile) {
         g_totalChildTables = 0;
-        initOfInsertMeta();
-        initOfQueryMeta();
 
         if (false == getInfoFromJsonFile(g_args.metaFile)) {
             printf("Failed to read %s\n", g_args.metaFile);
