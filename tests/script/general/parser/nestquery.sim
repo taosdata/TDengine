@@ -508,4 +508,381 @@ if $data11 != 2.000000000 then
   return -1
 endi
 
+sql create database test2;
+sql use test2;
+sql create table meters (ts TIMESTAMP,a INT,b INT) TAGS (area INT);
+sql CREATE TABLE t0 USING meters TAGS (0);
+sql CREATE TABLE t1 USING meters TAGS (1);
+sql CREATE TABLE t2 USING meters TAGS (1);
+sql CREATE TABLE t3 USING meters TAGS (0);
+sql insert into t0 values ('2021-09-30 15:00:00.00',0,0);
+sql insert into t0 values ('2021-09-30 15:00:01.00',1,1);
+sql insert into t0 values ('2021-09-30 15:00:03.00',3,3);
+sql insert into t0 values ('2021-09-30 15:00:05.00',5,5);
+sql insert into t0 values ('2021-09-30 15:00:07.00',7,7);
+sql insert into t0 values ('2021-09-30 15:00:09.00',9,9);
+
+sql insert into t1 values ('2021-09-30 15:00:00.00',0,0);
+sql insert into t1 values ('2021-09-30 15:00:02.00',2,2);
+sql insert into t1 values ('2021-09-30 15:00:04.00',4,4);
+sql insert into t1 values ('2021-09-30 15:00:06.00',6,6);
+sql insert into t1 values ('2021-09-30 15:00:08.00',8,8);
+sql insert into t1 values ('2021-09-30 15:00:10.00',10,10);
+
+sql insert into t2 values ('2021-09-30 15:00:00.00',0,0);
+sql insert into t2 values ('2021-09-30 15:00:01.00',11,11);
+sql insert into t2 values ('2021-09-30 15:00:02.00',22,22);
+sql insert into t2 values ('2021-09-30 15:00:03.00',33,33);
+sql insert into t2 values ('2021-09-30 15:00:04.00',44,44);
+sql insert into t2 values ('2021-09-30 15:00:05.00',55,55);
+
+sql insert into t3 values ('2021-09-30 15:00:00.00',0,0);
+sql insert into t3 values ('2021-09-30 15:00:01.00',11,11);
+sql insert into t3 values ('2021-09-30 15:00:02.00',22,22);
+sql insert into t3 values ('2021-09-30 15:00:03.00',33,33);
+sql insert into t3 values ('2021-09-30 15:00:04.00',44,44);
+sql insert into t3 values ('2021-09-30 15:00:05.00',55,55);
+
+sql select count(*) from meters interval(1s) group by tbname;
+if $rows != 24 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from meters interval(1s) group by tbname) interval(1s);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data10 != @21-09-30 15:00:01.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-09-30 15:00:02.000@ then
+  return -1
+endi
+if $data21 != 3 then
+  return -1
+endi
+if $data30 != @21-09-30 15:00:03.000@ then
+  return -1
+endi
+if $data31 != 3 then
+  return -1
+endi
+if $data40 != @21-09-30 15:00:04.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data50 != @21-09-30 15:00:05.000@ then
+  return -1
+endi
+if $data51 != 3 then
+  return -1
+endi
+if $data60 != @21-09-30 15:00:06.000@ then
+  return -1
+endi
+if $data61 != 1 then
+  return -1
+endi
+if $data70 != @21-09-30 15:00:07.000@ then
+  return -1
+endi
+if $data71 != 1 then
+  return -1
+endi
+if $data80 != @21-09-30 15:00:08.000@ then
+  return -1
+endi
+if $data81 != 1 then
+  return -1
+endi
+if $data90 != @21-09-30 15:00:09.000@ then
+  return -1
+endi
+if $data91 != 1 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from meters interval(1s) group by area) interval(1s);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-09-30 15:00:01.000@ then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data20 != @21-09-30 15:00:02.000@ then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data30 != @21-09-30 15:00:03.000@ then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+if $data40 != @21-09-30 15:00:04.000@ then
+  return -1
+endi
+if $data41 != 2 then
+  return -1
+endi
+if $data50 != @21-09-30 15:00:05.000@ then
+  return -1
+endi
+if $data51 != 2 then
+  return -1
+endi
+if $data60 != @21-09-30 15:00:06.000@ then
+  return -1
+endi
+if $data61 != 1 then
+  return -1
+endi
+if $data70 != @21-09-30 15:00:07.000@ then
+  return -1
+endi
+if $data71 != 1 then
+  return -1
+endi
+if $data80 != @21-09-30 15:00:08.000@ then
+  return -1
+endi
+if $data81 != 1 then
+  return -1
+endi
+if $data90 != @21-09-30 15:00:09.000@ then
+  return -1
+endi
+if $data91 != 1 then
+  return -1
+endi
+
+
+sql select sum(sa) from (select sum(a) as sa from meters interval(1s) group by tbname) interval(1s);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-09-30 15:00:01.000@ then
+  return -1
+endi
+if $data11 != 23 then
+  return -1
+endi
+if $data20 != @21-09-30 15:00:02.000@ then
+  return -1
+endi
+if $data21 != 46 then
+  return -1
+endi
+if $data30 != @21-09-30 15:00:03.000@ then
+  return -1
+endi
+if $data31 != 69 then
+  return -1
+endi
+if $data40 != @21-09-30 15:00:04.000@ then
+  return -1
+endi
+if $data41 != 92 then
+  return -1
+endi
+if $data50 != @21-09-30 15:00:05.000@ then
+  return -1
+endi
+if $data51 != 115 then
+  return -1
+endi
+if $data60 != @21-09-30 15:00:06.000@ then
+  return -1
+endi
+if $data61 != 6 then
+  return -1
+endi
+if $data70 != @21-09-30 15:00:07.000@ then
+  return -1
+endi
+if $data71 != 7 then
+  return -1
+endi
+if $data80 != @21-09-30 15:00:08.000@ then
+  return -1
+endi
+if $data81 != 8 then
+  return -1
+endi
+if $data90 != @21-09-30 15:00:09.000@ then
+  return -1
+endi
+if $data91 != 9 then
+  return -1
+endi
+
+sql select sum(sa) from (select sum(a) as sa from meters interval(1s) group by area) interval(1s);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-09-30 15:00:01.000@ then
+  return -1
+endi
+if $data11 != 23 then
+  return -1
+endi
+if $data20 != @21-09-30 15:00:02.000@ then
+  return -1
+endi
+if $data21 != 46 then
+  return -1
+endi
+if $data30 != @21-09-30 15:00:03.000@ then
+  return -1
+endi
+if $data31 != 69 then
+  return -1
+endi
+if $data40 != @21-09-30 15:00:04.000@ then
+  return -1
+endi
+if $data41 != 92 then
+  return -1
+endi
+if $data50 != @21-09-30 15:00:05.000@ then
+  return -1
+endi
+if $data51 != 115 then
+  return -1
+endi
+if $data60 != @21-09-30 15:00:06.000@ then
+  return -1
+endi
+if $data61 != 6 then
+  return -1
+endi
+if $data70 != @21-09-30 15:00:07.000@ then
+  return -1
+endi
+if $data71 != 7 then
+  return -1
+endi
+if $data80 != @21-09-30 15:00:08.000@ then
+  return -1
+endi
+if $data81 != 8 then
+  return -1
+endi
+if $data90 != @21-09-30 15:00:09.000@ then
+  return -1
+endi
+if $data91 != 9 then
+  return -1
+endi
+
+
+
+sql select count(*) from (select count(*) from meters interval(1s)) interval(1s);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data10 != @21-09-30 15:00:01.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @21-09-30 15:00:02.000@ then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data30 != @21-09-30 15:00:03.000@ then
+  return -1
+endi
+if $data31 != 1 then
+  return -1
+endi
+if $data40 != @21-09-30 15:00:04.000@ then
+  return -1
+endi
+if $data41 != 1 then
+  return -1
+endi
+if $data50 != @21-09-30 15:00:05.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data60 != @21-09-30 15:00:06.000@ then
+  return -1
+endi
+if $data61 != 1 then
+  return -1
+endi
+if $data70 != @21-09-30 15:00:07.000@ then
+  return -1
+endi
+if $data71 != 1 then
+  return -1
+endi
+if $data80 != @21-09-30 15:00:08.000@ then
+  return -1
+endi
+if $data81 != 1 then
+  return -1
+endi
+if $data90 != @21-09-30 15:00:09.000@ then
+  return -1
+endi
+if $data91 != 1 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from meters interval(1s) group by tbname);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 24 then
+  return -1
+endi
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

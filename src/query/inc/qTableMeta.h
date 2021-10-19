@@ -142,7 +142,8 @@ typedef struct SQueryInfo {
   struct SQueryInfo *pDownstream;
   int32_t            havingFieldNum;
   bool               stableQuery;
-  bool               groupbyColumn;
+  bool               groupbyColumn;  
+  bool               groupbyTag;
   bool               simpleAgg;
   bool               arithmeticOnAgg;
   bool               projectionQuery;

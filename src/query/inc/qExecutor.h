@@ -227,6 +227,7 @@ typedef struct SQueryAttr {
   bool             stateWindow;       // window State on sub/normal table
   bool             createFilterOperator; // if filter operator is needed
   bool             multigroupResult; // multigroup result can exist in one SSDataBlock
+  bool             needSort;         // need sort rowRes
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number

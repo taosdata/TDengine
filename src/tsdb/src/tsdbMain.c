@@ -802,6 +802,8 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
                    pCol->offset);
   }
 
+  pTable->lastKey = memRowKey(pTable->lastRow);
+
   return 0;
 }
 
