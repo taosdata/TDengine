@@ -10083,7 +10083,6 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     }
     int currentPercent = 0;
     int percentComplete = 0;
-    int totalAffectedRows = 0;
 
     if (insertRows < g_args.reqPerReq) {
         g_args.reqPerReq = insertRows;
@@ -10219,7 +10218,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
                     break;
                 }
             }
-            uint64_t startTs = taosGetTimestampMs();
+            uint64_t startTs = taosGetTimestampUs();
             int32_t affectedRows = execInsert(pThreadInfo, g_args.reqPerReq);
             uint64_t endTs = taosGetTimestampUs();
             uint64_t delay = endTs - startTs;
@@ -10230,15 +10229,19 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
                     pThreadInfo->threadID,
                     __func__, __LINE__, affectedRows);
 
-            if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
-            if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+            if (delay > pThreadInfo->maxDelay){
+                pThreadInfo->maxDelay = delay;
+            }
+            if (delay < pThreadInfo->minDelay){
+                pThreadInfo->minDelay = delay;
+            }
             pThreadInfo->cntDelay++;
             pThreadInfo->totalDelay += delay;
 
-            totalAffectedRows += affectedRows;
-            pThreadInfo->totalInsertRows += affectedRows;
+            pThreadInfo->totalAffectedRows += affectedRows;
+            pThreadInfo->totalInsertRows += g_args.reqPerReq;
             currentPercent =
-                    totalAffectedRows * g_Dbs.threadCount / insertRows;
+                    pThreadInfo->totalAffectedRows * g_Dbs.threadCount / insertRows;
             if (currentPercent > percentComplete) {
                     printf("[%d]:%d%%\n", pThreadInfo->threadID,
                            currentPercent);
