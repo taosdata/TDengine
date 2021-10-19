@@ -2330,17 +2330,24 @@ static int32_t convertPrecisionType(int precision, SMLTimeStampType *tsType) {
   return TSDB_CODE_SUCCESS;
 }
 
+//make a dummy SSqlObj
 static SSqlObj* createSmlQueryObj(int32_t affected_rows, int32_t code) {
   SSqlObj *pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
     return NULL;
   }
   pNew->signature = pNew;
+  pNew->pTscObj = (STscObj*)calloc(1, sizeof(STscObj));
+  if (pNew->pTscObj == NULL) {
+    return NULL;
+  }
+
   tsem_init(&pNew->rspSem, 0, 0);
   registerSqlObj(pNew);
 
   pNew->res.numOfRows = affected_rows;
   pNew->res.code = code;
+
 
   return pNew;
 }
