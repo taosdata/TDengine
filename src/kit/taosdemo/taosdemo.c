@@ -3785,7 +3785,7 @@ static int calcRowLen(SSuperTable*  superTbls) {
 
 static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         char* dbName, char* stbName, char** childTblNameOfSuperTbl,
-        int64_t* childTblCountOfSuperTbl, int64_t limit, uint64_t offset) {
+        int64_t* childTblCountOfSuperTbl, int64_t limit, uint64_t offset, bool escapChar) {
 
     char command[1024] = "\0";
     char limitBuf[100] = "\0";
@@ -3799,8 +3799,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         limit, offset);
 
     //get all child table name use cmd: select tbname from superTblName;
-    snprintf(command, 1024, "select tbname from %s.%s %s",
-            dbName, stbName, limitBuf);
+    snprintf(command, 1024, escapChar ? "select tbname from %s.`%s` %s" :
+            "select tbname from %s.%s %s", dbName, stbName, limitBuf);
 
     res = taos_query(taos, command);
     int32_t code = taos_errno(res);
@@ -3871,7 +3871,7 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName,
 
     return getChildNameOfSuperTableWithLimitAndOffset(taos, dbName, stbName,
             childTblNameOfSuperTbl, childTblCountOfSuperTbl,
-            -1, 0);
+            -1, 0, false);
 }
 
 static int getSuperTableFromServer(TAOS * taos, char* dbName,
@@ -10375,7 +10375,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 db_name, stbInfo->stbName,
                 &stbInfo->childTblName, &childTblCount,
                 limit,
-                offset);
+                offset, stbInfo->escapeChar);
         ntables = childTblCount;
     } else {
         ntables = g_args.ntables;
