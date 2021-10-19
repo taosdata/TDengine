@@ -681,8 +681,6 @@ SArguments g_args = {
 };
 
 static SDbs            g_Dbs;
-static SDataBase       g_dbs[];
-static SSuperTable     g_stbs[];
 static int64_t         g_totalChildTables = DEFAULT_CHILDTABLES;
 static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
