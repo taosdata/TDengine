@@ -2331,16 +2331,13 @@ static int32_t convertPrecisionType(int precision, SMLTimeStampType *tsType) {
 }
 
 //make a dummy SSqlObj
-static SSqlObj* createSmlQueryObj(int32_t affected_rows, int32_t code) {
+static SSqlObj* createSmlQueryObj(TAOS* taos, int32_t affected_rows, int32_t code) {
   SSqlObj *pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
     return NULL;
   }
   pNew->signature = pNew;
-  pNew->pTscObj = (STscObj*)calloc(1, sizeof(STscObj));
-  if (pNew->pTscObj == NULL) {
-    return NULL;
-  }
+  pNew->pTscObj = taos;
 
   tsem_init(&pNew->rspSem, 0, 0);
   registerSqlObj(pNew);
@@ -2402,7 +2399,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   }
 
 
-  SSqlObj *pSql = createSmlQueryObj(affected_rows, code);
+  SSqlObj *pSql = createSmlQueryObj(taos, affected_rows, code);
 
   return (TAOS_RES*)pSql;
 }
