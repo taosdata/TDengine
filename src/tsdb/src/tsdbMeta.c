@@ -1493,13 +1493,43 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
   return buf;
 }
 
+static SArray* getJsonTagTableList(STable *pTable){
+  SArray** pRecord = taosHashIterate(pTable->jsonKeyMap, NULL);
+  SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
+
+  while(pRecord){
+    SArray* tallistOld = *pRecord;
+    for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {    // sort to elimate dumplicate
+      void* element = taosArrayGet(tallistOld, i);
+      void* pFind = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_EQ);
+      if(pFind == NULL){
+        void* p = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_GE);
+        if(p == NULL){
+          taosArrayPush(tablist, element);
+        }else{
+          taosArrayInsert(tablist, TARRAY_ELEM_IDX(tablist, p), element);
+        }
+      }
+    }
+    pRecord = taosHashIterate(pTable->jsonKeyMap, pRecord);
+  }
+  return tablist;
+}
+
 static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
   int tlen = 0;
   if (act == TSDB_UPDATE_META) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (SL_SIZE(pTable->pIndex) + 1));
+      int tableSize = 0;
+      if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+        SArray* tablist = getJsonTagTableList(pTable);
+        tableSize = taosArrayGetSize(tablist);
+      }else{
+        tableSize = SL_SIZE(pTable->pIndex);
+      }
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (tableSize + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }
@@ -1539,19 +1569,29 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
 
   void *pBuf = buf;
   if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
-    if (pIter == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      return -1;
-    }
+    if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+      SArray* tablist = getJsonTagTableList(pTable);
+      for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
+        JsonMapValue* p = taosArrayGet(tablist, i);
+        ASSERT(TABLE_TYPE((STable *)(p->table)) == TSDB_CHILD_TABLE);
+        pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, p->table);
+      }
+      taosArrayDestroy(tablist);
+    }else {
+      SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
+      if (pIter == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
 
-    while (tSkipListIterNext(pIter)) {
-      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
-      ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
-      pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
-    }
+      while (tSkipListIterNext(pIter)) {
+        STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+        ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
+        pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
+      }
 
-    tSkipListDestroyIter(pIter);
+      tSkipListDestroyIter(pIter);
+    }
   }
   pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, pTable);
 
@@ -1562,25 +1602,28 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
 
 static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
   if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
-    if (pIter == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      return -1;
-    }
-
     tsdbWLockRepoMeta(pRepo);
-
-    while (tSkipListIterNext(pIter)) {
-      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
-      tsdbRemoveTableFromMeta(pRepo, tTable, false, false);
+    if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
+      SArray* tablist = getJsonTagTableList(pTable);
+      for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
+        JsonMapValue* p = taosArrayGet(tablist, i);
+        tsdbRemoveTableFromMeta(pRepo, p->table, false, false);
+      }
+      taosArrayDestroy(tablist);
+    }else{
+      SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
+      if (pIter == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
+      while (tSkipListIterNext(pIter)) {
+        STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+        tsdbRemoveTableFromMeta(pRepo, tTable, false, false);
+      }
+      tSkipListDestroyIter(pIter);
     }
-
     tsdbRemoveTableFromMeta(pRepo, pTable, false, false);
-
     tsdbUnlockRepoMeta(pRepo);
-
-    tSkipListDestroyIter(pIter);
-
   } else {
     if ((TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) && pTable->cqhandle) pRepo->appH.cqDropFunc(pTable->cqhandle);
     tsdbRemoveTableFromMeta(pRepo, pTable, true, true);
