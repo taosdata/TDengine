@@ -225,6 +225,7 @@ typedef struct SArguments_S {
     char *   database;
     int      replica;
     char *   tb_prefix;
+    bool     escapeChar;
     char *   sqlFile;
     bool     use_metric;
     bool     drop_database;
@@ -298,6 +299,7 @@ typedef struct SSuperTable_S {
     StrColumn    tags[TSDB_MAX_TAGS];
 
     char*        childTblName;
+    bool         escapeChar;
     char*        colsOfCreateChildTable;
     uint64_t     lenOfOneRow;
     uint64_t     lenOfTagOfOneRow;
@@ -502,6 +504,7 @@ typedef struct SThreadInfo_S {
     uint64_t  querySeq;   // sequence number of sql command
     TAOS_SUB*  tsub;
 
+    int       sockfd;
 } threadInfo;
 
 #ifdef WINDOWS
@@ -581,8 +584,7 @@ static void prompt();
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
-static int postProceSql(char *host, struct sockaddr_in *pServAddr,
-        uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
+static int postProceSql(char *host, uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
 static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
         int disorderRatio, int disorderRange);
 static bool getInfoFromJsonFile(char* file);
@@ -638,6 +640,7 @@ SArguments g_args = {
     "test",         // database
     1,              // replica
     "d",             // tb_prefix
+    false,           // escapeChar
     NULL,            // sqlFile
     true,            // use_metric
     true,            // drop_database
@@ -1777,6 +1780,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+        } else if ((0 == strncmp(argv[i], "-E", strlen("-E")))
+                || (0 == strncmp(argv[i], "--escape-character", strlen("--escape-character")))) {
+            arguments->escapeChar = true;
         } else if ((strcmp(argv[i], "-N") == 0)
                 || (0 == strcmp(argv[i], "--normal-table"))) {
             arguments->demo_mode = false;
@@ -2212,7 +2218,7 @@ static void selectAndGetResult(
 
     } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
         int retCode = postProceSql(
-                g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
+                g_queryInfo.host, g_queryInfo.port,
                 command,
                 pThreadInfo);
         if (0 != retCode) {
@@ -3391,7 +3397,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
     free(dbInfos);
 }
 
-static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
+static int postProceSql(char *host, uint16_t port,
         char* sqlstr, threadInfo *pThreadInfo)
 {
     char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
@@ -3429,29 +3435,6 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
     char base64_buf[INPUT_BUF_LEN];
-#ifdef WINDOWS
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-    SOCKET sockfd;
-#else
-    int sockfd;
-#endif
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-#ifdef WINDOWS
-        errorPrint( "Could not create socket : %d" , WSAGetLastError());
-#endif
-        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
-        free(request_buf);
-        ERROR_EXIT("opening socket");
-    }
-
-    int retConn = connect(sockfd, (struct sockaddr *)pServAddr, sizeof(struct sockaddr));
-    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
-    if (retConn < 0) {
-        free(request_buf);
-        ERROR_EXIT("connecting");
-    }
 
     memset(base64_buf, 0, INPUT_BUF_LEN);
 
@@ -3491,9 +3474,9 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     sent = 0;
     do {
 #ifdef WINDOWS
-        bytes = send(sockfd, request_buf + sent, req_str_len - sent, 0);
+        bytes = send(pThreadInfo->sockfd, request_buf + sent, req_str_len - sent, 0);
 #else
-        bytes = write(sockfd, request_buf + sent, req_str_len - sent);
+        bytes = write(pThreadInfo->sockfd, request_buf + sent, req_str_len - sent);
 #endif
         if (bytes < 0)
             ERROR_EXIT("writing message to socket");
@@ -3505,12 +3488,18 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     memset(response_buf, 0, RESP_BUF_LEN);
     resp_len = sizeof(response_buf) - 1;
     received = 0;
+
+    char resEncodingChunk[] = "Encoding: chunked";
+    char resHttp[] = "HTTP/1.1 ";
+    char resHttpOk[] = "HTTP/1.1 200 OK";
+
     do {
 #ifdef WINDOWS
-        bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
+        bytes = recv(pThreadInfo->sockfds, response_buf + received, resp_len - received, 0);
 #else
-        bytes = read(sockfd, response_buf + received, resp_len - received);
+        bytes = read(pThreadInfo->sockfd, response_buf + received, resp_len - received);
 #endif
+        verbosePrint("%s() LN%d: bytes:%d\n", __func__, __LINE__, bytes);
         if (bytes < 0) {
             free(request_buf);
             ERROR_EXIT("reading response from socket");
@@ -3518,6 +3507,19 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
         if (bytes == 0)
             break;
         received += bytes;
+
+        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                __func__, __LINE__, received, resp_len, response_buf);
+
+        if (((NULL != strstr(response_buf, resEncodingChunk))
+                    && (NULL != strstr(response_buf, resHttp)))
+                || ((NULL != strstr(response_buf, resHttpOk))
+                    && (NULL != strstr(response_buf, "\"status\":")))) {
+            debugPrint(
+                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                    __func__, __LINE__, received, resp_len, response_buf);
+            break;
+        } 
     } while(received < resp_len);
 
     if (received == resp_len) {
@@ -3526,20 +3528,18 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     }
 
     response_buf[RESP_BUF_LEN - 1] = '\0';
-    printf("Response:\n%s\n", response_buf);
 
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
     }
 
     free(request_buf);
-#ifdef WINDOWS
-    closesocket(sockfd);
-    WSACleanup();
-#else
-    close(sockfd);
-#endif
 
+    if (NULL == strstr(response_buf, resHttpOk)) {
+        errorPrint("%s() LN%d, Response:\n%s\n",
+                __func__, __LINE__, response_buf);
+        return -1;
+    }
     return 0;
 }
 
@@ -4513,6 +4513,8 @@ static void* createTable(void *sarg)
             i <= pThreadInfo->end_table_to; i++) {
         if (0 == g_Dbs.use_metric) {
             snprintf(pThreadInfo->buffer, buff_len,
+                    g_args.escapeChar ? 
+                    "CREATE TABLE IF NOT EXISTS %s.`%s%"PRIu64"` %s;" :
                     "CREATE TABLE IF NOT EXISTS %s.%s%"PRIu64" %s;",
                     pThreadInfo->db_name,
                     g_args.tb_prefix, i,
@@ -4550,7 +4552,8 @@ static void* createTable(void *sarg)
                     ERROR_EXIT("use metric, but tag buffer is NULL\n");
                 }
                 len += snprintf(pThreadInfo->buffer + len,
-                        buff_len - len,
+                        buff_len - len, stbInfo->escapeChar ?
+                        "if not exists %s.`%s%"PRIu64"` using %s.`%s` tags %s " :
                         "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
                         pThreadInfo->db_name, stbInfo->childTblPrefix,
                         i, pThreadInfo->db_name,
@@ -4574,7 +4577,6 @@ static void* createTable(void *sarg)
             return NULL;
         }
         pThreadInfo->tables_created += batchNum;
-
         uint64_t currentPrintTime = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
             printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
@@ -4588,8 +4590,8 @@ static void* createTable(void *sarg)
                     NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
         }
+        pThreadInfo->tables_created += batchNum;
     }
-
     free(pThreadInfo->buffer);
     return NULL;
 }
@@ -5530,6 +5532,24 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             }
             tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
                     TBNAME_PREFIX_LEN);
+
+            cJSON *escapeChar = cJSON_GetObjectItem(stbInfo, "escape_character");
+            if (escapeChar
+                    && escapeChar->type == cJSON_String
+                    && escapeChar->valuestring != NULL) {
+                if ((0 == strncasecmp(escapeChar->valuestring, "yes", 3))) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = true;
+                } else if (0 == strncasecmp(escapeChar->valuestring, "no", 2)) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                } else {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                }
+            } else if (!escapeChar) {
+                g_Dbs.db[i].superTbls[j].escapeChar = false;
+            } else {
+                errorPrint("%s", "failed to read json, escape_character not found\n");
+                goto PARSE_OVER;
+            }
 
             cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
             if (autoCreateTbl
@@ -6982,7 +7002,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             verbosePrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
                     __func__, __LINE__, pThreadInfo->buffer);
 
-            if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
+            if (0 != postProceSql(g_Dbs.host, g_Dbs.port,
                         pThreadInfo->buffer, pThreadInfo)) {
                 affectedRows = -1;
                 printf("========restful return fail, threadID[%d]\n",
@@ -7021,7 +7041,8 @@ static void getTableName(char *pTblName,
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
             if (stbInfo->childTblLimit > 0) {
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+                        stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName +
                         (tableSeq - stbInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
             } else {
@@ -7029,15 +7050,17 @@ static void getTableName(char *pTblName,
                         pThreadInfo->threadID, __func__, __LINE__,
                         pThreadInfo->start_table_from,
                         pThreadInfo->ntables, tableSeq);
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
             }
         } else {
-            snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+            snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+            stbInfo->escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                     stbInfo->childTblPrefix, tableSeq);
         }
     } else {
-        snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+        snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+        g_args.escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                 g_args.tb_prefix, tableSeq);
     }
 }
@@ -10521,6 +10544,33 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               pThreadInfo->start_time = pThreadInfo->start_time + rand_int() % 10000 - rand_tinyint();
               }
               */
+        
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            WSADATA wsaData;
+            WSAStartup(MAKEWORD(2, 2), &wsaData);
+            SOCKET sockfd;
+#else
+            int sockfd;
+#endif
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            if (sockfd < 0) {
+#ifdef WINDOWS
+                errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                ERROR_EXIT("opening socket");
+            }
+
+            int retConn = connect(sockfd, (struct sockaddr *)&(g_Dbs.serv_addr), sizeof(struct sockaddr));
+            debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+            if (retConn < 0) {
+                ERROR_EXIT("connecting");
+            }
+            pThreadInfo->sockfd = sockfd;
+        }
+        
+
         tsem_init(&(pThreadInfo->lock_sem), 0, 0);
         if (ASYNC_MODE == g_Dbs.asyncMode) {
             pthread_create(pids + i, NULL, asyncWrite, pThreadInfo);
@@ -10558,6 +10608,14 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         tmfree((char *)pThreadInfo->bind_ts_array);
         tmfree(pThreadInfo->bindParams);
         tmfree(pThreadInfo->is_null);
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            closesocket(pThreadInfo->sockfd);
+            WSACleanup();
+#else
+            close(pThreadInfo->sockfd);
+#endif
+        }
 #else
         if (pThreadInfo->sampleBindArray) {
             for (int k = 0; k < MAX_SAMPLES; k++) {
@@ -11220,6 +11278,31 @@ static int queryTestProcess() {
                     }
                 }
 
+                if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+#ifdef WINDOWS
+                    WSADATA wsaData;
+                    WSAStartup(MAKEWORD(2, 2), &wsaData);
+                    SOCKET sockfd;
+#else
+                    int sockfd;
+#endif
+                    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                    if (sockfd < 0) {
+#ifdef WINDOWS
+                        errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                        ERROR_EXIT("opening socket");
+                    }
+
+                    int retConn = connect(sockfd, (struct sockaddr *)&(g_queryInfo.serv_addr),
+                         sizeof(struct sockaddr));
+                    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+                    if (retConn < 0) {
+                        ERROR_EXIT("connecting");
+                    }
+                    pThreadInfo->sockfd = sockfd;
+                }
                 pThreadInfo->taos = NULL;// workaround to use separate taos connection;
 
                 pthread_create(pids + seq, NULL, specifiedTableQuery,
@@ -11271,6 +11354,31 @@ static int queryTestProcess() {
             pThreadInfo->end_table_to = i < b ? tableFrom + a : tableFrom + a - 1;
             tableFrom = pThreadInfo->end_table_to + 1;
             pThreadInfo->taos = NULL; // workaround to use separate taos connection;
+            if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+#ifdef WINDOWS
+                WSADATA wsaData;
+                WSAStartup(MAKEWORD(2, 2), &wsaData);
+                SOCKET sockfd;
+#else
+                int sockfd;
+#endif
+                sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                if (sockfd < 0) {
+#ifdef WINDOWS
+                    errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                    debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                    ERROR_EXIT("opening socket");
+                }
+
+                int retConn = connect(sockfd, (struct sockaddr *)&(g_queryInfo.serv_addr),
+                        sizeof(struct sockaddr));
+                debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+                if (retConn < 0) {
+                    ERROR_EXIT("connecting");
+                }
+                pThreadInfo->sockfd = sockfd;
+            }
             pthread_create(pidsOfSub + i, NULL, superTableQuery, pThreadInfo);
         }
 
@@ -11283,6 +11391,15 @@ static int queryTestProcess() {
         for (int i = 0; i < nConcurrent; i++) {
             for (int j = 0; j < nSqlCount; j++) {
                 pthread_join(pids[i * nSqlCount + j], NULL);
+                if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+                    threadInfo *pThreadInfo = infos + i * nSqlCount + j;
+#ifdef WINDOWS
+                    closesocket(pThreadInfo->sockfd);
+                    WSACleanup();
+#else
+                    close(pThreadInfo->sockfd);
+#endif
+                }
             }
         }
     }
@@ -11292,6 +11409,15 @@ static int queryTestProcess() {
 
     for (int i = 0; i < g_queryInfo.superQueryInfo.threadCnt; i++) {
         pthread_join(pidsOfSub[i], NULL);
+        if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+            threadInfo *pThreadInfo = infosOfSub + i;
+#ifdef WINDOWS
+            closesocket(pThreadInfo->sockfd);
+            WSACleanup();
+#else
+            close(pThreadInfo->sockfd);
+#endif
+        }
     }
 
     tmfree((char*)pidsOfSub);
@@ -11868,6 +11994,7 @@ static void setParaFromArg() {
         g_Dbs.db[0].superTblCount = 1;
         tstrncpy(g_Dbs.db[0].superTbls[0].stbName, "meters", TSDB_TABLE_NAME_LEN);
         g_Dbs.db[0].superTbls[0].childTblCount = g_args.ntables;
+        g_Dbs.db[0].superTbls[0].escapeChar = g_args.escapeChar;
         g_Dbs.threadCount = g_args.nthreads;
         g_Dbs.threadCountForCreateTbl = g_args.nthreads;
         g_Dbs.asyncMode = g_args.async_mode;
@@ -11966,7 +12093,6 @@ static int regexMatch(const char *s, const char *reg, int cflags) {
         printf("Regex match failed: %s\n", msgbuf);
         exit(EXIT_FAILURE);
     }
-
     return 0;
 }
 
