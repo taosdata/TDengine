@@ -288,7 +288,7 @@ void verify_stream(TAOS* taos) {
   taos_close_stream(strm);
 }
 
-int32_t verify_schema_less(TAOS* taos) {
+void verify_schema_less(TAOS* taos) {
   TAOS_RES* result;
   result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
@@ -302,8 +302,7 @@ int32_t verify_schema_less(TAOS* taos) {
   taos_free_result(result);
   usleep(100000);
 
-  char msg[512];
-  int code = 0, a_lines = 0;
+  int code = 0, affected_rows = 0;
 
   char* lines[] = {
       "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
@@ -317,41 +316,91 @@ int32_t verify_schema_less(TAOS* taos) {
       "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000"
   };
 
-  code = taos_schemaless_insert(taos, lines , sizeof(lines)/sizeof(char*), 0, "ns", &a_lines, msg, sizeof(msg));
+  result = taos_schemaless_insert(taos, lines , sizeof(lines)/sizeof(char*), SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines1]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
 
   char* lines2[] = {
       "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
       "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
   };
-  code = taos_schemaless_insert(taos, &lines2[0], 1, 0, "ns", &a_lines, msg, sizeof(msg));
-  code = taos_schemaless_insert(taos, &lines2[1], 1, 0, "ns", &a_lines, msg, sizeof(msg));
+  result = taos_schemaless_insert(taos, &lines2[0], 1, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines2_0]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
+
+  result = taos_schemaless_insert(taos, &lines2[1], 1, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines2_1]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
 
   char* lines3[] = {
       "sth,t1=4i64,t2=5f64,t4=5f64,ID=childTable c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641",
       "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654"
   };
-  code = taos_schemaless_insert(taos, lines3, 2, 0, "ms", &a_lines, msg, sizeof(msg));
+  result = taos_schemaless_insert(taos, lines3, 2, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines3]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
 
   char* lines4[] = {
       "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
       "dgtyqodr,t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532"
   };
-  code = taos_schemaless_insert(taos, lines4, 2, 0, "ns", &a_lines, msg, sizeof(msg));
+  result = taos_schemaless_insert(taos, lines4, 2, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines4]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
+
 
   char* lines5[] = {
       "zqlbgs,id=zqlbgs_39302_21680,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
       "zqlbgs,t9=f,id=zqlbgs_39302_21680,t0=f,t1=127i8,t11=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\",t10=L\"ncharTagValue\" c10=f,c0=f,c1=127i8,c12=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64,c11=L\"ncharColValue\" 1626006833639000000"
   };
-  code = taos_schemaless_insert(taos, &lines5[0], 1, 0, "ns", &a_lines, msg, sizeof(msg));
-  code = taos_schemaless_insert(taos, &lines5[1], 1, 0, "ns", &a_lines, msg, sizeof(msg));
+  result = taos_schemaless_insert(taos, &lines5[0], 1, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines5_0]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
+
+  result = taos_schemaless_insert(taos, &lines5[1], 1, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines5_1]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
 
   char* lines6[] = {
       "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
       "dgtyqodr,t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532"
   };
-  code = taos_schemaless_insert(taos, lines6, 2, 0, "ns", &a_lines, msg, sizeof(msg));
+  result = taos_schemaless_insert(taos, lines6, 2, SML_LINE_PROTOCOL, SML_TIMESTAMP_MILLI_SECONDS);
+  code = taos_errno(result);
+  affected_rows = taos_affected_rows(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("\033[31m [lines6]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
+  }
+  taos_free_result(result);
 
-  return (code);
 }
 
 int main(int argc, char* argv[]) {
