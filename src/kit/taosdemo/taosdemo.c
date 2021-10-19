@@ -6529,6 +6529,8 @@ static void postFreeResource() {
         }
     }
     tmfree(g_sampleBindBatchArray);
+
+    tmfree(&g_Dbs);
 #endif
 }
 
