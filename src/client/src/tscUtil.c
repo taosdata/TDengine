@@ -385,6 +385,19 @@ bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscGroupbyTag(SQueryInfo* pQueryInfo) {
+  SGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (TSDB_COL_IS_TAG(pIndex->flag)) {  // group by tag
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
 
@@ -1216,6 +1229,7 @@ static void createInputDataFilterInfo(SQueryInfo* px, int32_t numOfCol1, int32_t
 
   tfree(tableCols);
 }
+
 
 void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pSql) {
   SSqlRes* pOutput = &pSql->res;
