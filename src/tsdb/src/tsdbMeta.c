@@ -1141,8 +1141,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
     }
 
     // then insert
-    for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j % 2 == 0) continue;  // jump value
+    for (int j = 1; j < nCols; j = j + 2) {
       SColIdx *pColIdx = kvRowColIdxAt(pTable->tagVal, j);
       void    *val = (kvRowColVal(pTable->tagVal, pColIdx));
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
