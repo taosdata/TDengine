@@ -5833,11 +5833,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 }
                 g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
                 if (g_Dbs.db[i].superTbls[j].insertRows > g_args.prepared_rand) {
-                    g_args.prepared_rand = g_Dbs.db[i].superTbls[j].insertRows;
                 }
             } else if (!insertRows) {
                 g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-                g_args.prepared_rand = g_Dbs.db[i].superTbls[j].insertRows;
             } else {
                 errorPrint("%s", "failed to read json, insert_rows input mistake\n");
                 goto PARSE_OVER;
