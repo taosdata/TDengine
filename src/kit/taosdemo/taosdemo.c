@@ -4328,9 +4328,12 @@ static int createSuperTable(
 
     superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
+    
     snprintf(command, BUFFER_SIZE,
-            "CREATE TABLE IF NOT EXISTS %s.%s (ts TIMESTAMP%s) TAGS %s",
-            dbName, superTbl->stbName, cols, tags);
+        superTbl->escapeChar ?
+        "CREATE TABLE IF NOT EXISTS %s.`%s` (ts TIMESTAMP%s) TAGS %s":
+        "CREATE TABLE IF NOT EXISTS %s.%s (ts TIMESTAMP%s) TAGS %s",
+        dbName, superTbl->stbName, cols, tags);
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         errorPrint2("create supertable %s failed!\n\n",
                 superTbl->stbName);
