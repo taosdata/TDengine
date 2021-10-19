@@ -192,6 +192,11 @@ else
     allocator_macro=""
 fi
 
+if [[ "$dbName" == "pro" ]]; then
+    sed -i "s/taos config/prodb config/g"   ${top_dir}/src/util/src/tconfig.c
+fi
+
+
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
   if [ "$verMode" != "cluster" ]; then
@@ -204,7 +209,7 @@ else
   exit 1
 fi
 
-make
+make -j8
 
 cd ${curr_dir}
 

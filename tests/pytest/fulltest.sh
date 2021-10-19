@@ -192,7 +192,7 @@ python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
 python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
-python3 ./test.py -f update/bug_td2279.py
+python3 ./test.py -f update/update_options.py
 
 #======================p2-end===============
 #======================p3-start===============
@@ -263,7 +263,7 @@ python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
-#python3 ./test.py -f query/nestedQuery/nestedQuery.py
+python3 ./test.py -f query/nestedQuery/nestedQuery.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
@@ -293,6 +293,7 @@ python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
+python3 ./test.py -f client/taoshellCheckCase.py
 # python3 test.py -f client/change_time_1_1.py
 # python3 test.py -f client/change_time_1_2.py
 

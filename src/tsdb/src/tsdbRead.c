@@ -653,55 +653,8 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle) {
   return res;
 }
 
-// leave only one table for each group
-static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGroupList) {
-  assert(pGroupList);
-  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
-
-  STableGroupInfo* pNew = calloc(1, sizeof(STableGroupInfo));
-  pNew->pGroupList = taosArrayInit(numOfGroup, POINTER_BYTES);
-
-  for(int32_t i = 0; i < numOfGroup; ++i) {
-    SArray* oneGroup = taosArrayGetP(pGroupList->pGroupList, i);
-    size_t numOfTables = taosArrayGetSize(oneGroup);
-
-    SArray* px = taosArrayInit(4, sizeof(STableKeyInfo));
-    for (int32_t j = 0; j < numOfTables; ++j) {
-      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(oneGroup, j);
-      if (window->skey <= pInfo->lastKey && ((STable*)pInfo->pTable)->lastKey != TSKEY_INITIAL_VAL) {
-        taosArrayPush(px, pInfo);
-        pNew->numOfTables += 1;
-        break;
-      }
-    }
-
-    // there are no data in this group
-    if (taosArrayGetSize(px) == 0) {
-      taosArrayDestroy(px);
-    } else {
-      taosArrayPush(pNew->pGroupList, &px);
-    }
-  }
-
-  return pNew;
-}
-
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pRef) {
-  STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
-
-  if (pNew->numOfTables == 0) {
-    tsdbDebug("update query time range to invalidate time window");
-
-    assert(taosArrayGetSize(pNew->pGroupList) == 0);
-    bool asc = ASCENDING_TRAVERSE(pCond->order);
-    if (asc) {
-      pCond->twindow.ekey = pCond->twindow.skey - 1;
-    } else {
-      pCond->twindow.skey = pCond->twindow.ekey - 1;
-    }
-  }
-
-  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, pNew, qId, pRef);
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pRef);
   pQueryHandle->loadExternalRow = true;
   pQueryHandle->currentLoadExternalRows = true;
 
