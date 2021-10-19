@@ -5285,6 +5285,7 @@ end:
 }
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+  // set json NULL data
   uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
   uint8_t jsonNULL = TSDB_DATA_JSON_NULL;
   int jsonIndex = startColId + 1;
@@ -5302,6 +5303,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   *(uint8_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNotNull;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, &nullTypeVal, true);   // add json type
 
+  // set json real data
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
     tscError("json parse error");
@@ -5329,7 +5331,11 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     if (item->type == cJSON_NULL){
       continue;
     }
-
+    if(!isValidateTag(jsonKey)){
+      tscError("json key not validate");
+      retCode =  tscSQLSyntaxErrMsg(errMsg, "json key not validate", NULL);
+      goto end;
+    }
     if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){
       tscError("json key too long error");
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);

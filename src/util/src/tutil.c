@@ -466,6 +466,17 @@ void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
   memcpy(pKey, context.digest, sizeof(context.digest));
 }
 
+bool isValidateTag(char *input) {
+  if (!input) return false;
+  int len = strlen(input);
+  if (len == 0) return false;
+  if (input[0] != '_' || isalpha(input[0]) == 0) return false;
+  for (int i = 1; i < len; ++i) {
+    if (input[0] != '_' || isalnum(input[0]) == 0) return false;
+  }
+  return true;
+}
+
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
 #if __STDC_VERSION__ >= 201112L
   static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
