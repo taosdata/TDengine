@@ -235,7 +235,13 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         # test chinese
-        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_11 using db_json_tag_test.jsons1 tags('{\"k1\":\"中国\",\"k2\":\"是是是\"}')")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_11 using db_json_tag_test.jsons1 tags('{\"k1\":\"中国\",\"k5\":\"是是是\"}')")
+
+        tdSql.query("select tbname,jtag from db_json_tag_test.jsons1 where jtag->'k1' match '中'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select tbname,jtag from db_json_tag_test.jsons1 where jtag->'k1'='中国'")
+        tdSql.checkRows(1)
 
     def stop(self):
         tdSql.close()

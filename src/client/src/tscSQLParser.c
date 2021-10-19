@@ -2322,7 +2322,10 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       if (tokenId == TK_ARROW && pSchema->type != TSDB_DATA_TYPE_JSON) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
-
+      if(pSchema->type == TSDB_DATA_TYPE_JSON && tokenId == TK_ARROW){
+        pItem->aliasName = calloc(1, pItem->pNode->exprToken.n + 1);
+        memcpy(pItem->aliasName, pItem->pNode->exprToken.z, pItem->pNode->exprToken.n);
+      }
       addProjectQueryCol(pQueryInfo, startPos, &index, pItem, getNewResColId(pCmd));
       pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
     }
