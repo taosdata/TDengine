@@ -366,7 +366,7 @@ typedef struct SDataBase_S {
     bool         drop;  // 0: use exists, 1: if exists, drop then new create
     SDbCfg       dbCfg;
     uint64_t     superTblCount;
-    SSuperTable  superTbls[MAX_SUPER_TABLE_COUNT];
+    SSuperTable*  superTbls;
 } SDataBase;
 
 typedef struct SDbs_S {
@@ -385,12 +385,12 @@ typedef struct SDbs_S {
     uint32_t    threadCount;
     uint32_t    threadCountForCreateTbl;
     uint32_t    dbCount;
-    SDataBase   db[MAX_DB_COUNT];
 
     // statistics
     uint64_t    totalInsertRows;
     uint64_t    totalAffectedRows;
 
+    SDataBase*  db;
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
@@ -681,6 +681,8 @@ SArguments g_args = {
 };
 
 static SDbs            g_Dbs;
+static SDataBase       g_dbs[];
+static SSuperTable     g_stbs[];
 static int64_t         g_totalChildTables = DEFAULT_CHILDTABLES;
 static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
@@ -12263,6 +12265,10 @@ int main(int argc, char *argv[]) {
         testMetaFile();
     } else {
         memset(&g_Dbs, 0, sizeof(SDbs));
+        g_Dbs.db = calloc(1, sizeof(SDataBase));
+        assert(g_Dbs.db);
+        g_Dbs.db[0].superTbls = calloc(1, sizeof(SSuperTable));
+        assert(g_Dbs.db[0].superTbls);
         setParaFromArg();
 
         if (NULL != g_args.sqlFile) {
