@@ -121,11 +121,13 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   if (newSuper) {
     if (tsdbAddTableToMeta(pRepo, super, true, false) < 0) {
       tsdbUnlockRepoMeta(pRepo);
+      super = NULL;
       goto _err;
     }
   }
   if (tsdbAddTableToMeta(pRepo, table, true, false) < 0) {
     tsdbUnlockRepoMeta(pRepo);
+    table = NULL;
     goto _err;
   }
   tsdbUnlockRepoMeta(pRepo);
