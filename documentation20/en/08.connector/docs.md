@@ -407,7 +407,7 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 - python 2.7 or >= 3.4 installed
 - pip or pip3 installed
 
-### Python client installation
+### Python connector installation
 
 #### Linux
 
@@ -540,7 +540,7 @@ Refer to help (taos.TDengineCursor) in python. This class corresponds to the wri
 
 Used to generate an instance of taos.TDengineConnection.
 
-### Python client code sample
+### Python connector code sample
 
 In tests/examples/python, we provide a sample Python program read_example. py to guide you to design your own write and query program. After installing the corresponding client, introduce the taos class through `import taos`. The steps are as follows:
 
@@ -610,11 +610,11 @@ The return value is in JSON format, as follows:
 ```json
 {
     "status": "succ",
-    "head": ["ts","current", …],
-    "column_meta": [["ts",9,8],["current",6,4], …],
+    "head": ["ts","current",...],
+    "column_meta": [["ts",9,8],["current",6,4], ...],
     "data": [
-        ["2018-10-03 14:38:05.000", 10.3, …],
-        ["2018-10-03 14:38:15.000", 12.6, …]
+        ["2018-10-03 14:38:05.000", 10.3, ...],
+        ["2018-10-03 14:38:15.000", 12.6, ...]
     ],
     "rows": 2
 } 

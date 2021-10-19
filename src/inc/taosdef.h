@@ -98,6 +98,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
+#define TS_ESCAPE_CHAR '`'
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -451,6 +452,11 @@ typedef enum {
   TD_ROW_OVERWRITE_UPDATE = 1,
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
+
+typedef enum {
+  TSDB_STATIS_OK = 0,    // statis part exist and load successfully
+  TSDB_STATIS_NONE = 1,  // statis part not exist
+} ETsdbStatisStatus;
 
 extern char *qtypeStr[];
 

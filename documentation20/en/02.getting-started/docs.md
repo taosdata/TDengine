@@ -20,6 +20,19 @@ Three different packages for TDengine server are provided, please pick up the on
 
 Click [here](https://www.taosdata.com/en/getting-started/#Install-from-Package) to download the install package.
 
+### Install TDengine by apt-get
+
+If you use Debian or Ubuntu system you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
+
 ## <a class="anchor" id="start"></a>Quick Launch
 
 After installation, you can start the TDengine service by the `systemctl` command.
@@ -167,7 +180,10 @@ taos> select avg(f1), max(f2), min(f3) from test.meters where areaid=10;
 taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 ```
 
-**Note**: you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
+## <a class="anchor" id="taosdemo"></a> Using taosdemo in detail
+
+you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
+Please refer to [How to use taosdemo to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosdemo) for detail.
 
 ## Client and Alarm Module
 
