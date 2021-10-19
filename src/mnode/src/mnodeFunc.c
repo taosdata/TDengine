@@ -205,10 +205,12 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
   code = grantCheck(TSDB_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+  
   if (name[0] == 0) {
     return TSDB_CODE_MND_INVALID_FUNC_NAME;
   }

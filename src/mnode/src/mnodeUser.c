@@ -249,7 +249,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
-  
+
   code = grantCheck(TSDB_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

@@ -667,6 +667,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   if (grantCode != TSDB_CODE_SUCCESS) {
     return grantCode;
   }
+  
   char dnodeEp[TSDB_EP_LEN] = {0};
   tstrncpy(dnodeEp, ep, TSDB_EP_LEN);
   strtrim(dnodeEp);

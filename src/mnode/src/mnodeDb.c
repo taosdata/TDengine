@@ -930,9 +930,9 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
 #ifdef GRANT_CHECK_WRITE
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else
+  } // else
 #endif
-      if (!pMsg->pUser->writeAuth) {
+  if (!pMsg->pUser->writeAuth) {
     code = TSDB_CODE_MND_NO_RIGHTS;
   } else {
     code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate, pMsg);
