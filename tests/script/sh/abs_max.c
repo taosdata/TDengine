@@ -17,7 +17,7 @@ typedef struct SUdfInit{
 void abs_max(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
-   int r = 0;
+   long r = 0;
    printf("abs_max input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
    if (itype == 5) {
      r=*(long *)dataOutput;
@@ -29,7 +29,7 @@ void abs_max(char* data, short itype, short ibytes, int numOfRows, long long* ts
        }
 
        *numOfOutput=1;
-       long v = abs(*((long *)data + i));
+       long v = labs(*((long *)data + i));
        if (v > r) {
           r = v;
        }

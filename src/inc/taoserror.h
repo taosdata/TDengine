@@ -113,6 +113,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_INVALID_JSON_CONFIG       TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Invalid JSON configuration")
 #define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0224)  //"Value out of range")
 #define TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE     TAOS_DEF_ERROR_CODE(0, 0x0225)  //"Invalid line protocol type")
+#define TSDB_CODE_TSC_INVALID_PRECISION_TYPE    TAOS_DEF_ERROR_CODE(0, 0x0226)  //"Invalid timestamp precision type")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")
@@ -130,7 +131,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_QUERY_ID          TAOS_DEF_ERROR_CODE(0, 0x030C)  //"Invalid query id")
 #define TSDB_CODE_MND_INVALID_STREAM_ID         TAOS_DEF_ERROR_CODE(0, 0x030D)  //"Invalid stream id")
 #define TSDB_CODE_MND_INVALID_CONN_ID           TAOS_DEF_ERROR_CODE(0, 0x030E)  //"Invalid connection id")
-#define TSDB_CODE_MND_MNODE_IS_RUNNING          TAOS_DEF_ERROR_CODE(0, 0x0310)  //"mnode is alreay running")
+#define TSDB_CODE_MND_MNODE_IS_RUNNING          TAOS_DEF_ERROR_CODE(0, 0x0310)  //"mnode is already running")
 #define TSDB_CODE_MND_FAILED_TO_CONFIG_SYNC     TAOS_DEF_ERROR_CODE(0, 0x0311)  //"failed to config sync")
 #define TSDB_CODE_MND_FAILED_TO_START_SYNC      TAOS_DEF_ERROR_CODE(0, 0x0312)  //"failed to start sync")
 #define TSDB_CODE_MND_FAILED_TO_CREATE_DIR      TAOS_DEF_ERROR_CODE(0, 0x0313)  //"failed to create mnode dir")
@@ -270,6 +271,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TDB_MESSED_MSG                TAOS_DEF_ERROR_CODE(0, 0x0614)  //"TSDB messed message")
 #define TSDB_CODE_TDB_IVLD_TAG_VAL              TAOS_DEF_ERROR_CODE(0, 0x0615)  //"TSDB invalid tag value")
 #define TSDB_CODE_TDB_NO_CACHE_LAST_ROW         TAOS_DEF_ERROR_CODE(0, 0x0616)  //"TSDB no cache last row data")
+#define TSDB_CODE_TDB_INCOMPLETE_DFILESET       TAOS_DEF_ERROR_CODE(0, 0x0617)  //"TSDB incomplete DFileSet")
 
 // query
 #define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)  //"Invalid handle")
@@ -278,15 +280,15 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0703)  //"System out of memory")
 #define TSDB_CODE_QRY_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x0704)  //"Unexpected generic error in query")
 #define TSDB_CODE_QRY_DUP_JOIN_KEY              TAOS_DEF_ERROR_CODE(0, 0x0705)  //"Duplicated join key")
-#define TSDB_CODE_QRY_EXCEED_TAGS_LIMIT         TAOS_DEF_ERROR_CODE(0, 0x0706)  //"Tag conditon too many")
+#define TSDB_CODE_QRY_EXCEED_TAGS_LIMIT         TAOS_DEF_ERROR_CODE(0, 0x0706)  //"Tag condition too many")
 #define TSDB_CODE_QRY_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x0707)  //"Query not ready")
 #define TSDB_CODE_QRY_HAS_RSP                   TAOS_DEF_ERROR_CODE(0, 0x0708)  //"Query should response")
 #define TSDB_CODE_QRY_IN_EXEC                   TAOS_DEF_ERROR_CODE(0, 0x0709)  //"Multiple retrieval of this query")
 #define TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW       TAOS_DEF_ERROR_CODE(0, 0x070A)  //"Too many time window in query")
 #define TSDB_CODE_QRY_NOT_ENOUGH_BUFFER         TAOS_DEF_ERROR_CODE(0, 0x070B)  //"Query buffer limit has reached")
 #define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica")
-#define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070D)  //"invalid time condition")
-#define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070E)  //"System error")
+#define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070D)  //"System error")
+#define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070E)  //"invalid time condition")
 
 
 // grant
@@ -322,7 +324,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_WAL_SIZE_LIMIT                TAOS_DEF_ERROR_CODE(0, 0x1002)  //"WAL size exceeds limit")
 
 // http
-#define TSDB_CODE_HTTP_SERVER_OFFLINE           TAOS_DEF_ERROR_CODE(0, 0x1100)  //"http server is not onlin")
+#define TSDB_CODE_HTTP_SERVER_OFFLINE           TAOS_DEF_ERROR_CODE(0, 0x1100)  //"http server is not online")
 #define TSDB_CODE_HTTP_UNSUPPORT_URL            TAOS_DEF_ERROR_CODE(0, 0x1101)  //"url is not support")
 #define TSDB_CODE_HTTP_INVALID_URL              TAOS_DEF_ERROR_CODE(0, 0x1102)  //invalid url format")
 #define TSDB_CODE_HTTP_NO_ENOUGH_MEMORY         TAOS_DEF_ERROR_CODE(0, 0x1103)  //"no enough memory")
