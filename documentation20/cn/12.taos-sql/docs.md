@@ -1341,6 +1341,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
+    
 功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
 返回结果数据类型：同字段类型。
