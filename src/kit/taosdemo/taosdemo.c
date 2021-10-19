@@ -9543,6 +9543,29 @@ free_of_interlace_stmt:
 
 #endif
 
+static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRows) {
+    debugPrint("[%d] %s() LN%d: ### interlace schemaless write\n",
+            pThreadInfo->threadID, __func__, __LINE__);
+    int64_t insertRows;
+    uint64_t maxSqlLen;
+    int64_t timeStampStep;
+    uint64_t insert_interval;
+
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+
+    if (stbInfo) {
+        insertRows = stbInfo->insertRows;
+        maxSqlLen = stbInfo->maxSqlLen;
+        timeStampStep = stbInfo->timeStampStep;
+        insert_interval = stbInfo->insertInterval;
+    } else {
+        insertRows = g_args.insertRows;
+        maxSqlLen = g_args.max_sql_len;
+        timeStampStep = g_args.timestamp_step;
+        insert_interval = g_args.insert_interval;
+    }
+}
+
 // sync write interlace data
 static void* syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     debugPrint("[%d] %s() LN%d: ### interlace write\n",
@@ -10470,6 +10493,8 @@ static void* syncWrite(void *sarg) {
 #else
                 return syncWriteInterlaceStmt(pThreadInfo, interlaceRows);
 #endif
+            } else if (SML_IFACE == stbInfo->iface) {
+                return syncWriteInterlaceSml(pThreadInfo, interlaceRows);
             } else {
                 return syncWriteInterlace(pThreadInfo, interlaceRows);
             }
