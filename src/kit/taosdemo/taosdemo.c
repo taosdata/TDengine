@@ -1893,12 +1893,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         arguments->disorderRatio, 50);
                 arguments->disorderRatio = 50;
             }
-
-            if (arguments->disorderRatio < 0) {
-                errorPrint("Invalid disorder ratio %d, will be set to %d\n",
-                        arguments->disorderRatio, 0);
-                arguments->disorderRatio = 0;
-            }
         } else if ((0 == strncmp(argv[i], "-a", strlen("-a")))
                 || (0 == strncmp(argv[i], "--replica",
                         strlen("--replica")))) {
