@@ -209,7 +209,7 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
-int8_t tsClientMerge;
+extern int8_t tsClientMerge;
 
 #ifdef TD_TSZ
 // lossy 
