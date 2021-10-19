@@ -2,11 +2,11 @@
 
 ## <a class="anchor" id="grafana"></a> Grafana
 
-TDengine can quickly integrate with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
+TDengine can be quickly integrated with [Grafana](https://www.grafana.com/), an open source data visualization system, to build a data monitoring and alarming system. The whole process does not require any code to write. The contents of the data table in TDengine can be visually showed on DashBoard.
 
 ### Install Grafana
 
-TDengine currently supports Grafana 5.2.4 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows:
+TDengine currently supports Grafana 6.2 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows:
 
 https://grafana.com/grafana/download.
 
@@ -26,15 +26,15 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 You can log in the Grafana server (username/password:admin/admin) through localhost:3000, and add data sources through `Configuration -> Data Sources` on the left panel, as shown in the following figure:
 
-![img](page://images/connections/add_datasource1.jpg)
+![img](../images/connections/add_datasource1.jpg)
 
 Click `Add data source` to enter the Add Data Source page, and enter TDengine in the query box to select Add, as shown in the following figure:
 
-![img](page://images/connections/add_datasource2.jpg)
+![img](../images/connections/add_datasource2.jpg)
 
 Enter the data source configuration page and modify the corresponding configuration according to the default prompt:
 
-![img](page://images/connections/add_datasource3.jpg)
+![img](../images/connections/add_datasource3.jpg)
 
 - Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), default  [http://localhost:6041](http://localhost:6041/)
 - User: TDengine username.
@@ -42,13 +42,13 @@ Enter the data source configuration page and modify the corresponding configurat
 
 Click `Save & Test` to test. Success will be prompted as follows:
 
-![img](page://images/connections/add_datasource4.jpg)
+![img](../images/connections/add_datasource4.jpg)
 
 #### Create Dashboard
 
 Go back to the home  to create Dashboard, and click `Add Query` to enter the panel query page:
 
-![img](page://images/connections/create_dashboard1.jpg)
+![img](../images/connections/create_dashboard1.jpg)
 
 As shown in the figure above, select the TDengine data source in Query, and enter the corresponding sql in the query box below to query. Details are as follows:
 
@@ -58,21 +58,21 @@ As shown in the figure above, select the TDengine data source in Query, and ente
 
 According to the default prompt, query the average system memory usage at the specified interval of the server where the current TDengine deployed in as follows:
 
-![img](page://images/connections/create_dashboard2.jpg)
+![img](../images/connections/create_dashboard2.jpg)
 
 > Please refer to Grafana [documents](https://grafana.com/docs/) for how to use Grafana to create the corresponding monitoring interface and for more about Grafana usage.
 
 #### Import Dashboard
 
-A `tdengine-grafana.json` importable dashboard is provided under the Grafana plug-in directory/usr/local/taos/connector/grafana/tdengine/dashboard/.
+A `tdengine-grafana.json` importable dashboard is provided under the Grafana plug-in directory `/usr/local/taos/connector/grafanaplugin/dashboard`.
 
 Click the `Import` button on the left panel and upload the  `tdengine-grafana.json` file:
 
-![img](page://images/connections/import_dashboard1.jpg)
+![img](../images/connections/import_dashboard1.jpg)
 
 You can see as follows after Dashboard imported.
 
-![img](page://images/connections/import_dashboard2.jpg)
+![img](../images/connections/import_dashboard2.jpg)
 
 ## <a class="anchor" id="matlab"></a> MATLAB
 

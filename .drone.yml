@@ -1,31 +1,5 @@
 ---
 kind: pipeline
-name: test_amd64
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: build
-  image: gcc
-  commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential 
-  - mkdir debug
-  - cd debug
-  - cmake .. 
-  - make -j4 
-  trigger:
-    event:
-      - pull_request
-  when:
-    branch:
-    - develop
-    - master
-    - 2.0
----
-kind: pipeline
 name: test_arm64_bionic
 
 platform:
@@ -36,7 +10,11 @@ steps:
   image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential
+  - apt-get install -y cmake  git build-essential wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -63,7 +41,11 @@ steps:
   commands:
   - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
   - apt-get update 
-  - apt-get install -y -qq cmake build-essential
+  - apt-get install -y -qq git cmake build-essential wget
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -88,10 +70,17 @@ steps:
 - name: build
   image: arm64v8/centos:7
   commands:
-  - yum install -y gcc gcc-c++ make cmake git
+  - yum install -y epel-release
+  - yum install -y gcc gcc-c++ make cmake3  wget git 
+  - wget https://dl.google.com/go/go1.16.9.linux-arm64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-arm64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - ln -s /usr/bin/cmake3 /usr/bin/cmake
+  - go version
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
-  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - cmake3 .. -DCPUTYPE=aarch64 > /dev/null
   - make -j4 
   trigger:
     event:
@@ -113,7 +102,8 @@ steps:
 - name: build
   image: arm64v8/centos:8
   commands:
-  - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive
+  - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive golang
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
@@ -139,7 +129,8 @@ steps:
   image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential
+  - apt-get install -y cmake build-essential golang-go git
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
@@ -165,8 +156,11 @@ steps:
   image: ubuntu:trusty
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake3 build-essential git binutils-2.26
- 
+  - apt-get install -y gcc cmake3 build-essential git binutils-2.26 wget 
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -192,7 +186,11 @@ steps:
   image: ubuntu:xenial
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential
+  - apt-get install -y gcc cmake build-essential  git wget
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -217,7 +215,11 @@ steps:
   image: ubuntu:bionic
   commands:
   - apt-get update
-  - apt-get install -y gcc cmake build-essential
+  - apt-get install -y gcc cmake build-essential  git wget
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -241,10 +243,16 @@ steps:
 - name: build
   image: ansible/centos7-ansible
   commands:
-  - yum install -y gcc gcc-c++ make cmake
+  - yum install -y epel-release
+  - yum install -y gcc gcc-c++ make cmake3  wget git 
+  - wget https://dl.google.com/go/go1.16.9.linux-amd64.tar.gz
+  - tar -C /usr/local -xzf go1.16.9.linux-amd64.tar.gz
+  - export PATH=$PATH:/usr/local/go/bin
+  - ln -s /usr/bin/cmake3 /usr/bin/cmake
+  - git submodule update --init --recursive
   - mkdir debug
   - cd debug
-  - cmake .. 
+  - cmake3 .. 
   - make -j4 
   trigger:
     event:

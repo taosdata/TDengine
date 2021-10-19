@@ -589,6 +589,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     uError("failed to init client rpc");
     return;
   }
+
   printf("check net spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\n\n", host, port, pkgLen, pkgNum, pkgType);
   int32_t totalSucc = 0;
   uint64_t startT = taosGetTimestampUs();

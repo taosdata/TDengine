@@ -34,6 +34,7 @@ extern "C" {
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+#define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
@@ -97,6 +98,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
+#define TS_ESCAPE_CHAR '`'
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -165,6 +167,9 @@ do { \
 #define TSDB_RELATION_OR          12
 #define TSDB_RELATION_NOT         13
 
+#define TSDB_RELATION_MATCH       14
+#define TSDB_RELATION_NMATCH      15
+
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
 #define TSDB_BINARY_OP_MULTIPLY   32
@@ -227,6 +232,7 @@ do { \
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_STEP_NAME_LEN        32
@@ -277,6 +283,7 @@ do { \
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
 #define TSDB_TABLES_STEP                1000
+#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
@@ -445,6 +452,11 @@ typedef enum {
   TD_ROW_OVERWRITE_UPDATE = 1,
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
+
+typedef enum {
+  TSDB_STATIS_OK = 0,    // statis part exist and load successfully
+  TSDB_STATIS_NONE = 1,  // statis part not exist
+} ETsdbStatisStatus;
 
 extern char *qtypeStr[];
 

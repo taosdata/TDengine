@@ -111,7 +111,6 @@ TAOS *shellInit(SShellArguments *_args) {
   }
 
   if (con == NULL) {
-    printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
     fflush(stdout);
     return con;
   }
@@ -251,6 +250,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
           break;
         case '\'':
         case '"':
+        case '`':
           if (quote) {
             *p++ = '\\';
           }
@@ -272,7 +272,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
 
     if (quote == c) {
       quote = 0;
-    } else if (quote == 0 && (c == '\'' || c == '"')) {
+    } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
       quote = c;
     }
 
@@ -309,8 +309,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   char *    fname = NULL;
   bool      printMode = false;
 
-  if ((sptr = strstr(command, ">>")) != NULL) {
-    cptr = strstr(command, ";");
+  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
+    cptr = tstrstr(command, ";", true);
     if (cptr != NULL) {
       *cptr = '\0';
     }
@@ -323,8 +323,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     fname = full_path.we_wordv[0];
   }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
-    cptr = strstr(command, ";");
+  if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
+    cptr = tstrstr(command, ";", true);
     if (cptr != NULL) {
       *cptr = '\0';
     }
@@ -577,7 +577,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
   while (pos < length) {
     wchar_t wc;
     int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
-    if (bytes == 0) {
+    if (bytes <= 0) {
       break;
     }
     pos += bytes;

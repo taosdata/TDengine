@@ -20,7 +20,6 @@ import random
 import time
 import os
 
-
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)

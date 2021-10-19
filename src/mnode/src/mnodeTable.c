@@ -1326,10 +1326,9 @@ static int32_t mnodeModifySuperTableTagNameCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   mLInfo("msg:%p, app:%p stable %s, modify tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          tstrerror(code));
-   if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
-
   return code;
 }
 
@@ -2976,7 +2975,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t num      = 0;
   int32_t code     = TSDB_CODE_SUCCESS;
   char*   str      = strndup(pInfo->tableNames, contLen);
-  char**  nameList = strsplit(str, ",", &num);
+  char**  nameList = strsplit(str, "`", &num);
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
 
   SMultiTableMeta *pMultiMeta = NULL;

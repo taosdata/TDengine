@@ -43,7 +43,7 @@ static void* insertLines(void* args) {
     SThreadLinesBatch* batch = insertArgs->batches + i;
     printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
     int64_t begin = getTimeInUs();
-    int32_t code = taos_insert_lines(insertArgs->taos, batch->lines, batch->numLines);
+    int32_t code = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, 0, "ms");
     int64_t end = getTimeInUs();
     insertArgs->costTime += end - begin;
     printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);

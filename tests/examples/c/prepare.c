@@ -839,6 +839,11 @@ void verify_prepare3(TAOS* taos) {
   free(double_len);
   free(bin_len);
   free(blob_len);
+  free(u8_len);
+  free(u16_len);
+  free(u32_len);
+  free(u64_len);
+  
 }
 
 int main(int argc, char* argv[]) {

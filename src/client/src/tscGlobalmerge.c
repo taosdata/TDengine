@@ -648,8 +648,9 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
 
         for(int32_t j = 0; j < numOfExpr; ++j) {
           pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
-          if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM) {
-            if(j>0) pCtx[j].ptsOutputBuf = pCtx[j-1].pOutput;
+          if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
+              pCtx[j].functionId == TSDB_FUNC_SAMPLE) {
+            if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
           }
         }
 
@@ -948,7 +949,6 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
   if (handleData) { // data in current group is all handled
     doFinalizeResultImpl(pAggInfo, pAggInfo->binfo.pCtx, pOperator->numOfOutput);
-
     int32_t numOfRows = getNumOfResult(pOperator->pRuntimeEnv, pAggInfo->binfo.pCtx, pOperator->numOfOutput);
 
     pAggInfo->binfo.pRes->info.rows += numOfRows;
@@ -1016,7 +1016,7 @@ static void ensureOutputBuf(SSLimitOperatorInfo * pInfo, SSDataBlock *pResultBlo
       }
 
       pInfo->capacity  = total;
-      pInfo->threshold = (int64_t) (total * 0.8);
+      pInfo->threshold = (int64_t)(total * 0.8);
     }
   }
 }

@@ -11,7 +11,7 @@
 %left OR.
 %left AND.
 %right NOT.
-%left EQ NE ISNULL NOTNULL IS LIKE GLOB BETWEEN IN.
+%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH GLOB BETWEEN IN.
 %left GT GE LT LE.
 %left BITAND BITOR LSHIFT RSHIFT.
 %left PLUS MINUS.
@@ -80,7 +80,7 @@ cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0); 
 cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
-cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
+cmd ::= SHOW VNODES ids(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
 
 %type dbPrefix {SStrToken}
@@ -167,7 +167,6 @@ cmd ::= DESC ids(X) cpxName(Y). {
     X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
-
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
@@ -498,7 +497,7 @@ union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
 cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 
 // Support for the SQL exprssion without from & where subclauses, e.g.,
-// select current_database()
+// select database()
 // select server_version()
 // select client_version()
 // select server_state()
@@ -753,6 +752,10 @@ expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
 // like expression
 expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 
+// match expression
+expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
+expr(A) ::= expr(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
+
 //in expression
 expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }
 
@@ -918,5 +921,5 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
-  LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
+  LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES.

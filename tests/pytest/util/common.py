@@ -15,7 +15,6 @@ import random
 import string
 from util.sql import tdSql
 from util.dnodes import tdDnodes
-
 class TDCom:
     def init(self, conn, logSql):
         tdSql.init(conn.cursor(), logSql)
@@ -52,6 +51,37 @@ class TDCom:
         tdDnodes.stop(index)
         tdDnodes.startWithoutSleep(index)
         tdSql.execute(f"use {db_name}")
+
+    def typeof(self, variate):
+        v_type=None
+        if type(variate) is int:
+            v_type = "int"
+        elif type(variate) is str:
+            v_type = "str"
+        elif type(variate) is float:
+            v_type = "float"
+        elif type(variate) is bool:
+            v_type = "bool"
+        elif type(variate) is list:
+            v_type = "list"
+        elif type(variate) is tuple:
+            v_type = "tuple"
+        elif type(variate) is dict:
+            v_type = "dict"
+        elif type(variate) is set:
+            v_type = "set"
+        return v_type
+
+    def splitNumLetter(self, input_mix_str):
+        nums, letters = "", ""
+        for i in input_mix_str:
+            if i.isdigit():
+                nums += i
+            elif i.isspace():
+                pass
+            else:
+                letters += i
+        return nums, letters
 
     def close(self):
         self.cursor.close()

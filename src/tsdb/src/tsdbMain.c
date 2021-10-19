@@ -16,6 +16,8 @@
 // no test file errors here
 #include "taosdef.h"
 #include "tsdbint.h"
+#include "ttimer.h"
+#include "tthread.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -126,6 +128,10 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
+  if(pRepo->pthread){
+    taosDestoryThread(pRepo->pthread);
+    pRepo->pthread = NULL;
+  }
 
   if (toCommit) {
     tsdbSyncCommit(repo);
@@ -547,6 +553,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     pRepo->appH = *pAppH;
   }
   pRepo->repoLocked = false;
+  pRepo->pthread = NULL;
 
   int code = pthread_mutex_init(&(pRepo->mutex), NULL);
   if (code != 0) {
@@ -673,7 +680,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     err = -1;
     goto out;
   }
@@ -707,9 +714,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
     // file block with sub-blocks has no statistics data
     if (pBlock->numOfSubBlocks <= 1) {
-      tsdbLoadBlockStatis(pReadh, pBlock);
-      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
-      loadStatisData = true;
+      if (tsdbLoadBlockStatis(pReadh, pBlock) == TSDB_STATIS_OK) {
+        tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns, pBlock);
+        loadStatisData = true;
+      }
     }
 
     for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
@@ -775,7 +783,7 @@ out:
 
 static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
   ASSERT(pTable->lastRow == NULL);
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
   }
 

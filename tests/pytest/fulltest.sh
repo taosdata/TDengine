@@ -30,6 +30,10 @@ python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 python3 ./test.py -f insert/specialSql.py
 
+# timezone
+
+python3 ./test.py -f TimeZone/TestCaseTimeZone.py
+
 #table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
@@ -45,7 +49,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -170,8 +174,8 @@ python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
 # restful test for python
-python3 test.py -f restful/restful_bind_db1.py
-python3 test.py -f restful/restful_bind_db2.py
+# python3 test.py -f restful/restful_bind_db1.py
+# python3 test.py -f restful/restful_bind_db2.py
 
 # nano support
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
@@ -179,6 +183,9 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQue
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
 python3 test.py -f tools/taosdumpTestNanoSupport.py
+
+#
+python3 ./test.py -f tsdb/tsdbComp.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -211,10 +218,12 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 
 #query
+python3 test.py -f query/distinctOneColTb.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
@@ -265,7 +274,8 @@ python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/nestedQuery/nestedQuery.py
 python3 ./test.py -f query/queryCnameDisplay.py
-python3 ./test.py -f query/operator_cost.py
+# python3 ./test.py -f query/operator_cost.py
+# python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f query/bug6586.py
 
@@ -301,30 +311,24 @@ python3 ./test.py -f client/taoshellCheckCase.py
 python3 testCompress.py
 python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
-
-
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
-python3 client/twoClients.py
-python3 ./test.py -f query/query.py
+#python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
-
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
-#python3 test.py -f subscribe/stability.py  
+#python3 test.py -f subscribe/stability.py
 python3 test.py -f subscribe/supertable.py
-
 # topic
 python3 ./test.py -f topic/topicQuery.py
-
 #======================p3-end===============
 #======================p4-start===============
 
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
-python3 ./test.py -f wal/sdbComp.py 
+python3 ./test.py -f wal/sdbComp.py
 
 # function
 python3 ./test.py -f functions/all_null_value.py
@@ -340,12 +344,13 @@ python3 ./test.py -f functions/function_last_row.py -r 1
 python3 ./test.py -f functions/function_leastsquares.py -r 1
 python3 ./test.py -f functions/function_max.py -r 1
 python3 ./test.py -f functions/function_min.py -r 1
-python3 ./test.py -f functions/function_operations.py -r 1 
+python3 ./test.py -f functions/function_operations.py -r 1
 python3 ./test.py -f functions/function_percentile.py -r 1
 python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
+python3 ./test.py -f functions/function_sample.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
@@ -361,6 +366,9 @@ python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
 python3 ./test.py  -f functions/function_irate.py
+python3 ./test.py  -f functions/function_ceil.py
+python3 ./test.py  -f functions/function_floor.py
+python3 ./test.py  -f functions/function_round.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
@@ -380,8 +388,6 @@ python3 ./test.py -f insert/insert_locking.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
-
-
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
@@ -389,16 +395,26 @@ python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
-python3 ./test.py -f query/querySession.py 
+python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
-python3 ./test.py -f insert/schemalessInsert.py
+#python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+
+python3 ./test.py -f query/query.py
+python3 ./test.py -f query/queryDiffColsOr.py
+
+
+python3 ./test.py -f client/nettest.py
+
 python3 ./test.py -f query/queryGroupTbname.py
 python3 ./test.py -f insert/verifyMemToDiskCrash.py
 
+
+python3 ./test.py -f query/queryRegex.py
+python3 ./test.py -f tools/taosdemoTestdatatype.py
 #======================p4-end===============
 
 

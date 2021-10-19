@@ -41,6 +41,7 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
@@ -59,6 +60,7 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
@@ -72,6 +74,7 @@ extern int8_t   tsKeepOriginalColumnName;
 // client
 extern int32_t tsMaxSQLStringLen;
 extern int32_t tsMaxWildCardsLen;
+extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
@@ -104,6 +107,10 @@ extern int16_t tsPartitons;
 extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
+
+//tsdb 
+extern bool tsdbForceKeepFile;
+extern bool tsdbForceCompactFile;
 
 // balance
 extern int8_t  tsEnableBalance;
@@ -210,7 +217,7 @@ extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
 #ifdef TD_TSZ
-// lossy 
+// lossy
 extern char lossyColumns[];
 extern double fPrecision;
 extern double dPrecision;
@@ -218,6 +225,11 @@ extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char Compressor[];
 #endif
+// long query
+extern int8_t tsDeadLockKillQuery;
+
+// schemaless
+extern char tsDefaultJSONStrType[];
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

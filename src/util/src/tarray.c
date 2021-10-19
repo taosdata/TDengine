@@ -24,11 +24,12 @@ void* taosArrayInit(size_t size, size_t elemSize) {
     size = TARRAY_MIN_SIZE;
   }
 
-  SArray* pArray = calloc(1, sizeof(SArray));
+  SArray* pArray = malloc(sizeof(SArray));
   if (pArray == NULL) {
     return NULL;
   }
 
+  pArray->size = 0;
   pArray->pData = calloc(size, elemSize);
   if (pArray->pData == NULL) {
     free(pArray);

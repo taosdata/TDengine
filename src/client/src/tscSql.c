@@ -194,8 +194,14 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     tscBuildAndSendRequest(pSql, NULL);
     tsem_wait(&pSql->rspSem);
 
+    pSql->pTscObj->pClusterInfo = (SClusterInfo *)tscAcquireClusterInfo(pSql->pTscObj->clusterId);
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
+      if (terrno ==TSDB_CODE_RPC_FQDN_ERROR) {
+        printf("taos connect failed, reason: %s\n\n", taos_errstr(pSql));
+      } else {
+        printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+      }
       taos_free_result(pSql);
       taos_close(pObj);
       return NULL;
@@ -251,6 +257,7 @@ static void asyncConnCallback(void *param, TAOS_RES *tres, int code) {
   SSqlObj *pSql = (SSqlObj *) tres;
   assert(pSql != NULL);
   
+  pSql->pTscObj->pClusterInfo = (SClusterInfo *)tscAcquireClusterInfo(pSql->pTscObj->clusterId);
   pSql->fetchFp(pSql->param, tres, code);
 }
 
@@ -263,7 +270,6 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
   }
 
   if (taos) *taos = pObj;
-
   pSql->fetchFp = fp;
   pSql->res.code = tscBuildAndSendRequest(pSql, NULL);
   tscDebug("%p DB async connection is opening", taos);
@@ -643,7 +649,7 @@ char *taos_errstr(TAOS_RES *tres) {
     return (char*) tstrerror(terrno);
   }
 
-  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd)) {
+  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd) || pSql->res.code == TSDB_CODE_RPC_FQDN_ERROR) {
     return pSql->cmd.payload;
   } else {
     return (char*)tstrerror(pSql->res.code);

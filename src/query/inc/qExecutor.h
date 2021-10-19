@@ -43,6 +43,8 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
+#define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData? 1 : 0)
+
 enum {
   // when query starts to execute, this status will set
       QUERY_NOT_COMPLETED = 0x1u,
@@ -260,8 +262,10 @@ typedef struct SQueryAttr {
   int32_t          numOfFilterCols;
   int64_t*         fillVal;
   SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
-  SSingleColumnFilterInfo* pFilterInfo;
 
+  SSingleColumnFilterInfo* pFilterInfo;
+  void            *pFilters;
+  
   void*            tsdb;
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
@@ -289,7 +293,7 @@ typedef struct SQueryRuntimeEnv {
   SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
   SArray*               pResultRowArrayList; // The array list that contains the Result rows
   char*                 keyBuf;           // window key buffer
-  SResultRowPool*       pool;             // window result object pool
+  SResultRowPool*       pool;             // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   char**                prevRow;
 
   SArray*               prevResult;       // intermediate result, SArray<SInterResult>
@@ -394,13 +398,15 @@ typedef struct SQInfo {
 typedef struct SQueryParam {
   char            *sql;
   char            *tagCond;
-  char            *tbnameCond;
+  char            *colCond;
   char            *prevResult;
   SArray          *pTableIdList;
   SSqlExpr       **pExpr;
   SSqlExpr       **pSecExpr;
   SExprInfo       *pExprs;
   SExprInfo       *pSecExprs;
+
+  void            *pFilters;
 
   SColIndex       *pGroupColIndex;
   SColumnInfo     *pTagColumnInfo;
@@ -409,6 +415,11 @@ typedef struct SQueryParam {
   SArray          *pOperator;
   SUdfInfo        *pUdfInfo;
 } SQueryParam;
+
+typedef struct SColumnDataParam{
+  int32_t numOfCols;
+  SArray* pDataBlock;
+} SColumnDataParam;
 
 typedef struct STableScanInfo {
   void           *pQueryHandle;
@@ -525,13 +536,13 @@ typedef struct SStateWindowOperatorInfo {
   int32_t        start;
   char*          prevData;    // previous data 
   bool           reptScan;
-} SStateWindowOperatorInfo ;
+} SStateWindowOperatorInfo;
 
 typedef struct SDistinctDataInfo {
   int32_t index;
   int32_t type;
   int32_t bytes;
-} SDistinctDataInfo;
+} SDistinctDataInfo; 
 
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
@@ -539,9 +550,9 @@ typedef struct SDistinctOperatorInfo {
   bool              recordNullVal;  //has already record the null value, no need to try again
   int64_t           threshold;
   int64_t           outputCapacity;
-  int32_t           totalBytes;
+  int32_t           totalBytes; 
   char*             buf;
-  SArray*           pDistinctDataInfo;
+  SArray*           pDistinctDataInfo; 
 } SDistinctOperatorInfo;
 
 struct SGlobalMerger;
@@ -614,7 +625,6 @@ bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilter
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
 
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);
-void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
 void* destroyOutputBuf(SSDataBlock* pBlock);
 void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
@@ -624,6 +634,7 @@ int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int3
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
+void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
@@ -633,9 +644,11 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
                                            SSqlExpr **pExpr, SExprInfo *prevExpr, SUdfInfo *pUdfInfo);
 
+int32_t createQueryFilter(char *data, uint16_t len, void** pFilters);
+
 SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
+                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, void* pFilters, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, SQueryParam* param, char* start,
                   int32_t prevResultLen, void* merger);
@@ -650,6 +663,7 @@ int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
+bool checkNeedToCompressQueryCol(SQInfo *pQInfo);
 bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 
@@ -658,7 +672,7 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo);
 
 bool isValidQInfo(void *param);
 
-int32_t doDumpQueryResult(SQInfo *pQInfo, char *data);
+int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int8_t compressed, int32_t *compLen);
 
 size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows);
 void setQueryKilled(SQInfo *pQInfo);
@@ -674,5 +688,6 @@ void freeQueryAttr(SQueryAttr *pQuery);
 int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
+int32_t getColumnDataFromId(void *param, int32_t id, void **data);
 
 #endif  // TDENGINE_QEXECUTOR_H

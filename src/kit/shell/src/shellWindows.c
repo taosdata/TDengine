@@ -194,6 +194,22 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+    else if (strcmp(argv[i], "-N") == 0) {
+      if (i < argc - 1) {
+        arguments->pktNum = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -N requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    else if (strcmp(argv[i], "-S") == 0) {
+      if (i < argc - 1) {
+        arguments->pktType = argv[++i];
+      } else {
+        fprintf(stderr, "option -S requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
     else if (strcmp(argv[i], "-V") == 0) {
       printVersion();
       exit(EXIT_SUCCESS);

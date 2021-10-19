@@ -26,6 +26,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+        os.system("rm -rf tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py.sql") 
+
         now = time.time()
         self.ts = int(round(now * 1000))
         self.num = 100
@@ -692,7 +694,7 @@ class TDTestCase:
         tdSql.query("describe table_40")
         tdSql.checkRows(4096)
 
-        os.system("rm -rf tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py.sql") 
+        
 
 
     def stop(self):

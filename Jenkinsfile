@@ -72,6 +72,7 @@ def pre_test(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
     '''
@@ -98,7 +99,7 @@ def pre_test(){
     sh '''
     cd ${WK}
     git pull >/dev/null 
-
+    
     export TZ=Asia/Harbin
     date
     git clean -dfx
@@ -114,6 +115,7 @@ def pre_test(){
 }
 def pre_test_win(){
     bat '''
+    taskkill /f /t /im python.exe
     cd C:\\
     rd /s /Q C:\\TDengine
     cd C:\\workspace\\TDinternal
@@ -147,6 +149,7 @@ def pre_test_win(){
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd C:\\workspace\\TDinternal
     git reset --hard HEAD~10
     '''
@@ -171,7 +174,6 @@ def pre_test_win(){
       } 
     }
     bat '''
-    taskkill /f /t /im python.exe
     cd C:\\workspace\\TDinternal
     git pull 
 
@@ -313,11 +315,29 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
+              node test1970.js
+	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+	      npm install td2.0-connector > /dev/null 2>&1
+              node nanosecondTest.js
+
               '''
+
               sh '''
-              cd ${WKC}/tests/examples/C#/taosdemo
-              mcs -out:taosdemo *.cs > /dev/null 2>&1
-              ./taosdemo -c /etc/taos -y
+              cd ${WKC}/src/connector/node-rest/
+              npm install
+              npm run build 
+              npm run build:test
+              npm run test
+
+              '''
+
+              sh '''
+                cd ${WKC}/tests/examples/C#/taosdemo
+                mcs -out:taosdemo *.cs > /dev/null 2>&1
+                echo '' |./taosdemo -c /etc/taos
+                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
+                mcs -out:nano *.cs > /dev/null 2>&1
+                echo '' |./nano
               '''
               sh '''
                 cd ${WKC}/tests/gotest
@@ -402,11 +422,12 @@ pipeline {
               ./test-all.sh b4fq
               cd ${WKC}/tests
               ./test-all.sh p4
-              cd ${WKC}/tests
-              ./test-all.sh full jdbc
-              cd ${WKC}/tests
-              ./test-all.sh full unit
-              date'''
+              '''
+              // cd ${WKC}/tests
+              // ./test-all.sh full jdbc
+              // cd ${WKC}/tests
+              // ./test-all.sh full unit
+              
             }
           }
         }
@@ -450,35 +471,35 @@ pipeline {
           }
         } 
         
-        stage('build'){
-          agent{label " wintest "}
-          steps {
-            pre_test()
-            script{             
-                while(win_stop == 0){
-                  sleep(1)
-                  }
-              }
-            }
-        }
-        stage('test'){
-          agent{label "win"}
-          steps{
+        // stage('build'){
+        //   agent{label " wintest "}
+        //   steps {
+        //     pre_test()
+        //     script{             
+        //         while(win_stop == 0){
+        //           sleep(1)
+        //           }
+        //       }
+        //     }
+        // }
+        // stage('test'){
+        //   agent{label "win"}
+        //   steps{
             
-            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat Wintest
-                '''
-                }
-            }     
-            script{
-              win_stop=1
-            }
-          }
-        }
+        //     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+        //         pre_test_win()
+        //         timeout(time: 20, unit: 'MINUTES'){
+        //         bat'''
+        //         cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+        //         .\\test-all.bat Wintest
+        //         '''
+        //         }
+        //     }     
+        //     script{
+        //       win_stop=1
+        //     }
+        //   }
+        // }
           
                
     }

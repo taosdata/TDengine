@@ -84,6 +84,20 @@ int32_t strRmquote(char *z, int32_t len){
     return len - 2 - cnt;
 }
 
+int32_t strRmquoteEscape(char *z, int32_t len) {
+  if (len <= 0) return len;
+  
+  if (z[0] == '\'' || z[0] == '\"') {
+    return strRmquote(z, len);
+  } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
+    memmove(z, z + 1, len - 2);
+    return len - 2;
+  }
+
+  return len;
+}
+
+
 
 size_t strtrim(char *z) {
   int32_t i = 0;
@@ -165,6 +179,45 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
+  if (!ignoreInEsc) {
+    return strstr(src, dst);
+  }
+
+  int32_t len = (int32_t)strlen(src);
+  bool inEsc = false;
+  char escChar = 0;
+  char *str = src, *res = NULL;
+  
+  for (int32_t i = 0; i < len; ++i) {
+    if (src[i] == TS_ESCAPE_CHAR || src[i] == '\'' || src[i] == '\"') {
+      if (!inEsc) {
+        escChar = src[i];
+        src[i] = 0;
+        res = strstr(str, dst);
+        src[i] = escChar;
+        if (res) {
+          return res;
+        }
+        str = NULL;
+      } else {
+        if (src[i] != escChar) {
+          continue;
+        }
+
+        str = src + i + 1;
+      }
+      
+      inEsc = !inEsc;
+      continue;
+    }
+  }
+
+  return str ? strstr(str, dst) : NULL;
+}
+
+
+
 char* strtolower(char *dst, const char *src) {
   int esc = 0;
   char quote = 0, *p = dst, c;
@@ -193,7 +246,7 @@ char* strtolower(char *dst, const char *src) {
 }
 
 char* strntolower(char *dst, const char *src, int32_t n) {
-  int esc = 0;
+  int esc = 0, inEsc = 0;
   char quote = 0, *p = dst, c;
 
   assert(dst != NULL);
@@ -210,10 +263,16 @@ char* strntolower(char *dst, const char *src, int32_t n) {
       } else if (c == quote) {
         quote = 0;
       }
+    } else if (inEsc) {
+      if (c == '`') {
+        inEsc = 0;
+      }
     } else if (c >= 'A' && c <= 'Z') {
       c -= 'A' - 'a';
-    } else if (c == '\'' || c == '"') {
+    } else if (inEsc == 0 && (c == '\'' || c == '"')) {
       quote = c;
+    } else if (c == '`' && quote == 0) {
+      inEsc = 1;
     }
     *p++ = c;
   }

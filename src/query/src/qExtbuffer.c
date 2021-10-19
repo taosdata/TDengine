@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "qExtbuffer.h"
 #include "os.h"
 #include "qAggMain.h"
 #include "queryLog.h"
@@ -21,6 +20,8 @@
 #include "taosmsg.h"
 #include "tulog.h"
 #include "qExecutor.h"
+#include "qExtbuffer.h"
+#include "tcompare.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->pFields[colId].offset * (allrow) + (rowId) * (schema)->pFields[colId].field.bytes)
