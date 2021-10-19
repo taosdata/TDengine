@@ -1159,7 +1159,6 @@ static int64_t dumpNormalTable(
 
         // create child-table using super-table
         dumpCreateMTableClause(dbName, stable, tableDes, colCount, fp);
-
     } else {  // dump table definition
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
@@ -1336,11 +1335,16 @@ static void *dumpNormalTablesOfStb(void *arg) {
     char tmpBuf[4096] = {0};
 
     if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%d.sql",
-                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
+        sprintf(tmpBuf, "%s/%s.%s.%d.sql",
+                g_args.outpath,
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
     } else {
-        sprintf(tmpBuf, "%s.%d.sql",
-                pThreadInfo->dbName, pThreadInfo->threadIndex);
+        sprintf(tmpBuf, "%s.%s.%d.sql",
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
     }
 
     fp = fopen(tmpBuf, "w");

@@ -275,6 +275,12 @@ class TDTestCase:
         tdSql.query("show create stable db.stb1")
         tdSql.checkRows(1)
 
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("drop database if exists db1")
+        tdSql.execute("drop database if exists new")
+        tdSql.execute("drop database if exists db2")
+        tdSql.execute("drop database if exists private")
+
     def td4153(self):
         tdLog.printNoPrefix("==========TD-4153==========")
 
@@ -392,21 +398,33 @@ class TDTestCase:
 
     def td4889(self):
         tdLog.printNoPrefix("==========TD-4889==========")
+        cfg = {
+            'minRowsPerFileBlock': '10',
+            'maxRowsPerFileBlock': '200',
+            'minRows': '10',
+            'maxRows': '200',
+            'maxVgroupsPerDb': '100',
+            'maxTablesPerVnode': '1200',
+        }
+        tdSql.query("show dnodes")
+        dnode_index = tdSql.getData(0,0)
+        tdDnodes.stop(dnode_index)
+        tdDnodes.deploy(dnode_index, cfg)
+        tdDnodes.start(dnode_index)
+
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database  if not exists db keep 3650 blocks 3")
+        tdSql.execute("create database  if not exists db keep 3650 blocks 3 minrows 10 maxrows 200")
 
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t1 int)")
 
         for i in range(1000):
             tdSql.execute(f"create table db.t1{i} using db.stb1 tags({i})")
-            for j in range(60):
+            for j in range(260):
                 tdSql.execute(f"insert into db.t1{i} values (now-100d, {i+j})")
 
-        tdSql.query("show dnodes")
-        index = tdSql.getData(0,0)
-        tdDnodes.stop(index)
-        tdDnodes.start(index)
+        # tdDnodes.stop(dnode_index)
+        # tdDnodes.start(dnode_index)
 
         tdSql.query("show vgroups")
         index = tdSql.getData(0,0)
@@ -421,8 +439,7 @@ class TDTestCase:
             run_time = time.time()-start_time
             if run_time > 3:
                 tdLog.exit("compacting not occured")
-            time.sleep(0.1)
-
+            # time.sleep(0.1)
 
         pass
 
@@ -772,7 +789,7 @@ class TDTestCase:
         tdSql.query(f"select distinct  c1,c2 from (select * from t1 where c1 < {tbnum}) ")
         tdSql.checkRows(3)
         tdSql.query(f"select distinct  c1,c2 from (select * from stb1 where t2 !=0 and t2 != 1) ")
-        tdSql.checkRows(4)
+        tdSql.checkRows(0)
         tdSql.error("select distinct  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.error("select  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.query("select distinct  c1, c2 from (select c2, c1 from stb1 where c1 > 2 ) where  c1 < 4")
@@ -1545,21 +1562,23 @@ class TDTestCase:
 
     def run(self):
 
+        self.td4097()
+
         # master branch
-        # self.td3690()
-        # self.td4082()
-        # self.td4288()
-        # self.td4724()
-        # self.td5935()
-        # self.td6068()
+        self.td3690()
+        self.td4082()
+        self.td4288()
+        self.td4724()
+        self.td5935()
+        self.td6068()
+
+        # self.td5168()
+        # self.td5433()
+        # self.td5798()
 
         # develop branch
-        #self.td4097()
-        #self.td4889()
-        # self.td5168()
-        #self.td5798()
-        #self.td5433()
-        self.td6108()
+        self.td4889()
+        self.td5798()
 
     def stop(self):
         tdSql.close()
