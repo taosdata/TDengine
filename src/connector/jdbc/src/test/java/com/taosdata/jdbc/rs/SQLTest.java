@@ -518,7 +518,7 @@ public class SQLTest {
 
     @Test
     public void testCase050() {
-        String sql = "select * from restful_test.t1, restful_test.t3 where t1.ts = t3.ts and t1.location = t3.location";
+        String sql = "select * from restful_test.t1, restful_test.t3 where t1.ts = t3.ts";
         // when
         ResultSet rs = executeQuery(connection, sql);
         // then
