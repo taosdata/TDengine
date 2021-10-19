@@ -470,9 +470,9 @@ bool isValidateTag(char *input) {
   if (!input) return false;
   int len = strlen(input);
   if (len == 0) return false;
-  if (input[0] != '_' || isalpha(input[0]) == 0) return false;
+  if (input[0] != '_' && isalpha(input[0]) == 0) return false;
   for (int i = 1; i < len; ++i) {
-    if (input[0] != '_' || isalnum(input[0]) == 0) return false;
+    if (input[i] != '_' && isalnum(input[i]) == 0) return false;
   }
   return true;
 }
