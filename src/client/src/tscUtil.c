@@ -5223,7 +5223,7 @@ char* parseTagDatatoJson(void *p){
       continue;
     }
     if (j == 2){
-      if(*(uint8_t*)(varDataVal(val)) == TSDB_DATA_JSON_NULL) goto end;
+      if(*(uint8_t*)(varDataVal(val + CHAR_BYTES)) == TSDB_DATA_JSON_NULL) goto end;
       continue;
     }
     if (j%2 == 1) { // json key  encode by binary
@@ -5290,6 +5290,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   int jsonIndex = startColId + 1;
   char nullTypeKey[VARSTR_HEADER_SIZE + CHAR_BYTES] = {0};
   varDataSetLen(nullTypeKey, CHAR_BYTES);
+  varDataSetLen(nullTypeVal + CHAR_BYTES, CHAR_BYTES);
   *(uint8_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
   if (strtrim(json) == 0 || strcasecmp(json, "null") == 0){
