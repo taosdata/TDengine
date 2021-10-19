@@ -120,11 +120,13 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   tsdbWLockRepoMeta(pRepo);
   if (newSuper) {
     if (tsdbAddTableToMeta(pRepo, super, true, false) < 0) {
+      super = NULL;
       tsdbUnlockRepoMeta(pRepo);
       goto _err;
     }
   }
   if (tsdbAddTableToMeta(pRepo, table, true, false) < 0) {
+    table = NULL;
     tsdbUnlockRepoMeta(pRepo);
     goto _err;
   }
@@ -1087,60 +1089,72 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
     ASSERT(pSTable->tagSchema->numOfCols == 1);
     int16_t nCols = kvRowNCols(pTable->tagVal);
     ASSERT(nCols%2 == 1);
+    // check first
     for (int j = 0; j < nCols; ++j) {
-      if (j != 0 && j%2 == 0) continue; // jump value
-      SColIdx * pColIdx = kvRowColIdxAt(pTable->tagVal, j);
-      void* val = (kvRowColVal(pTable->tagVal, pColIdx));
-      if (j == 0){        // json value is the first
-        int8_t jsonPlaceHolder = *(int8_t*)val;
+      if (j != 0 && j % 2 == 0) continue;  // jump value
+      SColIdx *pColIdx = kvRowColIdxAt(pTable->tagVal, j);
+      void    *val = (kvRowColVal(pTable->tagVal, pColIdx));
+      if (j == 0) {  // json value is the first
+        int8_t jsonPlaceHolder = *(int8_t *)val;
         ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
         continue;
       }
-      if (j == 1){
-        uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
+      if (j == 1) {
+        uint8_t jsonNULL = *(uint8_t *)(varDataVal(val));
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
       }
 
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
       jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
-      SArray* tablistNew = NULL;
-      SArray** tablist = (SArray**)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
-      if(tablist == NULL) {
+      SArray  *tablistNew = NULL;
+      SArray **tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+      if (tablist == NULL) {
         tablistNew = taosArrayInit(8, sizeof(JsonMapValue));
-        if(tablistNew == NULL){
+        if (tablistNew == NULL) {
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           tsdbError("out of memory when alloc json tag array");
           return -1;
         }
-        if(taosHashPut(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, &tablistNew, sizeof(void*)) < 0){
+        if (taosHashPut(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, &tablistNew, sizeof(void *)) < 0) {
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           tsdbError("out of memory when put json tag array");
           return -1;
         }
-      }else{
+      } else {
         tablistNew = *tablist;
       }
 
-      if(taosArrayGetSize(tablistNew) > 0){
+      if (taosArrayGetSize(tablistNew) > 0) {
         // validate type
-        JsonMapValue* tmp = taosArrayGet(tablistNew, 0);
-        void* data1 = tdGetKVRowValOfCol(((STable *)(tmp->table))->tagVal, tmp->colId + 1);
-        SColIdx * pInsertColIdx = kvRowColIdxAt(pTable->tagVal, j + 1);
-        void* data2 = (kvRowColVal(pTable->tagVal, pInsertColIdx));
-        if(*(uint8_t*)data1 != *(uint8_t*)data2){
+        JsonMapValue *tmp = taosArrayGet(tablistNew, 0);
+        void         *data1 = tdGetKVRowValOfCol(((STable *)(tmp->table))->tagVal, tmp->colId + 1);
+        SColIdx      *pInsertColIdx = kvRowColIdxAt(pTable->tagVal, j + 1);
+        void         *data2 = (kvRowColVal(pTable->tagVal, pInsertColIdx));
+        if (*(uint8_t *)data1 != *(uint8_t *)data2) {
           terrno = TSDB_CODE_TDB_IVLD_SAME_JSON_VALUE;
           tsdbError("invalidate same json tag value");
           return -1;
         }
       }
+    }
+
+    // then insert
+    for (int j = 0; j < nCols; ++j) {
+      if (j != 0 && j % 2 == 0) continue;  // jump value
+      SColIdx *pColIdx = kvRowColIdxAt(pTable->tagVal, j);
+      void    *val = (kvRowColVal(pTable->tagVal, pColIdx));
+      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+      jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
+      SArray **tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
+
       JsonMapValue jmvalue = {pTable, pColIdx->colId};
-      void* p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+      void* p = taosArraySearch(*tablist, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
-        p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_GE);
+        p = taosArraySearch(*tablist, &jmvalue, tsdbCompareJsonMapValue, TD_GE);
         if(p == NULL){
-          taosArrayPush(tablistNew, &jmvalue);
+          taosArrayPush(*tablist, &jmvalue);
         }else{
-          taosArrayInsert(tablistNew, TARRAY_ELEM_IDX(tablistNew, p), &jmvalue);
+          taosArrayInsert(*tablist, TARRAY_ELEM_IDX(*tablist, p), &jmvalue);
         }
       }else{
         tsdbError("insert dumplicate");
