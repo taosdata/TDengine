@@ -12093,7 +12093,6 @@ static int regexMatch(const char *s, const char *reg, int cflags) {
         printf("Regex match failed: %s\n", msgbuf);
         exit(EXIT_FAILURE);
     }
-
     return 0;
 }
 
