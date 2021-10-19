@@ -1365,7 +1365,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005';
     Query OK, 0 row(s) in set (0.004022s)
     
-    taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005' FILL(PREV);;
+    taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005' FILL(PREV);
            interp(ts)        |   interp(current)    | interp(voltage) |    interp(phase)     |
     ==========================================================================================
      2017-07-14 18:40:00.005 |              9.88150 |             217 |              0.32500 |
@@ -1380,7 +1380,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
      2017-07-14 18:40:00.010 |             10.16123 |
     Query OK, 2 row(s) in set (0.003487s)
     ```
-    
+
 ### 计算函数
 
 - **DIFF**
