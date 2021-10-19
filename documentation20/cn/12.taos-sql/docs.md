@@ -1337,6 +1337,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```
     
 - **INTERP**
+
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
