@@ -4893,7 +4893,6 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
   const char* msg1 = "super table join requires tags column";
   const char* msg2 = "timestamp join condition missing";
   const char* msg3 = "condition missing for join query";
-  const char* msg4 = "only ts column join allowed";
 
   if (!QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     if (pQueryInfo->numOfTables == 1) {
@@ -4911,8 +4910,6 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
     if (pCondExpr->pJoinExpr == NULL) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
-  } else if ((!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) && pCondExpr->pJoinExpr) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   if (!pCondExpr->tsJoin) {
