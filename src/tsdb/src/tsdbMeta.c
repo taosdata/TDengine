@@ -122,14 +122,12 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
     if (tsdbAddTableToMeta(pRepo, super, true, false) < 0) {
       super = NULL;
       tsdbUnlockRepoMeta(pRepo);
-      super = NULL;
       goto _err;
     }
   }
   if (tsdbAddTableToMeta(pRepo, table, true, false) < 0) {
     table = NULL;
     tsdbUnlockRepoMeta(pRepo);
-    table = NULL;
     goto _err;
   }
   tsdbUnlockRepoMeta(pRepo);
@@ -1086,6 +1084,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
   ASSERT(pSTable != NULL);
 
   pTable->pSuper = pSTable;
+  if (refSuper) T_REF_INC(pSTable);
 
   if(pSTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
     ASSERT(pSTable->tagSchema->numOfCols == 1);
@@ -1165,7 +1164,6 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
     tSkipListPut(pSTable->pIndex, (void *)pTable);
   }
 
-  if (refSuper) T_REF_INC(pSTable);
   return 0;
 }
 
