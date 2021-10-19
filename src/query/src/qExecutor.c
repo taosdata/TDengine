@@ -1296,9 +1296,6 @@ static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
     if (pCtx[k].currentStage == MERGE_STAGE) {
       pCtx[k].order = TSDB_ORDER_ASC;
     }
-
-    pCtx[k].startTs = pQueryAttr->window.skey;
-
     if (pCtx[k].functionId < 0) {
       // load the script and exec
       SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;

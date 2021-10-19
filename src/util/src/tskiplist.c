@@ -163,6 +163,10 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
       for (int i = 0; i < pSkipList->maxLevel; i++) {
         forward[i] = SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail, i);
       }
+    } else if(compare == 0) {
+      // same need special deal
+      forward[0] = SL_NODE_GET_BACKWARD_POINTER(SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail,0),0);
+      hasDup = true;
     } else {
       SSkipListNode *px = pSkipList->pHead;
       for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
