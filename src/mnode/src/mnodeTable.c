@@ -2216,20 +2216,18 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   //SCMCreateTableMsg* p1 = pMsg->rpcMsg.pCont; // there are several tables here.
   SCreateTableMsg* pCreate = (SCreateTableMsg*)((char *)pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
 
-#ifdef GRANT_CHECK_WRITE
   int32_t code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p table:%s, failed to create, grant timeseries failed", pMsg, pMsg->rpcMsg.ahandle,
            pCreate->tableName);
     return code;
   }
-#endif
 
   if (pMsg->retry == 0) {
     if (pMsg->pTable == NULL) {
       SVgObj *pVgroup = NULL;
       int32_t tid = 0;
-      int32_t code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid);
+      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid);
       if (code != TSDB_CODE_SUCCESS) {
         mDebug("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
                pCreate->tableName, tstrerror(code));

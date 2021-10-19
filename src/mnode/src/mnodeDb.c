@@ -429,10 +429,8 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
     }
   }
 
-#ifdef GRANT_CHECK_WRITE
   code = grantCheck(TSDB_GRANT_DB);
   if (code != 0) return code;
-#endif
 
   pDb = calloc(1, sizeof(SDbObj));
   tstrncpy(pDb->name, pCreate->db, sizeof(pDb->name));

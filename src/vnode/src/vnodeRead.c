@@ -56,6 +56,11 @@ int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
+    vDebug("vgId:%d, grant expired, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    return TSDB_CODE_GRANT_EXPIRED;
+  }
+
   if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
@@ -226,16 +231,6 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   // qHandle needs to be freed correctly
   if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
     vError("error rpc msg in query, %s", tstrerror(pRead->code));
-  }
-
-  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
-    SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
-    pRsp->code = TSDB_CODE_GRANT_EXPIRED;
-    pRsp->qId = 0;
-
-    pRet->len = sizeof(SQueryTableRsp);
-    pRet->rsp = pRsp;
-    return pRsp->code;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;

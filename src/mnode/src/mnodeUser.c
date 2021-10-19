@@ -250,12 +250,10 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
     return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
   
-#ifdef GRANT_CHECK_WRITE
   code = grantCheck(TSDB_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-#endif
 
   pUser = calloc(1, sizeof(SUserObj));
   tstrncpy(pUser->user, name, TSDB_USER_LEN);
