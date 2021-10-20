@@ -9542,6 +9542,111 @@ free_of_interlace_stmt:
 
 #endif
 
+static void* generateSmlHead(char* smlHead, SSuperTable* stbInfo, threadInfo* pThreadInfo) {
+    int64_t dataLen = 0;
+    dataLen += snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                            "%s,id=%s%" PRIu64 "", stbInfo->stbName,
+                            stbInfo->childTblPrefix,
+                            t + pThreadInfo->start_table_from);
+        for (int j = 0; j < stbInfo->tagCount; j++) {
+            tstrncpy(smlHead + dataLen, ",", 2);
+            dataLen += 1;
+            switch (stbInfo->tags[j].data_type) {
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    errorPrint2(
+                        "%s() LN%d, Does not support data type %s as tag\n",
+                        __func__, __LINE__, stbInfo->tags[j].dataType);
+                    exit(EXIT_FAILURE);
+                case TSDB_DATA_TYPE_BOOL:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%s", j, rand_bool_str());
+                    break;
+                case TSDB_DATA_TYPE_TINYINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%si8", j, rand_tinyint_str());
+                    break;
+                case TSDB_DATA_TYPE_UTINYINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%su8", j, rand_utinyint_str());
+                    break;
+                case TSDB_DATA_TYPE_SMALLINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%si16", j, rand_smallint_str());
+                    break;
+                case TSDB_DATA_TYPE_USMALLINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%su16", j, rand_usmallint_str());
+                    break;
+                case TSDB_DATA_TYPE_INT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%si32", j, rand_int_str());
+                    break;
+                case TSDB_DATA_TYPE_UINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%su32", j, rand_uint_str());
+                    break;
+                case TSDB_DATA_TYPE_BIGINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%si64", j, rand_bigint_str());
+                    break;
+                case TSDB_DATA_TYPE_UBIGINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%su64", j, rand_ubigint_str());
+                    break;
+                case TSDB_DATA_TYPE_FLOAT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%sf32", j, rand_float_str());
+                    break;
+                case TSDB_DATA_TYPE_DOUBLE:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, stbInfo->tagCount*24 - dataLen,
+                                 "T%d=%sf64", j, rand_double_str());
+                    break;
+                case TSDB_DATA_TYPE_BINARY:
+                case TSDB_DATA_TYPE_NCHAR:
+                    if (stbInfo->tags[j].dataLen > TSDB_MAX_BINARY_LEN) {
+                        errorPrint2(
+                            "binary or nchar length overflow, maxsize:%u\n",
+                            (uint32_t)TSDB_MAX_BINARY_LEN);
+                        exit(EXIT_FAILURE);
+                    }
+                    char *buf = (char *)calloc(stbInfo->tags[j].dataLen + 1, 1);
+                    if (NULL == buf) {
+                        errorPrint2("calloc failed! size:%d\n",
+                                    stbInfo->tags[j].dataLen);
+                        exit(EXIT_FAILURE);
+                    }
+                    rand_string(buf, stbInfo->tags[j].dataLen);
+                    if (stbInfo->tags[j].data_type == TSDB_DATA_TYPE_BINARY) {
+                        dataLen += snprintf(smlHead + dataLen,
+                                            MAX_DATA_SIZE - dataLen,
+                                            "T%d=\"%s\"", j, buf);
+                    } else {
+                        dataLen += snprintf(smlHead + dataLen,
+                                            MAX_DATA_SIZE - dataLen,
+                                            "T%d=L\"%s\"", j, buf);
+                    }
+                    tmfree(buf);
+                    break;
+
+                default:
+                    errorPrint2("%s() LN%d, Unknown data type %s\n", __func__,
+                                __LINE__, stbInfo->tags[j].dataType);
+                    exit(EXIT_FAILURE);
+            }
+        }
+}
+
 static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     debugPrint("[%d] %s() LN%d: ### interlace schemaless write\n",
             pThreadInfo->threadID, __func__, __LINE__);
@@ -10203,113 +10308,13 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
     char *smlHead[pThreadInfo->ntables];
     for (int t = 0; t < pThreadInfo->ntables; t++) {
-        int64_t dataLen = 0;
         smlHead[t] = (char *)calloc(stbInfo->tagCount*24, 1);
         if (NULL == smlHead[t]) {
             errorPrint2("calloc failed! size:%d\n", stbInfo->tagCount*24);
             exit(EXIT_FAILURE);
         }
-        dataLen += snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                            "%s,id=%s%" PRIu64 "", stbInfo->stbName,
-                            stbInfo->childTblPrefix,
-                            t + pThreadInfo->start_table_from);
-        for (int j = 0; j < stbInfo->tagCount; j++) {
-            tstrncpy(smlHead[t] + dataLen, ",", 2);
-            dataLen += 1;
-            switch (stbInfo->tags[j].data_type) {
-                case TSDB_DATA_TYPE_TIMESTAMP:
-                    errorPrint2(
-                        "%s() LN%d, Does not support data type %s as tag\n",
-                        __func__, __LINE__, stbInfo->tags[j].dataType);
-                    exit(EXIT_FAILURE);
-                case TSDB_DATA_TYPE_BOOL:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%s", j, rand_bool_str());
-                    break;
-                case TSDB_DATA_TYPE_TINYINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%si8", j, rand_tinyint_str());
-                    break;
-                case TSDB_DATA_TYPE_UTINYINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%su8", j, rand_utinyint_str());
-                    break;
-                case TSDB_DATA_TYPE_SMALLINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%si16", j, rand_smallint_str());
-                    break;
-                case TSDB_DATA_TYPE_USMALLINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%su16", j, rand_usmallint_str());
-                    break;
-                case TSDB_DATA_TYPE_INT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%si32", j, rand_int_str());
-                    break;
-                case TSDB_DATA_TYPE_UINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%su32", j, rand_uint_str());
-                    break;
-                case TSDB_DATA_TYPE_BIGINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%si64", j, rand_bigint_str());
-                    break;
-                case TSDB_DATA_TYPE_UBIGINT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%su64", j, rand_ubigint_str());
-                    break;
-                case TSDB_DATA_TYPE_FLOAT:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%sf32", j, rand_float_str());
-                    break;
-                case TSDB_DATA_TYPE_DOUBLE:
-                    dataLen +=
-                        snprintf(smlHead[t] + dataLen, stbInfo->tagCount*24 - dataLen,
-                                 "T%d=%sf64", j, rand_double_str());
-                    break;
-                case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_NCHAR:
-                    if (stbInfo->tags[j].dataLen > TSDB_MAX_BINARY_LEN) {
-                        errorPrint2(
-                            "binary or nchar length overflow, maxsize:%u\n",
-                            (uint32_t)TSDB_MAX_BINARY_LEN);
-                        exit(EXIT_FAILURE);
-                    }
-                    char *buf = (char *)calloc(stbInfo->tags[j].dataLen + 1, 1);
-                    if (NULL == buf) {
-                        errorPrint2("calloc failed! size:%d\n",
-                                    stbInfo->tags[j].dataLen);
-                        exit(EXIT_FAILURE);
-                    }
-                    rand_string(buf, stbInfo->tags[j].dataLen);
-                    if (stbInfo->tags[j].data_type == TSDB_DATA_TYPE_BINARY) {
-                        dataLen += snprintf(smlHead[t] + dataLen,
-                                            MAX_DATA_SIZE - dataLen,
-                                            "T%d=\"%s\"", j, buf);
-                    } else {
-                        dataLen += snprintf(smlHead[t] + dataLen,
-                                            MAX_DATA_SIZE - dataLen,
-                                            "T%d=L\"%s\"", j, buf);
-                    }
-                    tmfree(buf);
-                    break;
-
-                default:
-                    errorPrint2("%s() LN%d, Unknown data type %s\n", __func__,
-                                __LINE__, stbInfo->tags[j].dataType);
-                    exit(EXIT_FAILURE);
-            }
-        }
+        generateSmlHead(smlHead[t], stbInfo, pThreadInfo);
+        
     }
     int currentPercent = 0;
     int percentComplete = 0;
