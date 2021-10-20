@@ -23,7 +23,7 @@ extern "C" {
 #define SML_TIMESTAMP_SECOND_DIGITS 10
 #define SML_TIMESTAMP_MILLI_SECOND_DIGITS 13
 
-typedef SML_PROTOCOL_TYPE SMLProtocolType;
+typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
 typedef struct {
   char* key;

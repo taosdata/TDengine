@@ -99,8 +99,8 @@ int main(int argc, char* argv[]) {
   int numFields = 13;
 
   int maxLinesPerBatch = 16384;
-  int tsPrecision = SML_TIMESTAMP_NOT_CONFIGURED;
-  int lineProtocol = SML_UNKNOWN_PROTOCOL;
+  int tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
+  int lineProtocol = TSDB_SML_UNKNOWN_PROTOCOL;
 
   int opt;
   while ((opt = getopt(argc, argv, "s:c:r:f:t:m:p:P:h")) != -1) {

@@ -26,7 +26,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb0_1 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
       "stb0_2 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
   };
-  result = taos_schemaless_insert(taos, lines0, 3, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines0, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines0 code: %d, %s.\n", code, tstrerror(code));
@@ -43,7 +43,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb1 1626006833651ms 6i8 host=\"host0\"",
       "stb1 0 7i8 host=\"host0\"",
   };
-  result = taos_schemaless_insert(taos, lines1, 7, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines1, 7, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines1 code: %d, %s.\n", code, tstrerror(code));
@@ -56,7 +56,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_0 1626006833651ms -127i8 host=\"host0\"",
       "stb2_0 1626006833652ms 127i8 host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_0, 2, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_0, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_0 code: %d, %s.\n", code, tstrerror(code));
@@ -68,7 +68,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_1 1626006833651ms -32767i16 host=\"host0\"",
       "stb2_1 1626006833652ms 32767i16 host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_1, 2, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_1, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_1 code: %d, %s.\n", code, tstrerror(code));
@@ -80,7 +80,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_2 1626006833651ms -2147483647i32 host=\"host0\"",
       "stb2_2 1626006833652ms 2147483647i32 host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_2, 2, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_2, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_2 code: %d, %s.\n", code, tstrerror(code));
@@ -92,7 +92,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
       "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_3, 2, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_3, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_3 code: %d, %s.\n", code, tstrerror(code));
@@ -112,7 +112,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_4 1626006833700ms 3.4E38f32 host=\"host0\"",
       "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_4, 10, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_4, 10, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_4 code: %d, %s.\n", code, tstrerror(code));
@@ -133,7 +133,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\"",
       "stb2_5 1626006833710ms 3.15 host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_5, 11, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_5, 11, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_5 code: %d, %s.\n", code, tstrerror(code));
@@ -153,7 +153,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_6 1626006833690ms False host=\"host0\"",
       "stb2_6 1626006833700ms FALSE host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_6, 10, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_6, 10, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_6 code: %d, %s.\n", code, tstrerror(code));
@@ -166,7 +166,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_7 1626006833620ms \"binary_val.:;,./?|+-=\" host=\"host0\"",
       "stb2_7 1626006833630ms \"binary_val.()[]{}<>\" host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_7, 3, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_7, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_7 code: %d, %s.\n", code, tstrerror(code));
@@ -178,7 +178,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb2_8 1626006833610ms L\"nchar_val数值一\" host=\"host0\"",
       "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\""
   };
-  result = taos_schemaless_insert(taos, lines2_8, 2, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines2_8, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines2_8 code: %d, %s.\n", code, tstrerror(code));
@@ -191,7 +191,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb3_0 1626006833610ms 1 t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=3.4E38f32 t6=1.7E308f64 t7=true t8=\"binary_val_1\" t9=L\"标签值1\"",
       "stb3_0 1626006833610ms 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
   };
-  result = taos_schemaless_insert(taos, lines3_0, 2, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines3_0, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines3_0 code: %d, %s.\n", code, tstrerror(code));
@@ -204,7 +204,7 @@ void verify_telnet_insert(TAOS* taos) {
       "stb3_1 1626006833610ms 2 host=host2 iD=child_table2",
       "stb3_1 1626006833610ms 3 ID=child_table3 host=host3"
   };
-  result = taos_schemaless_insert(taos, lines3_1, 3, SML_TELNET_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines3_1, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines3_1 code: %d, %s.\n", code, tstrerror(code));
@@ -240,7 +240,7 @@ void verify_json_insert(TAOS* taos) {
           }                               \
   }"};
 
-  result = taos_schemaless_insert(taos, message, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, message, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload_0 code: %d, %s.\n", code, tstrerror(code));
@@ -273,7 +273,7 @@ void verify_json_insert(TAOS* taos) {
     }                                      \
    ]"};
 
-  result = taos_schemaless_insert(taos, message1, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, message1, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload_1 code: %d, %s.\n", code, tstrerror(code));
@@ -326,7 +326,7 @@ void verify_json_insert(TAOS* taos) {
            }                               \
     }                                      \
    ]"};
-  result = taos_schemaless_insert(taos, message2, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, message2, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload_2 code: %d, %s.\n", code, tstrerror(code));
@@ -352,7 +352,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload0_0 code: %d, %s.\n", code, tstrerror(code));
@@ -375,7 +375,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload0_1 code: %d, %s.\n", code, tstrerror(code));
@@ -398,7 +398,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload0_2 code: %d, %s.\n", code, tstrerror(code));
@@ -421,7 +421,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload0_3 code: %d, %s.\n", code, tstrerror(code));
@@ -444,7 +444,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload0_4 code: %d, %s.\n", code, tstrerror(code));
@@ -475,7 +475,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload1_0 code: %d, %s.\n", code, tstrerror(code));
@@ -503,7 +503,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload1_1 code: %d, %s.\n", code, tstrerror(code));
@@ -531,7 +531,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload1_2 code: %d, %s.\n", code, tstrerror(code));
@@ -559,7 +559,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload1_4 code: %d, %s.\n", code, tstrerror(code));
@@ -593,7 +593,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_0 code: %d, %s.\n", code, tstrerror(code));
@@ -625,7 +625,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_1 code: %d, %s.\n", code, tstrerror(code));
@@ -657,7 +657,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_2 code: %d, %s.\n", code, tstrerror(code));
@@ -689,7 +689,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_3 code: %d, %s.\n", code, tstrerror(code));
@@ -721,7 +721,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_4 code: %d, %s.\n", code, tstrerror(code));
@@ -753,7 +753,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_5 code: %d, %s.\n", code, tstrerror(code));
@@ -785,7 +785,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_6 code: %d, %s.\n", code, tstrerror(code));
@@ -817,7 +817,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_7 code: %d, %s.\n", code, tstrerror(code));
@@ -849,7 +849,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload2_8 code: %d, %s.\n", code, tstrerror(code));
@@ -931,7 +931,7 @@ void verify_json_insert(TAOS* taos) {
   *payload_str = cJSON_Print(payload);
   //printf("%s\n", payload_str);
 
-  result = taos_schemaless_insert(taos, payload_str, 0, SML_JSON_PROTOCOL, SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, payload_str, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("payload3_0 code: %d, %s.\n", code, tstrerror(code));

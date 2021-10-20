@@ -1446,13 +1446,13 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSml
 
   //Default no appendix
   if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
-    if (info->protocol == SML_LINE_PROTOCOL) {
+    if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
       if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
         *tsType = info->tsType;
       } else {
         *tsType = SML_TIME_STAMP_NANO_SECONDS;
       }
-    } else if (info->protocol == SML_TELNET_PROTOCOL) {
+    } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
       if (len == SML_TIMESTAMP_SECOND_DIGITS) {
         *tsType = SML_TIME_STAMP_SECONDS;
       } else if (len == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
@@ -2302,25 +2302,25 @@ cleanup:
 
 static int32_t convertPrecisionType(int precision, SMLTimeStampType *tsType) {
   switch (precision) {
-    case SML_TIMESTAMP_NOT_CONFIGURED:
+    case TSDB_SML_TIMESTAMP_NOT_CONFIGURED:
       *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
       break;
-    case SML_TIMESTAMP_HOURS:
+    case TSDB_SML_TIMESTAMP_HOURS:
       *tsType = SML_TIME_STAMP_HOURS;
       break;
-    case SML_TIMESTAMP_MILLI_SECONDS:
+    case TSDB_SML_TIMESTAMP_MILLI_SECONDS:
       *tsType = SML_TIME_STAMP_MILLI_SECONDS;
       break;
-    case SML_TIMESTAMP_NANO_SECONDS:
+    case TSDB_SML_TIMESTAMP_NANO_SECONDS:
       *tsType = SML_TIME_STAMP_NANO_SECONDS;
       break;
-    case SML_TIMESTAMP_MICRO_SECONDS:
+    case TSDB_SML_TIMESTAMP_MICRO_SECONDS:
       *tsType = SML_TIME_STAMP_MICRO_SECONDS;
       break;
-    case SML_TIMESTAMP_SECONDS:
+    case TSDB_SML_TIMESTAMP_SECONDS:
       *tsType = SML_TIME_STAMP_SECONDS;
       break;
-    case SML_TIMESTAMP_MINUTES:
+    case TSDB_SML_TIMESTAMP_MINUTES:
       *tsType = SML_TIME_STAMP_MINUTES;
       break;
     default:
@@ -2376,7 +2376,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   int affected_rows = 0;
   SMLTimeStampType tsType;
 
-  if (protocol == SML_LINE_PROTOCOL) {
+  if (protocol == TSDB_SML_LINE_PROTOCOL) {
     code = convertPrecisionType(precision, &tsType);
     if (code != TSDB_CODE_SUCCESS) {
       return NULL;
@@ -2384,13 +2384,13 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   }
 
   switch (protocol) {
-    case SML_LINE_PROTOCOL:
+    case TSDB_SML_LINE_PROTOCOL:
       code = taos_insert_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
       break;
-    case SML_TELNET_PROTOCOL:
+    case TSDB_SML_TELNET_PROTOCOL:
       code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
       break;
-    case SML_JSON_PROTOCOL:
+    case TSDB_SML_JSON_PROTOCOL:
       code = taos_insert_json_payload(taos, *lines, protocol, tsType, &affected_rows);
       break;
     default:

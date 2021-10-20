@@ -1085,7 +1085,7 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char* lines[] = {rest};
-  TAOS_RES *result = taos_schemaless_insert(script->taos, lines, 1, SML_LINE_PROTOCOL, SML_TIMESTAMP_NANO_SECONDS);
+  TAOS_RES *result = taos_schemaless_insert(script->taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   int32_t code = taos_errno(result);
   if (code == TSDB_CODE_SUCCESS) {
     simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
@@ -1112,7 +1112,7 @@ bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char *  lines[] = {rest};
-  TAOS_RES *result = taos_schemaless_insert(script->taos, lines, 1, SML_LINE_PROTOCOL, SML_TIMESTAMP_NANO_SECONDS);
+  TAOS_RES *result = taos_schemaless_insert(script->taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   int32_t code = taos_errno(result);
   if (code == TSDB_CODE_SUCCESS) {
     sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName, script->taos, rest);
