@@ -4825,9 +4825,14 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         functionId = TSDB_FUNC_STDDEV;
       }
 
+      SUdfInfo* pUdfInfo = NULL;
+      if (functionId < 0) {
+         pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
+      }
+
       int32_t inter = 0;
       getResultDataInfo(pSource->base.colType, pSource->base.colBytes, functionId, 0, &pse->resType,
-          &pse->resBytes, &inter, 0, false, NULL);
+          &pse->resBytes, &inter, 0, false, pUdfInfo);
       pse->colType  = pse->resType;
       pse->colBytes = pse->resBytes;
 
