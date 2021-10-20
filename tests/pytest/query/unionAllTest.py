@@ -24,7 +24,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1500000000000
+        self.ts = 1600000000000
         self.num = 10
 
     def run(self):
@@ -83,6 +83,25 @@ class TDTestCase:
 
         tdSql.query("select 'dcs' as options from stb where col > 200 limit 1 union all select 'aaa' as options from stb limit 10")
         tdSql.checkData(0, 0, 'aaa')
+
+        # https://jira.taosdata.com:18080/browse/TS-444
+        tdLog.info("test case for TS-444")
+
+        tdSql.query("select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc")
+        tdSql.checkRows(6)
+
+        tdSql.query("select count(*) as count, loc from st where ts between 1600000000020 and 1600000000030 group by loc")
+        tdSql.checkRows(0)
+
+        tdSql.query(''' select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc
+                    union all
+                    select count(*) as count, loc from st where ts between 1600000000020 and 1600000000030 group by loc''')
+        tdSql.checkRows(6)
+
+        tdSql.query(''' select count(*) as count, loc from st where ts between 1600000000020 and 1600000000030 group by loc
+                    union all
+                    select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc''')
+        tdSql.checkRows(6)
 
     def stop(self):
         tdSql.close()
