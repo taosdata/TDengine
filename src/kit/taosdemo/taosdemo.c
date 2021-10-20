@@ -6406,8 +6406,13 @@ static void postFreeResource() {
                 g_Dbs.db[i].superTbls[j].childTblName = NULL;
             }
         }
+        tmfree(g_Dbs.db[i].superTbls);
     }
+<<<<<<< HEAD
 
+=======
+    tmfree(g_Dbs.db);
+>>>>>>> 87d07a2b3... modify free point
     tmfree(g_randbool_buff);
     tmfree(g_randint_buff);
     tmfree(g_rand_voltage_buff);
