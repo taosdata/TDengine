@@ -1871,7 +1871,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
   //key field cannot start with digit
   if (isdigit(*cur)) {
-    tscError("SML:0x%"PRIx64" Tag key cannnot start with digit", info->id);
+    tscError("SML:0x%"PRIx64" Tag key cannot start with digit", info->id);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
@@ -1885,6 +1885,8 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     }
     //Escape special character
     if (*cur == '\\') {
+      //TODO: escape will work after column & tag
+      //support spcial characters
       escapeSpecialCharacter(2, &cur);
     }
     key[len] = *cur;
@@ -1911,13 +1913,42 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
+  int32_t ret = TSDB_CODE_SUCCESS;
   char *value = NULL;
   uint16_t len = 0;
+  bool searchQuote = false;
   start = cur = *index;
+
+  //if field value is string
+  if (!isTag) {
+    if (*cur == '"') {
+      searchQuote = true;
+      cur += 1;
+      len += 1;
+    } else if (*cur == 'L' && *(cur + 1) == '"') {
+      searchQuote = true;
+      cur += 2;
+      len += 2;
+    }
+  }
 
   while (1) {
     // unescaped ',' or ' ' or '\0' identifies a value
-    if ((*cur == ',' || *cur == ' ' || *cur == '\0') && *(cur - 1) != '\\') {
+    if (((*cur == ',' || *cur == ' ' ) && *(cur - 1) != '\\') || *cur == '\0') {
+      if (searchQuote == true) {
+        //first quote ignored while searching
+        if (*(cur - 1) == '"' && len != 1 && len != 2) {
+          *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
+          break;
+        } else if (*cur == '\0') {
+          ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+          goto error;
+        } else {
+          cur++;
+          len++;
+          continue;
+        }
+      }
       //unescaped ' ' or '\0' indicates end of value
       *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
       if (*cur == ' ' && *(cur + 1) == ' ') {
@@ -1929,7 +1960,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     }
     //Escape special character
     if (*cur == '\\') {
-      escapeSpecialCharacter(2, &cur);
+      escapeSpecialCharacter(isTag ? 2 : 3, &cur);
     }
     cur++;
     len++;
@@ -1946,16 +1977,20 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   if (!convertSmlValueType(pKV, value, len, info, isTag)) {
     tscError("SML:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
-    //free previous alocated key field
-    free(pKV->key);
-    pKV->key = NULL;
     free(value);
-    return TSDB_CODE_TSC_INVALID_VALUE;
+    ret = TSDB_CODE_TSC_INVALID_VALUE;
+    goto error;
   }
   free(value);
 
   *index = (*cur == '\0') ? cur : cur + 1;
-  return TSDB_CODE_SUCCESS;
+  return ret;
+
+error:
+  //free previous alocated key field
+  free(pKV->key);
+  pKV->key = NULL;
+  return ret;
 }
 
 static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index,
