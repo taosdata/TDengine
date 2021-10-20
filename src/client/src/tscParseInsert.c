@@ -762,35 +762,32 @@ void tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
   if (!dataBuf->ordered) {
     char *pBlockData = pBlocks->data;
     qsort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
-
-    int32_t i = 0;
-    int32_t j = 1;
-
-    while (j < pBlocks->numOfRows) {
-      TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
-      TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
-
-      if (ti == tj) {
-        if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
-          memmove(pBlockData + dataBuf->rowSize * i, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
-        }
-
-        ++j;
-        continue;
-      }
-
-      int32_t nextPos = (++i);
-      if (nextPos != j) {
-        memmove(pBlockData + dataBuf->rowSize * nextPos, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
-      }
-
-      ++j;
-    }
-
     dataBuf->ordered = true;
 
-    pBlocks->numOfRows = i + 1;
-    dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
+    if(tsClientMerge) {
+      int32_t i = 0;
+      int32_t j = 1;
+      while (j < pBlocks->numOfRows) {
+        TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
+        TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
+
+        if (ti == tj) {
+          if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
+            memmove(pBlockData + dataBuf->rowSize * i, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
+          }
+          ++j;
+          continue;
+        }
+
+        int32_t nextPos = (++i);
+        if (nextPos != j) {
+          memmove(pBlockData + dataBuf->rowSize * nextPos, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
+        }
+        ++j;
+      }      
+      pBlocks->numOfRows = i + 1;
+      dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
+    }
   }
 
   dataBuf->prevTS = INT64_MIN;
@@ -836,32 +833,33 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   if (!dataBuf->ordered) {
     pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
     qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataCompar);
+    dataBuf->ordered = true;
 
-    pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
-    int32_t i = 0;
-    int32_t j = 1;
-    while (j < nRows) {
-      TSKEY ti = (pBlkKeyTuple + i)->skey;
-      TSKEY tj = (pBlkKeyTuple + j)->skey;
+    if(tsClientMerge) {
+      pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+      int32_t i = 0;
+      int32_t j = 1;
+      while (j < nRows) {
+        TSKEY ti = (pBlkKeyTuple + i)->skey;
+        TSKEY tj = (pBlkKeyTuple + j)->skey;
 
-      if (ti == tj) {
-        if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
-          memmove(pBlkKeyTuple + i, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+        if (ti == tj) {
+          if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
+            memmove(pBlkKeyTuple + i, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+          }
+
+          ++j;
+          continue;
         }
 
+        int32_t nextPos = (++i);
+        if (nextPos != j) {
+          memmove(pBlkKeyTuple + nextPos, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+        }
         ++j;
-        continue;
       }
-
-      int32_t nextPos = (++i);
-      if (nextPos != j) {
-        memmove(pBlkKeyTuple + nextPos, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
-      }
-      ++j;
-    }
-
-    dataBuf->ordered = true;
-    pBlocks->numOfRows = i + 1;
+      pBlocks->numOfRows = i + 1;
+    } 
   }
 
   dataBuf->size = sizeof(SSubmitBlk) + pBlocks->numOfRows * extendedRowSize;

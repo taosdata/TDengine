@@ -1714,7 +1714,6 @@ class TDTestCase:
             sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(q_u_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1731,7 +1730,6 @@ class TDTestCase:
             sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(q_u_or_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1767,7 +1765,6 @@ class TDTestCase:
             sql += " from table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
             sql += "%s " % random.choice(q_u_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1784,7 +1781,6 @@ class TDTestCase:
             sql += " from table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
             sql += "%s " % random.choice(q_u_or_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1818,7 +1814,6 @@ class TDTestCase:
             sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(t_join_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1835,7 +1830,6 @@ class TDTestCase:
             sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2015,7 +2009,6 @@ class TDTestCase:
             sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and  "
             sql += "%s and " % random.choice(t_join_where)
             sql += "%s " % random.choice(interp_where_j)  
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2032,7 +2025,6 @@ class TDTestCase:
             sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and  "
             sql += "%s and " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(interp_where_j)  
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2065,7 +2057,6 @@ class TDTestCase:
             sql += " from table_0 t1, table_1 t2 where t1.ts = t2.ts and    "             
             #sql += "%s and " % random.choice(t_join_where)
             sql += "%s " % interp_where_j[random.randint(0,5)]
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2116,7 +2107,6 @@ class TDTestCase:
             sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
             #sql += "%s " % random.choice(interp_where_j) 
             sql += "%s " % interp_where_j[random.randint(0,5)] 
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
