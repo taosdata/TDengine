@@ -141,6 +141,7 @@ DLL_EXPORT int        taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIN
 DLL_EXPORT int        taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx);
 DLL_EXPORT int        taos_stmt_add_batch(TAOS_STMT *stmt);
 DLL_EXPORT int        taos_stmt_execute(TAOS_STMT *stmt);
+DLL_EXPORT int        taos_stmt_affected_rows(TAOS_STMT *stmt);
 DLL_EXPORT TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
 DLL_EXPORT int        taos_stmt_close(TAOS_STMT *stmt);
 DLL_EXPORT char *     taos_stmt_errstr(TAOS_STMT *stmt);
@@ -187,11 +188,7 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
-DLL_EXPORT int taos_insert_lines(TAOS* taos, char* lines[], int numLines);
-
-DLL_EXPORT int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines);
-
-DLL_EXPORT int taos_insert_json_payload(TAOS* taos, char* payload);
+DLL_EXPORT int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* precision);
 
 #ifdef __cplusplus
 }

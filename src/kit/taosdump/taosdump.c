@@ -639,11 +639,6 @@ static int queryDbImpl(TAOS *taos, char *command) {
     TAOS_RES *res = NULL;
     int32_t   code = -1;
 
-    if (NULL != res) {
-        taos_free_result(res);
-        res = NULL;
-    }
-
     res = taos_query(taos, command);
     code = taos_errno(res);
 
@@ -1021,25 +1016,25 @@ static void dumpCreateMTableClause(
                     strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
                 //pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].note);
                 if (tableDes->cols[counter].var_value) {
-                    pstr += sprintf(pstr, ", %s",
+                    pstr += sprintf(pstr, ", \'%s\'",
                             tableDes->cols[counter].var_value);
                 } else {
-                    pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
+                    pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].value);
                 }
             } else {
-                pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
+                pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].value);
             }
         } else {
             if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
                     strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
                 //pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].note);
                 if (tableDes->cols[counter].var_value) {
-                    pstr += sprintf(pstr, "%s", tableDes->cols[counter].var_value);
+                    pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].var_value);
                 } else {
-                    pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
+                    pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].value);
                 }
             } else {
-                pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
+                pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].value);
             }
             /* pstr += sprintf(pstr, "%s", tableDes->cols[counter].note); */
         }
@@ -1150,17 +1145,24 @@ static int64_t dumpNormalTable(
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
         if (colCount < 0) {
+            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
+                    __func__,
+                    __LINE__,
+                    tbName);
             free(tableDes);
             return -1;
         }
 
         // create child-table using super-table
         dumpCreateMTableClause(dbName, stable, tableDes, colCount, fp);
-
     } else {  // dump table definition
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
         if (colCount < 0) {
+            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
+                    __func__,
+                    __LINE__,
+                    tbName);
             free(tableDes);
             return -1;
         }
@@ -1173,12 +1175,13 @@ static int64_t dumpNormalTable(
     if (g_args.avro) {
         if (0 != convertTbDesToAvroSchema(
                     dbName, tbName, tableDes, colCount, &jsonAvroSchema)) {
+            errorPrint("%s() LN%d, convertTbDesToAvroSchema failed\n",
+                    __func__,
+                    __LINE__);
             freeTbDes(tableDes);
             return -1;
         }
     }
-
-    free(tableDes);
 
     int64_t ret = 0;
     if (!g_args.schemaonly) {
@@ -1186,6 +1189,8 @@ static int64_t dumpNormalTable(
             jsonAvroSchema);
     }
 
+    tfree(jsonAvroSchema);
+    freeTbDes(tableDes);
     return ret;
 }
 
@@ -1282,20 +1287,23 @@ static void *dumpNtbOfDb(void *arg) {
         return NULL;
     }
 
+    int64_t count;
     for (int64_t i = 0; i < pThreadInfo->tablesOfDumpOut; i++) {
         debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
                 pThreadInfo->threadIndex, i,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
-        dumpNormalTable(
+        count = dumpNormalTable(
                 pThreadInfo->dbName,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
                 ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
                 pThreadInfo->precision,
                 fp);
+        if (count < 0) {
+            break;
+        }
     }
 
     fclose(fp);
-
     return NULL;
 }
 
@@ -1324,11 +1332,16 @@ static void *dumpNormalTablesOfStb(void *arg) {
     char tmpBuf[4096] = {0};
 
     if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%d.sql",
-                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
+        sprintf(tmpBuf, "%s/%s.%s.%d.sql",
+                g_args.outpath,
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
     } else {
-        sprintf(tmpBuf, "%s.%d.sql",
-                pThreadInfo->dbName, pThreadInfo->threadIndex);
+        sprintf(tmpBuf, "%s.%s.%d.sql",
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
     }
 
     fp = fopen(tmpBuf, "w");
@@ -1341,16 +1354,20 @@ static void *dumpNormalTablesOfStb(void *arg) {
 
     TAOS_ROW row = NULL;
     int64_t i = 0;
+    int64_t count;
     while((row = taos_fetch_row(res)) != NULL) {
         debugPrint("[%d] sub table %"PRId64": name: %s\n",
                 pThreadInfo->threadIndex, i++, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
 
-        dumpNormalTable(
+        count = dumpNormalTable(
                 pThreadInfo->dbName,
                 pThreadInfo->stbName,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 pThreadInfo->precision,
                 fp);
+        if (count < 0) {
+            break;
+        }
     }
 
     fclose(fp);
@@ -2007,9 +2024,9 @@ static int getTableDes(
 
         if (row[TSDB_SHOW_TABLES_NAME_INDEX] == NULL) {
             sprintf(tableDes->cols[i].note, "%s", "NUL");
+            sprintf(tableDes->cols[i].value, "%s", "NULL");
             taos_free_result(res);
             res = NULL;
-            taos_close(taos);
             continue;
         }
 
@@ -2051,26 +2068,22 @@ static int getTableDes(
                 int len = strlen((char *)row[0]);
                 // FIXME for long value
                 if (len < (COL_VALUEBUF_LEN - 2)) {
-                    tableDes->cols[i].value[0] = '\'';
                     converStringToReadable(
                             (char *)row[0],
                             length[0],
-                            tableDes->cols[i].value + 1,
+                            tableDes->cols[i].value,
                             len);
-                    tableDes->cols[i].value[len+1] = '\'';
                 } else {
-                    tableDes->cols[i].var_value = calloc(1, len + 2);
+                    tableDes->cols[i].var_value = calloc(1, len * 2);
                     if (tableDes->cols[i].var_value == NULL) {
                         errorPrint("%s() LN%d, memory alalocation failed!\n",
                                 __func__, __LINE__);
                         taos_free_result(res);
                         return -1;
                     }
-                    tableDes->cols[i].var_value[0] = '\'';
                     converStringToReadable((char *)row[0],
                             length[0],
-                            (char *)(tableDes->cols[i].var_value + 1), len);
-                    tableDes->cols[i].var_value[len+1] = '\'';
+                            (char *)(tableDes->cols[i].var_value), len);
                 }
                 break;
 

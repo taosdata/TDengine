@@ -34,6 +34,7 @@ class TDTestCase:
     def run(self):            
         tdSql.prepare()
 
+        # test case for TD-2279
         print("==============step1")        
         tdSql.execute("create table t (ts timestamp, a int)")
 
@@ -58,6 +59,24 @@ class TDTestCase:
         tdSql.checkRows(6612)
 
         tdDnodes.stop(1)
+        tdDnodes.startWithoutSleep(1)
+        tdLog.sleep(3)
+        
+        # test case for https://jira.taosdata.com:18080/browse/TS-402
+        tdSql.execute("create database test update 1")
+        tdSql.execute("use test")
+
+        tdSql.execute("create table tb (ts timestamp, c1 int, c2 int, c3 int)")
+        tdSql.execute("insert into tb values(%d, 1, 2, 3)(%d, null, null, 9)" % (self.ts, self.ts))
+
+        tdSql.query("select * from tb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(0, 3, 9)
+
+        
+
         
     def stop(self):
         tdSql.close()

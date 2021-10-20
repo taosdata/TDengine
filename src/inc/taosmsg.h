@@ -207,11 +207,6 @@ typedef struct {
 } SEpAddrMsg;
 
 typedef struct {
-  char*    fqdn;
-  uint16_t port;
-} SEpAddr1;
-
-typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
 
@@ -768,7 +763,7 @@ typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SVgroupMsg;
+} SVgroupMsg, SVgroupInfo;
 
 typedef struct {
   int32_t numOfVgroups;
@@ -780,6 +775,7 @@ typedef struct STableMetaMsg {
   char          tableFname[TSDB_TABLE_FNAME_LEN];   // table id
   uint8_t       numOfTags;
   uint8_t       precision;
+  uint8_t       update;
   uint8_t       tableType;
   int16_t       numOfColumns;
   int16_t       sversion;
