@@ -6499,11 +6499,10 @@ static void postFreeResource() {
                 tmfree(g_Dbs.db[i].superTbls[j].childTblName);
                 g_Dbs.db[i].superTbls[j].childTblName = NULL;
             }
-            tmfree(&(g_Dbs.db[i].superTbls[j]));
         }
-        tmfree(&(g_Dbs.db[i]));
     }
-
+    tmfree(&(g_Dbs.db[0].superTbls[0]));
+    tmfree(&(g_Dbs.db[0]));
     tmfree(g_randbool_buff);
     tmfree(g_randint_buff);
     tmfree(g_rand_voltage_buff);
