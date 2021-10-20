@@ -29,7 +29,6 @@ class TDTestCase:
         tdSql.execute("create database if not exists test precision 'us'")
         tdSql.execute('use test')
 
-
         ### metric ###
         print("============= step1 : test metric  ================")
         lines0 = [
@@ -215,7 +214,7 @@ class TDTestCase:
 
         #binary
         lines2_7 = [
-                        "stb2_7 1626006833610ms \"binary_val.!@#$%^&*\" host=\"host0\"",
+                        "stb2_7 1626006833610ms \"  binary_val  .!@#$%^&*  \" host=\"host0\"",
                         "stb2_7 1626006833620ms \"binary_val.:;,./?|+-=\" host=\"host0\"",
                         "stb2_7 1626006833630ms \"binary_val.()[]{}<>\" host=\"host0\""
                      ]
@@ -232,7 +231,7 @@ class TDTestCase:
 
         #nchar
         lines2_8 = [
-                        "stb2_8 1626006833610ms L\"nchar_val数值一\" host=\"host0\"",
+                        "stb2_8 1626006833610ms L\"  nchar_val  数值一  \" host=\"host0\"",
                         "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\""
                      ]
 

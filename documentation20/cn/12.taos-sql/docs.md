@@ -1601,7 +1601,7 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 
 **GROUP BY的限制**
 
-TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。
+TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。注意：group by 不支持float,double 类型。
 
 **IS NOT NULL 与不为空的表达式适用范围**
 
