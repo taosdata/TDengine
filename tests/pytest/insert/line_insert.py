@@ -15,13 +15,14 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self._conn = conn 
+        self._conn = conn
 
     def run(self):
         print("running {}".format(__file__))
@@ -42,17 +43,17 @@ class TDTestCase:
                     "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000"
                 ]
 
-        code = self._conn.schemaless_insert(lines, 0, "ns")
+        code = self._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         print("schemaless_insert result {}".format(code))
 
         lines2 = [  "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
                     "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000"
                 ]
 
-        code = self._conn.schemaless_insert([ lines2[0] ], 0, "ns")
+        code = self._conn.schemaless_insert([ lines2[0] ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         print("schemaless_insert result {}".format(code))
 
-        self._conn.schemaless_insert([ lines2[1] ], 0, "ns")
+        code = self._conn.schemaless_insert([ lines2[1] ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from st")
@@ -76,7 +77,7 @@ class TDTestCase:
         self._conn.schemaless_insert([
                                 "sth,t1=4i64,t2=5f64,t4=5f64,ID=childtable c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641",
                                 "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654"
-                                ], 0, "ms")
+                                ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
         tdSql.execute('reset query cache')
 
         tdSql.query('select tbname, * from sth')
