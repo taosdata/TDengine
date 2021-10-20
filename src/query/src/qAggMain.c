@@ -5546,7 +5546,7 @@ SAggFunctionInfo aAggs[] = {{
 static void scalar_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
-  int32_t notNullElems = 0;
+  int32_t numElems = 0;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size -1;
 
@@ -5556,24 +5556,28 @@ static void scalar_function(SQLFunctionCtx *pCtx) {
 
   for (; i < pCtx->size && i >= 0; i += step) {
     char* pData = GET_INPUT_DATA(pCtx, i);
-    if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
-      qDebug("%p scalar_function() index of null data:%d", pCtx, i);
-      continue;
-    }
 
     switch (pCtx->functionId) {
       case TSDB_FUNC_SCALAR_POW: {
-        double v = 0;
-        GET_TYPED_DATA(v, double, pCtx->inputType, pData);
-        double result = pow(v, pCtx->param[0].dKey);
-        SET_TYPED_DATA(pCtx->pOutput, pCtx->outputType, result);
+        if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+          setNull(pCtx->pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
+        } else {
+          double v = 0;
+          GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+          double result = pow(v, pCtx->param[0].dKey);
+          SET_TYPED_DATA(pCtx->pOutput, pCtx->outputType, result);
+        }
         break;
       }
       case TSDB_FUNC_SCALAR_LOG: {
-        double v = 0;
-        GET_TYPED_DATA(v, double, pCtx->inputType, pData);
-        double result = log(v)/ log(pCtx->param[0].dKey);
-        SET_TYPED_DATA(pCtx->pOutput, pCtx->outputType, result);
+        if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+          setNull(pCtx->pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
+        } else {
+          double v = 0;
+          GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+          double result = log(v) / log(pCtx->param[0].dKey);
+          SET_TYPED_DATA(pCtx->pOutput, pCtx->outputType, result);
+        }
         break;
       }
       default:
@@ -5581,15 +5585,13 @@ static void scalar_function(SQLFunctionCtx *pCtx) {
         break;
     }
 
-    ++notNullElems;
+    ++numElems;
     pCtx->pOutput += pCtx->outputBytes;
     pTimestamp++;
   }
 
-  if (notNullElems == 0) {
-    assert(pCtx->hasNull);
-  } else {
-    pResInfo->numOfRes += notNullElems;
+  if (numElems != 0) {
+    pResInfo->numOfRes += numElems;
     pResInfo->hasResult = DATA_SET_FLAG;
   }
 }
