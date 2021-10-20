@@ -1263,7 +1263,7 @@ static int tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLi
   int32_t    defaultRows = TSDB_COMMIT_DEFAULT_ROWS(pCommith);
   SDFile *   pDFile;
   bool       isLast;
-  SBlock     block;
+  SBlock     block = {0};
 
   while (true) {
     tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, keyLimit, defaultRows, pCommith->pDataCols, NULL, 0,
@@ -1363,7 +1363,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
 static int tsdbMoveBlock(SCommitH *pCommith, int bidx) {
   SBlock *pBlock = pCommith->readh.pBlkInfo->blocks + bidx;
   SDFile *pDFile;
-  SBlock  block;
+  SBlock  block = {0};
   bool    isSameFile;
 
   ASSERT(pBlock->numOfSubBlocks > 0);
@@ -1416,7 +1416,7 @@ static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const
 static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols *pDataCols, TSKEY keyLimit, bool isLastOneBlock) {
   STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
-  SBlock     block;
+  SBlock     block = {0};
   SDFile *   pDFile;
   bool       isLast;
   int32_t    defaultRows = TSDB_COMMIT_DEFAULT_ROWS(pCommith);
