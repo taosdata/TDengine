@@ -22,7 +22,6 @@ public class RestfulStatement extends AbstractStatement {
     private final RestfulConnection conn;
 
     private volatile RestfulResultSet resultSet;
-    private volatile int affectedRows = -1;
 
     public RestfulStatement(RestfulConnection conn, String database) {
         this.conn = conn;
