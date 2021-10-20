@@ -6500,9 +6500,9 @@ static void postFreeResource() {
                 g_Dbs.db[i].superTbls[j].childTblName = NULL;
             }
         }
+        tmfree(g_Dbs.db[i].superTbls);
     }
-    tmfree(&(g_Dbs.db[0].superTbls[0]));
-    tmfree(&(g_Dbs.db[0]));
+    tmfree(g_Dbs.db);
     tmfree(g_randbool_buff);
     tmfree(g_randint_buff);
     tmfree(g_rand_voltage_buff);
