@@ -3814,8 +3814,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
     if (code != 0) {
         taos_free_result(res);
         taos_close(taos);
-        errorPrint2("%s() LN%d, failed to run command %s\n",
-                __func__, __LINE__, command);
+        errorPrint2("%s() LN%d, failed to run command %s, reason: %s\n",
+                __func__, __LINE__, command, taos_errstr(res));
         exit(EXIT_FAILURE);
     }
 
@@ -3894,7 +3894,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
     res = taos_query(taos, command);
     int32_t code = taos_errno(res);
     if (code != 0) {
-        printf("failed to run command %s\n", command);
+        printf("failed to run command %s, reason: %s\n", command, taos_errstr(res));
         taos_free_result(res);
         return -1;
     }
