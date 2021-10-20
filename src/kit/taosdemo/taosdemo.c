@@ -5831,8 +5831,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
                 g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
-                if (g_Dbs.db[i].superTbls[j].insertRows > g_args.prepared_rand) {
-                }
             } else if (!insertRows) {
                 g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
             } else {
@@ -6529,7 +6527,6 @@ static void postFreeResource() {
     }
     tmfree(g_sampleBindBatchArray);
 
-    tmfree(&g_Dbs);
 #endif
 }
 
@@ -11991,7 +11988,7 @@ static void setParaFromArg() {
     tstrncpy(g_Dbs.resultFile, g_args.output_file, MAX_FILE_NAME_LEN);
 
     g_Dbs.use_metric = g_args.use_metric;
-    g_args.prepared_rand = g_args.insertRows;
+    g_args.prepared_rand = min(g_args.insertRows, MAX_PREPARED_RAND);
     g_Dbs.aggr_func = g_args.aggr_func;
 
     char dataString[TSDB_MAX_BYTES_PER_ROW];
