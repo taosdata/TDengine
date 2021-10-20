@@ -257,7 +257,7 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags('{\"试试\":\"fff\",\";id\":5}')")
         tdSql.error("insert into db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags(3)")
 
-def stop(self):
+    def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
