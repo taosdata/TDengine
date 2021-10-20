@@ -76,6 +76,9 @@ int tsdbEncodeSMFileEx(void **buf, SMFile *pMFile) {
 }
 
 void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
+  
+  ASSERT(buf == NULL && pMFile == NULL);
+  
   char *aname;
   buf = tsdbDecodeMFInfo(buf, &(pMFile->info));
   buf = taosDecodeString(buf, &aname);
@@ -341,6 +344,9 @@ static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
 }
 
 static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
+  
+  ASSERT(buf == NULL && pDFile == NULL);
+  
   char *aname;
   // The sync module would send DFileSet with latest verion.
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info), TSDB_LATEST_SFS_VER);
