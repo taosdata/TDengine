@@ -25,6 +25,8 @@ extern "C" {
 int32_t mnodeInitSync();
 void    mnodeCleanUpSync();
 
+bool mnodeIsMaster();
+
 #ifdef __cplusplus
 }
 #endif

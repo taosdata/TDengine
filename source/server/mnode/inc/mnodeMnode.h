@@ -24,6 +24,8 @@ extern "C" {
 
 int32_t mnodeInitMnode();
 void    mnodeCleanupMnode();
+void    mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet, bool redirect);
+void    mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet, bool redirect);
 
 #ifdef __cplusplus
 }

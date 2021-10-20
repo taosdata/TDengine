@@ -51,7 +51,7 @@ int32_t mnodeGetDnodeId() { return tsMint.dnodeId; }
 
 char *mnodeGetClusterId() { return tsMint.clusterId; }
 
-EMnStatus mnodeIsServing() { return tsMint.state; }
+EMnStatus mnodeGetStatus() { return tsMint.state; }
 
 void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
   (*tsMint.fp.SendMsgToDnode)(epSet, rpcMsg);
@@ -244,5 +244,3 @@ void mnodeCleanup() {
 }
 
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
-
-void mnodeProcessMsg(SRpcMsg *rpcMsg) {}

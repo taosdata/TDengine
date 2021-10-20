@@ -257,7 +257,7 @@ static void* dnodeTelemThreadFp(void* param) {
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
-    if (mnodeIsServing()) {
+    if (mnodeGetStatus() == MN_STATUS_READY) {
       dnodeSendTelemetryReport();
     }
     end.tv_sec += REPORT_INTERVAL;

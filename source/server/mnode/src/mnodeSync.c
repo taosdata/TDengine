@@ -19,3 +19,5 @@
 
 int32_t mnodeInitSync() { return 0; }
 void    mnodeCleanUpSync() {}
+
+bool mnodeIsMaster() { return true; }

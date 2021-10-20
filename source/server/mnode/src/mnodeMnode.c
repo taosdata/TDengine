@@ -19,3 +19,6 @@
 
 int32_t mnodeInitMnode() { return 0; }
 void    mnodeCleanupMnode() {}
+
+void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet, bool redirect) {}
+void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet, bool redirect) {}

@@ -235,7 +235,7 @@ static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
     dDebug("meps index:%d, meps:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
   }
 
-  if (mnodeIsServing()) return 0;
+  if (mnodeGetStatus() == MN_STATUS_READY) return 0;
 
   return mnodeDeploy();
 }

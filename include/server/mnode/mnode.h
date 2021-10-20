@@ -84,7 +84,7 @@ void mnodeUnDeploy();
  *
  * @return Server status.
  */
-EMnStatus mnodeIsServing();
+EMnStatus mnodeGetStatus();
 
 typedef struct {
   int64_t numOfDnode;

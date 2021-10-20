@@ -25,7 +25,7 @@ extern "C" {
 tmr_h     mnodeGetTimer();
 int32_t   mnodeGetDnodeId();
 char     *mnodeGetClusterId();
-EMnStatus mnodeIsServing();
+EMnStatus mnodeGetStatus();
 
 void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);

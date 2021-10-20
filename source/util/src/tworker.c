@@ -76,7 +76,7 @@ static void *tWorkerThreadFp(SWorker *worker) {
     }
 
     code = (*pool->startFp)(ahandle, msg, qtype);
-    (*pool->endFp)(ahandle, msg, qtype, code);
+    if (pool->endFp) (*pool->endFp)(ahandle, msg, qtype, code);
   }
 
   return NULL;
