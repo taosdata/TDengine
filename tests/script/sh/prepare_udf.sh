@@ -9,5 +9,6 @@ touch /tmp/normal
 
 gcc -g -O0 -fPIC -shared sh/sum_double.c -o /tmp/sum_double.so
 gcc -g -O0 -fPIC -shared sh/add_one.c -o /tmp/add_one.so
+gcc -g -O0 -fPIC -shared sh/sub_one.c -o /tmp/sub_one.so
 gcc -g -O0 -fPIC -shared sh/demo.c -o /tmp/demo.so
 gcc -g -O0 -fPIC -shared sh/abs_max.c -o /tmp/abs_max.so

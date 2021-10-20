@@ -1279,14 +1279,17 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
       int32_t functionId = pExprInfo->base.functionId;
       if (functionId < 0) {
+        if (pUdfInfo) {
+          pSql->res.code = tscInvalidOperationMsg(pSql->cmd.payload, "only one udf allowed", NULL);
+          return;
+        }
+        
         pUdfInfo = taosArrayGet(px->pUdfInfo, -1 * functionId - 1);
         int32_t code = initUdfInfo(pUdfInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pSql->res.code = code;
           return;
         }
-
-        break;
       }
     }
 

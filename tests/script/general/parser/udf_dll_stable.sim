@@ -1154,6 +1154,63 @@ if $data61 != 22 then
    return -1
 endi
 
+sql_error select sum_double(f1),add_one(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) sliding (30m);
+
+sql select add_one(f1) from (select * from tb1);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+
+sql select add_one(ff1) from (select add_one(f1) as ff1 from tb1);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 3 then 
+   return -1
+endi
+if $data10 != 4 then 
+   return -1
+endi
+if $data20 != 5 then 
+   return -1
+endi
+if $data30 != 6 then 
+   return -1
+endi
+if $data40 != 7 then 
+   return -1
+endi
+if $data50 != 8 then 
+   return -1
+endi
+if $data60 != 9 then 
+   return -1
+endi
+
+sql_error select add_one(f1),sub_one(f1) from tb1;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 

@@ -3112,10 +3112,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token, sizeof(pExpr->base.aliasName) - 1);
 
-      SSchema s = {0};
-      s.type = (uint8_t)resType;
-      s.bytes = bytes;
-      s.colId = pExpr->base.colInfo.colId;
+      SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
       uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
       SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
@@ -3123,7 +3120,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
       } else {
         for (int32_t i = 0; i < ids.num; ++i) {
-          tscColumnListInsert(pQueryInfo->colList, index.columnIndex, uid, &s);
+          tscColumnListInsert(pQueryInfo->colList, index.columnIndex, uid, pSchema);
         }
       }
       tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
@@ -4227,7 +4224,11 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQuer
     // Append the sqlExpr into exprList of pQueryInfo structure sequentially
     pExpr->functionId = isValidFunction(pExpr->Expr.operand.z, pExpr->Expr.operand.n);
     if (pExpr->functionId < 0) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      SUdfInfo* pUdfInfo = NULL;
+      pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pExpr->Expr.operand.z, pExpr->Expr.operand.n);
+      if (pUdfInfo == NULL) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "invalid function name");
+      }
     }
 
     if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false, NULL) != TSDB_CODE_SUCCESS) {
@@ -7298,6 +7299,11 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       }
 
       if (f < 0) {
+        SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * f - 1);
+        if (pUdfInfo->funcType == TSDB_UDF_TYPE_SCALAR) {
+          return invalidOperationMsg(msg, msg1);
+        }
+        
         continue;
       }
 
@@ -7317,6 +7323,10 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       if (IS_MULTIOUTPUT(aAggs[f].status) && f != TSDB_FUNC_TOP && f != TSDB_FUNC_BOTTOM && f != TSDB_FUNC_DIFF &&
           f != TSDB_FUNC_MAVG && f != TSDB_FUNC_CSUM && f != TSDB_FUNC_SAMPLE &&
           f != TSDB_FUNC_DERIVATIVE && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_PRJ) {
+        return invalidOperationMsg(msg, msg1);
+      }
+
+      if (IS_SCALAR_FUNCTION(aAggs[f].status)) {
         return invalidOperationMsg(msg, msg1);
       }
 
@@ -8560,15 +8570,30 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         info.name = strndup(t->z, t->n);
         if (pQueryInfo->pUdfInfo == NULL) {
           pQueryInfo->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
+        } else if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+          int32_t usize = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
+          int32_t exist = 0;
+          
+          for (int32_t j = 0; j < usize; ++j) {
+            SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
+            int32_t len = strlen(pUdfInfo->name);
+            if (len == t->n && strncasecmp(info.name, pUdfInfo->name, t->n) == 0) {
+              exist = 1;
+              break;
+            }
+          }
+
+          if (exist) {
+            continue;
+          }
         }
 
         info.functionId = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo) * (-1) - 1;;
         taosArrayPush(pQueryInfo->pUdfInfo, &info);
-
-        if ((int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
-          code = tscInvalidOperationMsg(tscGetErrorMsgPayload(pCmd), "only one udf allowed in one sql", NULL);
+        if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
+          code = tscInvalidOperationMsg(pCmd->payload, "only one udf allowed", NULL);
           goto _end;
-        }
+        }        
       }
     }
   }

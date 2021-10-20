@@ -8202,7 +8202,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     }
 
     int32_t param = (int32_t)pExprs[i].base.param[0].i64;
-    if (pExprs[i].base.functionId != TSDB_FUNC_ARITHM &&
+    if (pExprs[i].base.functionId > 0 && pExprs[i].base.functionId != TSDB_FUNC_ARITHM &&
        (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
