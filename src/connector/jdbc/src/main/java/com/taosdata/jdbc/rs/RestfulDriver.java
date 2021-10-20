@@ -64,9 +64,9 @@ public class RestfulDriver extends AbstractDriver {
 
         RestfulConnection conn = new RestfulConnection(host, port, props, database, url, token);
         if (database != null && !database.trim().replaceAll("\\s", "").isEmpty()) {
-            Statement stmt = conn.createStatement();
-            stmt.execute("use " + database);
-            stmt.close();
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("use " + database);
+            }
         }
         return conn;
     }
