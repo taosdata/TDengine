@@ -243,6 +243,17 @@ class TDTestCase:
         tdSql.query("select tbname,jtag from db_json_tag_test.jsons1 where jtag->'k1'='中国'")
         tdSql.checkRows(1)
 
+        #test dumplicate key with normal colomn
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_12 using db_json_tag_test.jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"dataStr\":\"是是是\"}') values(now, 4, false, \"你就会\")")
+
+        tdSql.query("select *,tbname,jtag from db_json_tag_test.jsons1 where jtag->'dataStr' match '是'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select tbname,jtag->'tbname' from db_json_tag_test.jsons1 where jtag->'tbname'='tt'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select *,tbname,jtag from db_json_tag_test.jsons1 where dataBool=true")
+        tdSql.checkRows(2)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

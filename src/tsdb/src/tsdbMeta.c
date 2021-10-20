@@ -1494,26 +1494,12 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
 }
 
 static SArray* getJsonTagTableList(STable *pTable){
-  SArray** pRecord = taosHashIterate(pTable->jsonKeyMap, NULL);
-  SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
+  uint8_t key = TSDB_DATA_JSON_NULL;
+  char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+  jsonKeyMd5(&key, 1, keyMd5);
+  SArray** tablist = (SArray**)taosHashGet(pTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
-  while(pRecord){
-    SArray* tallistOld = *pRecord;
-    for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {    // sort to elimate dumplicate
-      void* element = taosArrayGet(tallistOld, i);
-      void* pFind = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_EQ);
-      if(pFind == NULL){
-        void* p = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_GE);
-        if(p == NULL){
-          taosArrayPush(tablist, element);
-        }else{
-          taosArrayInsert(tablist, TARRAY_ELEM_IDX(tablist, p), element);
-        }
-      }
-    }
-    pRecord = taosHashIterate(pTable->jsonKeyMap, pRecord);
-  }
-  return tablist;
+  return *tablist;
 }
 
 static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
@@ -1576,7 +1562,6 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
         ASSERT(TABLE_TYPE((STable *)(p->table)) == TSDB_CHILD_TABLE);
         pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, p->table);
       }
-      taosArrayDestroy(tablist);
     }else {
       SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
       if (pIter == NULL) {
@@ -1609,7 +1594,6 @@ static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
         JsonMapValue* p = taosArrayGet(tablist, i);
         tsdbRemoveTableFromMeta(pRepo, p->table, false, false);
       }
-      taosArrayDestroy(tablist);
     }else{
       SSkipListIterator *pIter = tSkipListCreateIter(pTable->pIndex);
       if (pIter == NULL) {

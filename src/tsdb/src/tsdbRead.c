@@ -2679,31 +2679,16 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
   STSchema* pTagSchema = tsdbGetTableTagSchema(pSuperTable);
   if(pTagSchema && pTagSchema->numOfCols == 1 && pTagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
-    SArray** pRecord = taosHashIterate(pSuperTable->jsonKeyMap, NULL);
-    SArray* tablist = taosArrayInit(32, sizeof(JsonMapValue));
+    uint8_t key = TSDB_DATA_JSON_NULL;
+    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+    jsonKeyMd5(&key, 1, keyMd5);
+    SArray** tablist = (SArray**)taosHashGet(pSuperTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
-    while(pRecord){
-      SArray* tallistOld = *pRecord;
-      for (int i = 0; i < taosArrayGetSize(tallistOld); ++i) {    // sort to elimate dumplicate
-        void* element = taosArrayGet(tallistOld, i);
-        void* pFind = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_EQ);
-        if(pFind == NULL){
-          void* p = taosArraySearch(tablist, element, tsdbCompareJsonMapValue, TD_GE);
-          if(p == NULL){
-            taosArrayPush(tablist, element);
-          }else{
-            taosArrayInsert(tablist, TARRAY_ELEM_IDX(tablist, p), element);
-          }
-        }
-      }
-      pRecord = taosHashIterate(pSuperTable->jsonKeyMap, pRecord);
-    }
-    for (int i = 0; i < taosArrayGetSize(tablist); ++i) {
-      JsonMapValue* p = taosArrayGet(tablist, i);
+    for (int i = 0; i < taosArrayGetSize(*tablist); ++i) {
+      JsonMapValue* p = taosArrayGet(*tablist, i);
       STableKeyInfo info = {.pTable = p->table, .lastKey = TSKEY_INITIAL_VAL};
       taosArrayPush(list, &info);
     }
-    taosArrayDestroy(tablist);
   }else{
     SSkipListIterator* iter = tSkipListCreateIter(pSuperTable->pIndex);
     while (tSkipListIterNext(iter)) {
