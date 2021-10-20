@@ -27,12 +27,12 @@
 #include "tsclient.h"
 #include "tsdb.h"
 #include "tutil.h"
-#include <avro.h>
 
-#define AVRO_SUPPORT    0
+#define AVRO_SUPPORT    1
 
 #if AVRO_SUPPORT == 1
 #include <avro.h>
+#include <jansson.h>
 #endif
 
 #define TSDB_SUPPORT_NANOSECOND 1
@@ -49,6 +49,8 @@ static int  converStringToReadable(char *str, int size, char *buf, int bufsize);
 static int  convertNCharToReadable(char *str, int size, char *buf, int bufsize);
 static void dumpCharset(FILE *fp);
 static void loadFileCharset(FILE *fp, char *fcharset);
+
+static void print_json_aux(json_t *element, int indent);
 
 typedef struct {
   short bytes;
@@ -226,6 +228,32 @@ typedef struct {
     int32_t   totalDatabasesOfDumpOut;
 } resultStatistics;
 
+#if AVRO_SUPPORT == 1
+#ifdef DEFLATE_CODEC
+    #define QUICKSTOP_CODEC  "deflate"
+#else
+    #define QUICKSTOP_CODEC  "null"
+#endif
+
+/* avro sectin begin */
+#define RECORD_NAME_LEN     64
+#define FIELD_NAME_LEN      64
+#define TYPE_NAME_LEN       16
+
+typedef struct FieldStruct_S {
+    char name[FIELD_NAME_LEN];
+    char type[TYPE_NAME_LEN];
+} FieldStruct;
+
+typedef struct RecordSchema_S {
+    char name[RECORD_NAME_LEN];
+    char *fields;
+    int  num_fields;
+} RecordSchema;
+
+/* avro section end */
+#endif
+
 static int64_t g_totalDumpOutRows = 0;
 
 SDbInfo **g_dbInfos = NULL;
@@ -355,7 +383,7 @@ static int getTableDes(
 static int64_t dumpTableData(FILE *fp, char *tbName,
         char* dbName,
         int precision,
-        char *jsonAvroSchema);
+        char *jsonSchema);
 static int checkParam();
 static void freeDbInfos();
 
@@ -1051,16 +1079,13 @@ static void dumpCreateMTableClause(
     free(tmpBuf);
 }
 
-static int convertTbDesToAvroSchema(
+static int convertTbDesToJson(
         char *dbName, char *tbName, TableDef *tableDes, int colCount,
-        char **avroSchema)
+        char **jsonSchema)
 {
-    errorPrint("%s() LN%d TODO: covert table schema to avro schema\n",
-            __func__, __LINE__);
     // {
-    // "namesapce": "database name",
     // "type": "record",
-    // "name": "table name",
+    // "name": "dbname.tbname",
     // "fields": [
     //      {
     //      "name": "col0 name",
@@ -1068,33 +1093,33 @@ static int convertTbDesToAvroSchema(
     //      },
     //      {
     //      "name": "col1 name",
-    //      "type": ["int", "null"]
+    //      "type": "int"
     //      },
     //      {
     //      "name": "col2 name",
-    //      "type": ["float", "null"]
+    //      "type": "float"
     //      },
     //      ...
     //      {
     //      "name": "coln name",
-    //      "type": ["string", "null"]
+    //      "type": "string"
     //      }
     // ]
     // }
-    *avroSchema = (char *)calloc(1,
+    *jsonSchema = (char *)calloc(1,
             17 + TSDB_DB_NAME_LEN               /* dbname section */
             + 17                                /* type: record */
             + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
             + 10                                /* fields section */
             + (TSDB_COL_NAME_LEN + 11 + 16) * colCount + 4);    /* fields section */
-    if (*avroSchema == NULL) {
+    if (*jsonSchema == NULL) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         return -1;
     }
 
-    char *pstr = *avroSchema;
+    char *pstr = *jsonSchema;
     pstr += sprintf(pstr,
-            "{\"namespace\": \"%s\", \"type\": \"record\", \"name\": \"%s\", \"fields\": [",
+            "{\"type\": \"record\", \"name\": \"%s.%s\", \"fields\": [",
             dbName, tbName);
     for (int i = 0; i < colCount; i ++) {
         if (0 == i) {
@@ -1109,8 +1134,9 @@ static int convertTbDesToAvroSchema(
                     tableDes->cols[i].field, "string");
             } else {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": [\"%s\", \"null\"]",
-                    tableDes->cols[i].field, tableDes->cols[i].type);
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field,
+                    strtolower(tableDes->cols[i].type, tableDes->cols[i].type));
             }
         }
         if ((i != (colCount -1))
@@ -1124,7 +1150,7 @@ static int convertTbDesToAvroSchema(
 
     pstr += sprintf(pstr, "]}");
 
-    debugPrint("%s() LN%d, avroSchema: %s\n", __func__, __LINE__, *avroSchema);
+    debugPrint("%s() LN%d, jsonSchema:\n %s\n", __func__, __LINE__, *jsonSchema);
 
     return 0;
 }
@@ -1171,11 +1197,11 @@ static int64_t dumpNormalTable(
         dumpCreateTableClause(tableDes, colCount, fp, dbName);
     }
 
-    char *jsonAvroSchema = NULL;
+    char *jsonSchema = NULL;
     if (g_args.avro) {
-        if (0 != convertTbDesToAvroSchema(
-                    dbName, tbName, tableDes, colCount, &jsonAvroSchema)) {
-            errorPrint("%s() LN%d, convertTbDesToAvroSchema failed\n",
+        if (0 != convertTbDesToJson(
+                    dbName, tbName, tableDes, colCount, &jsonSchema)) {
+            errorPrint("%s() LN%d, convertTbDesToJson failed\n",
                     __func__,
                     __LINE__);
             freeTbDes(tableDes);
@@ -1186,10 +1212,10 @@ static int64_t dumpNormalTable(
     int64_t ret = 0;
     if (!g_args.schemaonly) {
         ret = dumpTableData(fp, tbName, dbName, precision,
-            jsonAvroSchema);
+            jsonSchema);
     }
 
-    tfree(jsonAvroSchema);
+    tfree(jsonSchema);
     freeTbDes(tableDes);
     return ret;
 }
@@ -1610,7 +1636,8 @@ static int64_t dumpCreateSTableClauseOfDb(
 
     int64_t superTblCnt = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
-        if (0 == dumpStableClasuse(dbInfo, row[TSDB_SHOW_TABLES_NAME_INDEX], fp)) {
+        if (0 == dumpStableClasuse(dbInfo,
+                    row[TSDB_SHOW_TABLES_NAME_INDEX], fp)) {
             superTblCnt ++;
         }
     }
@@ -2194,17 +2221,314 @@ static int dumpCreateTableClause(TableDef *tableDes, int numOfCols,
     return fprintf(fp, "%s\n\n", sqlstr);
 }
 
-static int writeSchemaToAvro(char *jsonAvroSchema)
-{
-    errorPrint("%s() LN%d, TODO: implement write schema to avro",
-            __func__, __LINE__);
-    return 0;
+static void print_json_indent(int indent) {
+    int i;
+    for (i = 0; i < indent; i++) {
+        putchar(' ');
+    }
 }
 
-static int64_t writeResultToAvro(TAOS_RES *res)
+const char *json_plural(size_t count) { return count == 1 ? "" : "s"; }
+
+static void print_json_object(json_t *element, int indent) {
+    size_t size;
+    const char *key;
+    json_t *value;
+
+    print_json_indent(indent);
+    size = json_object_size(element);
+
+    printf("JSON Object of %lld pair%s:\n", (long long)size, json_plural(size));
+    json_object_foreach(element, key, value) {
+        print_json_indent(indent + 2);
+        printf("JSON Key: \"%s\"\n", key);
+        print_json_aux(value, indent + 2);
+    }
+}
+
+static void print_json_array(json_t *element, int indent) {
+    size_t i;
+    size_t size = json_array_size(element);
+    print_json_indent(indent);
+
+    printf("JSON Array of %lld element%s:\n", (long long)size, json_plural(size));
+    for (i = 0; i < size; i++) {
+        print_json_aux(json_array_get(element, i), indent + 2);
+    }
+}
+
+static void print_json_string(json_t *element, int indent) {
+    print_json_indent(indent);
+    printf("JSON String: \"%s\"\n", json_string_value(element));
+}
+
+static void print_json_integer(json_t *element, int indent) {
+    print_json_indent(indent);
+    printf("JSON Integer: \"%" JSON_INTEGER_FORMAT "\"\n", json_integer_value(element));
+}
+
+static void print_json_real(json_t *element, int indent) {
+    print_json_indent(indent);
+    printf("JSON Real: %f\n", json_real_value(element));
+}
+
+static void print_json_true(json_t *element, int indent) {
+    (void)element;
+    print_json_indent(indent);
+    printf("JSON True\n");
+}
+
+static void print_json_false(json_t *element, int indent) {
+    (void)element;
+    print_json_indent(indent);
+    printf("JSON False\n");
+}
+
+static void print_json_null(json_t *element, int indent) {
+    (void)element;
+    print_json_indent(indent);
+    printf("JSON Null\n");
+}
+
+static void print_json_aux(json_t *element, int indent)
 {
-    errorPrint("%s() LN%d, TODO: implementation need\n", __func__, __LINE__);
-    return 0;
+    switch(json_typeof(element)) {
+        case JSON_OBJECT:
+            print_json_object(element, indent);
+            break;
+
+        case JSON_ARRAY:
+            print_json_array(element, indent);
+            break;
+
+        case JSON_STRING:
+            print_json_string(element, indent);
+            break;
+
+        case JSON_INTEGER:
+            print_json_integer(element, indent);
+            break;
+
+        case JSON_REAL:
+            print_json_real(element, indent);
+            break;
+
+        case JSON_TRUE:
+            print_json_true(element, indent);
+            break;
+
+        case JSON_FALSE:
+            print_json_false(element, indent);
+            break;
+
+        case JSON_NULL:
+            print_json_null(element, indent);
+            break;
+
+        default:
+            fprintf(stderr, "unrecongnized JSON type %d\n", json_typeof(element));
+    }
+}
+
+static void print_json(json_t *root) { print_json_aux(root, 0); }
+
+static json_t *load_json(char *jsonbuf)
+{
+    json_t *root;
+    json_error_t error;
+
+    root = json_loads(jsonbuf, 0, &error);
+
+    if (root) {
+        return root;
+    } else {
+        fprintf(stderr, "json error on line %d: %s\n", error.line, error.text);
+        return NULL;
+    }
+}
+
+static RecordSchema *parse_json_to_recordschema(json_t *element)
+{
+    RecordSchema *recordSchema = malloc(sizeof(RecordSchema));
+    assert(recordSchema);
+
+    if (JSON_OBJECT != json_typeof(element)) {
+        fprintf(stderr, "%s() LN%d, json passed is not an object\n",
+                __func__, __LINE__);
+        return NULL;
+    }
+
+    const char *key;
+    json_t *value;
+
+    json_object_foreach(element, key, value) {
+        if (0 == strcmp(key, "name")) {
+            tstrncpy(recordSchema->name, json_string_value(value), RECORD_NAME_LEN-1);
+        } else if (0 == strcmp(key, "fields")) {
+            if (JSON_ARRAY == json_typeof(value)) {
+
+                size_t i;
+                size_t size = json_array_size(value);
+
+#ifdef DEBUG
+                printf("%s() LN%d, JSON Array of %lld element%s:\n",
+                        __func__, __LINE__,
+                        (long long)size, json_plural(size));
+#endif
+
+                recordSchema->num_fields = size;
+                recordSchema->fields = malloc(sizeof(FieldStruct) * size);
+                assert(recordSchema->fields);
+
+                for (i = 0; i < size; i++) {
+                    FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct) * i);
+                    json_t *arr_element = json_array_get(value, i);
+                    const char *ele_key;
+                    json_t *ele_value;
+
+                    json_object_foreach(arr_element, ele_key, ele_value) {
+                        if (0 == strcmp(ele_key, "name")) {
+                            tstrncpy(field->name, json_string_value(ele_value), FIELD_NAME_LEN-1);
+                        } else if (0 == strcmp(ele_key, "type")) {
+                            if (JSON_STRING == json_typeof(ele_value)) {
+                                tstrncpy(field->type, json_string_value(ele_value), TYPE_NAME_LEN-1);
+                            } else if (JSON_OBJECT == json_typeof(ele_value)) {
+                                const char *obj_key;
+                                json_t *obj_value;
+
+                                json_object_foreach(ele_value, obj_key, obj_value) {
+                                    if (0 == strcmp(obj_key, "type")) {
+                                        if (JSON_STRING == json_typeof(obj_value)) {
+                                            tstrncpy(field->type,
+                                                    json_string_value(obj_value), TYPE_NAME_LEN-1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                fprintf(stderr, "%s() LN%d, fields have no array\n",
+                        __func__, __LINE__);
+                return NULL;
+            }
+
+            break;
+        }
+    }
+
+    return recordSchema;
+}
+
+static void freeRecordSchema(RecordSchema *recordSchema)
+{
+    if (recordSchema) {
+        if (recordSchema->fields) {
+            free(recordSchema->fields);
+        }
+        free(recordSchema);
+    }
+}
+
+static int64_t writeResultToAvro(
+        char *avroFilename,
+        char *jsonSchema,
+        TAOS_RES *res)
+{
+    avro_schema_t schema;
+    if (avro_schema_from_json_length(jsonSchema, strlen(jsonSchema), &schema)) {
+        errorPrint("%s() LN%d, Unable to parse:\n%s \nto schema\nerror message: %s\n",
+                __func__, __LINE__, jsonSchema, avro_strerror());
+        exit(EXIT_FAILURE);
+    }
+
+    json_t *json_root = load_json(jsonSchema);
+    debugPrint("\n%s() LN%d\n *** Schema parsed:\n", __func__, __LINE__);
+
+
+    RecordSchema *recordSchema;
+    if (json_root) {
+        if (g_args.debug_print || g_args.verbose_print) {
+            print_json(json_root);
+        }
+
+        recordSchema = parse_json_to_recordschema(json_root);
+        if (NULL == recordSchema) {
+            fprintf(stderr, "Failed to parse json to recordschema\n");
+            exit(EXIT_FAILURE);
+        }
+
+        json_decref(json_root);
+    } else {
+        errorPrint("json:\n%s\n can't be parsed by jansson\n", jsonSchema);
+        exit(EXIT_FAILURE);
+    }
+
+    avro_file_writer_t db;
+
+    int rval = avro_file_writer_create_with_codec
+        (avroFilename, schema, &db, QUICKSTOP_CODEC, 0);
+    if (rval) {
+        freeRecordSchema(recordSchema);
+        fprintf(stderr, "There was an error creating %s\n", avroFilename);
+        fprintf(stderr, "%s() LN%d, error message: %s\n",
+                __func__, __LINE__,
+                avro_strerror());
+        exit(EXIT_FAILURE);
+    }
+
+    TAOS_ROW row = NULL;
+
+    int numFields = taos_field_count(res);
+    assert(numFields > 0);
+    TAOS_FIELD *fields = taos_fetch_fields(res);
+
+    avro_value_iface_t  *wface =
+        avro_generic_class_from_schema(schema);
+
+    avro_value_t record;
+    avro_generic_value_new(wface, &record);
+
+    errorPrint("%s() LN%d, TODO: need write data to %s\n",
+            __func__, __LINE__,
+            avroFilename);
+
+    int64_t count = 0;
+    while ((row = taos_fetch_row(res)) != NULL) {
+        for (int col = 0; col < numFields; col++) {
+            switch (fields[col].type) {
+                case TSDB_DATA_TYPE_BOOL:
+                    break;
+                case TSDB_DATA_TYPE_TINYINT:
+                    break;
+                case TSDB_DATA_TYPE_SMALLINT:
+                    break;
+                case TSDB_DATA_TYPE_INT:
+                    break;
+                case TSDB_DATA_TYPE_BIGINT:
+                    break;
+                case TSDB_DATA_TYPE_FLOAT:
+                    break;
+                case TSDB_DATA_TYPE_DOUBLE:
+                    break;
+                case TSDB_DATA_TYPE_BINARY:
+                    break;
+                case TSDB_DATA_TYPE_NCHAR:
+                    break;
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        count ++;
+    }
+
+    avro_file_writer_close(db);
+
+    return count;
 }
 
 static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbName)
@@ -2221,12 +2545,11 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
     char *pstr = tmpBuffer;
 
     TAOS_ROW row = NULL;
-    int numFields = 0;
     int rowFlag = 0;
     int64_t    lastRowsPrint = 5000000;
     int count = 0;
 
-    numFields = taos_field_count(res);
+    int numFields = taos_field_count(res);
     assert(numFields > 0);
     TAOS_FIELD *fields = taos_fetch_fields(res);
 
@@ -2352,7 +2675,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
 
 static int64_t dumpTableData(FILE *fp, char *tbName,
         char* dbName, int precision,
-        char *jsonAvroSchema) {
+        char *jsonSchema) {
     int64_t    totalRows     = 0;
 
     char sqlstr[1024] = {0};
@@ -2404,8 +2727,18 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
     }
 
     if (g_args.avro) {
-        writeSchemaToAvro(jsonAvroSchema);
-        totalRows = writeResultToAvro(res);
+        char avroFilename[4096] = {0};
+
+        if (g_args.outpath[0] != 0) {
+            sprintf(avroFilename, "%s/%s.%s.avro",
+                    g_args.outpath, dbName, tbName);
+        } else {
+            sprintf(avroFilename, "%s.%s.avro",
+                    dbName, tbName);
+        }
+
+        totalRows = writeResultToAvro(avroFilename, jsonSchema, res);
+
     } else {
         totalRows = writeResultToSql(res, fp, dbName, tbName);
     }
