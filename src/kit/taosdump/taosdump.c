@@ -638,11 +638,6 @@ static int queryDbImpl(TAOS *taos, char *command) {
     TAOS_RES *res = NULL;
     int32_t   code = -1;
 
-    if (NULL != res) {
-        taos_free_result(res);
-        res = NULL;
-    }
-
     res = taos_query(taos, command);
     code = taos_errno(res);
 
@@ -1193,6 +1188,7 @@ static int64_t dumpNormalTable(
             jsonAvroSchema);
     }
 
+    tfree(jsonAvroSchema);
     freeTbDes(tableDes);
     return ret;
 }
