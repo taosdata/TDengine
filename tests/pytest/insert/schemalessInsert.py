@@ -1,4 +1,3 @@
-###################################################################
 #           Copyright (c) 2021 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
