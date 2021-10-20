@@ -75,7 +75,8 @@ typedef struct {
   uint64_t aggrStat : 3;    \
   uint64_t blkVer : 5;      \
   uint64_t aggrOffset : 56; \
-  uint32_t aggrLen
+  uint32_t aggrLen;         \
+  uint32_t reserved
 
 typedef struct {
   SBlockFieldsP0;
@@ -118,6 +119,7 @@ typedef struct {
   char     padding[1];
 } SBlockColV0;
 
+
 typedef struct {
   int16_t  colId;
   uint8_t  offsetH;
@@ -125,8 +127,7 @@ typedef struct {
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;
-  // char     padding[];
-} SBlockColV1;
+} SBlockColV1; // size
 
 #define SBlockCol SBlockColV1      // latest SBlockCol definition
 
