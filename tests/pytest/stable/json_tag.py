@@ -32,12 +32,7 @@ class TDTestCase:
         tdSql.execute("create database db_json_tag_test")
         tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
-        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags(3333)")
-        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"1loc\":\"fff\",\";id\":5}')")
-        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"。loc\":\"fff\",\"fsd\":5}')")
-        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"试试\":\"fff\",\";id\":5}')")
         tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, true, 'json2')")
-        tdSql.error("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags(3)")
         tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 1, false, 'json1')")
         tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 3, false 'json3')")
         tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"shanghai\",\"name\":\"name4\"}') values (now, 4, true, 'json4')")
@@ -254,7 +249,15 @@ class TDTestCase:
 
         tdSql.query("select *,tbname,jtag from db_json_tag_test.jsons1 where dataBool=true")
         tdSql.checkRows(2)
-    def stop(self):
+
+        # test error
+        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags(3333)")
+        tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags('{\"1loc\":\"fff\",\";id\":5}')")
+        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags('{\"。loc\":\"fff\",\"fsd\":5}')")
+        tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags('{\"试试\":\"fff\",\";id\":5}')")
+        tdSql.error("insert into db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags(3)")
+
+def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
