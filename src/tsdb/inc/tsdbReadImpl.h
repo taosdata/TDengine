@@ -119,7 +119,6 @@ typedef struct {
   char     padding[1];
 } SBlockColV0;
 
-
 typedef struct {
   int16_t  colId;
   uint8_t  offsetH;
@@ -127,7 +126,8 @@ typedef struct {
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;
-} SBlockColV1; // size
+  // char     padding[];
+} SBlockColV1;
 
 #define SBlockCol SBlockColV1      // latest SBlockCol definition
 
