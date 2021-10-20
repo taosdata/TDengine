@@ -52,7 +52,7 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
-        os.system("rm -rf table/create1.py.sql")
+        os.system("rm -rf table/create.py.sql")
         tdSql.prepare()
 
         print("==============step1")

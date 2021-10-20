@@ -17,33 +17,16 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ## 安装步骤
 
 ### 安装 Telegraf，Grafana 和 TDengine
-安装 Telegraf 和 Grafana 请参考相关官方文档，这里仅假设使用 Ubuntu 20.04 LTS 为操作系统为例。
+安装 Telegraf、Grafana 和 TDengine 请参考相关官方文档。
 
 ### Telegraf
-```
-1. wget -qO- https://repos.influxdata.com/influxdb.key | sudo apt-key add -
-2. source /etc/lsb-release
-3. echo "deb https://repos.influxdata.com/${DISTRIB_ID,,} ${DISTRIB_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/influxdb.list
-4. sudo apt-get update
-5. sudo apt-get install telegraf
-6. sudo systemctl start telegraf
-```
+请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
 ### Grafana
-```
-1. wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
-2. echo "deb https://packages.grafana.com/enterprise/deb stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list
-3. sudo apt-get update
-4. sudo apt-get install grafana
-5. sudo systemctl start grafana-server.service
-```
+请参考[官方文档](https://grafana.com/grafana/download)。
 
 ### 安装 TDengine 
-从涛思数据官网下载页面 （http://taosdata.com/cn/all-downloads/）最新 TDengine-server 2.3.0.0 版本，以 deb 安装包为例。
-```
-1. sudo dpkg -i TDengine-server-2.3.0.0-Linux-x64.deb
-2. sudo systemctl start taosd
-```
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/）页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
 
 
 ## 数据链路设置
@@ -56,17 +39,18 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ```
 
 ### 修改 /etc/telegraf/telegraf.conf 
-假设 TDengine 和 Telegraf 在同一台机器上部署，且假设 TDengine 使用默认用户名 root 和密码 taosdata。增加如下文字：
+配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username和 password 填写 TDengine 实际值：
 ```
 [[outputs.http]]
-  url = "http://127.0.0.1:6041/influxdb/v1/write?db=metrics"
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
   method = "POST"
   timeout = "5s"
-  username = "root"
-  password = "taosdata"
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
   data_format = "influx"
   influx_max_line_bytes = 250
 ```
+
 然后重启 telegraf：
 ```
 sudo systemctl start telegraf
@@ -77,7 +61,7 @@ sudo systemctl start telegraf
 
 使用 Web 浏览器访问 IP:3000 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
 点击左侧齿轮图标并选择 Plugins，应该可以找到 TDengine data source 插件图标。
-点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json 文件，然后应该可以看到如下界面的仪表板界面：
+点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json 文件。如果按照 Grafana 的机器上没有安装 TDengine，可以从 https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json 下载 dashboard JSON 文件再导入。之后可以看到如下界面的仪表盘：
 
 ![IT-DevOps-Solutions-telegraf-dashboard.png](../../images/IT-DevOps-Solutions-telegraf-dashboard.png)
 

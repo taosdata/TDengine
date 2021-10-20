@@ -1280,7 +1280,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     适用于：**表、超级表**。
 
-    说明：*P*值有效取值范围0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX；*algo_type*的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。但该参数指定计算算法的功能从2.2.0.x版本开始支持，2.2.0.0之前的版本不支持指定使用算法的功能。
+    说明：<br/>**P**值有效取值范围0≤P≤100，为 0 的时候等同于 MIN，为 100 的时候等同于MAX；<br/>**algo_type**的有效输入：**default** 和 **t-digest**。 用于指定计算近似分位数的算法。可不提供第三个参数的输入，此时将使用 default 的算法进行计算，即 apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价。当使用“t-digest”参数的时候，将使用t-digest方式采样计算近似分位数。但该参数指定计算算法的功能从2.2.0.x版本开始支持，2.2.0.0之前的版本不支持指定使用算法的功能。<br/>
     
     嵌套子查询支持：适用于内层查询和外层查询。
     
@@ -1319,76 +1319,72 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     
 限制：LAST_ROW() 不能与 INTERVAL 一起使用。
     
-说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-    
-    示例：
-    ```mysql
+说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。<br/>
+   <br/>示例：
+
+   ```mysql
     taos> SELECT LAST_ROW(current) FROM meters;
     last_row(current)   |
     =======================
                 12.30000 |
-Query OK, 1 row(s) in set (0.001238s)
+    Query OK, 1 row(s) in set (0.001238s)
     
     taos> SELECT LAST_ROW(current) FROM d1002;
     last_row(current)   |
     =======================
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
-```
+   ```
     
-- **INTERP**
+
+- **INTERP** 
+    
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
-    功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
-    返回结果数据类型：同字段类型。
+功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
-    应用字段：数值型字段。
+返回结果数据类型：同字段类型。
 
-    适用于：**表、超级表**。
+应用字段：数值型字段。
 
-    说明：（从 2.0.15.0 版本开始新增此函数）
+适用于：**表、超级表**。
 
-    1）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。
-
-    2）INTERP 查询要求查询的时间区间必须位于数据集合（表）的所有记录的时间范围之内。如果给定的时间戳位于时间范围之外，即使有插值指令，仍然不返回结果。
-
-    3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。
-
+说明：（从 2.0.15.0 版本开始新增此函数） <br/>1）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。<br/>2）INTERP 查询要求查询的时间区间必须位于数据集合（表）的所有记录的时间范围之内。如果给定的时间戳位于时间范围之外，即使有插值指令，仍然不返回结果。<br/>3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。<br/>    
     示例：
-    ```sql
+    
+   ```mysql
     taos> SELECT INTERP(*) FROM meters WHERE ts='2017-7-14 18:40:00.004';
            interp(ts)        |   interp(current)    | interp(voltage) |    interp(phase)     |
     ==========================================================================================
      2017-07-14 18:40:00.004 |              9.84020 |             216 |              0.32222 |
     Query OK, 1 row(s) in set (0.002652s)
-    ```
-    
-    如果给定的时间戳无对应的数据，在不指定插值生成策略的情况下，不会返回结果，如果指定了插值策略，会根据插值策略返回结果。
-    
-    ```sql
+   ```
+
+如果给定的时间戳无对应的数据，在不指定插值生成策略的情况下，不会返回结果，如果指定了插值策略，会根据插值策略返回结果。
+
+   ```mysql
     taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005';
     Query OK, 0 row(s) in set (0.004022s)
     
-    taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005' FILL(PREV);;
+    taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005' FILL(PREV);
            interp(ts)        |   interp(current)    | interp(voltage) |    interp(phase)     |
     ==========================================================================================
      2017-07-14 18:40:00.005 |              9.88150 |             217 |              0.32500 |
     Query OK, 1 row(s) in set (0.003056s)
-    ```
+   ```
 
-    如下所示代码表示在时间区间 `['2017-7-14 18:40:00', '2017-7-14 18:40:00.014']`  中每隔 5 毫秒 进行一次断面计算。
+如下所示代码表示在时间区间 `['2017-7-14 18:40:00', '2017-7-14 18:40:00.014']` 中每隔 5 毫秒 进行一次断面计算。
 
-    ```sql
+   ```mysql
     taos> SELECT INTERP(current) FROM d636 WHERE ts>='2017-7-14 18:40:00' AND ts<='2017-7-14 18:40:00.014' EVERY(5a);
                ts            |   interp(current)    |
     =================================================
      2017-07-14 18:40:00.000 |             10.04179 |
      2017-07-14 18:40:00.010 |             10.16123 |
     Query OK, 2 row(s) in set (0.003487s)
-    
-    ```
+   ```
 
 ### 计算函数
 
@@ -1471,6 +1467,39 @@ Query OK, 1 row(s) in set (0.001238s)
                 3.000000000 |
     Query OK, 1 row(s) in set (0.000836s)
     ```
+
+- **CEIL**
+    ```mysql
+    SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：获得指定列的向上取整数的结果。
+    
+    返回结果类型：与指定列的原始数据类型一致。例如，如果指定列的原始数据类型为 Float，那么返回的数据类型也为 Float；如果指定列的原始数据类型为 Double，那么返回的数据类型也为 Double。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列，无论 tag 列的类型是什么类型。
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    说明：
+      支持 +、-、*、/ 运算，如 ceil(col1) + ceil(col2)。
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+      该函数可以应用在普通表和超级表上。
+
+    支持版本：指定计算算法的功能从 2.2.0.x 版本开始，2.2.0.0 之前的版本不支持指定使用算法的功能。
+  
+- **FLOOR**
+    ```mysql
+    SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：获得指定列的向下取整数的结果。  
+    其他使用说明参见CEIL函数描述。
+
+- **ROUND**
+    ```mysql
+    SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：获得指定列的四舍五入的结果。  
+    其他使用说明参见CEIL函数描述。
 
 - **四则运算**
 
@@ -1572,7 +1601,7 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 
 **GROUP BY的限制**
 
-TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。
+TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。注意：group by 不支持float,double 类型。
 
 **IS NOT NULL 与不为空的表达式适用范围**
 

@@ -189,7 +189,7 @@ public class TSDBResultSetRowData {
         long value = (long) obj;
         if (value < 0)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-        return Long.valueOf(value).intValue();
+        return (int) value;
     }
 
 
