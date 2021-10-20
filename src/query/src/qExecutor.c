@@ -8075,10 +8075,21 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
     // TODO check for failure of flush to disk
     /*size_t t = */ fwrite(pUdfInfo->content, pUdfInfo->contLen, 1, file);
     fclose(file);
-    tfree(pUdfInfo->content);
+    if (!pUdfInfo->keep) {
+      tfree(pUdfInfo->content);
+    }
 
+    if (pUdfInfo->path) {
+      unlink(pUdfInfo->path);
+    }
+    
+    tfree(pUdfInfo->path);
     pUdfInfo->path = strdup(path);
 
+    if (pUdfInfo->handle) {
+      taosCloseDll(pUdfInfo->handle);
+    }
+    
     pUdfInfo->handle = taosLoadDll(path);
 
     if (NULL == pUdfInfo->handle) {

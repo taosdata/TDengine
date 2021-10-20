@@ -8568,6 +8568,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (functionId < 0) {
         struct SUdfInfo info = {0};
         info.name = strndup(t->z, t->n);
+        info.keep = true;
         if (pQueryInfo->pUdfInfo == NULL) {
           pQueryInfo->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
         } else if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
