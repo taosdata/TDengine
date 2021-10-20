@@ -31,6 +31,7 @@ class TDTestCase:
         tdSql.prepare()
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
+        tdSql.error('create database db keep 365000'); 
         tdSql.execute('create database db precision "ns";')
         tdSql.query('show databases;')
         tdSql.checkData(0,16,'ns')

@@ -290,7 +290,7 @@ do { \
 #define TSDB_DEFAULT_DAYS_PER_FILE      10
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
-#define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
+#define TSDB_MAX_KEEP                   36500   // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               3650     // ten years
 
 #define TSDB_DEFAULT_MIN_ROW_FBLOCK     100
