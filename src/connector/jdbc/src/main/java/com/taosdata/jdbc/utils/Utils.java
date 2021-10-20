@@ -121,7 +121,7 @@ public class Utils {
     }
 
     private static void findValuesClauseRangeSet(String preparedSql, RangeSet<Integer> clauseRangeSet) {
-        Matcher matcher = Pattern.compile("(values|,)\\s*(\\([^)]*\\))").matcher(preparedSql);
+        Matcher matcher = Pattern.compile("(values||,)\\s*(\\([^)]*\\))").matcher(preparedSql);
         while (matcher.find()) {
             int start = matcher.start(2);
             int end = matcher.end(2);
