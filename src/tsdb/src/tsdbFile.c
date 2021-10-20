@@ -77,11 +77,14 @@ int tsdbEncodeSMFileEx(void **buf, SMFile *pMFile) {
 
 void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
   
-  ASSERT(buf == NULL && pMFile == NULL);
+  ASSERT(pMFile == NULL);
   
   char *aname;
   buf = tsdbDecodeMFInfo(buf, &(pMFile->info));
   buf = taosDecodeString(buf, &aname);
+    
+  ASSERT(strlen(aname) < TSDB_FILENAME_LEN);
+    
   strncpy(TSDB_FILE_FULL_NAME(pMFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pMFile);
 
@@ -345,12 +348,15 @@ static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
 
 static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   
-  ASSERT(buf == NULL && pDFile == NULL);
+  ASSERT(pDFile == NULL);
   
   char *aname;
   // The sync module would send DFileSet with latest verion.
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info), TSDB_LATEST_SFS_VER);
   buf = taosDecodeString(buf, &aname);
+    
+  ASSERT(strlen(aname) < TSDB_FILENAME_LEN);
+      
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
   TSDB_FILE_SET_CLOSED(pDFile);
   tfree(aname);
