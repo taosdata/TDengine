@@ -4514,10 +4514,8 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 // check for match expression
 static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg1 = "regular expression string should be less than %d characters";
-  const char* msg2 = "illegal column type for match/nmatch";
   const char* msg3 = "invalid regular expression";
 
-  tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
@@ -4525,11 +4523,6 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       char tmp[64] = {0};
       sprintf(tmp, msg1, tsMaxRegexStringLen);
       return invalidOperationMsg(msgBuf, tmp);
-    }
-
-    SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
-      return invalidOperationMsg(msgBuf, msg2);
     }
 
     if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
