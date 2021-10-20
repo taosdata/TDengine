@@ -142,7 +142,7 @@ class TDTestCase:
         # verify -D:--database
         os.system("%staosdump  -o ./taosdumptest/tmp5  --databases dp1,dp2 " % binPath)
         # verify mixed -D:--database and dbname tbname
-        # assert os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp5 dp2 st0 st1_0 gt0" % binPath) != 0
+        assert os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp5 dp2 st0 st1_0 gt0" % binPath) != 0
 
         #check taosdumptest/tmp1
         tdSql.execute("drop database  dp1")
