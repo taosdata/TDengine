@@ -10,9 +10,10 @@ sql connect
 print ======================== dnode1 start
 
 sql create function add_one as '/tmp/add_one.so' outputtype int;
+sql create function add_one_64232 as '/tmp/add_one_64232.so' outputtype int;
 sql create aggregate function sum_double as '/tmp/sum_double.so' outputtype int;
 sql show functions;
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 
@@ -1211,6 +1212,32 @@ if $data60 != 9 then
 endi
 
 sql_error select add_one(f1),sub_one(f1) from tb1;
+
+
+sql create table taaa (ts timestamp, f1 bigint);
+sql insert into taaa values (now, 1);
+sql insert into taaa values (now, 10);
+sql insert into taaa values (now, 1000);
+sql insert into taaa values (now, 100);
+
+sql select add_one_64232(f1) from taaa;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 11 then 
+   return -1
+endi
+if $data20 != 1001 then 
+   return -1
+endi
+if $data30 != 101 then 
+   return -1
+endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
