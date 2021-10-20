@@ -8104,10 +8104,15 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
 
     pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_INIT));
 
+    pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
+    pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
+
     if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-      pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
-      pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
       if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] || NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
+        return TSDB_CODE_QRY_SYS_ERROR;
+      }
+    } else {
+      if (pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] || pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
         return TSDB_CODE_QRY_SYS_ERROR;
       }
     }
