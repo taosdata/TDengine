@@ -159,15 +159,7 @@ typedef struct {
   SBlockCol cols[];
 } SBlockData;
 
-#if 0
-typedef struct {
-  int32_t     numOfCols;  // For recovery usage
-  uint32_t    padding;
-  SAggrBlkCol cols[];
-} SAggrBlkData;
-#endif
-
-typedef void SAggrBlkData;
+typedef void SAggrBlkData;  // SBlockCol cols[];
 
 struct SReadH {
   STsdbRepo * pRepo;

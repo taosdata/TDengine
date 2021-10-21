@@ -1188,7 +1188,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   uint32_t aggrStatus = ((nColsNotAllNull > 0) && (rowsToWrite > 8)) ? 1 : 0;  // TODO: How to make the decision?
   if (aggrStatus > 0) {
-    // pAggrBlkData->numOfCols = nColsNotAllNull;
 
     taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
     tsdbUpdateDFileMagic(pDFileAggr, POINTER_SHIFT(pAggrBlkData, tsizeAggr - sizeof(TSCKSUM)));
