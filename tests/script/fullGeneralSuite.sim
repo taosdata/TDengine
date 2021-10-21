@@ -229,4 +229,5 @@ run general/parser/like.sim
 run general/parser/regex.sim
 run general/parser/tbname_escape.sim
 run general/parser/columnName_escape.sim
+run general/parser/tagName_escape.sim
 run general/parser/interp_blocks.sim
