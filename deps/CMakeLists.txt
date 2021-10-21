@@ -65,6 +65,11 @@ endif(${BUILD_WITH_ROCKSDB})
 if(${BUILD_WITH_LUCENE})
     option(ENABLE_TEST "Enable the tests" OFF)
     add_subdirectory(lucene)
+    target_include_directories(
+      lucene++ 
+      PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lucene/include>
+    ) 
+     
 endif(${BUILD_WITH_LUCENE})
 
 # ================================================================================================

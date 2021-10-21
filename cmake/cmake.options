@@ -16,13 +16,13 @@ option(
 option(
     BUILD_WITH_ROCKSDB 
     "If build with rocksdb" 
-    OFF
+    OF
 )
 
 option(
     BUILD_WITH_LUCENE 
     "If build with lucene" 
-    OFF
+    on 
 )
 
 option(

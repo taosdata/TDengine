@@ -16,9 +16,28 @@
 #ifndef _TD_INDEX_INT_H_
 #define _TD_INDEX_INT_H_
 
+#include "index.h"
+
+#ifdef USE_LUCENE
+#include <lucene++/Lucene_c.h>
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct SIndex {
+#ifdef USE_LUCENE 
+ index_t *index; 
+#endif  
+};   
+
+struct SIndexOpts {
+#ifdef USE_LUCENE 
+  void *opts; 
+#endif  
+};
 
 #ifdef __cplusplus
 }

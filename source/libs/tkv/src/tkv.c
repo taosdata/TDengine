@@ -158,6 +158,8 @@ static void tkvInit() {
 #ifdef USE_ROCKSDB
   defaultReadOpts.ropts = rocksdb_readoptions_create();
   defaultWriteOpts.wopts = rocksdb_writeoptions_create();
+  rocksdb_writeoptions_disable_WAL(defaultWriteOpts.wopts, true);
+  
 #endif
 }
 
