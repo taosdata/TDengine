@@ -202,12 +202,7 @@ pipeline {
       stage('pre_build'){
           agent{label 'master'}
           when{
-            allOf{
                 changeRequest()
-                not{ expression{
-                  return env.BRANCH_NAME ==~ 'docs//*'
-                }}
-            }
           }
           steps {
             script{
@@ -260,9 +255,7 @@ pipeline {
                expression{
                 return skipbuild.trim() == '2'
               }
-              not{ expression{
-                return env.BRANCH_NAME ==~ 'docs//*'
-              }}
+              not{ expression { env.CHANGE_BRANCH =~ /docs\// }}
             }
           }
       parallel {
