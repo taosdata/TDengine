@@ -14,68 +14,156 @@
  */
 
 #include "tkv.h"
+#include "tkvDef.h"
 
-struct STkvDb {
-  // TODO
-};
-struct STkvOpts {
-  // TODO
-};
-struct STkvCache {
-  // TODO
-};
-struct STkvReadOpts {
-  // TODO
-};
-struct STkvWriteOpts {
-  // TODO
-};
+static pthread_once_t isInit = PTHREAD_ONCE_INIT;
+static STkvReadOpts   defaultReadOpts;
+static STkvWriteOpts  defaultWriteOpts;
+
+static void tkvInit();
 
 STkvDb *tkvOpen(const STkvOpts *options, const char *path) {
-  // TODO
-  return NULL;
+  pthread_once(&isInit, tkvInit);
+  STkvDb *pDb = NULL;
+
+  pDb = (STkvDb *)malloc(sizeof(*pDb));
+  if (pDb == NULL) {
+    return NULL;
+  }
+
+#ifdef USE_ROCKSDB
+  char *err = NULL;
+
+  pDb->db = rocksdb_open(options->opts, path, &err);
+  // TODO: check err
+#endif
+
+  return pDb;
 }
 
-void tkvClose(STkvDb *db) {
-  // TODO
+void tkvClose(STkvDb *pDb) {
+  if (pDb) {
+#ifdef USE_ROCKSDB
+    rocksdb_close(pDb->db);
+#endif
+    free(pDb);
+  }
 }
 
-void tkvPut(STkvDb *db, STkvWriteOpts *pwopts, char *key, size_t keylen, char *val, size_t vallen) {
-  // TODO
+void tkvPut(STkvDb *pDb, const STkvWriteOpts *pwopts, const char *key, size_t keylen, const char *val, size_t vallen) {
+#ifdef USE_ROCKSDB
+  char *err = NULL;
+  rocksdb_put(pDb->db, pwopts ? pwopts->wopts : defaultWriteOpts.wopts, key, keylen, val, vallen, &err);
+  // TODO: check error
+#endif
 }
 
-char *tkvGet(STkvDb *db, STkvReadOpts *propts, char *key, size_t keylen, size_t *vallen) {
-  // TODO
-  return NULL;
+char *tkvGet(STkvDb *pDb, const STkvReadOpts *propts, const char *key, size_t keylen, size_t *vallen) {
+  char *ret = NULL;
+
+#ifdef USE_ROCKSDB
+  char *err = NULL;
+  ret = rocksdb_get(pDb->db, propts ? propts->ropts : defaultReadOpts.ropts, key, keylen, vallen, &err);
+  // TODD: check error
+#endif
+
+  return ret;
 }
 
-STkvOpts *tkvOptionsCreate() {
-  // TODO
-  return NULL;
+STkvOpts *tkvOptsCreate() {
+  STkvOpts *pOpts = NULL;
+
+  pOpts = (STkvOpts *)malloc(sizeof(*pOpts));
+  if (pOpts == NULL) {
+    return NULL;
+  }
+
+#ifdef USE_ROCKSDB
+  pOpts->opts = rocksdb_options_create();
+  // TODO: check error
+#endif
+
+  return pOpts;
 }
 
-void tkvOptionsDestroy(STkvOpts *popts) {
-  // TODO
+void tkvOptsDestroy(STkvOpts *pOpts) {
+  if (pOpts) {
+#ifdef USE_ROCKSDB
+    rocksdb_options_destroy(pOpts->opts);
+#endif
+    free(pOpts);
+  }
 }
 
 void tkvOptionsSetCache(STkvOpts *popts, STkvCache *pCache) {
   // TODO
 }
 
-STkvReadOpts *tkvReadOptsCreate() {
-    // TODO
-    return NULL;
+void tkvOptsSetCreateIfMissing(STkvOpts *pOpts, unsigned char c) {
+#ifdef USE_ROCKSDB
+  rocksdb_options_set_create_if_missing(pOpts->opts, c);
+#endif
 }
 
-void tkvReadOptsDestroy(STkvReadOpts *propts) {
-  // TODO
+STkvReadOpts *tkvReadOptsCreate() {
+  STkvReadOpts *pReadOpts = NULL;
+
+  pReadOpts = (STkvReadOpts *)malloc(sizeof(*pReadOpts));
+  if (pReadOpts == NULL) {
+    return NULL;
+  }
+
+#ifdef USE_ROCKSDB
+  pReadOpts->ropts = rocksdb_readoptions_create();
+#endif
+
+  return pReadOpts;
+}
+
+void tkvReadOptsDestroy(STkvReadOpts *pReadOpts) {
+  if (pReadOpts) {
+#ifdef USE_ROCKSDB
+    rocksdb_readoptions_destroy(pReadOpts->ropts);
+#endif
+    free(pReadOpts);
+  }
 }
 
 STkvWriteOpts *tkvWriteOptsCreate() {
-    // TODO
+  STkvWriteOpts *pWriteOpts = NULL;
+
+  pWriteOpts = (STkvWriteOpts *)malloc(sizeof(*pWriteOpts));
+  if (pWriteOpts == NULL) {
     return NULL;
+  }
+
+#ifdef USE_ROCKSDB
+  pWriteOpts->wopts = rocksdb_writeoptions_create();
+#endif
+
+  return pWriteOpts;
 }
 
-void tkvWriteOptsDestroy(STkvWriteOpts *pwopts) {
-  // TODO
+void tkvWriteOptsDestroy(STkvWriteOpts *pWriteOpts) {
+  if (pWriteOpts) {
+#ifdef USE_ROCKSDB
+    rocksdb_writeoptions_destroy(pWriteOpts->wopts);
+#endif
+    free(pWriteOpts);
+  }
+}
+
+/* ------------------------ STATIC METHODS ------------------------ */
+static void tkvInit() {
+#ifdef USE_ROCKSDB
+  defaultReadOpts.ropts = rocksdb_readoptions_create();
+  defaultWriteOpts.wopts = rocksdb_writeoptions_create();
+#endif
+}
+
+static void tkvClear() {
+#ifdef USE_ROCKSDB
+  rocksdb_readoptions_destroy(defaultReadOpts.ropts);
+  rocksdb_writeoptions_destroy(defaultWriteOpts.wopts);
+#endif
 }

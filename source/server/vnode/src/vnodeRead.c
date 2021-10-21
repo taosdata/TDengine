@@ -141,6 +141,9 @@ void vnodeProcessReadMsg(SRpcMsg *pMsg) {
 static void vnodeInitReadMsgFp() {
   tsVread.msgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessQueryMsg;
   tsVread.msgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
+
+  tsVread.msgFp[TSDB_MSG_TYPE_MQ_QUERY]   = vnodeProcessTqQueryMsg;
+  tsVread.msgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessConsumeMsg;
 }
 
 static int32_t vnodeProcessReadStart(SVnode *pVnode, SReadMsg *pRead, int32_t qtype) {

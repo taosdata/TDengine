@@ -1,7 +1,7 @@
 add_executable(metaTest "")
 target_sources(metaTest
     PRIVATE
-    "../src/meta.c"
+    "../src/metaMain.c"
     "../src/metaUid.c"
     "metaTests.cpp"
 )

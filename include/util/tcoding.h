@@ -330,7 +330,7 @@ static FORCE_INLINE void *taosDecodeVariantI64(void *buf, int64_t *value) {
 }
 
 // ---- string
-static FORCE_INLINE int taosEncodeString(void **buf, char *value) {
+static FORCE_INLINE int taosEncodeString(void **buf, const char *value) {
   int    tlen = 0;
   size_t size = strlen(value);
 

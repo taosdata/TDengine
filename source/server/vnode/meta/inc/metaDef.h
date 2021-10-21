@@ -13,34 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_READ_MSG_H_
-#define _TD_VNODE_READ_MSG_H_
+#ifndef _TD_META_DEF_H_
+#define _TD_META_DEF_H_
+
+#include "metaUid.h"
+#include "tkv.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-typedef struct SReadMsg {
-  int32_t code;
-  int32_t contLen;
-  int8_t  qtype;
-  int8_t  msgType;
-  SVnode *pVnode;
-  SVnRsp rspRet;
-  void *  rpcHandle;
-  void *  rpcAhandle;
-  void *  qhandle;
-  char    pCont[];
-} SReadMsg;
+struct SMeta {
+  STableUidGenerator uidGenerator;
 
-int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead);
-int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead);
-int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead);
-int32_t vnodeProcessTqQueryMsg(SVnode *pVnode, SReadMsg *pRead);
+  STkvDb* tableDb;   // uid->table obj
+  STkvDb* tbnameDb;  // tbname --> uid
+  STkvDb* schemaDb;  // uid+version --> schema
+  STkvDb* tagDb;     // uid --> tag
+  STkvDb* tagIdx;    // TODO: need to integrate lucene or our own
+  // STkvCache* metaCache; // TODO: add a global cache here
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_READ_MSG_H_*/
+#endif /*_TD_META_DEF_H_*/

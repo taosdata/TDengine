@@ -1,4 +1,6 @@
 build/
+compile_commands.json
+.cache
 .ycm_extra_conf.py
 .vscode/
 .idea/
@@ -97,3 +99,4 @@ TAGS
 
 deps/*
 !deps/CMakeLists.txt
+!deps/test
