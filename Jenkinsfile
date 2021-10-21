@@ -201,12 +201,14 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
-          allOf{
-              changeRequest()
-              not{ expression{
-                return env.BRANCH_NAME ==~ 'docs//*'
-              }}
+          when{
+            allOf{
+                changeRequest()
+                not{ expression{
+                  return env.BRANCH_NAME ==~ 'docs//*'
+                }}
             }
+          }
           steps {
             script{
               abort_previous()
