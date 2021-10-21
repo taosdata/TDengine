@@ -987,13 +987,12 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
       SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
       void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
       if (pUdfInfo->isScript) {
-        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, &output);
+        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, (int32_t *)&pCtx->resultInfo->numOfRes);
       } else {
-        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
+        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, (int32_t *)&pCtx->resultInfo->numOfRes, &pUdfInfo->init);
       }
-      // set the output value exist
-      pCtx->resultInfo->numOfRes = output;
-      if (output > 0) {
+
+      if (pCtx->resultInfo->numOfRes > 0) {
         pCtx->resultInfo->hasResult = DATA_SET_FLAG;
       }
 

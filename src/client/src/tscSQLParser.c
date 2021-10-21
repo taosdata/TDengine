@@ -5779,7 +5779,19 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
   SStrToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-  bool udf = (taosArrayGetSize(pQueryInfo->pUdfInfo) > 0);
+  bool udf = false;
+
+  if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+    int32_t usize = taosArrayGetSize(pQueryInfo->pUdfInfo);
+    
+    for (int32_t i = 0; i < usize; ++i) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
+      if (pUdfInfo->funcType == TSDB_UDF_TYPE_SCALAR) {
+        udf = true;
+        break;
+      }
+    }
+  }
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // super table query
     if (getColumnIndexByName(&columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
