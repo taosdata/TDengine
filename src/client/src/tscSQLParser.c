@@ -3177,16 +3177,17 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
 
   int16_t columnIndex = COLUMN_INDEX_INITIAL_VAL;
 
-  if (pToken->type == TK_ID) {
-    tscRmEscapeAndTrimToken(pToken);
+  SStrToken tmpToken = *pToken;
+  if (tmpToken.type == TK_ID) {
+    tscRmEscapeAndTrimToken(&tmpToken);
   }
 
   for (int16_t i = 0; i < numOfCols; ++i) {
-    if (pToken->n != strlen(pSchema[i].name)) {
+    if (tmpToken.n != strlen(pSchema[i].name)) {
       continue;
     }
 
-    if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
+    if (strncasecmp(pSchema[i].name, tmpToken.z, tmpToken.n) == 0) {
       columnIndex = i;
       break;
     }
@@ -7728,6 +7729,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
       for (int32_t i = 0; i < nameSize; ++i) {
         SStrToken* sToken = taosArrayGet(pNameList, i);
+
+        char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
+        strncpy(tmpTokenBuf, sToken->z, sToken->n);
+        sToken->z = tmpTokenBuf;
+
         if (TK_STRING == sToken->type) {
           tscDequoteAndTrimToken(sToken);
         }
