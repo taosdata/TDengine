@@ -26,21 +26,21 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        print("==============step1")
+        #print("==============step1")
         ##2021-09-17 For jira: https://jira.taosdata.com:18080/browse/TD-6585
         tdSql.execute(
-            "create stable if not exists stb_test(ts timestamp,c0 binary(32),c1 int) tags(t0 binary(32))"
+            "create stable if not exists stb_test(ts timestamp,c0 binary(32),c1 int,c2 nchar(50)) tags(t0 binary(32),t1 nchar(50))"
         )
         tdSql.execute(
-            'create table if not exists stb_1 using stb_test tags("abcdefgasdfg12346")'
+            'create table if not exists stb_1 using stb_test tags("abcdefgasdfg12346","涛思数据")'
         )
-        tdLog.info('insert into stb_1 values("2021-09-13 10:00:00.001","abcefdasdqwerxasdazx12345",15')
+        tdLog.info('insert into stb_1 values("2021-09-13 10:00:00.001","abcefdasdqwerxasdazx12345",15,"引擎一组"')
 
 
-        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.002","abcefdasdqwerxasdazx12345",15)')
-        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.003","aaaaafffwwqqxzz",16)')
-        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.004","fffwwqqxzz",17)')
-        tdSql.execute('insert into stb_1 values("2020-10-13 10:00:00.001","abcd\\\efgh",100)')
+        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.002","abcefdasdqwerxasdazx12345",15,"引擎一组一号")')
+        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.003","aaaaafffwwqqxzz",16,"引擎一组二号")')
+        tdSql.execute('insert into stb_1 values("2021-09-13 10:00:00.004","fffwwqqxzz",17,"涛涛思思")')
+        tdSql.execute('insert into stb_1 values("2020-10-13 10:00:00.001","abcd\\\efgh",100,"思涛思")')
 
         tdSql.query('select * from stb_test where tbname match "asd"')
         tdSql.checkRows(0)
@@ -98,8 +98,30 @@ class TDTestCase:
         tdSql.query("select * from stb_1 where c0 nmatch '\\\\'")
         tdSql.checkRows(3)
 
+        #2021-10-20 for https://jira.taosdata.com:18080/browse/TD-10708
+        tdSql.query('select * from stb_1 where c2 match "^涛"')
+        tdSql.checkRows(1)
 
+        tdSql.query('select * from stb_1 where c2 nmatch "^涛"')
+        tdSql.checkRows(3)
 
+        tdSql.query('select * from stb_1 where c2 match "号$"')
+        tdSql.checkRows(2)
+
+        tdSql.query('select * from stb_1 where c2 nmatch "号$"')
+        tdSql.checkRows(2)
+
+        tdSql.query('select * from stb_1 where c2 match "涛+思"')
+        tdSql.checkRows(2)
+
+        tdSql.query('select * from stb_1 where c2 nmatch "涛+思"')
+        tdSql.checkRows(2)
+
+        tdSql.query('select * from stb_1 where c2 match "涛*思"')
+        tdSql.checkRows(2)
+
+        tdSql.query('select * from stb_1 where c2 nmatch "涛*思"')
+        tdSql.checkRows(2)
 
 
 
