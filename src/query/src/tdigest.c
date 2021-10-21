@@ -296,7 +296,7 @@ double tdigestQuantile(TDigest *t, double q) {
     a = b;
     right = t->max;
 
-    if (idx < weight_so_far + a->weight) {
+    if (idx < weight_so_far + a->weight && a->weight != 0) {
         double p = (idx - weight_so_far) / a->weight;
         return left * (1 - p) + right * p;
     }
