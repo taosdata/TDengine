@@ -159,7 +159,7 @@ if $data11 != 3 then
 endi
 
 sql_error select * from st2 where f7 between 2.0 and 3.0;
-sql_error select * from st2 where f8 between 2.0 and 3.0;
-sql_error select * from st2 where f9 between 2.0 and 3.0;
+sql select * from st2 where f8 between 2.0 and 3.0;
+sql select * from st2 where f9 between 2.0 and 3.0;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

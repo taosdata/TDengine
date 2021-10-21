@@ -44,6 +44,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
+  pSql->rootObj   = pSql;
 
   registerSqlObj(pSql);
 
@@ -60,17 +61,25 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->resColumnId = TSDB_RES_COL_ID;
 
+  taosAcquireRef(tscObjRef, pSql->self);
+
   int32_t code = tsParseSql(pSql, true);
-  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
+
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    taosReleaseRef(tscObjRef, pSql->self);
+    return;
+  }
   
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
     tscAsyncResultOnError(pSql);
+    taosReleaseRef(tscObjRef, pSql->self);
     return;
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   executeQuery(pSql, pQueryInfo);
+  taosReleaseRef(tscObjRef, pSql->self);
 }
 
 // TODO return the correct error code to client in tscQueueAsyncError
@@ -167,6 +176,9 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
       tscError("qhandle is NULL");
     } else {
       pRes->code = numOfRows;
+    }
+    if (pRes->code == TSDB_CODE_SUCCESS) {
+      pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;           
     }
 
     tscAsyncResultOnError(pSql);

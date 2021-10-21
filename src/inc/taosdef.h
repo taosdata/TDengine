@@ -84,6 +84,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "powerdb"
 #elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
+#elif (_TD_PRO_ == true)
+#define TSDB_DEFAULT_PASS               "prodb"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
@@ -96,6 +98,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
+#define TS_ESCAPE_CHAR '`'
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -165,6 +168,7 @@ do { \
 #define TSDB_RELATION_NOT         13
 
 #define TSDB_RELATION_MATCH       14
+#define TSDB_RELATION_NMATCH      15
 
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
@@ -449,6 +453,11 @@ typedef enum {
   TD_ROW_OVERWRITE_UPDATE = 1,
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
+
+typedef enum {
+  TSDB_STATIS_OK = 0,    // statis part exist and load successfully
+  TSDB_STATIS_NONE = 1,  // statis part not exist
+} ETsdbStatisStatus;
 
 extern char *qtypeStr[];
 

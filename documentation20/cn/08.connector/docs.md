@@ -2,7 +2,7 @@
 
 TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
 
-![image-connecotr](page://images/connector.png)
+![image-connecotr](../images/connector.png)
 
 目前TDengine的连接器可支持的平台广泛，包括：X64/X86/ARM64/ARM32/MIPS/Alpha等硬件平台，以及Linux/Win64/Win32等开发环境。对照矩阵如下：
 
@@ -64,8 +64,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 编辑taos.cfg文件(默认路径/etc/taos/taos.cfg)，将firstEP修改为TDengine服务器的End Point，例如：h1.taos.com:6030
 
-**提示： **
-
+**提示：**
 1. **如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
 2. **为防止与服务器端连接时出现“unable to resolve FQDN”错误，建议确认客户端的hosts文件已经配置正确的FQDN值。**
 
@@ -312,7 +311,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 <a class="anchor" id="stmt"></a>
 ### 参数绑定 API
 
-除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。
+除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。文档中有时也会把此功能称为“原生接口写入”。
 
 从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
 1. 调用 `taos_stmt_init` 创建参数绑定对象；
@@ -402,6 +401,84 @@ typedef struct TAOS_MULTI_BIND {
 
   （2.1.3.0 版本新增）  
   用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
+
+<a class="anchor" id="schemaless"></a>
+### Schemaless 方式写入接口
+
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
+
+2.2.0.0版本接口：
+- `int taos_insert_lines(TAOS* taos, char* lines[], int numLines)`
+
+  以 Schemaless 格式写入多行数据。其中：
+    * taos：调用 taos_connect 返回的数据库连接。
+    * lines：由 char 字符串指针组成的数组，指向本次想要写入数据库的多行数据。
+    * numLines：lines 数据的总行数。 
+
+  返回值为 0 表示写入成功，非零值表示出错。具体错误代码请参见 [taoserror.h](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h) 文件。
+
+  说明：
+    1. 此接口是一个同步阻塞式接口，使用时机与 `taos_query()` 一致。
+    2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
+
+2.3.0.0版本接口：
+- `int taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, const char* precision, int* affectedRows, char* msg, int msgBufLen)`
+  **参数说明**
+    taos:  数据库连接，通过taos_connect 函数建立的数据库连接。
+    lines：文本数据。满足解析格式要求的无模式文本字符串。
+    numLines:文本数据的行数，不能为 0 。
+    protocol: 行协议类型，用于标识文本数据格式。
+    precision：文本数据中的时间戳精度字符串。
+    affectedRows：插入操作完成以后，正确写入到数据库中的记录行数。
+    msg: 如果出现错误（函数返回值不为 0）情况下，错误提示信息。该参数是输入参数，需要用户指定消息输出缓冲区，如果不指定该缓冲区（输入为NULL），即使出现错误也不会得到错误提示信息。
+    msgBufLen: 缓冲区的长度，避免错误提示消息越界。
+    
+  **返回值**
+    0：无错误发生。
+    非 0 值：发生了错误。此时可以通过msg获取错误信息的提示。该返回值含义可以参考taoserror.h文件中的错误码定义。
+  
+  **说明**
+    协议类型是枚举类型，包含以下三种格式：
+    SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)
+    SML_TELNET_PROTOCOL: OpenTSDB文本行协议
+    SML_JSON_PROTOCOL: OpenTSDB Json协议格式
+    
+    时间戳分辨率的说明使用如下字符串：“h“ （小时）、”m“（分钟）、”s“ （秒） ”ms“（毫秒）、”u“ (微秒）、”ns”（纳秒），不区分大小写。需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。对于 OpenTSDB的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+  
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <taos.h>
+ 
+int main() {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+ 
+  // error message buffer
+  char msg[512] = {0};
+   
+  // connect to server
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+   
+  // prepare the line string
+  char* lines1[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+  };
+ 
+  // schema-less insert
+  int code = taos_schemaless_insert(taos, lines1, 2, SML_LINE_PROTOCOL, "ns", msg, sizeof(msg)/sizeof(msg[0]));
+  if (code != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", msg);
+  }
+ 
+  // close the connection
+  taos_close(taos);
+  return (code);
+}
+```
+**注**：后续2.2.0.0版本也更新成2.3.0.0版本的接口。
 
 ### 连续查询接口
 
@@ -757,7 +834,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 - data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
 - rows: 表明总共多少行数据。
 
-column_meta 中的列类型说明：
+<a class="anchor" id="column_meta"></a>column_meta 中的列类型说明：
 * 1：BOOL
 * 2：TINYINT
 * 3：SMALLINT
@@ -1147,7 +1224,7 @@ var affectRows = cursor.execute('insert into test.weather values(now, 22.3, 34);
 
 execute方法的返回值为该语句影响的行数，上面的sql向test库的weather表中，插入了一条数据，则返回值affectRows为1。
 
-TDengine目前还不支持update和delete语句。
+TDengine 目前还不支持 delete 语句。但从 2.0.8.0 版本开始，可以通过 `CREATE DATABASE` 时指定的 UPDATE 参数来启用对数据行的 update。
 
 #### 查询
 

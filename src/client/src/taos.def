@@ -2,6 +2,7 @@ EXPORTS
 taos_init
 taos_cleanup
 taos_options
+taos_set_config
 taos_connect
 taos_connect_auth
 taos_close
@@ -43,3 +44,10 @@ taos_unsubscribe
 taos_open_stream
 taos_close_stream
 taos_load_table_info
+taos_data_type
+taos_stmt_set_sub_tbname
+taos_stmt_get_param
+taos_stmt_bind_param_batch
+taos_stmt_bind_single_param_batch
+taos_is_null
+taos_insert_lines

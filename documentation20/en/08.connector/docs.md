@@ -2,7 +2,7 @@
 
 TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.
 
-![image-connector](page://images/connector.png)
+![image-connector](../images/connector.png)
 
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
@@ -132,7 +132,7 @@ taos>
 
 **Windows (x64/x86) environment:**
 
-Under cmd, enter the c:\ tdengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
+Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
 
 ```mysql
   C:\TDengine>taos     
@@ -407,17 +407,17 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 - python 2.7 or >= 3.4 installed
 - pip or pip3 installed
 
-### Python client installation
+### Python connector installation
 
 #### Linux
 
 Users can find the connector package for python2 and python3 in the source code src/connector/python (or tar.gz/connector/python) folder. Users can install it through `pip` command:
 
-`pip install src/connector/python/linux/python2/`
+`pip install src/connector/python/`
 
 or
 
- `pip3 install src/connector/python/linux/python3/`
+ `pip3 install src/connector/python/`
 
 #### Windows
 
@@ -540,7 +540,7 @@ Refer to help (taos.TDengineCursor) in python. This class corresponds to the wri
 
 Used to generate an instance of taos.TDengineConnection.
 
-### Python client code sample
+### Python connector code sample
 
 In tests/examples/python, we provide a sample Python program read_example. py to guide you to design your own write and query program. After installing the corresponding client, introduce the taos class through `import taos`. The steps are as follows:
 
@@ -610,11 +610,11 @@ The return value is in JSON format, as follows:
 ```json
 {
     "status": "succ",
-    "head": ["ts","current", …],
-    "column_meta": [["ts",9,8],["current",6,4], …],
+    "head": ["ts","current",...],
+    "column_meta": [["ts",9,8],["current",6,4], ...],
     "data": [
-        ["2018-10-03 14:38:05.000", 10.3, …],
-        ["2018-10-03 14:38:15.000", 12.6, …]
+        ["2018-10-03 14:38:05.000", 10.3, ...],
+        ["2018-10-03 14:38:15.000", 12.6, ...]
     ],
     "rows": 2
 } 

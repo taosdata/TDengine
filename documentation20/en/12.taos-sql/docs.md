@@ -1,8 +1,8 @@
 # TAOS SQL
 
-TDengine provides a SQL-style language, TAOS SQL, to insert or query data. To read through this document, you should have some basic understanding about SQL.
+TDengine provides a SQL-style language, TAOS SQL, to insert or query data. This document introduces TAOS SQL and supports other common tips. To read through this document, readers should have basic understanding about SQL.
 
-TAOS SQL is the main way for users to write and query data to TDengine. TAOS SQL is similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion function for time-series data, the relevant function of data deletion is non-existent in TAO SQL.
+TAOS SQL is the main tool for users to write and query data into/from TDengine. TAOS SQL provides a syntax style similar to standard SQL to facilitate users to get started quickly. Strictly speaking, TAOS SQL is not and does not attempt to provide SQL standard syntax. In addition, since TDengine does not provide deletion functionality for time-series data, the relevant functions of data deletion is unsupported in TAO SQL.
 
 Let’s take a look at the conventions used for syntax descriptions.
 
@@ -37,7 +37,7 @@ With TDengine, the most important thing is timestamp. When creating and insertin
 - Epch Time: a timestamp value can also be a long integer representing milliseconds since 1970-01-01 08:00:00.000.
 - Arithmetic operations can be applied to timestamp. For example: now-2h represents a timestamp which is 2 hours ago from the current server time. Units include u( microsecond), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). In `select * from t1 where ts > now-2w and ts <= now-1w`, which queries data of the whole week before two weeks. To specify the interval of down sampling, you can also use n(calendar month) and y(calendar year) as time units.
 
-Default time precision of TDengine is millisecond, you can change it to microseocnd by setting parameter enableMicrosecond. 
+TDengine's timestamp is set to millisecond accuracy by default. Microsecond/nanosecond accuracy can be set using CREATE DATABASE with PRECISION parameter. (Nanosecond resolution is supported from version 2.1.5.0 onwards.)
 
 In TDengine, the following 10 data types can be used in data model of an ordinary table.
 
@@ -75,7 +75,7 @@ Note:
 2. UPDATE marks the database support updating the same timestamp data;
 3. Maximum length of the database name is 33;
 4. Maximum length of a SQL statement is 65480 characters;
-5.  Database has more storage-related configuration parameters, see System Management.
+5. Database has more storage-related configuration parameters, see [Server-side Configuration](https://www.taosdata.com/en/documentation/administrator#config) .
 
 - **Show current system parameters**
 
@@ -88,7 +88,7 @@ Note:
     ```mysql
     USE db_name;
     ```
-    Use/switch database
+    Use/switch database (Invalid when accessing through RESTful connection)
 
 - **Drop a database**
     ```mysql

@@ -763,9 +763,9 @@ static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const
       httpPopStack(parser);
       break;
     }
-    httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
+    httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_SP_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_SP_FAILED);
   } while (0);
   return ok;
 }
@@ -837,7 +837,7 @@ static int32_t httpParserPostProcess(HttpParser *parser) {
   if (parser->gzip) {
     if (ehttp_gzip_finish(parser->gzip)) {
       httpError("context:%p, fd:%d, gzip failed", pContext, pContext->fd);
-      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_FINISH_GZIP_FAILED);
+      httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_FINISH_GZIP_FAILED);
       return -1;
     }
   }
@@ -1040,7 +1040,7 @@ static int32_t httpParserOnChunk(HttpParser *parser, HTTP_PARSER_STATE state, co
       if (ehttp_gzip_write(parser->gzip, parser->str.str, parser->str.pos)) {
         httpError("context:%p, fd:%d, gzip failed", pContext, pContext->fd);
         ok = -1;
-        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
+        httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
         break;
       }
     } else {
@@ -1062,7 +1062,7 @@ static int32_t httpParserOnEnd(HttpParser *parser, HTTP_PARSER_STATE state, cons
   do {
     ok = -1;
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
-    httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_END_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_END_FAILED);
   } while (0);
   return ok;
 }
@@ -1155,10 +1155,6 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
     ok = -1;
     httpError("context:%p, fd:%d, failed to parse, invalid state", pContext, pContext->fd);
     httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_PARSE_ERROR_STATE);
-  }
-
-  if (ok != 0) {
-    pContext->error = true;
   }
 
   return ok;

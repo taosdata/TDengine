@@ -101,9 +101,9 @@ if $data11 != 2 then
   return -1
 endi
 
-## tbname in can accpet Upper case table name
+## no support tbname in Upper case
 sql select count(*) from $stb where tbname in ('ti_tb0', 'TI_tb1', 'TI_TB2') group by t1 order by t1
-if $rows != 3 then
+if $rows != 1 then
   return -1
 endi
 if $data00 != 10 then
@@ -112,24 +112,11 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data10 != 10 then
-  return -1
-endi
-if $data11 != 1 then
-  return -1
-endi
-if $data20 != 10 then
-  return -1
-endi
-if $data21 != 2 then
-  return -1
-endi
 
-# multiple tbname in is not allowed NOW
-sql_error select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbname in ('ti_tb5', 'ti_tb1000') group by t1 order by t1 asc
-#if $rows != 4 then
-#  return -1
-#endi
+sql select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbname in ('ti_tb5', 'ti_tb1000') group by t1 order by t1 asc
+if $rows != 0 then
+  return -1
+endi
 #if $data00 != $rowNum then
 #  return -1
 #endi

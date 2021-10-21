@@ -4,7 +4,7 @@
 
 `taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
-![tdengine-connector](page://images/tdengine-jdbc-connector.png)
+![tdengine-connector](../../images/tdengine-jdbc-connector.png)
 
 上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
 
@@ -68,18 +68,18 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | Java DataType      |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
+| TDengine DataType | JDBCType （driver 版本 < 2.0.24） | JDBCType （driver 版本 >= 2.0.24） |
+| ----------------- | ------------------ | ------------------ |
+| TIMESTAMP         | java.lang.Long     | java.sql.Timestamp |
+| INT               | java.lang.Integer  | java.lang.Integer  |
+| BIGINT            | java.lang.Long     | java.lang.Long     |
+| FLOAT             | java.lang.Float    | java.lang.Float    |
+| DOUBLE            | java.lang.Double   | java.lang.Double   |
+| SMALLINT          | java.lang.Short    | java.lang.Short    |
+| TINYINT           | java.lang.Byte     | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  | java.lang.Boolean  |
+| BINARY            | java.lang.String   | byte array         |
+| NCHAR             | java.lang.String   | java.lang.String   |
 
 ## 安装Java Connector
 

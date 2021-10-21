@@ -33,9 +33,11 @@
 
 int32_t    sentinel = TSC_VAR_NOT_RELEASE;
 
-SHashObj  *tscVgroupMap;         // hash map to keep the vgroup info from mnode
-SHashObj  *tscTableMetaMap;      // table meta info buffer
-SCacheObj *tscVgroupListBuf;     // super table vgroup list information, only survives 5 seconds for each super table vgroup list
+//SHashObj  *tscVgroupMap;         // hash map to keep the vgroup info from mnode
+//SHashObj  *tscTableMetaMap;      // table meta info buffer
+//SCacheObj *tscVgroupListBuf;     // super table vgroup list information, only survives 5 seconds for each super table vgroup list
+SHashObj  *tscClusterMap = NULL;        // cluster obj
+static pthread_mutex_t clusterMutex; // mutex to protect open the cluster obj
 
 int32_t    tscObjRef = -1;
 void      *tscTmr;
@@ -50,6 +52,7 @@ int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
+static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
@@ -120,6 +123,57 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   return 0;
 }
 
+void tscClusterInfoDestroy(SClusterInfo *pObj) {
+  if (pObj == NULL) { return; }
+  taosHashCleanup(pObj->vgroupMap);
+  taosHashCleanup(pObj->tableMetaMap);
+  taosCacheCleanup(pObj->vgroupListBuf);
+  tfree(pObj);
+}
+
+void *tscAcquireClusterInfo(const char *clusterId) {
+  pthread_mutex_lock(&clusterMutex);
+  
+  size_t len = strlen(clusterId);
+  SClusterInfo *pObj   = NULL;
+  SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
+  if (ppObj == NULL || *ppObj == NULL) {
+    pObj = calloc(1, sizeof(SClusterInfo));
+    if (pObj) {
+      pObj->vgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+      pObj->tableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK); //
+      pObj->vgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
+      if (pObj->vgroupMap == NULL || pObj->tableMetaMap == NULL || pObj->vgroupListBuf == NULL) {
+        tscClusterInfoDestroy(pObj);
+        pObj = NULL;
+      } else {
+        taosHashPut(tscClusterMap, clusterId, len, &pObj, POINTER_BYTES);
+      } 
+    }
+  } else {
+    pObj = *ppObj;
+  }
+
+  if (pObj) { pObj->ref += 1; }
+  
+  pthread_mutex_unlock(&clusterMutex);
+  return pObj;
+}
+void tscReleaseClusterInfo(const char *clusterId) {
+  pthread_mutex_lock(&clusterMutex);
+
+  size_t len = strlen(clusterId); 
+  SClusterInfo *pObj = NULL;
+  SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
+  if (ppObj != NULL && *ppObj != NULL) {
+    pObj = *ppObj;
+  }
+  if (pObj && --pObj->ref == 0) {
+    taosHashRemove(tscClusterMap, clusterId, len);
+    tscClusterInfoDestroy(pObj); 
+  }
+  pthread_mutex_unlock(&clusterMutex);
+}
 void taos_init_imp(void) {
   char temp[128] = {0};
 
@@ -187,12 +241,16 @@ void taos_init_imp(void) {
     taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
-  if (tscTableMetaMap == NULL) {
+  if (tscClusterMap == NULL) {
     tscObjRef        = taosOpenRef(40960, tscFreeRegisteredSqlObj);
-    tscVgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    tscTableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    tscVgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
-    tscDebug("TableMeta:%p, vgroup:%p is initialized", tscTableMetaMap, tscVgroupMap);
+
+    tscClusterMap    = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK); 
+    pthread_mutex_init(&clusterMutex, NULL); 
+    //tscVgroupMap     = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    //tscTableMetaMap  = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    //tscVgroupListBuf = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, NULL, "stable-vgroup-list");
+    //tscDebug("TableMeta:%p, vgroup:%p is initialized", tscTableMetaMap, tscVgroupMap);
+
   }
    
   int refreshTime = 5;
@@ -221,12 +279,6 @@ void taos_cleanup(void) {
     scriptEnvPoolCleanup();
   }
 
-  taosHashCleanup(tscTableMetaMap);
-  tscTableMetaMap = NULL;
-
-  taosHashCleanup(tscVgroupMap);
-  tscVgroupMap = NULL;
-
   int32_t id = tscObjRef;
   tscObjRef = -1;
   taosCloseRef(id);
@@ -249,13 +301,16 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
-  taosCacheCleanup(tscVgroupListBuf);
-  tscVgroupListBuf = NULL;
+  pthread_mutex_destroy(&setConfMutex);
 
   if (tscEmbedded == 0) {
     rpcCleanup();
     taosCloseLog();
   };
+
+  taosHashCleanup(tscClusterMap);
+  tscClusterMap = NULL;
+  pthread_mutex_destroy(&clusterMutex);
 
   p = tscTmr;
   tscTmr = NULL;
@@ -435,5 +490,68 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   int ret = taos_options_imp(option, (const char*)arg);
 
   atomic_store_32(&lock, 0);
+  return ret;
+}
+
+#include "cJSON.h"
+static setConfRet taos_set_config_imp(const char *config){
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+  static bool setConfFlag = false;
+  if (setConfFlag) {
+    ret.retCode = SET_CONF_RET_ERR_ONLY_ONCE;
+    strcpy(ret.retMsg, "configuration can only set once");
+    return ret;
+  }
+  taosInitGlobalCfg();
+  cJSON *root = cJSON_Parse(config);
+  if (root == NULL){
+    ret.retCode = SET_CONF_RET_ERR_JSON_PARSE;
+    strcpy(ret.retMsg, "parse json error");
+    return ret;
+  }
+
+  int size = cJSON_GetArraySize(root);
+  if(!cJSON_IsObject(root) || size == 0) {
+    ret.retCode = SET_CONF_RET_ERR_JSON_INVALID;
+    strcpy(ret.retMsg, "json content is invalid, must be not empty object");
+    return ret;
+  }
+
+  if(size >= 1000) {
+    ret.retCode = SET_CONF_RET_ERR_TOO_LONG;
+    strcpy(ret.retMsg, "json object size is too long");
+    return ret;
+  }
+
+  for(int i = 0; i < size; i++){
+    cJSON *item = cJSON_GetArrayItem(root, i);
+    if(!item) {
+      ret.retCode = SET_CONF_RET_ERR_INNER;
+      strcpy(ret.retMsg, "inner error");
+      return ret;
+    }
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION, TSDB_CFG_CTYPE_B_CLIENT)){
+      ret.retCode = SET_CONF_RET_ERR_PART;
+      if (strlen(ret.retMsg) == 0){
+        snprintf(ret.retMsg, RET_MSG_LENGTH, "part error|%s", item->string);
+      }else{
+        int tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+        size_t leftSize = tmp >= 0 ? tmp : 0;
+        strncat(ret.retMsg, "|",  leftSize);
+        tmp = RET_MSG_LENGTH - 1 - (int)strlen(ret.retMsg);
+        leftSize = tmp >= 0 ? tmp : 0;
+        strncat(ret.retMsg, item->string, leftSize);
+      }
+    }
+  }
+  cJSON_Delete(root);
+  setConfFlag = true;
+  return ret;
+}
+
+setConfRet taos_set_config(const char *config){
+  pthread_mutex_lock(&setConfMutex);
+  setConfRet ret = taos_set_config_imp(config);
+  pthread_mutex_unlock(&setConfMutex);
   return ret;
 }

@@ -22,6 +22,18 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
+### 使用 apt-get 安装
+
+如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 从官方仓库安装，设置方法为：
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[ beta 版安装包仓库为可选安装项 ] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
+
 <a class="anchor" id="start"></a>
 ## 轻松启动
 
@@ -163,8 +175,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
+## <a class="anchor" id="taosdemo"></a> taosdemo 详细功能列表
 
-**Note:** taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
+taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
+taosdemo 详细使用方法请参照 [如何使用taosdemo对TDengine进行性能测试？](https://www.taosdata.com/cn/documentation/getting-started/taosdemo )。
 
 ## 客户端和报警模块
 

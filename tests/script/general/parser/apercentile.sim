@@ -1,0 +1,214 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+system sh/cfg.sh -n dnode1 -c cache -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+
+sql drop database if exists cdb
+sql create database if not exists cdb 
+sql use cdb
+
+sql create table stb4 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9),c10 binary(16300)) TAGS(t1 int, t2 binary(10), t3 double)
+
+sql create table tb4_0 using stb4 tags(0,'0',0.0)
+sql create table tb4_1 using stb4 tags(1,'1',1.0)
+sql create table tb4_2 using stb4 tags(2,'2',2.0)
+sql create table tb4_3 using stb4 tags(3,'3',3.0)
+sql create table tb4_4 using stb4 tags(4,'4',4.0)
+
+$i = 0
+$ts0 = 1625850000000
+$blockNum = 5
+$delta = 0
+$tbname0 = tb4_
+$a = 0
+$b = 200
+$c = 400
+while $i < $blockNum
+  $x = 0
+  $rowNum = 200
+  while $x < $rowNum
+    $ts = $ts0 + $x
+    $a = $a + 1
+    $b = $b + 1
+    $c = $c + 1
+    $d = $x / 10
+    $tin = $rowNum
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    $tbname = 'tb4_ . $i
+    $tbname = $tbname . '
+    sql insert into $tbname values ( $ts , $a , $b , $c , $d , $d , $c , true, $binary , $nchar , $binary )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $ts0 = $ts0 + 259200000
+endw
+
+sleep 100
+
+sql connect
+sql use cdb;
+
+sql_error select apercentile(c1,101,1) from stb4 group by tbname;
+sql_error select apercentile(c1,100,2) from stb4 group by tbname;
+sql_error select apercentile(c1,52.111111111111,1,1) from stb4 group by tbname ;
+
+sql select apercentile(c1,90,0) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @180.000000000@ then
+  return -1
+endi
+if $data10 != @380.000000000@ then
+  return -1
+endi
+if $data20 != @580.000000000@ then
+  return -1
+endi
+if $data30 != @780.000000000@ then
+  return -1
+endi
+if $data40 != @980.000000000@ then
+  return -1
+endi
+
+sql select apercentile(c1,90,1) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @180.500000000@ then
+  return -1
+endi
+if $data10 != @380.500000000@ then
+  return -1
+endi
+if $data20 != @580.500000000@ then
+  return -1
+endi
+if $data30 != @780.500000000@ then
+  return -1
+endi
+if $data40 != @980.500000000@ then
+  return -1
+endi
+
+sql select apercentile(c1,1,0) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @2.000000000@ then
+  return -1
+endi
+if $data10 != @202.000000000@ then
+  return -1
+endi
+if $data20 != @402.000000000@ then
+  return -1
+endi
+if $data30 != @602.000000000@ then
+  return -1
+endi
+if $data40 != @802.000000000@ then
+  return -1
+endi
+
+sql select apercentile(c1,1,1) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @2.500000000@ then
+  return -1
+endi
+if $data10 != @202.500000000@ then
+  return -1
+endi
+if $data20 != @402.500000000@ then
+  return -1
+endi
+if $data30 != @602.500000000@ then
+  return -1
+endi
+if $data40 != @802.500000000@ then
+  return -1
+endi
+
+sql select apercentile(c1,52.111111111111,0) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @104.222222222@ then
+  return -1
+endi
+if $data10 != @304.222222222@ then
+  return -1
+endi
+if $data20 != @504.222222222@ then
+  return -1
+endi
+if $data30 != @704.222222222@ then
+  return -1
+endi
+if $data40 != @904.222222222@ then
+  return -1
+endi
+
+sql select apercentile(c1,52.111111111111) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @104.222222222@ then
+  return -1
+endi
+if $data10 != @304.222222222@ then
+  return -1
+endi
+if $data20 != @504.222222222@ then
+  return -1
+endi
+if $data30 != @704.222222222@ then
+  return -1
+endi
+if $data40 != @904.222222222@ then
+  return -1
+endi
+
+
+sql select apercentile(c1,52.111111111111,1) from stb4 group by tbname;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @104.722222222@ then
+  return -1
+endi
+if $data10 != @304.722222222@ then
+  return -1
+endi
+if $data20 != @504.722222222@ then
+  return -1
+endi
+if $data30 != @704.722222222@ then
+  return -1
+endi
+if $data40 != @904.722222222@ then
+  return -1
+endi
+
+sql select apercentile(c1,52.111111111111,1) from tb4_0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @104.722222222@ then
+  return -1
+endi
+
+

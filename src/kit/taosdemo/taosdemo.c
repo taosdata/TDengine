@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <taos.h>
+#include <taoserror.h>
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 
@@ -55,6 +56,7 @@
 
 #define REQ_EXTRA_BUF_LEN   1024
 #define RESP_BUF_LEN        4096
+#define SQL_BUFF_LEN        1024
 
 extern char configDir[];
 
@@ -65,6 +67,7 @@ extern char configDir[];
 #define HEAD_BUFF_LEN       TSDB_MAX_COLUMNS*24  // 16*MAX_COLUMNS + (192+32)*2 + insert into ..
 
 #define BUFFER_SIZE         TSDB_MAX_ALLOWED_SQL_LEN
+#define FETCH_BUFFER_SIZE   100 * TSDB_MAX_ALLOWED_SQL_LEN
 #define COND_BUF_LEN        (BUFFER_SIZE - 30)
 #define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
 
@@ -78,16 +81,17 @@ extern char configDir[];
 #define DEFAULT_START_TIME 1500000000000
 
 #define MAX_PREPARED_RAND  1000000
-#define INT_BUFF_LEN            11
+#define INT_BUFF_LEN            12
 #define BIGINT_BUFF_LEN         21
-#define SMALLINT_BUFF_LEN       6
-#define TINYINT_BUFF_LEN        4
+#define SMALLINT_BUFF_LEN       7
+#define TINYINT_BUFF_LEN        5
 #define BOOL_BUFF_LEN           6
 #define FLOAT_BUFF_LEN          22
 #define DOUBLE_BUFF_LEN         42
 #define TIMESTAMP_BUFF_LEN      21
+#define PRINT_STAT_INTERVAL     30*1000
 
-#define MAX_SAMPLES_ONCE_FROM_FILE   10000
+#define MAX_SAMPLES             10000
 #define MAX_NUM_COLUMNS        (TSDB_MAX_COLUMNS - 1)      // exclude first column timestamp
 
 #define MAX_DB_COUNT            8
@@ -96,18 +100,67 @@ extern char configDir[];
 #define MAX_QUERY_SQL_COUNT     100
 
 #define MAX_DATABASE_COUNT      256
-#define INPUT_BUF_LEN           256
+#define MAX_JSON_BUFF           6400000
 
+#define INPUT_BUF_LEN           256
+#define EXTRA_SQL_LEN           256
 #define TBNAME_PREFIX_LEN       (TSDB_TABLE_NAME_LEN - 20) // 20 characters reserved for seq
 #define SMALL_BUFF_LEN          8
 #define DATATYPE_BUFF_LEN       (SMALL_BUFF_LEN*3)
 #define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
+#define DEFAULT_NTHREADS        8
 #define DEFAULT_TIMESTAMP_STEP  1
 #define DEFAULT_INTERLACE_ROWS  0
 #define DEFAULT_DATATYPE_NUM    1
 #define DEFAULT_CHILDTABLES     10000
+#define DEFAULT_TEST_MODE       0
+#define DEFAULT_METAFILE        NULL
+#define DEFAULT_SQLFILE         NULL
+#define DEFAULT_HOST            "localhost"
+#define DEFAULT_PORT            6030
+#define DEFAULT_IFACE           INTERFACE_BUT
+#define DEFAULT_DATABASE        "test"
+#define DEFAULT_REPLICA         1
+#define DEFAULT_TB_PREFIX       "d"
+#define DEFAULT_ESCAPE_CHAR     false
+#define DEFAULT_USE_METRIC      true
+#define DEFAULT_DROP_DB         true
+#define DEFAULT_AGGR_FUNC       false
+#define DEFAULT_DEBUG           false
+#define DEFAULT_VERBOSE         false
+#define DEFAULT_PERF_STAT       false
+#define DEFAULT_ANS_YES         false
+#define DEFAULT_OUTPUT          "./output.txt"
+#define DEFAULT_SYNC_MODE       0
+#define DEFAULT_DATA_TYPE       {TSDB_DATA_TYPE_FLOAT,TSDB_DATA_TYPE_INT,TSDB_DATA_TYPE_FLOAT}
+#define DEFAULT_DATATYPE        {"FLOAT","INT","FLOAT"}
+#define DEFAULT_BINWIDTH        64
+#define DEFAULT_COL_COUNT       4
+#define DEFAULT_LEN_ONE_ROW     76
+#define DEFAULT_INSERT_INTERVAL 0
+#define DEFAULT_QUERY_TIME      1
+#define DEFAULT_PREPARED_RAND   10000
+#define DEFAULT_REQ_PER_REQ     30000
+#define DEFAULT_INSERT_ROWS     10000
+#define DEFAULT_ABORT           0
+#define DEFAULT_RATIO           0
+#define DEFAULT_DISORDER_RANGE  1000
+#define DEFAULT_METHOD_DEL      1
+#define DEFAULT_TOTAL_INSERT    0
+#define DEFAULT_TOTAL_AFFECT    0
+#define DEFAULT_DEMO_MODE       true
+#define DEFAULT_CREATE_BATCH    10
+#define DEFAULT_SUB_INTERVAL    10000
+#define DEFAULT_QUERY_INTERVAL    10000
 
+#define STMT_BIND_PARAM_BATCH   1
+
+char* g_sampleDataBuf = NULL;
+#if STMT_BIND_PARAM_BATCH == 1
+    // bind param batch
+char* g_sampleBindBatchArray = NULL;
+#endif
 
 enum TEST_MODE {
     INSERT_TEST,            // 0
@@ -116,17 +169,17 @@ enum TEST_MODE {
     INVAID_TEST
 };
 
-typedef enum CREATE_SUB_TALBE_MOD_EN {
+typedef enum CREATE_SUB_TABLE_MOD_EN {
     PRE_CREATE_SUBTBL,
     AUTO_CREATE_SUBTBL,
     NO_CREATE_SUBTBL
-} CREATE_SUB_TALBE_MOD_EN;
+} CREATE_SUB_TABLE_MOD_EN;
 
-typedef enum TALBE_EXISTS_EN {
+typedef enum TABLE_EXISTS_EN {
     TBL_NO_EXISTS,
     TBL_ALREADY_EXISTS,
     TBL_EXISTS_BUTT
-} TALBE_EXISTS_EN;
+} TABLE_EXISTS_EN;
 
 enum enumSYNC_MODE {
     SYNC_MODE,
@@ -138,6 +191,7 @@ enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
     REST_IFACE,
     STMT_IFACE,
+    SML_IFACE,
     INTERFACE_BUT
 };
 
@@ -216,31 +270,35 @@ typedef struct SArguments_S {
     char *   database;
     int      replica;
     char *   tb_prefix;
+    bool     escapeChar;
     char *   sqlFile;
     bool     use_metric;
     bool     drop_database;
-    bool     insert_only;
+    bool     aggr_func;
     bool     answer_yes;
     bool     debug_print;
     bool     verbose_print;
     bool     performance_print;
     char *   output_file;
     bool     async_mode;
-    char *   datatype[MAX_NUM_COLUMNS + 1];
+    char     data_type[MAX_NUM_COLUMNS+1];
+    char     *dataType[MAX_NUM_COLUMNS+1];
     uint32_t binwidth;
-    uint32_t num_of_CPR;
-    uint32_t num_of_threads;
+    uint32_t columnCount;
+    uint64_t lenOfOneRow;
+    uint32_t nthreads;
     uint64_t insert_interval;
     uint64_t timestamp_step;
     int64_t  query_times;
-    uint32_t interlace_rows;
-    uint32_t num_of_RPR;                  // num_of_records_per_req
+    int64_t  prepared_rand;
+    uint32_t interlaceRows;
+    uint32_t reqPerReq;                  // num_of_records_per_req
     uint64_t max_sql_len;
-    int64_t  num_of_tables;
-    int64_t  num_of_DPT;
+    int64_t  ntables;
+    int64_t  insertRows;
     int      abort;
     uint32_t disorderRatio;               // 0: no disorder, >0: x%
-    int      disorderRange;               // ms, us or ns. accordig to database precision
+    int      disorderRange;               // ms, us or ns. according to database precision
     uint32_t method_of_delete;
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
@@ -248,14 +306,15 @@ typedef struct SArguments_S {
 } SArguments;
 
 typedef struct SColumn_S {
-    char      field[TSDB_COL_NAME_LEN];
-    char      dataType[DATATYPE_BUFF_LEN];
-    uint32_t  dataLen;
-    char      note[NOTE_BUFF_LEN];
+    char        field[TSDB_COL_NAME_LEN];
+    char        data_type;
+    char        dataType[DATATYPE_BUFF_LEN];
+    uint32_t    dataLen;
+    char        note[NOTE_BUFF_LEN];
 } StrColumn;
 
 typedef struct SSuperTable_S {
-    char         sTblName[TSDB_TABLE_NAME_LEN];
+    char         stbName[TSDB_TABLE_NAME_LEN];
     char         dataSource[SMALL_BUFF_LEN];  // rand_gen or sample
     char         childTblPrefix[TBNAME_PREFIX_LEN];
     uint16_t     childTblExists;
@@ -286,19 +345,23 @@ typedef struct SSuperTable_S {
     StrColumn    tags[TSDB_MAX_TAGS];
 
     char*        childTblName;
+    bool         escapeChar;
     char*        colsOfCreateChildTable;
     uint64_t     lenOfOneRow;
     uint64_t     lenOfTagOfOneRow;
 
     char*        sampleDataBuf;
-    //int          sampleRowCount;
-    //int          sampleUsePos;
+    bool         useSampleTs;
 
     uint32_t     tagSource;    // 0: rand, 1: tag sample
     char*        tagDataBuf;
     uint32_t     tagSampleCount;
     uint32_t     tagUsePos;
 
+#if STMT_BIND_PARAM_BATCH == 1
+    // bind param batch
+    char        *sampleBindBatchArray;
+#endif
     // statistics
     uint64_t     totalInsertRows;
     uint64_t     totalAffectedRows;
@@ -349,7 +412,7 @@ typedef struct SDataBase_S {
     bool         drop;  // 0: use exists, 1: if exists, drop then new create
     SDbCfg       dbCfg;
     uint64_t     superTblCount;
-    SSuperTable  superTbls[MAX_SUPER_TABLE_COUNT];
+    SSuperTable*  superTbls;
 } SDataBase;
 
 typedef struct SDbs_S {
@@ -362,23 +425,21 @@ typedef struct SDbs_S {
     char        password[SHELL_MAX_PASSWORD_LEN];
     char        resultFile[MAX_FILE_NAME_LEN];
     bool        use_metric;
-    bool        insert_only;
-    bool        do_aggreFunc;
+    bool        aggr_func;
     bool        asyncMode;
 
     uint32_t    threadCount;
     uint32_t    threadCountForCreateTbl;
     uint32_t    dbCount;
-    SDataBase   db[MAX_DB_COUNT];
-
     // statistics
     uint64_t    totalInsertRows;
     uint64_t    totalAffectedRows;
 
+    SDataBase*  db;
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
-    uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
+    uint64_t     queryInterval;  // 0: unlimited  > 0   loop/s
     uint32_t     concurrent;
     int          sqlCount;
     uint32_t     asyncMode; // 0: sync, 1: async
@@ -398,8 +459,8 @@ typedef struct SpecifiedQueryInfo_S {
 } SpecifiedQueryInfo;
 
 typedef struct SuperQueryInfo_S {
-    char         sTblName[TSDB_TABLE_NAME_LEN];
-    uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
+    char         stbName[TSDB_TABLE_NAME_LEN];
+    uint64_t     queryInterval;  // 0: unlimited  > 0   loop/s
     uint32_t     threadCnt;
     uint32_t     asyncMode; // 0: sync, 1: async
     uint64_t     subscribeInterval; // ms
@@ -437,12 +498,20 @@ typedef struct SQueryMetaInfo_S {
 typedef struct SThreadInfo_S {
     TAOS *    taos;
     TAOS_STMT *stmt;
-    char*     sampleBindArray;
-    int64_t   *bind_ts;
+    int64_t     *bind_ts;
+
+#if STMT_BIND_PARAM_BATCH == 1
+    int64_t     *bind_ts_array;
+    char        *bindParams;
+    char        *is_null;
+#else
+    char*       sampleBindArray;
+#endif
+
     int       threadID;
     char      db_name[TSDB_DB_NAME_LEN];
     uint32_t  time_precision;
-    char      filePath[4096];
+    char      filePath[TSDB_FILENAME_LEN];
     FILE      *fp;
     char      tb_prefix[TSDB_TABLE_NAME_LEN];
     uint64_t  start_table_from;
@@ -480,6 +549,8 @@ typedef struct SThreadInfo_S {
     uint64_t  querySeq;   // sequence number of sql command
     TAOS_SUB*  tsub;
 
+    char**    lines;
+    int       sockfd;
 } threadInfo;
 
 #ifdef WINDOWS
@@ -559,84 +630,87 @@ static void prompt();
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
-static int postProceSql(char *host, struct sockaddr_in *pServAddr,
-        uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
+static int postProceSql(char *host, uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
 static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
         int disorderRatio, int disorderRange);
 static bool getInfoFromJsonFile(char* file);
 static void init_rand_data();
+static int regexMatch(const char *s, const char *reg, int cflags);
 
 /* ************ Global variables ************  */
 
-int32_t  g_randint[MAX_PREPARED_RAND];
-int64_t  g_randbigint[MAX_PREPARED_RAND];
-float    g_randfloat[MAX_PREPARED_RAND];
-double   g_randdouble[MAX_PREPARED_RAND];
+int32_t*  g_randint;
+uint32_t*  g_randuint;
+int64_t*  g_randbigint;
+uint64_t*  g_randubigint;
+float*    g_randfloat;
+double*   g_randdouble;
 
 char    *g_randbool_buff = NULL;
 char    *g_randint_buff = NULL;
+char    *g_randuint_buff = NULL;
 char    *g_rand_voltage_buff = NULL;
 char    *g_randbigint_buff = NULL;
+char    *g_randubigint_buff = NULL;
 char    *g_randsmallint_buff = NULL;
+char    *g_randusmallint_buff = NULL;
 char    *g_randtinyint_buff = NULL;
+char    *g_randutinyint_buff = NULL;
 char    *g_randfloat_buff = NULL;
 char    *g_rand_current_buff = NULL;
 char    *g_rand_phase_buff = NULL;
 char    *g_randdouble_buff = NULL;
 
-char    *g_aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
-    "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
+char    *g_aggreFuncDemo[] = {"*", "count(*)", "avg(current)", "sum(current)",
+    "max(current)", "min(current)", "first(current)", "last(current)"};
+
+char    *g_aggreFunc[] = {"*", "count(*)", "avg(C0)", "sum(C0)",
+    "max(C0)", "min(C0)", "first(C0)", "last(C0)"};
 
 SArguments g_args = {
-    NULL,           // metaFile
-    0,              // test_mode
-    "localhost",    // host
-    6030,           // port
-    INTERFACE_BUT,  // iface
-    "root",         // user
-#ifdef _TD_POWER_
-    "powerdb",      // password
-#elif (_TD_TQ_ == true)
-    "tqueue",       // password
-#else
-    "taosdata",     // password
-#endif
-    "test",         // database
-    1,              // replica
-    "d",             // tb_prefix
-    NULL,            // sqlFile
-    true,            // use_metric
-    true,            // drop_database
-    true,            // insert_only
-    false,           // debug_print
-    false,           // verbose_print
-    false,           // performance statistic print
-    false,           // answer_yes;
-    "./output.txt",  // output_file
-    0,               // mode : sync or async
-    {
-        "FLOAT",         // datatype
-        "INT",           // datatype
-        "FLOAT",         // datatype. DEFAULT_DATATYPE_NUM is 3
-    },
-    64,              // binwidth
-    4,               // num_of_CPR
-    10,              // num_of_connections/thread
-    0,               // insert_interval
-    DEFAULT_TIMESTAMP_STEP, // timestamp_step
-    1,               // query_times
-    DEFAULT_INTERLACE_ROWS, // interlace_rows;
-    30000,           // num_of_RPR
-    (1024*1024),     // max_sql_len
-    DEFAULT_CHILDTABLES,    // num_of_tables
-    10000,           // num_of_DPT
-    0,               // abort
-    0,               // disorderRatio
-    1000,            // disorderRange
-    1,               // method_of_delete
-    0,               // totalInsertRows;
-    0,               // totalAffectedRows;
-    true,            // demo_mode;
+    DEFAULT_METAFILE,                      // metaFile
+    DEFAULT_TEST_MODE,                     // test_mode
+    DEFAULT_HOST,                          // host
+    DEFAULT_PORT,                          // port
+    DEFAULT_IFACE,                         // iface
+    TSDB_DEFAULT_USER,                     // user
+    TSDB_DEFAULT_PASS,                     // password
+    DEFAULT_DATABASE,                      // database
+    DEFAULT_REPLICA,                       // replica
+    DEFAULT_TB_PREFIX,                     // tb_prefix
+    DEFAULT_ESCAPE_CHAR,                   // escapeChar
+    DEFAULT_SQLFILE,                       // sqlFile
+    DEFAULT_USE_METRIC,                    // use_metric
+    DEFAULT_DROP_DB,                       // drop_database
+    DEFAULT_AGGR_FUNC,                     // aggr_func
+    DEFAULT_DEBUG,                         // debug_print
+    DEFAULT_VERBOSE,                       // verbose_print
+    DEFAULT_PERF_STAT,                     // performance statistic print
+    DEFAULT_ANS_YES,                       // answer_yes;
+    DEFAULT_OUTPUT,                        // output_file
+    DEFAULT_SYNC_MODE,                     // mode : sync or async
+    DEFAULT_DATA_TYPE,                     // data_type
+    DEFAULT_DATATYPE,                      // dataType
+    DEFAULT_BINWIDTH,                      // binwidth
+    DEFAULT_COL_COUNT,                     // columnCount, timestamp + float + int + float
+    DEFAULT_LEN_ONE_ROW,                   // lenOfOneRow
+    DEFAULT_NTHREADS,                      // nthreads
+    DEFAULT_INSERT_INTERVAL,               // insert_interval
+    DEFAULT_TIMESTAMP_STEP,                // timestamp_step
+    DEFAULT_QUERY_TIME,                    // query_times
+    DEFAULT_PREPARED_RAND,                 // prepared_rand
+    DEFAULT_INTERLACE_ROWS,                // interlaceRows;
+    DEFAULT_REQ_PER_REQ,                   // reqPerReq
+    TSDB_MAX_ALLOWED_SQL_LEN,              // max_sql_len
+    DEFAULT_CHILDTABLES,                   // ntables
+    DEFAULT_INSERT_ROWS,                   // insertRows
+    DEFAULT_ABORT,                         // abort
+    DEFAULT_RATIO,                         // disorderRatio
+    DEFAULT_DISORDER_RANGE,                // disorderRange
+    DEFAULT_METHOD_DEL,                    // method_of_delete
+    DEFAULT_TOTAL_INSERT,                  // totalInsertRows;
+    DEFAULT_TOTAL_AFFECT,                  // totalAffectedRows;
+    DEFAULT_DEMO_MODE,                     // demo_mode;
 };
 
 static SDbs            g_Dbs;
@@ -691,7 +765,7 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 ///////////////////////////////////////////////////
 
-static void ERROR_EXIT(const char *msg) { errorPrint("%s", msg); exit(-1); }
+static void ERROR_EXIT(const char *msg) { errorPrint("%s", msg); exit(EXIT_FAILURE); }
 
 #ifndef TAOSDEMO_COMMIT_SHA1
 #define TAOSDEMO_COMMIT_SHA1 "unknown"
@@ -711,10 +785,10 @@ static void printVersion() {
     char taosdemo_status[] = TAOSDEMO_STATUS;
 
     if (strlen(taosdemo_status) == 0) {
-        printf("taosdemo verison %s-%s\n",
+        printf("taosdemo version %s-%s\n",
                 tdengine_ver, taosdemo_ver);
     } else {
-        printf("taosdemo verison %s-%s, status:%s\n",
+        printf("taosdemo version %s-%s, status:%s\n",
                 tdengine_ver, taosdemo_ver, taosdemo_status);
     }
 }
@@ -723,19 +797,24 @@ static void printHelp() {
     char indent[10] = "  ";
     printf("%s\n\n", "Usage: taosdemo [OPTION...]");
     printf("%s%s%s%s\n", indent, "-f, --file=FILE", "\t\t",
-            "The meta file to the execution procedure. Default is './meta.json'.");
+            "The meta file to the execution procedure.");
     printf("%s%s%s%s\n", indent, "-u, --user=USER", "\t\t",
             "The user name to use when connecting to the server.");
 #ifdef _TD_POWER_
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. Default is 'powerdb'");
+            "The password to use when connecting to the server. By default is 'powerdb'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. Default is '/etc/power/'.");
+            "Configuration directory. By default is '/etc/power/'.");
 #elif (_TD_TQ_ == true)
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. Default is 'tqueue'");
+            "The password to use when connecting to the server. By default is 'tqueue'");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. Default is '/etc/tq/'.");
+            "Configuration directory. By default is '/etc/tq/'.");
+#elif (_TD_PRO_ == true)
+    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
+            "The password to use when connecting to the server. By default is 'prodb'");
+    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
+            "Configuration directory. By default is '/etc/ProDB/'.");
 #else
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
             "The password to use when connecting to the server.");
@@ -747,24 +826,26 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
             "The TCP/IP port number to use for the connection.");
     printf("%s%s%s%s\n", indent, "-I, --interface=INTERFACE", "\t",
-            "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
+            "The interface (taosc, rest, and stmt) taosdemo uses. By default use 'taosc'.");
     printf("%s%s%s%s\n", indent, "-d, --database=DATABASE", "\t",
-            "Destination database. Default is 'test'.");
+            "Destination database. By default is 'test'.");
     printf("%s%s%s%s\n", indent, "-a, --replica=REPLICA", "\t\t",
-            "Set the replica parameters of the database, Default 1, min: 1, max: 3.");
+            "Set the replica parameters of the database, By default use 1, min: 1, max: 3.");
     printf("%s%s%s%s\n", indent, "-m, --table-prefix=TABLEPREFIX", "\t",
-            "Table prefix name. Default is 'd'.");
+            "Table prefix name. By default use 'd'.");
+    printf("%s%s%s%s\n", indent, "-E, --escape-character", "\t",
+            "Use escape character for Both Stable and normmal table name");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
             "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t", "Use normal table flag.");
     printf("%s%s%s%s\n", indent, "-o, --output=FILE", "\t\t",
-            "Direct output to the named file. Default is './output.txt'.");
+            "Direct output to the named file. By default use './output.txt'.");
     printf("%s%s%s%s\n", indent, "-q, --query-mode=MODE", "\t\t",
-            "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
+            "Query mode -- 0: SYNC, 1: ASYNC. By default use SYNC.");
     printf("%s%s%s%s\n", indent, "-b, --data-type=DATATYPE", "\t",
-            "The data_type of columns, default: FLOAT, INT, FLOAT.");
+            "The data_type of columns, By default use: FLOAT,INT,FLOAT. NCHAR and BINARY can also use custom length. Eg: NCHAR(16),BINARY(8)");
     printf("%s%s%s%s%d\n", indent, "-w, --binwidth=WIDTH", "\t\t",
-            "The width of data_type 'BINARY' or 'NCHAR'. Default is ",
+            "The width of data_type 'BINARY' or 'NCHAR'. By default use ",
             g_args.binwidth);
     printf("%s%s%s%s%d%s%d\n", indent, "-l, --columns=COLUMNS", "\t\t",
             "The number of columns per record. Demo mode by default is ",
@@ -773,32 +854,32 @@ static void printHelp() {
             MAX_NUM_COLUMNS);
     printf("%s%s%s%s\n", indent, indent, indent,
             "\t\t\t\tAll of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
-    printf("%s%s%s%s\n", indent, "-T, --threads=NUMBER", "\t\t",
-            "The number of threads. Default is 10.");
+    printf("%s%s%s%s%d.\n", indent, "-T, --threads=NUMBER", "\t\t",
+            "The number of threads. By default use ", DEFAULT_NTHREADS);
     printf("%s%s%s%s\n", indent, "-i, --insert-interval=NUMBER", "\t",
-            "The sleep time (ms) between insertion. Default is 0.");
+            "The sleep time (ms) between insertion. By default is 0.");
     printf("%s%s%s%s%d.\n", indent, "-S, --time-step=TIME_STEP", "\t",
-            "The timestamp step between insertion. Default is ",
+            "The timestamp step between insertion. By default is ",
             DEFAULT_TIMESTAMP_STEP);
     printf("%s%s%s%s%d.\n", indent, "-B, --interlace-rows=NUMBER", "\t",
-            "The interlace rows of insertion. Default is ",
+            "The interlace rows of insertion. By default is ",
             DEFAULT_INTERLACE_ROWS);
     printf("%s%s%s%s\n", indent, "-r, --rec-per-req=NUMBER", "\t",
-            "The number of records per request. Default is 30000.");
+            "The number of records per request. By default is 30000.");
     printf("%s%s%s%s\n", indent, "-t, --tables=NUMBER", "\t\t",
-            "The number of tables. Default is 10000.");
+            "The number of tables. By default is 10000.");
     printf("%s%s%s%s\n", indent, "-n, --records=NUMBER", "\t\t",
-            "The number of records per table. Default is 10000.");
+            "The number of records per table. By default is 10000.");
     printf("%s%s%s%s\n", indent, "-M, --random", "\t\t\t",
             "The value of records generated are totally random.");
-    printf("%s\n", "\t\t\t\tThe default is to simulate power equipment senario.");
-    printf("%s%s%s%s\n", indent, "-x, --no-insert", "\t\t",
-            "No-insert flag.");
-    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Default input yes for prompt.");
+    printf("%s\n", "\t\t\t\tBy default to simulate power equipment scenario.");
+    printf("%s%s%s%s\n", indent, "-x, --aggr-func", "\t\t",
+            "Test aggregation functions after insertion.");
+    printf("%s%s%s%s\n", indent, "-y, --answer-yes", "\t\t", "Input yes for prompt.");
     printf("%s%s%s%s\n", indent, "-O, --disorder=NUMBER", "\t\t",
-            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. Default is in order.");
+            "Insert order mode--0: In order, 1 ~ 50: disorder ratio. By default is in order.");
     printf("%s%s%s%s\n", indent, "-R, --disorder-range=NUMBER", "\t",
-            "Out of order data's range, ms, default is 1000.");
+            "Out of order data's range. Unit is ms. By default is 1000.");
     printf("%s%s%s%s\n", indent, "-g, --debug", "\t\t\t",
             "Print debug info.");
     printf("%s%s%s%s\n", indent, "-?, --help\t", "\t\t",
@@ -836,7 +917,7 @@ static void errorWrongValue(char *program, char *wrong_arg, char *wrong_value)
     fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
 }
 
-static void errorUnreconized(char *program, char *wrong_arg)
+static void errorUnrecognized(char *program, char *wrong_arg)
 {
     fprintf(stderr, "%s: unrecognized options '%s'\n", program, wrong_arg);
     fprintf(stderr, "Try `taosdemo --help' or `taosdemo --usage' for more information.\n");
@@ -893,7 +974,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "--file=", strlen("--file="))) {
                 arguments->metaFile = (char *)(argv[i] + strlen("--file="));
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-c", strlen("-c")))
@@ -915,7 +996,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "--config-dir=", strlen("--config-dir="))) {
                 tstrncpy(configDir, (char *)(argv[i] + strlen("--config-dir=")), TSDB_FILENAME_LEN);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-h", strlen("-h")))
@@ -937,43 +1018,62 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "--host=", strlen("--host="))) {
                 arguments->host = (char *)(argv[i] + strlen("--host="));
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if (strcmp(argv[i], "-PP") == 0) {
             arguments->performance_print = true;
         } else if ((0 == strncmp(argv[i], "-P", strlen("-P")))
                 || (0 == strncmp(argv[i], "--port", strlen("--port")))) {
+            uint64_t port;
+            char strPort[BIGINT_BUFF_LEN];
+
             if (2 == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg(argv[0], "P");
                     exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
+                } else if (isStringNumber(argv[i+1])) {
+                    tstrncpy(strPort, argv[++i], BIGINT_BUFF_LEN);
+                } else {
                     errorPrintReqArg2(argv[0], "P");
                     exit(EXIT_FAILURE);
                 }
-                arguments->port = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--port=", strlen("--port="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--port=")))) {
-                    arguments->port = atoi((char *)(argv[i]+strlen("--port=")));
+                    tstrncpy(strPort, (char *)(argv[i]+strlen("--port=")), BIGINT_BUFF_LEN);
+                } else {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-P", strlen("-P"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-P")))) {
-                    arguments->port = atoi((char *)(argv[i]+strlen("-P")));
+                    tstrncpy(strPort, (char *)(argv[i]+strlen("-P")), BIGINT_BUFF_LEN);
+                } else {
+                    errorPrintReqArg2(argv[0], "--port");
+                    exit(EXIT_FAILURE);
                 }
             } else if (strlen("--port") == strlen(argv[i])) {
                 if (argc == i+1) {
                     errorPrintReqArg3(argv[0], "--port");
                     exit(EXIT_FAILURE);
-                } else if (!isStringNumber(argv[i+1])) {
+                } else if (isStringNumber(argv[i+1])) {
+                    tstrncpy(strPort, argv[++i], BIGINT_BUFF_LEN);
+                } else {
                     errorPrintReqArg2(argv[0], "--port");
                     exit(EXIT_FAILURE);
                 }
-                arguments->port = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+
+            port = atoi(strPort);
+            if (port > 65535) {
+                errorWrongValue("taosdump", "-P or --port", strPort);
+                exit(EXIT_FAILURE);
+            }
+            arguments->port = (uint16_t)port;
+
         } else if ((0 == strncmp(argv[i], "-I", strlen("-I")))
                 || (0 == strncmp(argv[i], "--interface", strlen("--interface")))) {
             if (2 == strlen(argv[i])) {
@@ -987,6 +1087,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->iface = REST_IFACE;
                 } else if (0 == strcasecmp(argv[i+1], "stmt")) {
                     arguments->iface = STMT_IFACE;
+                } else if (0 == strcasecmp(argv[i+1], "sml")) {
+                    arguments->iface = SML_IFACE;
                 } else {
                     errorWrongValue(argv[0], "-I", argv[i+1]);
                     exit(EXIT_FAILURE);
@@ -999,6 +1101,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->iface = REST_IFACE;
                 } else if (0 == strcasecmp((char *)(argv[i] + strlen("--interface=")), "stmt")) {
                     arguments->iface = STMT_IFACE;
+                } else if (0 == strcasecmp((char *)(argv[i] + strlen("--interface=")), "sml")) {
+                    arguments->iface = SML_IFACE;
                 } else {
                     errorPrintReqArg3(argv[0], "--interface");
                     exit(EXIT_FAILURE);
@@ -1010,6 +1114,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->iface = REST_IFACE;
                 } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")), "stmt")) {
                     arguments->iface = STMT_IFACE;
+                } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")), "sml")) {
+                    arguments->iface = SML_IFACE;
                 } else {
                     errorWrongValue(argv[0], "-I",
                             (char *)(argv[i] + strlen("-I")));
@@ -1026,13 +1132,15 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     arguments->iface = REST_IFACE;
                 } else if (0 == strcasecmp(argv[i+1], "stmt")) {
                     arguments->iface = STMT_IFACE;
+                } else if (0 == strcasecmp(argv[i+1], "sml")) {
+                    arguments->iface = SML_IFACE;
                 } else {
                     errorWrongValue(argv[0], "--interface", argv[i+1]);
                     exit(EXIT_FAILURE);
                 }
                 i++;
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-u", strlen("-u")))
@@ -1054,7 +1162,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->user = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-p", strlen("-p")))
@@ -1088,7 +1196,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->output_file = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-s", strlen("-s")))
@@ -1110,7 +1218,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->sqlFile = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-q", strlen("-q")))
@@ -1148,7 +1256,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->async_mode = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-T", strlen("-T")))
@@ -1161,17 +1269,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "T");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_threads = atoi(argv[++i]);
+                arguments->nthreads = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--threads=", strlen("--threads="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--threads=")))) {
-                    arguments->num_of_threads = atoi((char *)(argv[i]+strlen("--threads=")));
+                    arguments->nthreads = atoi((char *)(argv[i]+strlen("--threads=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--threads");
                     exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-T", strlen("-T"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-T")))) {
-                    arguments->num_of_threads = atoi((char *)(argv[i]+strlen("-T")));
+                    arguments->nthreads = atoi((char *)(argv[i]+strlen("-T")));
                 } else {
                     errorPrintReqArg2(argv[0], "-T");
                     exit(EXIT_FAILURE);
@@ -1184,9 +1292,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--threads");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_threads = atoi(argv[++i]);
+                arguments->nthreads = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-i", strlen("-i")))
@@ -1224,7 +1332,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->insert_interval = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-S", strlen("-S")))
@@ -1262,7 +1370,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->async_mode = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if (strcmp(argv[i], "-qt") == 0) {
@@ -1283,17 +1391,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "B");
                     exit(EXIT_FAILURE);
                 }
-                arguments->interlace_rows = atoi(argv[++i]);
+                arguments->interlaceRows = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--interlace-rows=", strlen("--interlace-rows="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--interlace-rows=")))) {
-                    arguments->interlace_rows = atoi((char *)(argv[i]+strlen("--interlace-rows=")));
+                    arguments->interlaceRows = atoi((char *)(argv[i]+strlen("--interlace-rows=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--interlace-rows");
                     exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-B", strlen("-B"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-B")))) {
-                    arguments->interlace_rows = atoi((char *)(argv[i]+strlen("-B")));
+                    arguments->interlaceRows = atoi((char *)(argv[i]+strlen("-B")));
                 } else {
                     errorPrintReqArg2(argv[0], "-B");
                     exit(EXIT_FAILURE);
@@ -1306,9 +1414,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--interlace-rows");
                     exit(EXIT_FAILURE);
                 }
-                arguments->interlace_rows = atoi(argv[++i]);
+                arguments->interlaceRows = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-r", strlen("-r")))
@@ -1321,17 +1429,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "r");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_RPR = atoi(argv[++i]);
+                arguments->reqPerReq = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--rec-per-req=", strlen("--rec-per-req="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--rec-per-req=")))) {
-                    arguments->num_of_RPR = atoi((char *)(argv[i]+strlen("--rec-per-req=")));
+                    arguments->reqPerReq = atoi((char *)(argv[i]+strlen("--rec-per-req=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--rec-per-req");
                     exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-r", strlen("-r"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-r")))) {
-                    arguments->num_of_RPR = atoi((char *)(argv[i]+strlen("-r")));
+                    arguments->reqPerReq = atoi((char *)(argv[i]+strlen("-r")));
                 } else {
                     errorPrintReqArg2(argv[0], "-r");
                     exit(EXIT_FAILURE);
@@ -1344,9 +1452,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--rec-per-req");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_RPR = atoi(argv[++i]);
+                arguments->reqPerReq = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-t", strlen("-t")))
@@ -1359,17 +1467,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "t");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_tables = atoi(argv[++i]);
+                arguments->ntables = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--tables=", strlen("--tables="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--tables=")))) {
-                    arguments->num_of_tables = atoi((char *)(argv[i]+strlen("--tables=")));
+                    arguments->ntables = atoi((char *)(argv[i]+strlen("--tables=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--tables");
                     exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-t", strlen("-t"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-t")))) {
-                    arguments->num_of_tables = atoi((char *)(argv[i]+strlen("-t")));
+                    arguments->ntables = atoi((char *)(argv[i]+strlen("-t")));
                 } else {
                     errorPrintReqArg2(argv[0], "-t");
                     exit(EXIT_FAILURE);
@@ -1382,13 +1490,13 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--tables");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_tables = atoi(argv[++i]);
+                arguments->ntables = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
-            g_totalChildTables = arguments->num_of_tables;
+            g_totalChildTables = arguments->ntables;
         } else if ((0 == strncmp(argv[i], "-n", strlen("-n")))
                 || (0 == strncmp(argv[i], "--records", strlen("--records")))) {
             if (2 == strlen(argv[i])) {
@@ -1399,17 +1507,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "n");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_DPT = atoi(argv[++i]);
+                arguments->insertRows = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--records=", strlen("--records="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--records=")))) {
-                    arguments->num_of_DPT = atoi((char *)(argv[i]+strlen("--records=")));
+                    arguments->insertRows = atoi((char *)(argv[i]+strlen("--records=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--records");
                     exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-n", strlen("-n"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-n")))) {
-                    arguments->num_of_DPT = atoi((char *)(argv[i]+strlen("-n")));
+                    arguments->insertRows = atoi((char *)(argv[i]+strlen("-n")));
                 } else {
                     errorPrintReqArg2(argv[0], "-n");
                     exit(EXIT_FAILURE);
@@ -1422,9 +1530,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--records");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_DPT = atoi(argv[++i]);
+                arguments->insertRows = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-d", strlen("-d")))
@@ -1446,7 +1554,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->database = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-l", strlen("-l")))
@@ -1460,17 +1568,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "l");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_CPR = atoi(argv[++i]);
+                arguments->columnCount = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--columns=", strlen("--columns="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--columns=")))) {
-                    arguments->num_of_CPR = atoi((char *)(argv[i]+strlen("--columns=")));
+                    arguments->columnCount = atoi((char *)(argv[i]+strlen("--columns=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--columns");
                     exit(EXIT_FAILURE);
                 }
             } else if (0 == strncmp(argv[i], "-l", strlen("-l"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-l")))) {
-                    arguments->num_of_CPR = atoi((char *)(argv[i]+strlen("-l")));
+                    arguments->columnCount = atoi((char *)(argv[i]+strlen("-l")));
                 } else {
                     errorPrintReqArg2(argv[0], "-l");
                     exit(EXIT_FAILURE);
@@ -1483,23 +1591,25 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--columns");
                     exit(EXIT_FAILURE);
                 }
-                arguments->num_of_CPR = atoi(argv[++i]);
+                arguments->columnCount = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
-            if (arguments->num_of_CPR > MAX_NUM_COLUMNS) {
-                printf("WARNING: max acceptible columns count is %d\n", MAX_NUM_COLUMNS);
+            if (arguments->columnCount > MAX_NUM_COLUMNS) {
+                printf("WARNING: max acceptable columns count is %d\n", MAX_NUM_COLUMNS);
                 prompt();
-                arguments->num_of_CPR = MAX_NUM_COLUMNS;
+                arguments->columnCount = MAX_NUM_COLUMNS;
             }
 
-            for (int col = DEFAULT_DATATYPE_NUM; col < arguments->num_of_CPR; col ++) {
-                arguments->datatype[col] = "INT";
+            for (int col = DEFAULT_DATATYPE_NUM; col < arguments->columnCount; col ++) {
+                arguments->dataType[col] = "INT";
+                arguments->data_type[col] = TSDB_DATA_TYPE_INT;
             }
-            for (int col = arguments->num_of_CPR; col < MAX_NUM_COLUMNS; col++) {
-                arguments->datatype[col] = NULL;
+            for (int col = arguments->columnCount; col < MAX_NUM_COLUMNS; col++) {
+                arguments->dataType[col] = NULL;
+                arguments->data_type[col] = TSDB_DATA_TYPE_NULL;
             }
         } else if ((0 == strncmp(argv[i], "-b", strlen("-b")))
                 || (0 == strncmp(argv[i], "--data-type", strlen("--data-type")))) {
@@ -1523,7 +1633,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 dataType = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1536,15 +1646,56 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                         && strcasecmp(dataType, "SMALLINT")
                         && strcasecmp(dataType, "BIGINT")
                         && strcasecmp(dataType, "DOUBLE")
-                        && strcasecmp(dataType, "BINARY")
                         && strcasecmp(dataType, "TIMESTAMP")
-                        && strcasecmp(dataType, "NCHAR")) {
+                        && !regexMatch(dataType,
+                            "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)
+                        && strcasecmp(dataType, "UTINYINT")
+                        && strcasecmp(dataType, "USMALLINT")
+                        && strcasecmp(dataType, "UINT")
+                        && strcasecmp(dataType, "UBIGINT")) {
                     printHelp();
                     errorPrint("%s", "-b: Invalid data_type!\n");
                     exit(EXIT_FAILURE);
                 }
-                arguments->datatype[0] = dataType;
-                arguments->datatype[1] = NULL;
+                arguments->dataType[0] = dataType;
+                if (0 == strcasecmp(dataType, "INT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_INT;
+                } else if (0 == strcasecmp(dataType, "TINYINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_TINYINT;
+                } else if (0 == strcasecmp(dataType, "SMALLINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_SMALLINT;
+                } else if (0 == strcasecmp(dataType, "BIGINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_BIGINT;
+                } else if (0 == strcasecmp(dataType, "FLOAT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_FLOAT;
+                } else if (0 == strcasecmp(dataType, "DOUBLE")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_DOUBLE;
+                } else if (1 == regexMatch(dataType,
+                            "^BINARY(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_BINARY;
+                } else if (1 == regexMatch(dataType,
+                            "^NCHAR(\\([1-9][0-9]*\\))?$",
+                            REG_ICASE | REG_EXTENDED)) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_NCHAR;
+                } else if (0 == strcasecmp(dataType, "BOOL")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_BOOL;
+                } else if (0 == strcasecmp(dataType, "TIMESTAMP")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_TIMESTAMP;
+                } else if (0 == strcasecmp(dataType, "UTINYINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_UTINYINT;
+                } else if (0 == strcasecmp(dataType, "USMALLINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_USMALLINT;
+                } else if (0 == strcasecmp(dataType, "UINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_UINT;
+                } else if (0 == strcasecmp(dataType, "UBIGINT")) {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_UBIGINT;
+                } else {
+                    arguments->data_type[0] = TSDB_DATA_TYPE_NULL;
+                }
+                arguments->dataType[1] = NULL;
+                arguments->data_type[1] = TSDB_DATA_TYPE_NULL;
             } else {
                 // more than one col
                 int index = 0;
@@ -1559,19 +1710,58 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                             && strcasecmp(token, "SMALLINT")
                             && strcasecmp(token, "BIGINT")
                             && strcasecmp(token, "DOUBLE")
-                            && strcasecmp(token, "BINARY")
                             && strcasecmp(token, "TIMESTAMP")
-                            && strcasecmp(token, "NCHAR")) {
+                            && !regexMatch(token, "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))?$", REG_ICASE | REG_EXTENDED)
+                            && strcasecmp(token, "UTINYINT")
+                            && strcasecmp(token, "USMALLINT")
+                            && strcasecmp(token, "UINT")
+                            && strcasecmp(token, "UBIGINT")) {
                         printHelp();
                         free(g_dupstr);
                         errorPrint("%s", "-b: Invalid data_type!\n");
                         exit(EXIT_FAILURE);
                     }
-                    arguments->datatype[index++] = token;
+
+                    if (0 == strcasecmp(token, "INT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_INT;
+                    } else if (0 == strcasecmp(token, "FLOAT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_FLOAT;
+                    } else if (0 == strcasecmp(token, "SMALLINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_SMALLINT;
+                    } else if (0 == strcasecmp(token, "BIGINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_BIGINT;
+                    } else if (0 == strcasecmp(token, "DOUBLE")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_DOUBLE;
+                    } else if (0 == strcasecmp(token, "TINYINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_TINYINT;
+                    } else if (1 == regexMatch(token, "^BINARY(\\([1-9][0-9]*\\))?$", REG_ICASE |
+                    REG_EXTENDED)) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_BINARY;
+                    } else if (1 == regexMatch(token, "^NCHAR(\\([1-9][0-9]*\\))?$", REG_ICASE |
+                    REG_EXTENDED)) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_NCHAR;
+                    } else if (0 == strcasecmp(token, "BOOL")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_BOOL;
+                    } else if (0 == strcasecmp(token, "TIMESTAMP")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_TIMESTAMP;
+                    } else if (0 == strcasecmp(token, "UTINYINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UTINYINT;
+                    } else if (0 == strcasecmp(token, "USMALLINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_USMALLINT;
+                    } else if (0 == strcasecmp(token, "UINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UINT;
+                    } else if (0 == strcasecmp(token, "UBIGINT")) {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_UBIGINT;
+                    } else {
+                        arguments->data_type[index] = TSDB_DATA_TYPE_NULL;
+                    }
+                    arguments->dataType[index] = token;
+                    index ++;
                     token = strsep(&running, ",");
                     if (index >= MAX_NUM_COLUMNS) break;
                 }
-                arguments->datatype[index] = NULL;
+                arguments->dataType[index] = NULL;
+                arguments->data_type[index] = TSDB_DATA_TYPE_NULL;
             }
         } else if ((0 == strncmp(argv[i], "-w", strlen("-w")))
                 || (0 == strncmp(argv[i], "--binwidth", strlen("--binwidth")))) {
@@ -1608,7 +1798,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->binwidth = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-m", strlen("-m")))
@@ -1630,18 +1820,22 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->tb_prefix = argv[++i];
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
+        } else if ((0 == strncmp(argv[i], "-E", strlen("-E")))
+                || (0 == strncmp(argv[i], "--escape-character", strlen("--escape-character")))) {
+            arguments->escapeChar = true;
         } else if ((strcmp(argv[i], "-N") == 0)
                 || (0 == strcmp(argv[i], "--normal-table"))) {
+            arguments->demo_mode = false;
             arguments->use_metric = false;
         } else if ((strcmp(argv[i], "-M") == 0)
                 || (0 == strcmp(argv[i], "--random"))) {
             arguments->demo_mode = false;
         } else if ((strcmp(argv[i], "-x") == 0)
-                || (0 == strcmp(argv[i], "--no-insert"))) {
-            arguments->insert_only = false;
+                || (0 == strcmp(argv[i], "--aggr-func"))) {
+            arguments->aggr_func = true;
         } else if ((strcmp(argv[i], "-y") == 0)
                 || (0 == strcmp(argv[i], "--answer-yes"))) {
             arguments->answer_yes = true;
@@ -1695,7 +1889,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->disorderRange = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
         } else if ((0 == strncmp(argv[i], "-O", strlen("-O")))
@@ -1733,7 +1927,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->disorderRatio = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1741,12 +1935,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorPrint("Invalid disorder ratio %d, will be set to %d\n",
                         arguments->disorderRatio, 50);
                 arguments->disorderRatio = 50;
-            }
-
-            if (arguments->disorderRatio < 0) {
-                errorPrint("Invalid disorder ratio %d, will be set to %d\n",
-                        arguments->disorderRatio, 0);
-                arguments->disorderRatio = 0;
             }
         } else if ((0 == strncmp(argv[i], "-a", strlen("-a")))
                 || (0 == strncmp(argv[i], "--replica",
@@ -1787,7 +1975,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 arguments->replica = atoi(argv[++i]);
             } else {
-                errorUnreconized(argv[0], argv[i]);
+                errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
             }
 
@@ -1799,7 +1987,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         } else if (strcmp(argv[i], "-D") == 0) {
             arguments->method_of_delete = atoi(argv[++i]);
             if (arguments->method_of_delete > 3) {
-                errorPrint("%s", "\n\t-D need a valud (0~3) number following!\n");
+                errorPrint("%s", "\n\t-D need a value (0~3) number following!\n");
                 exit(EXIT_FAILURE);
             }
         } else if ((strcmp(argv[i], "--version") == 0)
@@ -1814,7 +2002,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             printf("    Usage: taosdemo [-f JSONFILE] [-u USER] [-p PASSWORD] [-c CONFIG_DIR]\n\
                     [-h HOST] [-P PORT] [-I INTERFACE] [-d DATABASE] [-a REPLICA]\n\
                     [-m TABLEPREFIX] [-s SQLFILE] [-N] [-o OUTPUTFILE] [-q QUERYMODE]\n\
-                    [-b DATATYPES] [-w WIDTH_OF_BINARY] [-l COLUNNS] [-T THREADNUMBER]\n\
+                    [-b DATATYPES] [-w WIDTH_OF_BINARY] [-l COLUMNS] [-T THREADNUMBER]\n\
                     [-i SLEEPTIME] [-S TIME_STEP] [-B INTERLACE_ROWS] [-t TABLES]\n\
                     [-n RECORDS] [-M] [-x] [-y] [-O ORDERMODE] [-R RANGE] [-a REPLIcA][-g]\n\
                     [--help] [--usage] [--version]\n");
@@ -1842,7 +2030,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
 
     int columnCount;
     for (columnCount = 0; columnCount < MAX_NUM_COLUMNS; columnCount ++) {
-        if (g_args.datatype[columnCount] == NULL) {
+        if (g_args.dataType[columnCount] == NULL) {
             break;
         }
     }
@@ -1850,7 +2038,60 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     if (0 == columnCount) {
         ERROR_EXIT("data type error!");
     }
-    g_args.num_of_CPR = columnCount;
+    g_args.columnCount = columnCount;
+
+    g_args.lenOfOneRow = TIMESTAMP_BUFF_LEN; // timestamp
+    for (int c = 0; c < g_args.columnCount; c++) {
+        switch(g_args.data_type[c]) {
+            case TSDB_DATA_TYPE_BINARY:
+                g_args.lenOfOneRow += g_args.binwidth + 3;
+                break;
+
+            case TSDB_DATA_TYPE_NCHAR:
+                g_args.lenOfOneRow += g_args.binwidth + 3;
+                break;
+
+            case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
+                g_args.lenOfOneRow += INT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
+                g_args.lenOfOneRow += BIGINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
+                g_args.lenOfOneRow += SMALLINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
+                g_args.lenOfOneRow += TINYINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_BOOL:
+                g_args.lenOfOneRow += BOOL_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_FLOAT:
+                g_args.lenOfOneRow += FLOAT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_DOUBLE:
+                g_args.lenOfOneRow += DOUBLE_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                g_args.lenOfOneRow += TIMESTAMP_BUFF_LEN;
+                break;
+
+            default:
+                errorPrint2("get error data type : %s\n", g_args.dataType[c]);
+                exit(EXIT_FAILURE);
+        }
+    }
 
     if (((arguments->debug_print) && (NULL != arguments->metaFile))
             || arguments->verbose_print) {
@@ -1863,11 +2104,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         printf("# Password:                          %s\n", arguments->password);
         printf("# Use metric:                        %s\n",
                 arguments->use_metric ? "true" : "false");
-        if (*(arguments->datatype)) {
+        if (*(arguments->dataType)) {
             printf("# Specified data type:               ");
             for (int c = 0; c < MAX_NUM_COLUMNS; c++)
-                if (arguments->datatype[c])
-                    printf("%s,", arguments->datatype[c]);
+                if (arguments->dataType[c])
+                    printf("%s,", arguments->dataType[c]);
                 else
                     break;
             printf("\n");
@@ -1875,15 +2116,15 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         printf("# Insertion interval:                %"PRIu64"\n",
                 arguments->insert_interval);
         printf("# Number of records per req:         %u\n",
-                arguments->num_of_RPR);
+                arguments->reqPerReq);
         printf("# Max SQL length:                    %"PRIu64"\n",
                 arguments->max_sql_len);
         printf("# Length of Binary:                  %d\n", arguments->binwidth);
-        printf("# Number of Threads:                 %d\n", arguments->num_of_threads);
+        printf("# Number of Threads:                 %d\n", arguments->nthreads);
         printf("# Number of Tables:                  %"PRId64"\n",
-                arguments->num_of_tables);
+                arguments->ntables);
         printf("# Number of Data per Table:          %"PRId64"\n",
-                arguments->num_of_DPT);
+                arguments->insertRows);
         printf("# Database name:                     %s\n", arguments->database);
         printf("# Table prefix:                      %s\n", arguments->tb_prefix);
         if (arguments->disorderRatio) {
@@ -1906,34 +2147,23 @@ static void tmfclose(FILE *fp) {
     }
 }
 
-static void tmfree(char *buf) {
+static void tmfree(void *buf) {
     if (NULL != buf) {
         free(buf);
+        buf = NULL;
     }
 }
 
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
-    int i;
-    TAOS_RES *res = NULL;
-    int32_t   code = -1;
-
-    for (i = 0; i < 5 /* retry */; i++) {
-        if (NULL != res) {
-            taos_free_result(res);
-            res = NULL;
-        }
-
-        res = taos_query(taos, command);
-        code = taos_errno(res);
-        if (0 == code) {
-            break;
-        }
-    }
 
     verbosePrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
+
+    TAOS_RES *res = taos_query(taos, command);
+    int32_t code = taos_errno(res);
+
     if (code != 0) {
         if (!quiet) {
-            errorPrint2("Failed to execute %s, reason: %s\n",
+            errorPrint2("Failed to execute <%s>, reason: %s\n",
                     command, taos_errstr(res));
         }
         taos_free_result(res);
@@ -1972,7 +2202,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
     int         num_fields = taos_field_count(res);
     TAOS_FIELD *fields     = taos_fetch_fields(res);
 
-    char* databuf = (char*) calloc(1, 100*1024*1024);
+    char* databuf = (char*) calloc(1, FETCH_BUFFER_SIZE);
     if (databuf == NULL) {
         errorPrint2("%s() LN%d, failed to malloc, warning: save result to file slowly!\n",
                 __func__, __LINE__);
@@ -1983,11 +2213,11 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
 
     // fetch the records row by row
     while((row = taos_fetch_row(res))) {
-        if (totalLen >= (100*1024*1024 - HEAD_BUFF_LEN*2)) {
+        if (totalLen >= (FETCH_BUFFER_SIZE - HEAD_BUFF_LEN*2)) {
             if (strlen(pThreadInfo->filePath) > 0)
                 appendResultBufToFile(databuf, pThreadInfo);
             totalLen = 0;
-            memset(databuf, 0, 100*1024*1024);
+            memset(databuf, 0, FETCH_BUFFER_SIZE);
         }
         num_rows++;
         char  temp[HEAD_BUFF_LEN] = {0};
@@ -2025,7 +2255,7 @@ static void selectAndGetResult(
 
     } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
         int retCode = postProceSql(
-                g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
+                g_queryInfo.host, g_queryInfo.port,
                 command,
                 pThreadInfo);
         if (0 != retCode) {
@@ -2041,90 +2271,157 @@ static void selectAndGetResult(
 static char *rand_bool_str() {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randbool_buff + ((cursor % MAX_PREPARED_RAND) * BOOL_BUFF_LEN);
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randbool_buff + ((cursor % g_args.prepared_rand) * BOOL_BUFF_LEN);
 }
 
 static int32_t rand_bool() {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND] % 2;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randint[cursor % g_args.prepared_rand] % TSDB_DATA_BOOL_NULL;
 }
 
 static char *rand_tinyint_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
     return g_randtinyint_buff +
-        ((cursor % MAX_PREPARED_RAND) * TINYINT_BUFF_LEN);
+        ((cursor % g_args.prepared_rand) * TINYINT_BUFF_LEN);
 }
 
 static int32_t rand_tinyint()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND] % 128;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randint[cursor % g_args.prepared_rand] % TSDB_DATA_TINYINT_NULL;
+}
+
+static char *rand_utinyint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randutinyint_buff +
+        ((cursor % g_args.prepared_rand) * TINYINT_BUFF_LEN);
+}
+
+static int32_t rand_utinyint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randuint[cursor % g_args.prepared_rand] % TSDB_DATA_UTINYINT_NULL;
 }
 
 static char *rand_smallint_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
     return g_randsmallint_buff +
-        ((cursor % MAX_PREPARED_RAND) * SMALLINT_BUFF_LEN);
+        ((cursor % g_args.prepared_rand) * SMALLINT_BUFF_LEN);
 }
 
 static int32_t rand_smallint()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND] % 32767;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randint[cursor % g_args.prepared_rand] % TSDB_DATA_SMALLINT_NULL;
+}
+
+static char *rand_usmallint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randusmallint_buff +
+        ((cursor % g_args.prepared_rand) * SMALLINT_BUFF_LEN);
+}
+
+static int32_t rand_usmallint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randuint[cursor % g_args.prepared_rand] % TSDB_DATA_USMALLINT_NULL;
 }
 
 static char *rand_int_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint_buff + ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randint_buff + ((cursor % g_args.prepared_rand) * INT_BUFF_LEN);
 }
 
 static int32_t rand_int()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint[cursor % MAX_PREPARED_RAND];
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randint[cursor % g_args.prepared_rand];
+}
+
+static char *rand_uint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randuint_buff + ((cursor % g_args.prepared_rand) * INT_BUFF_LEN);
+}
+
+static int32_t rand_uint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randuint[cursor % g_args.prepared_rand];
 }
 
 static char *rand_bigint_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
     return g_randbigint_buff +
-        ((cursor % MAX_PREPARED_RAND) * BIGINT_BUFF_LEN);
+        ((cursor % g_args.prepared_rand) * BIGINT_BUFF_LEN);
 }
 
 static int64_t rand_bigint()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randbigint[cursor % MAX_PREPARED_RAND];
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randbigint[cursor % g_args.prepared_rand];
+}
+
+static char *rand_ubigint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randubigint_buff +
+        ((cursor % g_args.prepared_rand) * BIGINT_BUFF_LEN);
+}
+
+static int64_t rand_ubigint()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randubigint[cursor % g_args.prepared_rand];
 }
 
 static char *rand_float_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randfloat_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randfloat_buff + ((cursor % g_args.prepared_rand) * FLOAT_BUFF_LEN);
 }
 
 
@@ -2132,58 +2429,58 @@ static float rand_float()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randfloat[cursor % MAX_PREPARED_RAND];
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_randfloat[cursor % g_args.prepared_rand];
 }
 
 static char *demo_current_float_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
     return g_rand_current_buff +
-        ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
+        ((cursor % g_args.prepared_rand) * FLOAT_BUFF_LEN);
 }
 
 static float UNUSED_FUNC demo_current_float()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return (float)(9.8 + 0.04 * (g_randint[cursor % MAX_PREPARED_RAND] % 10)
-            + g_randfloat[cursor % MAX_PREPARED_RAND]/1000000000);
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return (float)(9.8 + 0.04 * (g_randint[cursor % g_args.prepared_rand] % 10)
+            + g_randfloat[cursor % g_args.prepared_rand]/1000000000);
 }
 
 static char *demo_voltage_int_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
     return g_rand_voltage_buff +
-        ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
+        ((cursor % g_args.prepared_rand) * INT_BUFF_LEN);
 }
 
 static int32_t UNUSED_FUNC demo_voltage_int()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return 215 + g_randint[cursor % MAX_PREPARED_RAND] % 10;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return 215 + g_randint[cursor % g_args.prepared_rand] % 10;
 }
 
 static char *demo_phase_float_str() {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_phase_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return g_rand_phase_buff + ((cursor % g_args.prepared_rand) * FLOAT_BUFF_LEN);
 }
 
 static float UNUSED_FUNC demo_phase_float() {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return (float)((115 + g_randint[cursor % MAX_PREPARED_RAND] % 10
-                + g_randfloat[cursor % MAX_PREPARED_RAND]/1000000000)/360);
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
+    return (float)((115 + g_randint[cursor % g_args.prepared_rand] % 10
+                + g_randfloat[cursor % g_args.prepared_rand]/1000000000)/360);
 }
 
 #if 0
@@ -2211,7 +2508,7 @@ static void rand_string(char *str, int size) {
         //--size;
         int n;
         for (n = 0; n < size; n++) {
-            int key = abs(rand_tinyint()) % (int)(sizeof(charset) - 1);
+            int key = abs(taosRandom()) % (int)(sizeof(charset) - 1);
             str[n] = charset[key];
         }
         str[n] = 0;
@@ -2222,7 +2519,7 @@ static char *rand_double_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    if (cursor > (g_args.prepared_rand - 1)) cursor = 0;
     return g_randdouble_buff + (cursor * DOUBLE_BUFF_LEN);
 }
 
@@ -2230,35 +2527,56 @@ static double rand_double()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
+    cursor = cursor % g_args.prepared_rand;
     return g_randdouble[cursor];
 }
 
 static void init_rand_data() {
 
-    g_randint_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randint_buff = calloc(1, INT_BUFF_LEN * g_args.prepared_rand);
     assert(g_randint_buff);
-    g_rand_voltage_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_rand_voltage_buff = calloc(1, INT_BUFF_LEN * g_args.prepared_rand);
     assert(g_rand_voltage_buff);
-    g_randbigint_buff = calloc(1, BIGINT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randbigint_buff = calloc(1, BIGINT_BUFF_LEN * g_args.prepared_rand);
     assert(g_randbigint_buff);
-    g_randsmallint_buff = calloc(1, SMALLINT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randsmallint_buff = calloc(1, SMALLINT_BUFF_LEN * g_args.prepared_rand);
     assert(g_randsmallint_buff);
-    g_randtinyint_buff = calloc(1, TINYINT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randtinyint_buff = calloc(1, TINYINT_BUFF_LEN * g_args.prepared_rand);
     assert(g_randtinyint_buff);
-    g_randbool_buff = calloc(1, BOOL_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randbool_buff = calloc(1, BOOL_BUFF_LEN * g_args.prepared_rand);
     assert(g_randbool_buff);
-    g_randfloat_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randfloat_buff = calloc(1, FLOAT_BUFF_LEN * g_args.prepared_rand);
     assert(g_randfloat_buff);
-    g_rand_current_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_rand_current_buff = calloc(1, FLOAT_BUFF_LEN * g_args.prepared_rand);
     assert(g_rand_current_buff);
-    g_rand_phase_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    g_rand_phase_buff = calloc(1, FLOAT_BUFF_LEN * g_args.prepared_rand);
     assert(g_rand_phase_buff);
-    g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
+    g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * g_args.prepared_rand);
     assert(g_randdouble_buff);
+    g_randuint_buff = calloc(1, INT_BUFF_LEN * g_args.prepared_rand);
+    assert(g_randuint_buff);
+    g_randutinyint_buff = calloc(1, TINYINT_BUFF_LEN * g_args.prepared_rand);
+    assert(g_randutinyint_buff);
+    g_randusmallint_buff = calloc(1, SMALLINT_BUFF_LEN * g_args.prepared_rand);
+    assert(g_randusmallint_buff);
+    g_randubigint_buff = calloc(1, BIGINT_BUFF_LEN * g_args.prepared_rand);
+    assert(g_randubigint_buff);
+    g_randint = calloc(1, sizeof(int32_t) * g_args.prepared_rand);
+    assert(g_randint);
+    g_randuint = calloc(1, sizeof(uint32_t) * g_args.prepared_rand);
+    assert(g_randuint);
+    g_randbigint = calloc(1, sizeof(int64_t) * g_args.prepared_rand);
+    assert(g_randbigint);
+    g_randubigint = calloc(1, sizeof(uint64_t) * g_args.prepared_rand);
+    assert(g_randubigint);
+    g_randfloat = calloc(1, sizeof(float) * g_args.prepared_rand);
+    assert(g_randfloat);
+    g_randdouble = calloc(1, sizeof(double) * g_args.prepared_rand);
+    assert(g_randdouble);
 
-    for (int i = 0; i < MAX_PREPARED_RAND; i++) {
-        g_randint[i] = (int)(taosRandom() % 65535);
+    for (int i = 0; i < g_args.prepared_rand; i++) {
+        g_randint[i] = (int)(taosRandom() % RAND_MAX - (RAND_MAX >> 1));
+        g_randuint[i] = (int)(taosRandom());
         sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
                 g_randint[i]);
         sprintf(g_rand_voltage_buff + i * INT_BUFF_LEN, "%d",
@@ -2267,15 +2585,24 @@ static void init_rand_data() {
         sprintf(g_randbool_buff + i * BOOL_BUFF_LEN, "%s",
                 ((g_randint[i] % 2) & 1)?"true":"false");
         sprintf(g_randsmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
-                g_randint[i] % 32767);
+                g_randint[i] % 32768);
         sprintf(g_randtinyint_buff + i * TINYINT_BUFF_LEN, "%d",
                 g_randint[i] % 128);
+        sprintf(g_randuint_buff + i * INT_BUFF_LEN, "%d",
+                g_randuint[i]);
+        sprintf(g_randusmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
+                g_randuint[i] % 65535);
+        sprintf(g_randutinyint_buff + i * TINYINT_BUFF_LEN, "%d",
+                g_randuint[i] % 255);
 
-        g_randbigint[i] = (int64_t)(taosRandom() % 2147483648);
+        g_randbigint[i] = (int64_t)(taosRandom() % RAND_MAX - (RAND_MAX >> 1));
+        g_randubigint[i] = (uint64_t)(taosRandom());
         sprintf(g_randbigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
                 g_randbigint[i]);
+        sprintf(g_randubigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
+                g_randubigint[i]);
 
-        g_randfloat[i] = (float)(taosRandom() / 1000.0);
+        g_randfloat[i] = (float)(taosRandom() / 1000.0) * (taosRandom() % 2 > 0.5 ? 1 : -1);
         sprintf(g_randfloat_buff + i * FLOAT_BUFF_LEN, "%f",
                 g_randfloat[i]);
         sprintf(g_rand_current_buff + i * FLOAT_BUFF_LEN, "%f",
@@ -2285,7 +2612,7 @@ static void init_rand_data() {
                 (float)((115 + g_randint[i] % 10
                         + g_randfloat[i]/1000000000)/360));
 
-        g_randdouble[i] = (double)(taosRandom() / 1000000.0);
+        g_randdouble[i] = (double)(taosRandom() / 1000000.0) * (taosRandom() % 2 > 0.5 ? 1 : -1);
         sprintf(g_randdouble_buff + i * DOUBLE_BUFF_LEN, "%f",
                 g_randdouble[i]);
     }
@@ -2314,16 +2641,18 @@ static void init_rand_data() {
 static int printfInsertMeta() {
     SHOW_PARSE_RESULT_START();
 
-    if (g_args.demo_mode)
-        printf("\ntaosdemo is simulating data generated by power equipments monitoring...\n\n");
-    else
+    if (g_args.demo_mode) {
+        printf("\ntaosdemo is simulating data generated by power equipment monitoring...\n\n");
+    } else {
         printf("\ntaosdemo is simulating random data as you request..\n\n");
+    }
 
     if (g_args.iface != INTERFACE_BUT) {
         // first time if no iface specified
         printf("interface:                  \033[33m%s\033[0m\n",
                 (g_args.iface==TAOSC_IFACE)?"taosc":
-                (g_args.iface==REST_IFACE)?"rest":"stmt");
+                (g_args.iface==REST_IFACE)?"rest":
+                (g_args.iface==STMT_IFACE)?"stmt":"sml");
     }
 
     printf("host:                       \033[33m%s:%u\033[0m\n",
@@ -2338,7 +2667,7 @@ static int printfInsertMeta() {
     printf("top insert interval:        \033[33m%"PRIu64"\033[0m\n",
             g_args.insert_interval);
     printf("number of records per req:  \033[33m%u\033[0m\n",
-            g_args.num_of_RPR);
+            g_args.reqPerReq);
     printf("max sql length:             \033[33m%"PRIu64"\033[0m\n",
             g_args.max_sql_len);
 
@@ -2349,9 +2678,9 @@ static int printfInsertMeta() {
         printf("  database[%d] name:      \033[33m%s\033[0m\n",
                 i, g_Dbs.db[i].dbName);
         if (0 == g_Dbs.db[i].drop) {
-            printf("  drop:                  \033[33mno\033[0m\n");
+            printf("  drop:                  \033[33m no\033[0m\n");
         } else {
-            printf("  drop:                  \033[33myes\033[0m\n");
+            printf("  drop:                  \033[33m yes\033[0m\n");
         }
 
         if (g_Dbs.db[i].dbCfg.blocks > 0) {
@@ -2414,116 +2743,127 @@ static int printfInsertMeta() {
             }
         }
 
-        printf("  super table count:     \033[33m%"PRIu64"\033[0m\n",
+
+        if (g_args.use_metric) {
+            printf("  super table count:     \033[33m%"PRIu64"\033[0m\n",
                 g_Dbs.db[i].superTblCount);
-        for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-            printf("  super table[\033[33m%"PRIu64"\033[0m]:\n", j);
+            for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+                printf("  super table[\033[33m%"PRIu64"\033[0m]:\n", j);
 
-            printf("      stbName:           \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].sTblName);
+                printf("      stbName:           \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].stbName);
 
-            if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
-                printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
-            } else if (AUTO_CREATE_SUBTBL ==
-                    g_Dbs.db[i].superTbls[j].autoCreateTable) {
-                printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "yes");
-            } else {
-                printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "error");
-            }
-
-            if (TBL_NO_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
-                printf("      childTblExists:    \033[33m%s\033[0m\n",  "no");
-            } else if (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
-                printf("      childTblExists:    \033[33m%s\033[0m\n",  "yes");
-            } else {
-                printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
-            }
-
-            printf("      childTblCount:     \033[33m%"PRId64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].childTblCount);
-            printf("      childTblPrefix:    \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].childTblPrefix);
-            printf("      dataSource:        \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].dataSource);
-            printf("      iface:             \033[33m%s\033[0m\n",
-                    (g_Dbs.db[i].superTbls[j].iface==TAOSC_IFACE)?"taosc":
-                    (g_Dbs.db[i].superTbls[j].iface==REST_IFACE)?"rest":"stmt");
-            if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
-                printf("      childTblLimit:     \033[33m%"PRId64"\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].childTblLimit);
-            }
-            if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
-                printf("      childTblOffset:    \033[33m%"PRIu64"\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].childTblOffset);
-            }
-            printf("      insertRows:        \033[33m%"PRId64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].insertRows);
-            /*
-               if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
-               printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");
-               }else {
-               printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n");
-               }
-               */
-            printf("      interlaceRows:     \033[33m%u\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].interlaceRows);
-
-            if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-                printf("      stable insert interval:   \033[33m%"PRIu64"\033[0m\n",
-                        g_Dbs.db[i].superTbls[j].insertInterval);
-            }
-
-            printf("      disorderRange:     \033[33m%d\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].disorderRange);
-            printf("      disorderRatio:     \033[33m%d\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].disorderRatio);
-            printf("      maxSqlLen:         \033[33m%"PRIu64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].maxSqlLen);
-            printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].timeStampStep);
-            printf("      startTimestamp:    \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].startTimestamp);
-            printf("      sampleFormat:      \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].sampleFormat);
-            printf("      sampleFile:        \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].sampleFile);
-            printf("      tagsFile:          \033[33m%s\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].tagsFile);
-            printf("      columnCount:       \033[33m%d\033[0m\n",
-                    g_Dbs.db[i].superTbls[j].columnCount);
-            for (int k = 0; k < g_Dbs.db[i].superTbls[j].columnCount; k++) {
-                //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].columns[k].dataType, g_Dbs.db[i].superTbls[j].columns[k].dataLen);
-                if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
-                                "binary", 6))
-                        || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
-                                "nchar", 5))) {
-                    printf("column[\033[33m%d\033[0m]:\033[33m%s(%d)\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].columns[k].dataType,
-                            g_Dbs.db[i].superTbls[j].columns[k].dataLen);
+                if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
+                    printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
+                } else if (AUTO_CREATE_SUBTBL ==
+                        g_Dbs.db[i].superTbls[j].autoCreateTable) {
+                    printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "yes");
                 } else {
-                    printf("column[%d]:\033[33m%s\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].columns[k].dataType);
+                    printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "error");
                 }
-            }
-            printf("\n");
 
-            printf("      tagCount:            \033[33m%d\033[0m\n        ",
-                    g_Dbs.db[i].superTbls[j].tagCount);
-            for (int k = 0; k < g_Dbs.db[i].superTbls[j].tagCount; k++) {
-                //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].tags[k].dataType, g_Dbs.db[i].superTbls[j].tags[k].dataLen);
-                if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
-                                "binary", strlen("binary")))
-                        || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
-                                "nchar", strlen("nchar")))) {
-                    printf("tag[%d]:\033[33m%s(%d)\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].tags[k].dataType,
-                            g_Dbs.db[i].superTbls[j].tags[k].dataLen);
+                if (TBL_NO_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+                    printf("      childTblExists:    \033[33m%s\033[0m\n",  "no");
+                } else if (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+                    printf("      childTblExists:    \033[33m%s\033[0m\n",  "yes");
                 } else {
-                    printf("tag[%d]:\033[33m%s\033[0m ", k,
-                            g_Dbs.db[i].superTbls[j].tags[k].dataType);
+                    printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
                 }
+
+                printf("      childTblCount:     \033[33m%"PRId64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].childTblCount);
+                printf("      childTblPrefix:    \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].childTblPrefix);
+                printf("      dataSource:        \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].dataSource);
+                printf("      iface:             \033[33m%s\033[0m\n",
+                        (g_Dbs.db[i].superTbls[j].iface==TAOSC_IFACE)?"taosc":
+                        (g_Dbs.db[i].superTbls[j].iface==REST_IFACE)?"rest":
+                        (g_Dbs.db[i].superTbls[j].iface==STMT_IFACE)?"stmt":"sml");
+                if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
+                    printf("      childTblLimit:     \033[33m%"PRId64"\033[0m\n",
+                            g_Dbs.db[i].superTbls[j].childTblLimit);
+                }
+                if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
+                    printf("      childTblOffset:    \033[33m%"PRIu64"\033[0m\n",
+                            g_Dbs.db[i].superTbls[j].childTblOffset);
+                }
+                printf("      insertRows:        \033[33m%"PRId64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].insertRows);
+                /*
+                if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
+                printf("      multiThreadWriteOneTbl:  \033[33m no\033[0m\n");
+                }else {
+                printf("      multiThreadWriteOneTbl:  \033[33m yes\033[0m\n");
+                }
+                */
+                printf("      interlaceRows:     \033[33m%u\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].interlaceRows);
+
+                if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
+                    printf("      stable insert interval:   \033[33m%"PRIu64"\033[0m\n",
+                            g_Dbs.db[i].superTbls[j].insertInterval);
+                }
+
+                printf("      disorderRange:     \033[33m%d\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].disorderRange);
+                printf("      disorderRatio:     \033[33m%d\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].disorderRatio);
+                printf("      maxSqlLen:         \033[33m%"PRIu64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].maxSqlLen);
+                printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].timeStampStep);
+                printf("      startTimestamp:    \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].startTimestamp);
+                printf("      sampleFormat:      \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].sampleFormat);
+                printf("      sampleFile:        \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].sampleFile);
+                printf("      useSampleTs:       \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].useSampleTs ? "yes (warning: disorderRange/disorderRatio is disabled)" : "no");
+                printf("      tagsFile:          \033[33m%s\033[0m\n",
+                        g_Dbs.db[i].superTbls[j].tagsFile);
+                printf("      columnCount:       \033[33m%d\033[0m\n        ",
+                        g_Dbs.db[i].superTbls[j].columnCount);
+                for (int k = 0; k < g_Dbs.db[i].superTbls[j].columnCount; k++) {
+                    //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].columns[k].dataType, g_Dbs.db[i].superTbls[j].columns[k].dataLen);
+                    if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
+                                    "binary", 6))
+                            || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].columns[k].dataType,
+                                    "nchar", 5))) {
+                        printf("column[%d]:\033[33m%s(%d)\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].columns[k].dataType,
+                                g_Dbs.db[i].superTbls[j].columns[k].dataLen);
+                    } else {
+                        printf("column[%d]:\033[33m%s\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].columns[k].dataType);
+                    }
+                }
+                printf("\n");
+
+                printf("      tagCount:            \033[33m%d\033[0m\n        ",
+                        g_Dbs.db[i].superTbls[j].tagCount);
+                for (int k = 0; k < g_Dbs.db[i].superTbls[j].tagCount; k++) {
+                    //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].tags[k].dataType, g_Dbs.db[i].superTbls[j].tags[k].dataLen);
+                    if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                                    "binary", strlen("binary")))
+                            || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                                    "nchar", strlen("nchar")))) {
+                        printf("tag[%d]:\033[33m%s(%d)\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                                g_Dbs.db[i].superTbls[j].tags[k].dataLen);
+                    } else {
+                        printf("tag[%d]:\033[33m%s\033[0m ", k,
+                                g_Dbs.db[i].superTbls[j].tags[k].dataType);
+                    }
+                }
+                printf("\n");
             }
-            printf("\n");
+        } else {
+            printf("  childTblCount:     \033[33m%"PRId64"\033[0m\n",
+                        g_args.ntables);
+            printf("  insertRows:        \033[33m%"PRId64"\033[0m\n",
+                        g_args.insertRows);
         }
         printf("\n");
     }
@@ -2543,7 +2883,7 @@ static void printfInsertMetaToFile(FILE* fp) {
     fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
     fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
     fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountForCreateTbl);
-    fprintf(fp, "number of records per req:  %u\n", g_args.num_of_RPR);
+    fprintf(fp, "number of records per req:  %u\n", g_args.reqPerReq);
     fprintf(fp, "max sql length:             %"PRIu64"\n", g_args.max_sql_len);
     fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
 
@@ -2610,7 +2950,7 @@ static void printfInsertMetaToFile(FILE* fp) {
             fprintf(fp, "  super table[%d]:\n", j);
 
             fprintf(fp, "      stbName:           %s\n",
-                    g_Dbs.db[i].superTbls[j].sTblName);
+                    g_Dbs.db[i].superTbls[j].stbName);
 
             if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
                 fprintf(fp, "      autoCreateTable:   %s\n",  "no");
@@ -2638,7 +2978,8 @@ static void printfInsertMetaToFile(FILE* fp) {
                     g_Dbs.db[i].superTbls[j].dataSource);
             fprintf(fp, "      iface:             %s\n",
                     (g_Dbs.db[i].superTbls[j].iface==TAOSC_IFACE)?"taosc":
-                    (g_Dbs.db[i].superTbls[j].iface==REST_IFACE)?"rest":"stmt");
+                    (g_Dbs.db[i].superTbls[j].iface==REST_IFACE)?"rest":
+                    (g_Dbs.db[i].superTbls[j].iface==STMT_IFACE)?"stmt":"sml");
             fprintf(fp, "      insertRows:        %"PRId64"\n",
                     g_Dbs.db[i].superTbls[j].insertRows);
             fprintf(fp, "      interlace rows:    %u\n",
@@ -2769,7 +3110,7 @@ static void printfQueryMeta() {
             printf("childTblCount:  \033[33m%"PRId64"\033[0m\n",
                     g_queryInfo.superQueryInfo.childTblCount);
             printf("stable name:    \033[33m%s\033[0m\n",
-                    g_queryInfo.superQueryInfo.sTblName);
+                    g_queryInfo.superQueryInfo.stbName);
             printf("stb query times:\033[33m%"PRIu64"\033[0m\n",
                     g_queryInfo.superQueryInfo.queryTimes);
 
@@ -2840,36 +3181,61 @@ static void xDumpFieldToFile(FILE* fp, const char* val,
     char buf[TSDB_MAX_BYTES_PER_ROW];
     switch (field->type) {
         case TSDB_DATA_TYPE_BOOL:
-            fprintf(fp, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
+            fprintf(fp, "%d", ((((int32_t)(*((int8_t*)val))) == 1) ? 1 : 0));
             break;
+
         case TSDB_DATA_TYPE_TINYINT:
             fprintf(fp, "%d", *((int8_t *)val));
             break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            fprintf(fp, "%d", *((uint8_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_SMALLINT:
             fprintf(fp, "%d", *((int16_t *)val));
             break;
+
+        case TSDB_DATA_TYPE_USMALLINT:
+            fprintf(fp, "%d", *((uint16_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_INT:
             fprintf(fp, "%d", *((int32_t *)val));
             break;
+
+        case TSDB_DATA_TYPE_UINT:
+            fprintf(fp, "%d", *((uint32_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_BIGINT:
             fprintf(fp, "%"PRId64"", *((int64_t *)val));
             break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            fprintf(fp, "%"PRId64"", *((uint64_t *)val));
+            break;
+
         case TSDB_DATA_TYPE_FLOAT:
             fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
             break;
+
         case TSDB_DATA_TYPE_DOUBLE:
             fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
             break;
+
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
             memcpy(buf, val, length);
             buf[length] = 0;
             fprintf(fp, "\'%s\'", buf);
             break;
+
         case TSDB_DATA_TYPE_TIMESTAMP:
             formatTimestamp(buf, *(int64_t*)val, precision);
             fprintf(fp, "'%s'", buf);
             break;
+
         default:
             break;
     }
@@ -3030,7 +3396,7 @@ static void printfDbInfoForQueryToFile(
 
 static void printfQuerySystemInfo(TAOS * taos) {
     char filename[MAX_FILE_NAME_LEN] = {0};
-    char buffer[1024] = {0};
+    char buffer[SQL_BUFF_LEN] = {0};
     TAOS_RES* res;
 
     time_t t;
@@ -3069,12 +3435,12 @@ static void printfQuerySystemInfo(TAOS * taos) {
         printfDbInfoForQueryToFile(filename, dbInfos[i], i);
 
         // show db.vgroups
-        snprintf(buffer, 1024, "show %s.vgroups;", dbInfos[i]->name);
+        snprintf(buffer, SQL_BUFF_LEN, "show %s.vgroups;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
 
         // show db.stables
-        snprintf(buffer, 1024, "show %s.stables;", dbInfos[i]->name);
+        snprintf(buffer, SQL_BUFF_LEN, "show %s.stables;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
         free(dbInfos[i]);
@@ -3083,7 +3449,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
     free(dbInfos);
 }
 
-static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
+static int postProceSql(char *host, uint16_t port,
         char* sqlstr, threadInfo *pThreadInfo)
 {
     char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
@@ -3121,29 +3487,6 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
     char base64_buf[INPUT_BUF_LEN];
-#ifdef WINDOWS
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-    SOCKET sockfd;
-#else
-    int sockfd;
-#endif
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-#ifdef WINDOWS
-        errorPrint( "Could not create socket : %d" , WSAGetLastError());
-#endif
-        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
-        free(request_buf);
-        ERROR_EXIT("opening socket");
-    }
-
-    int retConn = connect(sockfd, (struct sockaddr *)pServAddr, sizeof(struct sockaddr));
-    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
-    if (retConn < 0) {
-        free(request_buf);
-        ERROR_EXIT("connecting");
-    }
 
     memset(base64_buf, 0, INPUT_BUF_LEN);
 
@@ -3183,9 +3526,9 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     sent = 0;
     do {
 #ifdef WINDOWS
-        bytes = send(sockfd, request_buf + sent, req_str_len - sent, 0);
+        bytes = send(pThreadInfo->sockfd, request_buf + sent, req_str_len - sent, 0);
 #else
-        bytes = write(sockfd, request_buf + sent, req_str_len - sent);
+        bytes = write(pThreadInfo->sockfd, request_buf + sent, req_str_len - sent);
 #endif
         if (bytes < 0)
             ERROR_EXIT("writing message to socket");
@@ -3197,12 +3540,18 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     memset(response_buf, 0, RESP_BUF_LEN);
     resp_len = sizeof(response_buf) - 1;
     received = 0;
+
+    char resEncodingChunk[] = "Encoding: chunked";
+    char resHttp[] = "HTTP/1.1 ";
+    char resHttpOk[] = "HTTP/1.1 200 OK";
+
     do {
 #ifdef WINDOWS
-        bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
+        bytes = recv(pThreadInfo->sockfds, response_buf + received, resp_len - received, 0);
 #else
-        bytes = read(sockfd, response_buf + received, resp_len - received);
+        bytes = read(pThreadInfo->sockfd, response_buf + received, resp_len - received);
 #endif
+        verbosePrint("%s() LN%d: bytes:%d\n", __func__, __LINE__, bytes);
         if (bytes < 0) {
             free(request_buf);
             ERROR_EXIT("reading response from socket");
@@ -3210,6 +3559,19 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
         if (bytes == 0)
             break;
         received += bytes;
+
+        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                __func__, __LINE__, received, resp_len, response_buf);
+
+        if (((NULL != strstr(response_buf, resEncodingChunk))
+                    && (NULL != strstr(response_buf, resHttp)))
+                || ((NULL != strstr(response_buf, resHttpOk))
+                    && (NULL != strstr(response_buf, "\"status\":")))) {
+            debugPrint(
+                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                    __func__, __LINE__, received, resp_len, response_buf);
+            break;
+        } 
     } while(received < resp_len);
 
     if (received == resp_len) {
@@ -3218,20 +3580,18 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     }
 
     response_buf[RESP_BUF_LEN - 1] = '\0';
-    printf("Response:\n%s\n", response_buf);
 
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
     }
 
     free(request_buf);
-#ifdef WINDOWS
-    closesocket(sockfd);
-    WSACleanup();
-#else
-    close(sockfd);
-#endif
 
+    if (NULL == strstr(response_buf, resHttpOk)) {
+        errorPrint("%s() LN%d, Response:\n%s\n",
+                __func__, __LINE__, response_buf);
+        return -1;
+    }
     return 0;
 }
 
@@ -3336,7 +3696,23 @@ static char* generateTagValuesForStb(SSuperTable* stbInfo, int64_t tableSeq) {
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "timestamp", strlen("timestamp"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%"PRId64",", rand_bigint());
+                    "%"PRId64",", rand_ubigint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "utinyint", strlen("utinyint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%d,", rand_utinyint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "usmallint", strlen("usmallint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%d,", rand_usmallint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "uint", strlen("uint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%d,", rand_uint());
+        }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
+                    "ubigint", strlen("ubigint"))) {
+            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    "%"PRId64",", rand_ubigint());
         }  else {
             errorPrint2("No support data type: %s\n", stbInfo->tags[i].dataType);
             tmfree(dataBuf);
@@ -3356,58 +3732,97 @@ static int calcRowLen(SSuperTable*  superTbls) {
     for (colIndex = 0; colIndex < superTbls->columnCount; colIndex++) {
         char* dataType = superTbls->columns[colIndex].dataType;
 
-        if (strcasecmp(dataType, "BINARY") == 0) {
-            lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "NCHAR") == 0) {
-            lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "INT") == 0)  {
-            lenOfOneRow += INT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            lenOfOneRow += BIGINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            lenOfOneRow += SMALLINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            lenOfOneRow += TINYINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            lenOfOneRow += BOOL_BUFF_LEN;
-        } else if (strcasecmp(dataType, "FLOAT") == 0) {
-            lenOfOneRow += FLOAT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-            lenOfOneRow += DOUBLE_BUFF_LEN;
-        }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
-            lenOfOneRow += TIMESTAMP_BUFF_LEN;
-        } else {
-            errorPrint2("get error data type : %s\n", dataType);
-            exit(EXIT_FAILURE);
+        switch(superTbls->columns[colIndex].data_type) {
+            case TSDB_DATA_TYPE_BINARY:
+                lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
+                break;
+
+            case TSDB_DATA_TYPE_NCHAR:
+                lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
+                break;
+
+            case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
+                lenOfOneRow += INT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
+                lenOfOneRow += BIGINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
+                lenOfOneRow += SMALLINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
+                lenOfOneRow += TINYINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_BOOL:
+                lenOfOneRow += BOOL_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_FLOAT:
+                lenOfOneRow += FLOAT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_DOUBLE:
+                lenOfOneRow += DOUBLE_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                lenOfOneRow += TIMESTAMP_BUFF_LEN;
+                break;
+
+            default:
+                errorPrint2("get error data type : %s\n", dataType);
+                exit(EXIT_FAILURE);
         }
     }
 
-    superTbls->lenOfOneRow = lenOfOneRow + 20; // timestamp
+    superTbls->lenOfOneRow = lenOfOneRow + TIMESTAMP_BUFF_LEN; // timestamp
 
     int tagIndex;
     int lenOfTagOfOneRow = 0;
     for (tagIndex = 0; tagIndex < superTbls->tagCount; tagIndex++) {
-        char* dataType = superTbls->tags[tagIndex].dataType;
-
-        if (strcasecmp(dataType, "BINARY") == 0) {
+        char * dataType = superTbls->tags[tagIndex].dataType;
+        switch (superTbls->tags[tagIndex].data_type)
+        {
+        case TSDB_DATA_TYPE_BINARY:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "NCHAR") == 0) {
+            break;
+        case TSDB_DATA_TYPE_NCHAR:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "INT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_UINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + INT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BIGINT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_UBIGINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_USMALLINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + SMALLINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "TINYINT") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_UTINYINT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + TINYINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BOOL") == 0)  {
+            break;
+        case TSDB_DATA_TYPE_BOOL:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + BOOL_BUFF_LEN;
-        } else if (strcasecmp(dataType, "FLOAT") == 0) {
+            break;
+        case TSDB_DATA_TYPE_FLOAT:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + FLOAT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "DOUBLE") == 0) {
+            break;
+        case TSDB_DATA_TYPE_DOUBLE:
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
-        } else {
+            break;
+        default:
             errorPrint2("get error tag type : %s\n", dataType);
             exit(EXIT_FAILURE);
         }
@@ -3418,12 +3833,11 @@ static int calcRowLen(SSuperTable*  superTbls) {
     return 0;
 }
 
-
 static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
-        char* dbName, char* sTblName, char** childTblNameOfSuperTbl,
-        int64_t* childTblCountOfSuperTbl, int64_t limit, uint64_t offset) {
+        char* dbName, char* stbName, char** childTblNameOfSuperTbl,
+        int64_t* childTblCountOfSuperTbl, int64_t limit, uint64_t offset, bool escapChar) {
 
-    char command[1024] = "\0";
+    char command[SQL_BUFF_LEN] = "\0";
     char limitBuf[100] = "\0";
 
     TAOS_RES * res;
@@ -3431,26 +3845,24 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
 
     char* childTblName = *childTblNameOfSuperTbl;
 
-    if (offset >= 0) {
-        snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
-                limit, offset);
-    }
+    snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
+        limit, offset);
 
     //get all child table name use cmd: select tbname from superTblName;
-    snprintf(command, 1024, "select tbname from %s.%s %s",
-            dbName, sTblName, limitBuf);
+    snprintf(command, SQL_BUFF_LEN, escapChar ? "select tbname from %s.`%s` %s" :
+            "select tbname from %s.%s %s", dbName, stbName, limitBuf);
 
     res = taos_query(taos, command);
     int32_t code = taos_errno(res);
     if (code != 0) {
         taos_free_result(res);
         taos_close(taos);
-        errorPrint2("%s() LN%d, failed to run command %s\n",
-                __func__, __LINE__, command);
+        errorPrint2("%s() LN%d, failed to run command %s, reason: %s\n",
+                __func__, __LINE__, command, taos_errstr(res));
         exit(EXIT_FAILURE);
     }
 
-    int64_t childTblCount = (limit < 0)?10000:limit;
+    int64_t childTblCount = (limit < 0)?DEFAULT_CHILDTABLES:limit;
     int64_t count = 0;
     if (childTblName == NULL) {
         childTblName = (char*)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
@@ -3489,7 +3901,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
                 taos_free_result(res);
                 taos_close(taos);
                 errorPrint2("%s() LN%d, realloc fail for save child table name of %s.%s\n",
-                        __func__, __LINE__, dbName, sTblName);
+                        __func__, __LINE__, dbName, stbName);
                 exit(EXIT_FAILURE);
             }
         }
@@ -3504,28 +3916,28 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
 }
 
 static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName,
-        char* sTblName, char** childTblNameOfSuperTbl,
+        char* stbName, char** childTblNameOfSuperTbl,
         int64_t* childTblCountOfSuperTbl) {
 
-    return getChildNameOfSuperTableWithLimitAndOffset(taos, dbName, sTblName,
+    return getChildNameOfSuperTableWithLimitAndOffset(taos, dbName, stbName,
             childTblNameOfSuperTbl, childTblCountOfSuperTbl,
-            -1, 0);
+            -1, 0, false);
 }
 
 static int getSuperTableFromServer(TAOS * taos, char* dbName,
         SSuperTable*  superTbls) {
 
-    char command[1024] = "\0";
+    char command[SQL_BUFF_LEN] = "\0";
     TAOS_RES * res;
     TAOS_ROW row = NULL;
     int count = 0;
 
     //get schema use cmd: describe superTblName;
-    snprintf(command, 1024, "describe %s.%s", dbName, superTbls->sTblName);
+    snprintf(command, SQL_BUFF_LEN, "describe %s.%s", dbName, superTbls->stbName);
     res = taos_query(taos, command);
     int32_t code = taos_errno(res);
     if (code != 0) {
-        printf("failed to run command %s\n", command);
+        printf("failed to run command %s, reason: %s\n", command, taos_errstr(res));
         taos_free_result(res);
         return -1;
     }
@@ -3543,31 +3955,158 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
             tstrncpy(superTbls->tags[tagIndex].field,
                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
-            tstrncpy(superTbls->tags[tagIndex].dataType,
-                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+            if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "INT", strlen("INT"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_INT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TINYINT", strlen("TINYINT"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_TINYINT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "SMALLINT", strlen("SMALLINT"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BIGINT", strlen("BIGINT"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BIGINT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "FLOAT", strlen("FLOAT"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_FLOAT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "DOUBLE", strlen("DOUBLE"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_DOUBLE;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BINARY", strlen("BINARY"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BINARY;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "NCHAR", strlen("NCHAR"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NCHAR;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BOOL", strlen("BOOL"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_BOOL;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TIMESTAMP", strlen("TIMESTAMP"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TINYINT UNSIGNED", strlen("TINYINT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UTINYINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"UTINYINT",
                     min(DATATYPE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "SMALLINT UNSIGNED", strlen("SMALLINT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_USMALLINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"USMALLINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "INT UNSIGNED", strlen("INT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"UINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            }else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_UBIGINT;
+                tstrncpy(superTbls->tags[tagIndex].dataType,"UBIGINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else {
+                superTbls->tags[tagIndex].data_type = TSDB_DATA_TYPE_NULL;
+            }
             superTbls->tags[tagIndex].dataLen =
                 *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
             tstrncpy(superTbls->tags[tagIndex].note,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                     min(NOTE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
+            if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL)
+            {
+                tstrncpy(superTbls->tags[tagIndex].dataType,
+                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            }
             tagIndex++;
         } else {
             tstrncpy(superTbls->columns[columnIndex].field,
                     (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
-            tstrncpy(superTbls->columns[columnIndex].dataType,
-                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+
+
+            if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "INT", strlen("INT")) &&
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_INT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TINYINT", strlen("TINYINT")) &&
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_TINYINT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "SMALLINT", strlen("SMALLINT")) &&
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_SMALLINT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BIGINT", strlen("BIGINT")) &&
+                        strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BIGINT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "FLOAT", strlen("FLOAT"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_FLOAT;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "DOUBLE", strlen("DOUBLE"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_DOUBLE;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BINARY", strlen("BINARY"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BINARY;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "NCHAR", strlen("NCHAR"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_NCHAR;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BOOL", strlen("BOOL"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_BOOL;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TIMESTAMP", strlen("TIMESTAMP"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "TINYINT UNSIGNED", strlen("TINYINT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UTINYINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"UTINYINT",
                     min(DATATYPE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "SMALLINT UNSIGNED", strlen("SMALLINT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_USMALLINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"USMALLINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "INT UNSIGNED", strlen("INT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"UINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else if (0 == strncasecmp((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                        "BIGINT UNSIGNED", strlen("BIGINT UNSIGNED"))) {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_UBIGINT;
+                tstrncpy(superTbls->columns[columnIndex].dataType,"UBIGINT",
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            } else {
+                superTbls->columns[columnIndex].data_type = TSDB_DATA_TYPE_NULL;
+            }
             superTbls->columns[columnIndex].dataLen =
                 *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
             tstrncpy(superTbls->columns[columnIndex].note,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                     min(NOTE_BUFF_LEN,
                         fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
+
+            if (strstr((char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX], "UNSIGNED") == NULL) {
+                tstrncpy(superTbls->columns[columnIndex].dataType,
+                    (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+            }
+
             columnIndex++;
         }
         count++;
@@ -3589,7 +4128,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
     return -1;
     }
     getAllChildNameOfSuperTable(taos, dbName,
-    superTbls->sTblName,
+    superTbls->stbName,
     &superTbls->childTblName,
     &superTbls->childTblCount);
     }
@@ -3605,7 +4144,6 @@ static int createSuperTable(
     assert(command);
 
     char cols[COL_BUFFER_LEN] = "\0";
-    int colIndex;
     int len = 0;
 
     int  lenOfOneRow = 0;
@@ -3617,74 +4155,118 @@ static int createSuperTable(
         return -1;
     }
 
-    for (colIndex = 0; colIndex < superTbl->columnCount; colIndex++) {
-        char* dataType = superTbl->columns[colIndex].dataType;
+    for (int colIndex = 0; colIndex < superTbl->columnCount; colIndex++) {
 
-        if (strcasecmp(dataType, "BINARY") == 0) {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len,
-                    ",C%d %s(%d)", colIndex, "BINARY",
-                    superTbl->columns[colIndex].dataLen);
-            lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "NCHAR") == 0) {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len,
-                    ",C%d %s(%d)", colIndex, "NCHAR",
-                    superTbl->columns[colIndex].dataLen);
-            lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "INT") == 0)  {
-            if ((g_args.demo_mode) && (colIndex == 1)) {
+        switch(superTbl->columns[colIndex].data_type) {
+            case TSDB_DATA_TYPE_BINARY:
                 len += snprintf(cols + len, COL_BUFFER_LEN - len,
-                        ", VOLTAGE INT");
-            } else {
-                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "INT");
-            }
-            lenOfOneRow += INT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
-                    colIndex, "BIGINT");
-            lenOfOneRow += BIGINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
-                    colIndex, "SMALLINT");
-            lenOfOneRow += SMALLINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "TINYINT");
-            lenOfOneRow += TINYINT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "BOOL");
-            lenOfOneRow += BOOL_BUFF_LEN;
-        } else if (strcasecmp(dataType, "FLOAT") == 0) {
-            if (g_args.demo_mode) {
-                if (colIndex == 0) {
-                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ", CURRENT FLOAT");
-                } else if (colIndex == 2) {
-                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ", PHASE FLOAT");
-                }
-            } else {
-                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "FLOAT");
-            }
+                        ",C%d %s(%d)", colIndex, "BINARY",
+                        superTbl->columns[colIndex].dataLen);
+                lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
+                break;
 
-            lenOfOneRow += FLOAT_BUFF_LEN;
-        } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
-                    colIndex, "DOUBLE");
-            lenOfOneRow += DOUBLE_BUFF_LEN;
-        }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
-            len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
-                    colIndex, "TIMESTAMP");
-            lenOfOneRow += TIMESTAMP_BUFF_LEN;
-        } else {
-            taos_close(taos);
-            free(command);
-            errorPrint2("%s() LN%d, config error data type : %s\n",
-                    __func__, __LINE__, dataType);
-            exit(EXIT_FAILURE);
+            case TSDB_DATA_TYPE_NCHAR:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len,
+                        ",C%d %s(%d)", colIndex, "NCHAR",
+                        superTbl->columns[colIndex].dataLen);
+                lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
+                break;
+
+            case TSDB_DATA_TYPE_INT:
+                if ((g_args.demo_mode) && (colIndex == 1)) {
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len,
+                            ", VOLTAGE INT");
+                } else {
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "INT");
+                }
+                lenOfOneRow += INT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_BIGINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "BIGINT");
+                lenOfOneRow += BIGINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_SMALLINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "SMALLINT");
+                lenOfOneRow += SMALLINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_TINYINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "TINYINT");
+                lenOfOneRow += TINYINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_BOOL:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "BOOL");
+                lenOfOneRow += BOOL_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_FLOAT:
+                if (g_args.demo_mode) {
+                    if (colIndex == 0) {
+                        len += snprintf(cols + len, COL_BUFFER_LEN - len, ", CURRENT FLOAT");
+                    } else if (colIndex == 2) {
+                        len += snprintf(cols + len, COL_BUFFER_LEN - len, ", PHASE FLOAT");
+                    }
+                } else {
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "FLOAT");
+                }
+
+                lenOfOneRow += FLOAT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_DOUBLE:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "DOUBLE");
+                lenOfOneRow += DOUBLE_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "TIMESTAMP");
+                lenOfOneRow += TIMESTAMP_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UTINYINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "TINYINT UNSIGNED");
+                lenOfOneRow += TINYINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_USMALLINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "SMALLINT UNSIGNED");
+                lenOfOneRow += SMALLINT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "INT UNSIGNED");
+                lenOfOneRow += INT_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_UBIGINT:
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
+                        colIndex, "BIGINT UNSIGNED");
+                lenOfOneRow += BIGINT_BUFF_LEN;
+                break;
+
+            default:
+                taos_close(taos);
+                free(command);
+                errorPrint2("%s() LN%d, config error data type : %s\n",
+                        __func__, __LINE__, superTbl->columns[colIndex].dataType);
+                exit(EXIT_FAILURE);
         }
     }
 
-    superTbl->lenOfOneRow = lenOfOneRow + 20; // timestamp
+    superTbl->lenOfOneRow = lenOfOneRow + TIMESTAMP_BUFF_LEN; // timestamp
 
     // save for creating child table
-    superTbl->colsOfCreateChildTable = (char*)calloc(len+20, 1);
+    superTbl->colsOfCreateChildTable = (char*)calloc(len+TIMESTAMP_BUFF_LEN, 1);
     if (NULL == superTbl->colsOfCreateChildTable) {
         taos_close(taos);
         free(command);
@@ -3693,7 +4275,7 @@ static int createSuperTable(
         exit(EXIT_FAILURE);
     }
 
-    snprintf(superTbl->colsOfCreateChildTable, len+20, "(ts timestamp%s)", cols);
+    snprintf(superTbl->colsOfCreateChildTable, len+TIMESTAMP_BUFF_LEN, "(ts timestamp%s)", cols);
     verbosePrint("%s() LN%d: %s\n",
             __func__, __LINE__, superTbl->colsOfCreateChildTable);
 
@@ -3762,6 +4344,26 @@ static int createSuperTable(
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "DOUBLE");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
+        } else if (strcasecmp(dataType, "UTINYINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "TINYINT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + TINYINT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "USMALLINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "SMALLINT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + SMALLINT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "UINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "INT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + INT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "UBIGINT") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "BIGINT UNSIGNED");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
+        } else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "T%d %s,", tagIndex, "TIMESTAMP");
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + TIMESTAMP_BUFF_LEN;
         } else {
             taos_close(taos);
             free(command);
@@ -3776,17 +4378,20 @@ static int createSuperTable(
 
     superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
+    
     snprintf(command, BUFFER_SIZE,
-            "create table if not exists %s.%s (ts timestamp%s) tags %s",
-            dbName, superTbl->sTblName, cols, tags);
+        superTbl->escapeChar ?
+        "CREATE TABLE IF NOT EXISTS %s.`%s` (ts TIMESTAMP%s) TAGS %s":
+        "CREATE TABLE IF NOT EXISTS %s.%s (ts TIMESTAMP%s) TAGS %s",
+        dbName, superTbl->stbName, cols, tags);
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         errorPrint2("create supertable %s failed!\n\n",
-                superTbl->sTblName);
+                superTbl->stbName);
         free(command);
         return -1;
     }
 
-    debugPrint("create supertable %s success!\n\n", superTbl->sTblName);
+    debugPrint("create supertable %s success!\n\n", superTbl->stbName);
     free(command);
     return 0;
 }
@@ -3810,42 +4415,42 @@ int createDatabasesAndStables(char *command) {
 
             int dataLen = 0;
             dataLen += snprintf(command + dataLen,
-                    BUFFER_SIZE - dataLen, "create database if not exists %s",
+                    BUFFER_SIZE - dataLen, "CREATE DATABASE IF NOT EXISTS %s",
                     g_Dbs.db[i].dbName);
 
             if (g_Dbs.db[i].dbCfg.blocks > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " blocks %d",
+                        BUFFER_SIZE - dataLen, " BLOCKS %d",
                         g_Dbs.db[i].dbCfg.blocks);
             }
             if (g_Dbs.db[i].dbCfg.cache > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " cache %d",
+                        BUFFER_SIZE - dataLen, " CACHE %d",
                         g_Dbs.db[i].dbCfg.cache);
             }
             if (g_Dbs.db[i].dbCfg.days > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " days %d",
+                        BUFFER_SIZE - dataLen, " DAYS %d",
                         g_Dbs.db[i].dbCfg.days);
             }
             if (g_Dbs.db[i].dbCfg.keep > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " keep %d",
+                        BUFFER_SIZE - dataLen, " KEEP %d",
                         g_Dbs.db[i].dbCfg.keep);
             }
             if (g_Dbs.db[i].dbCfg.quorum > 1) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " quorum %d",
+                        BUFFER_SIZE - dataLen, " QUORUM %d",
                         g_Dbs.db[i].dbCfg.quorum);
             }
             if (g_Dbs.db[i].dbCfg.replica > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " replica %d",
+                        BUFFER_SIZE - dataLen, " REPLICA %d",
                         g_Dbs.db[i].dbCfg.replica);
             }
             if (g_Dbs.db[i].dbCfg.update > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " update %d",
+                        BUFFER_SIZE - dataLen, " UPDATE %d",
                         g_Dbs.db[i].dbCfg.update);
             }
             //if (g_Dbs.db[i].dbCfg.maxtablesPerVnode > 0) {
@@ -3854,17 +4459,17 @@ int createDatabasesAndStables(char *command) {
             //}
             if (g_Dbs.db[i].dbCfg.minRows > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " minrows %d",
+                        BUFFER_SIZE - dataLen, " MINROWS %d",
                         g_Dbs.db[i].dbCfg.minRows);
             }
             if (g_Dbs.db[i].dbCfg.maxRows > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " maxrows %d",
+                        BUFFER_SIZE - dataLen, " MAXROWS %d",
                         g_Dbs.db[i].dbCfg.maxRows);
             }
             if (g_Dbs.db[i].dbCfg.comp > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " comp %d",
+                        BUFFER_SIZE - dataLen, " COMP %d",
                         g_Dbs.db[i].dbCfg.comp);
             }
             if (g_Dbs.db[i].dbCfg.walLevel > 0) {
@@ -3874,12 +4479,12 @@ int createDatabasesAndStables(char *command) {
             }
             if (g_Dbs.db[i].dbCfg.cacheLast > 0) {
                 dataLen += snprintf(command + dataLen,
-                        BUFFER_SIZE - dataLen, " cachelast %d",
+                        BUFFER_SIZE - dataLen, " CACHELAST %d",
                         g_Dbs.db[i].dbCfg.cacheLast);
             }
             if (g_Dbs.db[i].dbCfg.fsync > 0) {
                 dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen,
-                        " fsync %d", g_Dbs.db[i].dbCfg.fsync);
+                        " FSYNC %d", g_Dbs.db[i].dbCfg.fsync);
             }
             if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2))
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision,
@@ -3905,8 +4510,12 @@ int createDatabasesAndStables(char *command) {
         int validStbCount = 0;
 
         for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+            if (g_Dbs.db[i].superTbls[j].iface == SML_IFACE) {
+                goto skip;
+            }
+            
             sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
-                    g_Dbs.db[i].superTbls[j].sTblName);
+                    g_Dbs.db[i].superTbls[j].stbName);
             ret = queryDbExec(taos, command, NO_INSERT_TYPE, true);
 
             if ((ret != 0) || (g_Dbs.db[i].drop)) {
@@ -3917,19 +4526,18 @@ int createDatabasesAndStables(char *command) {
                     errorPrint("create super table %"PRIu64" failed!\n\n", j);
                     continue;
                 }
-            }
-
-            ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
+            } else {
+                ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                     &g_Dbs.db[i].superTbls[j]);
-            if (0 != ret) {
-                errorPrint2("\nget super table %s.%s info failed!\n\n",
-                        g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName);
-                continue;
+                if (0 != ret) {
+                    errorPrint2("\nget super table %s.%s info failed!\n\n",
+                            g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].stbName);
+                    continue;
+                }
             }
-
+            skip:
             validStbCount ++;
         }
-
         g_Dbs.db[i].superTblCount = validStbCount;
     }
 
@@ -3965,7 +4573,9 @@ static void* createTable(void *sarg)
             i <= pThreadInfo->end_table_to; i++) {
         if (0 == g_Dbs.use_metric) {
             snprintf(pThreadInfo->buffer, buff_len,
-                    "create table if not exists %s.%s%"PRIu64" %s;",
+                    g_args.escapeChar ? 
+                    "CREATE TABLE IF NOT EXISTS %s.`%s%"PRIu64"` %s;" :
+                    "CREATE TABLE IF NOT EXISTS %s.%s%"PRIu64" %s;",
                     pThreadInfo->db_name,
                     g_args.tb_prefix, i,
                     pThreadInfo->cols);
@@ -3981,7 +4591,7 @@ static void* createTable(void *sarg)
                     batchNum = 0;
                     memset(pThreadInfo->buffer, 0, buff_len);
                     len += snprintf(pThreadInfo->buffer + len,
-                            buff_len - len, "create table ");
+                            buff_len - len, "CREATE TABLE ");
                 }
 
                 char* tagsValBuf = NULL;
@@ -4002,16 +4612,17 @@ static void* createTable(void *sarg)
                     ERROR_EXIT("use metric, but tag buffer is NULL\n");
                 }
                 len += snprintf(pThreadInfo->buffer + len,
-                        buff_len - len,
+                        buff_len - len, stbInfo->escapeChar ?
+                        "if not exists %s.`%s%"PRIu64"` using %s.`%s` tags %s " :
                         "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
                         pThreadInfo->db_name, stbInfo->childTblPrefix,
                         i, pThreadInfo->db_name,
-                        stbInfo->sTblName, tagsValBuf);
+                        stbInfo->stbName, tagsValBuf);
                 free(tagsValBuf);
                 batchNum++;
                 if ((batchNum < stbInfo->batchCreateTableNum)
                         && ((buff_len - len)
-                            >= (stbInfo->lenOfTagOfOneRow + 256))) {
+                            >= (stbInfo->lenOfTagOfOneRow + EXTRA_SQL_LEN))) {
                     continue;
                 }
             }
@@ -4026,9 +4637,8 @@ static void* createTable(void *sarg)
             return NULL;
         }
         pThreadInfo->tables_created += batchNum;
-
         uint64_t currentPrintTime = taosGetTimestampMs();
-        if (currentPrintTime - lastPrintTime > 30*1000) {
+        if (currentPrintTime - lastPrintTime > PRINT_STAT_INTERVAL) {
             printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
                     pThreadInfo->threadID, pThreadInfo->start_table_from, i);
             lastPrintTime = currentPrintTime;
@@ -4040,8 +4650,8 @@ static void* createTable(void *sarg)
                     NO_INSERT_TYPE, false)) {
             errorPrint2("queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
         }
+        pThreadInfo->tables_created += batchNum;
     }
-
     free(pThreadInfo->buffer);
     return NULL;
 }
@@ -4151,15 +4761,15 @@ static void createChildTables() {
         } else {
             // normal table
             len = snprintf(tblColsBuf, TSDB_MAX_BYTES_PER_ROW, "(TS TIMESTAMP");
-            for (int j = 0; j < g_args.num_of_CPR; j++) {
-                if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
-                        || (strncasecmp(g_args.datatype[j],
+            for (int j = 0; j < g_args.columnCount; j++) {
+                if ((strncasecmp(g_args.dataType[j], "BINARY", strlen("BINARY")) == 0)
+                        || (strncasecmp(g_args.dataType[j],
                                 "NCHAR", strlen("NCHAR")) == 0)) {
                     snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
-                            ",C%d %s(%d)", j, g_args.datatype[j], g_args.binwidth);
+                            ",C%d %s(%d)", j, g_args.dataType[j], g_args.binwidth);
                 } else {
                     snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
-                            ",C%d %s", j, g_args.datatype[j]);
+                            ",C%d %s", j, g_args.dataType[j]);
                 }
                 len = strlen(tblColsBuf);
             }
@@ -4168,12 +4778,12 @@ static void createChildTables() {
 
             verbosePrint("%s() LN%d: dbName: %s num of tb: %"PRId64" schema: %s\n",
                     __func__, __LINE__,
-                    g_Dbs.db[i].dbName, g_args.num_of_tables, tblColsBuf);
+                    g_Dbs.db[i].dbName, g_args.ntables, tblColsBuf);
             startMultiThreadCreateChildTable(
                     tblColsBuf,
                     g_Dbs.threadCountForCreateTbl,
                     0,
-                    g_args.num_of_tables,
+                    g_args.ntables,
                     g_Dbs.db[i].dbName,
                     NULL);
         }
@@ -4200,7 +4810,7 @@ static int readTagFromCsvFileToMem(SSuperTable  * stbInfo) {
         stbInfo->tagDataBuf = NULL;
     }
 
-    int tagCount = 10000;
+    int tagCount = MAX_SAMPLES;
     int count = 0;
     char* tagDataBuf = calloc(1, stbInfo->lenOfTagOfOneRow * tagCount);
     if (tagDataBuf == NULL) {
@@ -4248,10 +4858,27 @@ static int readTagFromCsvFileToMem(SSuperTable  * stbInfo) {
     return 0;
 }
 
+static void getAndSetRowsFromCsvFile(SSuperTable *stbInfo) {
+    FILE *fp = fopen(stbInfo->sampleFile, "r");
+    int line_count = 0;
+    if (fp == NULL) {
+        errorPrint("Failed to open sample file: %s, reason:%s\n",
+                stbInfo->sampleFile, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    char *buf = calloc(1, stbInfo->maxSqlLen);
+    while (fgets(buf, stbInfo->maxSqlLen, fp)) {
+        line_count++;
+    }
+    fclose(fp);
+    tmfree(buf);
+    stbInfo->insertRows = line_count;
+}
+
 /*
    Read 10000 lines at most. If more than 10000 lines, continue to read after using
    */
-static int readSampleFromCsvFileToMem(
+static int generateSampleFromCsvForStb(
         SSuperTable* stbInfo) {
     size_t  n = 0;
     ssize_t readLen = 0;
@@ -4267,7 +4894,7 @@ static int readSampleFromCsvFileToMem(
 
     assert(stbInfo->sampleDataBuf);
     memset(stbInfo->sampleDataBuf, 0,
-            MAX_SAMPLES_ONCE_FROM_FILE * stbInfo->lenOfOneRow);
+            MAX_SAMPLES * stbInfo->lenOfOneRow);
     while(1) {
         readLen = tgetline(&line, &n, fp);
         if (-1 == readLen) {
@@ -4298,7 +4925,7 @@ static int readSampleFromCsvFileToMem(
                 line, readLen);
         getRows++;
 
-        if (getRows == MAX_SAMPLES_ONCE_FROM_FILE) {
+        if (getRows == MAX_SAMPLES) {
             break;
         }
     }
@@ -4377,6 +5004,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
             tstrncpy(superTbls->columns[index].dataType,
                     columnCase.dataType,
                     min(DATATYPE_BUFF_LEN, strlen(columnCase.dataType) + 1));
+
             superTbls->columns[index].dataLen = columnCase.dataLen;
             index++;
         }
@@ -4389,6 +5017,54 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
 
     superTbls->columnCount = index;
+
+    for (int c = 0; c < superTbls->columnCount; c++) {
+        if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "INT", strlen("INT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_INT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "TINYINT", strlen("TINYINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_TINYINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "SMALLINT", strlen("SMALLINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_SMALLINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "BIGINT", strlen("BIGINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_BIGINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "FLOAT", strlen("FLOAT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_FLOAT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "DOUBLE", strlen("DOUBLE"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_DOUBLE;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "BINARY", strlen("BINARY"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_BINARY;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "NCHAR", strlen("NCHAR"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_NCHAR;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "BOOL", strlen("BOOL"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_BOOL;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "TIMESTAMP", strlen("TIMESTAMP"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "UTINYINT", strlen("UTINYINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_UTINYINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "USMALLINT", strlen("USMALLINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_USMALLINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "UINT", strlen("UINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_UINT;
+        } else if (0 == strncasecmp(superTbls->columns[c].dataType,
+                    "UBIGINT", strlen("UBIGINT"))) {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_UBIGINT;
+        } else {
+            superTbls->columns[c].data_type = TSDB_DATA_TYPE_NULL;
+        }
+    }
 
     count = 1;
     index = 0;
@@ -4459,6 +5135,54 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
 
     superTbls->tagCount = index;
 
+    for (int t = 0; t < superTbls->tagCount; t++) {
+        if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "INT", strlen("INT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_INT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "TINYINT", strlen("TINYINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_TINYINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "SMALLINT", strlen("SMALLINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_SMALLINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "BIGINT", strlen("BIGINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_BIGINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "FLOAT", strlen("FLOAT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_FLOAT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "DOUBLE", strlen("DOUBLE"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_DOUBLE;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "BINARY", strlen("BINARY"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_BINARY;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "NCHAR", strlen("NCHAR"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_NCHAR;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "BOOL", strlen("BOOL"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_BOOL;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "TIMESTAMP", strlen("TIMESTAMP"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "UTINYINT", strlen("UTINYINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_UTINYINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "USMALLINT", strlen("USMALLINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_USMALLINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "UINT", strlen("UINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_UINT;
+        } else if (0 == strncasecmp(superTbls->tags[t].dataType,
+                    "UBIGINT", strlen("UBIGINT"))) {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_UBIGINT;
+        } else {
+            superTbls->tags[t].data_type = TSDB_DATA_TYPE_NULL;
+        }
+    }
+
     if ((superTbls->columnCount + superTbls->tagCount + 1 /* ts */) > TSDB_MAX_COLUMNS) {
         errorPrint("columns + tags is more than allowed max columns count: %d\n",
                 TSDB_MAX_COLUMNS);
@@ -4492,35 +5216,35 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (port && port->type == cJSON_Number) {
         g_Dbs.port = port->valueint;
     } else if (!port) {
-        g_Dbs.port = 6030;
+        g_Dbs.port = DEFAULT_PORT;
     }
 
     cJSON* user = cJSON_GetObjectItem(root, "user");
     if (user && user->type == cJSON_String && user->valuestring != NULL) {
         tstrncpy(g_Dbs.user, user->valuestring, MAX_USERNAME_SIZE);
     } else if (!user) {
-        tstrncpy(g_Dbs.user, "root", MAX_USERNAME_SIZE);
+        tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
     }
 
     cJSON* password = cJSON_GetObjectItem(root, "password");
     if (password && password->type == cJSON_String && password->valuestring != NULL) {
         tstrncpy(g_Dbs.password, password->valuestring, SHELL_MAX_PASSWORD_LEN);
     } else if (!password) {
-        tstrncpy(g_Dbs.password, "taosdata", SHELL_MAX_PASSWORD_LEN);
+        tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
     }
 
     cJSON* resultfile = cJSON_GetObjectItem(root, "result_file");
     if (resultfile && resultfile->type == cJSON_String && resultfile->valuestring != NULL) {
         tstrncpy(g_Dbs.resultFile, resultfile->valuestring, MAX_FILE_NAME_LEN);
     } else if (!resultfile) {
-        tstrncpy(g_Dbs.resultFile, "./insert_res.txt", MAX_FILE_NAME_LEN);
+        tstrncpy(g_Dbs.resultFile, DEFAULT_OUTPUT, MAX_FILE_NAME_LEN);
     }
 
     cJSON* threads = cJSON_GetObjectItem(root, "thread_count");
     if (threads && threads->type == cJSON_Number) {
         g_Dbs.threadCount = threads->valueint;
     } else if (!threads) {
-        g_Dbs.threadCount = 1;
+        g_Dbs.threadCount = DEFAULT_NTHREADS;
     } else {
         errorPrint("%s", "failed to read json, threads not found\n");
         goto PARSE_OVER;
@@ -4530,7 +5254,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (threads2 && threads2->type == cJSON_Number) {
         g_Dbs.threadCountForCreateTbl = threads2->valueint;
     } else if (!threads2) {
-        g_Dbs.threadCountForCreateTbl = 1;
+        g_Dbs.threadCountForCreateTbl = DEFAULT_NTHREADS;
     } else {
         errorPrint("%s", "failed to read json, threads2 not found\n");
         goto PARSE_OVER;
@@ -4544,7 +5268,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         }
         g_args.insert_interval = gInsertInterval->valueint;
     } else if (!gInsertInterval) {
-        g_args.insert_interval = 0;
+        g_args.insert_interval = DEFAULT_INSERT_INTERVAL;
     } else {
         errorPrint("%s", "failed to read json, insert_interval input mistake\n");
         goto PARSE_OVER;
@@ -4553,15 +5277,15 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
     if (interlaceRows && interlaceRows->type == cJSON_Number) {
         if (interlaceRows->valueint < 0) {
-            errorPrint("%s", "failed to read json, interlace_rows input mistake\n");
+            errorPrint("%s", "failed to read json, interlaceRows input mistake\n");
             goto PARSE_OVER;
 
         }
-        g_args.interlace_rows = interlaceRows->valueint;
+        g_args.interlaceRows = interlaceRows->valueint;
     } else if (!interlaceRows) {
-        g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+        g_args.interlaceRows = DEFAULT_INTERLACE_ROWS; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
     } else {
-        errorPrint("%s", "failed to read json, interlace_rows input mistake\n");
+        errorPrint("%s", "failed to read json, interlaceRows input mistake\n");
         goto PARSE_OVER;
     }
 
@@ -4574,7 +5298,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         }
         g_args.max_sql_len = maxSqlLen->valueint;
     } else if (!maxSqlLen) {
-        g_args.max_sql_len = (1024*1024);
+        g_args.max_sql_len = TSDB_MAX_ALLOWED_SQL_LEN;
     } else {
         errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
                 __func__, __LINE__);
@@ -4595,11 +5319,27 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             prompt();
             numRecPerReq->valueint = MAX_RECORDS_PER_REQ;
         }
-        g_args.num_of_RPR = numRecPerReq->valueint;
+        g_args.reqPerReq = numRecPerReq->valueint;
     } else if (!numRecPerReq) {
-        g_args.num_of_RPR = MAX_RECORDS_PER_REQ;
+        g_args.reqPerReq = MAX_RECORDS_PER_REQ;
     } else {
         errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n",
+                __func__, __LINE__);
+        goto PARSE_OVER;
+    }
+
+    cJSON* prepareRand = cJSON_GetObjectItem(root, "prepared_rand");
+    if (prepareRand && prepareRand->type == cJSON_Number) {
+        if (prepareRand->valueint <= 0) {
+            errorPrint("%s() LN%d, failed to read json, prepared_rand input mistake\n",
+                    __func__, __LINE__);
+            goto PARSE_OVER;
+        }
+        g_args.prepared_rand = prepareRand->valueint;
+    } else if (!prepareRand) {
+        g_args.prepared_rand = DEFAULT_PREPARED_RAND;
+    } else {
+        errorPrint("%s() LN%d, failed to read json, prepared_rand not found\n",
                 __func__, __LINE__);
         goto PARSE_OVER;
     }
@@ -4613,7 +5353,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         } else if (0 == strncasecmp(answerPrompt->valuestring, "no", 2)) {
             g_args.answer_yes = true;
         } else {
-            g_args.answer_yes = false;
+            g_args.answer_yes = DEFAULT_ANS_YES;
         }
     } else if (!answerPrompt) {
         g_args.answer_yes = true;   // default is no, mean answer_yes.
@@ -4623,13 +5363,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     }
 
     // rows per table need be less than insert batch
-    if (g_args.interlace_rows > g_args.num_of_RPR) {
+    if (g_args.interlaceRows > g_args.reqPerReq) {
         printf("NOTICE: interlace rows value %u > num_of_records_per_req %u\n\n",
-                g_args.interlace_rows, g_args.num_of_RPR);
+                g_args.interlaceRows, g_args.reqPerReq);
         printf("        interlace rows value will be set to num_of_records_per_req %u\n\n",
-                g_args.num_of_RPR);
+                g_args.reqPerReq);
         prompt();
-        g_args.interlace_rows = g_args.num_of_RPR;
+        g_args.interlaceRows = g_args.reqPerReq;
     }
 
     cJSON* dbs = cJSON_GetObjectItem(root, "databases");
@@ -4645,7 +5385,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 MAX_DB_COUNT);
         goto PARSE_OVER;
     }
-
+    g_Dbs.db = calloc(1, sizeof(SDataBase)*dbSize);
+    assert(g_Dbs.db);
     g_Dbs.dbCount = dbSize;
     for (int i = 0; i < dbSize; ++i) {
         cJSON* dbinfos = cJSON_GetArrayItem(dbs, i);
@@ -4831,7 +5572,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             goto PARSE_OVER;
         }
 
-        // super_talbes
+        // super_tables
         cJSON *stables = cJSON_GetObjectItem(dbinfos, "super_tables");
         if (!stables || stables->type != cJSON_Array) {
             errorPrint("%s", "failed to read json, super_tables not found\n");
@@ -4845,7 +5586,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     MAX_SUPER_TABLE_COUNT);
             goto PARSE_OVER;
         }
-
+        g_Dbs.db[i].superTbls = calloc(1, stbSize * sizeof(SSuperTable));
+        assert(g_Dbs.db[i].superTbls);
         g_Dbs.db[i].superTblCount = stbSize;
         for (int j = 0; j < stbSize; ++j) {
             cJSON* stbInfo = cJSON_GetArrayItem(stables, j);
@@ -4858,7 +5600,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 errorPrint("%s", "failed to read json, stb name not found\n");
                 goto PARSE_OVER;
             }
-            tstrncpy(g_Dbs.db[i].superTbls[j].sTblName, stbName->valuestring,
+            tstrncpy(g_Dbs.db[i].superTbls[j].stbName, stbName->valuestring,
                     TSDB_TABLE_NAME_LEN);
 
             cJSON *prefix = cJSON_GetObjectItem(stbInfo, "childtable_prefix");
@@ -4868,6 +5610,24 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             }
             tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
                     TBNAME_PREFIX_LEN);
+
+            cJSON *escapeChar = cJSON_GetObjectItem(stbInfo, "escape_character");
+            if (escapeChar
+                    && escapeChar->type == cJSON_String
+                    && escapeChar->valuestring != NULL) {
+                if ((0 == strncasecmp(escapeChar->valuestring, "yes", 3))) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = true;
+                } else if (0 == strncasecmp(escapeChar->valuestring, "no", 2)) {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                } else {
+                    g_Dbs.db[i].superTbls[j].escapeChar = false;
+                }
+            } else if (!escapeChar) {
+                g_Dbs.db[i].superTbls[j].escapeChar = false;
+            } else {
+                errorPrint("%s", "failed to read json, escape_character not found\n");
+                goto PARSE_OVER;
+            }
 
             cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
             if (autoCreateTbl
@@ -4892,7 +5652,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
             } else if (!batchCreateTbl) {
-                g_Dbs.db[i].superTbls[j].batchCreateTableNum = 10;
+                g_Dbs.db[i].superTbls[j].batchCreateTableNum = DEFAULT_CREATE_BATCH;
             } else {
                 errorPrint("%s", "failed to read json, batch_create_tbl_num not found\n");
                 goto PARSE_OVER;
@@ -4955,6 +5715,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     g_Dbs.db[i].superTbls[j].iface= REST_IFACE;
                 } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
                     g_Dbs.db[i].superTbls[j].iface= STMT_IFACE;
+                } else if (0 == strcasecmp(stbIface->valuestring, "sml")) {
+                    g_Dbs.db[i].superTbls[j].iface= SML_IFACE;
+                    g_args.iface = SML_IFACE;
                 } else {
                     errorPrint("failed to read json, insert_mode %s not recognized\n",
                             stbIface->valuestring);
@@ -5044,6 +5807,23 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 goto PARSE_OVER;
             }
 
+            cJSON *useSampleTs = cJSON_GetObjectItem(stbInfo, "use_sample_ts");
+            if (useSampleTs && useSampleTs->type == cJSON_String
+                    && useSampleTs->valuestring != NULL) {
+                if (0 == strncasecmp(useSampleTs->valuestring, "yes", 3)) {
+                    g_Dbs.db[i].superTbls[j].useSampleTs = true;
+                } else if (0 == strncasecmp(useSampleTs->valuestring, "no", 2)){
+                    g_Dbs.db[i].superTbls[j].useSampleTs = false;
+                } else {
+                    g_Dbs.db[i].superTbls[j].useSampleTs = false;
+                }
+            } else if (!useSampleTs) {
+                g_Dbs.db[i].superTbls[j].useSampleTs = false;
+            } else {
+                errorPrint("%s", "failed to read json, use_sample_ts not found\n");
+                goto PARSE_OVER;
+            }
+
             cJSON *tagsFile = cJSON_GetObjectItem(stbInfo, "tags_file");
             if ((tagsFile && tagsFile->type == cJSON_String)
                     && (tagsFile->valuestring != NULL)) {
@@ -5127,7 +5907,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     g_Dbs.db[i].superTbls[j].interlaceRows = g_Dbs.db[i].superTbls[j].insertRows;
                 }
             } else if (!stbInterlaceRows) {
-                g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+                g_Dbs.db[i].superTbls[j].interlaceRows = g_args.interlaceRows; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
             } else {
                 errorPrint(
                         "%s", "failed to read json, interlace rows input mistake\n");
@@ -5154,7 +5934,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (disorderRange && disorderRange->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].disorderRange = disorderRange->valueint;
             } else if (!disorderRange) {
-                g_Dbs.db[i].superTbls[j].disorderRange = 1000;
+                g_Dbs.db[i].superTbls[j].disorderRange = DEFAULT_DISORDER_RANGE;
             } else {
                 errorPrint("%s", "failed to read json, disorderRange not found\n");
                 goto PARSE_OVER;
@@ -5168,7 +5948,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
             } else if (!insertInterval) {
-                verbosePrint("%s() LN%d: stable insert interval be overrided by global %"PRIu64".\n",
+                verbosePrint("%s() LN%d: stable insert interval be overrode by global %"PRIu64".\n",
                         __func__, __LINE__, g_args.insert_interval);
                 g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
             } else {
@@ -5202,7 +5982,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (host && host->type == cJSON_String && host->valuestring != NULL) {
         tstrncpy(g_queryInfo.host, host->valuestring, MAX_HOSTNAME_SIZE);
     } else if (!host) {
-        tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
+        tstrncpy(g_queryInfo.host, DEFAULT_HOST, MAX_HOSTNAME_SIZE);
     } else {
         errorPrint("%s", "failed to read json, host not found\n");
         goto PARSE_OVER;
@@ -5212,21 +5992,21 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (port && port->type == cJSON_Number) {
         g_queryInfo.port = port->valueint;
     } else if (!port) {
-        g_queryInfo.port = 6030;
+        g_queryInfo.port = DEFAULT_PORT;
     }
 
     cJSON* user = cJSON_GetObjectItem(root, "user");
     if (user && user->type == cJSON_String && user->valuestring != NULL) {
         tstrncpy(g_queryInfo.user, user->valuestring, MAX_USERNAME_SIZE);
     } else if (!user) {
-        tstrncpy(g_queryInfo.user, "root", MAX_USERNAME_SIZE); ;
+        tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE); ;
     }
 
     cJSON* password = cJSON_GetObjectItem(root, "password");
     if (password && password->type == cJSON_String && password->valuestring != NULL) {
         tstrncpy(g_queryInfo.password, password->valuestring, SHELL_MAX_PASSWORD_LEN);
     } else if (!password) {
-        tstrncpy(g_queryInfo.password, "taosdata", SHELL_MAX_PASSWORD_LEN);;
+        tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);;
     }
 
     cJSON *answerPrompt = cJSON_GetObjectItem(root, "confirm_parameter_prompt"); // yes, no,
@@ -5254,7 +6034,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         }
         g_args.query_times = gQueryTimes->valueint;
     } else if (!gQueryTimes) {
-        g_args.query_times = 1;
+        g_args.query_times = DEFAULT_QUERY_TIME;
     } else {
         errorPrint("%s", "failed to read json, query_times input mistake\n");
         goto PARSE_OVER;
@@ -5352,7 +6132,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         } else if (!interval) {
             //printf("failed to read json, subscribe interval no found\n");
             //goto PARSE_OVER;
-            g_queryInfo.specifiedQueryInfo.subscribeInterval = 10000;
+            g_queryInfo.specifiedQueryInfo.subscribeInterval = DEFAULT_SUB_INTERVAL;
         }
 
         cJSON* restart = cJSON_GetObjectItem(specifiedQuery, "restart");
@@ -5499,7 +6279,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             }
             g_queryInfo.superQueryInfo.threadCnt = threads->valueint;
         } else if (!threads) {
-            g_queryInfo.superQueryInfo.threadCnt = 1;
+            g_queryInfo.superQueryInfo.threadCnt = DEFAULT_NTHREADS;
         }
 
         //cJSON* subTblCnt = cJSON_GetObjectItem(superQuery, "childtable_count");
@@ -5512,7 +6292,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         cJSON* stblname = cJSON_GetObjectItem(superQuery, "stblname");
         if (stblname && stblname->type == cJSON_String
                 && stblname->valuestring != NULL) {
-            tstrncpy(g_queryInfo.superQueryInfo.sTblName, stblname->valuestring,
+            tstrncpy(g_queryInfo.superQueryInfo.stbName, stblname->valuestring,
                     TSDB_TABLE_NAME_LEN);
         } else {
             errorPrint("%s", "failed to read json, super table name input error\n");
@@ -5544,7 +6324,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         } else if (!superInterval) {
             //printf("failed to read json, subscribe interval no found\n");
             //goto PARSE_OVER;
-            g_queryInfo.superQueryInfo.subscribeInterval = 10000;
+            g_queryInfo.superQueryInfo.subscribeInterval = DEFAULT_QUERY_INTERVAL;
         }
 
         cJSON* subrestart = cJSON_GetObjectItem(superQuery, "restart");
@@ -5664,7 +6444,7 @@ static bool getInfoFromJsonFile(char* file) {
     }
 
     bool  ret = false;
-    int   maxLen = 6400000;
+    int   maxLen = MAX_JSON_BUFF;
     char *content = calloc(1, maxLen + 1);
     int   len = fread(content, 1, maxLen, fp);
     if (len <= 0) {
@@ -5701,9 +6481,12 @@ static bool getInfoFromJsonFile(char* file) {
     }
 
     if (INSERT_TEST == g_args.test_mode) {
+        memset(&g_Dbs, 0, sizeof(SDbs));
+        g_Dbs.use_metric = g_args.use_metric;
         ret = getMetaFromInsertJsonFile(root);
     } else if ((QUERY_TEST == g_args.test_mode)
             || (SUBSCRIBE_TEST == g_args.test_mode)) {
+        memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
         ret = getMetaFromQueryJsonFile(root);
     } else {
         errorPrint("%s",
@@ -5734,28 +6517,43 @@ static int prepareSampleData() {
 
 static void postFreeResource() {
     tmfclose(g_fpOfInsertResult);
+
     for (int i = 0; i < g_Dbs.dbCount; i++) {
         for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
             if (0 != g_Dbs.db[i].superTbls[j].colsOfCreateChildTable) {
-                free(g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
+                tmfree(g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
                 g_Dbs.db[i].superTbls[j].colsOfCreateChildTable = NULL;
             }
             if (0 != g_Dbs.db[i].superTbls[j].sampleDataBuf) {
-                free(g_Dbs.db[i].superTbls[j].sampleDataBuf);
+                tmfree(g_Dbs.db[i].superTbls[j].sampleDataBuf);
                 g_Dbs.db[i].superTbls[j].sampleDataBuf = NULL;
             }
 
+#if STMT_BIND_PARAM_BATCH == 1
+            for (int c = 0;
+                    c < g_Dbs.db[i].superTbls[j].columnCount; c ++) {
+
+                if (g_Dbs.db[i].superTbls[j].sampleBindBatchArray) {
+
+                    tmfree((char *)((uintptr_t)*(uintptr_t*)(
+                                    g_Dbs.db[i].superTbls[j].sampleBindBatchArray
+                                    + sizeof(char*) * c)));
+                }
+            }
+            tmfree(g_Dbs.db[i].superTbls[j].sampleBindBatchArray);
+#endif
             if (0 != g_Dbs.db[i].superTbls[j].tagDataBuf) {
-                free(g_Dbs.db[i].superTbls[j].tagDataBuf);
+                tmfree(g_Dbs.db[i].superTbls[j].tagDataBuf);
                 g_Dbs.db[i].superTbls[j].tagDataBuf = NULL;
             }
             if (0 != g_Dbs.db[i].superTbls[j].childTblName) {
-                free(g_Dbs.db[i].superTbls[j].childTblName);
+                tmfree(g_Dbs.db[i].superTbls[j].childTblName);
                 g_Dbs.db[i].superTbls[j].childTblName = NULL;
             }
         }
+        tmfree(g_Dbs.db[i].superTbls);
     }
-
+    tmfree(g_Dbs.db);
     tmfree(g_randbool_buff);
     tmfree(g_randint_buff);
     tmfree(g_rand_voltage_buff);
@@ -5766,24 +6564,45 @@ static void postFreeResource() {
     tmfree(g_rand_current_buff);
     tmfree(g_rand_phase_buff);
 
+    tmfree(g_sampleDataBuf);
+
+#if STMT_BIND_PARAM_BATCH == 1
+    for (int l = 0;
+             l < g_args.columnCount; l ++) {
+        if (g_sampleBindBatchArray) {
+            tmfree((char *)((uintptr_t)*(uintptr_t*)(
+                            g_sampleBindBatchArray
+                            + sizeof(char*) * l)));
+        }
+    }
+    tmfree(g_sampleBindBatchArray);
+
+#endif
 }
 
 static int getRowDataFromSample(
         char* dataBuf, int64_t maxLen, int64_t timestamp,
         SSuperTable* stbInfo, int64_t* sampleUsePos)
 {
-    if ((*sampleUsePos) == MAX_SAMPLES_ONCE_FROM_FILE) {
+    if ((*sampleUsePos) == MAX_SAMPLES) {
         *sampleUsePos = 0;
     }
 
     int    dataLen = 0;
-
-    dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+    if(stbInfo->useSampleTs) {
+        dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+            "(%s",
+            stbInfo->sampleDataBuf
+            + stbInfo->lenOfOneRow * (*sampleUsePos));
+    } else {
+        dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
             "(%" PRId64 ", ", timestamp);
-    dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+        dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
             "%s",
             stbInfo->sampleDataBuf
             + stbInfo->lenOfOneRow * (*sampleUsePos));
+    }
+    
     dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
 
     (*sampleUsePos)++;
@@ -5803,13 +6622,14 @@ static int64_t generateStbRowData(
     int tmpLen;
 
     dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-            "(%" PRId64 ",", timestamp);
+            "(%" PRId64 "", timestamp);
 
     for (int i = 0; i < stbInfo->columnCount; i++) {
-        if ((0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "BINARY", 6))
-                || (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "NCHAR", 5))) {
+        tstrncpy(pstr + dataLen, ",", 2);
+        dataLen += 1;
+
+        if ((stbInfo->columns[i].data_type == TSDB_DATA_TYPE_BINARY)
+                || (stbInfo->columns[i].data_type == TSDB_DATA_TYPE_NCHAR)) {
             if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
                 errorPrint2("binary or nchar length overflow, max size:%u\n",
                         (uint32_t)TSDB_MAX_BINARY_LEN);
@@ -5827,80 +6647,114 @@ static int64_t generateStbRowData(
                 return -1;
             }
             rand_string(buf, stbInfo->columns[i].dataLen);
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
+            dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\'", buf);
             tmfree(buf);
 
         } else {
-            char *tmp;
-
-            if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "INT", 3)) {
-                if ((g_args.demo_mode) && (i == 1)) {
-                    tmp = demo_voltage_int_str();
-                } else {
-                    tmp = rand_int_str();
-                }
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
-            } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "BIGINT", 6)) {
-                tmp = rand_bigint_str();
-                tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
-            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "FLOAT", 5)) {
-                if (g_args.demo_mode) {
-                    if (i == 0) {
-                        tmp = demo_current_float_str();
+            char *tmp = NULL;
+            switch(stbInfo->columns[i].data_type) {
+                case TSDB_DATA_TYPE_INT:
+                    if ((g_args.demo_mode) && (i == 1)) {
+                        tmp = demo_voltage_int_str();
                     } else {
-                        tmp = demo_phase_float_str();
+                        tmp = rand_int_str();
                     }
-                } else {
-                    tmp = rand_float_str();
-                }
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, FLOAT_BUFF_LEN));
-            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "DOUBLE", 6)) {
-                tmp = rand_double_str();
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, DOUBLE_BUFF_LEN));
-            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "SMALLINT", 8)) {
-                tmp = rand_smallint_str();
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp,
-                        min(tmpLen + 1, SMALLINT_BUFF_LEN));
-            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "TINYINT", 7)) {
-                tmp = rand_tinyint_str();
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
-            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "BOOL", 4)) {
-                tmp = rand_bool_str();
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BOOL_BUFF_LEN));
-            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "TIMESTAMP", 9)) {
-                tmp = rand_bigint_str();
-                tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BIGINT_BUFF_LEN));
-            }  else {
-                errorPrint2("Not support data type: %s\n",
-                        stbInfo->columns[i].dataType);
-                return -1;
-            }
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
+                    break;
 
-            dataLen += strlen(tmp);
-            tstrncpy(pstr + dataLen, ",", 2);
-            dataLen += 1;
+                case TSDB_DATA_TYPE_UINT:
+                    tmp = rand_uint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_BIGINT:
+                    tmp = rand_bigint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_UBIGINT:
+                    tmp = rand_ubigint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_FLOAT:
+                    if (g_args.demo_mode) {
+                        if (i == 0) {
+                            tmp = demo_current_float_str();
+                        } else {
+                            tmp = demo_phase_float_str();
+                        }
+                    } else {
+                        tmp = rand_float_str();
+                    }
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, FLOAT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_DOUBLE:
+                    tmp = rand_double_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, DOUBLE_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_SMALLINT:
+                    tmp = rand_smallint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_USMALLINT:
+                    tmp = rand_usmallint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_TINYINT:
+                    tmp = rand_tinyint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, TINYINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_UTINYINT:
+                    tmp = rand_utinyint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, TINYINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_BOOL:
+                    tmp = rand_bool_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BOOL_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    tmp = rand_bigint_str();
+                    tmpLen = strlen(tmp);
+                    tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, BIGINT_BUFF_LEN));
+                    break;
+
+                case TSDB_DATA_TYPE_NULL:
+                    break;
+
+                default:
+                    errorPrint2("Not support data type: %s\n",
+                            stbInfo->columns[i].dataType);
+                    exit(EXIT_FAILURE);
+            }
+            if (tmp) {
+                dataLen += tmpLen;
+            }
         }
 
         if (dataLen > (remainderBufLen - (128)))
             return 0;
     }
 
-    tstrncpy(pstr + dataLen - 1, ")", 2);
+    dataLen += snprintf(pstr + dataLen, 2, ")");
 
     verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
     verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
@@ -5908,53 +6762,99 @@ static int64_t generateStbRowData(
     return strlen(recBuf);
 }
 
-static int64_t generateData(char *recBuf, char **data_type,
+static int64_t generateData(char *recBuf, char *data_type,
         int64_t timestamp, int lenOfBinary) {
     memset(recBuf, 0, MAX_DATA_SIZE);
     char *pstr = recBuf;
     pstr += sprintf(pstr, "(%"PRId64"", timestamp);
 
-    int columnCount = g_args.num_of_CPR;
+    int columnCount = g_args.columnCount;
 
+    bool b;
+    char *s;
     for (int i = 0; i < columnCount; i++) {
-        if (strcasecmp(data_type[i % columnCount], "TINYINT") == 0) {
-            pstr += sprintf(pstr, ",%d", rand_tinyint() );
-        } else if (strcasecmp(data_type[i % columnCount], "SMALLINT") == 0) {
-            pstr += sprintf(pstr, ",%d", rand_smallint());
-        } else if (strcasecmp(data_type[i % columnCount], "INT") == 0) {
-            pstr += sprintf(pstr, ",%d", rand_int());
-        } else if (strcasecmp(data_type[i % columnCount], "BIGINT") == 0) {
-            pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
-        } else if (strcasecmp(data_type[i % columnCount], "TIMESTAMP") == 0) {
-            pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
-        } else if (strcasecmp(data_type[i % columnCount], "FLOAT") == 0) {
-            pstr += sprintf(pstr, ",%10.4f", rand_float());
-        } else if (strcasecmp(data_type[i % columnCount], "DOUBLE") == 0) {
-            double t = rand_double();
-            pstr += sprintf(pstr, ",%20.8f", t);
-        } else if (strcasecmp(data_type[i % columnCount], "BOOL") == 0) {
-            bool b = rand_bool() & 1;
-            pstr += sprintf(pstr, ",%s", b ? "true" : "false");
-        } else if (strcasecmp(data_type[i % columnCount], "BINARY") == 0) {
-            char *s = malloc(lenOfBinary + 1);
-            if (s == NULL) {
-                errorPrint2("%s() LN%d, memory allocation %d bytes failed\n",
-                        __func__, __LINE__, lenOfBinary + 1);
+        switch (data_type[i]) {
+            case TSDB_DATA_TYPE_TINYINT:
+                pstr += sprintf(pstr, ",%d", rand_tinyint() );
+                break;
+
+            case TSDB_DATA_TYPE_SMALLINT:
+                pstr += sprintf(pstr, ",%d", rand_smallint());
+                break;
+
+            case TSDB_DATA_TYPE_INT:
+                pstr += sprintf(pstr, ",%d", rand_int());
+                break;
+
+            case TSDB_DATA_TYPE_BIGINT:
+                pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
+                break;
+
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
+                break;
+
+            case TSDB_DATA_TYPE_FLOAT:
+                pstr += sprintf(pstr, ",%10.4f", rand_float());
+                break;
+
+            case TSDB_DATA_TYPE_DOUBLE:
+                pstr += sprintf(pstr, ",%20.8f", rand_double());
+                break;
+
+            case TSDB_DATA_TYPE_BOOL:
+                b = rand_bool() & 1;
+                pstr += sprintf(pstr, ",%s", b ? "true" : "false");
+                break;
+
+            case TSDB_DATA_TYPE_BINARY:
+                s = malloc(lenOfBinary + 1);
+                if (s == NULL) {
+                    errorPrint2("%s() LN%d, memory allocation %d bytes failed\n",
+                            __func__, __LINE__, lenOfBinary + 1);
+                    exit(EXIT_FAILURE);
+                }
+                rand_string(s, lenOfBinary);
+                pstr += sprintf(pstr, ",\"%s\"", s);
+                free(s);
+                break;
+
+            case TSDB_DATA_TYPE_NCHAR:
+                s = malloc(lenOfBinary + 1);
+                if (s == NULL) {
+                    errorPrint2("%s() LN%d, memory allocation %d bytes failed\n",
+                            __func__, __LINE__, lenOfBinary + 1);
+                    exit(EXIT_FAILURE);
+                }
+                rand_string(s, lenOfBinary);
+                pstr += sprintf(pstr, ",\"%s\"", s);
+                free(s);
+                break;
+
+            case TSDB_DATA_TYPE_UTINYINT:
+                pstr += sprintf(pstr, ",%d", rand_utinyint() );
+                break;
+
+            case TSDB_DATA_TYPE_USMALLINT:
+                pstr += sprintf(pstr, ",%d", rand_usmallint());
+                break;
+
+            case TSDB_DATA_TYPE_UINT:
+                pstr += sprintf(pstr, ",%d", rand_uint());
+                break;
+
+            case TSDB_DATA_TYPE_UBIGINT:
+                pstr += sprintf(pstr, ",%"PRId64"", rand_ubigint());
+                break;
+
+            case TSDB_DATA_TYPE_NULL:
+                break;
+
+            default:
+                errorPrint2("%s() LN%d, Unknown data type %d\n",
+                        __func__, __LINE__,
+                        data_type[i]);
                 exit(EXIT_FAILURE);
-            }
-            rand_string(s, lenOfBinary);
-            pstr += sprintf(pstr, ",\"%s\"", s);
-            free(s);
-        } else if (strcasecmp(data_type[i % columnCount], "NCHAR") == 0) {
-            char *s = malloc(lenOfBinary + 1);
-            if (s == NULL) {
-                errorPrint2("%s() LN%d, memory allocation %d bytes failed\n",
-                        __func__, __LINE__, lenOfBinary + 1);
-                exit(EXIT_FAILURE);
-            }
-            rand_string(s, lenOfBinary);
-            pstr += sprintf(pstr, ",\"%s\"", s);
-            free(s);
         }
 
         if (strlen(recBuf) > MAX_DATA_SIZE) {
@@ -5969,97 +6869,179 @@ static int64_t generateData(char *recBuf, char **data_type,
     return (int32_t)strlen(recBuf);
 }
 
-static int generateSampleMemoryFromRand(SSuperTable *stbInfo)
+static int generateSampleFromRand(
+        char *sampleDataBuf,
+        uint64_t lenOfOneRow,
+        int columnCount,
+        StrColumn *columns
+        )
 {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
 
-    char *buff = malloc(stbInfo->lenOfOneRow);
+    char *buff = malloc(lenOfOneRow);
     if (NULL == buff) {
-        errorPrint2("%s() LN%d, memory allocation %"PRId64" bytes failed\n",
-                __func__, __LINE__, stbInfo->lenOfOneRow);
+        errorPrint2("%s() LN%d, memory allocation %"PRIu64" bytes failed\n",
+                __func__, __LINE__, lenOfOneRow);
         exit(EXIT_FAILURE);
     }
 
-    for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
+    for (int i=0; i < MAX_SAMPLES; i++) {
         uint64_t pos = 0;
-        memset(buff, 0, stbInfo->lenOfOneRow);
+        memset(buff, 0, lenOfOneRow);
 
-        for (int c = 0; c < stbInfo->columnCount; c++) {
-            char *tmp;
-            if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "BINARY", strlen("BINARY"))) {
-                rand_string(data, stbInfo->columns[c].dataLen);
-                pos += sprintf(buff + pos, "%s,", data);
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "NCHAR", strlen("NCHAR"))) {
-                rand_string(data, stbInfo->columns[c].dataLen);
-                pos += sprintf(buff + pos, "%s,", data);
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "INT", strlen("INT"))) {
-                if ((g_args.demo_mode) && (c == 1)) {
-                    tmp = demo_voltage_int_str();
-                } else {
-                    tmp = rand_int_str();
-                }
-                pos += sprintf(buff + pos, "%s,", tmp);
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "BIGINT", strlen("BIGINT"))) {
-                pos += sprintf(buff + pos, "%s,", rand_bigint_str());
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "FLOAT", strlen("FLOAT"))) {
-                if (g_args.demo_mode) {
-                    if (c == 0) {
-                        tmp = demo_current_float_str();
+        for (int c = 0; c < columnCount; c++) {
+            char *tmp = NULL;
+
+            uint32_t dataLen;
+            char data_type = (columns)?(columns[c].data_type):g_args.data_type[c];
+
+            switch(data_type) {
+                case TSDB_DATA_TYPE_BINARY:
+                    dataLen = (columns)?columns[c].dataLen:g_args.binwidth;
+                    rand_string(data, dataLen);
+                    pos += sprintf(buff + pos, "%s,", data);
+                    break;
+
+                case TSDB_DATA_TYPE_NCHAR:
+                    dataLen = (columns)?columns[c].dataLen:g_args.binwidth;
+                    rand_string(data, dataLen - 1);
+                    pos += sprintf(buff + pos, "%s,", data);
+                    break;
+
+                case TSDB_DATA_TYPE_INT:
+                    if ((g_args.demo_mode) && (c == 1)) {
+                        tmp = demo_voltage_int_str();
                     } else {
-                        tmp = demo_phase_float_str();
+                        tmp = rand_int_str();
                     }
-                } else {
-                    tmp = rand_float_str();
-                }
-                pos += sprintf(buff + pos, "%s,", tmp);
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "DOUBLE", strlen("DOUBLE"))) {
-                pos += sprintf(buff + pos, "%s,", rand_double_str());
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "SMALLINT", strlen("SMALLINT"))) {
-                pos += sprintf(buff + pos, "%s,", rand_smallint_str());
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "TINYINT", strlen("TINYINT"))) {
-                pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "BOOL", strlen("BOOL"))) {
-                pos += sprintf(buff + pos, "%s,", rand_bool_str());
-            } else if (0 == strncasecmp(stbInfo->columns[c].dataType,
-                        "TIMESTAMP", strlen("TIMESTAMP"))) {
-                pos += sprintf(buff + pos, "%s,", rand_bigint_str());
+                    pos += sprintf(buff + pos, "%s,", tmp);
+                    break;
+
+                case TSDB_DATA_TYPE_UINT:
+                    pos += sprintf(buff + pos, "%s,", rand_uint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_BIGINT:
+                    pos += sprintf(buff + pos, "%s,", rand_bigint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_UBIGINT:
+                    pos += sprintf(buff + pos, "%s,", rand_ubigint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_FLOAT:
+                    if (g_args.demo_mode) {
+                        if (c == 0) {
+                            tmp = demo_current_float_str();
+                        } else {
+                            tmp = demo_phase_float_str();
+                        }
+                    } else {
+                        tmp = rand_float_str();
+                    }
+                    pos += sprintf(buff + pos, "%s,", tmp);
+                    break;
+
+                case TSDB_DATA_TYPE_DOUBLE:
+                    pos += sprintf(buff + pos, "%s,", rand_double_str());
+                    break;
+
+                case TSDB_DATA_TYPE_SMALLINT:
+                    pos += sprintf(buff + pos, "%s,", rand_smallint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_USMALLINT:
+                    pos += sprintf(buff + pos, "%s,", rand_usmallint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_TINYINT:
+                    pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_UTINYINT:
+                    pos += sprintf(buff + pos, "%s,", rand_utinyint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_BOOL:
+                    pos += sprintf(buff + pos, "%s,", rand_bool_str());
+                    break;
+
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    pos += sprintf(buff + pos, "%s,", rand_bigint_str());
+                    break;
+
+                case TSDB_DATA_TYPE_NULL:
+                    break;
+
+                default:
+                    errorPrint2("%s() LN%d, Unknown data type %s\n",
+                            __func__, __LINE__,
+                            (columns)?(columns[c].dataType):g_args.dataType[c]);
+                    exit(EXIT_FAILURE);
             }
         }
+
         *(buff + pos - 1) = 0;
-        memcpy(stbInfo->sampleDataBuf + i * stbInfo->lenOfOneRow, buff, pos);
+        memcpy(sampleDataBuf + i * lenOfOneRow, buff, pos);
     }
 
     free(buff);
     return 0;
 }
 
-static int prepareSampleDataForSTable(SSuperTable *stbInfo) {
+static int generateSampleFromRandForNtb()
+{
+    return generateSampleFromRand(
+            g_sampleDataBuf,
+            g_args.lenOfOneRow,
+            g_args.columnCount,
+            NULL);
+}
+
+static int generateSampleFromRandForStb(SSuperTable *stbInfo)
+{
+    return generateSampleFromRand(
+            stbInfo->sampleDataBuf,
+            stbInfo->lenOfOneRow,
+            stbInfo->columnCount,
+            stbInfo->columns);
+}
+
+static int prepareSampleForNtb() {
+    g_sampleDataBuf = calloc(g_args.lenOfOneRow * MAX_SAMPLES, 1);
+    if (NULL == g_sampleDataBuf) {
+        errorPrint2("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
+                __func__, __LINE__,
+                g_args.lenOfOneRow * MAX_SAMPLES,
+                strerror(errno));
+        return -1;
+    }
+
+    return generateSampleFromRandForNtb();
+}
+
+static int prepareSampleForStb(SSuperTable *stbInfo) {
 
     stbInfo->sampleDataBuf = calloc(
-            stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
+            stbInfo->lenOfOneRow * MAX_SAMPLES, 1);
     if (NULL == stbInfo->sampleDataBuf) {
         errorPrint2("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
                 __func__, __LINE__,
-                stbInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
+                stbInfo->lenOfOneRow * MAX_SAMPLES,
                 strerror(errno));
         return -1;
     }
 
     int ret;
-    if (0 == strncasecmp(stbInfo->dataSource, "sample", strlen("sample"))) 
-        ret = readSampleFromCsvFileToMem(stbInfo);
-    else
-        ret = generateSampleMemoryFromRand(stbInfo);
+    if (0 == strncasecmp(stbInfo->dataSource, "sample", strlen("sample"))) {
+        if(stbInfo->useSampleTs) {
+            getAndSetRowsFromCsvFile(stbInfo);
+        }
+        ret = generateSampleFromCsvForStb(stbInfo);
+    } else {
+        ret = generateSampleFromRandForStb(stbInfo);
+    }
 
     if (0 != ret) {
         errorPrint2("%s() LN%d, read sample from csv file failed.\n",
@@ -6076,7 +7058,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
 {
     int32_t affectedRows;
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
-
+    int32_t code;
     uint16_t iface;
     if (stbInfo)
         iface = stbInfo->iface;
@@ -6106,7 +7088,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             verbosePrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
                     __func__, __LINE__, pThreadInfo->buffer);
 
-            if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
+            if (0 != postProceSql(g_Dbs.host, g_Dbs.port,
                         pThreadInfo->buffer, pThreadInfo)) {
                 affectedRows = -1;
                 printf("========restful return fail, threadID[%d]\n",
@@ -6128,7 +7110,19 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             affectedRows = k;
             break;
-
+        case SML_IFACE:
+            code = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, 0, pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI
+                    ? "ms"
+                    : (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO
+                           ? "us"
+                           : "ns"));
+            if (code) {
+                errorPrint2("%s() LN%d, failed to execute schemaless insert. reason: %s\n",
+                __func__, __LINE__, tstrerror(code));
+                exit(EXIT_FAILURE);
+            }
+            affectedRows = k;
+            break;
         default:
             errorPrint2("%s() LN%d: unknown insert mode: %d\n",
                     __func__, __LINE__, stbInfo->iface);
@@ -6145,7 +7139,8 @@ static void getTableName(char *pTblName,
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
             if (stbInfo->childTblLimit > 0) {
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+                        stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName +
                         (tableSeq - stbInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
             } else {
@@ -6153,15 +7148,17 @@ static void getTableName(char *pTblName,
                         pThreadInfo->threadID, __func__, __LINE__,
                         pThreadInfo->start_table_from,
                         pThreadInfo->ntables, tableSeq);
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN, stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
             }
         } else {
-            snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+            snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+            stbInfo->escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                     stbInfo->childTblPrefix, tableSeq);
         }
     } else {
-        snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
+        snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+        g_args.escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                 g_args.tb_prefix, tableSeq);
     }
 }
@@ -6184,7 +7181,7 @@ static int32_t generateDataTailWithoutStb(
 
         int64_t retLen = 0;
 
-        char **data_type = g_args.datatype;
+        char *data_type = g_args.data_type;
         int lenOfBinary = g_args.binwidth;
 
         if (g_args.disorderRatio) {
@@ -6370,7 +7367,7 @@ static int generateStbSQLHead(
                 dbName,
                 tableName,
                 dbName,
-                stbInfo->sTblName,
+                stbInfo->stbName,
                 tagsValBuf);
         tmfree(tagsValBuf);
     } else if (TBL_ALREADY_EXISTS == stbInfo->childTblExists) {
@@ -6502,202 +7499,292 @@ static int64_t generateInterlaceDataWithoutStb(
 
 static int32_t prepareStmtBindArrayByType(
         TAOS_BIND *bind,
-        char *dataType, int32_t dataLen,
+        char data_type, int32_t dataLen,
         int32_t timePrec,
         char *value)
 {
-    if (0 == strncasecmp(dataType,
-                "BINARY", strlen("BINARY"))) {
-        if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint2("binary length overflow, max size:%u\n",
-                    (uint32_t)TSDB_MAX_BINARY_LEN);
-            return -1;
-        }
-        char *bind_binary;
+    int32_t *bind_int;
+    uint32_t *bind_uint;
+    int64_t *bind_bigint;
+    uint64_t *bind_ubigint;
+    float   *bind_float;
+    double  *bind_double;
+    int8_t  *bind_bool;
+    int64_t *bind_ts2;
+    int16_t *bind_smallint;
+    uint16_t *bind_usmallint;
+    int8_t  *bind_tinyint;
+    uint8_t  *bind_utinyint;
 
-        bind->buffer_type = TSDB_DATA_TYPE_BINARY;
-        if (value) {
-            bind_binary = calloc(1, strlen(value) + 1);
-            strncpy(bind_binary, value, strlen(value));
-            bind->buffer_length = strlen(bind_binary);
-        } else {
-            bind_binary = calloc(1, dataLen + 1);
-            rand_string(bind_binary, dataLen);
-            bind->buffer_length = dataLen;
-        }
-
-        bind->length = &bind->buffer_length;
-        bind->buffer = bind_binary;
-        bind->is_null = NULL;
-    } else if (0 == strncasecmp(dataType,
-                "NCHAR", strlen("NCHAR"))) {
-        if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint2("nchar length overflow, max size:%u\n",
-                    (uint32_t)TSDB_MAX_BINARY_LEN);
-            return -1;
-        }
-        char *bind_nchar;
-
-        bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
-        if (value) {
-            bind_nchar = calloc(1, strlen(value) + 1);
-            strncpy(bind_nchar, value, strlen(value));
-        } else {
-            bind_nchar = calloc(1, dataLen + 1);
-            rand_string(bind_nchar, dataLen);
-        }
-
-        bind->buffer_length = strlen(bind_nchar);
-        bind->buffer = bind_nchar;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    } else if (0 == strncasecmp(dataType,
-                "INT", strlen("INT"))) {
-        int32_t *bind_int = malloc(sizeof(int32_t));
-        assert(bind_int);
-
-        if (value) {
-            *bind_int = atoi(value);
-        } else {
-            *bind_int = rand_int();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_INT;
-        bind->buffer_length = sizeof(int32_t);
-        bind->buffer = bind_int;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    } else if (0 == strncasecmp(dataType,
-                "BIGINT", strlen("BIGINT"))) {
-        int64_t *bind_bigint = malloc(sizeof(int64_t));
-        assert(bind_bigint);
-
-        if (value) {
-            *bind_bigint = atoll(value);
-        } else {
-            *bind_bigint = rand_bigint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
-        bind->buffer_length = sizeof(int64_t);
-        bind->buffer = bind_bigint;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    }  else if (0 == strncasecmp(dataType,
-                "FLOAT", strlen("FLOAT"))) {
-        float *bind_float = malloc(sizeof(float));
-        assert(bind_float);
-
-        if (value) {
-            *bind_float = (float)atof(value);
-        } else {
-            *bind_float = rand_float();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
-        bind->buffer_length = sizeof(float);
-        bind->buffer = bind_float;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    }  else if (0 == strncasecmp(dataType,
-                "DOUBLE", strlen("DOUBLE"))) {
-        double *bind_double = malloc(sizeof(double));
-        assert(bind_double);
-
-        if (value) {
-            *bind_double = atof(value);
-        } else {
-            *bind_double = rand_double();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
-        bind->buffer_length = sizeof(double);
-        bind->buffer = bind_double;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    }  else if (0 == strncasecmp(dataType,
-                "SMALLINT", strlen("SMALLINT"))) {
-        int16_t *bind_smallint = malloc(sizeof(int16_t));
-        assert(bind_smallint);
-
-        if (value) {
-            *bind_smallint = (int16_t)atoi(value);
-        } else {
-            *bind_smallint = rand_smallint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
-        bind->buffer_length = sizeof(int16_t);
-        bind->buffer = bind_smallint;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    }  else if (0 == strncasecmp(dataType,
-                "TINYINT", strlen("TINYINT"))) {
-        int8_t *bind_tinyint = malloc(sizeof(int8_t));
-        assert(bind_tinyint);
-
-        if (value) {
-            *bind_tinyint = (int8_t)atoi(value);
-        } else {
-            *bind_tinyint = rand_tinyint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
-        bind->buffer_length = sizeof(int8_t);
-        bind->buffer = bind_tinyint;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    }  else if (0 == strncasecmp(dataType,
-                "BOOL", strlen("BOOL"))) {
-        int8_t *bind_bool = malloc(sizeof(int8_t));
-        assert(bind_bool);
-
-        if (value) {
-            if (strncasecmp(value, "true", 4)) {
-                *bind_bool = true;
-            } else {
-                *bind_bool = false;
+    switch(data_type) {
+        case TSDB_DATA_TYPE_BINARY:
+            if (dataLen > TSDB_MAX_BINARY_LEN) {
+                errorPrint2("binary length overflow, max size:%u\n",
+                        (uint32_t)TSDB_MAX_BINARY_LEN);
+                return -1;
             }
-        } else {
-            *bind_bool = rand_bool();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_BOOL;
-        bind->buffer_length = sizeof(int8_t);
-        bind->buffer = bind_bool;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
+            char *bind_binary;
 
-    }  else if (0 == strncasecmp(dataType,
-                "TIMESTAMP", strlen("TIMESTAMP"))) {
-        int64_t *bind_ts2 = malloc(sizeof(int64_t));
-        assert(bind_ts2);
+            bind->buffer_type = TSDB_DATA_TYPE_BINARY;
+            if (value) {
+                bind_binary = calloc(1, strlen(value) + 1);
+                strncpy(bind_binary, value, strlen(value));
+                bind->buffer_length = strlen(bind_binary);
+            } else {
+                bind_binary = calloc(1, dataLen + 1);
+                rand_string(bind_binary, dataLen);
+                bind->buffer_length = dataLen;
+            }
 
-        if (value) {
-            if (strchr(value, ':') && strchr(value, '-')) {
-                int i = 0;
-                while(value[i] != '\0') {
-                    if (value[i] == '\"' || value[i] == '\'') {
-                        value[i] = ' ';
+            bind->length = &bind->buffer_length;
+            bind->buffer = bind_binary;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_NCHAR:
+            if (dataLen > TSDB_MAX_BINARY_LEN) {
+                errorPrint2("nchar length overflow, max size:%u\n",
+                        (uint32_t)TSDB_MAX_BINARY_LEN);
+                return -1;
+            }
+            char *bind_nchar;
+
+            bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
+            if (value) {
+                bind_nchar = calloc(1, strlen(value) + 1);
+                strncpy(bind_nchar, value, strlen(value));
+            } else {
+                bind_nchar = calloc(1, dataLen + 1);
+                rand_string(bind_nchar, dataLen);
+            }
+
+            bind->buffer_length = strlen(bind_nchar);
+            bind->buffer = bind_nchar;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_INT:
+            bind_int = malloc(sizeof(int32_t));
+            assert(bind_int);
+
+            if (value) {
+                *bind_int = atoi(value);
+            } else {
+                *bind_int = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_INT;
+            bind->buffer_length = sizeof(int32_t);
+            bind->buffer = bind_int;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UINT:
+            bind_uint = malloc(sizeof(uint32_t));
+            assert(bind_uint);
+
+            if (value) {
+                *bind_uint = atoi(value);
+            } else {
+                *bind_uint = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UINT;
+            bind->buffer_length = sizeof(uint32_t);
+            bind->buffer = bind_uint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_BIGINT:
+            bind_bigint = malloc(sizeof(int64_t));
+            assert(bind_bigint);
+
+            if (value) {
+                *bind_bigint = atoll(value);
+            } else {
+                *bind_bigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
+            bind->buffer_length = sizeof(int64_t);
+            bind->buffer = bind_bigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            bind_ubigint = malloc(sizeof(uint64_t));
+            assert(bind_ubigint);
+
+            if (value) {
+                *bind_ubigint = atoll(value);
+            } else {
+                *bind_ubigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UBIGINT;
+            bind->buffer_length = sizeof(uint64_t);
+            bind->buffer = bind_ubigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_FLOAT:
+            bind_float = malloc(sizeof(float));
+            assert(bind_float);
+
+            if (value) {
+                *bind_float = (float)atof(value);
+            } else {
+                *bind_float = rand_float();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
+            bind->buffer_length = sizeof(float);
+            bind->buffer = bind_float;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_DOUBLE:
+            bind_double = malloc(sizeof(double));
+            assert(bind_double);
+
+            if (value) {
+                *bind_double = atof(value);
+            } else {
+                *bind_double = rand_double();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
+            bind->buffer_length = sizeof(double);
+            bind->buffer = bind_double;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_SMALLINT:
+            bind_smallint = malloc(sizeof(int16_t));
+            assert(bind_smallint);
+
+            if (value) {
+                *bind_smallint = (int16_t)atoi(value);
+            } else {
+                *bind_smallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
+            bind->buffer_length = sizeof(int16_t);
+            bind->buffer = bind_smallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_USMALLINT:
+            bind_usmallint = malloc(sizeof(uint16_t));
+            assert(bind_usmallint);
+
+            if (value) {
+                *bind_usmallint = (uint16_t)atoi(value);
+            } else {
+                *bind_usmallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
+            bind->buffer_length = sizeof(uint16_t);
+            bind->buffer = bind_usmallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_TINYINT:
+            bind_tinyint = malloc(sizeof(int8_t));
+            assert(bind_tinyint);
+
+            if (value) {
+                *bind_tinyint = (int8_t)atoi(value);
+            } else {
+                *bind_tinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
+            bind->buffer_length = sizeof(int8_t);
+            bind->buffer = bind_tinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            bind_utinyint = malloc(sizeof(uint8_t));
+            assert(bind_utinyint);
+
+            if (value) {
+                *bind_utinyint = (int8_t)atoi(value);
+            } else {
+                *bind_utinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UTINYINT;
+            bind->buffer_length = sizeof(uint8_t);
+            bind->buffer = bind_utinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_BOOL:
+            bind_bool = malloc(sizeof(int8_t));
+            assert(bind_bool);
+
+            if (value) {
+                if (strncasecmp(value, "true", 4)) {
+                    *bind_bool = true;
+                } else {
+                    *bind_bool = false;
+                }
+            } else {
+                *bind_bool = rand_bool();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_BOOL;
+            bind->buffer_length = sizeof(int8_t);
+            bind->buffer = bind_bool;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_TIMESTAMP:
+            bind_ts2 = malloc(sizeof(int64_t));
+            assert(bind_ts2);
+
+            if (value) {
+                if (strchr(value, ':') && strchr(value, '-')) {
+                    int i = 0;
+                    while(value[i] != '\0') {
+                        if (value[i] == '\"' || value[i] == '\'') {
+                            value[i] = ' ';
+                        }
+                        i++;
                     }
-                    i++;
+                    int64_t tmpEpoch;
+                    if (TSDB_CODE_SUCCESS != taosParseTime(
+                                value, &tmpEpoch, strlen(value),
+                                timePrec, 0)) {
+                        free(bind_ts2);
+                        errorPrint2("Input %s, time format error!\n", value);
+                        return -1;
+                    }
+                    *bind_ts2 = tmpEpoch;
+                } else {
+                    *bind_ts2 = atoll(value);
                 }
-                int64_t tmpEpoch;
-                if (TSDB_CODE_SUCCESS != taosParseTime(
-                            value, &tmpEpoch, strlen(value),
-                            timePrec, 0)) {
-                    free(bind_ts2);
-                    errorPrint2("Input %s, time format error!\n", value);
-                    return -1;
-                }
-                *bind_ts2 = tmpEpoch;
             } else {
-                *bind_ts2 = atoll(value);
+                *bind_ts2 = rand_bigint();
             }
-        } else {
-            *bind_ts2 = rand_bigint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-        bind->buffer_length = sizeof(int64_t);
-        bind->buffer = bind_ts2;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-    }  else {
-        errorPrint2("Not support data type: %s\n", dataType);
-        return -1;
+            bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+            bind->buffer_length = sizeof(int64_t);
+            bind->buffer = bind_ts2;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+            break;
+
+        case TSDB_DATA_TYPE_NULL:
+            break;
+
+        default:
+            errorPrint2("Not support data type: %d\n", data_type);
+            exit(EXIT_FAILURE);
     }
 
     return 0;
@@ -6705,209 +7792,302 @@ static int32_t prepareStmtBindArrayByType(
 
 static int32_t prepareStmtBindArrayByTypeForRand(
         TAOS_BIND *bind,
-        char *dataType, int32_t dataLen,
+        char data_type, int32_t dataLen,
         int32_t timePrec,
         char **ptr,
         char *value)
 {
-    if (0 == strncasecmp(dataType,
-                "BINARY", strlen("BINARY"))) {
-        if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint2("binary length overflow, max size:%u\n",
-                    (uint32_t)TSDB_MAX_BINARY_LEN);
-            return -1;
-        }
-        char *bind_binary = (char *)*ptr;
+    int32_t *bind_int;
+    uint32_t *bind_uint;
+    int64_t *bind_bigint;
+    uint64_t *bind_ubigint;
+    float   *bind_float;
+    double  *bind_double;
+    int16_t *bind_smallint;
+    uint16_t *bind_usmallint;
+    int8_t  *bind_tinyint;
+    uint8_t  *bind_utinyint;
+    int8_t  *bind_bool;
+    int64_t *bind_ts2;
 
-        bind->buffer_type = TSDB_DATA_TYPE_BINARY;
-        if (value) {
-            strncpy(bind_binary, value, strlen(value));
-            bind->buffer_length = strlen(bind_binary);
-        } else {
-            rand_string(bind_binary, dataLen);
-            bind->buffer_length = dataLen;
-        }
+    switch(data_type) {
+        case TSDB_DATA_TYPE_BINARY:
 
-        bind->length = &bind->buffer_length;
-        bind->buffer = bind_binary;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    } else if (0 == strncasecmp(dataType,
-                "NCHAR", strlen("NCHAR"))) {
-        if (dataLen > TSDB_MAX_BINARY_LEN) {
-            errorPrint2("nchar length overflow, max size: %u\n",
-                    (uint32_t)TSDB_MAX_BINARY_LEN);
-            return -1;
-        }
-        char *bind_nchar = (char *)*ptr;
-
-        bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
-        if (value) {
-            strncpy(bind_nchar, value, strlen(value));
-        } else {
-            rand_string(bind_nchar, dataLen);
-        }
-
-        bind->buffer_length = strlen(bind_nchar);
-        bind->buffer = bind_nchar;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    } else if (0 == strncasecmp(dataType,
-                "INT", strlen("INT"))) {
-        int32_t *bind_int = (int32_t *)*ptr;
-
-        if (value) {
-            *bind_int = atoi(value);
-        } else {
-            *bind_int = rand_int();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_INT;
-        bind->buffer_length = sizeof(int32_t);
-        bind->buffer = bind_int;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    } else if (0 == strncasecmp(dataType,
-                "BIGINT", strlen("BIGINT"))) {
-        int64_t *bind_bigint = (int64_t *)*ptr;
-
-        if (value) {
-            *bind_bigint = atoll(value);
-        } else {
-            *bind_bigint = rand_bigint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
-        bind->buffer_length = sizeof(int64_t);
-        bind->buffer = bind_bigint;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    }  else if (0 == strncasecmp(dataType,
-                "FLOAT", strlen("FLOAT"))) {
-        float *bind_float = (float *)*ptr;
-
-        if (value) {
-            *bind_float = (float)atof(value);
-        } else {
-            *bind_float = rand_float();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
-        bind->buffer_length = sizeof(float);
-        bind->buffer = bind_float;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    }  else if (0 == strncasecmp(dataType,
-                "DOUBLE", strlen("DOUBLE"))) {
-        double *bind_double = (double *)*ptr;
-
-        if (value) {
-            *bind_double = atof(value);
-        } else {
-            *bind_double = rand_double();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
-        bind->buffer_length = sizeof(double);
-        bind->buffer = bind_double;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    }  else if (0 == strncasecmp(dataType,
-                "SMALLINT", strlen("SMALLINT"))) {
-        int16_t *bind_smallint = (int16_t *)*ptr;
-
-        if (value) {
-            *bind_smallint = (int16_t)atoi(value);
-        } else {
-            *bind_smallint = rand_smallint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
-        bind->buffer_length = sizeof(int16_t);
-        bind->buffer = bind_smallint;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    }  else if (0 == strncasecmp(dataType,
-                "TINYINT", strlen("TINYINT"))) {
-        int8_t *bind_tinyint = (int8_t *)*ptr;
-
-        if (value) {
-            *bind_tinyint = (int8_t)atoi(value);
-        } else {
-            *bind_tinyint = rand_tinyint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
-        bind->buffer_length = sizeof(int8_t);
-        bind->buffer = bind_tinyint;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
-    }  else if (0 == strncasecmp(dataType,
-                "BOOL", strlen("BOOL"))) {
-        int8_t *bind_bool = (int8_t *)*ptr;
-
-        if (value) {
-            if (strncasecmp(value, "true", 4)) {
-                *bind_bool = true;
-            } else {
-                *bind_bool = false;
+            if (dataLen > TSDB_MAX_BINARY_LEN) {
+                errorPrint2("binary length overflow, max size:%u\n",
+                        (uint32_t)TSDB_MAX_BINARY_LEN);
+                return -1;
             }
-        } else {
-            *bind_bool = rand_bool();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_BOOL;
-        bind->buffer_length = sizeof(int8_t);
-        bind->buffer = bind_bool;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
+            char *bind_binary = (char *)*ptr;
 
-        *ptr += bind->buffer_length;
-    }  else if (0 == strncasecmp(dataType,
-                "TIMESTAMP", strlen("TIMESTAMP"))) {
-        int64_t *bind_ts2 = (int64_t *)*ptr;
+            bind->buffer_type = TSDB_DATA_TYPE_BINARY;
+            if (value) {
+                strncpy(bind_binary, value, strlen(value));
+                bind->buffer_length = strlen(bind_binary);
+            } else {
+                rand_string(bind_binary, dataLen);
+                bind->buffer_length = dataLen;
+            }
 
-        if (value) {
-            if (strchr(value, ':') && strchr(value, '-')) {
-                int i = 0;
-                while(value[i] != '\0') {
-                    if (value[i] == '\"' || value[i] == '\'') {
-                        value[i] = ' ';
+            bind->length = &bind->buffer_length;
+            bind->buffer = bind_binary;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_NCHAR:
+            if (dataLen > TSDB_MAX_BINARY_LEN) {
+                errorPrint2("nchar length overflow, max size: %u\n",
+                        (uint32_t)TSDB_MAX_BINARY_LEN);
+                return -1;
+            }
+            char *bind_nchar = (char *)*ptr;
+
+            bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
+            if (value) {
+                strncpy(bind_nchar, value, strlen(value));
+            } else {
+                rand_string(bind_nchar, dataLen);
+            }
+
+            bind->buffer_length = strlen(bind_nchar);
+            bind->buffer = bind_nchar;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_INT:
+            bind_int = (int32_t *)*ptr;
+
+            if (value) {
+                *bind_int = atoi(value);
+            } else {
+                *bind_int = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_INT;
+            bind->buffer_length = sizeof(int32_t);
+            bind->buffer = bind_int;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UINT:
+            bind_uint = (uint32_t *)*ptr;
+
+            if (value) {
+                *bind_uint = atoi(value);
+            } else {
+                *bind_uint = rand_int();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UINT;
+            bind->buffer_length = sizeof(uint32_t);
+            bind->buffer = bind_uint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_BIGINT:
+            bind_bigint = (int64_t *)*ptr;
+
+            if (value) {
+                *bind_bigint = atoll(value);
+            } else {
+                *bind_bigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
+            bind->buffer_length = sizeof(int64_t);
+            bind->buffer = bind_bigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UBIGINT:
+            bind_ubigint = (uint64_t *)*ptr;
+
+            if (value) {
+                *bind_ubigint = atoll(value);
+            } else {
+                *bind_ubigint = rand_bigint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UBIGINT;
+            bind->buffer_length = sizeof(uint64_t);
+            bind->buffer = bind_ubigint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_FLOAT:
+            bind_float = (float *)*ptr;
+
+            if (value) {
+                *bind_float = (float)atof(value);
+            } else {
+                *bind_float = rand_float();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
+            bind->buffer_length = sizeof(float);
+            bind->buffer = bind_float;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_DOUBLE:
+            bind_double = (double *)*ptr;
+
+            if (value) {
+                *bind_double = atof(value);
+            } else {
+                *bind_double = rand_double();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
+            bind->buffer_length = sizeof(double);
+            bind->buffer = bind_double;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_SMALLINT:
+            bind_smallint = (int16_t *)*ptr;
+
+            if (value) {
+                *bind_smallint = (int16_t)atoi(value);
+            } else {
+                *bind_smallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
+            bind->buffer_length = sizeof(int16_t);
+            bind->buffer = bind_smallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_USMALLINT:
+            bind_usmallint = (uint16_t *)*ptr;
+
+            if (value) {
+                *bind_usmallint = (uint16_t)atoi(value);
+            } else {
+                *bind_usmallint = rand_smallint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_USMALLINT;
+            bind->buffer_length = sizeof(uint16_t);
+            bind->buffer = bind_usmallint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_TINYINT:
+            bind_tinyint = (int8_t *)*ptr;
+
+            if (value) {
+                *bind_tinyint = (int8_t)atoi(value);
+            } else {
+                *bind_tinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
+            bind->buffer_length = sizeof(int8_t);
+            bind->buffer = bind_tinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            bind_utinyint = (uint8_t *)*ptr;
+
+            if (value) {
+                *bind_utinyint = (uint8_t)atoi(value);
+            } else {
+                *bind_utinyint = rand_tinyint();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_UTINYINT;
+            bind->buffer_length = sizeof(uint8_t);
+            bind->buffer = bind_utinyint;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_BOOL:
+            bind_bool = (int8_t *)*ptr;
+
+            if (value) {
+                if (strncasecmp(value, "true", 4)) {
+                    *bind_bool = true;
+                } else {
+                    *bind_bool = false;
+                }
+            } else {
+                *bind_bool = rand_bool();
+            }
+            bind->buffer_type = TSDB_DATA_TYPE_BOOL;
+            bind->buffer_length = sizeof(int8_t);
+            bind->buffer = bind_bool;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
+
+            *ptr += bind->buffer_length;
+            break;
+
+        case TSDB_DATA_TYPE_TIMESTAMP:
+            bind_ts2 = (int64_t *)*ptr;
+
+            if (value) {
+                if (strchr(value, ':') && strchr(value, '-')) {
+                    int i = 0;
+                    while(value[i] != '\0') {
+                        if (value[i] == '\"' || value[i] == '\'') {
+                            value[i] = ' ';
+                        }
+                        i++;
                     }
-                    i++;
+                    int64_t tmpEpoch;
+                    if (TSDB_CODE_SUCCESS != taosParseTime(
+                                value, &tmpEpoch, strlen(value),
+                                timePrec, 0)) {
+                        errorPrint2("Input %s, time format error!\n", value);
+                        return -1;
+                    }
+                    *bind_ts2 = tmpEpoch;
+                } else {
+                    *bind_ts2 = atoll(value);
                 }
-                int64_t tmpEpoch;
-                if (TSDB_CODE_SUCCESS != taosParseTime(
-                            value, &tmpEpoch, strlen(value),
-                            timePrec, 0)) {
-                    errorPrint2("Input %s, time format error!\n", value);
-                    return -1;
-                }
-                *bind_ts2 = tmpEpoch;
             } else {
-                *bind_ts2 = atoll(value);
+                *bind_ts2 = rand_bigint();
             }
-        } else {
-            *bind_ts2 = rand_bigint();
-        }
-        bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-        bind->buffer_length = sizeof(int64_t);
-        bind->buffer = bind_ts2;
-        bind->length = &bind->buffer_length;
-        bind->is_null = NULL;
+            bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+            bind->buffer_length = sizeof(int64_t);
+            bind->buffer = bind_ts2;
+            bind->length = &bind->buffer_length;
+            bind->is_null = NULL;
 
-        *ptr += bind->buffer_length;
-    }  else {
-        errorPrint2("No support data type: %s\n", dataType);
-        return -1;
+            *ptr += bind->buffer_length;
+            break;
+
+        default:
+            errorPrint2("No support data type: %d\n", data_type);
+            return -1;
     }
 
     return 0;
@@ -6929,12 +8109,12 @@ static int32_t prepareStmtWithoutStb(
         return ret;
     }
 
-    char **data_type = g_args.datatype;
+    char *data_type = g_args.data_type;
 
-    char *bindArray = malloc(sizeof(TAOS_BIND) * (g_args.num_of_CPR + 1));
+    char *bindArray = malloc(sizeof(TAOS_BIND) * (g_args.columnCount + 1));
     if (bindArray == NULL) {
         errorPrint2("Failed to allocate %d bind params\n",
-                (g_args.num_of_CPR + 1));
+                (g_args.columnCount + 1));
         return -1;
     }
 
@@ -6961,7 +8141,7 @@ static int32_t prepareStmtWithoutStb(
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
 
-        for (int i = 0; i < g_args.num_of_CPR; i ++) {
+        for (int i = 0; i < g_args.columnCount; i ++) {
             bind = (TAOS_BIND *)((char *)bindArray
                     + (sizeof(TAOS_BIND) * (i + 1)));
             if ( -1 == prepareStmtBindArrayByType(
@@ -6970,6 +8150,7 @@ static int32_t prepareStmtWithoutStb(
                         g_args.binwidth,
                         pThreadInfo->time_precision,
                         NULL)) {
+                free(bindArray);
                 return -1;
             }
         }
@@ -7001,29 +8182,20 @@ static int32_t prepareStbStmtBindTag(
         char *tagsVal,
         int32_t timePrec)
 {
-    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.binwidth);
-    if (bindBuffer == NULL) {
-        errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
-                __func__, __LINE__, DOUBLE_BUFF_LEN);
-        return -1;
-    }
-
     TAOS_BIND *tag;
 
     for (int t = 0; t < stbInfo->tagCount; t ++) {
         tag = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * t));
         if ( -1 == prepareStmtBindArrayByType(
                     tag,
-                    stbInfo->tags[t].dataType,
+                    stbInfo->tags[t].data_type,
                     stbInfo->tags[t].dataLen,
                     timePrec,
                     NULL)) {
-            free(bindBuffer);
             return -1;
         }
     }
 
-    free(bindBuffer);
     return 0;
 }
 
@@ -7033,13 +8205,6 @@ static int32_t prepareStbStmtBindRand(
         int64_t startTime, int32_t recSeq,
         int32_t timePrec)
 {
-    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.binwidth);
-    if (bindBuffer == NULL) {
-        errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
-                __func__, __LINE__, DOUBLE_BUFF_LEN);
-        return -1;
-    }
-
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
     char *ptr = data;
@@ -7069,50 +8234,14 @@ static int32_t prepareStbStmtBindRand(
             ptr += bind->buffer_length;
         } else if ( -1 == prepareStmtBindArrayByTypeForRand(
                     bind,
-                    stbInfo->columns[i-1].dataType,
+                    stbInfo->columns[i-1].data_type,
                     stbInfo->columns[i-1].dataLen,
                     timePrec,
                     &ptr,
                     NULL)) {
-            tmfree(bindBuffer);
             return -1;
         }
     }
-
-    tmfree(bindBuffer);
-    return 0;
-}
-
-static int32_t prepareStbStmtBindStartTime(
-        char *tableName,
-        int64_t *ts,
-        char *bindArray, SSuperTable *stbInfo,
-        int64_t startTime, int32_t recSeq,
-        int32_t timePrec)
-{
-    TAOS_BIND *bind;
-
-    bind = (TAOS_BIND *)bindArray;
-
-    int64_t *bind_ts = ts;
-
-    bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    if (stbInfo->disorderRatio) {
-        *bind_ts = startTime + getTSRandTail(
-                stbInfo->timeStampStep, recSeq,
-                stbInfo->disorderRatio,
-                stbInfo->disorderRange);
-    } else {
-        *bind_ts = startTime + stbInfo->timeStampStep * recSeq;
-    }
-
-    verbosePrint("%s() LN%d, tableName: %s, bind_ts=%"PRId64"\n",
-            __func__, __LINE__, tableName, *bind_ts);
-
-    bind->buffer_length = sizeof(int64_t);
-    bind->buffer = bind_ts;
-    bind->length = &bind->buffer_length;
-    bind->is_null = NULL;
 
     return 0;
 }
@@ -7229,7 +8358,652 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
     return k;
 }
 
-static int32_t prepareStbStmtWithSample(
+#if STMT_BIND_PARAM_BATCH == 1
+static int execStbBindParamBatch(
+        threadInfo *pThreadInfo,
+        char *tableName,
+        int64_t tableSeq,
+        uint32_t batch,
+        uint64_t insertRows,
+        uint64_t recordFrom,
+        int64_t startTime,
+        int64_t *pSamplePos)
+{
+    int ret;
+    TAOS_STMT *stmt = pThreadInfo->stmt;
+
+    SSuperTable *stbInfo = pThreadInfo->stbInfo;
+    assert(stbInfo);
+
+    uint32_t columnCount = pThreadInfo->stbInfo->columnCount;
+
+    uint32_t thisBatch = MAX_SAMPLES - (*pSamplePos);
+
+    if (thisBatch > batch) {
+        thisBatch = batch;
+    }
+    verbosePrint("%s() LN%d, batch=%d pos=%"PRId64" thisBatch=%d\n",
+            __func__, __LINE__, batch, *pSamplePos, thisBatch);
+
+    memset(pThreadInfo->bindParams, 0,
+            (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
+    memset(pThreadInfo->is_null, 0, thisBatch);
+
+    for (int c = 0; c < columnCount + 1; c ++) {
+        TAOS_MULTI_BIND *param = (TAOS_MULTI_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
+
+        char data_type;
+
+        if (c == 0) {
+            data_type = TSDB_DATA_TYPE_TIMESTAMP;
+            param->buffer_length = sizeof(int64_t);
+            param->buffer = pThreadInfo->bind_ts_array;
+
+        } else {
+            data_type = stbInfo->columns[c-1].data_type;
+
+            char *tmpP;
+
+            switch(data_type) {
+                case TSDB_DATA_TYPE_BINARY:
+                    param->buffer_length =
+                        stbInfo->columns[c-1].dataLen;
+
+                    tmpP =
+                        (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
+                                    +sizeof(char*)*(c-1)));
+
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
+
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
+                    break;
+
+                case TSDB_DATA_TYPE_NCHAR:
+                    param->buffer_length =
+                        stbInfo->columns[c-1].dataLen;
+
+                    tmpP =
+                        (char *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray
+                                    +sizeof(char*)*(c-1)));
+
+                    verbosePrint("%s() LN%d, tmpP=%p pos=%"PRId64" width=%"PRIxPTR" position=%"PRId64"\n",
+                            __func__, __LINE__, tmpP, *pSamplePos, param->buffer_length,
+                            (*pSamplePos) * param->buffer_length);
+
+                    param->buffer = (void *)(tmpP + *pSamplePos * param->buffer_length);
+                    break;
+
+                case TSDB_DATA_TYPE_INT:
+                case TSDB_DATA_TYPE_UINT:
+                    param->buffer_length = sizeof(int32_t);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_TINYINT:
+                case TSDB_DATA_TYPE_UTINYINT:
+                    param->buffer_length = sizeof(int8_t);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(
+                                    stbInfo->sampleBindBatchArray
+                                    +sizeof(char*)*(c-1))
+                                + stbInfo->columns[c-1].dataLen*(*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_SMALLINT:
+                case TSDB_DATA_TYPE_USMALLINT:
+                    param->buffer_length = sizeof(int16_t);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_BIGINT:
+                case TSDB_DATA_TYPE_UBIGINT:
+                    param->buffer_length = sizeof(int64_t);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_BOOL:
+                    param->buffer_length = sizeof(int8_t);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_FLOAT:
+                    param->buffer_length = sizeof(float);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_DOUBLE:
+                    param->buffer_length = sizeof(double);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    param->buffer_length = sizeof(int64_t);
+                    param->buffer =
+                        (void *)((uintptr_t)*(uintptr_t*)(stbInfo->sampleBindBatchArray+sizeof(char*)*(c-1))
+                                        + stbInfo->columns[c-1].dataLen * (*pSamplePos));
+                    break;
+
+                default:
+                    errorPrint("%s() LN%d, wrong data type: %d\n",
+                            __func__,
+                            __LINE__,
+                            data_type);
+                    exit(EXIT_FAILURE);
+
+            }
+        }
+
+        param->buffer_type = data_type;
+        param->length = malloc(sizeof(int32_t) * thisBatch);
+        assert(param->length);
+
+        for (int b = 0; b < thisBatch; b++) {
+            if (param->buffer_type == TSDB_DATA_TYPE_NCHAR) {
+                param->length[b] = strlen(
+                     (char *)param->buffer + b *
+                         stbInfo->columns[c].dataLen
+                        );
+            } else {
+                param->length[b] = param->buffer_length;
+            }
+        }
+        param->is_null = pThreadInfo->is_null;
+        param->num = thisBatch;
+    }
+
+    uint32_t k;
+    for (k = 0; k < thisBatch;) {
+        /* columnCount + 1 (ts) */
+        if (stbInfo->disorderRatio) {
+            *(pThreadInfo->bind_ts_array + k) = startTime + getTSRandTail(
+                    stbInfo->timeStampStep, k,
+                    stbInfo->disorderRatio,
+                    stbInfo->disorderRange);
+        } else {
+            *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timeStampStep * k;
+        }
+
+        debugPrint("%s() LN%d, k=%d ts=%"PRId64"\n",
+                __func__, __LINE__,
+                k, *(pThreadInfo->bind_ts_array +k));
+        k++;
+        recordFrom ++;
+
+        (*pSamplePos) ++;
+        if ((*pSamplePos) == MAX_SAMPLES) {
+            *pSamplePos = 0;
+        }
+
+        if (recordFrom >= insertRows) {
+            break;
+        }
+    }
+
+    ret = taos_stmt_bind_param_batch(stmt, (TAOS_MULTI_BIND *)pThreadInfo->bindParams);
+    if (0 != ret) {
+        errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+                __func__, __LINE__, taos_stmt_errstr(stmt));
+        return -1;
+    }
+
+    for (int c = 0; c < stbInfo->columnCount + 1; c ++) {
+        TAOS_MULTI_BIND *param = (TAOS_MULTI_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
+        free(param->length);
+    }
+
+    // if msg > 3MB, break
+    ret = taos_stmt_add_batch(stmt);
+    if (0 != ret) {
+        errorPrint2("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+                __func__, __LINE__, taos_stmt_errstr(stmt));
+        return -1;
+    }
+    return k;
+}
+
+static int parseSamplefileToStmtBatch(
+        SSuperTable* stbInfo)
+{
+    // char *sampleDataBuf = (stbInfo)?
+    //    stbInfo->sampleDataBuf:g_sampleDataBuf;
+    int32_t columnCount = (stbInfo)?stbInfo->columnCount:g_args.columnCount;
+    char *sampleBindBatchArray = NULL;
+
+    if (stbInfo) {
+        stbInfo->sampleBindBatchArray = calloc(1, sizeof(uintptr_t *) * columnCount);
+        sampleBindBatchArray = stbInfo->sampleBindBatchArray;
+    } else {
+        g_sampleBindBatchArray = calloc(1, sizeof(uintptr_t *) * columnCount);
+        sampleBindBatchArray = g_sampleBindBatchArray;
+    }
+    assert(sampleBindBatchArray);
+
+    for (int c = 0; c < columnCount; c++) {
+        char data_type = (stbInfo)?stbInfo->columns[c].data_type:g_args.data_type[c];
+
+        char *tmpP = NULL;
+
+        switch(data_type) {
+            case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
+                tmpP = calloc(1, sizeof(int) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
+                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
+                tmpP = calloc(1, sizeof(int16_t) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
+                tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_BOOL:
+                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_FLOAT:
+                tmpP = calloc(1, sizeof(float) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_DOUBLE:
+                tmpP = calloc(1, sizeof(double) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_BINARY:
+            case TSDB_DATA_TYPE_NCHAR:
+                tmpP = calloc(1, MAX_SAMPLES *
+                        (((stbInfo)?stbInfo->columns[c].dataLen:g_args.binwidth)));
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                tmpP = calloc(1, sizeof(int64_t) * MAX_SAMPLES);
+                assert(tmpP);
+                *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
+                break;
+
+            default:
+                errorPrint("Unknown data type: %s\n",
+                        (stbInfo)?stbInfo->columns[c].dataType:g_args.dataType[c]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    char *sampleDataBuf = (stbInfo)?stbInfo->sampleDataBuf:g_sampleDataBuf;
+    int64_t lenOfOneRow = (stbInfo)?stbInfo->lenOfOneRow:g_args.lenOfOneRow;
+
+    for (int i=0; i < MAX_SAMPLES; i++) {
+        int cursor = 0;
+
+        for (int c = 0; c < columnCount; c++) {
+            char data_type = (stbInfo)?
+                stbInfo->columns[c].data_type:
+                g_args.data_type[c];
+            char *restStr = sampleDataBuf
+                + lenOfOneRow * i + cursor;
+            int lengthOfRest = strlen(restStr);
+
+            int index = 0;
+            for (index = 0; index < lengthOfRest; index ++) {
+                if (restStr[index] == ',') {
+                    break;
+                }
+            }
+
+            char *tmpStr = calloc(1, index + 1);
+            if (NULL == tmpStr) {
+                errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
+                        __func__, __LINE__, index + 1);
+                return -1;
+            }
+
+            strncpy(tmpStr, restStr, index);
+            cursor += index + 1; // skip ',' too
+            char *tmpP;
+
+            switch(data_type) {
+                case TSDB_DATA_TYPE_INT:
+                case TSDB_DATA_TYPE_UINT:
+                    *((int32_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(int32_t)*i)) =
+                        atoi(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_FLOAT:
+                    *(float*)(((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(float)*i)) =
+                        (float)atof(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_DOUBLE:
+                    *(double*)(((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(double)*i)) =
+                        atof(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_TINYINT:
+                case TSDB_DATA_TYPE_UTINYINT:
+                    *((int8_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(int8_t)*i)) =
+                        (int8_t)atoi(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_SMALLINT:
+                case TSDB_DATA_TYPE_USMALLINT:
+                    *((int16_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(int16_t)*i)) =
+                        (int16_t)atoi(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_BIGINT:
+                case TSDB_DATA_TYPE_UBIGINT:
+                    *((int64_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(int64_t)*i)) =
+                        (int64_t)atol(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_BOOL:
+                    *((int8_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(int8_t)*i)) =
+                        (int8_t)atoi(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    *((int64_t*)((uintptr_t)*(uintptr_t*)(sampleBindBatchArray
+                                    +sizeof(char*)*c)+sizeof(int64_t)*i)) =
+                        (int64_t)atol(tmpStr);
+                    break;
+
+                case TSDB_DATA_TYPE_BINARY:
+                case TSDB_DATA_TYPE_NCHAR:
+                    tmpP = (char *)(*(uintptr_t*)(sampleBindBatchArray
+                            +sizeof(char*)*c));
+                    strcpy(tmpP + i*
+                        (((stbInfo)?stbInfo->columns[c].dataLen:g_args.binwidth))
+                    , tmpStr);
+                    break;
+
+                default:
+                    break;
+            }
+
+            free(tmpStr);
+        }
+    }
+
+    return 0;
+}
+
+static int parseSampleToStmtBatchForThread(
+        threadInfo *pThreadInfo, SSuperTable *stbInfo,
+        uint32_t timePrec,
+        uint32_t batch)
+{
+    uint32_t columnCount = (stbInfo)?stbInfo->columnCount:g_args.columnCount;
+
+    pThreadInfo->bind_ts_array = malloc(sizeof(int64_t) * batch);
+    assert(pThreadInfo->bind_ts_array);
+
+    pThreadInfo->bindParams = malloc(sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
+    assert(pThreadInfo->bindParams);
+
+    pThreadInfo->is_null = malloc(batch);
+    assert(pThreadInfo->is_null);
+
+    return 0;
+}
+
+static int parseStbSampleToStmtBatchForThread(
+        threadInfo *pThreadInfo,
+        SSuperTable *stbInfo,
+        uint32_t timePrec,
+        uint32_t batch)
+{
+    return parseSampleToStmtBatchForThread(
+        pThreadInfo, stbInfo, timePrec, batch);
+}
+
+static int parseNtbSampleToStmtBatchForThread(
+        threadInfo *pThreadInfo, uint32_t timePrec, uint32_t batch)
+{
+    return parseSampleToStmtBatchForThread(
+        pThreadInfo, NULL, timePrec, batch);
+}
+
+#else
+static int parseSampleToStmt(
+        threadInfo *pThreadInfo,
+        SSuperTable *stbInfo, uint32_t timePrec)
+{
+    pThreadInfo->sampleBindArray =
+        (char *)calloc(1, sizeof(char *) * MAX_SAMPLES);
+    if (pThreadInfo->sampleBindArray == NULL) {
+        errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
+                __func__, __LINE__,
+                (uint64_t)sizeof(char *) * MAX_SAMPLES);
+        return -1;
+    }
+
+    int32_t columnCount = (stbInfo)?stbInfo->columnCount:g_args.columnCount;
+    char *sampleDataBuf = (stbInfo)?stbInfo->sampleDataBuf:g_sampleDataBuf;
+    int64_t lenOfOneRow = (stbInfo)?stbInfo->lenOfOneRow:g_args.lenOfOneRow;
+
+    for (int i=0; i < MAX_SAMPLES; i++) {
+        char *bindArray =
+            calloc(1, sizeof(TAOS_BIND) * (columnCount + 1));
+        if (bindArray == NULL) {
+            errorPrint2("%s() LN%d, Failed to allocate %d bind params\n",
+                    __func__, __LINE__, (columnCount + 1));
+            return -1;
+        }
+
+        TAOS_BIND *bind;
+        int cursor = 0;
+
+        for (int c = 0; c < columnCount + 1; c++) {
+            bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * c));
+
+            if (c == 0) {
+                bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+                bind->buffer_length = sizeof(int64_t);
+                bind->buffer = NULL; //bind_ts;
+                bind->length = &bind->buffer_length;
+                bind->is_null = NULL;
+            } else {
+                char data_type = (stbInfo)?
+                    stbInfo->columns[c-1].data_type:
+                    g_args.data_type[c-1];
+                int32_t dataLen = (stbInfo)?
+                    stbInfo->columns[c-1].dataLen:
+                    g_args.binwidth;
+                char *restStr = sampleDataBuf
+                    + lenOfOneRow * i + cursor;
+                int lengthOfRest = strlen(restStr);
+
+                int index = 0;
+                for (index = 0; index < lengthOfRest; index ++) {
+                    if (restStr[index] == ',') {
+                        break;
+                    }
+                }
+
+                char *bindBuffer = calloc(1, index + 1);
+                if (bindBuffer == NULL) {
+                    errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
+                            __func__, __LINE__, index + 1);
+                    return -1;
+                }
+
+                strncpy(bindBuffer, restStr, index);
+                cursor += index + 1; // skip ',' too
+
+                if (-1 == prepareStmtBindArrayByType(
+                            bind,
+                            data_type,
+                            dataLen,
+                            timePrec,
+                            bindBuffer)) {
+                    free(bindBuffer);
+                    free(bindArray);
+                    return -1;
+                }
+                free(bindBuffer);
+            }
+        }
+        *((uintptr_t *)(pThreadInfo->sampleBindArray + (sizeof(char *)) * i)) =
+            (uintptr_t)bindArray;
+    }
+
+    return 0;
+}
+
+static int parseStbSampleToStmt(
+        threadInfo *pThreadInfo,
+        SSuperTable *stbInfo, uint32_t timePrec)
+{
+    return parseSampleToStmt(
+        pThreadInfo,
+        stbInfo, timePrec);
+}
+
+static int parseNtbSampleToStmt(
+        threadInfo *pThreadInfo,
+        uint32_t timePrec)
+{
+    return parseSampleToStmt(
+        pThreadInfo,
+        NULL,
+        timePrec);
+}
+
+static int32_t prepareStbStmtBindStartTime(
+        char *tableName,
+        int64_t *ts,
+        char *bindArray, SSuperTable *stbInfo,
+        int64_t startTime, int32_t recSeq)
+{
+    TAOS_BIND *bind;
+
+    bind = (TAOS_BIND *)bindArray;
+
+    int64_t *bind_ts = ts;
+
+    bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    if (stbInfo->disorderRatio) {
+        *bind_ts = startTime + getTSRandTail(
+                stbInfo->timeStampStep, recSeq,
+                stbInfo->disorderRatio,
+                stbInfo->disorderRange);
+    } else {
+        *bind_ts = startTime + stbInfo->timeStampStep * recSeq;
+    }
+
+    verbosePrint("%s() LN%d, tableName: %s, bind_ts=%"PRId64"\n",
+            __func__, __LINE__, tableName, *bind_ts);
+
+    bind->buffer_length = sizeof(int64_t);
+    bind->buffer = bind_ts;
+    bind->length = &bind->buffer_length;
+    bind->is_null = NULL;
+
+    return 0;
+}
+
+static uint32_t execBindParam(
+        threadInfo *pThreadInfo,
+        char *tableName,
+        int64_t tableSeq,
+        uint32_t batch,
+        uint64_t insertRows,
+        uint64_t recordFrom,
+        int64_t startTime,
+        int64_t *pSamplePos)
+{
+    int ret;
+    SSuperTable *stbInfo = pThreadInfo->stbInfo;
+    TAOS_STMT *stmt = pThreadInfo->stmt;
+
+    uint32_t k;
+    for (k = 0; k < batch;) {
+        char *bindArray = (char *)(*((uintptr_t *)
+                    (pThreadInfo->sampleBindArray + (sizeof(char *)) * (*pSamplePos))));
+        /* columnCount + 1 (ts) */
+        if (-1 == prepareStbStmtBindStartTime(
+                    tableName,
+                    pThreadInfo->bind_ts,
+                    bindArray, stbInfo,
+                    startTime, k
+                    /* is column */)) {
+            return -1;
+        }
+        ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        if (0 != ret) {
+            errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
+        // if msg > 3MB, break
+        ret = taos_stmt_add_batch(stmt);
+        if (0 != ret) {
+            errorPrint2("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
+
+        k++;
+        recordFrom ++;
+
+        (*pSamplePos) ++;
+        if ((*pSamplePos) == MAX_SAMPLES) {
+            *pSamplePos = 0;
+        }
+
+        if (recordFrom >= insertRows) {
+            break;
+        }
+    }
+
+    return k;
+}
+#endif
+
+static int32_t prepareStbStmt(
         threadInfo *pThreadInfo,
         char *tableName,
         int64_t tableSeq,
@@ -7295,48 +9069,27 @@ static int32_t prepareStbStmtWithSample(
         }
     }
 
-    uint32_t k;
-    for (k = 0; k < batch;) {
-        char *bindArray = (char *)(*((uintptr_t *)
-                    (pThreadInfo->sampleBindArray + (sizeof(char *)) * (*pSamplePos))));
-        /* columnCount + 1 (ts) */
-        if (-1 == prepareStbStmtBindStartTime(
-                    tableName,
-                    pThreadInfo->bind_ts,
-                    bindArray, stbInfo,
-                    startTime, k,
-                    pThreadInfo->time_precision
-                    /* is column */)) {
-            return -1;
-        }
-        ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
-        if (0 != ret) {
-            errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
-                    __func__, __LINE__, taos_stmt_errstr(stmt));
-            return -1;
-        }
-        // if msg > 3MB, break
-        ret = taos_stmt_add_batch(stmt);
-        if (0 != ret) {
-            errorPrint2("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
-                    __func__, __LINE__, taos_stmt_errstr(stmt));
-            return -1;
-        }
-
-        k++;
-        recordFrom ++;
-
-        (*pSamplePos) ++;
-        if ((*pSamplePos) == MAX_SAMPLES_ONCE_FROM_FILE) {
-            *pSamplePos = 0;
-        }
-
-        if (recordFrom >= insertRows) {
-            break;
-        }
-    }
-
-    return k;
+#if STMT_BIND_PARAM_BATCH == 1
+    return execStbBindParamBatch(
+        pThreadInfo,
+        tableName,
+        tableSeq,
+        batch,
+        insertRows,
+        recordFrom,
+        startTime,
+        pSamplePos);
+#else
+    return execBindParam(
+        pThreadInfo,
+        tableName,
+        tableSeq,
+        batch,
+        insertRows,
+        recordFrom,
+        startTime,
+        pSamplePos);
+#endif
 }
 
 static int32_t generateStbProgressiveData(
@@ -7367,7 +9120,7 @@ static int32_t generateStbProgressiveData(
     int64_t dataLen;
 
     return generateStbDataTail(stbInfo,
-            g_args.num_of_RPR, pstr, *pRemainderBufLen,
+            g_args.reqPerReq, pstr, *pRemainderBufLen,
             insertRows, recordFrom,
             startTime,
             pSamplePos, &dataLen);
@@ -7399,52 +9152,43 @@ static int32_t generateProgressiveDataWithoutStb(
     int64_t dataLen;
 
     return generateDataTailWithoutStb(
-            g_args.num_of_RPR, pstr, *pRemainderBufLen, insertRows, recordFrom,
+            g_args.reqPerReq, pstr, *pRemainderBufLen, insertRows, recordFrom,
             startTime,
             /*pSamplePos, */&dataLen);
 }
 
 static void printStatPerThread(threadInfo *pThreadInfo)
 {
+    if (0 == pThreadInfo->totalDelay)
+        pThreadInfo->totalDelay = 1;
+
     fprintf(stderr, "====thread[%d] completed total inserted rows: %"PRIu64 ", total affected rows: %"PRIu64". %.2f records/second====\n",
             pThreadInfo->threadID,
             pThreadInfo->totalInsertRows,
             pThreadInfo->totalAffectedRows,
-            (pThreadInfo->totalDelay)?
-            (double)(pThreadInfo->totalAffectedRows/((double)pThreadInfo->totalDelay/1000000.0)):
-            FLT_MAX);
+            (double)(pThreadInfo->totalAffectedRows/((double)pThreadInfo->totalDelay/1000000.0))
+            );
 }
 
-// sync write interlace data
-static void* syncWriteInterlace(threadInfo *pThreadInfo) {
-    debugPrint("[%d] %s() LN%d: ### interlace write\n",
+#if STMT_BIND_PARAM_BATCH == 1
+// stmt sync write interlace data
+static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t interlaceRows) {
+    debugPrint("[%d] %s() LN%d: ### stmt interlace write\n",
             pThreadInfo->threadID, __func__, __LINE__);
 
     int64_t insertRows;
-    uint32_t interlaceRows;
-    uint64_t maxSqlLen;
-    int64_t nTimeStampStep;
+    int64_t timeStampStep;
     uint64_t insert_interval;
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
 
     if (stbInfo) {
         insertRows = stbInfo->insertRows;
-
-        if ((stbInfo->interlaceRows == 0)
-                && (g_args.interlace_rows > 0)) {
-            interlaceRows = g_args.interlace_rows;
-        } else {
-            interlaceRows = stbInfo->interlaceRows;
-        }
-        maxSqlLen = stbInfo->maxSqlLen;
-        nTimeStampStep = stbInfo->timeStampStep;
+        timeStampStep = stbInfo->timeStampStep;
         insert_interval = stbInfo->insertInterval;
     } else {
-        insertRows = g_args.num_of_DPT;
-        interlaceRows = g_args.interlace_rows;
-        maxSqlLen = g_args.max_sql_len;
-        nTimeStampStep = g_args.timestamp_step;
+        insertRows = g_args.insertRows;
+        timeStampStep = g_args.timestamp_step;
         insert_interval = g_args.insert_interval;
     }
 
@@ -7453,22 +9197,909 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             pThreadInfo->start_table_from,
             pThreadInfo->ntables, insertRows);
 
-    if (interlaceRows > insertRows)
-        interlaceRows = insertRows;
+    uint64_t timesInterlace = (insertRows / interlaceRows) + 1;
+    uint32_t precalcBatch = interlaceRows;
 
-    if (interlaceRows > g_args.num_of_RPR)
-        interlaceRows = g_args.num_of_RPR;
+    if (precalcBatch > g_args.reqPerReq)
+        precalcBatch = g_args.reqPerReq;
+
+    if (precalcBatch > MAX_SAMPLES)
+        precalcBatch = MAX_SAMPLES;
+
+    pThreadInfo->totalInsertRows = 0;
+    pThreadInfo->totalAffectedRows = 0;
+
+    uint64_t st = 0;
+    uint64_t et = UINT64_MAX;
+
+    uint64_t lastPrintTime = taosGetTimestampMs();
+    uint64_t startTs = taosGetTimestampMs();
+    uint64_t endTs;
+
+    uint64_t tableSeq = pThreadInfo->start_table_from;
+    int64_t startTime;
+
+    bool flagSleep = true;
+    uint64_t sleepTimeTotal = 0;
+
+    int percentComplete = 0;
+    int64_t totalRows = insertRows * pThreadInfo->ntables;
+    pThreadInfo->samplePos = 0;
+
+    for (int64_t interlace = 0;
+            interlace < timesInterlace; interlace ++) {
+        if ((flagSleep) && (insert_interval)) {
+            st = taosGetTimestampMs();
+            flagSleep = false;
+        }
+
+        int64_t generated = 0;
+        int64_t samplePos;
+
+        for (; tableSeq < pThreadInfo->start_table_from + pThreadInfo->ntables; tableSeq ++) {
+            char tableName[TSDB_TABLE_NAME_LEN];
+            getTableName(tableName, pThreadInfo, tableSeq);
+            if (0 == strlen(tableName)) {
+                errorPrint2("[%d] %s() LN%d, getTableName return null\n",
+                        pThreadInfo->threadID, __func__, __LINE__);
+                return NULL;
+            }
+
+            samplePos = pThreadInfo->samplePos;
+            startTime = pThreadInfo->start_time
+                + interlace * interlaceRows * timeStampStep;
+            uint64_t remainRecPerTbl =
+                    insertRows - interlaceRows * interlace;
+            uint64_t recPerTbl = 0;
+
+            uint64_t remainPerInterlace;
+            if (remainRecPerTbl > interlaceRows) {
+                remainPerInterlace = interlaceRows;
+            } else {
+                remainPerInterlace = remainRecPerTbl;
+            }
+
+            while(remainPerInterlace > 0) {
+
+                uint32_t batch;
+                if (remainPerInterlace > precalcBatch) {
+                    batch = precalcBatch;
+                } else {
+                    batch = remainPerInterlace;
+                }
+                debugPrint("[%d] %s() LN%d, tableName:%s, batch:%d startTime:%"PRId64"\n",
+                        pThreadInfo->threadID,
+                        __func__, __LINE__,
+                        tableName, batch, startTime);
+
+                if (stbInfo) {
+                    generated = prepareStbStmt(
+                            pThreadInfo,
+                            tableName,
+                            tableSeq,
+                            batch,
+                            insertRows, 0,
+                            startTime,
+                            &samplePos);
+                } else {
+                    generated = prepareStmtWithoutStb(
+                            pThreadInfo,
+                            tableName,
+                            batch,
+                            insertRows,
+                            interlaceRows * interlace + recPerTbl,
+                            startTime);
+                }
+
+                debugPrint("[%d] %s() LN%d, generated records is %"PRId64"\n",
+                        pThreadInfo->threadID, __func__, __LINE__, generated);
+                if (generated < 0) {
+                    errorPrint2("[%d] %s() LN%d, generated records is %"PRId64"\n",
+                            pThreadInfo->threadID, __func__, __LINE__, generated);
+                    goto free_of_interlace_stmt;
+                } else if (generated == 0) {
+                    break;
+                }
+
+                recPerTbl += generated;
+                remainPerInterlace -= generated;
+                pThreadInfo->totalInsertRows += generated;
+
+                verbosePrint("[%d] %s() LN%d totalInsertRows=%"PRIu64"\n",
+                        pThreadInfo->threadID, __func__, __LINE__,
+                        pThreadInfo->totalInsertRows);
+
+                startTs = taosGetTimestampUs();
+
+                int64_t affectedRows = execInsert(pThreadInfo, generated);
+
+                endTs = taosGetTimestampUs();
+                uint64_t delay = endTs - startTs;
+                performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
+                        __func__, __LINE__, delay / 1000.0);
+                verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
+                        pThreadInfo->threadID,
+                        __func__, __LINE__, affectedRows);
+
+                if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+                if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+                pThreadInfo->cntDelay++;
+                pThreadInfo->totalDelay += delay;
+
+                if (generated != affectedRows) {
+                    errorPrint2("[%d] %s() LN%d execInsert() insert %"PRId64", affected rows: %"PRId64"\n\n",
+                            pThreadInfo->threadID, __func__, __LINE__,
+                            generated, affectedRows);
+                    goto free_of_interlace_stmt;
+                }
+
+                pThreadInfo->totalAffectedRows += affectedRows;
+
+                int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+                if (currentPercent > percentComplete ) {
+                    printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
+                    percentComplete = currentPercent;
+                }
+                int64_t  currentPrintTime = taosGetTimestampMs();
+                if (currentPrintTime - lastPrintTime > 30*1000) {
+                    printf("thread[%d] has currently inserted rows: %"PRIu64 ", affected rows: %"PRIu64 "\n",
+                            pThreadInfo->threadID,
+                            pThreadInfo->totalInsertRows,
+                            pThreadInfo->totalAffectedRows);
+                    lastPrintTime = currentPrintTime;
+                }
+
+                startTime += (generated * timeStampStep);
+            }
+        }
+        pThreadInfo->samplePos = samplePos;
+
+        if (tableSeq == pThreadInfo->start_table_from
+                + pThreadInfo->ntables) {
+            // turn to first table
+            tableSeq = pThreadInfo->start_table_from;
+
+            flagSleep = true;
+        }
+
+        if ((insert_interval) && flagSleep) {
+            et = taosGetTimestampMs();
+
+            if (insert_interval > (et - st) ) {
+                uint64_t sleepTime = insert_interval - (et -st);
+                performancePrint("%s() LN%d sleep: %"PRId64" ms for insert interval\n",
+                        __func__, __LINE__, sleepTime);
+                taosMsleep(sleepTime); // ms
+                sleepTimeTotal += insert_interval;
+            }
+        }
+    }
+    if (percentComplete < 100)
+        printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
+
+free_of_interlace_stmt:
+    printStatPerThread(pThreadInfo);
+    return NULL;
+}
+#else
+// stmt sync write interlace data
+static void* syncWriteInterlaceStmt(threadInfo *pThreadInfo, uint32_t interlaceRows) {
+    debugPrint("[%d] %s() LN%d: ### stmt interlace write\n",
+            pThreadInfo->threadID, __func__, __LINE__);
+
+    int64_t insertRows;
+    uint64_t maxSqlLen;
+    int64_t timeStampStep;
+    uint64_t insert_interval;
+
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+
+    if (stbInfo) {
+        insertRows = stbInfo->insertRows;
+        maxSqlLen = stbInfo->maxSqlLen;
+        timeStampStep = stbInfo->timeStampStep;
+        insert_interval = stbInfo->insertInterval;
+    } else {
+        insertRows = g_args.insertRows;
+        maxSqlLen = g_args.max_sql_len;
+        timeStampStep = g_args.timestamp_step;
+        insert_interval = g_args.insert_interval;
+    }
+
+    debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRId64" insertRows=%"PRIu64"\n",
+            pThreadInfo->threadID, __func__, __LINE__,
+            pThreadInfo->start_table_from,
+            pThreadInfo->ntables, insertRows);
+
+    uint32_t batchPerTbl = interlaceRows;
+    uint32_t batchPerTblTimes;
+
+    if (interlaceRows > g_args.reqPerReq)
+        interlaceRows = g_args.reqPerReq;
+
+    if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
+        batchPerTblTimes =
+            g_args.reqPerReq / interlaceRows;
+    } else {
+        batchPerTblTimes = 1;
+    }
+
+    pThreadInfo->totalInsertRows = 0;
+    pThreadInfo->totalAffectedRows = 0;
+
+    uint64_t st = 0;
+    uint64_t et = UINT64_MAX;
+
+    uint64_t lastPrintTime = taosGetTimestampMs();
+    uint64_t startTs = taosGetTimestampMs();
+    uint64_t endTs;
+
+    uint64_t tableSeq = pThreadInfo->start_table_from;
+    int64_t startTime = pThreadInfo->start_time;
+
+    uint64_t generatedRecPerTbl = 0;
+    bool flagSleep = true;
+    uint64_t sleepTimeTotal = 0;
+
+    int percentComplete = 0;
+    int64_t totalRows = insertRows * pThreadInfo->ntables;
+
+    while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
+        if ((flagSleep) && (insert_interval)) {
+            st = taosGetTimestampMs();
+            flagSleep = false;
+        }
+
+        uint32_t recOfBatch = 0;
+
+        int32_t generated;
+        for (uint64_t i = 0; i < batchPerTblTimes; i ++) {
+            char tableName[TSDB_TABLE_NAME_LEN];
+
+            getTableName(tableName, pThreadInfo, tableSeq);
+            if (0 == strlen(tableName)) {
+                errorPrint2("[%d] %s() LN%d, getTableName return null\n",
+                        pThreadInfo->threadID, __func__, __LINE__);
+                return NULL;
+            }
+
+            debugPrint("[%d] %s() LN%d, tableName:%s, batch:%d startTime:%"PRId64"\n",
+                    pThreadInfo->threadID,
+                    __func__, __LINE__,
+                    tableName, batchPerTbl, startTime);
+            if (stbInfo) {
+                generated = prepareStbStmt(
+                        pThreadInfo,
+                        tableName,
+                        tableSeq,
+                        batchPerTbl,
+                        insertRows, 0,
+                        startTime,
+                        &(pThreadInfo->samplePos));
+            } else {
+                generated = prepareStmtWithoutStb(
+                        pThreadInfo,
+                        tableName,
+                        batchPerTbl,
+                        insertRows, i,
+                        startTime);
+            }
+
+            debugPrint("[%d] %s() LN%d, generated records is %d\n",
+                    pThreadInfo->threadID, __func__, __LINE__, generated);
+            if (generated < 0) {
+                errorPrint2("[%d] %s() LN%d, generated records is %d\n",
+                        pThreadInfo->threadID, __func__, __LINE__, generated);
+                goto free_of_interlace_stmt;
+            } else if (generated == 0) {
+                break;
+            }
+
+            tableSeq ++;
+            recOfBatch += batchPerTbl;
+
+            pThreadInfo->totalInsertRows += batchPerTbl;
+
+            verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    batchPerTbl, recOfBatch);
+
+            if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
+                // turn to first table
+                tableSeq = pThreadInfo->start_table_from;
+                generatedRecPerTbl += batchPerTbl;
+
+                startTime = pThreadInfo->start_time
+                    + generatedRecPerTbl * timeStampStep;
+
+                flagSleep = true;
+                if (generatedRecPerTbl >= insertRows)
+                    break;
+
+                int64_t remainRows = insertRows - generatedRecPerTbl;
+                if ((remainRows > 0) && (batchPerTbl > remainRows))
+                    batchPerTbl = remainRows;
+
+                if (pThreadInfo->ntables * batchPerTbl < g_args.reqPerReq)
+                    break;
+            }
+
+            verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%"PRId64" insertRows=%"PRId64"\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    generatedRecPerTbl, insertRows);
+
+            if ((g_args.reqPerReq - recOfBatch) < batchPerTbl)
+                break;
+        }
+
+        verbosePrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRIu64"\n",
+                pThreadInfo->threadID, __func__, __LINE__, recOfBatch,
+                pThreadInfo->totalInsertRows);
+
+        startTs = taosGetTimestampUs();
+
+        if (recOfBatch == 0) {
+            errorPrint2("[%d] %s() LN%d Failed to insert records of batch %d\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    batchPerTbl);
+            if (batchPerTbl > 0) {
+                errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
+                        batchPerTbl, maxSqlLen / batchPerTbl);
+            }
+            goto free_of_interlace_stmt;
+        }
+        int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
+
+        endTs = taosGetTimestampUs();
+        uint64_t delay = endTs - startTs;
+        performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
+                __func__, __LINE__, delay / 1000.0);
+        verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
+                pThreadInfo->threadID,
+                __func__, __LINE__, affectedRows);
+
+        if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+        if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+        pThreadInfo->cntDelay++;
+        pThreadInfo->totalDelay += delay;
+
+        if (recOfBatch != affectedRows) {
+            errorPrint2("[%d] %s() LN%d execInsert insert %d, affected rows: %"PRId64"\n\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    recOfBatch, affectedRows);
+            goto free_of_interlace_stmt;
+        }
+
+        pThreadInfo->totalAffectedRows += affectedRows;
+
+        int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+        if (currentPercent > percentComplete ) {
+            printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
+            percentComplete = currentPercent;
+        }
+        int64_t  currentPrintTime = taosGetTimestampMs();
+        if (currentPrintTime - lastPrintTime > 30*1000) {
+            printf("thread[%d] has currently inserted rows: %"PRIu64 ", affected rows: %"PRIu64 "\n",
+                    pThreadInfo->threadID,
+                    pThreadInfo->totalInsertRows,
+                    pThreadInfo->totalAffectedRows);
+            lastPrintTime = currentPrintTime;
+        }
+
+        if ((insert_interval) && flagSleep) {
+            et = taosGetTimestampMs();
+
+            if (insert_interval > (et - st) ) {
+                uint64_t sleepTime = insert_interval - (et -st);
+                performancePrint("%s() LN%d sleep: %"PRId64" ms for insert interval\n",
+                        __func__, __LINE__, sleepTime);
+                taosMsleep(sleepTime); // ms
+                sleepTimeTotal += insert_interval;
+            }
+        }
+    }
+    if (percentComplete < 100)
+        printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
+
+free_of_interlace_stmt:
+    printStatPerThread(pThreadInfo);
+    return NULL;
+}
+
+#endif
+
+static void generateSmlHead(char* smlHead, SSuperTable* stbInfo, threadInfo* pThreadInfo, int tbSeq) {
+    int64_t dataLen = 0;
+    dataLen += snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                            "%s,id=%s%" PRIu64 "", stbInfo->stbName,
+                            stbInfo->childTblPrefix,
+                            tbSeq + pThreadInfo->start_table_from);
+        for (int j = 0; j < stbInfo->tagCount; j++) {
+            tstrncpy(smlHead + dataLen, ",", 2);
+            dataLen += 1;
+            switch (stbInfo->tags[j].data_type) {
+                case TSDB_DATA_TYPE_TIMESTAMP:
+                    errorPrint2(
+                        "%s() LN%d, Does not support data type %s as tag\n",
+                        __func__, __LINE__, stbInfo->tags[j].dataType);
+                    exit(EXIT_FAILURE);
+                case TSDB_DATA_TYPE_BOOL:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%s", j, rand_bool_str());
+                    break;
+                case TSDB_DATA_TYPE_TINYINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%si8", j, rand_tinyint_str());
+                    break;
+                case TSDB_DATA_TYPE_UTINYINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%su8", j, rand_utinyint_str());
+                    break;
+                case TSDB_DATA_TYPE_SMALLINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%si16", j, rand_smallint_str());
+                    break;
+                case TSDB_DATA_TYPE_USMALLINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%su16", j, rand_usmallint_str());
+                    break;
+                case TSDB_DATA_TYPE_INT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%si32", j, rand_int_str());
+                    break;
+                case TSDB_DATA_TYPE_UINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%su32", j, rand_uint_str());
+                    break;
+                case TSDB_DATA_TYPE_BIGINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%si64", j, rand_bigint_str());
+                    break;
+                case TSDB_DATA_TYPE_UBIGINT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%su64", j, rand_ubigint_str());
+                    break;
+                case TSDB_DATA_TYPE_FLOAT:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%sf32", j, rand_float_str());
+                    break;
+                case TSDB_DATA_TYPE_DOUBLE:
+                    dataLen +=
+                        snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
+                                 "T%d=%sf64", j, rand_double_str());
+                    break;
+                case TSDB_DATA_TYPE_BINARY:
+                case TSDB_DATA_TYPE_NCHAR:
+                    if (stbInfo->tags[j].dataLen > TSDB_MAX_BINARY_LEN) {
+                        errorPrint2(
+                            "binary or nchar length overflow, maxsize:%u\n",
+                            (uint32_t)TSDB_MAX_BINARY_LEN);
+                        exit(EXIT_FAILURE);
+                    }
+                    char *buf = (char *)calloc(stbInfo->tags[j].dataLen + 1, 1);
+                    if (NULL == buf) {
+                        errorPrint2("calloc failed! size:%d\n",
+                                    stbInfo->tags[j].dataLen);
+                        exit(EXIT_FAILURE);
+                    }
+                    rand_string(buf, stbInfo->tags[j].dataLen);
+                    if (stbInfo->tags[j].data_type == TSDB_DATA_TYPE_BINARY) {
+                        dataLen += snprintf(smlHead + dataLen,
+                                            HEAD_BUFF_LEN - dataLen,
+                                            "T%d=\"%s\"", j, buf);
+                    } else {
+                        dataLen += snprintf(smlHead + dataLen,
+                                            HEAD_BUFF_LEN - dataLen,
+                                            "T%d=L\"%s\"", j, buf);
+                    }
+                    tmfree(buf);
+                    break;
+
+                default:
+                    errorPrint2("%s() LN%d, Unknown data type %s\n", __func__,
+                                __LINE__, stbInfo->tags[j].dataType);
+                    exit(EXIT_FAILURE);
+            }
+        }
+}
+
+static void generateSmlTail(char* line, char* smlHead, SSuperTable* stbInfo, 
+                                threadInfo* pThreadInfo, int64_t timestamp) {
+    int dataLen = 0;
+    dataLen = snprintf(line, BUFFER_SIZE, "%s ", smlHead);
+    for (uint32_t c = 0; c < stbInfo->columnCount; c++) {
+        if (c != 0) {
+            tstrncpy(line + dataLen, ",", 2);
+            dataLen += 1;
+        }
+        switch (stbInfo->columns[c].data_type) {
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                errorPrint2(
+                    "%s() LN%d, Does not support data type %s as tag\n",
+                    __func__, __LINE__, stbInfo->columns[c].dataType);
+                exit(EXIT_FAILURE);
+            case TSDB_DATA_TYPE_BOOL:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen, "c%d=%s",
+                                    c, rand_bool_str());
+                break;
+            case TSDB_DATA_TYPE_TINYINT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen, "c%d=%si8",
+                                    c, rand_tinyint_str());
+                break;
+            case TSDB_DATA_TYPE_UTINYINT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen, "c%d=%su8",
+                                    c, rand_utinyint_str());
+                break;
+            case TSDB_DATA_TYPE_SMALLINT:
+                dataLen += snprintf(
+                    line + dataLen, BUFFER_SIZE - dataLen,
+                    "c%d=%si16", c, rand_smallint_str());
+                break;
+            case TSDB_DATA_TYPE_USMALLINT:
+                dataLen += snprintf(
+                    line + dataLen, BUFFER_SIZE - dataLen,
+                    "c%d=%su16", c, rand_usmallint_str());
+                break;
+            case TSDB_DATA_TYPE_INT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen,
+                                    "c%d=%si32", c, rand_int_str());
+                break;
+            case TSDB_DATA_TYPE_UINT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen,
+                                    "c%d=%su32", c, rand_uint_str());
+                break;
+            case TSDB_DATA_TYPE_BIGINT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen,
+                                    "c%d=%si64", c, rand_bigint_str());
+                break;
+            case TSDB_DATA_TYPE_UBIGINT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen,
+                                    "c%d=%su64", c, rand_ubigint_str());
+                break;
+            case TSDB_DATA_TYPE_FLOAT:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen,
+                                    "c%d=%sf32", c, rand_float_str());
+                break;
+            case TSDB_DATA_TYPE_DOUBLE:
+                dataLen += snprintf(line + dataLen,
+                                    BUFFER_SIZE - dataLen,
+                                    "c%d=%sf64", c, rand_double_str());
+                break;
+            case TSDB_DATA_TYPE_BINARY:
+            case TSDB_DATA_TYPE_NCHAR:
+                if (stbInfo->columns[c].dataLen > TSDB_MAX_BINARY_LEN) {
+                    errorPrint2(
+                        "binary or nchar length overflow, maxsize:%u\n",
+                        (uint32_t)TSDB_MAX_BINARY_LEN);
+                    exit(EXIT_FAILURE);
+                }
+                char *buf =
+                    (char *)calloc(stbInfo->columns[c].dataLen + 1, 1);
+                if (NULL == buf) {
+                    errorPrint2("calloc failed! size:%d\n",
+                                stbInfo->columns[c].dataLen);
+                    exit(EXIT_FAILURE);
+                }
+                rand_string(buf, stbInfo->columns[c].dataLen);
+                if (stbInfo->columns[c].data_type ==
+                    TSDB_DATA_TYPE_BINARY) {
+                    dataLen += snprintf(line + dataLen,
+                                        BUFFER_SIZE - dataLen,
+                                        "c%d=\"%s\"", c, buf);
+                } else {
+                    dataLen += snprintf(line + dataLen,
+                                        BUFFER_SIZE - dataLen,
+                                        "c%d=L\"%s\"", c, buf);
+                }
+                tmfree(buf);
+                break;
+            default:
+                errorPrint2("%s() LN%d, Unknown data type %s\n",
+                            __func__, __LINE__,
+                            stbInfo->columns[c].dataType);
+                exit(EXIT_FAILURE);
+        }
+    }
+    dataLen += snprintf(line + dataLen, BUFFER_SIZE - dataLen," %" PRId64 "", timestamp);
+}
+
+static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRows) {
+    debugPrint("[%d] %s() LN%d: ### interlace schemaless write\n",
+            pThreadInfo->threadID, __func__, __LINE__);
+    int64_t insertRows;
+    uint64_t maxSqlLen;
+    int64_t timeStampStep;
+    uint64_t insert_interval;
+
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+
+    if (stbInfo) {
+        insertRows = stbInfo->insertRows;
+        maxSqlLen = stbInfo->maxSqlLen;
+        timeStampStep = stbInfo->timeStampStep;
+        insert_interval = stbInfo->insertInterval;
+    } else {
+        insertRows = g_args.insertRows;
+        maxSqlLen = g_args.max_sql_len;
+        timeStampStep = g_args.timestamp_step;
+        insert_interval = g_args.insert_interval;
+    }
+
+    debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRId64" insertRows=%"PRIu64"\n",
+            pThreadInfo->threadID, __func__, __LINE__,
+            pThreadInfo->start_table_from,
+            pThreadInfo->ntables, insertRows);
+
+    if (interlaceRows > g_args.reqPerReq)
+        interlaceRows = g_args.reqPerReq;
 
     uint32_t batchPerTbl = interlaceRows;
     uint32_t batchPerTblTimes;
 
     if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
         batchPerTblTimes =
-            g_args.num_of_RPR / interlaceRows;
+            g_args.reqPerReq / interlaceRows;
     } else {
         batchPerTblTimes = 1;
     }
+    
+    char *smlHead[pThreadInfo->ntables];
+    for (int t = 0; t < pThreadInfo->ntables; t++) {
+        smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
+        if (NULL == smlHead[t]) {
+            errorPrint2("calloc failed! size:%d\n", HEAD_BUFF_LEN);
+            exit(EXIT_FAILURE);
+        }
+        generateSmlHead(smlHead[t], stbInfo, pThreadInfo, t);
+        
+    }
 
+    pThreadInfo->totalInsertRows = 0;
+    pThreadInfo->totalAffectedRows = 0;
+
+    uint64_t st = 0;
+    uint64_t et = UINT64_MAX;
+
+    uint64_t lastPrintTime = taosGetTimestampMs();
+    uint64_t startTs = taosGetTimestampMs();
+    uint64_t endTs;
+
+    uint64_t tableSeq = pThreadInfo->start_table_from;
+    int64_t startTime = pThreadInfo->start_time;
+
+    uint64_t generatedRecPerTbl = 0;
+    bool flagSleep = true;
+    uint64_t sleepTimeTotal = 0;
+
+    int percentComplete = 0;
+    int64_t totalRows = insertRows * pThreadInfo->ntables;
+
+    pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
+    if (NULL == pThreadInfo->lines) {
+        errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                g_args.reqPerReq * sizeof(char *),
+                strerror(errno));
+        return NULL;
+    }
+    
+    while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
+        if ((flagSleep) && (insert_interval)) {
+            st = taosGetTimestampMs();
+            flagSleep = false;
+        }
+
+        // generate data
+
+        uint32_t recOfBatch = 0;
+
+        for (uint64_t i = 0; i < batchPerTblTimes; i++) {
+            int64_t timestamp = startTime;
+            for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
+                pThreadInfo->lines[j] = calloc(BUFFER_SIZE, 1);
+                if (NULL == pThreadInfo->lines[j]) {
+                    errorPrint2("Failed to alloc %d bytes, reason:%s\n",
+                        BUFFER_SIZE, strerror(errno));
+                }
+                generateSmlTail(pThreadInfo->lines[j], smlHead[i], stbInfo, pThreadInfo, timestamp);
+                timestamp += timeStampStep;
+            }
+            tableSeq ++;
+            recOfBatch += batchPerTbl;
+
+            pThreadInfo->totalInsertRows += batchPerTbl;
+
+            verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    batchPerTbl, recOfBatch);
+
+            if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
+                // turn to first table
+                tableSeq = pThreadInfo->start_table_from;
+                generatedRecPerTbl += batchPerTbl;
+
+                startTime = pThreadInfo->start_time
+                    + generatedRecPerTbl * timeStampStep;
+
+                flagSleep = true;
+                if (generatedRecPerTbl >= insertRows)
+                    break;
+
+                int64_t remainRows = insertRows - generatedRecPerTbl;
+                if ((remainRows > 0) && (batchPerTbl > remainRows))
+                    batchPerTbl = remainRows;
+
+                if (pThreadInfo->ntables * batchPerTbl < g_args.reqPerReq)
+                    break;
+            }
+
+            verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%"PRId64" insertRows=%"PRId64"\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    generatedRecPerTbl, insertRows);
+
+            if ((g_args.reqPerReq - recOfBatch) < batchPerTbl)
+                break;
+        }
+
+        verbosePrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRIu64"\n",
+                pThreadInfo->threadID, __func__, __LINE__, recOfBatch,
+                pThreadInfo->totalInsertRows);
+        verbosePrint("[%d] %s() LN%d, buffer=%s\n",
+                pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->buffer);
+
+        startTs = taosGetTimestampUs();
+
+        if (recOfBatch == 0) {
+            errorPrint2("[%d] %s() LN%d Failed to insert records of batch %d\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    batchPerTbl);
+            if (batchPerTbl > 0) {
+                errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
+                        batchPerTbl, maxSqlLen / batchPerTbl);
+            }
+            errorPrint("\tPlease check if the buffer length(%"PRId64") or batch(%d) is set with proper value!\n",
+                    maxSqlLen, batchPerTbl);
+            goto free_of_interlace;
+        }
+        int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
+
+        endTs = taosGetTimestampUs();
+        uint64_t delay = endTs - startTs;
+        performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
+                __func__, __LINE__, delay / 1000.0);
+        verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
+                pThreadInfo->threadID,
+                __func__, __LINE__, affectedRows);
+
+        if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+        if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+        pThreadInfo->cntDelay++;
+        pThreadInfo->totalDelay += delay;
+
+        if (recOfBatch != affectedRows) {
+            errorPrint2("[%d] %s() LN%d execInsert insert %d, affected rows: %"PRId64"\n%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    recOfBatch, affectedRows, pThreadInfo->buffer);
+            goto free_of_interlace;
+        }
+
+        pThreadInfo->totalAffectedRows += affectedRows;
+
+        int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+        if (currentPercent > percentComplete ) {
+            printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
+            percentComplete = currentPercent;
+        }
+        int64_t  currentPrintTime = taosGetTimestampMs();
+        if (currentPrintTime - lastPrintTime > 30*1000) {
+            printf("thread[%d] has currently inserted rows: %"PRIu64 ", affected rows: %"PRIu64 "\n",
+                    pThreadInfo->threadID,
+                    pThreadInfo->totalInsertRows,
+                    pThreadInfo->totalAffectedRows);
+            lastPrintTime = currentPrintTime;
+        }
+
+        if ((insert_interval) && flagSleep) {
+            et = taosGetTimestampMs();
+
+            if (insert_interval > (et - st) ) {
+                uint64_t sleepTime = insert_interval - (et -st);
+                performancePrint("%s() LN%d sleep: %"PRId64" ms for insert interval\n",
+                        __func__, __LINE__, sleepTime);
+                taosMsleep(sleepTime); // ms
+                sleepTimeTotal += insert_interval;
+            }
+        }
+        for (int index = 0; index < g_args.reqPerReq; index++) {
+            free(pThreadInfo->lines[index]);
+        }
+    }
+    if (percentComplete < 100)
+        printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
+
+free_of_interlace:
+    tmfree(pThreadInfo->lines);
+    for (int index = 0; index < pThreadInfo->ntables; index++) {
+        free(smlHead[index]);
+    }
+    printStatPerThread(pThreadInfo);
+    return NULL;
+}
+
+// sync write interlace data
+static void* syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
+    debugPrint("[%d] %s() LN%d: ### interlace write\n",
+            pThreadInfo->threadID, __func__, __LINE__);
+
+    int64_t insertRows;
+    uint64_t maxSqlLen;
+    int64_t timeStampStep;
+    uint64_t insert_interval;
+
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+
+    if (stbInfo) {
+        insertRows = stbInfo->insertRows;
+        maxSqlLen = stbInfo->maxSqlLen;
+        timeStampStep = stbInfo->timeStampStep;
+        insert_interval = stbInfo->insertInterval;
+    } else {
+        insertRows = g_args.insertRows;
+        maxSqlLen = g_args.max_sql_len;
+        timeStampStep = g_args.timestamp_step;
+        insert_interval = g_args.insert_interval;
+    }
+
+    debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRId64" insertRows=%"PRIu64"\n",
+            pThreadInfo->threadID, __func__, __LINE__,
+            pThreadInfo->start_table_from,
+            pThreadInfo->ntables, insertRows);
+#if 1
+    if (interlaceRows > g_args.reqPerReq)
+        interlaceRows = g_args.reqPerReq;
+
+    uint32_t batchPerTbl = interlaceRows;
+    uint32_t batchPerTblTimes;
+
+    if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
+        batchPerTblTimes =
+            g_args.reqPerReq / interlaceRows;
+    } else {
+        batchPerTblTimes = 1;
+    }
+#else
+    uint32_t batchPerTbl;
+    if (interlaceRows > g_args.reqPerReq)
+        batchPerTbl = g_args.reqPerReq;
+    else
+        batchPerTbl = interlaceRows;
+
+    uint32_t batchPerTblTimes;
+
+    if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
+        batchPerTblTimes =
+            interlaceRows / batchPerTbl;
+    } else {
+        batchPerTblTimes = 1;
+    }
+#endif
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
         errorPrint2( "%s() LN%d, Failed to alloc %"PRIu64" Bytes, reason:%s\n",
@@ -7501,6 +10132,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             st = taosGetTimestampMs();
             flagSleep = false;
         }
+
         // generate data
         memset(pThreadInfo->buffer, 0, maxSqlLen);
         uint64_t remainderBufLen = maxSqlLen;
@@ -7514,6 +10146,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
         uint32_t recOfBatch = 0;
 
+        int32_t generated;
         for (uint64_t i = 0; i < batchPerTblTimes; i ++) {
             char tableName[TSDB_TABLE_NAME_LEN];
 
@@ -7527,49 +10160,24 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
             uint64_t oldRemainderLen = remainderBufLen;
 
-            int32_t generated;
             if (stbInfo) {
-                if (stbInfo->iface == STMT_IFACE) {
-                    generated = prepareStbStmtWithSample(
-                            pThreadInfo,
-                            tableName,
-                            tableSeq,
-                            batchPerTbl,
-                            insertRows, 0,
-                            startTime,
-                            &(pThreadInfo->samplePos));
-                } else {
-                    generated = generateStbInterlaceData(
-                            pThreadInfo,
-                            tableName, batchPerTbl, i,
-                            batchPerTblTimes,
-                            tableSeq,
-                            pstr,
-                            insertRows,
-                            startTime,
-                            &remainderBufLen);
-                }
+                generated = generateStbInterlaceData(
+                        pThreadInfo,
+                        tableName, batchPerTbl, i,
+                        batchPerTblTimes,
+                        tableSeq,
+                        pstr,
+                        insertRows,
+                        startTime,
+                        &remainderBufLen);
             } else {
-                if (g_args.iface == STMT_IFACE) {
-                    debugPrint("[%d] %s() LN%d, tableName:%s, batch:%d startTime:%"PRId64"\n",
-                            pThreadInfo->threadID,
-                            __func__, __LINE__,
-                            tableName, batchPerTbl, startTime);
-                    generated = prepareStmtWithoutStb(
-                            pThreadInfo,
-                            tableName,
-                            batchPerTbl,
-                            insertRows, i,
-                            startTime);
-                } else {
-                    generated = generateInterlaceDataWithoutStb(
-                            tableName, batchPerTbl,
-                            tableSeq,
-                            pThreadInfo->db_name, pstr,
-                            insertRows,
-                            startTime,
-                            &remainderBufLen);
-                }
+                generated = generateInterlaceDataWithoutStb(
+                        tableName, batchPerTbl,
+                        tableSeq,
+                        pThreadInfo->db_name, pstr,
+                        insertRows,
+                        startTime,
+                        &remainderBufLen);
             }
 
             debugPrint("[%d] %s() LN%d, generated records is %d\n",
@@ -7598,7 +10206,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                 generatedRecPerTbl += batchPerTbl;
 
                 startTime = pThreadInfo->start_time
-                    + generatedRecPerTbl * nTimeStampStep;
+                    + generatedRecPerTbl * timeStampStep;
 
                 flagSleep = true;
                 if (generatedRecPerTbl >= insertRows)
@@ -7608,7 +10216,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                 if ((remainRows > 0) && (batchPerTbl > remainRows))
                     batchPerTbl = remainRows;
 
-                if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
+                if (pThreadInfo->ntables * batchPerTbl < g_args.reqPerReq)
                     break;
             }
 
@@ -7616,7 +10224,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                     pThreadInfo->threadID, __func__, __LINE__,
                     generatedRecPerTbl, insertRows);
 
-            if ((g_args.num_of_RPR - recOfBatch) < batchPerTbl)
+            if ((g_args.reqPerReq - recOfBatch) < batchPerTbl)
                 break;
         }
 
@@ -7699,6 +10307,258 @@ free_of_interlace:
     return NULL;
 }
 
+static void* syncWriteProgressiveStmt(threadInfo *pThreadInfo) {
+    debugPrint("%s() LN%d: ### stmt progressive write\n", __func__, __LINE__);
+
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+    int64_t timeStampStep =
+        stbInfo?stbInfo->timeStampStep:g_args.timestamp_step;
+    int64_t insertRows =
+        (stbInfo)?stbInfo->insertRows:g_args.insertRows;
+    verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
+            __func__, __LINE__, insertRows);
+
+    uint64_t lastPrintTime = taosGetTimestampMs();
+    uint64_t startTs = taosGetTimestampMs();
+    uint64_t endTs;
+
+    pThreadInfo->totalInsertRows = 0;
+    pThreadInfo->totalAffectedRows = 0;
+
+    pThreadInfo->samplePos = 0;
+
+    int percentComplete = 0;
+    int64_t totalRows = insertRows * pThreadInfo->ntables;
+
+    for (uint64_t tableSeq = pThreadInfo->start_table_from;
+            tableSeq <= pThreadInfo->end_table_to;
+            tableSeq ++) {
+        int64_t start_time = pThreadInfo->start_time;
+
+        for (uint64_t i = 0; i < insertRows;) {
+            char tableName[TSDB_TABLE_NAME_LEN];
+            getTableName(tableName, pThreadInfo, tableSeq);
+            verbosePrint("%s() LN%d: tid=%d seq=%"PRId64" tableName=%s\n",
+                    __func__, __LINE__,
+                    pThreadInfo->threadID, tableSeq, tableName);
+            if (0 == strlen(tableName)) {
+                errorPrint2("[%d] %s() LN%d, getTableName return null\n",
+                        pThreadInfo->threadID, __func__, __LINE__);
+                return NULL;
+            }
+
+            // measure prepare + insert
+            startTs = taosGetTimestampUs();
+
+            int32_t generated;
+            if (stbInfo) {
+                generated = prepareStbStmt(
+                        pThreadInfo,
+                        tableName,
+                        tableSeq,
+                        (g_args.reqPerReq>stbInfo->insertRows)?
+                        stbInfo->insertRows:
+                        g_args.reqPerReq,
+                        insertRows, i, start_time,
+                        &(pThreadInfo->samplePos));
+            } else {
+                generated = prepareStmtWithoutStb(
+                        pThreadInfo,
+                        tableName,
+                        g_args.reqPerReq,
+                        insertRows, i,
+                        start_time);
+            }
+
+            verbosePrint("[%d] %s() LN%d generated=%d\n",
+                    pThreadInfo->threadID,
+                    __func__, __LINE__, generated);
+
+            if (generated > 0)
+                i += generated;
+            else
+                goto free_of_stmt_progressive;
+
+            start_time +=  generated * timeStampStep;
+            pThreadInfo->totalInsertRows += generated;
+
+            // only measure insert
+            // startTs = taosGetTimestampUs();
+
+            int32_t affectedRows = execInsert(pThreadInfo, generated);
+
+            endTs = taosGetTimestampUs();
+            uint64_t delay = endTs - startTs;
+            performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
+                    __func__, __LINE__, delay/1000.0);
+            verbosePrint("[%d] %s() LN%d affectedRows=%d\n",
+                    pThreadInfo->threadID,
+                    __func__, __LINE__, affectedRows);
+
+            if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+            if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+            pThreadInfo->cntDelay++;
+            pThreadInfo->totalDelay += delay;
+
+            if (affectedRows < 0) {
+                errorPrint2("%s() LN%d, affected rows: %d\n",
+                        __func__, __LINE__, affectedRows);
+                goto free_of_stmt_progressive;
+            }
+
+            pThreadInfo->totalAffectedRows += affectedRows;
+
+            int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+            if (currentPercent > percentComplete ) {
+                printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
+                percentComplete = currentPercent;
+            }
+            int64_t  currentPrintTime = taosGetTimestampMs();
+            if (currentPrintTime - lastPrintTime > 30*1000) {
+                printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+                        pThreadInfo->threadID,
+                        pThreadInfo->totalInsertRows,
+                        pThreadInfo->totalAffectedRows);
+                lastPrintTime = currentPrintTime;
+            }
+
+            if (i >= insertRows)
+                break;
+        }   // insertRows
+
+        if ((g_args.verbose_print) &&
+                (tableSeq == pThreadInfo->ntables - 1) && (stbInfo)
+                && (0 == strncasecmp(
+                        stbInfo->dataSource,
+                        "sample", strlen("sample")))) {
+            verbosePrint("%s() LN%d samplePos=%"PRId64"\n",
+                    __func__, __LINE__, pThreadInfo->samplePos);
+        }
+    } // tableSeq
+
+    if (percentComplete < 100) {
+        printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
+    }
+
+free_of_stmt_progressive:
+    tmfree(pThreadInfo->buffer);
+    printStatPerThread(pThreadInfo);
+    return NULL;
+}
+
+static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
+    debugPrint("%s() LN%d: ### sml progressive write\n", __func__, __LINE__);
+
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+    int64_t timeStampStep =
+        stbInfo?stbInfo->timeStampStep:g_args.timestamp_step;
+    int64_t insertRows =
+        (stbInfo)?stbInfo->insertRows:g_args.insertRows;
+    verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
+            __func__, __LINE__, insertRows);
+
+    uint64_t lastPrintTime = taosGetTimestampMs();
+
+    pThreadInfo->totalInsertRows = 0;
+    pThreadInfo->totalAffectedRows = 0;
+
+    pThreadInfo->samplePos = 0;
+
+    char *smlHead[pThreadInfo->ntables];
+    for (int t = 0; t < pThreadInfo->ntables; t++) {
+        smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
+        if (NULL == smlHead[t]) {
+            errorPrint2("calloc failed! size:%d\n", HEAD_BUFF_LEN);
+            exit(EXIT_FAILURE);
+        }
+        generateSmlHead(smlHead[t], stbInfo, pThreadInfo, t);
+        
+    }
+    int currentPercent = 0;
+    int percentComplete = 0;
+
+    if (insertRows < g_args.reqPerReq) {
+        g_args.reqPerReq = insertRows;
+    }
+    pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
+    if (NULL == pThreadInfo->lines) {
+        errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                g_args.reqPerReq * sizeof(char *),
+                strerror(errno));
+        return NULL;
+    }
+    
+    for (uint64_t i = 0; i < pThreadInfo->ntables; i++) {
+        int64_t timestamp = pThreadInfo->start_time;
+        
+        for (uint64_t j = 0; j < insertRows;) {
+            for (int k = 0; k < g_args.reqPerReq; k++) {
+                pThreadInfo->lines[k] = calloc(BUFFER_SIZE, 1);
+                if (NULL == pThreadInfo->lines[k]) {
+                    errorPrint2("Failed to alloc %d bytes, reason:%s\n",
+                        BUFFER_SIZE, strerror(errno));
+                }
+                generateSmlTail(pThreadInfo->lines[k], smlHead[i], stbInfo, pThreadInfo, timestamp);
+                timestamp += timeStampStep;
+                j++;
+                if (j == insertRows) {
+                    break;
+                }
+            }
+            uint64_t startTs = taosGetTimestampUs();
+            int32_t affectedRows = execInsert(pThreadInfo, g_args.reqPerReq);
+            uint64_t endTs = taosGetTimestampUs();
+            uint64_t delay = endTs - startTs;
+
+            performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
+                    __func__, __LINE__, delay/1000.0);
+            verbosePrint("[%d] %s() LN%d affectedRows=%d\n",
+                    pThreadInfo->threadID,
+                    __func__, __LINE__, affectedRows);
+
+            if (delay > pThreadInfo->maxDelay){
+                pThreadInfo->maxDelay = delay;
+            }
+            if (delay < pThreadInfo->minDelay){
+                pThreadInfo->minDelay = delay;
+            }
+            pThreadInfo->cntDelay++;
+            pThreadInfo->totalDelay += delay;
+
+            pThreadInfo->totalAffectedRows += affectedRows;
+            pThreadInfo->totalInsertRows += g_args.reqPerReq;
+            currentPercent =
+                    pThreadInfo->totalAffectedRows * g_Dbs.threadCount / insertRows;
+            if (currentPercent > percentComplete) {
+                    printf("[%d]:%d%%\n", pThreadInfo->threadID,
+                           currentPercent);
+                    percentComplete = currentPercent;
+            }
+
+            int64_t  currentPrintTime = taosGetTimestampMs();
+            if (currentPrintTime - lastPrintTime > 30*1000) {
+                printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+                        pThreadInfo->threadID,
+                        pThreadInfo->totalInsertRows,
+                        pThreadInfo->totalAffectedRows);
+                lastPrintTime = currentPrintTime;
+            }
+
+            for (int index = 0; index < g_args.reqPerReq; index++) {
+                    free(pThreadInfo->lines[index]);
+            }
+            if (j == insertRows) {
+                break;
+            }
+        }
+    }
+    tmfree(pThreadInfo->lines);
+    for (int index = 0; index < pThreadInfo->ntables; index++) {
+        free(smlHead[index]);
+    }
+    return NULL;
+}
+
 // sync insertion progressive data
 static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### progressive write\n", __func__, __LINE__);
@@ -7708,7 +10568,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     int64_t timeStampStep =
         stbInfo?stbInfo->timeStampStep:g_args.timestamp_step;
     int64_t insertRows =
-        (stbInfo)?stbInfo->insertRows:g_args.num_of_DPT;
+        (stbInfo)?stbInfo->insertRows:g_args.insertRows;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
             __func__, __LINE__, insertRows);
 
@@ -7765,11 +10625,13 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             int32_t generated;
             if (stbInfo) {
                 if (stbInfo->iface == STMT_IFACE) {
-                    generated = prepareStbStmtWithSample(
+                    generated = prepareStbStmt(
                             pThreadInfo,
                             tableName,
                             tableSeq,
-                            g_args.num_of_RPR,
+                            (g_args.reqPerReq>stbInfo->insertRows)?
+                                stbInfo->insertRows:
+                                g_args.reqPerReq,
                             insertRows, i, start_time,
                             &(pThreadInfo->samplePos));
                 } else {
@@ -7786,7 +10648,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                     generated = prepareStmtWithoutStb(
                             pThreadInfo,
                             tableName,
-                            g_args.num_of_RPR,
+                            g_args.reqPerReq,
                             insertRows, i,
                             start_time);
                 } else {
@@ -7854,7 +10716,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
             if (i >= insertRows)
                 break;
-        }   // num_of_DPT
+        }   // insertRows
 
         if ((g_args.verbose_print) &&
                 (tableSeq == pThreadInfo->ntables - 1) && (stbInfo)
@@ -7865,8 +10727,10 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                     __func__, __LINE__, pThreadInfo->samplePos);
         }
     } // tableSeq
-    if (percentComplete < 100)
+
+    if (percentComplete < 100) {
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
+    }
 
 free_of_progressive:
     tmfree(pThreadInfo->buffer);
@@ -7881,26 +10745,45 @@ static void* syncWrite(void *sarg) {
 
     setThreadName("syncWrite");
 
-    uint32_t interlaceRows;
+    uint32_t interlaceRows = 0;
 
     if (stbInfo) {
-        if ((stbInfo->interlaceRows == 0)
-                && (g_args.interlace_rows > 0)) {
-            interlaceRows = g_args.interlace_rows;
-        } else {
+        if (stbInfo->interlaceRows < stbInfo->insertRows)
             interlaceRows = stbInfo->interlaceRows;
-        }
     } else {
-        interlaceRows = g_args.interlace_rows;
+        if (g_args.interlaceRows < g_args.insertRows)
+            interlaceRows = g_args.interlaceRows;
     }
 
     if (interlaceRows > 0) {
         // interlace mode
-        return syncWriteInterlace(pThreadInfo);
+        if (stbInfo) {
+            if (STMT_IFACE == stbInfo->iface) {
+#if STMT_BIND_PARAM_BATCH == 1
+                return syncWriteInterlaceStmtBatch(pThreadInfo, interlaceRows);
+#else
+                return syncWriteInterlaceStmt(pThreadInfo, interlaceRows);
+#endif
+            } else if (SML_IFACE == stbInfo->iface) {
+                return syncWriteInterlaceSml(pThreadInfo, interlaceRows);
+            } else {
+                return syncWriteInterlace(pThreadInfo, interlaceRows);
+            }
+        }
     } else {
-        // progressive mode
-        return syncWriteProgressive(pThreadInfo);
+      // progressive mode
+      if (((stbInfo) && (STMT_IFACE == stbInfo->iface))
+              || (STMT_IFACE == g_args.iface)) {
+          return syncWriteProgressiveStmt(pThreadInfo);
+      } else if (((stbInfo) && (SML_IFACE == stbInfo->iface))
+              || (SML_IFACE == g_args.iface)) {
+          return syncWriteProgressiveSml(pThreadInfo);
+      } else {
+          return syncWriteProgressive(pThreadInfo);
+      }
     }
+
+    return NULL;
 }
 
 static void callBack(void *param, TAOS_RES *res, int code) {
@@ -7919,11 +10802,11 @@ static void callBack(void *param, TAOS_RES *res, int code) {
     char *buffer = calloc(1, pThreadInfo->stbInfo->maxSqlLen);
     char data[MAX_DATA_SIZE];
     char *pstr = buffer;
-    pstr += sprintf(pstr, "insert into %s.%s%"PRId64" values",
+    pstr += sprintf(pstr, "INSERT INTO %s.%s%"PRId64" VALUES",
             pThreadInfo->db_name, pThreadInfo->tb_prefix,
             pThreadInfo->start_table_from);
     //  if (pThreadInfo->counter >= pThreadInfo->stbInfo->insertRows) {
-    if (pThreadInfo->counter >= g_args.num_of_RPR) {
+    if (pThreadInfo->counter >= g_args.reqPerReq) {
         pThreadInfo->start_table_from++;
         pThreadInfo->counter = 0;
     }
@@ -7934,7 +10817,7 @@ static void callBack(void *param, TAOS_RES *res, int code) {
         return;
     }
 
-    for (int i = 0; i < g_args.num_of_RPR; i++) {
+    for (int i = 0; i < g_args.reqPerReq; i++) {
         int rand_num = taosRandom() % 100;
         if (0 != pThreadInfo->stbInfo->disorderRatio
                 && rand_num < pThreadInfo->stbInfo->disorderRatio) {
@@ -8014,81 +10897,6 @@ static int convertHostToServAddr(char *host, uint16_t port, struct sockaddr_in *
     return 0;
 }
 
-static int parseSampleFileToStmt(
-        threadInfo *pThreadInfo,
-        SSuperTable *stbInfo, uint32_t timePrec)
-{
-    pThreadInfo->sampleBindArray =
-        calloc(1, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
-    if (pThreadInfo->sampleBindArray == NULL) {
-        errorPrint2("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
-                __func__, __LINE__,
-                (uint64_t)sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
-        return -1;
-    }
-
-    for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
-        char *bindArray =
-            calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
-        if (bindArray == NULL) {
-            errorPrint2("%s() LN%d, Failed to allocate %d bind params\n",
-                    __func__, __LINE__, (stbInfo->columnCount + 1));
-            return -1;
-        }
-
-        TAOS_BIND *bind;
-        int cursor = 0;
-
-        for (int c = 0; c < stbInfo->columnCount + 1; c++) {
-            bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * c));
-
-            if (c == 0) {
-                bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-                bind->buffer_length = sizeof(int64_t);
-                bind->buffer = NULL; //bind_ts;
-                bind->length = &bind->buffer_length;
-                bind->is_null = NULL;
-            } else {
-                char *restStr = stbInfo->sampleDataBuf
-                    + stbInfo->lenOfOneRow * i + cursor;
-                int lengthOfRest = strlen(restStr);
-
-                int index = 0;
-                for (index = 0; index < lengthOfRest; index ++) {
-                    if (restStr[index] == ',') {
-                        break;
-                    }
-                }
-
-                char *bindBuffer = calloc(1, index + 1);
-                if (bindBuffer == NULL) {
-                    errorPrint2("%s() LN%d, Failed to allocate %d bind buffer\n",
-                            __func__, __LINE__, DOUBLE_BUFF_LEN);
-                    return -1;
-                }
-
-                strncpy(bindBuffer, restStr, index);
-                cursor += index + 1; // skip ',' too
-
-                if (-1 == prepareStmtBindArrayByType(
-                            bind,
-                            stbInfo->columns[c-1].dataType,
-                            stbInfo->columns[c-1].dataLen,
-                            timePrec,
-                            bindBuffer)) {
-                    free(bindBuffer);
-                    return -1;
-                }
-                free(bindBuffer);
-            }
-        }
-        *((uintptr_t *)(pThreadInfo->sampleBindArray + (sizeof(char *)) * i)) =
-            (uintptr_t)bindArray;
-    }
-
-    return 0;
-}
-
 static void startMultiThreadInsertData(int threads, char* db_name,
         char* precision, SSuperTable* stbInfo) {
 
@@ -8106,32 +10914,37 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    int64_t start_time;
+    int64_t startTime;
     if (stbInfo) {
         if (0 == strncasecmp(stbInfo->startTimestamp, "now", 3)) {
-            start_time = taosGetTimestamp(timePrec);
+            startTime = taosGetTimestamp(timePrec);
         } else {
             if (TSDB_CODE_SUCCESS != taosParseTime(
                         stbInfo->startTimestamp,
-                        &start_time,
+                        &startTime,
                         strlen(stbInfo->startTimestamp),
                         timePrec, 0)) {
                 ERROR_EXIT("failed to parse time!\n");
             }
         }
     } else {
-        start_time = DEFAULT_START_TIME;
+        startTime = DEFAULT_START_TIME;
     }
-    debugPrint("%s() LN%d, start_time= %"PRId64"\n",
-            __func__, __LINE__, start_time);
+    debugPrint("%s() LN%d, startTime= %"PRId64"\n",
+            __func__, __LINE__, startTime);
 
     // read sample data from file first
-    if (stbInfo) {
-        if (0 != prepareSampleDataForSTable(stbInfo)) {
-            errorPrint2("%s() LN%d, prepare sample data for stable failed!\n",
-                    __func__, __LINE__);
-            exit(EXIT_FAILURE);
-        }
+    int ret;
+    if (stbInfo && stbInfo->iface != SML_IFACE) {
+        ret = prepareSampleForStb(stbInfo);
+    } else {
+        ret = prepareSampleForNtb();
+    }
+
+    if (0 != ret) {
+        errorPrint2("%s() LN%d, prepare sample data for stable failed!\n",
+                __func__, __LINE__);
+        exit(EXIT_FAILURE);
     }
 
     TAOS* taos0 = taos_connect(
@@ -8145,67 +10958,78 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     int64_t ntables = 0;
     uint64_t tableFrom;
-
+    
     if (stbInfo) {
-        int64_t limit;
-        uint64_t offset;
+        if (stbInfo->iface != SML_IFACE) {
+            int64_t limit;
+            uint64_t offset;
 
-        if ((NULL != g_args.sqlFile)
-                && (stbInfo->childTblExists == TBL_NO_EXISTS)
-                && ((stbInfo->childTblOffset != 0)
-                    || (stbInfo->childTblLimit >= 0))) {
-            printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
-        }
-
-        if (stbInfo->childTblExists == TBL_ALREADY_EXISTS) {
-            if ((stbInfo->childTblLimit < 0)
-                    || ((stbInfo->childTblOffset
-                            + stbInfo->childTblLimit)
-                        > (stbInfo->childTblCount))) {
-                stbInfo->childTblLimit =
-                    stbInfo->childTblCount - stbInfo->childTblOffset;
+            if ((NULL != g_args.sqlFile)
+                    && (stbInfo->childTblExists == TBL_NO_EXISTS)
+                    && ((stbInfo->childTblOffset != 0)
+                        || (stbInfo->childTblLimit >= 0))) {
+                printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
             }
 
-            offset = stbInfo->childTblOffset;
-            limit = stbInfo->childTblLimit;
+            if (stbInfo->childTblExists == TBL_ALREADY_EXISTS) {
+                if ((stbInfo->childTblLimit < 0)
+                        || ((stbInfo->childTblOffset
+                                + stbInfo->childTblLimit)
+                            > (stbInfo->childTblCount))) {
+
+                    if (stbInfo->childTblCount < stbInfo->childTblOffset) {
+                        printf("WARNING: offset will not be used since the child tables count is less then offset!\n");
+
+                        stbInfo->childTblOffset = 0;
+                    }
+                    stbInfo->childTblLimit =
+                        stbInfo->childTblCount - stbInfo->childTblOffset;
+                }
+
+                offset = stbInfo->childTblOffset;
+                limit = stbInfo->childTblLimit;
+            } else {
+                limit = stbInfo->childTblCount;
+                offset = 0;
+            }
+
+            ntables = limit;
+            tableFrom = offset;
+
+            if ((stbInfo->childTblExists != TBL_NO_EXISTS)
+                    && ((stbInfo->childTblOffset + stbInfo->childTblLimit)
+                        > stbInfo->childTblCount)) {
+                printf("WARNING: specified offset + limit > child table count!\n");
+                prompt();
+            }
+
+            if ((stbInfo->childTblExists != TBL_NO_EXISTS)
+                    && (0 == stbInfo->childTblLimit)) {
+                printf("WARNING: specified limit = 0, which cannot find table name to insert or query! \n");
+                prompt();
+            }
+
+            stbInfo->childTblName = (char*)calloc(1,
+                    limit * TSDB_TABLE_NAME_LEN);
+            if (stbInfo->childTblName == NULL) {
+                taos_close(taos0);
+                errorPrint2("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
+                exit(EXIT_FAILURE);
+            }
+
+            int64_t childTblCount;
+            getChildNameOfSuperTableWithLimitAndOffset(
+                    taos0,
+                    db_name, stbInfo->stbName,
+                    &stbInfo->childTblName, &childTblCount,
+                    limit,
+                    offset, stbInfo->escapeChar);
+            ntables = childTblCount;
         } else {
-            limit = stbInfo->childTblCount;
-            offset = 0;
+            ntables = stbInfo->childTblCount;
         }
-
-        ntables = limit;
-        tableFrom = offset;
-
-        if ((stbInfo->childTblExists != TBL_NO_EXISTS)
-                && ((stbInfo->childTblOffset + stbInfo->childTblLimit)
-                    > stbInfo->childTblCount)) {
-            printf("WARNING: specified offset + limit > child table count!\n");
-            prompt();
-        }
-
-        if ((stbInfo->childTblExists != TBL_NO_EXISTS)
-                && (0 == stbInfo->childTblLimit)) {
-            printf("WARNING: specified limit = 0, which cannot find table name to insert or query! \n");
-            prompt();
-        }
-
-        stbInfo->childTblName = (char*)calloc(1,
-                limit * TSDB_TABLE_NAME_LEN);
-        if (stbInfo->childTblName == NULL) {
-            taos_close(taos0);
-            errorPrint2("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
-            exit(EXIT_FAILURE);
-        }
-
-        int64_t childTblCount;
-        getChildNameOfSuperTableWithLimitAndOffset(
-                taos0,
-                db_name, stbInfo->sTblName,
-                &stbInfo->childTblName, &childTblCount,
-                limit,
-                offset);
     } else {
-        ntables = g_args.num_of_tables;
+        ntables = g_args.ntables;
         tableFrom = 0;
     }
 
@@ -8222,8 +11046,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         b = ntables % threads;
     }
 
-    if ((stbInfo)
-            && (stbInfo->iface == REST_IFACE)) {
+    if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
             ERROR_EXIT("convert host to server address");
@@ -8231,16 +11054,34 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    assert(pids != NULL);
-
     threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    assert(pids != NULL);
     assert(infos != NULL);
-
-    memset(pids, 0, threads * sizeof(pthread_t));
-    memset(infos, 0, threads * sizeof(threadInfo));
 
     char *stmtBuffer = calloc(1, BUFFER_SIZE);
     assert(stmtBuffer);
+
+#if STMT_BIND_PARAM_BATCH == 1
+    uint32_t interlaceRows = 0;
+    uint32_t batch;
+
+    if (stbInfo) {
+        if (stbInfo->interlaceRows < stbInfo->insertRows)
+            interlaceRows = stbInfo->interlaceRows;
+    } else {
+        if (g_args.interlaceRows < g_args.insertRows)
+            interlaceRows = g_args.interlaceRows;
+    }
+
+    if (interlaceRows > 0) {
+        batch = interlaceRows;
+    } else {
+        batch = (g_args.reqPerReq>g_args.insertRows)?
+            g_args.insertRows:g_args.reqPerReq;
+    }
+
+#endif
+
     if ((g_args.iface == STMT_IFACE)
             || ((stbInfo)
                 && (stbInfo->iface == STMT_IFACE))) {
@@ -8250,7 +11091,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 && (AUTO_CREATE_SUBTBL
                     == stbInfo->autoCreateTable)) {
             pstr += sprintf(pstr, "INSERT INTO ? USING %s TAGS(?",
-                    stbInfo->sTblName);
+                    stbInfo->stbName);
             for (int tag = 0; tag < (stbInfo->tagCount - 1);
                     tag ++ ) {
                 pstr += sprintf(pstr, ",?");
@@ -8260,12 +11101,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             pstr += sprintf(pstr, "INSERT INTO ? VALUES(?");
         }
 
-        int columnCount;
-        if (stbInfo) {
-            columnCount = stbInfo->columnCount;
-        } else {
-            columnCount = g_args.num_of_CPR;
-        }
+        int columnCount = (stbInfo)?
+            stbInfo->columnCount:
+            g_args.columnCount;
 
         for (int col = 0; col < columnCount; col ++) {
             pstr += sprintf(pstr, ",?");
@@ -8273,6 +11111,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         pstr += sprintf(pstr, ")");
 
         debugPrint("%s() LN%d, stmtBuffer: %s", __func__, __LINE__, stmtBuffer);
+#if STMT_BIND_PARAM_BATCH == 1
+        parseSamplefileToStmtBatch(stbInfo);
+#endif
     }
 
     for (int i = 0; i < threads; i++) {
@@ -8283,7 +11124,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         pThreadInfo->time_precision = timePrec;
         pThreadInfo->stbInfo = stbInfo;
 
-        pThreadInfo->start_time = start_time;
+        pThreadInfo->start_time = startTime;
         pThreadInfo->minDelay = UINT64_MAX;
 
         if ((NULL == stbInfo) ||
@@ -8316,8 +11157,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     exit(EXIT_FAILURE);
                 }
 
-                int ret = taos_stmt_prepare(pThreadInfo->stmt, stmtBuffer, 0);
-                if (ret != 0) {
+                if (0 != taos_stmt_prepare(pThreadInfo->stmt, stmtBuffer, 0)) {
                     free(pids);
                     free(infos);
                     free(stmtBuffer);
@@ -8328,7 +11168,19 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 pThreadInfo->bind_ts = malloc(sizeof(int64_t));
 
                 if (stbInfo) {
-                    parseSampleFileToStmt(pThreadInfo, stbInfo, timePrec);
+#if STMT_BIND_PARAM_BATCH == 1
+                    parseStbSampleToStmtBatchForThread(
+                            pThreadInfo, stbInfo, timePrec, batch);
+#else
+                    parseStbSampleToStmt(pThreadInfo, stbInfo, timePrec);
+#endif
+                } else {
+#if STMT_BIND_PARAM_BATCH == 1
+                    parseNtbSampleToStmtBatchForThread(
+                            pThreadInfo, timePrec, batch);
+#else
+                    parseNtbSampleToStmt(pThreadInfo, timePrec);
+#endif
                 }
             }
         } else {
@@ -8348,6 +11200,33 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               pThreadInfo->start_time = pThreadInfo->start_time + rand_int() % 10000 - rand_tinyint();
               }
               */
+        
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            WSADATA wsaData;
+            WSAStartup(MAKEWORD(2, 2), &wsaData);
+            SOCKET sockfd;
+#else
+            int sockfd;
+#endif
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            if (sockfd < 0) {
+#ifdef WINDOWS
+                errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                ERROR_EXIT("opening socket");
+            }
+
+            int retConn = connect(sockfd, (struct sockaddr *)&(g_Dbs.serv_addr), sizeof(struct sockaddr));
+            debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+            if (retConn < 0) {
+                ERROR_EXIT("connecting");
+            }
+            pThreadInfo->sockfd = sockfd;
+        }
+        
+
         tsem_init(&(pThreadInfo->lock_sem), 0, 0);
         if (ASYNC_MODE == g_Dbs.asyncMode) {
             pthread_create(pids + i, NULL, asyncWrite, pThreadInfo);
@@ -8373,19 +11252,36 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
 
-        if (pThreadInfo->stmt) {
-            taos_stmt_close(pThreadInfo->stmt);
-            tmfree((char *)pThreadInfo->bind_ts);
-        }
         tsem_destroy(&(pThreadInfo->lock_sem));
         taos_close(pThreadInfo->taos);
 
+        if (pThreadInfo->stmt) {
+            taos_stmt_close(pThreadInfo->stmt);
+        }
+
+        tmfree((char *)pThreadInfo->bind_ts);
+#if STMT_BIND_PARAM_BATCH == 1
+        tmfree((char *)pThreadInfo->bind_ts_array);
+        tmfree(pThreadInfo->bindParams);
+        tmfree(pThreadInfo->is_null);
+        if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
+#ifdef WINDOWS
+            closesocket(pThreadInfo->sockfd);
+            WSACleanup();
+#else
+            close(pThreadInfo->sockfd);
+#endif
+        }
+#else
         if (pThreadInfo->sampleBindArray) {
-            for (int k = 0; k < MAX_SAMPLES_ONCE_FROM_FILE; k++) {
+            for (int k = 0; k < MAX_SAMPLES; k++) {
                 uintptr_t *tmp = (uintptr_t *)(*(uintptr_t *)(
                             pThreadInfo->sampleBindArray
                             + sizeof(uintptr_t *) * k));
-                for (int c = 1; c < pThreadInfo->stbInfo->columnCount + 1; c++) {
+                int columnCount = (pThreadInfo->stbInfo)?
+                    pThreadInfo->stbInfo->columnCount:
+                    g_args.columnCount;
+                for (int c = 1; c < columnCount + 1; c++) {
                     TAOS_BIND *bind = (TAOS_BIND *)((char *)tmp + (sizeof(TAOS_BIND) * c));
                     if (bind)
                         tmfree(bind->buffer);
@@ -8394,6 +11290,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             }
             tmfree(pThreadInfo->sampleBindArray);
         }
+#endif
 
         debugPrint("%s() LN%d, [%d] totalInsert=%"PRIu64" totalAffected=%"PRIu64"\n",
                 __func__, __LINE__,
@@ -8412,7 +11309,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         if (pThreadInfo->maxDelay > maxDelay) maxDelay = pThreadInfo->maxDelay;
         if (pThreadInfo->minDelay < minDelay) minDelay = pThreadInfo->minDelay;
     }
-    cntDelay -= 1;
 
     if (cntDelay == 0)    cntDelay = 1;
     avgDelay = (double)totalDelay / cntDelay;
@@ -8427,7 +11323,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         fprintf(stderr, "Spent %.4f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
                 tInMs, stbInfo->totalInsertRows,
                 stbInfo->totalAffectedRows,
-                threads, db_name, stbInfo->sTblName,
+                threads, db_name, stbInfo->stbName,
                 (double)(stbInfo->totalInsertRows/tInMs));
 
         if (g_fpOfInsertResult) {
@@ -8435,7 +11331,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     "Spent %.4f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
                     tInMs, stbInfo->totalInsertRows,
                     stbInfo->totalAffectedRows,
-                    threads, db_name, stbInfo->sTblName,
+                    threads, db_name, stbInfo->stbName,
                     (double)(stbInfo->totalInsertRows/tInMs));
         }
     } else {
@@ -8454,15 +11350,18 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    fprintf(stderr, "insert delay, avg: %10.2fms, max: %10.2fms, min: %10.2fms\n\n",
-            (double)avgDelay/1000.0,
-            (double)maxDelay/1000.0,
-            (double)minDelay/1000.0);
-    if (g_fpOfInsertResult) {
-        fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %10.2fms, min: %10.2fms\n\n",
-            (double)avgDelay/1000.0,
-            (double)maxDelay/1000.0,
-            (double)minDelay/1000.0);
+    if (minDelay != UINT64_MAX) {
+        fprintf(stderr, "insert delay, avg: %10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+                (double)avgDelay/1000.0,
+                (double)maxDelay/1000.0,
+                (double)minDelay/1000.0);
+
+        if (g_fpOfInsertResult) {
+            fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+                    (double)avgDelay/1000.0,
+                    (double)maxDelay/1000.0,
+                    (double)minDelay/1000.0);
+        }
     }
 
     //taos_close(taos);
@@ -8471,15 +11370,14 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     free(infos);
 }
 
-static void *readTable(void *sarg) {
-#if 1
+static void *queryNtableAggrFunc(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     TAOS *taos = pThreadInfo->taos;
-    setThreadName("readTable");
+    setThreadName("queryNtableAggrFunc");
     char *command = calloc(1, BUFFER_SIZE);
     assert(command);
 
-    uint64_t sTime = pThreadInfo->start_time;
+    uint64_t startTime = pThreadInfo->start_time;
     char *tb_prefix = pThreadInfo->tb_prefix;
     FILE *fp = fopen(pThreadInfo->filePath, "a");
     if (NULL == fp) {
@@ -8488,20 +11386,30 @@ static void *readTable(void *sarg) {
         return NULL;
     }
 
-    int64_t num_of_DPT;
+    int64_t insertRows;
     /*  if (pThreadInfo->stbInfo) {
-        num_of_DPT = pThreadInfo->stbInfo->insertRows; //  nrecords_per_table;
+        insertRows = pThreadInfo->stbInfo->insertRows; //  nrecords_per_table;
         } else {
         */
-    num_of_DPT = g_args.num_of_DPT;
+    insertRows = g_args.insertRows;
     //  }
 
-    int64_t num_of_tables = pThreadInfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
-    int64_t totalData = num_of_DPT * num_of_tables;
-    bool do_aggreFunc = g_Dbs.do_aggreFunc;
+    int64_t ntables = pThreadInfo->ntables; // pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
+    int64_t totalData = insertRows * ntables;
+    bool aggr_func = g_Dbs.aggr_func;
 
-    int n = do_aggreFunc ? (sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
-    if (!do_aggreFunc) {
+    char **aggreFunc;
+    int n;
+
+    if (g_args.demo_mode) {
+        aggreFunc = g_aggreFuncDemo;
+        n = aggr_func?(sizeof(g_aggreFuncDemo) / sizeof(g_aggreFuncDemo[0])) : 2;
+    } else {
+        aggreFunc = g_aggreFunc;
+        n = aggr_func?(sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
+    }
+
+    if (!aggr_func) {
         printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
     }
     printf("%"PRId64" records:\n", totalData);
@@ -8510,11 +11418,13 @@ static void *readTable(void *sarg) {
     for (int j = 0; j < n; j++) {
         double totalT = 0;
         uint64_t count = 0;
-        for (int64_t i = 0; i < num_of_tables; i++) {
-            sprintf(command, "select %s from %s%"PRId64" where ts>= %" PRIu64,
-                    g_aggreFunc[j], tb_prefix, i, sTime);
+        for (int64_t i = 0; i < ntables; i++) {
+            sprintf(command, "SELECT %s FROM %s%"PRId64" WHERE ts>= %" PRIu64,
+                    aggreFunc[j], tb_prefix, i, startTime);
 
-            double t = taosGetTimestampMs();
+            double t = taosGetTimestampUs();
+            debugPrint("%s() LN%d, sql command: %s\n",
+                    __func__, __LINE__, command);
             TAOS_RES *pSql = taos_query(taos, command);
             int32_t code = taos_errno(pSql);
 
@@ -8531,29 +11441,27 @@ static void *readTable(void *sarg) {
                 count++;
             }
 
-            t = taosGetTimestampMs() - t;
+            t = taosGetTimestampUs() - t;
             totalT += t;
 
             taos_free_result(pSql);
         }
 
         fprintf(fp, "|%10s  |   %"PRId64"   |  %12.2f   |   %10.2f  |\n",
-                g_aggreFunc[j][0] == '*' ? "   *   " : g_aggreFunc[j], totalData,
-                (double)(num_of_tables * num_of_DPT) / totalT, totalT * 1000);
-        printf("select %10s took %.6f second(s)\n", g_aggreFunc[j], totalT * 1000);
+                aggreFunc[j][0] == '*' ? "   *   " : aggreFunc[j], totalData,
+                (double)(ntables * insertRows) / totalT, totalT / 1000000);
+        printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT / 1000000);
     }
     fprintf(fp, "\n");
     fclose(fp);
     free(command);
-#endif
     return NULL;
 }
 
-static void *readMetric(void *sarg) {
-#if 1
+static void *queryStableAggrFunc(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     TAOS *taos = pThreadInfo->taos;
-    setThreadName("readMetric");
+    setThreadName("queryStableAggrFunc");
     char *command = calloc(1, BUFFER_SIZE);
     assert(command);
 
@@ -8564,15 +11472,26 @@ static void *readMetric(void *sarg) {
         return NULL;
     }
 
-    int64_t num_of_DPT = pThreadInfo->stbInfo->insertRows;
-    int64_t num_of_tables = pThreadInfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
-    int64_t totalData = num_of_DPT * num_of_tables;
-    bool do_aggreFunc = g_Dbs.do_aggreFunc;
+    int64_t insertRows = pThreadInfo->stbInfo->insertRows;
+    int64_t ntables = pThreadInfo->ntables; // pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
+    int64_t totalData = insertRows * ntables;
+    bool aggr_func = g_Dbs.aggr_func;
 
-    int n = do_aggreFunc ? (sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
-    if (!do_aggreFunc) {
+    char **aggreFunc;
+    int n;
+
+    if (g_args.demo_mode) {
+        aggreFunc = g_aggreFuncDemo;
+        n = aggr_func?(sizeof(g_aggreFuncDemo) / sizeof(g_aggreFuncDemo[0])) : 2;
+    } else {
+        aggreFunc = g_aggreFunc;
+        n = aggr_func?(sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
+    }
+
+    if (!aggr_func) {
         printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
     }
+
     printf("%"PRId64" records:\n", totalData);
     fprintf(fp, "Querying On %"PRId64" records:\n", totalData);
 
@@ -8580,22 +11499,33 @@ static void *readMetric(void *sarg) {
         char condition[COND_BUF_LEN] = "\0";
         char tempS[64] = "\0";
 
-        int64_t m = 10 < num_of_tables ? 10 : num_of_tables;
+        int64_t m = 10 < ntables ? 10 : ntables;
 
         for (int64_t i = 1; i <= m; i++) {
             if (i == 1) {
-                sprintf(tempS, "t1 = %"PRId64"", i);
+                if (g_args.demo_mode) {
+                    sprintf(tempS, "groupid = %"PRId64"", i);
+                } else {
+                    sprintf(tempS, "t0 = %"PRId64"", i);
+                }
             } else {
-                sprintf(tempS, " or t1 = %"PRId64" ", i);
+                if (g_args.demo_mode) {
+                    sprintf(tempS, " or groupid = %"PRId64" ", i);
+                } else {
+                    sprintf(tempS, " or t0 = %"PRId64" ", i);
+                }
             }
             strncat(condition, tempS, COND_BUF_LEN - 1);
 
-            sprintf(command, "select %s from meters where %s", g_aggreFunc[j], condition);
+            sprintf(command, "SELECT %s FROM meters WHERE %s", aggreFunc[j], condition);
 
             printf("Where condition: %s\n", condition);
+
+            debugPrint("%s() LN%d, sql command: %s\n",
+                    __func__, __LINE__, command);
             fprintf(fp, "%s\n", command);
 
-            double t = taosGetTimestampMs();
+            double t = taosGetTimestampUs();
 
             TAOS_RES *pSql = taos_query(taos, command);
             int32_t code = taos_errno(pSql);
@@ -8612,11 +11542,11 @@ static void *readMetric(void *sarg) {
             while(taos_fetch_row(pSql) != NULL) {
                 count++;
             }
-            t = taosGetTimestampMs() - t;
+            t = taosGetTimestampUs() - t;
 
             fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n",
-                    num_of_tables * num_of_DPT / (t * 1000.0), t);
-            printf("select %10s took %.6f second(s)\n\n", g_aggreFunc[j], t * 1000.0);
+                    ntables * insertRows / (t / 1000), t);
+            printf("select %10s took %.6f second(s)\n\n", aggreFunc[j], t / 1000000);
 
             taos_free_result(pSql);
         }
@@ -8624,7 +11554,7 @@ static void *readMetric(void *sarg) {
     }
     fclose(fp);
     free(command);
-#endif
+
     return NULL;
 }
 
@@ -8671,7 +11601,7 @@ static int insertTestProcess() {
     }
     free(cmdBuffer);
 
-    // pretreatement
+    // pretreatment
     if (prepareSampleData() != 0) {
         if (g_fpOfInsertResult)
             fclose(g_fpOfInsertResult);
@@ -8681,33 +11611,34 @@ static int insertTestProcess() {
     double start;
     double end;
 
-    if (g_totalChildTables > 0) {
-        fprintf(stderr,
-                "creating %"PRId64" table(s) with %d thread(s)\n\n",
-                g_totalChildTables, g_Dbs.threadCountForCreateTbl);
-        if (g_fpOfInsertResult) {
-            fprintf(g_fpOfInsertResult,
-                "creating %"PRId64" table(s) with %d thread(s)\n\n",
-                g_totalChildTables, g_Dbs.threadCountForCreateTbl);
-        }
+    if (g_args.iface != SML_IFACE) {
+        if (g_totalChildTables > 0) {
+            fprintf(stderr,
+                    "creating %"PRId64" table(s) with %d thread(s)\n\n",
+                    g_totalChildTables, g_Dbs.threadCountForCreateTbl);
+            if (g_fpOfInsertResult) {
+                fprintf(g_fpOfInsertResult,
+                    "creating %"PRId64" table(s) with %d thread(s)\n\n",
+                    g_totalChildTables, g_Dbs.threadCountForCreateTbl);
+            }
 
-        // create child tables
-        start = taosGetTimestampMs();
-        createChildTables();
-        end = taosGetTimestampMs();
+            // create child tables
+            start = taosGetTimestampMs();
+            createChildTables();
+            end = taosGetTimestampMs();
 
-        fprintf(stderr,
-                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
-                (end - start)/1000.0, g_totalChildTables,
-                g_Dbs.threadCountForCreateTbl, g_actualChildTables);
-        if (g_fpOfInsertResult) {
-            fprintf(g_fpOfInsertResult,
-                "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
-                (end - start)/1000.0, g_totalChildTables,
-                g_Dbs.threadCountForCreateTbl, g_actualChildTables);
+            fprintf(stderr,
+                    "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                    (end - start)/1000.0, g_totalChildTables,
+                    g_Dbs.threadCountForCreateTbl, g_actualChildTables);
+            if (g_fpOfInsertResult) {
+                fprintf(g_fpOfInsertResult,
+                    "\nSpent %.4f seconds to create %"PRId64" table(s) with %d thread(s), actual %"PRId64" table(s) created\n\n",
+                    (end - start)/1000.0, g_totalChildTables,
+                    g_Dbs.threadCountForCreateTbl, g_actualChildTables);
+            }
         }
     }
-
     // create sub threads for inserting data
     //start = taosGetTimestampMs();
     for (int i = 0; i < g_Dbs.dbCount; i++) {
@@ -8948,7 +11879,7 @@ static int queryTestProcess() {
     if (0 != g_queryInfo.superQueryInfo.sqlCount) {
         getAllChildNameOfSuperTable(taos,
                 g_queryInfo.dbName,
-                g_queryInfo.superQueryInfo.sTblName,
+                g_queryInfo.superQueryInfo.stbName,
                 &g_queryInfo.superQueryInfo.childTblName,
                 &g_queryInfo.superQueryInfo.childTblCount);
     }
@@ -9004,7 +11935,32 @@ static int queryTestProcess() {
                     }
                 }
 
-                pThreadInfo->taos = NULL;// TODO: workaround to use separate taos connection;
+                if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+#ifdef WINDOWS
+                    WSADATA wsaData;
+                    WSAStartup(MAKEWORD(2, 2), &wsaData);
+                    SOCKET sockfd;
+#else
+                    int sockfd;
+#endif
+                    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                    if (sockfd < 0) {
+#ifdef WINDOWS
+                        errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                        debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                        ERROR_EXIT("opening socket");
+                    }
+
+                    int retConn = connect(sockfd, (struct sockaddr *)&(g_queryInfo.serv_addr),
+                         sizeof(struct sockaddr));
+                    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+                    if (retConn < 0) {
+                        ERROR_EXIT("connecting");
+                    }
+                    pThreadInfo->sockfd = sockfd;
+                }
+                pThreadInfo->taos = NULL;// workaround to use separate taos connection;
 
                 pthread_create(pids + seq, NULL, specifiedTableQuery,
                         pThreadInfo);
@@ -9054,7 +12010,32 @@ static int queryTestProcess() {
             pThreadInfo->ntables = i<b?a+1:a;
             pThreadInfo->end_table_to = i < b ? tableFrom + a : tableFrom + a - 1;
             tableFrom = pThreadInfo->end_table_to + 1;
-            pThreadInfo->taos = NULL; // TODO: workaround to use separate taos connection;
+            pThreadInfo->taos = NULL; // workaround to use separate taos connection;
+            if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+#ifdef WINDOWS
+                WSADATA wsaData;
+                WSAStartup(MAKEWORD(2, 2), &wsaData);
+                SOCKET sockfd;
+#else
+                int sockfd;
+#endif
+                sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                if (sockfd < 0) {
+#ifdef WINDOWS
+                    errorPrint( "Could not create socket : %d" , WSAGetLastError());
+#endif
+                    debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
+                    ERROR_EXIT("opening socket");
+                }
+
+                int retConn = connect(sockfd, (struct sockaddr *)&(g_queryInfo.serv_addr),
+                        sizeof(struct sockaddr));
+                debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+                if (retConn < 0) {
+                    ERROR_EXIT("connecting");
+                }
+                pThreadInfo->sockfd = sockfd;
+            }
             pthread_create(pidsOfSub + i, NULL, superTableQuery, pThreadInfo);
         }
 
@@ -9067,6 +12048,15 @@ static int queryTestProcess() {
         for (int i = 0; i < nConcurrent; i++) {
             for (int j = 0; j < nSqlCount; j++) {
                 pthread_join(pids[i * nSqlCount + j], NULL);
+                if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+                    threadInfo *pThreadInfo = infos + i * nSqlCount + j;
+#ifdef WINDOWS
+                    closesocket(pThreadInfo->sockfd);
+                    WSACleanup();
+#else
+                    close(pThreadInfo->sockfd);
+#endif
+                }
             }
         }
     }
@@ -9076,12 +12066,21 @@ static int queryTestProcess() {
 
     for (int i = 0; i < g_queryInfo.superQueryInfo.threadCnt; i++) {
         pthread_join(pidsOfSub[i], NULL);
+        if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
+            threadInfo *pThreadInfo = infosOfSub + i;
+#ifdef WINDOWS
+            closesocket(pThreadInfo->sockfd);
+            WSACleanup();
+#else
+            close(pThreadInfo->sockfd);
+#endif
+        }
     }
 
     tmfree((char*)pidsOfSub);
     tmfree((char*)infosOfSub);
 
-    //  taos_close(taos);// TODO: workaround to use separate taos connection;
+    //  taos_close(taos);// workaround to use separate taos connection;
     uint64_t endTs = taosGetTimestampMs();
 
     uint64_t totalQueried = g_queryInfo.specifiedQueryInfo.totalQueried +
@@ -9103,7 +12102,7 @@ static void stable_sub_callback(
 
     if (param)
         fetchResult(res, (threadInfo *)param);
-    // tao_unscribe() will free result.
+    // tao_unsubscribe() will free result.
 }
 
 static void specified_sub_callback(
@@ -9116,7 +12115,7 @@ static void specified_sub_callback(
 
     if (param)
         fetchResult(res, (threadInfo *)param);
-    // tao_unscribe() will free result.
+    // tao_unsubscribe() will free result.
 }
 
 static TAOS_SUB* subscribeImpl(
@@ -9441,12 +12440,12 @@ static int subscribeTestProcess() {
     if (0 != g_queryInfo.superQueryInfo.sqlCount) {
         getAllChildNameOfSuperTable(taos,
                 g_queryInfo.dbName,
-                g_queryInfo.superQueryInfo.sTblName,
+                g_queryInfo.superQueryInfo.stbName,
                 &g_queryInfo.superQueryInfo.childTblName,
                 &g_queryInfo.superQueryInfo.childTblCount);
     }
 
-    taos_close(taos); // TODO: workaround to use separate taos connection;
+    taos_close(taos); // workaround to use separate taos connection;
 
     pthread_t  *pids = NULL;
     threadInfo *infos = NULL;
@@ -9456,12 +12455,12 @@ static int subscribeTestProcess() {
 
     //==== create threads for query for specified table
     if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
-        debugPrint("%s() LN%d, sepcified query sqlCount %d.\n",
+        debugPrint("%s() LN%d, specified query sqlCount %d.\n",
                 __func__, __LINE__,
                 g_queryInfo.specifiedQueryInfo.sqlCount);
     } else {
         if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-            errorPrint2("%s() LN%d, sepcified query sqlCount %d.\n",
+            errorPrint2("%s() LN%d, specified query sqlCount %d.\n",
                     __func__, __LINE__,
                     g_queryInfo.specifiedQueryInfo.sqlCount);
             exit(EXIT_FAILURE);
@@ -9488,7 +12487,7 @@ static int subscribeTestProcess() {
                 threadInfo *pThreadInfo = infos + seq;
                 pThreadInfo->threadID = seq;
                 pThreadInfo->querySeq = i;
-                pThreadInfo->taos = NULL;  // TODO: workaround to use separate taos connection;
+                pThreadInfo->taos = NULL;  // workaround to use separate taos connection;
                 pthread_create(pids + seq, NULL, specifiedSubscribe, pThreadInfo);
             }
         }
@@ -9545,7 +12544,7 @@ static int subscribeTestProcess() {
                     pThreadInfo->ntables = j<b?a+1:a;
                     pThreadInfo->end_table_to = j<b?tableFrom+a:tableFrom+a-1;
                     tableFrom = pThreadInfo->end_table_to + 1;
-                    pThreadInfo->taos = NULL; // TODO: workaround to use separate taos connection;
+                    pThreadInfo->taos = NULL; // workaround to use separate taos connection;
                     pthread_create(pidsOfStable + seq,
                             NULL, superSubscribe, pThreadInfo);
                 }
@@ -9578,30 +12577,9 @@ static int subscribeTestProcess() {
     return 0;
 }
 
-static void initOfInsertMeta() {
-    memset(&g_Dbs, 0, sizeof(SDbs));
-
-    // set default values
-    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
-    g_Dbs.port = 6030;
-    tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
-    g_Dbs.threadCount = 2;
-
-    g_Dbs.use_metric = g_args.use_metric;
-}
-
-static void initOfQueryMeta() {
-    memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
-
-    // set default values
-    tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
-    g_queryInfo.port = 6030;
-    tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
-}
-
 static void setParaFromArg() {
+    char type[20];
+    char length[20];
     if (g_args.host) {
         tstrncpy(g_Dbs.host, g_args.host, MAX_HOSTNAME_SIZE);
     } else {
@@ -9618,8 +12596,8 @@ static void setParaFromArg() {
         g_Dbs.port = g_args.port;
     }
 
-    g_Dbs.threadCount = g_args.num_of_threads;
-    g_Dbs.threadCountForCreateTbl = g_args.num_of_threads;
+    g_Dbs.threadCount = g_args.nthreads;
+    g_Dbs.threadCountForCreateTbl = g_args.nthreads;
 
     g_Dbs.dbCount = 1;
     g_Dbs.db[0].drop = true;
@@ -9631,27 +12609,28 @@ static void setParaFromArg() {
     tstrncpy(g_Dbs.resultFile, g_args.output_file, MAX_FILE_NAME_LEN);
 
     g_Dbs.use_metric = g_args.use_metric;
-    g_Dbs.insert_only = g_args.insert_only;
-
-    g_Dbs.do_aggreFunc = true;
+    g_args.prepared_rand = min(g_args.insertRows, MAX_PREPARED_RAND);
+    g_Dbs.aggr_func = g_args.aggr_func;
 
     char dataString[TSDB_MAX_BYTES_PER_ROW];
-    char **data_type = g_args.datatype;
+    char *data_type = g_args.data_type;
+    char **dataType = g_args.dataType;
 
     memset(dataString, 0, TSDB_MAX_BYTES_PER_ROW);
 
-    if (strcasecmp(data_type[0], "BINARY") == 0
-            || strcasecmp(data_type[0], "BOOL") == 0
-            || strcasecmp(data_type[0], "NCHAR") == 0 ) {
-        g_Dbs.do_aggreFunc = false;
+    if ((data_type[0] == TSDB_DATA_TYPE_BINARY)
+            || (data_type[0] == TSDB_DATA_TYPE_BOOL)
+            || (data_type[0] == TSDB_DATA_TYPE_NCHAR)) {
+        g_Dbs.aggr_func = false;
     }
 
     if (g_args.use_metric) {
         g_Dbs.db[0].superTblCount = 1;
-        tstrncpy(g_Dbs.db[0].superTbls[0].sTblName, "meters", TSDB_TABLE_NAME_LEN);
-        g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
-        g_Dbs.threadCount = g_args.num_of_threads;
-        g_Dbs.threadCountForCreateTbl = g_args.num_of_threads;
+        tstrncpy(g_Dbs.db[0].superTbls[0].stbName, "meters", TSDB_TABLE_NAME_LEN);
+        g_Dbs.db[0].superTbls[0].childTblCount = g_args.ntables;
+        g_Dbs.db[0].superTbls[0].escapeChar = g_args.escapeChar;
+        g_Dbs.threadCount = g_args.nthreads;
+        g_Dbs.threadCountForCreateTbl = g_args.nthreads;
         g_Dbs.asyncMode = g_args.async_mode;
 
         g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
@@ -9671,26 +12650,38 @@ static void setParaFromArg() {
                 "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
         g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
 
-        g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
+        g_Dbs.db[0].superTbls[0].insertRows = g_args.insertRows;
         g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
 
         g_Dbs.db[0].superTbls[0].columnCount = 0;
         for (int i = 0; i < MAX_NUM_COLUMNS; i++) {
-            if (data_type[i] == NULL) {
+            if (data_type[i] == TSDB_DATA_TYPE_NULL) {
                 break;
             }
 
+            g_Dbs.db[0].superTbls[0].columns[i].data_type = data_type[i];
             tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-                    data_type[i], min(DATATYPE_BUFF_LEN, strlen(data_type[i]) + 1));
-            g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
+                    dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
+            if (1 == regexMatch(dataType[i], "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$", REG_ICASE |
+                    REG_EXTENDED)) {
+                sscanf(dataType[i], "%[^(](%[^)]", type, length);
+                g_Dbs.db[0].superTbls[0].columns[i].dataLen = atoi(length);
+                tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
+                    type, min(DATATYPE_BUFF_LEN, strlen(type) + 1));
+            } else {
+                g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
+                tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
+                    dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
+            }
             g_Dbs.db[0].superTbls[0].columnCount++;
         }
 
-        if (g_Dbs.db[0].superTbls[0].columnCount > g_args.num_of_CPR) {
-            g_Dbs.db[0].superTbls[0].columnCount = g_args.num_of_CPR;
+        if (g_Dbs.db[0].superTbls[0].columnCount > g_args.columnCount) {
+            g_Dbs.db[0].superTbls[0].columnCount = g_args.columnCount;
         } else {
             for (int i = g_Dbs.db[0].superTbls[0].columnCount;
-                    i < g_args.num_of_CPR; i++) {
+                    i < g_args.columnCount; i++) {
+                g_Dbs.db[0].superTbls[0].columns[i].data_type = TSDB_DATA_TYPE_INT;
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                         "INT", min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;
@@ -9700,14 +12691,16 @@ static void setParaFromArg() {
 
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[0].dataType,
                 "INT", min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
+        g_Dbs.db[0].superTbls[0].tags[0].data_type = TSDB_DATA_TYPE_INT;
         g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;
 
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType,
                 "BINARY", min(DATATYPE_BUFF_LEN, strlen("BINARY") + 1));
+        g_Dbs.db[0].superTbls[0].tags[1].data_type = TSDB_DATA_TYPE_BINARY;
         g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.binwidth;
         g_Dbs.db[0].superTbls[0].tagCount = 2;
     } else {
-        g_Dbs.threadCountForCreateTbl = g_args.num_of_threads;
+        g_Dbs.threadCountForCreateTbl = g_args.nthreads;
         g_Dbs.db[0].superTbls[0].tagCount = 0;
     }
 }
@@ -9736,7 +12729,6 @@ static int regexMatch(const char *s, const char *reg, int cflags) {
         printf("Regex match failed: %s\n", msgbuf);
         exit(EXIT_FAILURE);
     }
-
     return 0;
 }
 
@@ -9823,7 +12815,7 @@ static void testMetaFile() {
     }
 }
 
-static void queryResult() {
+static void queryAggrFunc() {
     // query data
 
     pthread_t read_id;
@@ -9832,7 +12824,6 @@ static void queryResult() {
     pThreadInfo->start_time = DEFAULT_START_TIME;  // 2017-07-14 10:40:00.000
     pThreadInfo->start_table_from = 0;
 
-    //pThreadInfo->do_aggreFunc = g_Dbs.do_aggreFunc;
     if (g_args.use_metric) {
         pThreadInfo->ntables = g_Dbs.db[0].superTbls[0].childTblCount;
         pThreadInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
@@ -9840,8 +12831,8 @@ static void queryResult() {
         tstrncpy(pThreadInfo->tb_prefix,
                 g_Dbs.db[0].superTbls[0].childTblPrefix, TBNAME_PREFIX_LEN);
     } else {
-        pThreadInfo->ntables = g_args.num_of_tables;
-        pThreadInfo->end_table_to = g_args.num_of_tables -1;
+        pThreadInfo->ntables = g_args.ntables;
+        pThreadInfo->end_table_to = g_args.ntables -1;
         tstrncpy(pThreadInfo->tb_prefix, g_args.tb_prefix, TSDB_TABLE_NAME_LEN);
     }
 
@@ -9861,9 +12852,9 @@ static void queryResult() {
     tstrncpy(pThreadInfo->filePath, g_Dbs.resultFile, MAX_FILE_NAME_LEN);
 
     if (!g_Dbs.use_metric) {
-        pthread_create(&read_id, NULL, readTable, pThreadInfo);
+        pthread_create(&read_id, NULL, queryNtableAggrFunc, pThreadInfo);
     } else {
-        pthread_create(&read_id, NULL, readMetric, pThreadInfo);
+        pthread_create(&read_id, NULL, queryStableAggrFunc, pThreadInfo);
     }
     pthread_join(read_id, NULL);
     taos_close(pThreadInfo->taos);
@@ -9885,8 +12876,9 @@ static void testCmdLine() {
     g_args.test_mode = INSERT_TEST;
     insertTestProcess();
 
-    if (false == g_Dbs.insert_only)
-        queryResult();
+    if (g_Dbs.aggr_func) {
+        queryAggrFunc();
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -9896,8 +12888,6 @@ int main(int argc, char *argv[]) {
 
     if (g_args.metaFile) {
         g_totalChildTables = 0;
-        initOfInsertMeta();
-        initOfQueryMeta();
 
         if (false == getInfoFromJsonFile(g_args.metaFile)) {
             printf("Failed to read %s\n", g_args.metaFile);
@@ -9907,6 +12897,10 @@ int main(int argc, char *argv[]) {
         testMetaFile();
     } else {
         memset(&g_Dbs, 0, sizeof(SDbs));
+        g_Dbs.db = calloc(1, sizeof(SDataBase));
+        assert(g_Dbs.db);
+        g_Dbs.db[0].superTbls = calloc(1, sizeof(SSuperTable));
+        assert(g_Dbs.db[0].superTbls);
         setParaFromArg();
 
         if (NULL != g_args.sqlFile) {
@@ -9929,4 +12923,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-

@@ -15,6 +15,8 @@ import sys
 import subprocess
 import random
 import math
+import numpy as np
+import inspect
 
 from util.log import *
 from util.cases import *
@@ -57,16 +59,32 @@ class TDTestCase:
 
     def td3690(self):
         tdLog.printNoPrefix("==========TD-3690==========")
+
+        tdSql.prepare()
+
+        tdSql.execute("show variables")
+        res_off = tdSql.cursor.fetchall()
+        resList = np.array(res_off)
+        index = np.where(resList == "offlineThreshold")
+        index_value = np.dstack((index[0])).squeeze()
         tdSql.query("show variables")
-        tdSql.checkData(53, 1, 864000)
+        tdSql.checkData(index_value, 1, 864000)
 
     def td4082(self):
         tdLog.printNoPrefix("==========TD-4082==========")
+        tdSql.prepare()
+
         cfgfile = self.getCfgFile()
         max_compressMsgSize = 100000000
 
+        tdSql.execute("show variables")
+        res_com = tdSql.cursor.fetchall()
+        rescomlist = np.array(res_com)
+        cpms_index = np.where(rescomlist == "compressMsgSize")
+        index_value = np.dstack((cpms_index[0])).squeeze()
+
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, -1)
+        tdSql.checkData(index_value, 1, -1)
 
         tdSql.query("show dnodes")
         index = tdSql.getData(0, 0)
@@ -80,7 +98,7 @@ class TDTestCase:
 
         tdDnodes.start(index)
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, 100000000)
+        tdSql.checkData(index_value, 1, 100000000)
 
         tdDnodes.stop(index)
         cmd = f"sed -i '$s/{max_compressMsgSize}/{max_compressMsgSize+10}/g' {cfgfile} "
@@ -91,7 +109,7 @@ class TDTestCase:
 
         tdDnodes.start(index)
         tdSql.query("show variables")
-        tdSql.checkData(26, 1, -1)
+        tdSql.checkData(index_value, 1, -1)
 
         tdDnodes.stop(index)
         cmd = f"sed -i '$d' {cfgfile}"
@@ -121,7 +139,7 @@ class TDTestCase:
         tdSql.execute("create table db.t20 using db.stb2 tags(3)")
         tdSql.execute("create table db1.t30 using db1.stb3 tags(4)")
 
-        tdLog.printNoPrefix("==========TD-4097==========")
+        # tdLog.printNoPrefix("==========TD-4097==========")
         # 插入数据，然后进行show create 操作
 
         # p1 不进入指定数据库
@@ -257,6 +275,12 @@ class TDTestCase:
         tdSql.query("show create stable db.stb1")
         tdSql.checkRows(1)
 
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("drop database if exists db1")
+        tdSql.execute("drop database if exists new")
+        tdSql.execute("drop database if exists db2")
+        tdSql.execute("drop database if exists private")
+
     def td4153(self):
         tdLog.printNoPrefix("==========TD-4153==========")
 
@@ -267,10 +291,22 @@ class TDTestCase:
         # keep ~ [days,365000]
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database  if not exists db")
+
+        tdSql.execute("show variables")
+        res_kp = tdSql.cursor.fetchall()
+        resList = np.array(res_kp)
+        keep_index = np.where(resList == "keep")
+        index_value = np.dstack((keep_index[0])).squeeze()
+
         tdSql.query("show variables")
-        tdSql.checkData(38, 1, 3650)
+        tdSql.checkData(index_value, 1, 3650)
+
         tdSql.query("show databases")
-        tdSql.checkData(0,7,"3650,3650,3650")
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "3650,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 3650)
 
         days = tdSql.getData(0, 6)
         tdSql.error("alter database db keep 3650001")
@@ -289,14 +325,21 @@ class TDTestCase:
 
         tdSql.execute("alter database db keep 36500")
         tdSql.query("show databases")
-        tdSql.checkData(0, 7, "3650,3650,36500")
-        tdSql.execute("drop database if exists db")
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "36500,36500,36500")
+        else:
+            tdSql.checkData(0, 7, 36500)
 
+        tdSql.execute("drop database if exists db")
         tdSql.execute("create database  if not exists db1")
         tdSql.query("show databases")
-        tdSql.checkData(0, 7, "3650,3650,3650")
+        if ("community" in selfPath):
+            tdSql.checkData(0, 7, "3650,3650,3650")
+        else:
+            tdSql.checkData(0, 7, 3650)
+
         tdSql.query("show variables")
-        tdSql.checkData(38, 1, 3650)
+        tdSql.checkData(index_value, 1, 3650)
 
         tdSql.execute("alter database db1 keep 365")
         tdSql.execute("drop database if exists db1")
@@ -355,29 +398,48 @@ class TDTestCase:
 
     def td4889(self):
         tdLog.printNoPrefix("==========TD-4889==========")
+        cfg = {
+            'minRowsPerFileBlock': '10',
+            'maxRowsPerFileBlock': '200',
+            'minRows': '10',
+            'maxRows': '200',
+            'maxVgroupsPerDb': '100',
+            'maxTablesPerVnode': '1200',
+        }
+        tdSql.query("show dnodes")
+        dnode_index = tdSql.getData(0,0)
+        tdDnodes.stop(dnode_index)
+        tdDnodes.deploy(dnode_index, cfg)
+        tdDnodes.start(dnode_index)
+
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database  if not exists db keep 3650")
+        tdSql.execute("create database  if not exists db keep 3650 blocks 3 minrows 10 maxrows 200")
 
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t1 int)")
 
         for i in range(1000):
             tdSql.execute(f"create table db.t1{i} using db.stb1 tags({i})")
-            for j in range(100):
+            for j in range(260):
                 tdSql.execute(f"insert into db.t1{i} values (now-100d, {i+j})")
+
+        # tdDnodes.stop(dnode_index)
+        # tdDnodes.start(dnode_index)
 
         tdSql.query("show vgroups")
         index = tdSql.getData(0,0)
         tdSql.checkData(0, 6, 0)
         tdSql.execute(f"compact vnodes in({index})")
-        for i in range(3):
+        start_time = time.time()
+        while True:
             tdSql.query("show vgroups")
-            if tdSql.getData(0, 6) == 1:
+            if tdSql.getData(0, 6) != 0:
                 tdLog.printNoPrefix("show vgroups row:0 col:6 data:1 == expect:1")
                 break
-            if i == 3:
+            run_time = time.time()-start_time
+            if run_time > 3:
                 tdLog.exit("compacting not occured")
-            time.sleep(0.5)
+            # time.sleep(0.1)
 
         pass
 
@@ -552,7 +614,7 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t0 tinyint, t1 int)")
         tdSql.execute("create stable db.stb2 (ts timestamp, c1 int) tags(t0 binary(16), t1 binary(16))")
-        numtab=2000000
+        numtab=20000
         for i in range(numtab):
             sql  = f"create table db.t{i} using db.stb1 tags({i%128}, {100+i})"
             tdSql.execute(sql)
@@ -698,9 +760,7 @@ class TDTestCase:
         tdSql.query(f"select distinct  c1 c2, c2 c3 from t1 where c1 <{tbnum}")
         tdSql.checkRows(3)
         tdSql.error("select distinct  c1, c2 from stb1 order by ts")
-        #tdSql.checkRows(tbnum*3+1)
         tdSql.error("select distinct  c1, c2 from t1 order by ts")
-        #tdSql.checkRows(4)
         tdSql.error("select distinct  c1, ts from stb1 group by c2")
         tdSql.error("select distinct  c1, ts from t1 group by c2")
         tdSql.error("select distinct  c1, max(c2) from stb1 ")
@@ -729,7 +789,7 @@ class TDTestCase:
         tdSql.query(f"select distinct  c1,c2 from (select * from t1 where c1 < {tbnum}) ")
         tdSql.checkRows(3)
         tdSql.query(f"select distinct  c1,c2 from (select * from stb1 where t2 !=0 and t2 != 1) ")
-        tdSql.checkRows(4)
+        tdSql.checkRows(0)
         tdSql.error("select distinct  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.error("select  c1, c2 from (select distinct c1, c2 from stb1 where t0 > 2 and t1 < 3) ")
         tdSql.query("select distinct  c1, c2 from (select c2, c1 from stb1 where c1 > 2 ) where  c1 < 4")
@@ -1001,25 +1061,524 @@ class TDTestCase:
         tdSql.error("select ts as t, top(t1, 3) from stb1 order by c3")
         tdSql.error("select ts as t, top(t1, 3) from t1 order by c3")
 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("select ts as t, diff(c1) from t1")
+        tdSql.checkRows(5)
+        tdSql.checkCols(3)
+        for i in range(5):
+            data=tdSql.getData(i, 0)
+            tdSql.checkData(i, 1, data)
+        tdSql.query("select ts as t, diff(c1) from stb1 group by tbname")
+        tdSql.checkRows(500)
+        tdSql.checkCols(4)
+        tdSql.query("select ts as t, diff(c1) from t1")
+        tdSql.query("select ts as t, diff(c1) from t1")
+        tdSql.error("select ts as t, diff(c1) from stb1")
+        tdSql.query("select ts as t, diff(c2) from t1")
+        tdSql.checkRows(5)
+        tdSql.error("select ts as t, diff(c3) from t1")
+        tdSql.error("select ts as t, diff(c4) from t1")
+        tdSql.query("select ts as t, diff(c5) from t1")
+        tdSql.checkRows(5)
+        tdSql.error("select ts as t, diff(c6) from t1")
+        tdSql.error("select ts as t, diff(t1) from t1")
+        tdSql.error("select ts as t, diff(c1, c2) from t1")
+
+        tdSql.error("select ts as t, bottom(c1, 0) from t1")
+        tdSql.query("select ts as t, bottom(c1, 5) from t1")
+        tdSql.checkRows(5)
+        tdSql.checkCols(3)
+        for i in range(5):
+            data=tdSql.getData(i, 0)
+            tdSql.checkData(i, 1, data)
+        tdSql.query("select ts as t, bottom(c1, 5) from stb1")
+        tdSql.checkRows(5)
+        tdSql.query("select ts as t, bottom(c1, 5) from stb1 group by tbname")
+        tdSql.checkRows(500)
+        tdSql.query("select ts as t, bottom(c1, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.query("select ts as t, bottom(c2, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, bottom(c3, 5) from t1")
+        tdSql.error("select ts as t, bottom(c4, 5) from t1")
+        tdSql.query("select ts as t, bottom(c5, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, bottom(c6, 5) from t1")
+        tdSql.error("select ts as t, bottom(c5, 8) as b from t1 order by b")
+        tdSql.error("select ts as t, bottom(t1, 1) from t1")
+        tdSql.error("select ts as t, bottom(t1, 1) from stb1")
+        tdSql.error("select ts as t, bottom(t1, 3) from stb1 order by c3")
+        tdSql.error("select ts as t, bottom(t1, 3) from t1 order by c3")
+
+
+        tdSql.error("select ts as t, top(c1, 0) from t1")
+        tdSql.query("select ts as t, top(c1, 5) from t1")
+        tdSql.checkRows(5)
+        tdSql.checkCols(3)
+        for i in range(5):
+            data=tdSql.getData(i, 0)
+            tdSql.checkData(i, 1, data)
+        tdSql.query("select ts as t, top(c1, 5) from stb1")
+        tdSql.checkRows(5)
+        tdSql.query("select ts as t, top(c1, 5) from stb1 group by tbname")
+        tdSql.checkRows(500)
+        tdSql.query("select ts as t, top(c1, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.query("select ts as t, top(c2, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, top(c3, 5) from t1")
+        tdSql.error("select ts as t, top(c4, 5) from t1")
+        tdSql.query("select ts as t, top(c5, 8) from t1")
+        tdSql.checkRows(6)
+        tdSql.error("select ts as t, top(c6, 5) from t1")
+        tdSql.error("select ts as t, top(c5, 8) as b from t1 order by b")
+        tdSql.error("select ts as t, top(t1, 1) from t1")
+        tdSql.error("select ts as t, top(t1, 1) from stb1")
+        tdSql.error("select ts as t, top(t1, 3) from stb1 order by c3")
+        tdSql.error("select ts as t, top(t1, 3) from t1 order by c3")
         pass
+
+    def apercentile_query_form(self, col="c1", p=0, com=',', algo="'t-digest'", alias="", table_expr="t1", condition=""):
+
+        '''
+        apercentile function:
+        :param col:         string, column name, required parameters;
+        :param p:           float, percentile interval, [0,100], required parameters;
+        :param algo:        string, alforithm, real form like: ', algorithm' , algorithm: {type:int, data:[0, 1]};
+        :param alias:       string, result column another name;
+        :param table_expr:  string or expression, data source（eg,table/stable name, result set）, required parameters;
+        :param condition:   expression；
+        :param args:        other funtions,like: ', last(col)'
+        :return:            apercentile query statement,default: select apercentile(c1, 0, 1) from t1
+        '''
+
+        return f"select apercentile({col}, {p}{com} {algo})  {alias}  from {table_expr} {condition}"
+
+    def checkapert(self,col="c1", p=0, com=',', algo='"t-digest"', alias="", table_expr="t1", condition="" ):
+
+        tdSql.query(f"select count({col})  from {table_expr} {condition}")
+        if tdSql.queryRows == 0:
+            tdSql.query(self.apercentile_query_form(
+                col=col, p=p, com=com, algo=algo, alias=alias, table_expr=table_expr, condition=condition
+            ))
+            tdSql.checkRows(0)
+            return
+
+        pset = [0, 40,  60, 100]
+        if p not in pset:
+            pset.append(p)
+
+        if "stb" in table_expr:
+            tdSql.query(f"select spread({col})  from stb1")
+        else:
+            tdSql.query(f"select avg(c1) from (select spread({col.split('.')[-1]}) c1 from stb1  group by tbname)")
+        spread_num = tdSql.getData(0, 0)
+
+        for pi in pset:
+
+            if "group" in condition:
+                tdSql.query(f"select last_row({col}) from {table_expr} {condition}")
+                query_result = tdSql.queryResult
+                query_rows = tdSql.queryRows
+                for i in range(query_rows):
+                    pre_condition = condition.replace("slimit",'limit').replace("group by tbname", "").split("soffset")[0]
+                    tbname = query_result[i][-1]
+                    tdSql.query(f"select percentile({col}, {pi}) {alias} from {tbname} {pre_condition}")
+                    print(tdSql.sql)
+                    pre_data = tdSql.getData(0, 0)
+                    tdSql.query(self.apercentile_query_form(
+                        col=col, p=pi, com=com, algo='"t-digest"', alias=alias, table_expr=table_expr, condition=condition
+                    ))
+                    if abs(tdSql.getData(i, 0)) >= (spread_num*0.02):
+                        tdSql.checkDeviaRation(i, 0, pre_data, 0.1)
+                    else:
+                        devia = abs((tdSql.getData(i, 0) - pre_data) / (spread_num * 0.02))
+                        if devia < 0.5:
+                            tdLog.info(f"sql:{tdSql.sql}, result data:{tdSql.getData(i, 0)}, expect data:{pre_data}, "
+                                           f"actual deviation:{devia} <= expect deviation: 0.01")
+                        else:
+                            tdLog.exit(
+                                    f"[{inspect.getframeinfo(inspect.stack()[1][0]).lineno}],check failed:sql:{tdSql.sql}, "
+                                    f"result data:{tdSql.getData(i, 0)}, expect data:{pre_data}, "
+                                    f"actual deviation:{devia} > expect deviation: 0.01")
+
+            # if "group" in condition:
+            #     tdSql.query(self.apercentile_query_form(
+            #         col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
+            #     ))
+            #     query_result = tdSql.queryResult
+            #     query_rows = tdSql.queryRows
+            #     tdSql.query(self.apercentile_query_form(
+            #         col=col, p=pi, com=com, algo='"t-digest"', alias=alias, table_expr=table_expr, condition=condition
+            #     ))
+            #     for i in range(query_rows):
+            #         if abs(tdSql.getData(i, 0)) >= (spread_num*0.02):
+            #             tdSql.checkDeviaRation(i, 0, query_result[i][0], 0.1)
+            #         else:
+            #             devia = abs((tdSql.getData(i, 0) - query_result[i][0]) / (spread_num * 0.02))
+            #             if devia < 0.5:
+            #                 tdLog.info(f"sql:{tdSql.sql}, result data:{tdSql.getData(i, 0)}, expect data:{tdSql.queryResult[i][0]}, "
+            #                                f"actual deviation:{devia} <= expect deviation: 0.01")
+            #             else:
+            #                 tdLog.exit(
+            #                         f"[{inspect.getframeinfo(inspect.stack()[1][0]).lineno}],check failed:sql:{tdSql.sql}, "
+            #                         f"result data:{tdSql.getData(i, 0)}, expect data:{tdSql.queryResult[i][0]}, "
+            #                         f"actual deviation:{devia} > expect deviation: 0.01")
+
+            else:
+                if ',' in alias or not alias:
+                    tdSql.query(f"select {col} from {table_expr} {condition}")
+                elif "stb" not in table_expr:
+                    tdSql.query(f"select percentile({col}, {pi}) {alias} from {table_expr} {condition}")
+                else:
+                    tdSql.query(self.apercentile_query_form(
+                            col=col, p=pi, com=com, algo='"default"', alias=alias, table_expr=table_expr, condition=condition
+                        ))
+                query_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+                tdSql.query(self.apercentile_query_form(
+                    col=col, p=pi, com=com, algo=algo, alias=alias, table_expr=table_expr, condition=condition
+                ))
+
+                if abs(tdSql.getData(0, 0)) >= (spread_num * 0.02):
+                    tdSql.checkDeviaRation(0, 0, np.percentile(query_result, pi), 0.1)
+                else:
+                    devia = abs((tdSql.getData(0, 0) - np.percentile(query_result, pi)) / (spread_num * 0.02))
+                    if devia < 0.5:
+                        tdLog.info(
+                            f"sql:{tdSql.sql}, result data:{tdSql.getData(0, 0)}, expect data:{np.percentile(query_result, pi)}, "
+                            f"actual deviation:{devia} <= expect deviation: 0.01")
+                    else:
+                        tdLog.exit(
+                            f"[{inspect.getframeinfo(inspect.stack()[1][0]).lineno}],check failed:sql:{tdSql.sql}, "
+                            f"result data:{tdSql.getData(0, 0)}, expect data:{np.percentile(query_result, pi)}, "
+                            f"actual deviation:{devia} > expect deviation: 0.01")
+
+
+    def apercentile_query(self):
+
+        # table schema :ts timestamp, c1 int, c2 float, c3 timestamp, c4 binary(16), c5 double, c6 bool
+        #                 c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16)
+
+        # case1： int col
+        self.checkapert()
+        # case2: float col
+        case2 = {'col':'c2'}
+        self.checkapert(**case2)
+        # case3: double col
+        case3 = {'col':'c5'}
+        self.checkapert(**case3)
+        # case4: bigint col
+        case4 = {'col':'c7'}
+        self.checkapert(**case4)
+        # case5: smallint col
+        case5 = {'col':'c8'}
+        self.checkapert(**case5)
+        # case6: tinyint col
+        case6 = {'col':'c9'}
+        self.checkapert(**case6)
+        # case7: stable
+        case7 = {'table_expr':'stb1'}
+        self.checkapert(**case7)
+        # case8: nest query, outquery
+        case8 = {'table_expr':'(select c1 from t1)'}
+        self.checkapert(**case8)
+        # case9: nest query, inquery and out query
+        case9 = {'table_expr':'(select apercentile(c1, 0) as c1 from t1)'}
+        self.checkapert(**case9)
+
+        # case10: nest query, inquery
+        tdSql.query("select * from (select  c1 from stb1)")
+        if tdSql.queryRows == 0:
+            tdSql.query("select * from (select apercentile(c1,0) c1 from stb1)")
+            tdSql.checkRows(0)
+        else:
+            query_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+            tdSql.query("select * from (select apercentile(c1, 0) c1 from stb1)")
+            tdSql.checkDeviaRation(0, 0, np.percentile(query_result, 0), 0.1)
+            tdSql.query("select * from (select apercentile(c1,100) c1 from stb1)")
+            tdSql.checkDeviaRation(0, 0, np.percentile(query_result, 100), 0.1)
+            tdSql.query("select * from (select apercentile(c1,40) c1 from stb1)")
+            tdSql.checkDeviaRation(0, 0, np.percentile(query_result, 40), 0.1)
+
+        # case11: no algorithm = algo:0
+        case11 = {'com':'', 'algo': ''}
+        self.checkapert(**case11)
+
+        # case12~14: p: bin/oct/hex
+        case12 = {'p': 0b1100100}
+        self.checkapert(**case12)
+        case13 = {'algo':'"T-DIGEST"'}
+        self.checkapert(**case13)
+        case14 = {'p':0x32, 'algo':'"DEFAULT"'}
+        self.checkapert(**case14)
+
+        # case15~21: mix with aggregate function
+        case15 = {'alias':', count(*)'}
+        self.checkapert(**case15)
+        case16 = {'alias':', avg(c1)'}
+        self.checkapert(**case16)
+        case17 = {'alias':', twa(c1)'}
+        self.checkapert(**case17)
+        case18 = {'alias':', irate(c1)'}
+        self.checkapert(**case18)
+        case19 = {'alias':', sum(c1)'}
+        self.checkapert(**case19)
+        case20 = {'alias':', stddev(c1)'}
+        self.checkapert(**case20)
+        case21 = {'alias':', leastsquares(c1, 1, 1)'}
+        self.checkapert(**case21)
+
+        # case22~27：mix with selector function
+        case22 = {'alias':', min(c1)'}
+        self.checkapert(**case22)
+        case23 = {'alias':', max(c1)'}
+        self.checkapert(**case23)
+        case24 = {'alias':', first(c1)'}
+        self.checkapert(**case24)
+        case25 = {'alias':', last(c1)'}
+        self.checkapert(**case25)
+        case26 = {'alias':', percentile(c1, 0)'}
+        self.checkapert(**case26)
+        case27 = {'alias':', apercentile(c1, 0, "t-digest")'}
+        self.checkapert(**case27)
+
+        # case28~29: mix with computing function
+        case28 = {'alias':', spread(c1)'}
+        self.checkapert(**case28)
+        # case29: mix with four operation
+        case29 = {'alias':'+ spread(c1)'}
+        self.checkapert(**case29)
+
+        # case30~36: with condition
+        case30 = {'condition':'where ts > now'}
+        self.checkapert(**case30)
+        case31 = {'condition':'where c1 between 1 and 200'}
+        self.checkapert(**case31)
+        case32 = {'condition':f'where c1 in {tuple(i for i in range(200))}'}
+        self.checkapert(**case32)
+        case33 = {'condition':'where c1>100 and c2<100'}
+        self.checkapert(**case33)
+        case34 = {'condition':'where c1 is not null'}
+        self.checkapert(**case34)
+        case35 = {'condition':'where c4 like "_inary%"'}
+        self.checkapert(**case35)
+        case36 = {'table_expr':'stb1' ,'condition':'where tbname like "t_"'}
+        self.checkapert(**case36)
+
+        # case37~38: with join
+        case37 = {'col':'t1.c1','table_expr':'t1, t2 ','condition':'where t1.ts=t2.ts'}
+        self.checkapert(**case37)
+        case38 = {'col':'stb1.c1', 'table_expr':'stb1, stb2', 'condition':'where stb1.ts=stb2.ts and stb1.st1=stb2.st2'}
+        self.checkapert(**case38)
+
+        # case39: with group by
+        case39 = {'table_expr':'stb1', 'condition':'group by tbname'}
+        self.checkapert(**case39)
+
+        # case40: with slimit
+        case40 = {'table_expr':'stb1', 'condition':'group by tbname slimit 1'}
+        self.checkapert(**case40)
+
+        # case41: with soffset
+        case41 = {'table_expr':'stb1', 'condition':'group by tbname slimit 1 soffset 1'}
+        self.checkapert(**case41)
+
+        # case42: with order by
+        case42 = {'table_expr':'stb1' ,'condition':'order by ts'}
+        self.checkapert(**case42)
+        case43 = {'table_expr':'t1' ,'condition':'order by ts'}
+        self.checkapert(**case43)
+
+        # case44: with limit offset
+        case44 = {'table_expr':'stb1', 'condition':'group by tbname limit 1'}
+        self.checkapert(**case44)
+        case45 = {'table_expr':'stb1', 'condition':'group by tbname limit 1 offset 1'}
+        self.checkapert(**case45)
+
+        pass
+
+    def error_apercentile(self):
+
+        # unusual test
+        #
+        # table schema :ts timestamp, c1 int, c2 float, c3 timestamp, c4 binary(16), c5 double, c6 bool
+        #                 c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16)
+        #
+        # form test
+        tdSql.error(self.apercentile_query_form(col="",com='',algo='')) # no col , no algorithm
+        tdSql.error(self.apercentile_query_form(col=""))                # no col , algorithm
+        tdSql.error(self.apercentile_query_form(p='',com='',algo=''))   # no p , no algorithm
+        tdSql.error(self.apercentile_query_form(p=''))                  # no p , algorithm
+        tdSql.error("apercentile( c1, 100) from t1")                    # no select
+        tdSql.error("select apercentile from t1")                       # no algorithm condition
+        tdSql.error("select apercentile c1,0 from t1")                  # no brackets
+        tdSql.error("select apercentile (c1,0)  t1")                    # no from
+        tdSql.error(self.apercentile_query_form(col='(c1,0)',p='',com='',algo=''))   # no p , no algorithm
+        tdSql.error("select apercentile( (c1,0) )  from t1")            # no table_expr
+        tdSql.error("select apercentile{ (c1,0) } from t1")             # sql form error 1
+        tdSql.error("select apercentile[ (c1,0) ] from t1")             # sql form error 2
+        tdSql.error("select [apercentile(c1,0) ] from t1")              # sql form error 3
+        tdSql.error("select apercentile((c1, 0), 'default')  from t1")          # sql form error 5
+        tdSql.error("select apercentile(c1, (0, 'default'))  from t1")          # sql form error 6
+        tdSql.error("select apercentile(c1, (0), 1)  from t1")          # sql form error 7
+        tdSql.error("select apercentile([c1, 0], 'default')  from t1")          # sql form error 8
+        tdSql.error("select apercentile(c1, [0, 'default'])  from t1")          # sql form error 9
+        tdSql.error("select apercentile(c1, {0, 'default'})  from t1")          # sql form error 10
+        tdSql.error("select apercentile([c1, 0])  from t1")             # sql form error 11
+        tdSql.error("select apercentile({c1, 0})  from t1")             # sql form error 12
+        tdSql.error("select apercentile(c1)  from t1")                  # agrs: 1
+        tdSql.error("select apercentile(c1, 0, 'default', 0)  from t1")         # agrs: 4
+        tdSql.error("select apercentile(c1, 0, 0, 'default')  from t1")         # agrs: 4
+        tdSql.error("select apercentile()  from t1")                    # agrs: null 1
+        tdSql.error("select apercentile  from t1")                      # agrs: null 2
+        tdSql.error("select apercentile( , , )  from t1")               # agrs: null 3
+        tdSql.error(self.apercentile_query_form(col='', p='', algo='')) # agrs: null 4
+        tdSql.error(self.apercentile_query_form(col="st1"))              # col:tag column
+        tdSql.error(self.apercentile_query_form(col=123))               # col:numerical
+        tdSql.error(self.apercentile_query_form(col=True))              # col:bool
+        tdSql.error(self.apercentile_query_form(col=''))                # col:''
+        tdSql.error(self.apercentile_query_form(col="last(c1)"))        # col:expr
+        tdSql.error(self.apercentile_query_form(col="t%"))              # col:non-numerical
+        tdSql.error(self.apercentile_query_form(col="c3"))              # col-type: timestamp
+        tdSql.error(self.apercentile_query_form(col="c4"))              # col-type: binary
+        tdSql.error(self.apercentile_query_form(col="c6"))              # col-type: bool
+        tdSql.error(self.apercentile_query_form(col="c10"))             # col-type: nchar
+        tdSql.error(self.apercentile_query_form(p=True))                # p:bool
+        tdSql.error(self.apercentile_query_form(p='a'))                 # p:str
+        tdSql.error(self.apercentile_query_form(p='last(*)'))           # p:expr
+        tdSql.error(self.apercentile_query_form(p="2021-08-01 00:00:00.000"))   # p:timestamp
+        tdSql.error(self.apercentile_query_form(algo='t-digest'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t_digest"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest0"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest."'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest%"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='"t-digest*"'))    # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo='tdigest'))        # algorithm:str
+        tdSql.error(self.apercentile_query_form(algo=2.0))              # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=1.9999))         # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=-0.9999))        # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=-1.0))             # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=0b1))            # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=0x1))            # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=0o1))            # algorithm:float
+        tdSql.error(self.apercentile_query_form(algo=True))           # algorithm:bool
+        tdSql.error(self.apercentile_query_form(algo="True"))         # algorithm:bool
+        tdSql.error(self.apercentile_query_form(algo='2021-08-01 00:00:00.000'))     # algorithm:timestamp
+        tdSql.error(self.apercentile_query_form(algo='last(c1)'))       # algorithm:expr
+
+        # boundary test
+        tdSql.error(self.apercentile_query_form(p=-1))                  # p left out of [0, 100]
+        tdSql.error(self.apercentile_query_form(p=-9223372036854775809))    # p left out of bigint
+        tdSql.error(self.apercentile_query_form(p=100.1))               # p right out of [0, 100]
+        tdSql.error(self.apercentile_query_form(p=18446744073709551616))    # p right out of unsigned-bigint
+        tdSql.error(self.apercentile_query_form(algo=-1))           # algorithm left out of [0, 1]
+        tdSql.error(self.apercentile_query_form(algo=-9223372036854775809)) # algorithm left out of unsigned-bigint
+        tdSql.error(self.apercentile_query_form(algo=2))            # algorithm right out of [0, 1]
+        tdSql.error(self.apercentile_query_form(algo=18446744073709551616)) # algorithm right out of unsigned-bigint
+
+        # mix function test
+        tdSql.error(self.apercentile_query_form(alias=', top(c1,1)'))   # mix with top function
+        tdSql.error(self.apercentile_query_form(alias=', top(c1,1)'))   # mix with bottom function
+        tdSql.error(self.apercentile_query_form(alias=', last_row(c1)'))    # mix with last_row function
+        tdSql.error(self.apercentile_query_form(alias=', distinct c1 '))    # mix with distinct function
+        tdSql.error(self.apercentile_query_form(alias=', *'))           # mix with  *
+        tdSql.error(self.apercentile_query_form(alias=', diff(c1)'))    # mix with  diff function
+        tdSql.error(self.apercentile_query_form(alias=', interp(c1)', condition='ts="2021-10-10 00:00:00.000"'))    # mix with  interp function
+        tdSql.error(self.apercentile_query_form(alias=', derivative(c1, 10m, 0)'))  # mix with derivative function
+        tdSql.error(self.apercentile_query_form(alias=', diff(c1)'))    # mix with  diff function
+        tdSql.error(self.apercentile_query_form(alias='+ c1)'))     # mix with  four operation
+
+    def apercentile_data(self, tbnum, data_row, basetime):
+        for i in range(tbnum):
+            for j in range(data_row):
+                tdSql.execute(
+                    f"insert into t{i} values ("
+                    f"{basetime + j*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
+                    f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
+                    f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
+                )
+
+                tdSql.execute(
+                    f"insert into t{i} values ("
+                    f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
+                    f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
+                    f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
+                )
+                tdSql.execute(
+                    f"insert into tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                )
+
+        pass
+
+    def td6108(self):
+        tdLog.printNoPrefix("==========TD-6108==========")
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database  if not exists db keep 3650")
+        tdSql.execute("use db")
+
+        tdSql.execute(
+            "create stable db.stb1 (\
+                ts timestamp, c1 int, c2 float, c3 timestamp, c4 binary(16), c5 double, c6 bool, \
+                c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16)\
+                ) \
+            tags(st1 int)"
+        )
+        tdSql.execute(
+            "create stable db.stb2 (ts timestamp, c1 int) tags(st2 int)"
+        )
+        tbnum = 10
+        for i in range(tbnum):
+            tdSql.execute(f"create table t{i} using stb1 tags({i})")
+            tdSql.execute(f"create table tt{i} using stb2 tags({i})")
+
+        tdLog.printNoPrefix("######## no data test:")
+        self.apercentile_query()
+        self.error_apercentile()
+
+        tdLog.printNoPrefix("######## insert data test:")
+        nowtime = int(round(time.time() * 1000))
+        per_table_rows = 1000
+        self.apercentile_data(tbnum, per_table_rows, nowtime)
+        self.apercentile_query()
+        self.error_apercentile()
+
+        tdLog.printNoPrefix("######## insert data with NULL test:")
+        tdSql.execute(f"insert into t1(ts) values ({nowtime-5})")
+        tdSql.execute(f"insert into t1(ts) values ({nowtime+5})")
+        self.apercentile_query()
+        self.error_apercentile()
+
+        tdLog.printNoPrefix("######## check after WAL test:")
+        tdSql.query("show dnodes")
+        index = tdSql.getData(0, 0)
+        tdDnodes.stop(index)
+        tdDnodes.start(index)
+
+        self.apercentile_query()
+        self.error_apercentile()
 
 
     def run(self):
 
+        self.td4097()
+
         # master branch
-        # self.td3690()
-        # self.td4082()
-        # self.td4288()
-        # self.td4724()
-        # self.td5798()
-        # self.td5935()
+        self.td3690()
+        self.td4082()
+        self.td4288()
+        self.td4724()
+        self.td5935()
         self.td6068()
 
-        # develop branch
-        # self.td4097()
-        # self.td4889()
         # self.td5168()
         # self.td5433()
+        # self.td5798()
+
+        # develop branch
+        self.td4889()
+        self.td5798()
 
     def stop(self):
         tdSql.close()

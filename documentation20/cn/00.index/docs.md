@@ -40,17 +40,21 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [超级表管理](/taos-sql#super-table)：添加、删除、查看、修改超级表
 * [标签管理](/taos-sql#tags)：增加、删除、修改标签
 * [数据写入](/taos-sql#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
-* [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、查询结果手动分页等
+* [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、嵌套查询、UINON、JOIN、查询结果手动分页等
 * [SQL函数](/taos-sql#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
 * [窗口切分聚合](/taos-sql#aggregation)：将表中数据按照时间段等方式进行切割后聚合，降维处理
 * [边界限制](/taos-sql#limitation)：库、表、SQL等边界限制条件
+* [UDF](/taos-sql/udf)：用户定义函数的创建和管理方法
 * [错误码](/taos-sql/error-code)：TDengine 2.0 错误码以及对应的十进制码
 
 ## [高效写入数据](/insert)
 
-* [SQL写入](/insert#sql)：使用SQL insert命令向一张或多张表写入单条或多条记录
-* [Prometheus写入](/insert#prometheus)：配置Prometheus, 不用任何代码，将数据直接写入
-* [Telegraf写入](/insert#telegraf)：配置Telegraf, 不用任何代码，将采集数据直接写入
+* [SQL 写入](/insert#sql)：使用SQL insert命令向一张或多张表写入单条或多条记录
+* [Schemaless 写入](/insert#schemaless)：免于预先建表，将数据直接写入时自动维护元数据结构
+* [Prometheus 写入](/insert#prometheus)：配置Prometheus, 不用任何代码，将数据直接写入
+* [Telegraf 写入](/insert#telegraf)：配置Telegraf, 不用任何代码，将采集数据直接写入
+* [collectd 直接写入](/insert#collectd)：配置 collectd，不用任何代码，将采集数据直接写入
+* [StatsD 直接写入](/insert#statsd)：配置 StatsD，不用任何代码，将采集数据直接写入
 * [EMQ X Broker](/insert#emq)：配置EMQ X，不用任何代码，就可将MQTT数据直接写入
 * [HiveMQ Broker](/insert#hivemq)：配置HiveMQ，不用任何代码，就可将MQTT数据直接写入
 
@@ -115,6 +119,11 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [系统模块](/architecture/taosd)：taosd的功能和模块划分
 * [数据复制](/architecture/replica)：支持实时同步、异步复制，保证系统的High Availibility
 * [技术博客](https://www.taosdata.com/cn/blog/?categories=3)：更多的技术分析和架构设计文章
+
+## [应用 TDengine 快速搭建 IT 运维系统](/devops)
+
+* [devops](/devops/telegraf)：使用 TDengine + Telegraf + Grafana 快速搭建 IT 运维系统
+* [devops](/devops/collectd)：使用 TDengine + collectd_statsd + Grafana 快速搭建 IT 运维系统
 
 ## 常用工具
 

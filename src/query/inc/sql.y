@@ -11,7 +11,7 @@
 %left OR.
 %left AND.
 %right NOT.
-%left EQ NE ISNULL NOTNULL IS LIKE MATCH GLOB BETWEEN IN.
+%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH GLOB BETWEEN IN.
 %left GT GE LT LE.
 %left BITAND BITOR LSHIFT RSHIFT.
 %left PLUS MINUS.
@@ -94,15 +94,15 @@ cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
-}    
+}
 cmd ::= SHOW CREATE STABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &X);
-}    
+}
 
 cmd ::= SHOW CREATE DATABASE ids(X). {
   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);
-} 
+}
 
 cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
@@ -162,6 +162,7 @@ cmd ::= DESCRIBE ids(X) cpxName(Y). {
     X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
+
 cmd ::= DESC ids(X) cpxName(Y). {
     X.n += Y.n;
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
@@ -277,7 +278,7 @@ wal(Y)     ::= WAL INTEGER(X).                { Y = X; }
 fsync(Y)   ::= FSYNC INTEGER(X).              { Y = X; }
 comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
-update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }     
+update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
 partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
 
@@ -326,7 +327,7 @@ alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbTyp
 alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
-typename(A) ::= ids(X). { 
+typename(A) ::= ids(X). {
   X.type = 0;
   tSetColumnType (&A, &X);
 }
@@ -753,6 +754,7 @@ expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 
 // match expression
 expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
+expr(A) ::= expr(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
 
 //in expression
 expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }
@@ -919,5 +921,5 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
-  LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
+  LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES.
