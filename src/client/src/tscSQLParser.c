@@ -6606,6 +6606,9 @@ int32_t validateColumnName(char* name) {
     }
 
     return validateColumnName(token.z);
+  } else if (token.type == TK_ID) {
+    tscRmEscapeAndTrimToken(&token);
+    return TSDB_CODE_SUCCESS;
   } else {
     if (isNumber(&token)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
