@@ -20,8 +20,7 @@
 extern "C" {
 #endif
 
-#include "qExtbuffer.h"
-#include "qResultbuf.h"
+#include "tpagedfile.h"
 #include "ttszip.h"
 
 typedef struct MinMaxEntry {
@@ -40,7 +39,7 @@ typedef struct MinMaxEntry {
 typedef struct {
   int32_t    size;
   int32_t    pageId;
-  tFilePage *data;
+  SFilePage *data;
 } SSlotInfo;
 
 typedef struct tMemBucketSlot {

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "common.h"
+#include "tvariant.h"
 
 #define FUNCTION_SCALAR       1
 #define FUNCTION_AGG          2

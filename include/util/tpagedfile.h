@@ -93,7 +93,7 @@ typedef struct SFilePage {
  * @param handle
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId);
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
 
 /**
  *
@@ -118,7 +118,7 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
  * @param id
  * @return
  */
-tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
+SFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
 
 /**
  * release the referenced buf pages

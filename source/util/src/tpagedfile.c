@@ -7,7 +7,7 @@
 #define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId) {
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
   *pResultBuf = calloc(1, sizeof(SDiskbasedResultBuf));
 
   SDiskbasedResultBuf* pResBuf = *pResultBuf;
@@ -36,7 +36,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
   pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
 
   char path[PATH_MAX] = {0};
-  taosGetTmpfilePath("qbuf", path);
+  taosGetTmpfilePath(dir, "qbuf", path);
   pResBuf->path = strdup(path);
 
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));

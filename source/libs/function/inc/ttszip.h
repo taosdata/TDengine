@@ -37,7 +37,7 @@ typedef struct STSList {
 
 typedef struct STSElem {
   TSKEY     ts;
-  tVariant* tag;
+  SVariant* tag;
   int32_t   id;
 } STSElem;
 
@@ -49,7 +49,7 @@ typedef struct STSCursor {
 } STSCursor;
 
 typedef struct STSBlock {
-  tVariant tag;        // tag value
+  SVariant tag;        // tag value
   int32_t  numOfElem;  // number of elements
   int32_t  compLen;    // size after compressed
   int32_t  padding;    // 0xFFFFFFFF by default, after the payload
@@ -105,7 +105,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
 
 void* tsBufDestroy(STSBuf* pTSBuf);
 
-void    tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, int32_t len);
+void    tsBufAppend(STSBuf* pTSBuf, int32_t id, SVariant* tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf);
 
 STSBuf* tsBufClone(STSBuf* pTSBuf);
@@ -117,7 +117,7 @@ void    tsBufResetPos(STSBuf* pTSBuf);
 bool    tsBufNextPos(STSBuf* pTSBuf);
 
 STSElem tsBufGetElem(STSBuf* pTSBuf);
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t id, tVariant* tag);
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t id, SVariant* tag);
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf);
 void      tsBufSetTraverseOrder(STSBuf* pTSBuf, int32_t order);
@@ -136,7 +136,7 @@ void tsBufGetGroupIdList(STSBuf* pTSBuf, int32_t* num, int32_t** id);
 
 int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t id, void* buf, int32_t* len, int32_t* numOfBlocks);
 
-STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag);
+STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, SVariant* pTag);
 
 bool tsBufIsValidElem(STSElem* pElem);
 
