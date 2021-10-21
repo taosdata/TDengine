@@ -26,6 +26,11 @@ extern "C" {
 
 struct SSqlNode;
 
+typedef struct SColumnIndex {
+  int16_t tableIndex;
+  int16_t columnIndex;
+} SColumnIndex;
+
 typedef struct SInsertStmtInfo {
   SHashObj *pTableBlockHashList;     // data block for each table
   SArray   *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
@@ -34,6 +39,51 @@ typedef struct SInsertStmtInfo {
   uint32_t  insertType;              // insert data from [file|sql statement| bound statement]
   char     *sql;                     // current sql statement position
 } SInsertStmtInfo;
+
+// the structure for sql function in select clause
+typedef struct SSqlExpr {
+  char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
+  char      token[TSDB_COL_NAME_LEN];      // original token
+  SColIndex colInfo;
+  uint64_t  uid;            // table uid, todo refactor use the pointer
+
+  int16_t   functionId;     // function id in aAgg array
+
+  int16_t   resType;        // return value type
+  int16_t   resBytes;       // length of return value
+  int32_t   interBytes;     // inter result buffer size
+
+  int16_t   colType;        // table column type
+  int16_t   colBytes;       // table column bytes
+
+  int16_t   numOfParams;    // argument value of each function
+  SVariant  param[3];       // parameters are not more than 3
+  int32_t   offset;         // sub result column value of arithmetic expression.
+  int16_t   resColId;       // result column id
+
+  SColumnFilterList flist;
+} SSqlExpr;
+
+typedef struct SExprInfo {
+  SSqlExpr           base;
+  struct tExprNode  *pExpr;
+} SExprInfo;
+
+typedef struct SColumn {
+  uint64_t     tableUid;
+  int32_t      columnIndex;
+  SColumnInfo  info;
+} SColumn;
+
+typedef struct SInternalField {
+  TAOS_FIELD      field;
+  bool            visible;
+  SExprInfo      *pExpr;
+} SInternalField;
+
+void clearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
+
+void clearAllTableMetaInfo(SQueryStmtInfo* pQueryInfo, bool removeMeta, uint64_t id);
 
 /**
  * Validate the sql info, according to the corresponding metadata info from catalog.

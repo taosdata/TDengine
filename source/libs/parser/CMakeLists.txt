@@ -8,7 +8,7 @@ target_include_directories(
 
 target_link_libraries(
         parser
-        PRIVATE os util common catalog executor transport
+        PRIVATE os util common catalog function transport
 )
 
 ADD_SUBDIRECTORY(test)

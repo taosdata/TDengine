@@ -184,16 +184,6 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo);
  */
 void** qDeregisterQInfo(void* pMgmt, void* pQInfo);
 
-//======================================================================================================================
-// built-in sql functions
-/**
- * If the given name is a valid built-in sql function, the value of true will be returned.
- * @param name
- * @param len
- * @return
- */
-bool isBuiltinFunction(const char* name, int32_t len);
-
 #ifdef __cplusplus
 }
 #endif

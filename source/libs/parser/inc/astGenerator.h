@@ -246,6 +246,7 @@ typedef struct tSqlExpr {
 // used in select clause. select <SArray> from xxx
 typedef struct tSqlExprItem {
   tSqlExpr          *pNode;      // The list of expressions
+  int32_t            functionId;
   char              *aliasName;  // alias name, null-terminated string
   bool               distinct;
 } tSqlExprItem;

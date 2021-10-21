@@ -17,10 +17,17 @@
 #include "parserInt.h"
 #include "parserUtil.h"
 #include "ttoken.h"
-#include "executor.h"
+#include "function.h"
 
 bool qIsInsertSql(const char* pStr, size_t length) {
-  return false;
+  int32_t index = 0;
+
+  do {
+    SToken t0 = tStrGetToken(pStr, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_INSERT || t0.type == TK_IMPORT;
+    }
+  } while (1);
 }
 
 int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen) {
@@ -110,12 +117,12 @@ int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char*
 
     SToken* t = &item->tableName;
     if (t->type == TK_INTEGER || t->type == TK_FLOAT || t->type == TK_STRING) {
-      return parserSetInvalidOperatorMsg(msg, msgBufLen, msg1);
+      return buildInvalidOperationMsg(msg, msgBufLen, msg1);
     }
 
 //    tscDequoteAndTrimToken(t);
     if (parserValidateIdToken(t) != TSDB_CODE_SUCCESS) {
-      return parserSetInvalidOperatorMsg(msg, msgBufLen, msg1);
+      return buildInvalidOperationMsg(msg, msgBufLen, msg1);
     }
 
     SName name = {0};
@@ -144,7 +151,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
   for (int32_t i = 0; i < size; ++i) {
     SSqlNode* pSqlNode = taosArrayGetP(pSqlInfo->list, i);
     if (pSqlNode->from == NULL) {
-      return parserSetInvalidOperatorMsg(msg, msgBufLen, "invalid from clause");
+      return buildInvalidOperationMsg(msg, msgBufLen, "invalid from clause");
     }
 
     // load the table meta in the FROM clause
@@ -179,7 +186,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
       }
 
       // Let's assume that it is an UDF/UDAF, if it is not a built-in function.
-      if (!isBuiltinFunction(t->z, t->n)) {
+      if (!qIsBuiltinFunction(t->z, t->n)) {
         char* fname = strndup(t->z, t->n);
         taosArrayPush(pMetaInfo->pUdf, &fname);
       }

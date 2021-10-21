@@ -44,6 +44,7 @@ extern "C" {
 #include <errno.h>
 #include <float.h>
 #include <math.h>
+#include <sys/stat.h>
 
 #include "osAtomic.h"
 #include "osDef.h"

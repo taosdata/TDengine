@@ -95,10 +95,7 @@ typedef struct STagCond {
 
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
-  uint32_t       tableMetaSize;
-//  size_t         tableMetaCapacity;
   SVgroupsInfo  *vgroupList;
-  SArray        *pVgroupTables;   // SArray<SVgroupTableInfo>
 
   /*
    * 1. keep the vgroup index during the multi-vnode super table projection query
@@ -109,6 +106,20 @@ typedef struct STableMetaInfo {
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
+
+typedef struct SQueryType {
+  bool             stableQuery;
+  bool             groupbyColumn;
+  bool             simpleAgg;
+  bool             arithmeticOnAgg;
+  bool             projectionQuery;
+  bool             hasFilter;
+  bool             onlyTagQuery;
+  bool             orderProjectQuery;
+  bool             stateWindow;
+  bool             globalMerge;
+  bool             multigroupResult;
+} SQueryType;
 
 typedef struct SQueryStmtInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
@@ -152,17 +163,6 @@ typedef struct SQueryStmtInfo {
   SArray            *pUpstream;   // SArray<struct SQueryStmtInfo>
   struct SQueryStmtInfo *pDownstream;
   int32_t            havingFieldNum;
-  bool               stableQuery;
-  bool               groupbyColumn;
-  bool               simpleAgg;
-  bool               arithmeticOnAgg;
-  bool               projectionQuery;
-  bool               hasFilter;
-  bool               onlyTagQuery;
-  bool               orderProjectQuery;
-  bool               stateWindow;
-  bool               globalMerge;
-  bool               multigroupResult;
 } SQueryStmtInfo;
 
 struct SInsertStmtInfo;

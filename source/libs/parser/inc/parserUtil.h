@@ -23,9 +23,30 @@ extern "C" {
 #include "os.h"
 #include "ttoken.h"
 
+#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
+  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
+
+#define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
+  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
+
+#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
+
+#define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
+  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
+
+
 int32_t parserValidateIdToken(SToken* pToken);
-int32_t parserSetInvalidOperatorMsg(char* dst, int32_t dstBufLen, const char* msg);
+int32_t buildInvalidOperationMsg(char* dst, int32_t dstBufLen, const char* msg);
 int32_t parserSetSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr);
+
+
+void columnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
+void columnListCopyAll(SArray* dst, const SArray* src);
+void columnListDestroy(SArray* pColumnList);
+
+void cleanupTagCond(STagCond* pTagCond);
+void cleanupColumnCond(SArray** pCond);
 
 #ifdef __cplusplus
 }
