@@ -10,9 +10,10 @@ sql connect
 print ======================== dnode1 start
 
 sql create function add_one as '/tmp/add_one.so' outputtype int;
+sql create function add_one_64232 as '/tmp/add_one_64232.so' outputtype int;
 sql create aggregate function sum_double as '/tmp/sum_double.so' outputtype int;
 sql show functions;
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 
@@ -1150,6 +1151,89 @@ if $data60 != @21-03-24 19:00:00.000@ then
    return -1
 endi
 if $data61 != 22 then 
+   return -1
+endi
+
+sql_error select sum_double(f1),add_one(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) sliding (30m);
+
+sql select add_one(f1) from (select * from tb1);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+
+sql select add_one(ff1) from (select add_one(f1) as ff1 from tb1);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 3 then 
+   return -1
+endi
+if $data10 != 4 then 
+   return -1
+endi
+if $data20 != 5 then 
+   return -1
+endi
+if $data30 != 6 then 
+   return -1
+endi
+if $data40 != 7 then 
+   return -1
+endi
+if $data50 != 8 then 
+   return -1
+endi
+if $data60 != 9 then 
+   return -1
+endi
+
+sql_error select add_one(f1),sub_one(f1) from tb1;
+
+
+sql create table taaa (ts timestamp, f1 bigint);
+sql insert into taaa values (now, 1);
+sql insert into taaa values (now, 10);
+sql insert into taaa values (now, 1000);
+sql insert into taaa values (now, 100);
+
+sql select add_one_64232(f1) from taaa;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 11 then 
+   return -1
+endi
+if $data20 != 1001 then 
+   return -1
+endi
+if $data30 != 101 then 
    return -1
 endi
 
