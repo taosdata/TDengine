@@ -308,7 +308,7 @@ int tsCompressBoolImp(const char *const input, const int nelements, char *const 
       /* t = (~((( uint8_t)1) << (7-i%BITS_PER_BYTE))); */
       output[pos] |= t;
     } else {
-      uError("Invalid compress bool value:%d", output[pos]);
+      uError("Invalid compress bool value:%d", input[i]);
       return -1;
     }
   }
