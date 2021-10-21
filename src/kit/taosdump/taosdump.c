@@ -1138,12 +1138,12 @@ static int convertTbDesToJson(
         } else {
             if (strcasecmp(tableDes->cols[i].type, "binary") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": [\"%s\", \"null\"]",
-                    tableDes->cols[i].field, "bytes");
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "string");
             } else if (strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
                 pstr += sprintf(pstr,
                     "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "string");
+                    tableDes->cols[i].field, "bytes");
             } else if (strcasecmp(tableDes->cols[i].type, "bool") == 0) {
                 pstr += sprintf(pstr,
                     "{\"name\": \"%s\", \"type\": \"%s\"",
@@ -2509,14 +2509,9 @@ static int64_t writeResultToAvro(
 
     avro_file_writer_t db;
 
-    int rval = avro_file_writer_create_with_codec
-        (avroFilename, schema, &db, QUICKSTOP_CODEC, 0);
+    int rval = avro_file_writer_create(avroFilename, schema, &db);
     if (rval) {
-        freeRecordSchema(recordSchema);
-        fprintf(stderr, "There was an error creating %s\n", avroFilename);
-        fprintf(stderr, "%s() LN%d, error message: %s\n",
-                __func__, __LINE__,
-                avro_strerror());
+        errorPrint("There was an error creating %s\n", avroFilename);
         exit(EXIT_FAILURE);
     }
 
@@ -2544,6 +2539,7 @@ static int64_t writeResultToAvro(
                 continue;
             }
 
+            int len;
             switch (fields[col].type) {
                 case TSDB_DATA_TYPE_BOOL:
                     avro_value_set_boolean(&value,
@@ -2575,12 +2571,12 @@ static int64_t writeResultToAvro(
                     break;
 
                 case TSDB_DATA_TYPE_BINARY:
-                    avro_value_set_bytes(&value, (char *)(row[col]),
-                            strlen((char *)(row[col])));
+                    avro_value_set_string(&value, (char *)row[col]);
                     break;
 
                 case TSDB_DATA_TYPE_NCHAR:
-                    avro_value_set_string(&value, row[col]);
+                    len = strlen((char*)row[col]);
+                    avro_value_set_bytes(&value, (void*)(row[col]),len);
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
