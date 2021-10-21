@@ -6607,7 +6607,7 @@ int32_t validateColumnName(char* name) {
 
     return validateColumnName(token.z);
   } else if (token.type == TK_ID) {
-    tscRmEscapeAndTrimToken(&token);
+    strRmquoteEscape(name, token.n);
     return TSDB_CODE_SUCCESS;
   } else {
     if (isNumber(&token)) {
@@ -7664,7 +7664,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
     SStrToken* pToken = &pCreateTableInfo->stableName;
-    
+
     bool dbIncluded = false;
     char      buf[TSDB_TABLE_FNAME_LEN];
     SStrToken sTblToken;
@@ -7726,6 +7726,10 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         SStrToken* sToken = taosArrayGet(pNameList, i);
         if (TK_STRING == sToken->type) {
           tscDequoteAndTrimToken(sToken);
+        }
+
+        if (TK_ID == sToken->type) {
+          tscRmEscapeAndTrimToken(sToken);
         }
 
         tVariantListItem* pItem = taosArrayGet(pValList, i);
