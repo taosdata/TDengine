@@ -10929,81 +10929,81 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     int64_t ntables = 0;
     uint64_t tableFrom;
     
-    if (stbInfo && stbInfo->iface != SML_IFACE) {
-        int64_t limit;
-        uint64_t offset;
+    if (stbInfo) {
+        if (stbInfo->iface != SML_IFACE) {
+            int64_t limit;
+            uint64_t offset;
 
-        if ((NULL != g_args.sqlFile)
-                && (stbInfo->childTblExists == TBL_NO_EXISTS)
-                && ((stbInfo->childTblOffset != 0)
-                    || (stbInfo->childTblLimit >= 0))) {
-            printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
-        }
-
-        if (stbInfo->childTblExists == TBL_ALREADY_EXISTS) {
-            if ((stbInfo->childTblLimit < 0)
-                    || ((stbInfo->childTblOffset
-                            + stbInfo->childTblLimit)
-                        > (stbInfo->childTblCount))) {
-
-                if (stbInfo->childTblCount < stbInfo->childTblOffset) {
-                    printf("WARNING: offset will not be used since the child tables count is less then offset!\n");
-
-                    stbInfo->childTblOffset = 0;
-                }
-                stbInfo->childTblLimit =
-                    stbInfo->childTblCount - stbInfo->childTblOffset;
+            if ((NULL != g_args.sqlFile)
+                    && (stbInfo->childTblExists == TBL_NO_EXISTS)
+                    && ((stbInfo->childTblOffset != 0)
+                        || (stbInfo->childTblLimit >= 0))) {
+                printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
             }
 
-            offset = stbInfo->childTblOffset;
-            limit = stbInfo->childTblLimit;
+            if (stbInfo->childTblExists == TBL_ALREADY_EXISTS) {
+                if ((stbInfo->childTblLimit < 0)
+                        || ((stbInfo->childTblOffset
+                                + stbInfo->childTblLimit)
+                            > (stbInfo->childTblCount))) {
+
+                    if (stbInfo->childTblCount < stbInfo->childTblOffset) {
+                        printf("WARNING: offset will not be used since the child tables count is less then offset!\n");
+
+                        stbInfo->childTblOffset = 0;
+                    }
+                    stbInfo->childTblLimit =
+                        stbInfo->childTblCount - stbInfo->childTblOffset;
+                }
+
+                offset = stbInfo->childTblOffset;
+                limit = stbInfo->childTblLimit;
+            } else {
+                limit = stbInfo->childTblCount;
+                offset = 0;
+            }
+
+            ntables = limit;
+            tableFrom = offset;
+
+            if ((stbInfo->childTblExists != TBL_NO_EXISTS)
+                    && ((stbInfo->childTblOffset + stbInfo->childTblLimit)
+                        > stbInfo->childTblCount)) {
+                printf("WARNING: specified offset + limit > child table count!\n");
+                prompt();
+            }
+
+            if ((stbInfo->childTblExists != TBL_NO_EXISTS)
+                    && (0 == stbInfo->childTblLimit)) {
+                printf("WARNING: specified limit = 0, which cannot find table name to insert or query! \n");
+                prompt();
+            }
+
+            stbInfo->childTblName = (char*)calloc(1,
+                    limit * TSDB_TABLE_NAME_LEN);
+            if (stbInfo->childTblName == NULL) {
+                taos_close(taos0);
+                errorPrint2("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
+                exit(EXIT_FAILURE);
+            }
+
+            int64_t childTblCount;
+            getChildNameOfSuperTableWithLimitAndOffset(
+                    taos0,
+                    db_name, stbInfo->stbName,
+                    &stbInfo->childTblName, &childTblCount,
+                    limit,
+                    offset, stbInfo->escapeChar);
+            ntables = childTblCount;
         } else {
-            limit = stbInfo->childTblCount;
-            offset = 0;
+            ntables = stbInfo->childTblCount;
         }
-
-        ntables = limit;
-        tableFrom = offset;
-
-        if ((stbInfo->childTblExists != TBL_NO_EXISTS)
-                && ((stbInfo->childTblOffset + stbInfo->childTblLimit)
-                    > stbInfo->childTblCount)) {
-            printf("WARNING: specified offset + limit > child table count!\n");
-            prompt();
-        }
-
-        if ((stbInfo->childTblExists != TBL_NO_EXISTS)
-                && (0 == stbInfo->childTblLimit)) {
-            printf("WARNING: specified limit = 0, which cannot find table name to insert or query! \n");
-            prompt();
-        }
-
-        stbInfo->childTblName = (char*)calloc(1,
-                limit * TSDB_TABLE_NAME_LEN);
-        if (stbInfo->childTblName == NULL) {
-            taos_close(taos0);
-            errorPrint2("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
-            exit(EXIT_FAILURE);
-        }
-
-        int64_t childTblCount;
-        getChildNameOfSuperTableWithLimitAndOffset(
-                taos0,
-                db_name, stbInfo->stbName,
-                &stbInfo->childTblName, &childTblCount,
-                limit,
-                offset, stbInfo->escapeChar);
-        ntables = childTblCount;
     } else {
         ntables = g_args.ntables;
         tableFrom = 0;
     }
 
     taos_close(taos0);
-
-    if (stbInfo->iface == SML_IFACE) {
-        ntables = stbInfo->childTblCount;
-    }
 
     int64_t a = ntables / threads;
     if (a < 1) {
