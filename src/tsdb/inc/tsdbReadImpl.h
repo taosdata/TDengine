@@ -71,12 +71,12 @@ typedef struct {
  * blkVer;     // 0 - original block, 1 - block since importing .smad/.smal
  * aggrOffset; // only valid when blkVer > 0 and aggrStat > 0
  */
-#define SBlockFieldsP1      \
-  uint64_t aggrStat : 1;    \
-  uint64_t blkVer : 7;      \
-  uint64_t aggrOffset : 56; \
-  uint32_t aggrLen;         \
-  uint32_t padding
+#define SBlockFieldsP1         \
+  uint64_t aggrStat : 1;       \
+  uint64_t blkVer : 7;         \
+  uint64_t aggrOffset : 56;    \
+  uint64_t aggrNumOfCols : 16; \
+  uint64_t padding : 48
 
 typedef struct {
   SBlockFieldsP0;
@@ -213,7 +213,6 @@ static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
   }
 }
 
-#define TSDB_BLOCK_AGGR_COLS(blkLen, blkVer) ((blkLen - sizeof(TSCKSUM)) / sizeof(SAggrBlkColV##blkVer))
 #define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) (sizeof(SAggrBlkColV##blkVer) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
@@ -224,17 +223,6 @@ static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
     case TSDB_SBLK_VER_1:
     default:
       return TSDB_BLOCK_AGGR_SIZE(nCols, 1);
-  }
-}
-
-static FORCE_INLINE int32_t tsdbBlockAggrCols(uint32_t blkLen, uint32_t blkVer) {
-  switch (blkVer) {
-    case TSDB_SBLK_VER_0:
-      ASSERT(false);
-      return 0;
-    case TSDB_SBLK_VER_1:
-    default:
-      return TSDB_BLOCK_AGGR_COLS(blkLen, 1);
   }
 }
 

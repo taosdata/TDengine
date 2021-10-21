@@ -1216,7 +1216,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = (uint64_t)offsetAggr;
-  pBlock->aggrLen = tsizeAggr;
+  pBlock->aggrNumOfCols = nAggrCols;
   pBlock->padding = 0;  // padding filled with 0
 
   tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
