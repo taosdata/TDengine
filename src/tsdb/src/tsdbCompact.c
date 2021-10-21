@@ -441,6 +441,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       if ((tdInitDataCols(pComph->pDataCols, pSchema) < 0) || (tdInitDataCols(pReadh->pDCols[0], pSchema) < 0) ||
           (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0)) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tdFreeSchema(pSchema);
         return -1;
       }
       tdFreeSchema(pSchema);

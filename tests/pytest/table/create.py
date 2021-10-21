@@ -52,7 +52,7 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
-        os.system("rm -rf table/create1.py.sql")
+        os.system("rm -rf table/create.py.sql")
         tdSql.prepare()
 
         print("==============step1")
@@ -298,8 +298,7 @@ class TDTestCase:
 
         print("==============step3,#create regular_table; insert regular_table; show regular_table; select regular_table; drop regular_table")
         self.regular_table = "regular_table~!@#$%^&*()-_+=[]{}';:,<.>/?stST24680~!@#$%^&*()-_+=[]{}"
-        #self.regular_table = "regular_table~!@#$%^&*()-_+=[]{}';:,<.>/?stST24680~!@#$%^&*()-_+=[]{}"
-
+        
         tdSql.execute("create table `%s` (ts timestamp,i int) ;" %self.regular_table)
         tdSql.query("describe `%s` ; "%self.regular_table)
         tdSql.checkRows(2)
@@ -328,9 +327,9 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         self.crr_tb = "create_r_table~!@#$%^&*()-_+=[]{}';:,<.>/?stST24680~!@#$%^&*()-_+=[]{}"
-        # tdSql.execute("create table `%s` as select * from `%s` ;" %(self.crr_tb,self.regular_table))
-        # tdSql.query("show db.tables like 'create_r_table%' ")
-        # tdSql.checkRows(1)
+        tdSql.execute("create table `%s` as select * from `%s` ;" %(self.crr_tb,self.regular_table))
+        tdSql.query("show db2.tables like 'create_r_table%' ")
+        tdSql.checkRows(1)
 
         print("==============drop table\stable")
         try:
@@ -340,15 +339,6 @@ class TDTestCase:
 
         tdSql.error("select * from `%s`" %self.regular_table)
         
-
-        #表名：192个字符，还要包含前面的数据库名
-        #taosdemo 建数据库表 # 单独放
-        # self.tsdemo = "tsdemo~!@#$%^&*()-_+=[]{}"
-        # os.system("%staosdemo -d test -m `%s` -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
-        # tdSql.execute("use #!#!#!")
-        # tdSql.query("select count (tbname) from #!#!#!")
-        # tdSql.checkData(0, 0, 1000)
-
    
 
 

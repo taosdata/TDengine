@@ -78,6 +78,8 @@ typedef struct STscStmt {
   SSqlObj* pSql;
   SMultiTbStmt mtb;
   SNormalStmt normal;
+
+  int numOfRows;
 } STscStmt;
 
 #define STMT_RET(c) do {          \
@@ -1212,6 +1214,8 @@ static int insertStmtExecute(STscStmt* stmt) {
   // wait for the callback function to post the semaphore
   tsem_wait(&pSql->rspSem);
 
+  stmt->numOfRows += pSql->res.numOfRows;
+
   // data block reset
   pCmd->batchSize = 0;
   for(int32_t i = 0; i < pCmd->insertParam.numOfTables; ++i) {
@@ -1284,7 +1288,9 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
   tsem_wait(&pStmt->pSql->rspSem);
 
   code = pStmt->pSql->res.code;
-  
+
+  pStmt->numOfRows += pStmt->pSql->res.numOfRows;
+
   insertBatchClean(pStmt);
 
   return code;
@@ -1516,11 +1522,12 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   }
 
   tsem_init(&pSql->rspSem, 0, 0);
-  pSql->signature = pSql;
-  pSql->pTscObj   = pObj;
-  pSql->maxRetry  = TSDB_MAX_REPLICA;
-  pStmt->pSql     = pSql;
-  pStmt->last     = STMT_INIT;
+  pSql->signature   = pSql;
+  pSql->pTscObj     = pObj;
+  pSql->maxRetry    = TSDB_MAX_REPLICA;
+  pStmt->pSql       = pSql;
+  pStmt->last       = STMT_INIT;
+  pStmt->numOfRows  = 0;
   registerSqlObj(pSql);
 
   return pStmt;
@@ -1564,9 +1571,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   }
 
   pRes->qId = 0;
-  pRes->numOfRows = 1;
-
-  registerSqlObj(pSql);
+  pRes->numOfRows = 0;
 
   strtolower(pSql->sqlstr, sql);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
@@ -1981,12 +1986,24 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     } else {
       taosReleaseRef(tscObjRef, pStmt->pSql->self);
       pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
+      pStmt->numOfRows += taos_affected_rows(pStmt->pSql);
       ret = taos_errno(pStmt->pSql);
       free(sql);
     }
   }
 
   STMT_RET(ret);
+}
+
+int taos_stmt_affected_rows(TAOS_STMT* stmt) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (pStmt == NULL) {
+    tscError("statement is invalid");
+    return 0;
+  }
+
+  return pStmt->numOfRows;
 }
 
 TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
