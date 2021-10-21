@@ -3177,6 +3177,10 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
 
   int16_t columnIndex = COLUMN_INDEX_INITIAL_VAL;
 
+  if (pToken->type == TK_ID) {
+    tscRmEscapeAndTrimToken(pToken);
+  }
+
   for (int16_t i = 0; i < numOfCols; ++i) {
     if (pToken->n != strlen(pSchema[i].name)) {
       continue;
