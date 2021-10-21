@@ -5,7 +5,7 @@ properties([pipelineTriggers([githubPush()])])
 node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
-
+ 
 def skipbuild=0
 def win_stop=0
 
