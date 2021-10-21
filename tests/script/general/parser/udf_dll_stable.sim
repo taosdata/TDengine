@@ -1222,6 +1222,7 @@ sql insert into taaa values (now, 100);
 
 sql select add_one_64232(f1) from taaa;
 if $rows != 4 then
+  print $rows
   return -1
 endi
 
