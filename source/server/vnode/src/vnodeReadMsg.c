@@ -217,6 +217,15 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
   return 0;  
 }
 
+//mq related
+int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead){
+  return 0;
+}
+int32_t vnodeProcessTqQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
+  return 0;
+}
+//mq related end
+
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead) {
 #if 0  
   void *   pCont = pRead->pCont;

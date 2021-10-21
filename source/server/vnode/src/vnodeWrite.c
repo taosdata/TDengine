@@ -179,6 +179,20 @@ static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t 
     case TSDB_MSG_TYPE_UPDATE_TAG_VAL:
       pWrite->code = vnodeProcessUpdateTagValReq(pVnode, (void*)pHead->cont, NULL);
       break;
+    //mq related
+    case TSDB_MSG_TYPE_MQ_CONNECT:
+      pWrite->code = vnodeProcessMqConnectReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    case TSDB_MSG_TYPE_MQ_DISCONNECT:
+      pWrite->code = vnodeProcessMqDisconnectReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    case TSDB_MSG_TYPE_MQ_ACK:
+      pWrite->code = vnodeProcessMqAckReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    case TSDB_MSG_TYPE_MQ_RESET:
+      pWrite->code = vnodeProcessMqResetReq(pVnode, (void*)pHead->cont, NULL);
+      break;
+    //mq related end
     default:
       pWrite->code = TSDB_CODE_VND_MSG_NOT_PROCESSED;
       break;
@@ -186,7 +200,7 @@ static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t 
 
   if (pWrite->code < 0) return false;
 
-  // update fync
+  // update fsync
   return (pWrite->code == 0 && msgType != TSDB_MSG_TYPE_SUBMIT);
 }
 

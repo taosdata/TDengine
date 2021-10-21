@@ -13,19 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_INT_H_
-#define _TD_META_INT_H_
+#ifndef _TD_TVK_ROCKSDB_H_
+#define _TD_TVK_ROCKSDB_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct {
-  tkv_db_t db;
-} SMeta;
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_META_INT_H_*/
+#endif /*_TD_TVK_ROCKSDB_H_*/

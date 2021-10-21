@@ -22,27 +22,28 @@
 extern "C" {
 #endif
 
+#define AMALLOC_APIS                                  \
+  void *(*malloc)(void *, size_t size);               \
+  void *(*calloc)(void *, size_t nmemb, size_t size); \
+  void *(*realloc)(void *, size_t size);              \
+  void (*free)(void *ptr);
+
 // Interfaces to implement
 typedef struct {
-  void *(*malloc)(void *, size_t size);
-  void *(*calloc)(void *, size_t nmemb, size_t size);
-  void (*free)(void *ptr, size_t size); // Do we need to set size in the allocated memory?
-  void *(*realloc)(void *ptr, size_t size);
+  AMALLOC_APIS
 } SMemAllocatorIf;
 
 typedef struct {
-  void *          impl;
-  SMemAllocatorIf interface;
+  void *impl;
+  AMALLOC_APIS
 } SMemAllocator;
 
-#define amalloc(allocator, size) \
-  ((allocator) ? (*((allocator)->interface.malloc))((allocator)->impl, (size)) : malloc(size))
+#define amalloc(allocator, size) ((allocator) ? (*((allocator)->malloc))((allocator)->impl, (size)) : malloc(size))
 #define acalloc(allocator, nmemb, size) \
-  ((allocator) ? (*((allocator)->interface.calloc))((allocator)->impl, (nmemb), (size)) : calloc((nmemb), (size)))
+  ((allocator) ? (*((allocator)->calloc))((allocator)->impl, (nmemb), (size)) : calloc((nmemb), (size)))
 #define arealloc(allocator, ptr, size) \
-  ((allocator) ? (*((allocator)->interface.realloc))((allocator)->impl, (ptr), (size)) : realloc((ptr), (size)))
-#define afree(allocator, ptr, size) \
-  ((allocator) ? (*((allocator)->interface.free))((allocator)->impl, (ptr), (size)) : free(ptr))
+  ((allocator) ? (*((allocator)->realloc))((allocator)->impl, (ptr), (size)) : realloc((ptr), (size)))
+#define afree(allocator, ptr, size) ((allocator) ? (*((allocator)->free))((allocator)->impl, (ptr), (size)) : free(ptr))
 
 #ifdef __cplusplus
 }

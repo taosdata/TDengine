@@ -13,34 +13,46 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_READ_MSG_H_
-#define _TD_VNODE_READ_MSG_H_
+#ifndef _TD_TKV_DEF_H_
+#define _TD_TKV_DEF_H_
+
+#ifdef USE_ROCKSDB
+#include <rocksdb/c.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
+struct STkvDb {
+#ifdef USE_ROCKSDB
+  rocksdb_t *db;
+#endif
+};
 
-typedef struct SReadMsg {
-  int32_t code;
-  int32_t contLen;
-  int8_t  qtype;
-  int8_t  msgType;
-  SVnode *pVnode;
-  SVnRsp rspRet;
-  void *  rpcHandle;
-  void *  rpcAhandle;
-  void *  qhandle;
-  char    pCont[];
-} SReadMsg;
+struct STkvOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_options_t *opts;
+#endif
+};
 
-int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead);
-int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead);
-int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead);
-int32_t vnodeProcessTqQueryMsg(SVnode *pVnode, SReadMsg *pRead);
+struct STkvCache {
+  // TODO
+};
+
+struct STkvReadOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_readoptions_t *ropts;
+#endif
+};
+
+struct STkvWriteOpts {
+#ifdef USE_ROCKSDB
+  rocksdb_writeoptions_t *wopts;
+#endif
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_READ_MSG_H_*/
+#endif /*_TD_TKV_DEF_H_*/

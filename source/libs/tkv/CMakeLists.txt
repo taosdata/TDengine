@@ -1,5 +1,5 @@
 aux_source_directory(src TKV_SRC)
-add_library(tkv ${TKV_SRC})
+add_library(tkv STATIC ${TKV_SRC})
 target_include_directories(
     tkv
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/tkv"
@@ -9,3 +9,9 @@ target_link_libraries(
     tkv
     PUBLIC os
 )
+if(${BUILD_WITH_ROCKSDB})
+    target_link_libraries(
+        tkv
+        PUBLIC rocksdb
+    )
+endif(${BUILD_WITH_ROCKSDB})

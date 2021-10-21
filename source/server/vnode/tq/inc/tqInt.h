@@ -18,23 +18,39 @@
 
 #include "tq.h"
 
+#define TQ_BUFFER_SIZE 8
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//implement the array index
-//implement the ring buffer
+typedef struct tqBufferItem {
+  int64_t offset;
+  void* executor;
+  void* content;
+} tqBufferItem;
+
+
+typedef struct tqGroupHandle {
+  char* topic; //c style, end with '\0'
+  int64_t cgId;
+  void* ahandle;
+  int64_t consumeOffset;
+  int32_t head;
+  int32_t tail;
+  tqBufferItem buffer[TQ_BUFFER_SIZE];
+} tqGroupHandle;
 
 //create persistent storage for meta info such as consuming offset
 //return value > 0: cgId
 //return value <= 0: error code
-int tqCreateGroup(STQ*);
+int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqGroupHandle** handle);
 //create ring buffer in memory and load consuming offset
-int tqOpenGroup(STQ*, int cgId);
+int tqOpenTCGroup(STQ*, const char* topic, int cgId);
 //destroy ring buffer and persist consuming offset
-int tqCloseGroup(STQ*, int cgId);
+int tqCloseTCGroup(STQ*, const char* topic, int cgId);
 //delete persistent storage for meta info
-int tqDropGroup(STQ*, int cgId);
+int tqDropTCGroup(STQ*, const char* topic, int cgId);
 
 #ifdef __cplusplus
 }
