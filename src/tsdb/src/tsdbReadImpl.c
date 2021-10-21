@@ -469,7 +469,8 @@ static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
     return -1;
   }
 
-  size_t sizeAggr = tsdbBlockAggrSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
+  size_t sizeAggr = pBlock->aggrLen;
+  // tsdbBlockAggrSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (tsdbMakeRoom((void **)(&(pReadh->pAggrBlkData)), sizeAggr) < 0) return -1;
 
   int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
@@ -578,14 +579,15 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBl
     }
   } else if (pBlock->aggrStat) {
     SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
+    int32_t       nAggrBlkCols = tsdbBlockAggrCols(pBlock->aggrLen, pBlock->blkVer);
 
     for (int i = 0, j = 0; i < numOfCols;) {
-      if (j >= pAggrBlkData->numOfCols) {
+      if (j >= nAggrBlkCols) {
         pStatis[i].numOfNull = -1;
         i++;
         continue;
       }
-      SAggrBlkCol *pAggrBlkCol = ((SAggrBlkCol *)(pAggrBlkData->cols)) + j;
+      SAggrBlkCol *pAggrBlkCol = ((SAggrBlkCol *)(pAggrBlkData)) + j;
       if (pStatis[i].colId == pAggrBlkCol->colId) {
         pStatis[i].sum = pAggrBlkCol->sum;
         pStatis[i].max = pAggrBlkCol->max;

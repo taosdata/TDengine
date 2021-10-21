@@ -327,6 +327,7 @@ static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int6
   SET_DOUBLE_PTR(min, &dmin);
 }
 
+#if 0 // statis part is extracted into aggr file(e.g. smad/smal), and bin/nchar statis cols are not stored anymore
 static void getStatics_bin(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
                          int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   const char* data = pData;
@@ -366,6 +367,7 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
   *minIndex = 0;
   *maxIndex = 0;
 }
+#endif
 
 tDataTypeDescriptor tDataTypes[15] = {
   {TSDB_DATA_TYPE_NULL,      6,  1,            "NOTYPE",             0,          0,              NULL,                NULL,                  NULL},
@@ -376,9 +378,9 @@ tDataTypeDescriptor tDataTypes[15] = {
   {TSDB_DATA_TYPE_BIGINT,    6,  LONG_BYTES,   "BIGINT",             INT64_MIN,  INT64_MAX,      tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
   {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              0,          0,              tsCompressFloat,     tsDecompressFloat,     getStatics_f},
   {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             0,          0,              tsCompressDouble,    tsDecompressDouble,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6,  0,            "BINARY",             0,          0,              tsCompressString,    tsDecompressString,    getStatics_bin},
+  {TSDB_DATA_TYPE_BINARY,    6,  0,            "BINARY",             0,          0,              tsCompressString,    tsDecompressString,    NULL},
   {TSDB_DATA_TYPE_TIMESTAMP, 9,  LONG_BYTES,   "TIMESTAMP",          INT64_MIN,  INT64_MAX,      tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5,  8,            "NCHAR",              0,          0,              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_NCHAR,     5,  8,            "NCHAR",              0,          0,              tsCompressString,    tsDecompressString,    NULL},
   {TSDB_DATA_TYPE_UTINYINT,  16, CHAR_BYTES,   "TINYINT UNSIGNED",   0,          UINT8_MAX,      tsCompressTinyint,   tsDecompressTinyint,   getStatics_u8},
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  0,          UINT16_MAX,     tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       0,          UINT32_MAX,     tsCompressInt,       tsDecompressInt,       getStatics_u32},
