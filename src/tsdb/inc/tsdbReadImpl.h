@@ -71,12 +71,10 @@ typedef struct {
  * blkVer;     // 0 - original block, 1 - block since importing .smad/.smal
  * aggrOffset; // only valid when blkVer > 0 and aggrStat > 0
  */
-#define SBlockFieldsP1         \
-  uint64_t aggrStat : 1;       \
-  uint64_t blkVer : 7;         \
-  uint64_t aggrOffset : 56;    \
-  uint64_t aggrNumOfCols : 16; \
-  uint64_t padding : 48
+#define SBlockFieldsP1   \
+  uint64_t aggrStat : 1; \
+  uint64_t blkVer : 7;   \
+  uint64_t aggrOffset : 56
 
 typedef struct {
   SBlockFieldsP0;

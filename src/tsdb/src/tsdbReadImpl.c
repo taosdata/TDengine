@@ -469,7 +469,7 @@ static int tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock) {
     return -1;
   }
 
-  size_t sizeAggr = tsdbBlockAggrSize(pBlock->aggrNumOfCols, (uint32_t)pBlock->blkVer);
+  size_t sizeAggr = tsdbBlockAggrSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (tsdbMakeRoom((void **)(&(pReadh->pAggrBlkData)), sizeAggr) < 0) return -1;
 
   int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
@@ -580,7 +580,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBl
     SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
 
     for (int i = 0, j = 0; i < numOfCols;) {
-      if (j >= pBlock->aggrNumOfCols) {
+      if (j >= pBlock->numOfCols) {
         pStatis[i].numOfNull = -1;
         i++;
         continue;
