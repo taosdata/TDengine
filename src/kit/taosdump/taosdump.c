@@ -69,6 +69,11 @@ typedef struct {
     do { if (g_args.performance_print) \
         fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
 
+#define warnPrint(fmt, ...) \
+    do { fprintf(stderr, "\033[33m"); \
+        fprintf(stderr, "WARN: "fmt, __VA_ARGS__); \
+        fprintf(stderr, "\033[0m"); } while(0)
+
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "\033[31m"); \
         fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); \
@@ -1099,6 +1104,10 @@ static int convertTbDesToJson(
     //      "name": "col2 name",
     //      "type": "float"
     //      },
+    //      {
+    //      "name": "col3 name",
+    //      "type": "boolean"
+    //      },
     //      ...
     //      {
     //      "name": "coln name",
@@ -1127,11 +1136,34 @@ static int convertTbDesToJson(
                     "{\"name\": \"%s\", \"type\": \"%s\"",
                     tableDes->cols[i].field, "long");
         } else {
-            if (strcasecmp(tableDes->cols[i].type, "binary") == 0 ||
-                    strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
+            if (strcasecmp(tableDes->cols[i].type, "binary") == 0) {
                 pstr += sprintf(pstr,
                     "{\"name\": \"%s\", \"type\": [\"%s\", \"null\"]",
+                    tableDes->cols[i].field, "bytes");
+            } else if (strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
                     tableDes->cols[i].field, "string");
+            } else if (strcasecmp(tableDes->cols[i].type, "bool") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "boolean");
+            } else if (strcasecmp(tableDes->cols[i].type, "tinyint") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "int");
+            } else if (strcasecmp(tableDes->cols[i].type, "smallint") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "int");
+            } else if (strcasecmp(tableDes->cols[i].type, "bigint") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "long");
+            } else if (strcasecmp(tableDes->cols[i].type, "timestamp") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "long");
             } else {
                 pstr += sprintf(pstr,
                     "{\"name\": \"%s\", \"type\": \"%s\"",
@@ -1209,15 +1241,15 @@ static int64_t dumpNormalTable(
         }
     }
 
-    int64_t ret = 0;
+    int64_t totalRows = 0;
     if (!g_args.schemaonly) {
-        ret = dumpTableData(fp, tbName, dbName, precision,
+        totalRows = dumpTableData(fp, tbName, dbName, precision,
             jsonSchema);
     }
 
     tfree(jsonSchema);
     freeTbDes(tableDes);
-    return ret;
+    return totalRows;
 }
 
 static int64_t dumpNormalTableBelongStb(
@@ -1249,6 +1281,9 @@ static int64_t dumpNormalTableBelongStb(
             ntbName,
             getPrecisionByString(dbInfo->precision),
             fp);
+    if (count > 0) {
+        atomic_add_fetch_64(&g_totalDumpOutRows, count);
+    }
 
     fclose(fp);
     return count;
@@ -1282,7 +1317,9 @@ static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
             ntbName,
             getPrecisionByString(dbInfo->precision),
             fp);
-
+    if (count > 0) {
+        atomic_add_fetch_64(&g_totalDumpOutRows, count);
+    }
     fclose(fp);
     return count;
 }
@@ -1326,6 +1363,8 @@ static void *dumpNtbOfDb(void *arg) {
                 fp);
         if (count < 0) {
             break;
+        } else {
+            atomic_add_fetch_64(&g_totalDumpOutRows, count);
         }
     }
 
@@ -1393,6 +1432,8 @@ static void *dumpNormalTablesOfStb(void *arg) {
                 fp);
         if (count < 0) {
             break;
+        } else {
+            atomic_add_fetch_64(&g_totalDumpOutRows, count);
         }
     }
 
@@ -2063,7 +2104,9 @@ static int getTableDes(
         switch (fields[0].type) {
             case TSDB_DATA_TYPE_BOOL:
                 sprintf(tableDes->cols[i].value, "%d",
-                        ((((int32_t)(*((char *)row[TSDB_SHOW_TABLES_NAME_INDEX]))) == 1) ? 1 : 0));
+                        ((((int32_t)(*((char *)
+                                       row[TSDB_SHOW_TABLES_NAME_INDEX])))==1)
+                         ?1:0));
                 break;
             case TSDB_DATA_TYPE_TINYINT:
                 sprintf(tableDes->cols[i].value, "%d",
@@ -2446,7 +2489,6 @@ static int64_t writeResultToAvro(
     json_t *json_root = load_json(jsonSchema);
     debugPrint("\n%s() LN%d\n *** Schema parsed:\n", __func__, __LINE__);
 
-
     RecordSchema *recordSchema;
     if (json_root) {
         if (g_args.debug_print || g_args.verbose_print) {
@@ -2490,43 +2532,80 @@ static int64_t writeResultToAvro(
     avro_value_t record;
     avro_generic_value_new(wface, &record);
 
-    errorPrint("%s() LN%d, TODO: need write data to %s\n",
-            __func__, __LINE__,
-            avroFilename);
-
     int64_t count = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
+        avro_value_t value;
+
         for (int col = 0; col < numFields; col++) {
+            if (0 != avro_value_get_by_name(
+                        &record, fields[col].name, &value, NULL)) {
+                errorPrint("%s() LN%d, avro_value_get_by_name(..%s..) failed",
+                        __func__, __LINE__, fields[col].name);
+                continue;
+            }
+
             switch (fields[col].type) {
                 case TSDB_DATA_TYPE_BOOL:
+                    avro_value_set_boolean(&value,
+                            ((((int32_t)(*((char *)row[col])))==1)?1:0));
                     break;
+
                 case TSDB_DATA_TYPE_TINYINT:
+                    avro_value_set_int(&value, *((int8_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_SMALLINT:
+                    avro_value_set_int(&value, *((int16_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_INT:
+                    avro_value_set_int(&value, *((int32_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_BIGINT:
+                    avro_value_set_long(&value, *((int64_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_FLOAT:
+                    avro_value_set_float(&value, GET_FLOAT_VAL(row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_DOUBLE:
+                    avro_value_set_double(&value, GET_DOUBLE_VAL(row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_BINARY:
+                    avro_value_set_bytes(&value, (char *)(row[col]),
+                            strlen((char *)(row[col])));
                     break;
+
                 case TSDB_DATA_TYPE_NCHAR:
+                    avro_value_set_string(&value, row[col]);
                     break;
+
                 case TSDB_DATA_TYPE_TIMESTAMP:
+                    avro_value_set_long(&value, *((int64_t *)row[col]));
                     break;
+
                 default:
                     break;
             }
         }
 
-        count ++;
+        if (0 != avro_file_writer_append_value(db, &record)) {
+            errorPrint("%s() LN%d, Unable to write record to file. Message: %s\n",
+                    __func__, __LINE__,
+                    avro_strerror());
+        } else {
+            count ++;
+        }
     }
 
+    avro_value_decref(&record);
+    avro_value_iface_decref(wface);
+    freeRecordSchema(recordSchema);
     avro_file_writer_close(db);
+    avro_schema_decref(schema);
 
     return count;
 }
@@ -2589,44 +2668,62 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
             switch (fields[col].type) {
                 case TSDB_DATA_TYPE_BOOL:
                     curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d",
-                            ((((int32_t)(*((char *)row[col]))) == 1) ? 1 : 0));
+                            ((((int32_t)(*((char *)row[col])))==1)?1:0));
                     break;
+
                 case TSDB_DATA_TYPE_TINYINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((int8_t *)row[col]));
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d",
+                            *((int8_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_SMALLINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((int16_t *)row[col]));
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d",
+                            *((int16_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_INT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((int32_t *)row[col]));
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d",
+                            *((int32_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_BIGINT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRId64 "",
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
+                            "%" PRId64 "",
                             *((int64_t *)row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_FLOAT:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f", GET_FLOAT_VAL(row[col]));
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f",
+                            GET_FLOAT_VAL(row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_DOUBLE:
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f", GET_DOUBLE_VAL(row[col]));
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f",
+                            GET_DOUBLE_VAL(row[col]));
                     break;
+
                 case TSDB_DATA_TYPE_BINARY:
                     {
                         char tbuf[COMMAND_SIZE] = {0};
-                        converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
-                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
+                        converStringToReadable((char *)row[col], length[col],
+                                tbuf, COMMAND_SIZE);
+                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
+                                "\'%s\'", tbuf);
                         break;
                     }
                 case TSDB_DATA_TYPE_NCHAR:
                     {
                         char tbuf[COMMAND_SIZE] = {0};
-                        convertNCharToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
-                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
+                        convertNCharToReadable((char *)row[col], length[col],
+                                tbuf, COMMAND_SIZE);
+                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
+                                "\'%s\'", tbuf);
                         break;
                     }
                 case TSDB_DATA_TYPE_TIMESTAMP:
                     if (!g_args.mysqlFlag) {
-                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRId64 "",
+                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
+                                "%" PRId64 "",
                                 *(int64_t *)row[col]);
                     } else {
                         char buf[64] = "\0";
@@ -2634,7 +2731,8 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
                         time_t tt = (time_t)(ts / 1000);
                         struct tm *ptm = localtime(&tt);
                         strftime(buf, 64, "%y-%m-%d %H:%M:%S", ptm);
-                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s.%03d\'",
+                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
+                                "\'%s.%03d\'",
                                 buf, (int)(ts % 1000));
                     }
                     break;
@@ -2667,10 +2765,9 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
     debugPrint("total_sqlstr_len: %d\n", total_sqlstr_len);
 
     fprintf(fp, "\n");
-    atomic_add_fetch_64(&g_totalDumpOutRows, totalRows);
     free(tmpBuffer);
 
-    return 0;
+    return totalRows;
 }
 
 static int64_t dumpTableData(FILE *fp, char *tbName,
@@ -2683,9 +2780,11 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
     int64_t start_time, end_time;
     if (strlen(g_args.humanStartTime)) {
         if (TSDB_CODE_SUCCESS != taosParseTime(
-                g_args.humanStartTime, &start_time, strlen(g_args.humanStartTime),
+                g_args.humanStartTime, &start_time,
+                strlen(g_args.humanStartTime),
                 precision, 0)) {
-            errorPrint("Input %s, time format error!\n", g_args.humanStartTime);
+            errorPrint("Input %s, time format error!\n",
+                    g_args.humanStartTime);
             return -1;
         }
     } else {
