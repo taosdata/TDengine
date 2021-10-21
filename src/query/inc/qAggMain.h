@@ -188,6 +188,7 @@ typedef struct SQLFunctionCtx {
   bool         hasNull;       // null value exist in current block
   bool         requireNull;   // require null in some function
   bool         stableQuery;
+  int32_t      udfNeedTs;     // for user defined function
   int16_t      functionId;    // function id
   char *       pOutput;       // final result output buffer, point to sdata->data
   uint8_t      currentStage;  // record current running step, default: 0

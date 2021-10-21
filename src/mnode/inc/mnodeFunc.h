@@ -31,7 +31,7 @@ void      mnodeCancelGetNextFunc(void *pIter);
 void      mnodeIncFuncRef(SFuncObj *pFunc);
 void      mnodeDecFuncRef(SFuncObj *pFunc);
 
-int32_t   mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, int32_t bufSize, SMnodeMsg *pMsg);
+int32_t   mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, int32_t bufSize, int32_t needTs, SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

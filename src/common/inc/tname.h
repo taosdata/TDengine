@@ -49,6 +49,7 @@ typedef struct SSqlExpr {
   uint64_t  uid;            // table uid, todo refactor use the pointer
 
   int16_t   functionId;     // function id in aAgg array
+  int32_t   udfNeedTs;      // include ts in result
 
   int16_t   resType;        // return value type
   int16_t   resBytes;       // length of return value

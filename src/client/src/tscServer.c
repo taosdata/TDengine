@@ -848,6 +848,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->uid         = htobe64(pExpr->uid);
   pSqlExpr->colType     = htons(pExpr->colType);
   pSqlExpr->colBytes    = htons(pExpr->colBytes);
+  pSqlExpr->udfNeedTs   = htonl(pExpr->udfNeedTs);
   pSqlExpr->resType     = htons(pExpr->resType);
   pSqlExpr->resBytes    = htons(pExpr->resBytes);
   pSqlExpr->interBytes  = htonl(pExpr->interBytes);
@@ -2377,6 +2378,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
 
       pUdfInfo->resBytes = htons(pFunc->resBytes);
       pUdfInfo->resType  = pFunc->resType;
+      pUdfInfo->needTs   = htonl(pFunc->needTs);
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);

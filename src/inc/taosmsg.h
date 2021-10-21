@@ -505,6 +505,7 @@ typedef struct {
   int32_t     prevResultLen;    // previous result length
   int32_t     numOfOperator;
   int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
+  int32_t     udfNeedTs;
   int32_t     udfNum;           // number of udf function
   int32_t     udfContentOffset;
   int32_t     udfContentLen;
@@ -580,6 +581,7 @@ typedef struct {
   int32_t  funcType;
   uint8_t  outputType;
   int16_t  outputLen;
+  int32_t  needTs;
   int32_t  bufSize;
   int32_t  codeLen;
   char     code[];
@@ -595,6 +597,7 @@ typedef struct {
   int32_t funcType;
   int8_t  resType;
   int16_t resBytes;
+  int32_t needTs;
   int32_t bufSize;
   int32_t len;
   char    content[];

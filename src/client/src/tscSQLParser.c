@@ -502,6 +502,8 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       strcpy(pMsg->name, createInfo->name.z);
       strcpy(pMsg->path, createInfo->path.z);
 
+      pMsg->needTs = htonl(createInfo->needTs);
+
       pMsg->funcType = htonl(createInfo->type);
       pMsg->bufSize = htonl(createInfo->bufSize);
 
@@ -3102,12 +3104,24 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
+      SExprInfo* pExpr = NULL;
+      SColumnList ids = createColumnList(1, 0, 0);
+
+      if (pUdfInfo->needTs != 0) {
+        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
+        pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
+                                         TSDB_KEYSIZE, getNewResColId(pCmd), TSDB_KEYSIZE, false);
+        tstrncpy(pExpr->base.aliasName, aAggs[TSDB_FUNC_TS_DUMMY].name, sizeof(pExpr->base.aliasName));
+
+        insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS_DUMMY].name, pExpr);
+      }
+
       int32_t inter   = 0;
       int16_t resType = 0;
       int16_t bytes   = 0;
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, false, pUdfInfo);
 
-      SExprInfo* pExpr = tscExprAppend(pQueryInfo, functionId, &index, resType, bytes, getNewResColId(pCmd), inter, false);
+      pExpr = tscExprAppend(pQueryInfo, functionId, &index, resType, bytes, getNewResColId(pCmd), inter, false);
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token, sizeof(pExpr->base.aliasName) - 1);
@@ -3118,9 +3132,15 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       s.colId = pExpr->base.colInfo.colId;
 
       uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
-      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+      ids = createColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
-        insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
+        if (pUdfInfo->needTs != 0) {
+          int32_t numOfOutput = tscNumOfFields(pQueryInfo);
+          insertResultField(pQueryInfo, numOfOutput, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
+          pExpr->base.udfNeedTs = pUdfInfo->needTs;
+        } else {
+          insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
+        }
       } else {
         for (int32_t i = 0; i < ids.num; ++i) {
           tscColumnListInsert(pQueryInfo->colList, index.columnIndex, uid, &s);

@@ -2058,6 +2058,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->inputBytes = pSqlExpr->colBytes;
     pCtx->inputType  = pSqlExpr->colType;
 
+    pCtx->udfNeedTs    = pSqlExpr->udfNeedTs;
     pCtx->ptsOutputBuf = NULL;
 
     pCtx->outputBytes  = pSqlExpr->resBytes;
@@ -3685,8 +3686,9 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
 
     // set the timestamp output buffer for top/bottom/diff query
     int32_t fid = pCtx[i].functionId;
+    int32_t needTs = pCtx[i].udfNeedTs;
     if (fid == TSDB_FUNC_TOP || fid == TSDB_FUNC_BOTTOM || fid == TSDB_FUNC_DIFF || fid == TSDB_FUNC_DERIVATIVE ||
-        fid == TSDB_FUNC_SAMPLE || fid == TSDB_FUNC_MAVG || fid == TSDB_FUNC_CSUM) {
+        fid == TSDB_FUNC_SAMPLE || fid == TSDB_FUNC_MAVG || fid == TSDB_FUNC_CSUM || (fid < 0 && needTs != 0)) {
       if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
   }
@@ -3722,11 +3724,12 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
 
     // set the correct pointer after the memory buffer reallocated.
     int32_t functionId = pBInfo->pCtx[i].functionId;
+    int32_t needTs = pBInfo->pCtx[i].udfNeedTs;
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
         functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG ||
-        functionId == TSDB_FUNC_SAMPLE ) {
+        functionId == TSDB_FUNC_SAMPLE || (functionId < 0 && needTs != 0)) {
       if (i > 0) pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
     }
   }
@@ -4018,9 +4021,10 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
     offset += pCtx[i].outputBytes;
 
     int32_t functionId = pCtx[i].functionId;
+    int32_t needTs = pCtx[i].udfNeedTs;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
         functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
-        functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_CSUM) {
+        functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_CSUM || (functionId < 0 && needTs != 0)) {
       if(i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
 
@@ -7685,6 +7689,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pExprMsg->colType       = htons(pExprMsg->colType);
 
     pExprMsg->resType       = htons(pExprMsg->resType);
+    pExprMsg->udfNeedTs     = htonl(pExprMsg->udfNeedTs);
     pExprMsg->resBytes      = htons(pExprMsg->resBytes);
     pExprMsg->interBytes    = htonl(pExprMsg->interBytes);
 

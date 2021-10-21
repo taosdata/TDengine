@@ -190,7 +190,7 @@ static int32_t mnodeUpdateFunc(SFuncObj *pFunc, void *pMsg) {
   return code;
 }
 */
-int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, int32_t bufSize, SMnodeMsg *pMsg) {
+int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, int32_t bufSize, int32_t needTs, SMnodeMsg *pMsg) {
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_GRANT_EXPIRED;
   }
@@ -240,6 +240,7 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   pFunc->createdTime = taosGetTimestampMs();
   pFunc->resType     = outputType;
   pFunc->resBytes    = outputLen;
+  pFunc->needTs      = needTs;
   pFunc->funcType    = funcType;
   pFunc->bufSize     = bufSize;
   pFunc->sig  = 0;
@@ -426,10 +427,12 @@ static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg) {
   SCreateFuncMsg *pCreate    = pMsg->rpcMsg.pCont;
   pCreate->codeLen       = htonl(pCreate->codeLen);
   pCreate->outputLen     = htons(pCreate->outputLen);
+  pCreate->needTs        = htonl(pCreate->needTs);
   pCreate->funcType      = htonl(pCreate->funcType);
   pCreate->bufSize       = htonl(pCreate->bufSize);
 
-  return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pCreate->outputType, pCreate->outputLen, pCreate->funcType, pCreate->bufSize, pMsg);
+  return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pCreate->outputType,
+                         pCreate->outputLen, pCreate->funcType, pCreate->bufSize, pCreate->needTs, pMsg);
 }
 
 static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg) {

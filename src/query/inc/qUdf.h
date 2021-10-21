@@ -38,6 +38,7 @@ typedef struct SUdfInfo {
   int32_t funcType;    // scalar function or aggregate function
   int8_t  resType;     // result type
   int16_t resBytes;    // result byte
+  int32_t needTs;      // tell server to return timestamp
   int32_t contLen;     // content length
   int32_t bufSize;     //interbuf size
   char   *name;        // function name
