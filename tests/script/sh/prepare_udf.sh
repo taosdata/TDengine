@@ -1,8 +1,9 @@
 #!/bin/sh
 
+mkdir /tmp
 echo -n "hello" > /tmp/normal
 echo -n "" > /tmp/empty
-dd if=/dev/zero bs=3584 of=/tmp/big count=1
+dd if=/dev/zero bs=3584 of=~/tmp/big count=1
 
 rm -rf /tmp/sum_double.so /tmp/add_one.so
 touch /tmp/normal
