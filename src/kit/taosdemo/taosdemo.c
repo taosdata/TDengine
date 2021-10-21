@@ -2508,7 +2508,7 @@ static void rand_string(char *str, int size) {
         //--size;
         int n;
         for (n = 0; n < size; n++) {
-            int key = abs(rand_tinyint()) % (int)(sizeof(charset) - 1);
+            int key = abs(taosRandom()) % (int)(sizeof(charset) - 1);
             str[n] = charset[key];
         }
         str[n] = 0;
