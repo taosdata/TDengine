@@ -140,8 +140,7 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         JSONArray data = jsonObject.getJSONArray("data");
         if (data != null) {
-            int rows = data.getJSONArray(0).getInteger(0);
-            return rows == 0 ? -1 : data.getJSONArray(0).getInteger(0);
+            return data.getJSONArray(0).getInteger(0);
         }
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
     }
