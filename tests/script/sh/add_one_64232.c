@@ -17,7 +17,7 @@ void add_one_64232(char* data, short itype, short ibytes, int numOfRows, long lo
    printf("add_one_64232 input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
    if (itype == 5) {
      for(i=0;i<numOfRows;++i) {
-       printf("input %d - %d", i, *((long *)data + i));
+       printf("input %d - %ld", i, *((long *)data + i));
        *((int *)dataOutput+i)=(int)*((long *)data + i) + 1;
        printf(", output %d\n", *((int *)dataOutput+i));
        if (tsOutput) {
