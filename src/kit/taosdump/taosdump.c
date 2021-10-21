@@ -234,11 +234,23 @@ typedef struct {
 } resultStatistics;
 
 #if AVRO_SUPPORT == 1
-#ifdef DEFLATE_CODEC
-    #define QUICKSTOP_CODEC  "deflate"
-#else
-    #define QUICKSTOP_CODEC  "null"
-#endif
+
+enum enAvro_Codec {
+    AVRO_CODEC_START = 0,
+    AVRO_CODEC_NULL = AVRO_CODEC_START,
+    AVRO_CODEC_DEFLATE,
+    AVRO_CODEC_SNAPPY,
+    AVRO_CODEC_LZMA,
+    AVRO_CODEC_UNKNOWN = 255
+};
+
+char *g_avro_codec[] = {
+    "null",
+    "deflate",
+    "snappy",
+    "lzma",
+    "unknown"
+};
 
 /* avro sectin begin */
 #define RECORD_NAME_LEN     64
@@ -311,6 +323,7 @@ static struct argp_option options[] = {
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
     {"avro", 'v', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
+    {"avro-codec", 'd', "null", 0,  "Choose an avro codec among null, deflate, snappy, and lzma.", 2},
     {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00:000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
     {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
     {"data-batch",  'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Max value is 32766. Default is 1.", 3},
@@ -345,6 +358,7 @@ typedef struct arguments {
     bool     schemaonly;
     bool     with_property;
     bool     avro;
+    int      avro_codec;
     int64_t  start_time;
     char     humanStartTime[HUMAN_TIME_LEN];
     int64_t  end_time;
@@ -416,6 +430,7 @@ struct arguments g_args = {
     false,      // schemaonly
     true,       // with_property
     false,      // avro format
+    AVRO_CODEC_NULL,// avro codec
     -INT64_MAX + 1, // start_time
     {0},        // humanStartTime
     INT64_MAX,  // end_time
@@ -426,7 +441,7 @@ struct arguments g_args = {
     1,          // table_batch
     false,      // allow_sys
     // other options
-    5,          // thread_num
+    8,          // thread_num
     0,          // abort
     NULL,       // arg_list
     0,          // arg_list_len
@@ -573,6 +588,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             } else {
                 errorPrintReqArg3("taosdump", "-i or --inpath");
                 exit(EXIT_FAILURE);
+            }
+            break;
+
+        case 'd':
+            for (int i = AVRO_CODEC_START; i < AVRO_CODEC_UNKNOWN; i ++) {
+                if (0 == strcmp(arg, g_avro_codec[i])) {
+                    g_args.avro_codec = i;
+                    break;
+                }
             }
             break;
 
@@ -2413,11 +2437,9 @@ static RecordSchema *parse_json_to_recordschema(json_t *element)
                 size_t i;
                 size_t size = json_array_size(value);
 
-#ifdef DEBUG
-                printf("%s() LN%d, JSON Array of %lld element%s:\n",
+                verbosePrint("%s() LN%d, JSON Array of %lld element%s:\n",
                         __func__, __LINE__,
                         (long long)size, json_plural(size));
-#endif
 
                 recordSchema->num_fields = size;
                 recordSchema->fields = malloc(sizeof(FieldStruct) * size);
@@ -2509,7 +2531,8 @@ static int64_t writeResultToAvro(
 
     avro_file_writer_t db;
 
-    int rval = avro_file_writer_create(avroFilename, schema, &db);
+    int rval = avro_file_writer_create_with_codec
+        (avroFilename, schema, &db, g_avro_codec[g_args.avro_codec], 0);
     if (rval) {
         errorPrint("There was an error creating %s\n", avroFilename);
         exit(EXIT_FAILURE);
@@ -3472,6 +3495,7 @@ int main(int argc, char *argv[]) {
     fprintf(g_fpOfResult, "schemaonly: %s\n", g_args.schemaonly?"true":"false");
     fprintf(g_fpOfResult, "with_property: %s\n", g_args.with_property?"true":"false");
     fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
+    fprintf(g_fpOfResult, "avro codec: %s\n", g_avro_codec[g_args.avro_codec]);
     fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", g_args.start_time);
     fprintf(g_fpOfResult, "human readable start time: %s \n", g_args.humanStartTime);
     fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", g_args.end_time);
