@@ -309,7 +309,8 @@ typedef struct SQueryRuntimeEnv {
   STableQueryInfo      *current;
   SRspResultInfo        resultInfo;
   SHashObj             *pTableRetrieveTsMap;
-  SUdfInfo             *pUdfInfo;
+  SUdfInfo             *pUdfInfo;  
+  bool                  udfIsCopy;
 } SQueryRuntimeEnv;
 
 enum {
