@@ -7058,6 +7058,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
 {
     int32_t affectedRows;
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
+    TAOS_RES* res;
     int32_t code;
     uint16_t iface;
     if (stbInfo)
@@ -7111,17 +7112,14 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             affectedRows = k;
             break;
         case SML_IFACE:
-            code = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, 0, pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI
-                    ? "ms"
-                    : (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO
-                           ? "us"
-                           : "ns"));
-            if (code) {
+            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, 0, pThreadInfo->time_precision);
+            code = taos_errno(res);
+            affectedRows = taos_affected_rows(res);
+            if (code != TSDB_CODE_SUCCESS) {
                 errorPrint2("%s() LN%d, failed to execute schemaless insert. reason: %s\n",
-                __func__, __LINE__, tstrerror(code));
+                __func__, __LINE__, taos_errstr(res));
                 exit(EXIT_FAILURE);
             }
-            affectedRows = k;
             break;
         default:
             errorPrint2("%s() LN%d: unknown insert mode: %d\n",

@@ -209,7 +209,8 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          // sh'''
+
+
           // rm -rf ${WORKSPACE}.tes
           // cp -r ${WORKSPACE} ${WORKSPACE}.tes
           // cd ${WORKSPACE}.tes
