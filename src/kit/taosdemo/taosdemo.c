@@ -3446,7 +3446,6 @@ static int postProceSql(char *host, uint16_t port,
             g_queryInfo.user, g_queryInfo.password);
     }
     
-    
     size_t userpass_buf_len = strlen(userpass_buf);
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
