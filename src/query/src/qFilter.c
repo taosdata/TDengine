@@ -1988,6 +1988,9 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint16_t colI
       filterAddUnitRange(info, u, ctx, TSDB_RELATION_AND);
       CHK_JMP(MR_EMPTY_RES(ctx));
     }
+    if(FILTER_UNIT_OPTR(u) == TSDB_RELATION_EQUAL){
+      gRes->colInfo[colIdx].optr = TSDB_RELATION_EQUAL;
+    }
   }
 
   taosArrayDestroy(colArray);
@@ -2097,6 +2100,11 @@ void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool
 
       if (idx1 > idx2) {
         continue;
+      }
+
+      if (gRes1->colInfo[idx1].optr == TSDB_RELATION_EQUAL && gRes2->colInfo[idx2].optr == TSDB_RELATION_EQUAL) {
+        *conflict = true;
+        return;
       }
 
       if (FILTER_NO_MERGE_DATA_TYPE(gRes1->colInfo[idx1].dataType)) {
