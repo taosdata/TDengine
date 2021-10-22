@@ -1,9 +1,7 @@
 import hudson.model.Result
 import hudson.model.*;
 import jenkins.model.CauseOfInterruption
-properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/taosdata/TDengine.git'
 }
 
 def skipbuild=0
@@ -194,6 +192,7 @@ def pre_test_win(){
 }
 pipeline {
   agent none
+  options { skipDefaultCheckout() } 
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
