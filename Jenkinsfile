@@ -201,8 +201,8 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
-          when {
-              changeRequest()
+          when{
+                changeRequest()
           }
           steps {
             script{
@@ -255,6 +255,7 @@ pipeline {
                expression{
                 return skipbuild.trim() == '2'
               }
+              not{ expression { env.CHANGE_BRANCH =~ /docs\// }}
             }
           }
       parallel {

@@ -1620,7 +1620,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
       SColIdx *pColIdx = kvRowColIdxAt(rowBody, chosen_itr);
       colId = pColIdx->colId;
       offset = pColIdx->offset;
-      value = tdGetKvRowDataOfCol(rowBody, pColIdx->offset);
+      value = tdGetKvRowDataOfCol(rowBody, offset);
     }
 
 

@@ -57,7 +57,7 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 
 ### 导入 Dashboard
 
-使用 Web 浏览器访问 IP:3000 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
+使用 Web 浏览器访问运行 Grafana 的服务器的3000端口 host:3000 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
 点击左侧齿轮图标并选择 Plugins，应该可以找到 TDengine data source 插件图标。
 
 #### 导入 collectd 仪表盘
