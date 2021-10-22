@@ -1101,7 +1101,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         continue;
       }
       if (j == 1) {
-        uint8_t jsonNULL = *(uint8_t *)(varDataVal(val));
+        uint32_t jsonNULL = *(uint32_t *)(varDataVal(val));
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
       }
 
@@ -1187,7 +1187,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
         continue;
       }
       if (j == 1){
-        uint8_t jsonNULL = *(uint8_t*)(varDataVal(val));
+        uint32_t jsonNULL = *(uint32_t*)(varDataVal(val));
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
       }
 
@@ -1494,9 +1494,9 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
 }
 
 static SArray* getJsonTagTableList(STable *pTable){
-  uint8_t key = TSDB_DATA_JSON_NULL;
+  uint32_t key = TSDB_DATA_JSON_NULL;
   char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
-  jsonKeyMd5(&key, 1, keyMd5);
+  jsonKeyMd5(&key, INT_BYTES, keyMd5);
   SArray** tablist = (SArray**)taosHashGet(pTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
   return *tablist;

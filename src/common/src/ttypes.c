@@ -441,8 +441,8 @@ void setVardataNull(void* val, int32_t type) {
     varDataSetLen(val, sizeof(int32_t));
     *(uint32_t*) varDataVal(val) = TSDB_DATA_NCHAR_NULL;
   } else if (type == TSDB_DATA_TYPE_JSON) {
-    varDataSetLen(val, sizeof(int8_t));
-    *(uint8_t*) varDataVal(val) = TSDB_DATA_JSON_NULL;
+    varDataSetLen(val, sizeof(int32_t));
+    *(uint32_t*) varDataVal(val) = TSDB_DATA_JSON_NULL;
   } else {
     assert(0);
   }

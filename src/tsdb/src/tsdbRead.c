@@ -2679,9 +2679,9 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
   STSchema* pTagSchema = tsdbGetTableTagSchema(pSuperTable);
   if(pTagSchema && pTagSchema->numOfCols == 1 && pTagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
-    uint8_t key = TSDB_DATA_JSON_NULL;
+    uint32_t key = TSDB_DATA_JSON_NULL;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
-    jsonKeyMd5(&key, 1, keyMd5);
+    jsonKeyMd5(&key, INT_BYTES, keyMd5);
     SArray** tablist = (SArray**)taosHashGet(pSuperTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
 
     for (int i = 0; i < taosArrayGetSize(*tablist); ++i) {

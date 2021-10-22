@@ -1197,8 +1197,8 @@ static int32_t filterDealJson(SFilterInfo *info, tExprNode* tree, tExprNode** pL
   if(tree->_node.optr == TSDB_RELATION_ISNULL || tree->_node.optr == TSDB_RELATION_NOTNULL){
     if((*pLeft)->pSchema->type == TSDB_DATA_TYPE_JSON) {
       char    keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
-      uint8_t nullData = TSDB_DATA_JSON_NULL;
-      jsonKeyMd5(&nullData, 1, keyMd5);
+      uint32_t nullData = TSDB_DATA_JSON_NULL;
+      jsonKeyMd5(&nullData, INT_BYTES, keyMd5);
       memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
     }
   }else if(tree->_node.optr == TSDB_RELATION_MATCH || tree->_node.optr == TSDB_RELATION_NMATCH || tree->_node.optr == TSDB_RELATION_LIKE){
