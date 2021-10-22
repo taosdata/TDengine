@@ -200,6 +200,7 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
+          options { skipDefaultCheckout() } 
           when{
                 changeRequest()
           }
@@ -208,7 +209,7 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          // sh'''
+          //   sh'''
           // rm -rf ${WORKSPACE}.tes
           // cp -r ${WORKSPACE} ${WORKSPACE}.tes
           // cd ${WORKSPACE}.tes
@@ -244,16 +245,15 @@ pipeline {
           // sh'''
           // rm -rf ${WORKSPACE}.tes
           // '''
+          // }       
           }
       }
       stage('Parallel test stage') {
         //only build pr
+        options { skipDefaultCheckout() } 
         when {
           allOf{
               changeRequest()
-               expression{
-                return skipbuild.trim() == '2'
-              }
               not{ expression { env.CHANGE_BRANCH =~ /docs\// }}
             }
           }
@@ -261,7 +261,6 @@ pipeline {
         stage('python_1_s1') {
           agent{label " slave1 || slave11 "}
           steps {
-            
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
               sh '''
