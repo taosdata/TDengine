@@ -86,7 +86,9 @@ SSqlInfo qSqlParse(const char *pStr) {
           sqlInfo.valid = false;
           free(sql);
           goto abort_parse;
-	}
+        }
+
+        free(sql);
       }
 
       default:
