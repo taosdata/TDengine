@@ -780,20 +780,30 @@ static void vnodeCleanupVnodes() {
 }
 
 static void vnodeInitMsgFp() {
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = vnodeProcessMgmtMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = vnodeProcessMgmtMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE] = vnodeProcessMgmtMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE]  = vnodeProcessMgmtMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]   = vnodeProcessMgmtMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]    = vnodeProcessMgmtMsg;
   tsVmain.msgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = vnodeProcessMgmtMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = vnodeProcessMgmtMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = vnodeProcessMgmtMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = vnodeProcessWriteMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = vnodeProcessWriteMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE] = vnodeProcessWriteMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_MD_DROP_STABLE] = vnodeProcessWriteMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_SUBMIT] = vnodeProcessWriteMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = vnodeProcessWriteMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessReadMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessReadMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]    = vnodeProcessMgmtMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM]  = vnodeProcessMgmtMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE]  = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]    = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]   = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]   = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_SUBMIT]           = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL]   = vnodeProcessWriteMsg;
+  //mq related
+  tsVmain.msgFp[TSDB_MSG_TYPE_MQ_CONNECT]       = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MQ_DISCONNECT]    = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MQ_ACK]           = vnodeProcessWriteMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MQ_RESET]         = vnodeProcessWriteMsg;
+  //mq related end
+  tsVmain.msgFp[TSDB_MSG_TYPE_QUERY]            = vnodeProcessReadMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_FETCH]            = vnodeProcessReadMsg;
+  //mq related
+  tsVmain.msgFp[TSDB_MSG_TYPE_MQ_QUERY]         = vnodeProcessReadMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_MQ_CONSUME]       = vnodeProcessReadMsg;
+  //mq related end
 }
 
 void vnodeProcessMsg(SRpcMsg *pMsg) {

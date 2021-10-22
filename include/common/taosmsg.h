@@ -42,7 +42,9 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_UPDATE_TAG_VAL, "update-tag-val" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONSUME, "mq-consume" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_ACK, "mq-ack" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_RESET, "mq-reset" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY1, "dummy1" )
@@ -121,7 +123,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
 #ifndef TAOS_MESSAGE_C
-  TSDB_MSG_TYPE_MAX  // 105
+  TSDB_MSG_TYPE_MAX  // 147
 #endif
 
 };
@@ -957,6 +959,40 @@ typedef struct {
   char    desc[TSDB_STEP_DESC_LEN];
   char    reserved2[64];
 } SStartupStep;
+
+// mq related
+typedef struct {
+
+} SMqConnectReq;
+
+typedef struct {
+
+} SMqConnectRsp;
+
+typedef struct {
+
+} SMqDisconnectReq;
+
+typedef struct {
+
+} SMqDisconnectRsp;
+
+typedef struct {
+
+} SMqAckReq;
+
+typedef struct {
+
+} SMqAckRsp;
+
+typedef struct {
+
+} SMqResetReq;
+
+typedef struct {
+
+} SMqResetRsp;
+//mq related end
 
 typedef struct {
   /* data */

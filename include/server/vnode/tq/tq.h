@@ -26,8 +26,9 @@ typedef struct tmqMsgHead {
   int32_t headLen;
   int32_t msgVer;
   int64_t cgId;
-  int32_t topicLen;
-  char topic[];
+  int64_t topicId;
+  int32_t checksum;
+  int32_t msgType;
 } tmqMsgHead;
 
 //TODO: put msgs into common
