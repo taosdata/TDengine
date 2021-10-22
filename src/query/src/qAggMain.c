@@ -20,7 +20,6 @@
 #include "tdigest.h"
 #include "ttype.h"
 #include "tsdb.h"
-#include "tglobal.h"
 
 #include "qAggMain.h"
 #include "qFill.h"
@@ -172,7 +171,11 @@ typedef struct SDerivInfo {
 } SDerivInfo;
 
 typedef struct {
-  double cumSum;
+  union {
+    double d64CumSum;
+    int64_t i64CumSum;
+    uint64_t u64CumSum;
+  };
 } SCumSumInfo;
 
 typedef struct {
@@ -4709,7 +4712,7 @@ static bool csum_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   }
 
   SCumSumInfo* pCumSumInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pCumSumInfo->cumSum = 0;
+  pCumSumInfo->i64CumSum = 0;
   return true;
 }
 
@@ -4733,20 +4736,30 @@ static void csum_function(SQLFunctionCtx *pCtx) {
       continue;
     }
 
-    double v = 0;
-    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
-    pCumSumInfo->cumSum += v;
+    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+      int64_t v = 0;
+      GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+      pCumSumInfo->i64CumSum += v;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+      uint64_t v = 0;
+      GET_TYPED_DATA(v, uint64_t, pCtx->inputType, pData);
+      pCumSumInfo->u64CumSum += v;
+    } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
+      double v = 0;
+      GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+      pCumSumInfo->d64CumSum += v;
+    }
 
     *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       int64_t *retVal = (int64_t *)pCtx->pOutput;
-      *retVal = (int64_t)(pCumSumInfo->cumSum);
+      *retVal = (int64_t)(pCumSumInfo->i64CumSum);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       uint64_t *retVal = (uint64_t *)pCtx->pOutput;
-      *retVal = (uint64_t)(pCumSumInfo->cumSum);
+      *retVal = (uint64_t)(pCumSumInfo->u64CumSum);
     } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
       double *retVal = (double*) pCtx->pOutput;
-      SET_DOUBLE_VAL(retVal, pCumSumInfo->cumSum);
+      SET_DOUBLE_VAL(retVal, pCumSumInfo->d64CumSum);
     }
 
     ++notNullElems;
