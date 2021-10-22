@@ -22,7 +22,6 @@ public class RestfulStatement extends AbstractStatement {
     private final RestfulConnection conn;
 
     private volatile RestfulResultSet resultSet;
-    private volatile int affectedRows;
 
     public RestfulStatement(RestfulConnection conn, String database) {
         this.conn = conn;
@@ -118,7 +117,7 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
         }
         this.resultSet = new RestfulResultSet(database, this, resultJson);
-        this.affectedRows = 0;
+        this.affectedRows = -1;
         return resultSet;
     }
 
@@ -140,9 +139,10 @@ public class RestfulStatement extends AbstractStatement {
         if (head.size() != 1 || !"affected_rows".equals(head.getString(0)))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         JSONArray data = jsonObject.getJSONArray("data");
-        if (data != null)
-            return data.getJSONArray(0).getInteger(0);
-
+        if (data != null) {
+            int rows = data.getJSONArray(0).getInteger(0);
+            return rows == 0 ? -1 : data.getJSONArray(0).getInteger(0);
+        }
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
     }
 

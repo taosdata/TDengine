@@ -5095,7 +5095,6 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
 
   if (nextStr == NULL) {
     tstrncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
-    len = (int32_t) strlen(tablename);
   } else {
     len = (int32_t)(nextStr - (*str));
     if (len >= TSDB_TABLE_NAME_LEN) {
