@@ -3105,15 +3105,17 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       SExprInfo* pExpr = NULL;
-      SColumnList ids = createColumnList(1, 0, 0);
+      SColumnList ids = createColumnList(1, index.tableIndex, 0);
 
       if (pUdfInfo->needTs != 0) {
-        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
+        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
         pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
                                          TSDB_KEYSIZE, getNewResColId(pCmd), TSDB_KEYSIZE, false);
         tstrncpy(pExpr->base.aliasName, aAggs[TSDB_FUNC_TS_DUMMY].name, sizeof(pExpr->base.aliasName));
 
         insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS_DUMMY].name, pExpr);
+
+        colIndex += 1;  // the first column is ts
       }
 
       int32_t inter   = 0;
@@ -3134,12 +3136,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
       ids = createColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
+        insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
+
         if (pUdfInfo->needTs != 0) {
-          int32_t numOfOutput = tscNumOfFields(pQueryInfo);
-          insertResultField(pQueryInfo, numOfOutput, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
           pExpr->base.udfNeedTs = pUdfInfo->needTs;
-        } else {
-          insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
         }
       } else {
         for (int32_t i = 0; i < ids.num; ++i) {
@@ -3586,6 +3586,7 @@ bool groupbyTbname(SQueryInfo* pQueryInfo) {
 
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery) {
   int32_t startIdx = 0;
+  int32_t needTsUdf = 0;
   int32_t aggUdf = 0;
   int32_t scalarUdf = 0;
   int32_t prjNum = 0;
@@ -3608,6 +3609,9 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     if (functionId < 0) {
        SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
        pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE ? ++aggUdf : ++scalarUdf;
+       if (pUdfInfo->needTs == 1) {
+         ++needTsUdf;
+       }
 
        continue;
     }
@@ -3646,6 +3650,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       return false;
     }
   }
+
+  // if there is a needTs (TSDB_FUNC_TS or TSDB_FUNC_TS_DUMMY), there is a prjNum
+  prjNum -= needTsUdf;
+  size -= (size_t)(needTsUdf);
 
   aggNum = (int32_t)size - prjNum - scalNum - aggUdf - scalarUdf;
 
