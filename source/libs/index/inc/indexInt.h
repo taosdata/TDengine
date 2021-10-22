@@ -39,6 +39,27 @@ struct SIndexOpts {
 #endif  
 };
 
+struct SIndexMultiTermQuery {
+  EIndexOperatorType opera;   
+  SArray *query;
+};
+
+// field and key;
+typedef struct SIndexTerm {
+  char    *key;
+  int32_t nKey;
+  char    *val;
+  int32_t nVal;
+} SIndexTerm;
+
+typedef struct SIndexTermQuery {
+  SIndexTerm*     field_value;
+  EIndexQueryType type;
+} SIndexTermQuery;
+
+
+SIndexTerm *indexTermCreate(const char *key, int32_t nKey, const char *val, int32_t nVal);
+void        indexTermDestroy(SIndexTerm *p);
 #ifdef __cplusplus
 }
 #endif
