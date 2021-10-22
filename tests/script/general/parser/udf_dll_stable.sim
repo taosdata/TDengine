@@ -1215,8 +1215,11 @@ sql_error select add_one(f1),sub_one(f1) from tb1;
 
 sql create table taaa (ts timestamp, f1 bigint);
 sql insert into taaa values (now, 1);
+sleep 100
 sql insert into taaa values (now, 10);
+sleep 100
 sql insert into taaa values (now, 1000);
+sleep 100
 sql insert into taaa values (now, 100);
 
 sql select add_one_64232(f1) from taaa;
