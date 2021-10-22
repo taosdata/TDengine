@@ -3438,8 +3438,15 @@ static int postProceSql(char *host, uint16_t port,
         'w', 'x', 'y', 'z', '0', '1', '2', '3',
         '4', '5', '6', '7', '8', '9', '+', '/'};
 
-    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
+    if (g_args.test_mode == INSERT_TEST) {
+        snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
             g_Dbs.user, g_Dbs.password);
+    } else {
+        snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
+            g_queryInfo.user, g_queryInfo.password);
+    }
+    
+    
     size_t userpass_buf_len = strlen(userpass_buf);
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
