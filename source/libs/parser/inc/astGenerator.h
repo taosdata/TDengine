@@ -233,7 +233,7 @@ typedef struct tSqlExpr {
   // The complete string of the function(col, param), and the function name is kept in exprToken
   struct {
     SToken           operand;
-    struct SArray   *paramList;      // function parameters list
+    struct SArray   *paramList;   // function parameters list
   } Expr;
 
   SToken             columnName;  // table column info

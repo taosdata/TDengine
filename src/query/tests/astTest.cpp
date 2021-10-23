@@ -459,7 +459,7 @@ namespace {
 // two level expression tree
 tExprNode *createExpr1() {
   auto *pLeft = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pLeft->nodeType = TSQL_NODE_COL;
+  pLeft->nodeType = TEXPR_COL_NODE;
   pLeft->pSchema = (SSchema*) calloc(1, sizeof(SSchema));
   
   strcpy(pLeft->pSchema->name, "col_a");
@@ -468,14 +468,14 @@ tExprNode *createExpr1() {
   pLeft->pSchema->colId = 1;
   
   auto *pRight = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pRight->nodeType = TSQL_NODE_VALUE;
+  pRight->nodeType = TEXPR_VALUE_NODE;
   pRight->pVal = (tVariant*) calloc(1, sizeof(tVariant));
   
   pRight->pVal->nType = TSDB_DATA_TYPE_INT;
   pRight->pVal->i64 = 12;
   
   auto *pRoot = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pRoot->nodeType = TSQL_NODE_EXPR;
+  pRoot->nodeType = TEXPR_NODE_EXPR;
   
   pRoot->_node.optr = TSDB_RELATION_EQUAL;
   pRoot->_node.pLeft = pLeft;
@@ -488,7 +488,7 @@ tExprNode *createExpr1() {
 // thress level expression tree
 tExprNode* createExpr2() {
   auto *pLeft2 = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pLeft2->nodeType = TSQL_NODE_COL;
+  pLeft2->nodeType = TEXPR_COL_NODE;
   pLeft2->pSchema = (SSchema*) calloc(1, sizeof(SSchema));
   
   strcpy(pLeft2->pSchema->name, "col_a");
@@ -497,7 +497,7 @@ tExprNode* createExpr2() {
   pLeft2->pSchema->colId = 1;
   
   auto *pRight2 = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pRight2->nodeType = TSQL_NODE_VALUE;
+  pRight2->nodeType = TEXPR_VALUE_NODE;
   pRight2->pVal = (tVariant*) calloc(1, sizeof(tVariant));
   
   pRight2->pVal->nType = TSDB_DATA_TYPE_BINARY;
@@ -506,7 +506,7 @@ tExprNode* createExpr2() {
   pRight2->pVal->nLen = strlen(v);
   
   auto *p1 = (tExprNode*) calloc(1, sizeof(tExprNode));
-  p1->nodeType = TSQL_NODE_EXPR;
+  p1->nodeType = TEXPR_NODE_EXPR;
   
   p1->_node.optr = TSDB_RELATION_LIKE;
   p1->_node.pLeft = pLeft2;
@@ -514,7 +514,7 @@ tExprNode* createExpr2() {
   p1->_node.hasPK = false;
   
   auto *pLeft1 = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pLeft1->nodeType = TSQL_NODE_COL;
+  pLeft1->nodeType = TEXPR_COL_NODE;
   pLeft1->pSchema = (SSchema*) calloc(1, sizeof(SSchema));
   
   strcpy(pLeft1->pSchema->name, "col_b");
@@ -523,14 +523,14 @@ tExprNode* createExpr2() {
   pLeft1->pSchema->colId = 99;
   
   auto *pRight1 = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pRight1->nodeType = TSQL_NODE_VALUE;
+  pRight1->nodeType = TEXPR_VALUE_NODE;
   pRight1->pVal = (tVariant*) calloc(1, sizeof(tVariant));
   
   pRight1->pVal->nType = TSDB_DATA_TYPE_DOUBLE;
   pRight1->pVal->dKey = 91.99;
   
   auto *p2 = (tExprNode*) calloc(1, sizeof(tExprNode));
-  p2->nodeType = TSQL_NODE_EXPR;
+  p2->nodeType = TEXPR_NODE_EXPR;
   
   p2->_node.optr = TSDB_RELATION_GREATER_EQUAL;
   p2->_node.pLeft = pLeft1;
@@ -538,7 +538,7 @@ tExprNode* createExpr2() {
   p2->_node.hasPK = false;
   
   auto *pRoot = (tExprNode*) calloc(1, sizeof(tExprNode));
-  pRoot->nodeType = TSQL_NODE_EXPR;
+  pRoot->nodeType = TEXPR_NODE_EXPR;
   
   pRoot->_node.optr = TSDB_RELATION_OR;
   pRoot->_node.pLeft = p1;
@@ -605,11 +605,11 @@ void exprSerializeTest2() {
   
   ASSERT_EQ(c1Left->nodeType, c2Left->nodeType);
   
-  ASSERT_EQ(c2Left->nodeType, TSQL_NODE_EXPR);
+  ASSERT_EQ(c2Left->nodeType, TEXPR_NODE_EXPR);
   ASSERT_EQ(c2Left->_node.optr, TSDB_RELATION_LIKE);
   
   ASSERT_STRCASEEQ(c2Left->_node.pLeft->pSchema->name, "col_a");
-  ASSERT_EQ(c2Left->_node.pRight->nodeType, TSQL_NODE_VALUE);
+  ASSERT_EQ(c2Left->_node.pRight->nodeType, TEXPR_VALUE_NODE);
   
   ASSERT_STRCASEEQ(c2Left->_node.pRight->pVal->pz, "hello world!");
   
@@ -617,7 +617,7 @@ void exprSerializeTest2() {
   tExprNode* c2Right = p2->_node.pRight;
   
   ASSERT_EQ(c1Right->nodeType, c2Right->nodeType);
-  ASSERT_EQ(c2Right->nodeType, TSQL_NODE_EXPR);
+  ASSERT_EQ(c2Right->nodeType, TEXPR_NODE_EXPR);
   ASSERT_EQ(c2Right->_node.optr, TSDB_RELATION_GREATER_EQUAL);
   ASSERT_EQ(c2Right->_node.pRight->pVal->dKey, 91.99);
   

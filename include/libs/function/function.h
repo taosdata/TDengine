@@ -22,10 +22,12 @@ extern "C" {
 
 #include "common.h"
 #include "tvariant.h"
+#include "tbuffer.h"
 
 #define FUNCTION_SCALAR       1
 #define FUNCTION_AGG          2
 
+#define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 16
 
 #define FUNCTION_INVALID_ID  -1
@@ -121,6 +123,35 @@ typedef struct SQLFunctionCtx {
   SPoint1      end;
 } SQLFunctionCtx;
 
+enum {
+  TEXPR_NODE_DUMMY     = 0x0,
+  TEXPR_BINARYEXPR_NODE= 0x1,
+  TEXPR_UNARYEXPR_NODE = 0x2,
+  TEXPR_COL_NODE       = 0x4,
+  TEXPR_VALUE_NODE     = 0x8,
+};
+
+typedef struct tExprNode {
+  uint8_t nodeType;
+  union {
+    struct {
+      union {
+        int32_t         optr;   // binary operator
+        int32_t         functionId;// unary operator
+      };
+      void             *info;   // support filter operation on this expression only available for leaf node
+      struct tExprNode *pLeft;  // left child pointer
+      struct tExprNode *pRight; // right child pointer
+    } _node;
+
+    SSchema            *pSchema;// column node
+    struct SVariant    *pVal;   // value node
+  };
+} tExprNode;
+
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
+void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
+
 typedef struct SAggFunctionInfo {
   char     name[FUNCTIONS_NAME_MAX_LENGTH];
   int8_t   type;         // Scalar function or aggregation function
@@ -157,6 +188,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
  * @return
  */
 int32_t qIsBuiltinFunction(const char* name, int32_t len);
+
+bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
+
+const char* qGetFunctionName(int32_t functionId);
 
 #ifdef __cplusplus
 }

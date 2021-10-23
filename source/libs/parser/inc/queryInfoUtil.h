@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef TDENGINE_QUERYINFOUTIL_H
 #define TDENGINE_QUERYINFOUTIL_H
 
@@ -31,14 +30,16 @@ SSchema *getTableTagSchema(const STableMeta* pTableMeta);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 
 size_t     getNumOfExprs(SQueryStmtInfo* pQueryInfo);
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                          int16_t size, int16_t resColId, int16_t interSize, int32_t colType);
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex,
+                          SSchema* pResSchema, int16_t interSize);
 void       addExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index, SExprInfo* pExprInfo);
 void       updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize);
 void       assignExprInfo(SExprInfo* dst, const SExprInfo* src);
 
 SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index);
 int32_t    copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy);
+
+void       addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
 void       cleanupFieldInfo(SFieldInfo* pFieldInfo);
 

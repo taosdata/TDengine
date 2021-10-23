@@ -35,6 +35,14 @@ int32_t qIsBuiltinFunction(const char* name, int32_t len) {
   }
 }
 
+bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId) {
+  return true;
+}
+
+const char* qGetFunctionName(int32_t functionId) {
+
+}
+
 bool isTagsQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {

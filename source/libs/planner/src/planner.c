@@ -33,11 +33,11 @@ int32_t qQueryPlanToSql(struct SQueryNode* pQueryNode, char** sql) {
   return 0;
 }
 
-int32_t qCreatePhysicalPlan(struct SQueryNode* pQueryNode, struct SEpSet* pQnode, struct SQueryPhyNode *pPhyNode) {
+int32_t qCreatePhysicalPlan(struct SQueryNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDistPlanNode *pPhyNode) {
   return 0;
 }
 
-int32_t qPhyPlanToString(struct SQueryPhyNode *pPhyNode, char** str) {
+int32_t qPhyPlanToString(struct SQueryDistPlanNode *pPhyNode, char** str) {
   return 0;
 }
 
@@ -45,10 +45,10 @@ void* qDestroyQueryPlan(struct SQueryNode* pQueryNode) {
   return NULL;
 }
 
-void* qDestroyQueryPhyPlan(struct SQueryPhyNode* pQueryPhyNode) {
+void* qDestroyQueryPhyPlan(struct SQueryDistPlanNode* pQueryPhyNode) {
   return NULL;
 }
 
-int32_t qCreateQueryJob(const struct SQueryPhyNode* pPhyNode, struct SQueryJob** pJob) {
+int32_t qCreateQueryJob(const struct SQueryDistPlanNode* pPhyNode, struct SQueryJob** pJob) {
   return 0;
 }

@@ -1,6 +1,7 @@
 #include "queryInfoUtil.h"
-#include "tmsgtype.h"
+#include <function.h>
 #include "astGenerator.h"
+#include "function.h"
 #include "os.h"
 #include "parser.h"
 #include "parserInt.h"
@@ -54,56 +55,66 @@ SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                         int16_t size, int16_t resColId, int16_t interSize, int32_t colType) {
+static tExprNode* createUnaryFunctionExprNode(int32_t functionId, SSchema* pSchema) {
+  tExprNode* pColumnNode = calloc(1, sizeof(tExprNode));
+  pColumnNode->nodeType = TEXPR_COL_NODE;
+  pColumnNode->pSchema = calloc(1, sizeof(SSchema));
+  memcpy(pColumnNode->pSchema, pSchema, sizeof(SSchema));
+
+  tExprNode* pNode = calloc(1, sizeof(tExprNode));
+  pNode->nodeType = TEXPR_UNARYEXPR_NODE;
+  pNode->_node.functionId = functionId;
+  pNode->_node.pLeft = pColumnNode;
+
+  return pNode;
+}
+
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, SSchema* pResSchema, int16_t interSize) {
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
   if (pExpr == NULL) {
     return NULL;
   }
 
   SSqlExpr* p = &pExpr->base;
-  p->functionId = functionId;
 
   // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     SSchema* s = getTbnameColumnSchema();
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
-    p->colBytes = s->bytes;
-    p->colType  = s->type;
+    pExpr->pExpr = createUnaryFunctionExprNode(functionId, s);
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     p->colInfo.colId = pColIndex->columnIndex;
-    p->colBytes = size;
-    p->colType  = type;
-  } else if (functionId == 0/*TSDB_FUNC_BLKINFO*/) {
-    assert(0);
+    SSchema s = {.colId = pColIndex->columnIndex, .bytes = pResSchema->bytes, .type = pResSchema->type};
+    tstrncpy(s.name, pResSchema->name, TSDB_COL_NAME_LEN);
+    pExpr->pExpr = createUnaryFunctionExprNode(functionId, &s);
+  } else if (functionId == FUNCTION_BLKINFO) {
     p->colInfo.colId = pColIndex->columnIndex;
-    p->colBytes = TSDB_MAX_BINARY_LEN;
-    p->colType  = TSDB_DATA_TYPE_BINARY;
+    SSchema s = {.colId = pColIndex->columnIndex, .bytes = pResSchema->bytes, .type = pResSchema->type};
+    tstrncpy(s.name, pResSchema->name, TSDB_COL_NAME_LEN);
+    pExpr->pExpr = createUnaryFunctionExprNode(functionId, &s);
+//    p->colBytes = TSDB_MAX_BINARY_LEN;
+//    p->colType  = TSDB_DATA_TYPE_BINARY;
   } else {
     int32_t len = tListLen(p->colInfo.name);
-    if (TSDB_COL_IS_TAG(colType)) {
+    if (TSDB_COL_IS_TAG(pColIndex->type)) {
       SSchema* pSchema = getTableTagSchema(pTableMetaInfo->pTableMeta);
       p->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      p->colBytes = pSchema[pColIndex->columnIndex].bytes;
-      p->colType = pSchema[pColIndex->columnIndex].type;
+      pExpr->pExpr = createUnaryFunctionExprNode(functionId, &pSchema[pColIndex->columnIndex]);
       snprintf(p->colInfo.name, len, "%s.%s", pTableMetaInfo->aliasName, pSchema[pColIndex->columnIndex].name);
     } else if (pTableMetaInfo->pTableMeta != NULL) {
       // in handling select database/version/server_status(), the pTableMeta is NULL
       SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       p->colInfo.colId = pSchema->colId;
-      p->colBytes = pSchema->bytes;
-      p->colType  = pSchema->type;
       snprintf(p->colInfo.name, len, "%s.%s", pTableMetaInfo->aliasName, pSchema->name);
+
+      pExpr->pExpr = createUnaryFunctionExprNode(functionId, pSchema);
     }
   }
 
-  p->colInfo.flag     = colType;
+  p->colInfo.flag     = pColIndex->type;
   p->colInfo.colIndex = pColIndex->columnIndex;
-
-  p->resType       = type;
-  p->resBytes      = size;
-  p->resColId      = resColId;
-  p->interBytes    = interSize;
+  p->interBytes       = interSize;
+  memcpy(&p->resSchema, pResSchema, sizeof(SSchema));
 
   if (pTableMetaInfo->pTableMeta) {
     p->uid = pTableMetaInfo->pTableMeta->uid;
@@ -127,12 +138,12 @@ void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int
   assert(pExprInfo != NULL);
 
   SSqlExpr* pse = &pExprInfo->base;
-  pse->functionId = functionId;
+  pExprInfo->pExpr->_node.functionId = functionId;
 
   pse->colInfo.colIndex = srcColumnIndex;
-  pse->colInfo.colId = colId;
-  pse->resType  = resType;
-  pse->resBytes = resSize;
+  pse->colInfo.colId  = colId;
+  pse->resSchema.type  = resType;
+  pse->resSchema.bytes = resSize;
 }
 
 SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index) {
@@ -145,13 +156,13 @@ void destroyExprInfo(SArray* pExprInfo) {
 
   for(int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
-    tSqlExprDestroy(&pExpr->base);
+//    tSqlExprDestroy(&pExpr->base);
   }
 
   taosArrayDestroy(pExprInfo);
 }
 
-void addExprParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes) {
+void addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes) {
   assert (pExpr != NULL || argument != NULL || bytes != 0);
 
   // set parameter value
@@ -166,11 +177,12 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
   assert(dst != NULL && src != NULL);
 
   *dst = *src;
-
+#if 0
   if (src->base.flist.numOfFilters > 0) {
     dst->base.flist.filterInfo = calloc(src->base.flist.numOfFilters, sizeof(SColumnFilterInfo));
     memcpy(dst->base.flist.filterInfo, src->base.flist.filterInfo, sizeof(SColumnFilterInfo) * src->base.flist.numOfFilters);
   }
+#endif
 
   assert(0);
 //  dst->pExpr = exprdup(src->pExpr);
@@ -252,7 +264,7 @@ int32_t getResRowLength(SArray* pExprList) {
   int32_t size = 0;
   for(int32_t i = 0; i < num; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pExprList, i);
-    size += pExpr->base.resBytes;
+    size += pExpr->base.resSchema.bytes;
   }
 
   return size;
@@ -316,31 +328,10 @@ SArray* extractFunctionIdList(SArray* pExprInfoList) {
   SArray* p = taosArrayInit(len, sizeof(int16_t));
   for(int32_t i = 0; i < len; ++i) {
     SExprInfo* pExprInfo = taosArrayGetP(pExprInfoList, i);
-    taosArrayPush(p, &pExprInfo->base.functionId);
+    taosArrayPush(p, &pExprInfo->pExpr->_node.functionId);
   }
 
   return p;
-}
-
-bool tscIsProjectionQueryOnSTable(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
-
-bool tscNonOrderedProjectionQueryOnSTable(SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
-  if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
-    return false;
-  }
-
-  // order by columnIndex exists, not a non-ordered projection query
-  return pQueryInfo->order.orderColId < 0;
-}
-
-// not order by timestamp projection query on super table
-bool tscOrderedProjectionQueryOnSTable(SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
-  if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
-    return false;
-  }
-
-  // order by columnIndex exists, a non-ordered projection query
-  return pQueryInfo->order.orderColId >= 0;
 }
 
 bool tscHasColumnFilter(SQueryStmtInfo* pQueryInfo) {

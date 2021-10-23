@@ -78,8 +78,8 @@ int32_t parserValidateIdToken(SToken* pToken) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildInvalidOperationMsg(char* dst, int32_t dstBufLen, const char* msg) {
-  strncpy(dst, msg, dstBufLen);
+int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
+  strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
@@ -493,10 +493,23 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
 //  return len;
 //}
 
-TAOS_FIELD createField(int8_t type, const char* name, int16_t bytes) {
-  TAOS_FIELD f = { .type = type, .bytes = bytes, };
-  tstrncpy(f.name, name, sizeof(f.name));
+TAOS_FIELD createField(const SSchema* pSchema) {
+  TAOS_FIELD f = { .type = pSchema->type, .bytes = pSchema->bytes, };
+  tstrncpy(f.name, pSchema->name, sizeof(f.name));
   return f;
+}
+
+void setSchemaVal(SSchema* pSchema, uint8_t type, int16_t bytes, int16_t colId, const char* name){
+  assert(pSchema != NULL);
+  pSchema->type = type;
+  pSchema->bytes = bytes;
+  pSchema->colId = colId;
+
+  tstrncpy(pSchema->name, name, tListLen(pSchema->name));
+}
+
+int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
+  return pFieldInfo->numOfOutput;
 }
 
 int32_t getFirstInvisibleFieldPos(SQueryStmtInfo* pQueryInfo) {
@@ -524,11 +537,14 @@ SInternalField* appendFieldInfo(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
   return taosArrayPush(pFieldInfo->internalField, &info);
 }
 
-SInternalField* insertFieldInfo(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field) {
+SInternalField* insertFieldInfo(SFieldInfo* pFieldInfo, int32_t index, SSchema* pSchema) {
   pFieldInfo->numOfOutput++;
   struct SInternalField info = { .pExpr = NULL, .visible = true };
 
-  info.field = *field;
+  info.field.type = pSchema->type;
+  info.field.bytes = pSchema->bytes;
+  tstrncpy(info.field.name, pSchema->name, tListLen(pSchema->name));
+
   return taosArrayInsert(pFieldInfo->internalField, index, &info);
 }
 
@@ -539,12 +555,12 @@ void fieldInfoUpdateOffset(SQueryStmtInfo* pQueryInfo) {
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* p = taosArrayGetP(pQueryInfo->exprList, i);
 
-    p->base.offset = offset;
-    offset += p->base.resBytes;
+//    p->base.offset = offset;
+    offset += p->base.resSchema.bytes;
   }
 }
 
-SInternalField* fieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t index) {
+SInternalField* getInternalField(SFieldInfo* pFieldInfo, int32_t index) {
   assert(index < pFieldInfo->numOfOutput);
   return TARRAY_GET_ELEM(pFieldInfo->internalField, index);
 }
@@ -555,10 +571,10 @@ TAOS_FIELD* getFieldInfo(SFieldInfo* pFieldInfo, int32_t index) {
 }
 
 int16_t getFieldInfoOffset(SQueryStmtInfo* pQueryInfo, int32_t index) {
-  SInternalField* pInfo = fieldInfoGetInternalField(&pQueryInfo->fieldsInfo, index);
+  SInternalField* pInfo = getInternalField(&pQueryInfo->fieldsInfo, index);
   assert(pInfo != NULL && pInfo->pExpr->pExpr == NULL);
-
-  return pInfo->pExpr->base.offset;
+  return 0;
+//  return pInfo->pExpr->base.offset;
 }
 
 int32_t fieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize) {
@@ -659,10 +675,10 @@ void copyFieldInfo(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArray*
       SInternalField p = {.visible = pfield->visible, .field = pfield->field};
 
       bool found = false;
-      int32_t resColId = pfield->pExpr->base.resColId;
+      int32_t resColId = pfield->pExpr->base.resSchema.colId;
       for(int32_t j = 0; j < numOfExpr; ++j) {
         SExprInfo* pExpr = taosArrayGetP(pExprList, j);
-        if (pExpr->base.resColId == resColId) {
+        if (pExpr->base.resSchema.colId == resColId) {
           p.pExpr = pExpr;
           found = true;
           break;
@@ -757,6 +773,11 @@ SColumn* columnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid
   return taosArrayGetP(pColumnList, i);
 }
 
+SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid) {
+  SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+  return columnListInsert(pColumnList, PRIMARYKEY_TIMESTAMP_COL_INDEX, tableUid, &s);
+}
+
 void columnCopy(SColumn* pDest, const SColumn* pSrc);
 
 SColumn* columnClone(const SColumn* src) {
@@ -769,6 +790,30 @@ SColumn* columnClone(const SColumn* src) {
 
   columnCopy(dst, src);
   return dst;
+}
+
+SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
+  if (numOfFilters == 0 || src == NULL) {
+    assert(src == NULL);
+    return NULL;
+  }
+
+  SColumnFilterInfo* pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
+
+  memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
+  for (int32_t j = 0; j < numOfFilters; ++j) {
+    if (pFilter[j].filterstr) {
+      size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
+      pFilter[j].pz = (int64_t) calloc(1, len);
+
+      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
+    }
+  }
+
+  assert(src->filterstr == 0 || src->filterstr == 1);
+  assert(!(src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID));
+
+  return pFilter;
 }
 
 void columnCopy(SColumn* pDest, const SColumn* pSrc) {
@@ -1238,7 +1283,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryStmtInfo* pNewQueryInfo, int64_
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExpr = getExprInfo(pNewQueryInfo, i);
 
-    TAOS_FIELD f = createField((int8_t) pExpr->base.resType, pExpr->base.aliasName, pExpr->base.resBytes);
+    TAOS_FIELD f = createField(&pExpr->base.resSchema);
     SInternalField* pInfo1 = appendFieldInfo(&pNewQueryInfo->fieldsInfo, &f);
     pInfo1->pExpr = pExpr;
   }
@@ -1252,7 +1297,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryStmtInfo* pNewQueryInfo, int64_
     for (int32_t k1 = 0; k1 < numOfOutput; ++k1) {
       SExprInfo* pExpr1 = getExprInfo(pNewQueryInfo, k1);
 
-      if (strcmp(field->name, pExpr1->base.aliasName) == 0) {  // establish link according to the result field name
+      if (strcmp(field->name, pExpr1->base.resSchema.name) == 0) {  // establish link according to the result field name
         SInternalField* pInfo = getInternalFieldInfo(&pNewQueryInfo->fieldsInfo, f);
         pInfo->pExpr = pExpr1;
 
@@ -1446,11 +1491,12 @@ int32_t getNumOfOutput(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
 }
 
+// todo move to planner module
 int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num) {
 //  if (!pQueryInfo->arithmeticOnAgg) {
 //    return TSDB_CODE_SUCCESS;
 //  }
-
+#if 0
   *num = getNumOfOutput(pQueryInfo);
   *pExpr = calloc(*(num), POINTER_BYTES);
   if ((*pExpr) == NULL) {
@@ -1466,28 +1512,24 @@ int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableM
 
     SSqlExpr *pse = &px->base;
     pse->uid      = pTableMetaInfo->pTableMeta->uid;
-    pse->resColId = pSource->base.resColId;
-    strncpy(pse->aliasName, pSource->base.aliasName, tListLen(pse->aliasName));
-    strncpy(pse->token, pSource->base.token, tListLen(pse->token));
+    memcpy(&pse->resSchema, &pSource->base.resSchema, sizeof(SSchema));
 
     if (pSource->base.functionId != FUNCTION_ARITHM) {  // this should be switched to projection query
       pse->numOfParams = 0;      // no params for projection query
       pse->functionId  = FUNCTION_PRJ;
-      pse->colInfo.colId = pSource->base.resColId;
+      pse->colInfo.colId = pSource->base.resSchema.colId;
 
       int32_t numOfOutput = (int32_t) taosArrayGetSize(pQueryInfo->exprList);
       for (int32_t j = 0; j < numOfOutput; ++j) {
         SExprInfo* p = taosArrayGetP(pQueryInfo->exprList, j);
-        if (p->base.resColId == pse->colInfo.colId) {
+        if (p->base.resSchema.colId == pse->colInfo.colId) {
           pse->colInfo.colIndex = j;
           break;
         }
       }
 
       pse->colInfo.flag = TSDB_COL_NORMAL;
-      pse->resType  = pSource->base.resType;
-      pse->resBytes = pSource->base.resBytes;
-      strncpy(pse->colInfo.name, pSource->base.aliasName, tListLen(pse->colInfo.name));
+      strncpy(pse->colInfo.name, pSource->base.resSchema.name, tListLen(pse->colInfo.name));
 
       // TODO restore refactor
       int32_t functionId = pSource->base.functionId;
@@ -1500,17 +1542,17 @@ int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableM
       }
 
       int32_t inter = 0;
-      getResultDataInfo(pSource->base.colType, pSource->base.colBytes, functionId, 0, &pse->resType,
-                        &pse->resBytes, &inter, 0, false/*, NULL*/);
-      pse->colType  = pse->resType;
-      pse->colBytes = pse->resBytes;
+      getResultDataInfo(pSource->base.colType, pSource->base.colBytes, functionId, 0, &pse->resSchema.type,
+                        &pse->resSchema.bytes, &inter, 0, false/*, NULL*/);
+      pse->colType  = pse->resSchema.type;
+      pse->colBytes = pse->resSchema.bytes;
 
     } else {  // arithmetic expression
       pse->colInfo.colId = pSource->base.colInfo.colId;
       pse->colType  = pSource->base.colType;
       pse->colBytes = pSource->base.colBytes;
-      pse->resBytes = sizeof(double);
-      pse->resType  = TSDB_DATA_TYPE_DOUBLE;
+      pse->resSchema.bytes = sizeof(double);
+      pse->resSchema.type  = TSDB_DATA_TYPE_DOUBLE;
 
       pse->functionId = pSource->base.functionId;
       pse->numOfParams = pSource->base.numOfParams;
@@ -1521,7 +1563,7 @@ int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableM
       }
     }
   }
-
+#endif
   return TSDB_CODE_SUCCESS;
 }
 

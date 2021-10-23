@@ -50,9 +50,9 @@ typedef struct SQueryNode {
   struct SQueryNode  *nextNode;
 } SQueryNode;
 
-typedef struct SQueryPhyNode {
+typedef struct SQueryDistPlanNode {
 
-} SQueryPhyNode;
+} SQueryDistPlanNode;
 
 #ifdef __cplusplus
 }
