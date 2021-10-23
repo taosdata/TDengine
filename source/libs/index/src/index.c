@@ -68,18 +68,39 @@ int indexPut(SIndex *index, SArray* field_vals, int uid) {
 }
 int indexSearch(SIndex *index, SIndexMultiTermQuery *multiQuerys, SArray *result) {
 #ifdef USE_LUCENE 
-  for (int i = 0; i < taosArrayGetSize(multiQuerys->query); i++) {
+  EIndexOperatorType opera = multiQuerys->opera; 
+
+  int nQuery = taosArrayGetSize(multiQuerys->query); 
+  char **fields = malloc(sizeof(char *) * nQuery);
+  char **keys   = malloc(sizeof(char *) * nQuery); 
+  int  *types = malloc(sizeof(int)    * nQuery);
+
+  for (int i = 0; i < nQuery; i++) {
      SIndexTermQuery *p    = taosArrayGet(multiQuerys->query, i); 
      SIndexTerm      *term = p->field_value; 
-     EIndexQueryType qType = p->type;
-     int *tResult = NULL;
-     int32_t tsz = 0;
-     index_search(index->index, term->key, term->nKey, term->val, term->nVal, qType, &tResult, &tsz);
-     for (int i = 0; i < tsz; i++) {
-        taosArrayPush(result, &(tResult[i]));
-     }
-    
+
+     fields[i]  = calloc(1, term->nKey + 1); 
+     keys[i]    = calloc(1, term->nVal + 1);
+
+     memcpy(fields[i], term->key, term->nKey);
+     memcpy(keys[i],   term->val, term->nVal);
+     types[i] = (int)(p->type);
   }    
+  int *tResult = NULL; 
+  int tsz= 0;
+  index_multi_search(index->index, (const char **)fields, (const char **)keys, types, nQuery, opera, &tResult, &tsz);
+  
+  for (int i = 0; i < tsz; i++) {
+    taosArrayPush(result, &tResult[i]);
+  }
+
+  for (int i = 0; i < nQuery; i++) {
+    free(fields[i]);
+    free(keys[i]);
+  }
+  free(fields);
+  free(keys);
+  free(types);
 #endif
   return 1;
 }

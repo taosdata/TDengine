@@ -27,12 +27,9 @@ typedef struct SIndex SIndex;
 typedef struct SIndexOpts SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
-//typedef struct SIndexMultiTerm SIndexMultiTerm;
 
 typedef enum  { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
-typedef enum  { QUERY_POINT = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2,QUERY_REGEX = 3} EIndexQueryType;
-  
-
+typedef enum  { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2,QUERY_REGEX = 3} EIndexQueryType;
 /*
  * @param: oper 
  *
@@ -40,7 +37,6 @@ typedef enum  { QUERY_POINT = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2,QUERY_REGEX 
 SIndexMultiTermQuery *indexMultiTermQueryCreate(EIndexOperatorType oper);
 void            indexMultiTermQueryDestroy(SIndexMultiTermQuery *pQuery);
 int             indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, const char *field, int32_t nFields, const char *value, int32_t nValue, EIndexQueryType type);
-
 /* 
  * @param:    
  * @param:
@@ -51,7 +47,10 @@ int   indexPut(SIndex *index,    SIndexMultiTerm *terms, int uid);
 int   indexDelete(SIndex *index, SIndexMultiTermQuery *query); 
 int   indexSearch(SIndex *index, SIndexMultiTermQuery *query, SArray *result);
 int   indexRebuild(SIndex *index, SIndexOpts *opt);
-
+/*
+ * @param
+ * @param
+ */
 SIndexMultiTerm *indexMultiTermCreate(); 
 int     indexMultiTermAdd(SIndexMultiTerm *terms, const char *field, int32_t nFields, const char *value, int32_t nValue);
 void    indexMultiTermDestroy(SIndexMultiTerm *terms);
