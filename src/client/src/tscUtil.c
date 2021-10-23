@@ -315,7 +315,7 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
 
     if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
         f != TSDB_FUNC_TS && f != TSDB_FUNC_ARITHM && f != TSDB_FUNC_DIFF &&
-        f != TSDB_FUNC_DERIVATIVE) {
+        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f)) {
       return false;
     }
   }
