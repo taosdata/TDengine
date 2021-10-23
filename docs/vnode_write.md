@@ -111,7 +111,7 @@ box "dnode3"
 end box
 
 ' APP send request to dnode and RPC in dnode recv the request
-app ->rpc: create table req
+app ->rpc: insert data req
 
 ' RPC call vnodeProcessReq() function to process the request
 rpc -> vnode: vnodeProcessReq
@@ -152,7 +152,7 @@ sync --> vnode: vnodeApplyReqs()\n(callback function)
 vnode --> rpc: rpcSendRsp()
 
 ' dnode send response to APP
-rpc --> app: create table rsp
+rpc --> app: insert data rsp
 @enduml
 ```
 
