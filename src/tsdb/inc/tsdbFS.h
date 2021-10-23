@@ -16,7 +16,29 @@
 #ifndef _TD_TSDB_FS_H_
 #define _TD_TSDB_FS_H_
 
-#define TSDB_FS_VERSION 0
+/**
+ * 1. The fileset .head/.data/.last use the same fver 0 before 2021.10.10.
+ * 2. .head fver is 1 when extract aggregate block data from .data/.last file and save to separate .smad/.smal file
+ * since 2021.10.10
+ * // TODO update date and add release version.
+ */
+typedef enum {
+  TSDB_FS_VER_0 = 0,
+  TSDB_FS_VER_1,
+} ETsdbFsVer;
+
+#define TSDB_FVER_TYPE uint32_t
+#define TSDB_LATEST_FVER TSDB_FS_VER_1     // latest version for DFile
+#define TSDB_LATEST_SFS_VER TSDB_FS_VER_1  // latest version for 'current' file
+
+static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest version for DFile
+  switch (fType) {
+    case TSDB_FILE_HEAD:
+      return TSDB_FS_VER_1;
+    default:
+      return TSDB_FS_VER_0;
+  }
+}
 
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;

@@ -423,9 +423,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     // 1. super table subquery
     // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
     if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
-                                                TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
-         !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
-        (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
+                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
+                                               !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
+                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)
+                                              || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY))) {
       // do nothing in case of super table subquery
     }  else {
       pSql->retry += 1;
@@ -1017,10 +1018,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *((int16_t *)pMsg) = htons(pCol->colId);
       pMsg += sizeof(pCol->colId);
 
-      *((int16_t *)pMsg) += htons(pCol->colIndex);
+      *((int16_t *)pMsg) = htons(pCol->colIndex);
       pMsg += sizeof(pCol->colIndex);
 
-      *((int16_t *)pMsg) += htons(pCol->flag);
+      *((int16_t *)pMsg) = htons(pCol->flag);
       pMsg += sizeof(pCol->flag);
 
       memcpy(pMsg, pCol->name, tListLen(pCol->name));
@@ -1101,6 +1102,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // support only one udf
   if (pQueryInfo->pUdfInfo != NULL && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+    if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
+      code = tscInvalidOperationMsg(pCmd->payload, "only one udf allowed", NULL);
+      goto _end;
+    }
+    
     pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
     for(int32_t i = 0; i < taosArrayGetSize(pQueryInfo->pUdfInfo); ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -1765,7 +1771,7 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
       return pRes->code;
     }
 
-    tscSetResRawPtr(pRes, pQueryInfo);
+    tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   } else {
     tscResetForNextRetrieve(pRes);
   }
@@ -2229,6 +2235,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
 
   parQueryInfo->pUdfInfo = pQueryInfo->pUdfInfo;   // assigned to parent sql obj.
   pQueryInfo->pUdfInfo = NULL;
+  taosReleaseRef(tscObjRef, parent->self);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2743,7 +2750,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
        !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) &&
        !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE))) {
-    tscSetResRawPtr(pRes, pQueryInfo);
+    tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
   if (pSql->pSubscription != NULL) {
@@ -2870,7 +2877,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfTable; ++i) {
     char* name = taosArrayGetP(pNameList, i);
     if (i < numOfTable - 1 || numOfVgroupList > 0 || numOfUdf > 0) {
-      len = sprintf(start, "%s,", name);
+      len = sprintf(start, "%s`", name);
     } else {
       len = sprintf(start, "%s", name);
     }
@@ -2881,7 +2888,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pVgroupNameList, i);
     if (i < numOfVgroupList - 1 || numOfUdf > 0) {
-      len = sprintf(start, "%s,", name);
+      len = sprintf(start, "%s`", name);
     } else {
       len = sprintf(start, "%s", name);
     }
@@ -2892,7 +2899,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfUdf; ++i) {
     SUdfInfo * u = taosArrayGet(pUdfList, i);
     if (i < numOfUdf - 1) {
-      len = sprintf(start, "%s,", u->name);
+      len = sprintf(start, "%s`", u->name);
     } else {
       len = sprintf(start, "%s", u->name);
     }
@@ -2908,7 +2915,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
       pNew->self, numOfTable, numOfVgroupList, numOfUdf, pNew->cmd.payloadLen);
 
   pNew->fp = fp;
-  pNew->param = (void *)pSql->self;
+  pNew->param = (void *)pSql->rootObj->self;
 
   tscDebug("0x%"PRIx64" metaRid from 0x%" PRIx64 " to 0x%" PRIx64 , pSql->self, pSql->metaRid, pNew->self);
   
@@ -2922,12 +2929,15 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 }
 
 int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool autocreate, bool onlyLocal) {
-  assert(tIsValidName(&pTableMetaInfo->name));
+  if (!tIsValidName(&pTableMetaInfo->name)) {
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
 
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
   size_t len = strlen(name);
+
    // just make runtime happy
   if (pTableMetaInfo->tableMetaCapacity != 0 && pTableMetaInfo->pTableMeta != NULL) {
     memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
@@ -2935,6 +2945,7 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
 
   if (NULL == taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), name, len, NULL, (void **)&(pTableMetaInfo->pTableMeta), &pTableMetaInfo->tableMetaCapacity)) {
     tfree(pTableMetaInfo->pTableMeta);
+     pTableMetaInfo->tableMetaCapacity = 0;
   }
   
   STableMeta* pMeta   = pTableMetaInfo->pTableMeta;
@@ -3056,7 +3067,13 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   // remove stored tableMeta info in hash table
   tscResetSqlCmd(pCmd, true, pSql->self);
 
-  SArray* pNameList  = taosArrayInit(1, POINTER_BYTES);
+  SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
+  pCmd2->pTableMetaMap = tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
+  pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  
+  pSql->rootObj->retryReason = pSql->retryReason;
+
+  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
 
   char* n = strdup(name);
