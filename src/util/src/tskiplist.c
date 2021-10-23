@@ -144,7 +144,6 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
 
   // backward to put the first data
   hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
-
   tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
 
   for (int level = 0; level < pSkipList->maxLevel; level++) {
@@ -163,7 +162,12 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
       for (int i = 0; i < pSkipList->maxLevel; i++) {
         forward[i] = SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail, i);
       }
+    } else if(compare == 0) {
+      // same need special deal
+      forward[0] = SL_NODE_GET_BACKWARD_POINTER(SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail,0),0);
+      hasDup = true;
     } else {
+      SSkipListNode *p  = NULL;
       SSkipListNode *px = pSkipList->pHead;
       for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
         if (i < pSkipList->level) {
@@ -175,19 +179,29 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
             }
           }
 
-          SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(px, i);
+          // if px not head , must compare with px
+          if(px == pSkipList->pHead) {
+            p = SL_NODE_GET_FORWARD_POINTER(px, i);
+          } else {
+            p = px;
+          }
           while (p != pSkipList->pTail) {
             pKey = SL_GET_NODE_KEY(pSkipList, p);
 
             compare = pSkipList->comparFn(pKey, pDataKey);
             if (compare >= 0) {
-              if (compare == 0 && !hasDup) hasDup = true;
+              if (compare == 0) {
+                hasDup = true;
+                forward[0] = SL_NODE_GET_BACKWARD_POINTER(p, 0);
+              }
               break;
             } else {
               px = p;
               p = SL_NODE_GET_FORWARD_POINTER(px, i);
             }
           }
+          // if found duplicate, immediately break, needn't continue to loop set rest forward[i] value
+          if(hasDup) break;
         }
 
         forward[i] = px;

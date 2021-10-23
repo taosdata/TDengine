@@ -407,4 +407,8 @@ cd ../../../debug; make
 ./test.sh -f general/parser/last_cache.sim
 ./test.sh -f unique/big/balance.sim
 
+./test.sh -f general/parser/udf.sim
+./test.sh -f general/parser/udf_dll.sim
+./test.sh -f general/parser/udf_dll_stable.sim
+
 #======================b7-end===============

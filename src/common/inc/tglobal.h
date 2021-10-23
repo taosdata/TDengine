@@ -209,6 +209,8 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
+extern int8_t tsClientMerge;
+
 #ifdef TD_TSZ
 // lossy 
 extern char lossyColumns[];
@@ -218,6 +220,7 @@ extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char Compressor[];
 #endif
+
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];
