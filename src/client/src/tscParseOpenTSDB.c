@@ -138,20 +138,40 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
+  bool searchQuote = false;
   char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
   char *value = NULL;
 
   start = cur = *index;
 
+  //if metric value is string
+  if (*cur == '"') {
+    searchQuote = true;
+    cur += 1;
+    len += 1;
+  } else if (*cur == 'L' && *(cur + 1) == '"') {
+    searchQuote = true;
+    cur += 2;
+    len += 2;
+  }
+
   while(*cur != '\0') {
     if (*cur == ' ') {
-      if (*cur == ' ') {
-        if (*(cur + 1) != ' ') {
-          break;
+      if (searchQuote == true) {
+        if (*(cur - 1) == '"' && len != 1 && len != 2) {
+          searchQuote = false;
         } else {
           cur++;
+          len++;
           continue;
         }
+      }
+
+      if (*(cur + 1) != ' ') {
+        break;
+      } else {
+        cur++;
+        continue;
       }
     }
     cur++;
@@ -389,7 +409,7 @@ static int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, 
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -432,6 +452,9 @@ int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtoco
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines error: %s", info->id, tstrerror((code)));
+  }
+  if (affectedRows != NULL) {
+    *affectedRows = info->affectedRows;
   }
 
 cleanup:
@@ -1025,7 +1048,7 @@ PARSE_JSON_OVER:
   return ret;
 }
 
-int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType) {
+int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -1059,6 +1082,9 @@ int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("OTD:0x%"PRIx64" taos_insert_json_payload error: %s", info->id, tstrerror((code)));
+  }
+  if (affectedRows != NULL) {
+    *affectedRows = info->affectedRows;
   }
 
 cleanup:
