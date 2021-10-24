@@ -3520,6 +3520,8 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
             break;
         received += bytes;
 
+        response_buf[RESP_BUF_LEN - 1] = '\0';
+
         verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                 __func__, __LINE__, received, resp_len, response_buf);
 
@@ -3538,8 +3540,6 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
         free(request_buf);
         ERROR_EXIT("storing complete response from socket");
     }
-
-    response_buf[RESP_BUF_LEN - 1] = '\0';
 
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
