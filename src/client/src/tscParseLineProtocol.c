@@ -1175,6 +1175,15 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
+void addEscapeChartoString(char *str, int32_t len) {
+  if (str == NULL) {
+    return;
+  }
+  memmove(str + 1, str, len);
+  str[0] = str[len] = TS_ESCAPE_CHAR;
+  str[len + 1] = '\0';
+}
+
 bool isValidInteger(char *str) {
   char *c = str;
   if (*c != '+' && *c != '-' && !isdigit(*c)) {
@@ -1886,13 +1895,8 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
   uint16_t len = 0;
 
-  //key field cannot start with digit
-  if (isdigit(*cur)) {
-    tscError("SML:0x%"PRIx64" Tag key cannot start with digit", info->id);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
   while (*cur != '\0') {
-    if (len >= TSDB_COL_NAME_LEN - 1) {
+    if (len > TSDB_COL_NAME_LEN - 1) {
       tscError("SML:0x%"PRIx64" Key field cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
@@ -1919,8 +1923,9 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pKV->key = calloc(len + 1, 1);
+  pKV->key = calloc(len + TS_ESCAPE_CHAR + 1, 1);
   memcpy(pKV->key, key, len + 1);
+  addEscapeChartoString(pKV->key, len);
   //tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
   return TSDB_CODE_SUCCESS;
@@ -2015,19 +2020,13 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   const char *cur = *index;
   uint16_t len = 0;
 
-  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + 1, 1);    // +1 to avoid 1772 line over write
+  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + SML_ESCAPE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  if (isdigit(*cur)) {
-    tscError("SML:0x%"PRIx64" Measurement field cannnot start with digit", info->id);
-    free(pSml->stableName);
-    pSml->stableName = NULL;
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
 
   while (*cur != '\0') {
-    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+    if (len > TSDB_TABLE_NAME_LEN - 1) {
       tscError("SML:0x%"PRIx64" Measurement field cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       free(pSml->stableName);
       pSml->stableName = NULL;
@@ -2061,7 +2060,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     pSml->stableName = NULL;
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
-  pSml->stableName[len] = '\0';
+  addEscapeChartoString(pSml->stableName, len);
   *index = cur + 1;
   tscDebug("SML:0x%"PRIx64" Stable name in measurement:%s|len:%d", info->id, pSml->stableName, len);
 
@@ -2118,16 +2117,10 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       goto error;
     }
     if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
-      ret = isValidChildTableName(pkv->value, pkv->length, info);
-      if (ret) {
-        free(pkv->key);
-        free(pkv->value);
-        goto error;
-      }
-      smlData->childTableName = malloc( pkv->length + 1);
+      smlData->childTableName = malloc(pkv->length + SML_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
-      smlData->childTableName[pkv->length] = '\0';
+      addEscapeChartoString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
       free(pkv->value);
     } else {
