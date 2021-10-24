@@ -2504,7 +2504,7 @@ static bool loadDataBlockFromTableSeq(STsdbQueryHandle* pQueryHandle) {
   return false;
 }
 
-// handle data in cache situationP
+// handle data in cache situation
 bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
   if (pQueryHandle == NULL) {
@@ -2620,7 +2620,6 @@ static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SM
   pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qId, pMemRef);
   tfree(cond.colList);
   if (pSecQueryHandle == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto out_of_memory;
   }
 
