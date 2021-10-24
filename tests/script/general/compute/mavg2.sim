@@ -80,6 +80,7 @@ if $data11 != 1.500000000 then
 endi
 sql_error select mavg(c7,2) from $tb
 sql_error select mavg(c8,2) from $tb
+sql_error select mavg(c8,2) from $tb order by c7
 sql_error select mavg(c9,2) from $tb
 sql_error select mavg(ts,2) from $tb
 sql_error select mavg(c1,2), mavg(c2,2) from $tb

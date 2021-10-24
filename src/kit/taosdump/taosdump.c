@@ -638,11 +638,6 @@ static int queryDbImpl(TAOS *taos, char *command) {
     TAOS_RES *res = NULL;
     int32_t   code = -1;
 
-    if (NULL != res) {
-        taos_free_result(res);
-        res = NULL;
-    }
-
     res = taos_query(taos, command);
     code = taos_errno(res);
 
@@ -1193,6 +1188,7 @@ static int64_t dumpNormalTable(
             jsonAvroSchema);
     }
 
+    tfree(jsonAvroSchema);
     freeTbDes(tableDes);
     return ret;
 }
@@ -3009,7 +3005,13 @@ int main(int argc, char *argv[]) {
     printf("debug_print: %d\n", g_args.debug_print);
 
     for (int32_t i = 0; i < g_args.arg_list_len; i++) {
-        printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
+        if (g_args.databases || g_args.all_databases) {
+            errorPrint("%s is an invalid input if database(s) be already specified.\n",
+                    g_args.arg_list[i]);
+            exit(EXIT_FAILURE);
+        } else {
+            printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
+        }
     }
 
     printf("==============================\n");

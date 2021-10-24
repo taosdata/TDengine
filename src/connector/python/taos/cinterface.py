@@ -822,11 +822,16 @@ def taos_schemaless_insert(connection, lines, protocol, precision):
     lines = (c_char_p(line.encode("utf-8")) for line in lines)
     lines_type = ctypes.c_char_p * num_of_lines
     p_lines = lines_type(*lines)
-    if precision != None:
-        precision = c_char_p(precision.encode("utf-8"))
-    errno = _libtaos.taos_schemaless_insert(connection, p_lines, num_of_lines, protocol, precision)
+    res = c_void_p(_libtaos.taos_schemaless_insert(connection, p_lines, num_of_lines, protocol, precision))
+    errno = taos_errno(res)
     if errno != 0:
-        raise SchemalessError("schemaless insert error", errno)
+        errstr = taos_errstr(res)
+        taos_free_result(res)
+        print("schemaless_insert error affected rows: {}".format(taos_affected_rows(res)))
+        raise SchemalessError(errstr, errno)
+
+    taos_free_result(res)
+    return errno
 
 class CTaosInterface(object):
     def __init__(self, config=None):
