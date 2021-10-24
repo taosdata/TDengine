@@ -970,13 +970,12 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
       SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
       void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
       if (pUdfInfo->isScript) {
-        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, &output);
+        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, (int32_t *)&pCtx->resultInfo->numOfRes);
       } else {
-        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
+        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, (int32_t *)&pCtx->resultInfo->numOfRes, &pUdfInfo->init);
       }
-      // set the output value exist
-      pCtx->resultInfo->numOfRes = output;
-      if (output > 0) {
+
+      if (pCtx->resultInfo->numOfRes > 0) {
         pCtx->resultInfo->hasResult = DATA_SET_FLAG;
       }
 
@@ -1296,9 +1295,6 @@ static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
     if (pCtx[k].currentStage == MERGE_STAGE) {
       pCtx[k].order = TSDB_ORDER_ASC;
     }
-
-    pCtx[k].startTs = pQueryAttr->window.skey;
-
     if (pCtx[k].functionId < 0) {
       // load the script and exec
       SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
@@ -2391,8 +2387,10 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     tfree(pRuntimeEnv->sasArray);
   }
 
-  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
-
+  if (!pRuntimeEnv->udfIsCopy) {
+    destroyUdfInfo(pRuntimeEnv->pUdfInfo);
+  }
+  
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
 
@@ -7962,7 +7960,7 @@ static char* getUdfFuncName(char* funcname, char* name, int type) {
 }
 
 int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
-  if (pUdfInfo == NULL) {
+  if (pUdfInfo == NULL || pUdfInfo->handle) {
     return TSDB_CODE_SUCCESS;
   }
   //qError("script len: %d", pUdfInfo->contLen);
@@ -7997,10 +7995,21 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
     // TODO check for failure of flush to disk
     /*size_t t = */ fwrite(pUdfInfo->content, pUdfInfo->contLen, 1, file);
     fclose(file);
-    tfree(pUdfInfo->content);
+    if (!pUdfInfo->keep) {
+      tfree(pUdfInfo->content);
+    }
 
+    if (pUdfInfo->path) {
+      unlink(pUdfInfo->path);
+    }
+    
+    tfree(pUdfInfo->path);
     pUdfInfo->path = strdup(path);
 
+    if (pUdfInfo->handle) {
+      taosCloseDll(pUdfInfo->handle);
+    }
+    
     pUdfInfo->handle = taosLoadDll(path);
 
     if (NULL == pUdfInfo->handle) {
@@ -8015,9 +8024,17 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
 
     pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_INIT));
 
+    pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
+    pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
+
     if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-      pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
-      pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
+      if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] || NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
+        return TSDB_CODE_QRY_SYS_ERROR;
+      }
+    } else {
+      if (pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] || pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
+        return TSDB_CODE_QRY_SYS_ERROR;
+      }
     }
 
     pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_DESTROY));
@@ -8124,7 +8141,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     }
 
     int32_t param = (int32_t)pExprs[i].base.param[0].i64;
-    if (pExprs[i].base.functionId != TSDB_FUNC_ARITHM &&
+    if (pExprs[i].base.functionId > 0 && pExprs[i].base.functionId != TSDB_FUNC_ARITHM &&
        (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;

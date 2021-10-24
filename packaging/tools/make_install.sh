@@ -330,8 +330,9 @@ function install_connector() {
         ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
         ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar  || echo &> /dev/null
     else
-        ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_2_dir}/connector}
-        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null || cp ${binary_dir}/build/lib/*.jar ${install_main_2_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || ${csudo} chmod 777 ${install_main_2_dir}/connector/*.jar || echo &> /dev/null
+        ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_2_dir}/connector
+        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar  || echo &> /dev/null
+        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_2_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_2_dir}/connector/*.jar  || echo &> /dev/null
     fi
 }
 
