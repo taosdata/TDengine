@@ -3522,17 +3522,19 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 
         response_buf[RESP_BUF_LEN - 1] = '\0';
 
-        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
-                __func__, __LINE__, received, resp_len, response_buf);
-
-        if (((NULL == strstr(response_buf, resEncodingChunk))
-                    && (0 == strncmp(response_buf, resHttp, resHttpLen)))
-                || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
-                    && (NULL != strstr(response_buf, "\"status\":")))) {
-            debugPrint(
-                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+        if (strlen(response_buf)) {
+            verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                     __func__, __LINE__, received, resp_len, response_buf);
-            break;
+
+            if (((NULL == strstr(response_buf, resEncodingChunk))
+                        && (0 == strncmp(response_buf, resHttp, resHttpLen)))
+                    || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
+                        && (NULL != strstr(response_buf, "\"status\":")))) {
+                debugPrint(
+                        "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                        __func__, __LINE__, received, resp_len, response_buf);
+                break;
+            }
         }
     } while(received < resp_len);
 
