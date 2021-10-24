@@ -423,6 +423,9 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
 
 TsdbQueryHandleT* tsdbQueryTables(STsdbRepo* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, uint64_t qId, SMemRef* pRef) {
   STsdbQueryHandle* pQueryHandle = tsdbQueryTablesImpl(tsdb, pCond, qId, pRef);
+  if (pQueryHandle == NULL) {
+    return NULL;
+  }
 
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
@@ -520,6 +523,10 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   }
 
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
+  if (pQueryHandle == NULL) {
+    return NULL;
+  }
+
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
     terrno = code;
@@ -2497,9 +2504,12 @@ static bool loadDataBlockFromTableSeq(STsdbQueryHandle* pQueryHandle) {
   return false;
 }
 
-// handle data in cache situation
+// handle data in cache situationP
 bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
+  if (pQueryHandle == NULL) {
+    return false;
+  }
 
   int64_t stime = taosGetTimestampUs();
   int64_t elapsedTime = stime;
@@ -2609,6 +2619,10 @@ static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SM
 
   pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qId, pMemRef);
   tfree(cond.colList);
+  if (pSecQueryHandle == NULL) {
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    goto out_of_memory;
+  }
 
   // current table, only one table
   STableCheckInfo* pCurrent = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
