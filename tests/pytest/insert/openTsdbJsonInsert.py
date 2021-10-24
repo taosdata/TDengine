@@ -21,6 +21,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.common import tdCom
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 import threading
 import json
 
@@ -425,7 +426,7 @@ class TDTestCase:
 
     def resCmp(self, input_json, stb_name, query_sql="select * from", condition="", ts=None, id=True, none_check_tag=None, none_type_check=None):
         expect_list = self.inputHandle(input_json)
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         query_sql = f"{query_sql} {stb_name} {condition}"
         res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True)
         if ts == 0:
@@ -456,7 +457,6 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
-        print(input_json)
         self.resCmp(input_json, stb_name)
 
     def boolTypeCheckCase(self):
@@ -470,7 +470,7 @@ class TDTestCase:
                                 self.genFullTypeJson(col_value=self.genTsColValue(value=t_type, t_type="bool"))[0]]
             for input_json in input_json_list:
                 try:
-                    self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                    self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                     raise Exception("should not reach here")
                 except SchemalessError as err:
                     tdSql.checkNotEqual(err.errno, 0)
@@ -521,7 +521,7 @@ class TDTestCase:
                 else:
                     input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value=int(ts), t_type=""))[0]
                     try:
-                        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                         raise Exception("should not reach here")
                     except SchemalessError as err:
                         tdSql.checkNotEqual(err.errno, 0)
@@ -532,7 +532,7 @@ class TDTestCase:
         tdSql.execute("use test_ts")
         input_json = [{"metric": "test_ms", "timestamp": {"value": 1626006833640, "type": "ms"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_ms", "timestamp": {"value": 1626006833641, "type": "ms"}, "value": False, "tags": {"t0": True}}]
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         res = tdSql.query('select * from test_ms', True)
         tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.640000")
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
@@ -542,7 +542,7 @@ class TDTestCase:
         tdSql.execute("use test_ts")
         input_json = [{"metric": "test_us", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_us", "timestamp": {"value": 1626006833639001, "type": "us"}, "value": False, "tags": {"t0": True}}]
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         res = tdSql.query('select * from test_us', True)
         tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000")
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639001")
@@ -552,7 +552,7 @@ class TDTestCase:
         tdSql.execute("use test_ts")
         input_json = [{"metric": "test_ns", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_ns", "timestamp": {"value": 1626006833639000001, "type": "ns"}, "value": False, "tags": {"t0": True}}]
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         res = tdSql.query('select * from test_ns', True)
         tdSql.checkEqual(str(res[0][0]), "1626006833639000000")
         tdSql.checkEqual(str(res[1][0]), "1626006833639000001")
@@ -600,11 +600,11 @@ class TDTestCase:
         """
         for input_json in [self.genLongJson(128, value_type)[0]]:
             tdCom.cleanTb()
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         for input_json in [self.genLongJson(129, value_type)[0]]:
             tdCom.cleanTb()
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
             
@@ -618,7 +618,7 @@ class TDTestCase:
         for i in rstr:
             input_json = self.genFullTypeJson(tb_name=f'aa{i}bb', value_type=value_type)[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
@@ -629,7 +629,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(tb_name="1aaabbb", value_type=value_type)[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
@@ -640,7 +640,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="now", t_type="ns", value_type=value_type))[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
@@ -651,7 +651,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="2021-07-21\ 19:01:46.920", t_type="ns", value_type=value_type))[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
     
@@ -662,7 +662,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="16260068336390us19", t_type="us", value_type=value_type))[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
 
@@ -682,7 +682,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         for input_json in [self.genFullTypeJson(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"), value_type=value_type)[0], self.genFullTypeJson(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -702,7 +702,7 @@ class TDTestCase:
         self.resCmp(input_json, stb_name)
         input_json = {'metric': stb_name, 'timestamp': {'value': 1626006833639000001, 'type': 'ns'}, 'value': "bcdaaaa", 'tags': {tdCom.getLongName(65, "letters"): {'value': False, 'type': 'bool'}}}
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)   
@@ -719,7 +719,7 @@ class TDTestCase:
         for t1 in [-128, 128]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -731,7 +731,7 @@ class TDTestCase:
         for t2 in [-32768, 32768]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t2_value=t2))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -743,7 +743,7 @@ class TDTestCase:
         for t3 in [-2147483648, 2147483648]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t3_value=t3))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -756,7 +756,7 @@ class TDTestCase:
         for t4 in [-9223372036854775808, 9223372036854775808]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -769,7 +769,7 @@ class TDTestCase:
         for t5 in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t5_value=t5))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -781,7 +781,7 @@ class TDTestCase:
         for t6 in [float(-1.797693134862316*(10**308)), -1.797693134862316*(10**308)]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t6_value=t6, value_type=value_type))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -790,10 +790,10 @@ class TDTestCase:
             # binary 
             stb_name = tdCom.getLongName(7, "letters")
             input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}}}
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}}}
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -802,11 +802,11 @@ class TDTestCase:
             # # * legal nchar could not be larger than 16374/4
             stb_name = tdCom.getLongName(7, "letters")
             input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}}}
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
             input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}}}
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -816,13 +816,13 @@ class TDTestCase:
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(16374, "letters")}}
             elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(4093, "letters")}}
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(16375, "letters")}}
             elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": True, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1": tdCom.getLongName(4094, "letters")}}
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -835,13 +835,12 @@ class TDTestCase:
         # i8
         for value in [-127, 127]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint", value_type=value_type))
-            print(input_json)
             self.resCmp(input_json, stb_name)
         tdCom.cleanTb()
         for value in [-128, 128]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint"))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -854,7 +853,7 @@ class TDTestCase:
         for value in [-32768, 32768]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint"))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -868,7 +867,7 @@ class TDTestCase:
         for value in [-2147483648, 2147483648]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int"))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -882,7 +881,7 @@ class TDTestCase:
         for value in [-9223372036854775808, 9223372036854775808]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -897,7 +896,7 @@ class TDTestCase:
         for value in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float"))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -912,7 +911,7 @@ class TDTestCase:
         for value in [-1.797693134862316*(10**308), -1.797693134862316*(10**308)]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))[0]
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -922,12 +921,12 @@ class TDTestCase:
             tdCom.cleanTb()
             stb_name = tdCom.getLongName(7, "letters")
             input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             
             tdCom.cleanTb()
             input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -937,12 +936,12 @@ class TDTestCase:
             tdCom.cleanTb()
             stb_name = tdCom.getLongName(7, "letters")
             input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
             tdCom.cleanTb()
             input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -954,14 +953,14 @@ class TDTestCase:
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(16374, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
             elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(4093, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             tdCom.cleanTb()
             if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(16375, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
             elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
                 input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(4094, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -992,7 +991,7 @@ class TDTestCase:
                 self.genFullTypeJson(tag_value=self.genTagValue(t6_value="11.1s45"))[0], 
             ]:
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
@@ -1003,7 +1002,7 @@ class TDTestCase:
         input_sql4 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value="abc aaa", value_type=value_type))[0]
         for input_json in [input_sql1, input_sql2, input_sql3, input_sql4]:
             try:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
@@ -1012,8 +1011,8 @@ class TDTestCase:
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_json1 = self.genFullTypeJson(col_value=self.genTsColValue(value=f"abc{symbol}aaa", t_type="binary", value_type=value_type))[0]
             input_json2 = self.genFullTypeJson(tag_value=self.genTagValue(t8_value=f"abc{symbol}aaa", value_type=value_type))[0]
-            self._conn.schemaless_insert([json.dumps(input_json1)], 2, None)
-            self._conn.schemaless_insert([json.dumps(input_json2)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json1)], TDSmlProtocolType.JSON.value, None)
+            self._conn.schemaless_insert([json.dumps(input_json2)], TDSmlProtocolType.JSON.value, None)
 
     def duplicateIdTagColInsertCheckCase(self, value_type="obj"):
         """
@@ -1022,7 +1021,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(id_double_tag=True, value_type=value_type)[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1054,7 +1053,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self.resCmp(input_json, stb_name)
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.resCmp(input_json, stb_name)
 
     def tagColBinaryNcharLengthCheckCase(self, value_type="obj"):
@@ -1063,11 +1062,11 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.resCmp(input_json, stb_name)
         tb_name = tdCom.getLongName(5, "letters")
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, tag_value=self.genTagValue(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue", value_type=value_type))
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.resCmp(input_json, stb_name, condition=f'where tbname like "{tb_name}"')
 
     def lengthIcreaseCrashCheckCase(self):
@@ -1077,12 +1076,12 @@ class TDTestCase:
         tdCom.cleanTb()
         stb_name = "test_crash"
         input_json = self.genFullTypeJson(stb_name=stb_name)[0]
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         os.system('python3 query/schemalessQueryCrash.py &')
         time.sleep(2)
         tb_name = tdCom.getLongName(5, "letters")
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, tag_value=self.genTagValue(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue"))
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         time.sleep(3)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -1110,7 +1109,7 @@ class TDTestCase:
                 tdSql.checkData(0, 11, None)  
                 tdSql.checkData(0, 12, None)  
             else:
-                self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+                self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
                 tdSql.checkData(0, 1, True)  
                 tdSql.checkData(0, 11, None)  
@@ -1148,7 +1147,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type), id_noexist_tag=True, t_add_tag=True)
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -1166,7 +1165,7 @@ class TDTestCase:
         tag_value["id"] = tb_name
         col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type)
         input_json = {"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
         if value_type == "obj":
@@ -1180,7 +1179,7 @@ class TDTestCase:
                 tag_value["t1"] = tdCom.getLongName(4093, "letters")
                 tag_value["t2"] = tdCom.getLongName(1, "letters")
         tag_value.pop('id')
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -1192,7 +1191,7 @@ class TDTestCase:
             elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
                 tag_value["t2"] = tdCom.getLongName(2, "letters")
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1211,7 +1210,7 @@ class TDTestCase:
         tag_value["id"] = tb_name
         col_value= True
         input_json = {"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": col_value, "tags": tag_value}
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
         # * legal nchar could not be larger than 16374/4
         if value_type == "obj":
@@ -1225,7 +1224,7 @@ class TDTestCase:
                 tag_value["t1"] = tdCom.getLongName(4093, "letters")
                 tag_value["t2"] = tdCom.getLongName(1, "letters")
         tag_value.pop('id')
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         if value_type == "obj":
@@ -1236,7 +1235,7 @@ class TDTestCase:
             elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
                 tag_value["t2"] = tdCom.getLongName(2, "letters")
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1269,7 +1268,7 @@ class TDTestCase:
                         {"metric": "stb_name", "timestamp": {"value": 1626056812843316532, "type": "ns"}, "value": {"value": 7, "type": "double"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}},
                         {"metric": "st123456", "timestamp": {"value": 1626006933640000000, "type": "ns"}, "value": {"value": 8, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                         {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         tdSql.query('show stables')
         tdSql.checkRows(3)
         tdSql.query('show tables')
@@ -1288,7 +1287,7 @@ class TDTestCase:
             for i in range(count):
                 input_json = self.genFullTypeJson(stb_name=stb_name, col_value=self.genTsColValue(value=tdCom.getLongName(8, "letters"), t_type="binary", value_type=value_type), tag_value=self.genTagValue(t7_value=tdCom.getLongName(8, "letters"), value_type=value_type), id_noexist_tag=True)[0]
                 sql_list.append(input_json)
-            self._conn.schemaless_insert([json.dumps(sql_list)], 2, None)
+            self._conn.schemaless_insert([json.dumps(sql_list)], TDSmlProtocolType.JSON.value, None)
             tdSql.query('show tables')
             tdSql.checkRows(count)
 
@@ -1300,7 +1299,7 @@ class TDTestCase:
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": {"value": "tt", "type": "bool"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1312,7 +1311,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(c_multi_tag=True, value_type=value_type)[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1324,7 +1323,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(c_blank_tag=True, value_type=value_type)[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1336,7 +1335,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(t_blank_tag=True, value_type=value_type)[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1356,7 +1355,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(multi_field_tag=True, value_type=value_type)[0]
         try:
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1384,7 +1383,7 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         input_json = self.genFullTypeJson(point_trans_tag=True, value_type=value_type)[0]
-        self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         tdSql.execute("drop table `.point.trans.test`")
 
     def genSqlList(self, count=5, stb_name="", tb_name="", value_type="obj"):
@@ -1436,7 +1435,7 @@ class TDTestCase:
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
-            t = threading.Thread(target=self._conn.schemaless_insert,args=([json.dumps(insert_sql[0])], 2, None))
+            t = threading.Thread(target=self._conn.schemaless_insert,args=([json.dumps(insert_sql[0])], TDSmlProtocolType.JSON.value, None))
             tlist.append(t)
         return tlist
 
@@ -1460,7 +1459,6 @@ class TDTestCase:
         """
             thread input same stb tb, different data, result keep first data
         """
-        print(value_type)
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
@@ -1483,7 +1481,6 @@ class TDTestCase:
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_s_tb_a_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name, value_type=value_type)[2]
-        print(s_stb_s_tb_a_tag_list)
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_a_tag_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(1)
@@ -1527,7 +1524,6 @@ class TDTestCase:
         """
         tdCom.cleanTb()
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
-        print(input_json)
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_m_tag_list = [({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "omfdhyom", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "vqowydbc", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
@@ -1644,7 +1640,7 @@ class TDTestCase:
     def test(self):
         try:
             input_json = f'test_nchar 0 L"涛思数据" t0=f,t1=L"涛思数据",t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64'
-            self._conn.schemaless_insert([json.dumps(input_json)], 2, None)
+            self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             # input_json, stb_name = self.genFullTypeJson()
             # self.resCmp(input_json, stb_name)        
         except SchemalessError as err:

@@ -20,6 +20,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.common import tdCom
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 import threading
 
 class TDTestCase:
@@ -297,9 +298,9 @@ class TDTestCase:
     def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, id=True, none_check_tag=None, precision=None):
         expect_list = self.inputHandle(input_sql)
         if precision == None:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         else:
-            self._conn.schemaless_insert([input_sql], 1, precision)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, precision)
         query_sql = f"{query_sql} {stb_name} {condition}"
         res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True)
         if ts == 0:
@@ -370,7 +371,7 @@ class TDTestCase:
         tdSql.execute(f"create database if not exists test_ts precision 'ms'")
         tdSql.execute("use test_ts")
         input_sql = ['test_ms 1626006833640ms t t0=t', 'test_ms 1626006833641ms f t0=t']
-        self._conn.schemaless_insert(input_sql, 1, None)
+        self._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)
         res = tdSql.query('select * from test_ms', True)
         tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.640000")
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
@@ -379,7 +380,7 @@ class TDTestCase:
         tdSql.execute(f"create database if not exists test_ts precision 'us'")
         tdSql.execute("use test_ts")
         input_sql = ['test_us 1626006833639000us t t0=t', 'test_us 1626006833639001us f t0=t']
-        self._conn.schemaless_insert(input_sql, 1, None)
+        self._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)
         res = tdSql.query('select * from test_us', True)
         tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000")
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639001")
@@ -388,7 +389,7 @@ class TDTestCase:
         tdSql.execute(f"create database if not exists test_ts precision 'ns'")
         tdSql.execute("use test_ts")
         input_sql = ['test_ns 1626006833639000000ns t t0=t', 'test_ns 1626006833639000001ns f t0=t']
-        self._conn.schemaless_insert(input_sql, 1, None)
+        self._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)
         res = tdSql.query('select * from test_ns', True)
         tdSql.checkEqual(str(res[0][0]), "1626006833639000000")
         tdSql.checkEqual(str(res[1][0]), "1626006833639000001")
@@ -396,7 +397,7 @@ class TDTestCase:
 
     def openTstbTelnetTsCheckCase(self):
         tdCom.cleanTb()
-        for ts_tag in ["h", "m", "s", "u", "ns", None]:
+        for ts_tag in [TDSmlTimestampType.HOUR.value, TDSmlTimestampType.MINUTE.value, TDSmlTimestampType.SECOND.value, TDSmlTimestampType.MICRO_SECOND.value, TDSmlTimestampType.NANO_SECOND.value, None]:
             input_sql = f'{tdCom.getLongName(len=10, mode="letters")} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
             stb_name = input_sql.split(" ")[0]
             self.resCmp(input_sql, stb_name, ts=0, precision=ts_tag)
@@ -409,7 +410,7 @@ class TDTestCase:
         for ts in [1, 12, 123, 1234, 12345, 123456, 1234567, 12345678, 162600683, 16260068341, 162600683412, 16260068336401]:
             try:
                 input_sql = f'{tdCom.getLongName(len=10, mode="letters")} {ts} 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
-                self._conn.schemaless_insert(input_sql, 1, None)
+                self._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -456,11 +457,11 @@ class TDTestCase:
         """
         for input_sql in [self.genLongSql(128)[0]]:
             tdCom.cleanTb()
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         for input_sql in [self.genLongSql(129)[0]]:
             tdCom.cleanTb()
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -475,7 +476,7 @@ class TDTestCase:
         for i in rstr:
             input_sql = self.genFullTypeSql(tb_name=f"\"aaa{i}bbb\"")[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -487,7 +488,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(tb_name=f"\"1aaabbb\"")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -499,7 +500,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="now")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -511,7 +512,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -523,7 +524,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="16260068336390us19")[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -544,7 +545,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         for input_sql in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -565,7 +566,7 @@ class TDTestCase:
         self.resCmp(input_sql, stb_name)
         input_sql = f'{stb_name} 1626006833639000001ns L"gggcdaaa" {tdCom.getLongName(65, "letters")}=f'
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)   
@@ -579,11 +580,11 @@ class TDTestCase:
         # * legal nchar could not be larger than 16374/4
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns t t0=t t1={tdCom.getLongName(4093, "letters")}'
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         input_sql = f'{stb_name} 1626006833639000000ns t t0=t t1={tdCom.getLongName(4094, "letters")}'
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -601,7 +602,7 @@ class TDTestCase:
         for value in ["-128i8", "128i8"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -614,7 +615,7 @@ class TDTestCase:
         for value in ["-32768i16", "32768i16"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -628,7 +629,7 @@ class TDTestCase:
         for value in ["-2147483648i32", "2147483648i32"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -642,7 +643,7 @@ class TDTestCase:
         for value in ["-9223372036854775808i64", "9223372036854775808i64"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -657,7 +658,7 @@ class TDTestCase:
         for value in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -672,7 +673,7 @@ class TDTestCase:
         for value in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
             input_sql = self.genFullTypeSql(value=value)[0]
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -681,12 +682,12 @@ class TDTestCase:
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns "{tdCom.getLongName(16374, "letters")}" t0=t'
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         
         tdCom.cleanTb()
         input_sql = f'{stb_name} 1626006833639000000ns "{tdCom.getLongName(16375, "letters")}" t0=t'
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -696,12 +697,12 @@ class TDTestCase:
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833639000000ns L"{tdCom.getLongName(4093, "letters")}" t0=t'
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         tdCom.cleanTb()
         input_sql = f'{stb_name} 1626006833639000000ns L"{tdCom.getLongName(4094, "letters")}" t0=t'
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -729,7 +730,7 @@ class TDTestCase:
                 self.genFullTypeSql(value="11.1s45f64")[0], 
             ]:
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -741,7 +742,7 @@ class TDTestCase:
         input_sql4 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=L"abc aaa"'
         for input_sql in [input_sql1, input_sql2, input_sql3, input_sql4]:
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -751,8 +752,8 @@ class TDTestCase:
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_sql1 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns "abc{symbol}aaa" t0=t'
             input_sql2 = f'{tdCom.getLongName(7, "letters")} 1626006833639000000ns t t0=t t1="abc{symbol}aaa"'
-            self._conn.schemaless_insert([input_sql1], 1, None)
-            self._conn.schemaless_insert([input_sql2], 1, None)
+            self._conn.schemaless_insert([input_sql1], TDSmlProtocolType.TELNET.value, None)
+            self._conn.schemaless_insert([input_sql2], TDSmlProtocolType.TELNET.value, None)
     
     def blankCheckCase(self):
         '''
@@ -765,7 +766,7 @@ class TDTestCase:
                         f'{tdCom.getLongName(7, "letters")}  1626006833639000000ns   L"abaaa"   t0=L"abcaaa3"   ']
         for input_sql in input_sql_list:
             stb_name = input_sql.split(" ")[0]
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             tdSql.query(f'select * from {stb_name}')
             tdSql.checkRows(1)
 
@@ -775,7 +776,7 @@ class TDTestCase:
                         f'{tdCom.getLongName(7, "letters")}  1626006833639000000ns   L"abaaa"   t0=L"abc  aaa3"   ']
         for input_sql in input_sql_list:
             try:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
@@ -787,7 +788,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql_id = self.genFullTypeSql(id_double_tag=True)[0]
         try:
-            self._conn.schemaless_insert([input_sql_id], 1, None)
+            self._conn.schemaless_insert([input_sql_id], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -795,7 +796,7 @@ class TDTestCase:
         input_sql = self.genFullTypeSql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         try:
-            self._conn.schemaless_insert([input_sql_tag], 1, None)
+            self._conn.schemaless_insert([input_sql_tag], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -820,7 +821,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         self.resCmp(input_sql, stb_name)
 
     def tagColBinaryNcharLengthCheckCase(self):
@@ -857,7 +858,7 @@ class TDTestCase:
                 tdSql.checkData(0, 11, None)  
                 tdSql.checkData(0, 12, None)  
             else:
-                self._conn.schemaless_insert([input_sql], 1, None)
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
                 tdSql.checkData(0, 1, True)  
                 tdSql.checkData(0, 11, None)  
@@ -895,7 +896,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", value="f", id_noexist_tag=True, t_add_tag=True)
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -910,16 +911,16 @@ class TDTestCase:
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name} 1626006833639000000ns f id={tb_name} t2={tdCom.getLongName(1, "letters")}'
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         # * legal nchar could not be larger than 16374/4
         input_sql = f'{stb_name} 1626006833639000000ns f t1={tdCom.getLongName(4093, "letters")} t2={tdCom.getLongName(1, "letters")}'
-        self._conn.schemaless_insert([input_sql], 1, None)
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         input_sql = f'{stb_name} 1626006833639000000ns f t1={tdCom.getLongName(4093, "letters")} t2={tdCom.getLongName(2, "letters")}'
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -944,7 +945,7 @@ class TDTestCase:
                 "st123456 1626006933640000000ns 8i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 "st123456 1626006933641000000ns 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64"
                 ]
-        self._conn.schemaless_insert(lines, 1, None)
+        self._conn.schemaless_insert(lines, TDSmlProtocolType.TELNET.value, None)
         tdSql.query('show stables')
         tdSql.checkRows(3)
         tdSql.query('show tables')
@@ -963,7 +964,7 @@ class TDTestCase:
         for i in range(count):
             input_sql = self.genFullTypeSql(stb_name=stb_name, t7=f'"{tdCom.getLongName(8, "letters")}"', value=f'"{tdCom.getLongName(8, "letters")}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
-        self._conn.schemaless_insert(sql_list, 1, None)
+        self._conn.schemaless_insert(sql_list, TDSmlProtocolType.TELNET.value, None)
         tdSql.query('show tables')
         tdSql.checkRows(count)
 
@@ -976,7 +977,7 @@ class TDTestCase:
         lines = ["st123456 1626006833639000000ns 3i 64 t1=3i64 t2=4f64 t3=\"t3\"",
                 f"{stb_name} 1626056811823316532ns tRue t2=5f64 t3=L\"ste\""]
         try:
-            self._conn.schemaless_insert(lines, 1, None)
+            self._conn.schemaless_insert(lines, TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -988,7 +989,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(c_multi_tag=True)[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1000,7 +1001,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(c_blank_tag=True)[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1012,7 +1013,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(t_blank_tag=True)[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1032,7 +1033,7 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(multi_field_tag=True)[0]
         try:
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
@@ -1124,7 +1125,7 @@ class TDTestCase:
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
-            t = threading.Thread(target=self._conn.schemaless_insert,args=([insert_sql[0]], 1, None))
+            t = threading.Thread(target=self._conn.schemaless_insert,args=([insert_sql[0]], TDSmlProtocolType.TELNET.value, None))
             tlist.append(t)
         return tlist
 
@@ -1324,7 +1325,7 @@ class TDTestCase:
     def test(self):
         try:
             input_sql = f'test_nchar 0 L"涛思数据" t0=f t1=L"涛思数据" t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64'
-            self._conn.schemaless_insert([input_sql], 1, None)
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         except SchemalessError as err:
             print(err.errno)
 
@@ -1343,7 +1344,7 @@ class TDTestCase:
         self.nowTsCheckCase()
         self.dateFormatTsCheckCase()
         self.illegalTsCheckCase()
-        self.tbnameCheckCase()
+        # self.tbnameCheckCase()
         self.tagNameLengthCheckCase()
         self.tagValueLengthCheckCase()
         self.colValueLengthCheckCase()
