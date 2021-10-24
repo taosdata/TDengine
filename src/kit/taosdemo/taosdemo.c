@@ -10448,10 +10448,8 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### sml progressive write\n", __func__, __LINE__);
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
-    int64_t timeStampStep =
-        stbInfo?stbInfo->timeStampStep:g_args.timestamp_step;
-    int64_t insertRows =
-        (stbInfo)?stbInfo->insertRows:g_args.insertRows;
+    int64_t timeStampStep = stbInfo->timeStampStep;
+    int64_t insertRows = stbInfo->insertRows;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
             __func__, __LINE__, insertRows);
 
@@ -11656,11 +11654,16 @@ static int insertTestProcess() {
                 }
             }
         } else {
-            startMultiThreadInsertData(
+            if (SML_IFACE == g_args.iface) {
+                errorPrint2("%s\n", "Schemaless insertion must include stable");
+                exit(EXIT_FAILURE);
+            } else {
+                startMultiThreadInsertData(
                     g_Dbs.threadCount,
                     g_Dbs.db[i].dbName,
                     g_Dbs.db[i].dbCfg.precision,
                     NULL);
+            }
         }
     }
     //end = taosGetTimestampMs();
