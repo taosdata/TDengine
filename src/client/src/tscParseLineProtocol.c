@@ -1175,13 +1175,15 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-void addEscapeChartoString(char *str, int32_t len) {
+void addEscapeChartoString(char *str, int16_t *bufLen) {
   if (str == NULL) {
     return;
   }
+  int16_t len = *bufLen;
   memmove(str + 1, str, len);
-  str[0] = str[len] = TS_ESCAPE_CHAR;
-  str[len + 1] = '\0';
+  str[0] = str[len + 1] = TS_ESCAPE_CHAR;
+  str[len + 2] = '\0';
+  *bufLen += SML_ESCAPE_CHAR_SIZE;
 }
 
 bool isValidInteger(char *str) {
@@ -1893,7 +1895,7 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
 static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash, SSmlLinesInfo* info) {
   const char *cur = *index;
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
-  uint16_t len = 0;
+  int16_t len = 0;
 
   while (*cur != '\0') {
     if (len > TSDB_COL_NAME_LEN - 1) {
@@ -1923,10 +1925,10 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pKV->key = calloc(len + TS_ESCAPE_CHAR + 1, 1);
+  pKV->key = calloc(len + SML_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
-  addEscapeChartoString(pKV->key, len);
-  //tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
+  addEscapeChartoString(pKV->key, &len);
+  tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
@@ -1937,7 +1939,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   char *value = NULL;
-  uint16_t len = 0;
+  int16_t len = 0;
   bool searchQuote = false;
   start = cur = *index;
 
@@ -2018,7 +2020,7 @@ error:
 static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index,
                                    uint8_t *has_tags, SSmlLinesInfo* info) {
   const char *cur = *index;
-  uint16_t len = 0;
+  int16_t len = 0;
 
   pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + SML_ESCAPE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL){
@@ -2060,7 +2062,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     pSml->stableName = NULL;
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
-  addEscapeChartoString(pSml->stableName, len);
+  addEscapeChartoString(pSml->stableName, &len);
   *index = cur + 1;
   tscDebug("SML:0x%"PRIx64" Stable name in measurement:%s|len:%d", info->id, pSml->stableName, len);
 
@@ -2120,7 +2122,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       smlData->childTableName = malloc(pkv->length + SML_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
-      addEscapeChartoString(smlData->childTableName, (int32_t)pkv->length);
+      //addEscapeChartoString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
       free(pkv->value);
     } else {
