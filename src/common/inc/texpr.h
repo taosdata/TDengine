@@ -49,6 +49,7 @@ enum {
   TSQL_NODE_EXPR  = 0x1,
   TSQL_NODE_COL   = 0x2,
   TSQL_NODE_VALUE = 0x4,
+  TSQL_NODE_FUNC  = 0x8
 };
 
 /**
@@ -74,7 +75,14 @@ typedef struct tExprNode {
     } _node;
 
     struct SSchema     *pSchema;
+
     tVariant           *pVal;
+
+    struct {
+      int16_t functionId;
+      uint8_t numChilds;
+      struct tExprNode** pChilds;
+    } _func;
   };
 } tExprNode;
 

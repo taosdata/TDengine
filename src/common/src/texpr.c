@@ -119,6 +119,8 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
     tVariantDestroy(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     tfree(pNode->pSchema);
+  } else if (pNode->nodeType == TSQL_NODE_FUNC) {
+    doExprTreeDestroy(&pNode, fp);
   }
 
   free(pNode);
@@ -141,6 +143,10 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     free((*pExpr)->pVal);
   } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
     free((*pExpr)->pSchema);
+  } else if ((*pExpr)->nodeType == TSQL_NODE_FUNC) {
+    for (int i = 0; i < (*pExpr)->_func.numChilds; ++i) {
+      doExprTreeDestroy((*pExpr)->_func.pChilds + i, fp);
+    }
   }
 
   free(*pExpr);
@@ -307,6 +313,12 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
     tbufWriteUint8(bw, expr->_node.hasPK);
     exprTreeToBinaryImpl(bw, expr->_node.pLeft);
     exprTreeToBinaryImpl(bw, expr->_node.pRight);
+  } else if (expr->nodeType == TSQL_NODE_FUNC) {
+    tbufWriteInt16(bw, expr->_func.functionId);
+    tbufWriteUint8(bw, expr->_func.numChilds);
+    for (int i = 0; i < expr->_func.numChilds; ++i) {
+      exprTreeToBinaryImpl(bw, expr->_func.pChilds[i]);
+    }
   }
 }
 
@@ -372,6 +384,13 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pExpr->_node.pLeft = exprTreeFromBinaryImpl(br);
     pExpr->_node.pRight = exprTreeFromBinaryImpl(br);
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
+  } else if (pExpr->nodeType == TSQL_NODE_FUNC) {
+    pExpr->_func.functionId = tbufReadInt16(br);
+    pExpr->_func.numChilds = tbufReadUint8(br);
+    pExpr->_func.pChilds = (tExprNode**)calloc(pExpr->_func.numChilds, sizeof(tExprNode*));
+    for (int i = 0; i < pExpr->_func.numChilds; ++i) {
+      pExpr->_func.pChilds[i] = exprTreeFromBinaryImpl(br);
+    }
   }
   
   CLEANUP_EXECUTE_TO(anchor, false);
@@ -620,6 +639,12 @@ tExprNode* exprdup(tExprNode* pNode) {
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     pCloned->pSchema = calloc(1, sizeof(SSchema));
     *pCloned->pSchema = *pNode->pSchema;
+  } else if (pNode->nodeType == TSQL_NODE_FUNC) {
+    pCloned->_func.functionId = pNode->_func.functionId;
+    pCloned->_func.numChilds = pNode->_func.numChilds;
+    for (int i = 0; i < pNode->_func.numChilds; ++i) {
+      pCloned->_func.pChilds[i] = exprdup(pNode->_func.pChilds[i]);
+    }
   }
 
   pCloned->nodeType = pNode->nodeType;
