@@ -70,7 +70,8 @@ SSqlInfo qSqlParse(const char *pStr) {
         
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
-        if (sqlInfo.valid == false) {
+        if (sqlInfo.valid == false || terrno != TSDB_CODE_SUCCESS) {
+          snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "%s", t0.z);
           goto abort_parse;
         }
     }
