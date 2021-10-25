@@ -107,7 +107,8 @@ static int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryIn
 static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type);
+static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
+                                   SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid);
 static int32_t validateEp(char* ep);
 static int32_t validateDNodeConfig(SMiscInfo* pOptions);
 static int32_t validateLocalConfig(SMiscInfo* pOptions);
@@ -1748,7 +1749,8 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
   SColumnList columnList = {0};
   int32_t     arithmeticType = NON_ARITHMEIC_EXPR;
 
-  if (validateArithmeticSQLExpr(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType) != TSDB_CODE_SUCCESS) {
+  uint64_t uid;
+  if (validateSQLExprTerm(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType, &uid) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -4285,140 +4287,130 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* 
   return checkAndSetJoinCondInfo(pCmd, pQueryInfo, pExpr);
 }
 
-static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList,
-                               int32_t* type, uint64_t* uid) {
-  if (pExpr->type == SQL_NODE_TABLE_COLUMN) {
-    if (*type == NON_ARITHMEIC_EXPR) {
-      *type = NORMAL_ARITHMETIC;
-    } else if (*type == AGG_ARIGHTMEIC) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-    if (getColumnIndexByName(&pExpr->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql
-    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index.tableIndex)->pTableMeta;
-    SSchema*    pSchema = tscGetTableSchema(pTableMeta) + index.columnIndex;
-    
-    if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL) ||
-        (pSchema->type == TSDB_DATA_TYPE_BINARY) || (pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    pList->ids[pList->num++] = index;
-  } else if ((pExpr->tokenId == TK_FLOAT && (isnan(pExpr->value.dKey) || isinf(pExpr->value.dKey))) ||
-             pExpr->tokenId == TK_NULL) {
+static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
+                                         SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t *uid) {
+  int32_t functionId = isValidFunction(pExpr->Expr.operand.z, pExpr->Expr.operand.n);
+  if (functionId < 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
-  } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
-    int32_t functionId = isValidFunction(pExpr->Expr.operand.z, pExpr->Expr.operand.n);
-    if (functionId < 0) {
+  }
+  if (*type == NON_ARITHMEIC_EXPR) {
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      *type = NORMAL_ARITHMETIC;
+    } else {
+      *type = AGG_ARIGHTMEIC;
+    }
+  } else if (*type == NORMAL_ARITHMETIC) {
+    if (!TSDB_FUNC_IS_SCALAR(functionId)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    if (*type == NON_ARITHMEIC_EXPR) {
-      if (TSDB_FUNC_IS_SCALAR(functionId)) {
-        *type = NORMAL_ARITHMETIC;
-      } else {
-        *type = AGG_ARIGHTMEIC;
-      }
-    } else if (*type == NORMAL_ARITHMETIC) {
-      if (!TSDB_FUNC_IS_SCALAR(functionId)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-    } else {
-      if (TSDB_FUNC_IS_SCALAR(functionId)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-    }
-
-    if (*type == AGG_ARIGHTMEIC) {
-      int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
-
-      tSqlExprItem item = {.pNode = pExpr, .aliasName = NULL};
-
-      // sql function list in selection clause.
-      // Append the sqlExpr into exprList of pQueryInfo structure sequentially
-      pExpr->functionId = functionId;
-
-      if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false, NULL) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      // It is invalid in case of more than one sqlExpr, such as first(ts, k) - last(ts, k)
-      int32_t inc = (int32_t)tscNumOfExprs(pQueryInfo) - outputIndex;
-      if (inc > 1) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      // Not supported data type in arithmetic expression
-      uint64_t id = -1;
-      for (int32_t i = 0; i < inc; ++i) {
-        SExprInfo* p1 = tscExprGet(pQueryInfo, i + outputIndex);
-
-        int16_t t = p1->base.resType;
-        if (t == TSDB_DATA_TYPE_BINARY || t == TSDB_DATA_TYPE_NCHAR || t == TSDB_DATA_TYPE_BOOL ||
-            t == TSDB_DATA_TYPE_TIMESTAMP) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-
-        if (i == 0) {
-          id = p1->base.uid;
-          continue;
-        }
-
-        if (id != p1->base.uid) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-      }
-
-      *uid = id;
+  } else {
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
 
+  if (*type == AGG_ARIGHTMEIC) {
+    int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
+
+    tSqlExprItem item = {.pNode = pExpr, .aliasName = NULL};
+
+    // sql function list in selection clause.
+    // Append the sqlExpr into exprList of pQueryInfo structure sequentially
+    pExpr->functionId = functionId;
+
+    if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false, NULL) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    // It is invalid in case of more than one sqlExpr, such as first(ts, k) - last(ts, k)
+    int32_t inc = (int32_t)tscNumOfExprs(pQueryInfo) - outputIndex;
+    if (inc > 1) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    // Not supported data type in arithmetic expression
+    uint64_t id = -1;
+    for (int32_t i = 0; i < inc; ++i) {
+      SExprInfo* p1 = tscExprGet(pQueryInfo, i + outputIndex);
+
+      int16_t t = p1->base.resType;
+      if (t == TSDB_DATA_TYPE_BINARY || t == TSDB_DATA_TYPE_NCHAR || t == TSDB_DATA_TYPE_BOOL ||
+          t == TSDB_DATA_TYPE_TIMESTAMP) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      if (i == 0) {
+        id = p1->base.uid;
+        continue;
+      }
+
+      if (id != p1->base.uid) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    }
+
+    *uid = id;
+  } else {
+    size_t numChilds = taosArrayGetSize(pExpr->Expr.paramList);
+    for (int i = 0; i < numChilds; ++i) {
+      tSqlExprItem* pParamElem= taosArrayGet(pExpr->Expr.paramList, i);
+      validateSQLExprTerm(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type) {
+static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
+                                             SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  tSqlExpr* pLeft = pExpr->pLeft;
-  uint64_t uidLeft = 0;
-  uint64_t uidRight = 0;
-
-  if (pLeft->type == SQL_NODE_EXPR) {
-    int32_t ret = validateArithmeticSQLExpr(pCmd, pLeft, pQueryInfo, pList, type);
+  if (pExpr->type == SQL_NODE_EXPR) {
+    uint64_t uidLeft = 0;
+    uint64_t uidRight = 0;
+    int32_t  ret = validateSQLExprTerm(pCmd, pExpr->pLeft, pQueryInfo, pList, type, &uidLeft);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
-  } else {
-    int32_t ret = validateSQLExpr(pCmd, pLeft, pQueryInfo, pList, type, &uidLeft);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
-  }
-
-  tSqlExpr* pRight = pExpr->pRight;
-  if (pRight->type == SQL_NODE_EXPR) {
-    int32_t ret = validateArithmeticSQLExpr(pCmd, pRight, pQueryInfo, pList, type);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
-  } else {
-    int32_t ret = validateSQLExpr(pCmd, pRight, pQueryInfo, pList, type, &uidRight);
+    ret = validateSQLExprTerm(pCmd, pExpr->pRight, pQueryInfo, pList, type, &uidRight);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
-    // the expression not from the same table, return error
     if (uidLeft != uidRight && uidLeft != 0 && uidRight != 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+      *uid = uidLeft;
+    } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
+      validateArithmeticSQLFunc(pCmd, pExpr, pQueryInfo, pList, type, uid);
+    } else if (pExpr->type == SQL_NODE_TABLE_COLUMN) {
+      if (*type == NON_ARITHMEIC_EXPR) {
+        *type = NORMAL_ARITHMETIC;
+      } else if (*type == AGG_ARIGHTMEIC) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(&pExpr->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) !=
+          TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql
+      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index.tableIndex)->pTableMeta;
+      SSchema*    pSchema = tscGetTableSchema(pTableMeta) + index.columnIndex;
+
+      if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL) ||
+          (pSchema->type == TSDB_DATA_TYPE_BINARY) || (pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pList->ids[pList->num++] = index;
+    } else if ((pExpr->tokenId == TK_FLOAT && (isnan(pExpr->value.dKey) || isinf(pExpr->value.dKey))) ||
+               pExpr->tokenId == TK_NULL) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
