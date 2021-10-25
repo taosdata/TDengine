@@ -61,6 +61,10 @@ void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsMint.fp.SendMsgToM
 
 void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell) { (*tsMint.fp.SendRedirectMsg)(rpcMsg, forShell); }
 
+void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port) {
+  (*tsMint.fp.GetDnodeEp)(dnodeId, ep, fqdn, port);
+}
+
 int32_t mnodeGetStatistics(SMnodeStat *stat) { return 0; }
 
 static int32_t mnodeSetPara(SMnodePara para) {
@@ -242,5 +246,3 @@ void mnodeCleanup() {
     mInfo("mnode is cleaned up");
   }
 }
-
-int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }

@@ -19,7 +19,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "os.h"
 #include "taosmsg.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "dnode.h"

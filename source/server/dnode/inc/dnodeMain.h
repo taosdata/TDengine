@@ -22,10 +22,10 @@ extern "C" {
 #include "dnodeInt.h"
 
 typedef enum {
-  TD_RUN_STAT_INIT,
-  TD_RUN_STAT_RUNNING,
-  TD_RUN_STAT_STOPPED
-} RunStat;
+  DN_RUN_STAT_INIT,
+  DN_RUN_STAT_RUNNING,
+  DN_RUN_STAT_STOPPED
+} EDnRunStat;
 
 int32_t dnodeInitMain();
 void    dnodeCleanupMain();
@@ -36,7 +36,7 @@ void    dnodeReportStartupFinished(char *name, char *desc);
 void    dnodeProcessStartupReq(SRpcMsg *pMsg);
 void    dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
 void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
-RunStat dnodeGetRunStat();
+EDnRunStat dnodeGetRunStat();
 void    dnodeSetRunStat();
 void*   dnodeGetTimer();
 

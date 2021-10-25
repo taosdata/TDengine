@@ -46,6 +46,16 @@ typedef struct {
    */
   void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
 
+  /**
+   * Get the corresponding endpoint information from dnodeId.
+   *
+   * @param dnode, the instance of dDnode module.
+   * @param dnodeId, the id ot dnode.
+   * @param ep, the endpoint of dnode.
+   * @param fqdn, the fqdn of dnode.
+   * @param port, the port of dnode.
+   */
+  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 } SMnodeFp;
 
 typedef struct {

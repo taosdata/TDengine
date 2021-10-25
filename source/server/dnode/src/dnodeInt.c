@@ -46,6 +46,7 @@ static int32_t dnodeInitVnodeModule(void **unused) {
 
 static int32_t dnodeInitMnodeModule(void **unused) {
   SMnodePara para;
+  para.fp.GetDnodeEp = dnodeGetDnodeEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
   para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
@@ -77,7 +78,7 @@ int32_t dnodeInit() {
 
   taosStepExec(tsSteps);
 
-  dnodeSetRunStat(TD_RUN_STAT_RUNNING);
+  dnodeSetRunStat(DN_RUN_STAT_RUNNING);
   dnodeReportStartupFinished("TDengine", "initialized successfully");
   dInfo("TDengine is initialized successfully");
 
@@ -85,8 +86,8 @@ int32_t dnodeInit() {
 }
 
 void dnodeCleanup() {
-  if (dnodeGetRunStat() != TD_RUN_STAT_STOPPED) {
-    dnodeSetRunStat(TD_RUN_STAT_STOPPED);
+  if (dnodeGetRunStat() != DN_RUN_STAT_STOPPED) {
+    dnodeSetRunStat(DN_RUN_STAT_STOPPED);
     taosStepCleanup(tsSteps);
     tsSteps = NULL;
   }
