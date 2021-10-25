@@ -68,6 +68,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
 
+#define TSDB_NETTEST_USER               "nettestinternal"
 #define TSDB_DEFAULT_USER               "root"
 #ifdef _TD_POWER_
 #define TSDB_DEFAULT_PASS               "powerdb"

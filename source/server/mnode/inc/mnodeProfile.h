@@ -13,35 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_MAIN_H_
-#define _TD_DNODE_MAIN_H_
+#ifndef _TD_MNODE_PROFILE_H_
+#define _TD_MNODE_PROFILE_H_
+
+#include "mnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
 
-typedef enum {
-  DN_RUN_STAT_INIT,
-  DN_RUN_STAT_RUNNING,
-  DN_RUN_STAT_STOPPED
-} EDnRunStat;
-
-int32_t dnodeInitMain();
-void    dnodeCleanupMain();
-int32_t dnodeInitStorage();
-void    dnodeCleanupStorage();
-void    dnodeReportStartup(char *name, char *desc);
-void    dnodeReportStartupFinished(char *name, char *desc);
-void    dnodeProcessStartupReq(SRpcMsg *pMsg);
-void    dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
-void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
-EDnRunStat dnodeGetRunStat();
-void    dnodeSetRunStat();
-void*   dnodeGetTimer();
+int32_t mnodeInitProfile();
+void    mnodeCleanupProfile();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_MAIN_H_*/
+#endif /*_TD_MNODE_PROFILE_H_*/

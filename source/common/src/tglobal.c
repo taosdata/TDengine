@@ -201,8 +201,6 @@ int8_t tscEmbedded = 0;
 char   tsVnodeDir[PATH_MAX] = {0};
 char   tsDnodeDir[PATH_MAX] = {0};
 char   tsMnodeDir[PATH_MAX] = {0};
-char   tsMnodeTmpDir[PATH_MAX] = {0};
-char   tsMnodeBakDir[PATH_MAX] = {0};
 
 int32_t  tsDiskCfgNum = 0;
 int32_t tsTopicBianryLen = 16000;

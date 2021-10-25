@@ -13,27 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_INT_H_
-#define _TD_MNODE_INT_H_
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "mnodeInt.h"
 
-#include "mnodeDef.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-tmr_h     mnodeGetTimer();
-int32_t   mnodeGetDnodeId();
-char     *mnodeGetClusterId();
-EMnStatus mnodeGetStatus();
-
-void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
-void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MNODE_INT_H_*/
+int32_t mnodeInitProfile() { return 0; }
+void    mnodeCleanupProfile() {}

@@ -13,27 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_INT_H_
-#define _TD_MNODE_INT_H_
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "mnodeAuth.h"
 
-#include "mnodeDef.h"
+int32_t mnodeInitAuth() { return 0; }
+void    mnodeCleanupAuth() {}
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (strcmp(user, TSDB_NETTEST_USER) == 0) {
+    char pass[32] = {0};
+    taosEncryptPass((uint8_t *)user, strlen(user), pass);
+    *spi = 0;
+    *encrypt = 0;
+    *ckey = 0;
+    memcpy(secret, pass, TSDB_KEY_LEN);
+    mDebug("nettest user is authorized");
+    return 0;
+  }
 
-tmr_h     mnodeGetTimer();
-int32_t   mnodeGetDnodeId();
-char     *mnodeGetClusterId();
-EMnStatus mnodeGetStatus();
-
-void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
-void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-
-#ifdef __cplusplus
+  return 0;
 }
-#endif
-
-#endif /*_TD_MNODE_INT_H_*/

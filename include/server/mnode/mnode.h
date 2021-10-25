@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
+
 typedef struct {
   /**
    * Send messages to other dnodes, such as create vnode message.
@@ -54,13 +56,12 @@ typedef struct {
    * @param port, the port of dnode.
    */
   void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-
 } SMnodeFp;
 
 typedef struct {
-  SMnodeFp      fp;
-  char          clusterId[TSDB_CLUSTER_ID_LEN];
-  int32_t       dnodeId;
+  SMnodeFp fp;
+  char     clusterId[TSDB_CLUSTER_ID_LEN];
+  int32_t  dnodeId;
 } SMnodePara;
 
 /**
@@ -79,10 +80,9 @@ void mnodeCleanup();
 /**
  * Deploy mnode instances in dnode.
  *
- * @param minfos, server information used to deploy the mnode instance.
  * @return Error Code.
  */
-int32_t mnodeDeploy(struct SMInfos *minfos);
+int32_t mnodeDeploy();
 
 /**
  * Delete the mnode instance deployed in dnode.
@@ -94,7 +94,7 @@ void mnodeUnDeploy();
  *
  * @return Server status.
  */
-bool mnodeIsServing();
+EMnStatus mnodeGetStatus();
 
 typedef struct {
   int64_t numOfDnode;

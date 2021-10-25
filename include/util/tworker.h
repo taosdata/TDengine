@@ -16,6 +16,8 @@
 #ifndef _TD_UTIL_WORKER_H
 #define _TD_UTIL_WORKER_H
 
+#include "tqueue.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

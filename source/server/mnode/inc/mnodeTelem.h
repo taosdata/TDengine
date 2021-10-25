@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,27 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_INT_H_
-#define _TD_MNODE_INT_H_
-
-#include "mnodeDef.h"
+#ifndef _TD_MNODE_TELEMETRY_H_
+#define _TD_MNODE_TELEMETRY_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "mnodeInt.h"
 
-tmr_h     mnodeGetTimer();
-int32_t   mnodeGetDnodeId();
-char     *mnodeGetClusterId();
-EMnStatus mnodeGetStatus();
-
-void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
-void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+int32_t mnodeInitTelem();
+void    mnodeCleanupTelem();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MNODE_INT_H_*/
+#endif /*_TD_MNODE_TELEMETRY_H_*/

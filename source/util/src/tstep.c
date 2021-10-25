@@ -18,7 +18,7 @@
 #include "ulog.h"
 #include "tstep.h"
 
-typedef struct SStepObj {
+typedef struct {
   char *    name;
   InitFp    initFp;
   CleanupFp cleanupFp;
