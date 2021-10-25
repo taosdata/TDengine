@@ -3174,17 +3174,20 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
 
   int16_t columnIndex = COLUMN_INDEX_INITIAL_VAL;
 
-  SStrToken tmpToken = *pToken;
-  if (tmpToken.type == TK_ID) {
-    tscRmEscapeAndTrimToken(&tmpToken);
+  char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
+  strncpy(tmpTokenBuf, pToken->z, pToken->n);
+  pToken->z = tmpTokenBuf;
+
+  if (pToken->type == TK_ID) {
+    tscRmEscapeAndTrimToken(pToken);
   }
 
   for (int16_t i = 0; i < numOfCols; ++i) {
-    if (tmpToken.n != strlen(pSchema[i].name)) {
+    if (pToken->n != strlen(pSchema[i].name)) {
       continue;
     }
 
-    if (strncasecmp(pSchema[i].name, tmpToken.z, tmpToken.n) == 0) {
+    if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
       break;
     }
@@ -6318,6 +6321,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
+    //handle Escape character backstick
+    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+      memmove(name.z, name.z + 1, name.n);
+      name.z[name.n - 2] = '\0';
+      name.n -= 2;
+    }
+
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
