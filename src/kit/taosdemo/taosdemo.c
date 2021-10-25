@@ -3560,26 +3560,28 @@ static int postProceSql(char *host, uint16_t port,
             break;
         received += bytes;
 
-        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
-                __func__, __LINE__, received, resp_len, response_buf);
+        response_buf[RESP_BUF_LEN - 1] = '\0';
 
-        if (((NULL != strstr(response_buf, resEncodingChunk))
-                    && (NULL != strstr(response_buf, resHttp)))
-                || ((NULL != strstr(response_buf, resHttpOk))
-                    && (NULL != strstr(response_buf, "\"status\":")))) {
-            debugPrint(
-                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+        if (strlen(response_buf)) {
+            verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                     __func__, __LINE__, received, resp_len, response_buf);
-            break;
-        } 
+
+            if (((NULL != strstr(response_buf, resEncodingChunk))
+                        && (NULL != strstr(response_buf, resHttp)))
+                    || ((NULL != strstr(response_buf, resHttpOk))
+                        && (NULL != strstr(response_buf, "\"status\":")))) {
+                debugPrint(
+                        "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                        __func__, __LINE__, received, resp_len, response_buf);
+                break;
+            } 
+        }
     } while(received < resp_len);
 
     if (received == resp_len) {
         free(request_buf);
         ERROR_EXIT("storing complete response from socket");
     }
-
-    response_buf[RESP_BUF_LEN - 1] = '\0';
 
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
@@ -7058,6 +7060,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
 {
     int32_t affectedRows;
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
+    TAOS_RES* res;
     int32_t code;
     uint16_t iface;
     if (stbInfo)
@@ -7111,17 +7114,14 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             affectedRows = k;
             break;
         case SML_IFACE:
-            code = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, 0, pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI
-                    ? "ms"
-                    : (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO
-                           ? "us"
-                           : "ns"));
-            if (code) {
+            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, 0, pThreadInfo->time_precision);
+            code = taos_errno(res);
+            affectedRows = taos_affected_rows(res);
+            if (code != TSDB_CODE_SUCCESS) {
                 errorPrint2("%s() LN%d, failed to execute schemaless insert. reason: %s\n",
-                __func__, __LINE__, tstrerror(code));
+                __func__, __LINE__, taos_errstr(res));
                 exit(EXIT_FAILURE);
             }
-            affectedRows = k;
             break;
         default:
             errorPrint2("%s() LN%d: unknown insert mode: %d\n",
@@ -10450,10 +10450,8 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### sml progressive write\n", __func__, __LINE__);
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
-    int64_t timeStampStep =
-        stbInfo?stbInfo->timeStampStep:g_args.timestamp_step;
-    int64_t insertRows =
-        (stbInfo)?stbInfo->insertRows:g_args.insertRows;
+    int64_t timeStampStep = stbInfo->timeStampStep;
+    int64_t insertRows = stbInfo->insertRows;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
             __func__, __LINE__, insertRows);
 
@@ -11658,11 +11656,16 @@ static int insertTestProcess() {
                 }
             }
         } else {
-            startMultiThreadInsertData(
+            if (SML_IFACE == g_args.iface) {
+                errorPrint2("%s\n", "Schemaless insertion must include stable");
+                exit(EXIT_FAILURE);
+            } else {
+                startMultiThreadInsertData(
                     g_Dbs.threadCount,
                     g_Dbs.db[i].dbName,
                     g_Dbs.db[i].dbCfg.precision,
                     NULL);
+            }
         }
     }
     //end = taosGetTimestampMs();
