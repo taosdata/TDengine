@@ -59,11 +59,25 @@ int tqOpenTGroup(STQ* pTq, const char* topic, int cgId) {
 /*int tqCloseTCGroup(STQ* pTq, const char* topic, int cgId) {*/
   /*tqGroupHandle* handle = tqLookupGroupHandle(pTq, topic, cgId);*/
   /*return tqCommitTCGroup(handle);*/
-}
+/*}*/
 
 int tqDropTCGroup(STQ* pTq, const char* topic, int cgId) {
   //delete from disk
   return 0;
+}
+
+
+int tqFetchMsg(tqGroupHandle* handle, void* msg) {
+  return 0;
+}
+
+int tqMoveOffsetToNext(tqGroupHandle* handle) {
+  return 0;
+}
+
+
+tqGroupHandle* tqFindGHandleBycId(STQ* pTq, int64_t cId) {
+  return NULL;
 }
 
 int tqPushMsg(STQ* pTq , void* p, int64_t version) {
