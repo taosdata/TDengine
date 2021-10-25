@@ -900,10 +900,6 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       return TSDB_CODE_TSC_INVALID_JSON;
     }
     size_t idLen = strlen(id->valuestring);
-    ret = isValidChildTableName(id->valuestring, (int16_t)idLen, info);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
     *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
     strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
