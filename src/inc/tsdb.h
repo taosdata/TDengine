@@ -418,6 +418,12 @@ int tsdbCompact(STsdbRepo *pRepo);
 // no problem return true
 bool tsdbNoProblem(STsdbRepo* pRepo);
 
+// unit of walSize: MB
+int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
+
+// not commit if other instances in committing state or waiting to commit
+bool tsdbIsNeedCommit(STsdbRepo *pRepo);
+
 #ifdef __cplusplus
 }
 #endif

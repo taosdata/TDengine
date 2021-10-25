@@ -15,7 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
-
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -38,7 +38,7 @@ class TDTestCase:
                         "`.stb0.3.` 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                    ]
 
-        code = self._conn.schemaless_insert(lines0, 1, None)
+        code = self._conn.schemaless_insert(lines0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("show stables")
@@ -68,7 +68,7 @@ class TDTestCase:
                       "stb1 0 7i8 host=\"host0\"",
                     ]
 
-        code = self._conn.schemaless_insert(lines1, 1, None)
+        code = self._conn.schemaless_insert(lines1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb1")
@@ -82,7 +82,7 @@ class TDTestCase:
                         "stb2_0 1626006833651ms -127i8 host=\"host0\"",
                         "stb2_0 1626006833652ms 127i8 host=\"host0\""
                      ]
-        code = self._conn.schemaless_insert(lines2_0, 1, None)
+        code = self._conn.schemaless_insert(lines2_0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_0")
@@ -97,7 +97,7 @@ class TDTestCase:
                         "stb2_1 1626006833651ms -32767i16 host=\"host0\"",
                         "stb2_1 1626006833652ms 32767i16 host=\"host0\""
                      ]
-        code = self._conn.schemaless_insert(lines2_1, 1, None)
+        code = self._conn.schemaless_insert(lines2_1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_1")
@@ -113,7 +113,7 @@ class TDTestCase:
                         "stb2_2 1626006833652ms 2147483647i32 host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_2, 1, None)
+        code = self._conn.schemaless_insert(lines2_2, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_2")
@@ -129,7 +129,7 @@ class TDTestCase:
                         "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_3, 1, None)
+        code = self._conn.schemaless_insert(lines2_3, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_3")
@@ -153,7 +153,7 @@ class TDTestCase:
                         "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_4, 1, None)
+        code = self._conn.schemaless_insert(lines2_4, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_4")
@@ -178,7 +178,7 @@ class TDTestCase:
                         "stb2_5 1626006833710ms 3 host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_5, 1, None)
+        code = self._conn.schemaless_insert(lines2_5, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_5")
@@ -202,7 +202,7 @@ class TDTestCase:
                         "stb2_6 1626006833700ms FALSE host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_6, 1, None)
+        code = self._conn.schemaless_insert(lines2_6, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_6")
@@ -219,7 +219,7 @@ class TDTestCase:
                         "stb2_7 1626006833630ms \"binary_val.()[]{}<>\" host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_7, 1, None)
+        code = self._conn.schemaless_insert(lines2_7, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_7")
@@ -235,7 +235,7 @@ class TDTestCase:
                         "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\""
                      ]
 
-        code = self._conn.schemaless_insert(lines2_8, 1, None)
+        code = self._conn.schemaless_insert(lines2_8, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb2_8")
@@ -253,7 +253,7 @@ class TDTestCase:
                         "stb3_0 1626006833610ms 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
                      ]
 
-        code = self._conn.schemaless_insert(lines3_0, 1, None)
+        code = self._conn.schemaless_insert(lines3_0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb3_0")
@@ -297,7 +297,7 @@ class TDTestCase:
                         "stb3_1 1626006833610ms 3 ID=child_table3 host=host3"
                      ]
 
-        code = self._conn.schemaless_insert(lines3_1, 1, None)
+        code = self._conn.schemaless_insert(lines3_1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb3_1")

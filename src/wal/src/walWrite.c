@@ -577,3 +577,13 @@ void walResetVersion(twalh param, uint64_t newVer) {
 
   pWal->version = newVer;
 }
+
+int64_t walGetFSize(twalh handle) {
+  SWal *pWal = handle;
+  if (pWal == NULL) return 0;
+  struct stat _fstat;
+  if (tfStat(pWal->tfd, &_fstat) == 0) {
+    return _fstat.st_size;
+  };
+  return 0;
+}

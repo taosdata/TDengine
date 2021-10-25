@@ -78,7 +78,9 @@ print ===> $data11
 if $data11 != 1.000000000 then 
   return -1
 endi
+
 sql_error select csum(c7) from $tb
+sql_error select csum(c7) from $tb group by c8
 sql_error select csum(c8) from $tb
 sql_error select csum(c9) from $tb
 sql_error select csum(ts) from $tb

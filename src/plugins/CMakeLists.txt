@@ -32,7 +32,7 @@ ELSE ()
   MESSAGE("")
   MESSAGE("${Green} use blm3 as httpd ${ColourReset}")
   EXECUTE_PROCESS(
-      COMMAND cd blm3
+      COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/blm3
       )
   EXECUTE_PROCESS(
       COMMAND git rev-parse --short HEAD
