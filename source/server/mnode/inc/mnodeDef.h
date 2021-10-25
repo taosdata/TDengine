@@ -16,6 +16,7 @@
 #ifndef _TD_MNODE_DEF_H_
 #define _TD_MNODE_DEF_H_
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"

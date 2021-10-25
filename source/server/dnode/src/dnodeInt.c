@@ -28,7 +28,6 @@
 #include "dnodeMain.h"
 #include "dnodeMnodeEps.h"
 #include "dnodeStatus.h"
-#include "dnodeTelem.h"
 #include "dnodeTrans.h"
 #include "mnode.h"
 #include "vnode.h"
@@ -73,7 +72,6 @@ int32_t dnodeInit() {
   taosStepAdd(tsSteps, "dnode-mnode", dnodeInitMnodeModule, mnodeCleanup);
   taosStepAdd(tsSteps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
   taosStepAdd(tsSteps, "dnode-status", dnodeInitStatus, dnodeCleanupStatus);
-  taosStepAdd(tsSteps, "dnode-telem", dnodeInitTelem, dnodeCleanupTelem);
   //taosStepAdd(tsSteps, "dnode-script",scriptEnvPoolInit, scriptEnvPoolCleanup);
 
   taosStepExec(tsSteps);

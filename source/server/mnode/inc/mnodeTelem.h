@@ -13,19 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_TELEMETRY_H_
-#define _TD_DNODE_TELEMETRY_H_
+#ifndef _TD_MNODE_TELEMETRY_H_
+#define _TD_MNODE_TELEMETRY_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
+#include "mnodeInt.h"
 
-int32_t dnodeInitTelem();
-void    dnodeCleanupTelem();
+int32_t mnodeInitTelem();
+void    mnodeCleanupTelem();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_TELEMETRY_H_*/
+#endif /*_TD_MNODE_TELEMETRY_H_*/

@@ -34,6 +34,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 #include "mnodeWorker.h"
+#include "mnodeTelem.h"
 
 static struct {
   int32_t  state;
@@ -127,6 +128,7 @@ static int32_t mnodeInitStep2() {
   taosStepAdd(steps, "mnode-show", mnodeInitShow, mnodeCleanUpShow);
   taosStepAdd(steps, "mnode-sync", mnodeInitSync, mnodeCleanUpSync);
   taosStepAdd(steps, "mnode-worker", NULL, mnodeCleanupWorker);
+  taosStepAdd(steps, "mnode-telem", mnodeInitTelem, mnodeCleanupTelem);
   taosStepAdd(steps, "mnode-timer", NULL, mnodeCleanupTimer);
 
   tsMint.steps2 = steps;
