@@ -28,7 +28,6 @@
 #include "dnodeMain.h"
 #include "dnodeMnodeEps.h"
 #include "dnodeStatus.h"
-#include "dnodeTelem.h"
 #include "dnodeTrans.h"
 #include "mnode.h"
 #include "vnode.h"
@@ -73,12 +72,11 @@ int32_t dnodeInit() {
   taosStepAdd(tsSteps, "dnode-mnode", dnodeInitMnodeModule, mnodeCleanup);
   taosStepAdd(tsSteps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
   taosStepAdd(tsSteps, "dnode-status", dnodeInitStatus, dnodeCleanupStatus);
-  taosStepAdd(tsSteps, "dnode-telem", dnodeInitTelem, dnodeCleanupTelem);
   //taosStepAdd(tsSteps, "dnode-script",scriptEnvPoolInit, scriptEnvPoolCleanup);
 
   taosStepExec(tsSteps);
 
-  dnodeSetRunStat(TD_RUN_STAT_RUNNING);
+  dnodeSetRunStat(DN_RUN_STAT_RUNNING);
   dnodeReportStartupFinished("TDengine", "initialized successfully");
   dInfo("TDengine is initialized successfully");
 
@@ -86,8 +84,8 @@ int32_t dnodeInit() {
 }
 
 void dnodeCleanup() {
-  if (dnodeGetRunStat() != TD_RUN_STAT_STOPPED) {
-    dnodeSetRunStat(TD_RUN_STAT_STOPPED);
+  if (dnodeGetRunStat() != DN_RUN_STAT_STOPPED) {
+    dnodeSetRunStat(DN_RUN_STAT_STOPPED);
     taosStepCleanup(tsSteps);
     tsSteps = NULL;
   }

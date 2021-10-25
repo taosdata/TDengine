@@ -363,6 +363,8 @@ typedef struct {
 } SConnectRsp;
 
 typedef struct {
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_KEY_LEN];
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
@@ -374,12 +376,6 @@ typedef struct {
   int64_t maxInbound;
   int64_t maxOutbound;
   int8_t  accessState;  // Configured only by command
-} SAcctCfg;
-
-typedef struct {
-  char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
-  SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {

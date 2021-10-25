@@ -29,7 +29,7 @@
 #include "mnode.h"
 
 static struct {
-  RunStat      runStatus;
+  EDnRunStat      runStatus;
   void *       dnodeTimer;
   SStartupStep startup;
 } tsDmain;
@@ -55,7 +55,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 int32_t dnodeInitMain() {
-  tsDmain.runStatus = TD_RUN_STAT_STOPPED;
+  tsDmain.runStatus = DN_RUN_STAT_STOPPED;
   tsDmain.dnodeTimer = taosTmrInit(100, 200, 60000, "DND-TMR");
   if (tsDmain.dnodeTimer == NULL) {
     dError("failed to init dnode timer");
@@ -235,9 +235,9 @@ static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
     dDebug("meps index:%d, meps:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
   }
 
-  if (mnodeIsServing()) return 0;
+  if (mnodeGetStatus() == MN_STATUS_READY) return 0;
 
-  return mnodeDeploy(&pCfg->mnodes);
+  return mnodeDeploy();
 }
 
 void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg) {
@@ -260,8 +260,8 @@ void dnodeProcessConfigDnodeReq(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-RunStat dnodeGetRunStat() { return tsDmain.runStatus; }
+EDnRunStat dnodeGetRunStat() { return tsDmain.runStatus; }
 
-void dnodeSetRunStat(RunStat stat) { tsDmain.runStatus = stat; }
+void dnodeSetRunStat(EDnRunStat stat) { tsDmain.runStatus = stat; }
 
 void* dnodeGetTimer() { return tsDmain.dnodeTimer; }
