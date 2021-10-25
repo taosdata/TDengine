@@ -499,6 +499,7 @@ static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSc
   for (int i=0; i<tableMeta->tableInfo.numOfColumns; ++i) {
     SSchema field;
     tstrncpy(field.name, tableMeta->schema[i].name, strlen(tableMeta->schema[i].name)+1);
+    addEscapeCharToString(field.name, (int16_t)strlen(field.name));
     field.type = tableMeta->schema[i].type;
     field.bytes = tableMeta->schema[i].bytes;
     taosArrayPush(schema->fields, &field);
@@ -510,6 +511,7 @@ static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSc
     int j = i + tableMeta->tableInfo.numOfColumns;
     SSchema field;
     tstrncpy(field.name, tableMeta->schema[j].name, strlen(tableMeta->schema[j].name)+1);
+    addEscapeCharToString(field.name, (int16_t)strlen(field.name));
     field.type = tableMeta->schema[j].type;
     field.bytes = tableMeta->schema[j].bytes;
     taosArrayPush(schema->tags, &field);
@@ -1175,15 +1177,13 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-void addEscapeChartoString(char *str, int16_t *bufLen) {
+void addEscapeCharToString(char *str, int32_t len) {
   if (str == NULL) {
     return;
   }
-  int16_t len = *bufLen;
   memmove(str + 1, str, len);
   str[0] = str[len + 1] = TS_ESCAPE_CHAR;
   str[len + 2] = '\0';
-  *bufLen += SML_ESCAPE_CHAR_SIZE;
 }
 
 bool isValidInteger(char *str) {
@@ -1927,7 +1927,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
   pKV->key = calloc(len + SML_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
-  addEscapeChartoString(pKV->key, &len);
+  addEscapeCharToString(pKV->key, len);
   tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
   return TSDB_CODE_SUCCESS;
@@ -2062,7 +2062,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     pSml->stableName = NULL;
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
-  addEscapeChartoString(pSml->stableName, &len);
+  addEscapeCharToString(pSml->stableName, len);
   *index = cur + 1;
   tscDebug("SML:0x%"PRIx64" Stable name in measurement:%s|len:%d", info->id, pSml->stableName, len);
 
@@ -2122,7 +2122,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       smlData->childTableName = malloc(pkv->length + SML_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
-      //addEscapeChartoString(smlData->childTableName, (int32_t)pkv->length);
+      //addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
       free(pkv->value);
     } else {
