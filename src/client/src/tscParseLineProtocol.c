@@ -2118,11 +2118,11 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
+    if (!isField && (strcasecmp(pkv->key, "`ID`") == 0)) {
       smlData->childTableName = malloc(pkv->length + SML_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
-      //addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
+      addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
       free(pkv->value);
     } else {
