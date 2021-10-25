@@ -22,7 +22,7 @@
 //
 //handle management message
 
-static tqGroupHandle* tqLookupGroupHandle(STQ *pTq, const char* topic, int cgId) {
+tqGroupHandle* tqLookupGroupHandle(STQ *pTq, const char* topic, int cgId) {
   //look in memory
   //
   //not found, try to restore from disk
@@ -56,9 +56,9 @@ int tqOpenTGroup(STQ* pTq, const char* topic, int cgId) {
   return 0;
 }
 
-int tqCloseTCGroup(STQ* pTq, const char* topic, int cgId) {
-  tqGroupHandle* handle = tqLookupGroupHandle(pTq, topic, cgId);
-  return tqCommitTCGroup(handle);
+/*int tqCloseTCGroup(STQ* pTq, const char* topic, int cgId) {*/
+  /*tqGroupHandle* handle = tqLookupGroupHandle(pTq, topic, cgId);*/
+  /*return tqCommitTCGroup(handle);*/
 }
 
 int tqDropTCGroup(STQ* pTq, const char* topic, int cgId) {

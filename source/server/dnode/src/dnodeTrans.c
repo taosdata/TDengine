@@ -26,6 +26,7 @@
 #include "dnodeStatus.h"
 #include "mnode.h"
 #include "vnode.h"
+#include "mnode.h"
 
 typedef void (*RpcMsgFp)(SRpcMsg *pMsg);
 
@@ -144,7 +145,6 @@ static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   RpcMsgFp fp = tsTrans.peerMsgFp[msgType];
   if (fp != NULL) {
-    dTrace("RPC %p, peer rsp:%s will be processed", pMsg->handle, taosMsg[msgType]);
     (*fp)(pMsg);
   } else {
     dDebug("RPC %p, peer rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
