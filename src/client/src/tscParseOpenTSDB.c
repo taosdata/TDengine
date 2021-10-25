@@ -37,7 +37,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   const char *cur = *index;
   uint16_t len = 0;
 
-  pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN, 1);
+  pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -73,7 +73,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pSml->stableName[len] = '\0';
+  addEscapeCharToString(pSml->stableName, len);
   *index = cur + 1;
   tscDebug("OTD:0x%"PRIx64" Stable name in metric:%s|len:%d", info->id, pSml->stableName, len);
 
@@ -236,8 +236,9 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
     return TSDB_CODE_TSC_DUP_TAG_NAMES;
   }
 
-  pKV->key = tcalloc(len + 1, 1);
+  pKV->key = tcalloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
+  addEscapeCharToString(pKV->key, len);
   //tscDebug("OTD:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
   return TSDB_CODE_SUCCESS;
@@ -312,15 +313,12 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("OTD:0x%"PRIx64" Unable to parse value", info->id);
       return ret;
     }
-    if ((strcasecmp(pkv->key, "ID") == 0)) {
-      ret = isValidChildTableName(pkv->value, pkv->length, info);
-      if (ret) {
-        return ret;
-      }
-      *childTableName = malloc(pkv->length + 1);
+    if ((strcasecmp(pkv->key, "`ID`") == 0)) {
+      *childTableName = tcalloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1, 1);
       memcpy(*childTableName, pkv->value, pkv->length);
       (*childTableName)[pkv->length] = '\0';
       strntolower_s(*childTableName, *childTableName, (int32_t)pkv->length);
+      addEscapeCharToString(*childTableName, pkv->length);
       tfree(pkv->key);
       tfree(pkv->value);
     } else {

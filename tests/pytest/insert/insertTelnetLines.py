@@ -35,7 +35,7 @@ class TDTestCase:
                         "stb0_0 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                         "stb0_1 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                         "stb0_2 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
-                        "`.stb0.3.` 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
+                        ".stb0.3. 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
                    ]
 
         code = self._conn.schemaless_insert(lines0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
