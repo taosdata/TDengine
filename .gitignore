@@ -18,6 +18,7 @@ mac/
 .mypy_cache
 *.tmp
 *.swp
+*.orig
 src/connector/nodejs/node_modules/
 src/connector/nodejs/out/
 tests/test/
