@@ -24,7 +24,6 @@ extern "C" {
 #define SML_TIMESTAMP_MILLI_SECOND_DIGITS 13
 
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
-#define SML_ESCAPE_CHAR_SIZE 2
 
 typedef struct {
   char* key;

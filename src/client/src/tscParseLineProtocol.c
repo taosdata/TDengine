@@ -1925,7 +1925,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pKV->key = calloc(len + SML_ESCAPE_CHAR_SIZE + 1, 1);
+  pKV->key = calloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
@@ -2022,7 +2022,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   const char *cur = *index;
   int16_t len = 0;
 
-  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + SML_ESCAPE_CHAR_SIZE, 1);
+  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -2119,7 +2119,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       goto error;
     }
     if (!isField && (strcasecmp(pkv->key, "`ID`") == 0)) {
-      smlData->childTableName = malloc(pkv->length + SML_ESCAPE_CHAR_SIZE + 1);
+      smlData->childTableName = malloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
       addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
