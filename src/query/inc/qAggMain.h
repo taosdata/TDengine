@@ -234,6 +234,7 @@ int32_t isValidFunction(const char* name, int32_t len);
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)
 #define IS_OUTER_FORWARD(x)       (((x)&TSDB_FUNCSTATE_OF) != 0)
+#define IS_SCALAR_FUNCTION(x)     (((x)&TSDB_FUNCSTATE_SCALAR) != 0)
 
 // determine the real data need to calculated the result
 enum {

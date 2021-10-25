@@ -1103,6 +1103,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // support only one udf
   if (pQueryInfo->pUdfInfo != NULL && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+    if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
+      code = tscInvalidOperationMsg(pCmd->payload, "only one udf allowed", NULL);
+      goto _end;
+    }
+    
     pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
     for(int32_t i = 0; i < taosArrayGetSize(pQueryInfo->pUdfInfo); ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
