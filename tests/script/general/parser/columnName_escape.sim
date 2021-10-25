@@ -116,6 +116,7 @@ endi
 
 print ======================= test Alter columns for table/stable
 
+##Add column
 sql_error alter table tb0 add column `123` int
 sql_error alter table tb0 add column `123 456` int
 sql_error alter table tb0 add column `123.abc` int
@@ -124,17 +125,17 @@ sql_error alter table ctb0 add column `1234`
 
 sql alter table tb0 add column `!%^&*()` int
 sql alter table tb0 add column `int` int
-sql alter table tb0 add column `bool` bool
-sql alter table tb0 add column `double` bool
-sql alter table tb0 add column `INTO` bool
-sql alter table tb0 add column `COLUMN` bool
+sql alter table tb0 add column `bool` int
+sql alter table tb0 add column `double` int
+sql alter table tb0 add column `INTO` nchar(10)
+sql alter table tb0 add column `COLUMN` binary(10)
 
 sql alter table stb0 add column `!%^&*()` int
 sql alter table stb0 add column `int` int
-sql alter table stb0 add column `bool` bool
-sql alter table stb0 add column `double` bool
-sql alter table stb0 add column `INTO` bool
-sql alter table stb0 add column `COLUMN` bool
+sql alter table stb0 add column `bool` int
+sql alter table stb0 add column `double` int
+sql alter table stb0 add column `INTO` nchar(10)
+sql alter table stb0 add column `COLUMN` binary(10)
 
 
 ##check table
@@ -185,7 +186,7 @@ if $data90 != @COLUMN@ then
   return -1
 endi
 
-##############
+##Drop column
 
 sql_error alter table ctb0 drop column `123`
 sql_error alter table ctb0 drop column `123 456`
@@ -235,6 +236,41 @@ if $data30 != @123.abc@ then
   return -1
 endi
 
+##Modify column for binary/nchar length
+
+sql alter table tb0 add column `INTO` nchar(10)
+sql alter table tb0 add column `COLUMN` binary(10)
+
+sql alter table stb0 add column `INTO` nchar(10)
+sql alter table stb0 add column `COLUMN` binary(10)
+
+sql alter table tb0 modify column `INTO` nchar(15)
+sql alter table tb0 modify column `COLUMN` binary(15)
+
+sql alter table stb0 modify column `INTO` nchar(15)
+sql alter table stb0 modify column `COLUMN` binary(15)
+
+sql describe tb0;
+if $rows != 6 then
+  return -1
+endi
+if $data42 != @15@ then
+  return -1
+endi
+if $data52 != @15@ then
+  return -1
+endi
+
+sql describe stb0;
+if $rows != 7 then
+  return -1
+endi
+if $data42 != @15@ then
+  return -1
+endi
+if $data52 != @15@ then
+  return -1
+endi
 
 print ======================= test insert columns for table/stable
 
