@@ -156,6 +156,7 @@ typedef struct STableGroupSupporter {
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
 static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
+static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle);
 static int32_t tsdbGetCachedLastRow(STable* pTable, SMemRow* pRes, TSKEY* lastKey);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
@@ -602,6 +603,8 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
     return NULL;
   }
 
+  lazyLoadCacheLast(pQueryHandle);
+
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
     terrno = code;
@@ -616,12 +619,37 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   return pQueryHandle;
 }
 
+static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
+  STsdbRepo* pRepo = pQueryHandle->pTsdb;
+
+  size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  size_t  i = 0;
+  int32_t code = 0;
+  for (i = 0; i < numOfTables; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    STable*          pTable = pCheckInfo->pTableObj;
+    if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
+      continue;
+    }
+
+    if (tsdbLockRepo(pRepo) < 0) return -1;
+    code = tsdbLoadLastCache(pRepo, pTable);
+    if (tsdbUnlockRepo(pRepo) != 0) return -1;
+    if (code != 0) {
+      break;
+    }
+  }
+
+  return code;
+}
 
 TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
   if (pQueryHandle == NULL) {
     return NULL;
   }
+
+  lazyLoadCacheLast(pQueryHandle);
 
   int32_t code = checkForCachedLast(pQueryHandle);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -3198,7 +3226,9 @@ int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle) {
 
   int32_t code = 0;
   
-  if (pQueryHandle->pTsdb && atomic_load_8(&pQueryHandle->pTsdb->hasCachedLastColumn)){
+  STsdbRepo* pRepo = pQueryHandle->pTsdb;
+
+  if (pRepo && CACHE_LAST_NULL_COLUMN(&(pRepo->config))) {
     pQueryHandle->cachelastrow = TSDB_CACHED_TYPE_LAST;
   }
 

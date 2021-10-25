@@ -79,8 +79,8 @@ struct STsdbRepo {
   STsdbCfg        save_config;    // save apply config
   bool            config_changed; // config changed flag
   pthread_mutex_t save_mutex;     // protect save config
-  
-  uint8_t         hasCachedLastColumn;
+
+  int16_t         cacheLastConfigVersion;
 
   STsdbAppH       appH;
   STsdbStat       stat;
@@ -110,7 +110,8 @@ int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
-int        tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
+UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
+int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 

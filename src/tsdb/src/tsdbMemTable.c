@@ -1058,5 +1058,8 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
       updateTableLatestColumn(pRepo, pTable, row);
     }
   }
+
+  pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
+
   return 0;
 }
