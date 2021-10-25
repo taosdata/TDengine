@@ -1,9 +1,7 @@
 import hudson.model.Result
 import hudson.model.*;
 import jenkins.model.CauseOfInterruption
-properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/taosdata/TDengine.git'
 }
 
 def skipbuild=0
@@ -72,6 +70,7 @@ def pre_test(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
     '''
@@ -114,6 +113,7 @@ def pre_test(){
 }
 def pre_test_win(){
     bat '''
+    taskkill /f /t /im python.exe
     cd C:\\
     rd /s /Q C:\\TDengine
     cd C:\\workspace\\TDinternal
@@ -147,6 +147,7 @@ def pre_test_win(){
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd C:\\workspace\\TDinternal
     git reset --hard HEAD~10
     '''
@@ -171,7 +172,6 @@ def pre_test_win(){
       } 
     }
     bat '''
-    taskkill /f /t /im python.exe
     cd C:\\workspace\\TDinternal
     git pull 
 
@@ -192,6 +192,7 @@ def pre_test_win(){
 }
 pipeline {
   agent none
+  options { skipDefaultCheckout() } 
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
@@ -199,6 +200,7 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
+          options { skipDefaultCheckout() } 
           when {
               changeRequest()
           }
@@ -207,52 +209,52 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          cd ${WORKSPACE}.tes
-          git fetch
-          '''
-          script {
-            if (env.CHANGE_TARGET == 'master') {
-              sh '''
-              git checkout master
-              '''
-              }
-            else if(env.CHANGE_TARGET == '2.0'){
-              sh '''
-              git checkout 2.0
-              '''
-            } 
-            else{
-              sh '''
-              git checkout develop
-              '''
-            } 
-          }
-          sh'''
-          git fetch origin +refs/pull/${CHANGE_ID}/merge
-          git checkout -qf FETCH_HEAD
-          '''     
+          //   sh'''
+          // rm -rf ${WORKSPACE}.tes
+          // cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          // cd ${WORKSPACE}.tes
+          // git fetch
+          // '''
+          // script {
+          //   if (env.CHANGE_TARGET == 'master') {
+          //     sh '''
+          //     git checkout master
+          //     '''
+          //     }
+          //   else if(env.CHANGE_TARGET == '2.0'){
+          //     sh '''
+          //     git checkout 2.0
+          //     '''
+          //   } 
+          //   else{
+          //     sh '''
+          //     git checkout develop
+          //     '''
+          //   } 
+          // }
+          // sh'''
+          // git fetch origin +refs/pull/${CHANGE_ID}/merge
+          // git checkout -qf FETCH_HEAD
+          // '''     
 
-          script{  
-            skipbuild='2'     
-            skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
-            println skipbuild
-          }
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          '''
+          // script{  
+          //   skipbuild='2'     
+          //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
+          //   println skipbuild
+          // }
+          // sh'''
+          // rm -rf ${WORKSPACE}.tes
+          // '''
+          // }       
           }
       }
       stage('Parallel test stage') {
         //only build pr
+        options { skipDefaultCheckout() } 
         when {
           allOf{
               changeRequest()
-               expression{
-                return skipbuild.trim() == '2'
-              }
+              not{ expression { env.CHANGE_BRANCH =~ /docs\// }}
             }
           }
       parallel {
@@ -317,7 +319,7 @@ pipeline {
               sh '''
               cd ${WKC}/tests/examples/C#/taosdemo
               mcs -out:taosdemo *.cs > /dev/null 2>&1
-              ./taosdemo -c /etc/taos -y
+              echo '' |./taosdemo -c /etc/taos
               '''
               sh '''
                 cd ${WKC}/tests/gotest
