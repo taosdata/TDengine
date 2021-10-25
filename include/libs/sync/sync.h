@@ -25,36 +25,36 @@ extern "C" {
 #include "wal.h"
 
 typedef uint32_t SyncNodeId;
-typedef int32_t SyncGroupId;
-typedef int64_t   SyncIndex;
+typedef int32_t  SyncGroupId;
+typedef int64_t  SyncIndex;
 typedef uint64_t SSyncTerm;
 
 typedef enum {
-  TAOS_SYNC_ROLE_FOLLOWER  = 0,
+  TAOS_SYNC_ROLE_FOLLOWER = 0,
   TAOS_SYNC_ROLE_CANDIDATE = 1,
-  TAOS_SYNC_ROLE_LEADER  = 2,
+  TAOS_SYNC_ROLE_LEADER = 2,
 } ESyncRole;
 
 typedef struct {
-  void* data;
+  void*  data;
   size_t len;
 } SSyncBuffer;
 
 typedef struct {
-  SyncNodeId  nodeId;    // node ID assigned by TDengine
-  uint16_t  nodePort;  // node sync Port
-  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
+  SyncNodeId nodeId;                   // node ID assigned by TDengine
+  uint16_t   nodePort;                 // node sync Port
+  char       nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
 } SNodeInfo;
 
 typedef struct {
-  int selfIndex;
-  int nNode;
-  SNodeInfo*  nodeInfo;
+  int        selfIndex;
+  int        nNode;
+  SNodeInfo* nodeInfo;
 } SSyncCluster;
 
 typedef struct {
-  int32_t  selfIndex;
-  int nNode;
+  int32_t     selfIndex;
+  int         nNode;
   SyncNodeId* nodeId;
   ESyncRole*  role;
 } SNodesRole;
@@ -64,30 +64,30 @@ typedef struct SSyncFSM {
   void* pData;
 
   // apply committed log, bufs will be free by raft module
-  int (*applyLog)(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData);
+  int (*applyLog)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf, void* pData);
 
-  // cluster commit callback 
-  int (*onClusterChanged)(struct SSyncFSM *fsm, const SSyncCluster* cluster, void *pData);
+  // cluster commit callback
+  int (*onClusterChanged)(struct SSyncFSM* fsm, const SSyncCluster* cluster, void* pData);
 
   // fsm return snapshot in ppBuf, bufs will be free by raft module
   // TODO: getSnapshot SHOULD be async?
-  int (*getSnapshot)(struct SSyncFSM *fsm, SSyncBuffer **ppBuf, int* objId, bool *isLast);
+  int (*getSnapshot)(struct SSyncFSM* fsm, SSyncBuffer** ppBuf, int* objId, bool* isLast);
 
   // fsm apply snapshot with pBuf data
-  int (*applySnapshot)(struct SSyncFSM *fsm, SSyncBuffer *pBuf, int objId, bool isLast);
+  int (*applySnapshot)(struct SSyncFSM* fsm, SSyncBuffer* pBuf, int objId, bool isLast);
 
   // call when restore snapshot and log done
-  int (*onRestoreDone)(struct SSyncFSM *fsm);
+  int (*onRestoreDone)(struct SSyncFSM* fsm);
 
-  void (*onRollback)(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf);
+  void (*onRollback)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf);
 
-  void (*onRoleChanged)(struct SSyncFSM *fsm, const SNodesRole* pRole);
+  void (*onRoleChanged)(struct SSyncFSM* fsm, const SNodesRole* pRole);
 
 } SSyncFSM;
 
 typedef struct SSyncServerState {
   SyncNodeId voteFor;
-  SSyncTerm term;  
+  SSyncTerm  term;
 } SSyncServerState;
 
 typedef struct SStateManager {
@@ -103,12 +103,12 @@ typedef struct SStateManager {
 } SStateManager;
 
 typedef struct {
-  SyncGroupId  vgId;
+  SyncGroupId vgId;
 
   twalh walHandle;
 
-  SyncIndex snapshotIndex;    // initial version
-  SSyncCluster syncCfg;    // configuration from mgmt
+  SyncIndex    snapshotIndex;  // initial version
+  SSyncCluster syncCfg;        // configuration from mgmt
 
   SSyncFSM fsm;
 
@@ -118,12 +118,12 @@ typedef struct {
 int32_t syncInit();
 void    syncCleanUp();
 
-SyncNodeId syncStart(const SSyncInfo *);
-void    syncStop(SyncNodeId);
+SyncNodeId syncStart(const SSyncInfo*);
+void       syncStop(SyncNodeId);
 
-int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void *pData, bool isWeak);
+int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void* pData, bool isWeak);
 
-extern int32_t  raftDebugFlag;
+extern int32_t raftDebugFlag;
 
 #ifdef __cplusplus
 }
