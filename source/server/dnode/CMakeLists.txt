@@ -5,6 +5,9 @@ target_link_libraries(
     PUBLIC cjson
     PUBLIC mnode
     PUBLIC vnode
+    PUBLIC wal
+    PUBLIC sync
+    PUBLIC taos
 )
 target_include_directories(
     dnode

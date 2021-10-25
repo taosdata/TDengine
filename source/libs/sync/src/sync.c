@@ -14,3 +14,6 @@
  */
 
 #include "sync.h"
+
+int32_t  syncInit() {return 0;}
+void syncCleanUp() {}

@@ -13,35 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_MAIN_H_
-#define _TD_DNODE_MAIN_H_
+#ifndef _TD_DNODE_EPS_H_
+#define _TD_DNODE_EPS_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "dnodeInt.h"
 
-typedef enum {
-  DN_RUN_STAT_INIT,
-  DN_RUN_STAT_RUNNING,
-  DN_RUN_STAT_STOPPED
-} EDnStat;
+int32_t dnodeInitEps();
+void    dnodeCleanupEps();
 
-int32_t dnodeInitMain();
-void    dnodeCleanupMain();
-int32_t dnodeInitStorage();
-void    dnodeCleanupStorage();
-void    dnodeReportStartup(char *name, char *desc);
-void    dnodeReportStartupFinished(char *name, char *desc);
-void    dnodeProcessStartupReq(SRpcMsg *pMsg);
-void    dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
-void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
-EDnStat dnodeGetRunStat();
-void    dnodeSetRunStat();
-void*   dnodeGetTimer();
+void    dnodeUpdateCfg(SDnodeCfg *data);
+void    dnodeUpdateDnodeEps(SDnodeEps *data);
+void    dnodeUpdateMnodeEps(SRpcEpSet *pEpSet);
+int32_t dnodeGetDnodeId();
+int64_t dnodeGetClusterId();
+void    dnodeGetEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
+
+void dnodeGetEpSetForPeer(SRpcEpSet *epSet);
+void dnodeGetEpSetForShell(SRpcEpSet *epSet);
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_MAIN_H_*/
+#endif /*_TD_DNODE_EPS_H_*/
