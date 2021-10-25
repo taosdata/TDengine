@@ -22,7 +22,7 @@
 //
 //handle management message
 
-static tqGroupHandle* tqLookupGroupHandle(STQ *pTq, const char* topic, int cgId) {
+tqGroupHandle* tqLookupGroupHandle(STQ *pTq, const char* topic, int cgId) {
   //look in memory
   //
   //not found, try to restore from disk
@@ -56,14 +56,28 @@ int tqOpenTGroup(STQ* pTq, const char* topic, int cgId) {
   return 0;
 }
 
-int tqCloseTCGroup(STQ* pTq, const char* topic, int cgId) {
-  tqGroupHandle* handle = tqLookupGroupHandle(pTq, topic, cgId);
-  return tqCommitTCGroup(handle);
-}
+/*int tqCloseTCGroup(STQ* pTq, const char* topic, int cgId) {*/
+  /*tqGroupHandle* handle = tqLookupGroupHandle(pTq, topic, cgId);*/
+  /*return tqCommitTCGroup(handle);*/
+/*}*/
 
 int tqDropTCGroup(STQ* pTq, const char* topic, int cgId) {
   //delete from disk
   return 0;
+}
+
+
+int tqFetchMsg(tqGroupHandle* handle, void* msg) {
+  return 0;
+}
+
+int tqMoveOffsetToNext(tqGroupHandle* handle) {
+  return 0;
+}
+
+
+tqGroupHandle* tqFindGHandleBycId(STQ* pTq, int64_t cId) {
+  return NULL;
 }
 
 int tqPushMsg(STQ* pTq , void* p, int64_t version) {

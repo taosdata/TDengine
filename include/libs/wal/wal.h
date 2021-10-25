@@ -58,9 +58,9 @@ void     walStop(twalh);
 void     walClose(twalh);
 
 //write
-int64_t  walWriteWithMsgType(twalh, int8_t msgType, void* body, int32_t bodyLen);
+//int64_t  walWriteWithMsgType(twalh, int8_t msgType, void* body, int32_t bodyLen);
 int64_t  walWrite(twalh, void* body, int32_t bodyLen);
-int64_t  walWriteBatch(twalh, void* body, int32_t* bodyLen, int32_t batchSize);
+int64_t  walWriteBatch(twalh, void** bodies, int32_t* bodyLen, int32_t batchSize);
 
 //apis for lifecycle management
 void     walFsync(twalh, bool force);
