@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tthread.h"
-#include "dnodeEps.h"
 #include "dnodeMsg.h"
+#include "dnodeEps.h"
 #include "mnode.h"
-#include "vnode.h"
+#include "tthread.h"
 #include "ttime.h"
+#include "vnode.h"
 
 static struct {
   pthread_t *threadId;

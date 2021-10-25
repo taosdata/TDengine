@@ -25,7 +25,6 @@
 #include "dnodeMsg.h"
 #include "mnode.h"
 #include "vnode.h"
-#include "mnode.h"
 
 typedef void (*RpcMsgFp)(SRpcMsg *pMsg);
 
