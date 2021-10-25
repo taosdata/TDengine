@@ -78,6 +78,23 @@ typedef enum {
   SET_CONF_RET_ERR_TOO_LONG = -6
 } SET_CONF_RET_CODE;
 
+typedef enum {
+  TSDB_SML_UNKNOWN_PROTOCOL = 0,
+  TSDB_SML_LINE_PROTOCOL = 1,
+  TSDB_SML_TELNET_PROTOCOL = 2,
+  TSDB_SML_JSON_PROTOCOL = 3,
+} TSDB_SML_PROTOCOL_TYPE;
+
+typedef enum {
+  TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+  TSDB_SML_TIMESTAMP_HOURS,
+  TSDB_SML_TIMESTAMP_MINUTES,
+  TSDB_SML_TIMESTAMP_SECONDS,
+  TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+  TSDB_SML_TIMESTAMP_MICRO_SECONDS,
+  TSDB_SML_TIMESTAMP_NANO_SECONDS,
+} TSDB_SML_TIMESTAMP_TYPE;
+
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
   SET_CONF_RET_CODE retCode;
@@ -147,6 +164,7 @@ DLL_EXPORT int        taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIN
 DLL_EXPORT int        taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx);
 DLL_EXPORT int        taos_stmt_add_batch(TAOS_STMT *stmt);
 DLL_EXPORT int        taos_stmt_execute(TAOS_STMT *stmt);
+DLL_EXPORT int        taos_stmt_affected_rows(TAOS_STMT *stmt);
 DLL_EXPORT TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
 DLL_EXPORT int        taos_stmt_close(TAOS_STMT *stmt);
 DLL_EXPORT char *     taos_stmt_errstr(TAOS_STMT *stmt);
@@ -193,7 +211,7 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
-DLL_EXPORT int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* precision);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
 
 #ifdef __cplusplus
 }

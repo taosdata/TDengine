@@ -42,7 +42,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   if (isdigit(*cur)) {
-    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit", info->id);
+    tscError("OTD:0x%"PRIx64" Metric cannot start with digit", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
@@ -138,20 +138,40 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
+  bool searchQuote = false;
   char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
   char *value = NULL;
 
   start = cur = *index;
 
+  //if metric value is string
+  if (*cur == '"') {
+    searchQuote = true;
+    cur += 1;
+    len += 1;
+  } else if (*cur == 'L' && *(cur + 1) == '"') {
+    searchQuote = true;
+    cur += 2;
+    len += 2;
+  }
+
   while(*cur != '\0') {
     if (*cur == ' ') {
-      if (*cur == ' ') {
-        if (*(cur + 1) != ' ') {
-          break;
+      if (searchQuote == true) {
+        if (*(cur - 1) == '"' && len != 1 && len != 2) {
+          searchQuote = false;
         } else {
           cur++;
+          len++;
           continue;
         }
+      }
+
+      if (*(cur + 1) != ' ') {
+        break;
+      } else {
+        cur++;
+        continue;
       }
     }
     cur++;
@@ -188,7 +208,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
 
   //key field cannot start with digit
   if (isdigit(*cur)) {
-    tscError("OTD:0x%"PRIx64" Tag key cannnot start with digit", info->id);
+    tscError("OTD:0x%"PRIx64" Tag key cannot start with digit", info->id);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
@@ -389,7 +409,7 @@ static int32_t tscParseTelnetLines(char* lines[], int numLines, SArray* points, 
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
+int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -432,6 +452,9 @@ int taos_insert_telnet_lines(TAOS* taos, char* lines[], int numLines, SMLProtoco
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines error: %s", info->id, tstrerror((code)));
+  }
+  if (affectedRows != NULL) {
+    *affectedRows = info->affectedRows;
   }
 
 cleanup:
@@ -476,7 +499,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
   }
 
   if (isdigit(metric->valuestring[0])) {
-    tscError("OTD:0x%"PRIx64" Metric cannnot start with digit in JSON", info->id);
+    tscError("OTD:0x%"PRIx64" Metric cannot start with digit in JSON", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
@@ -1023,7 +1046,7 @@ PARSE_JSON_OVER:
   return ret;
 }
 
-int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType) {
+int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -1057,6 +1080,9 @@ int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("OTD:0x%"PRIx64" taos_insert_json_payload error: %s", info->id, tstrerror((code)));
+  }
+  if (affectedRows != NULL) {
+    *affectedRows = info->affectedRows;
   }
 
 cleanup:

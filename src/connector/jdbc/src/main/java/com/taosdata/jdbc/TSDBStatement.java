@@ -23,7 +23,6 @@ public class TSDBStatement extends AbstractStatement {
      * Status of current statement
      */
     private boolean isClosed;
-    private int affectedRows = -1;
     private TSDBConnection connection;
     private TSDBResultSet resultSet;
 
@@ -80,12 +79,13 @@ public class TSDBStatement extends AbstractStatement {
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         }
-        
+
         // execute query
         long pSql = this.connection.getConnector().executeQuery(sql);
         // if pSql is create/insert/update/delete/alter SQL
         if (this.connection.getConnector().isUpdateQuery(pSql)) {
-            this.affectedRows = this.connection.getConnector().getAffectedRows(pSql);
+            int rows = this.connection.getConnector().getAffectedRows(pSql);
+            this.affectedRows = rows == 0 ? -1 : this.connection.getConnector().getAffectedRows(pSql);
             this.connection.getConnector().freeResultSet(pSql);
             return false;
         }
@@ -99,7 +99,7 @@ public class TSDBStatement extends AbstractStatement {
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         }
-        
+
         return this.resultSet;
     }
 
@@ -113,14 +113,14 @@ public class TSDBStatement extends AbstractStatement {
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         }
-        
+
         if (this.connection.getConnector() == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         }
-        
+
         return this.connection;
     }
-    
+
     public void setConnection(TSDBConnection connection) {
         this.connection = connection;
     }

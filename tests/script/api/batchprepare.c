@@ -119,7 +119,11 @@ int stmt_scol_func1(TAOS_STMT *stmt) {
     printf("failed to execute insert statement.\n");
     exit(1);
   }
-
+  
+  int affectedRows = taos_stmt_affected_rows(stmt);
+  if (affectedRows != 100) {
+    printf("failed to insert 100 rows");
+  }
   return 0;
 }
 

@@ -638,11 +638,6 @@ static int queryDbImpl(TAOS *taos, char *command) {
     TAOS_RES *res = NULL;
     int32_t   code = -1;
 
-    if (NULL != res) {
-        taos_free_result(res);
-        res = NULL;
-    }
-
     res = taos_query(taos, command);
     code = taos_errno(res);
 
@@ -1159,7 +1154,6 @@ static int64_t dumpNormalTable(
 
         // create child-table using super-table
         dumpCreateMTableClause(dbName, stable, tableDes, colCount, fp);
-
     } else {  // dump table definition
         colCount = getTableDes(dbName, tbName, tableDes, false);
 
@@ -1194,6 +1188,7 @@ static int64_t dumpNormalTable(
             jsonAvroSchema);
     }
 
+    tfree(jsonAvroSchema);
     freeTbDes(tableDes);
     return ret;
 }
@@ -1336,11 +1331,16 @@ static void *dumpNormalTablesOfStb(void *arg) {
     char tmpBuf[4096] = {0};
 
     if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%d.sql",
-                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
+        sprintf(tmpBuf, "%s/%s.%s.%d.sql",
+                g_args.outpath,
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
     } else {
-        sprintf(tmpBuf, "%s.%d.sql",
-                pThreadInfo->dbName, pThreadInfo->threadIndex);
+        sprintf(tmpBuf, "%s.%s.%d.sql",
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
     }
 
     fp = fopen(tmpBuf, "w");
@@ -3005,7 +3005,13 @@ int main(int argc, char *argv[]) {
     printf("debug_print: %d\n", g_args.debug_print);
 
     for (int32_t i = 0; i < g_args.arg_list_len; i++) {
-        printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
+        if (g_args.databases || g_args.all_databases) {
+            errorPrint("%s is an invalid input if database(s) be already specified.\n",
+                    g_args.arg_list[i]);
+            exit(EXIT_FAILURE);
+        } else {
+            printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
+        }
     }
 
     printf("==============================\n");

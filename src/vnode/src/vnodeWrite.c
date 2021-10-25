@@ -36,6 +36,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
+static int32_t vnodeCheckWal(SVnodeObj *pVnode);
 
 int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -167,6 +168,13 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   return code;
 }
 
+static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
+  if (tsdbIsNeedCommit(pVnode->tsdb)) {
+    return tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
+  }
+  return 0;
+}
+
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int code = TSDB_CODE_SUCCESS;
 
@@ -179,6 +187,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
     code = terrno;
     ASSERT(code != 0);
+  }
+
+  if (((++pVnode->tblMsgVer) & 16383) == 0) {  // lazy check
+    vnodeCheckWal(pVnode);
   }
 
   tsdbClearTableCfg(pCfg);
@@ -289,6 +301,13 @@ static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
   int64_t queuedSize = atomic_add_fetch_64(&pVnode->queuedWMsgSize, pWrite->walHead.len);
 
   if (queued > MAX_QUEUED_MSG_NUM || queuedSize > MAX_QUEUED_MSG_SIZE) {
+    if (pWrite->qtype == TAOS_QTYPE_FWD) {
+      queued = atomic_sub_fetch_32(&pVnode->queuedWMsg, 1);
+      queuedSize = atomic_sub_fetch_64(&pVnode->queuedWMsgSize, pWrite->walHead.len);
+
+      return -1;
+    }
+
     int32_t ms = (queued / MAX_QUEUED_MSG_NUM) * 10 + 3;
     if (ms > 100) ms = 100;
     vDebug("vgId:%d, too many msg:%d in vwqueue, flow control %dms", pVnode->vgId, queued, ms);
