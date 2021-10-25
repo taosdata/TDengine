@@ -41,11 +41,13 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   if (pSml->stableName == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+  /*
   if (isdigit(*cur)) {
     tscError("OTD:0x%"PRIx64" Metric cannot start with digit", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
+  */
 
   while (*cur != '\0') {
     if (len >= TSDB_TABLE_NAME_LEN - 1) {
@@ -207,10 +209,10 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
   uint16_t len = 0;
 
   //key field cannot start with digit
-  if (isdigit(*cur)) {
-    tscError("OTD:0x%"PRIx64" Tag key cannot start with digit", info->id);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
+  //if (isdigit(*cur)) {
+  //  tscError("OTD:0x%"PRIx64" Tag key cannot start with digit", info->id);
+  //  return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  //}
   while (*cur != '\0') {
     if (len >= TSDB_COL_NAME_LEN - 1) {
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
