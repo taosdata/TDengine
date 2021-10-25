@@ -491,19 +491,22 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
-  pSml->stableName = tcalloc(stableLen + 1, sizeof(char));
+  pSml->stableName = tcalloc(stableLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
   if (pSml->stableName == NULL){
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  /*
   if (isdigit(metric->valuestring[0])) {
     tscError("OTD:0x%"PRIx64" Metric cannot start with digit in JSON", info->id);
     tfree(pSml->stableName);
     return TSDB_CODE_TSC_INVALID_JSON;
   }
+  */
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
   strntolower_s(pSml->stableName, pSml->stableName, (int32_t)stableLen);
+  addEscapeCharToString(pSml->stableName, stableLen);
 
   return TSDB_CODE_SUCCESS;
 
@@ -899,9 +902,10 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
-    *childTableName = tcalloc(idLen + 1, sizeof(char));
+    *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
     strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
+    addEscapeCharToString(*childTableName, idLen);
 
     //check duplicate IDs
     cJSON_DeleteItemFromObject(tags, "ID");
@@ -936,8 +940,9 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters in JSON", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
-    pkv->key = tcalloc(keyLen + 1, sizeof(char));
+    pkv->key = tcalloc(keyLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
+    addEscapeCharToString(pkv->key, keyLen);
     //value
     ret = parseValueFromJSON(tag, pkv, info);
     if (ret != TSDB_CODE_SUCCESS) {

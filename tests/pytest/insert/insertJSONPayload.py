@@ -36,7 +36,7 @@ class TDTestCase:
         print("============= step0 : test metric  ================")
         payload = ['''
         {
-	    "metric":	"`.stb.0.`",
+	    "metric":	".stb.0.",
 	    "timestamp":	1626006833610,
 	    "value":	10,
 	    "tags":	{
