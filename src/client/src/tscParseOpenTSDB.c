@@ -65,7 +65,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
       }
     }
 
-    pSml->stableName[len] = *cur;
+    pSml->stableName[len] = tolower(*cur);
 
     cur++;
     len++;
@@ -240,6 +240,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
 
   pKV->key = tcalloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
+  strntolower_s(pKV->key, pKV->key, (int32_t)len);
   addEscapeCharToString(pKV->key, len);
   //tscDebug("OTD:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
