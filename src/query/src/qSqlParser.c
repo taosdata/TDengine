@@ -67,7 +67,30 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
-        
+
+      case TK_FILE: {
+        int32_t    index = 0;
+        SStrToken  t;
+        char      *sql = strdup(pStr);
+
+        // copy from tscIsInsertData
+        do {
+          t = tStrGetToken(sql, &index, false);
+          if (t.type != TK_LP) {
+            break;
+          }
+        } while (1);
+
+        if (t.type != TK_INSERT && t.type != TK_IMPORT) {
+          snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unsupported token: \"%s\"", t0.z);
+          sqlInfo.valid = false;
+          free(sql);
+          goto abort_parse;
+        }
+
+        free(sql);
+      }
+
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {
