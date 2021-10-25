@@ -2102,6 +2102,7 @@ void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool
         continue;
       }
 
+      // for long in operation
       if (gRes1->colInfo[idx1].optr == TSDB_RELATION_EQUAL && gRes2->colInfo[idx2].optr == TSDB_RELATION_EQUAL) {
         *conflict = true;
         return;
