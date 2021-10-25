@@ -425,7 +425,7 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
   } //end switch fromPrecision
 end_:
   if (tempResult > (double)INT64_MAX) return INT64_MAX;
-  if (tempResult < (double)INT64_MIN) return INT64_MIN;
+  if (tempResult < (double)INT64_MIN) return INT64_MIN + 1;  // INT64_MIN means NULL
   return time;
 }
 
