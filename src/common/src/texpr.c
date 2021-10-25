@@ -144,8 +144,8 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
     free((*pExpr)->pSchema);
   } else if ((*pExpr)->nodeType == TSQL_NODE_FUNC) {
-    for (int i = 0; i < (*pExpr)->_func.numChilds; ++i) {
-      doExprTreeDestroy((*pExpr)->_func.pChilds + i, fp);
+    for (int i = 0; i < (*pExpr)->_func.numChildren; ++i) {
+      doExprTreeDestroy((*pExpr)->_func.pChildren + i, fp);
     }
   }
 
@@ -315,9 +315,9 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
     exprTreeToBinaryImpl(bw, expr->_node.pRight);
   } else if (expr->nodeType == TSQL_NODE_FUNC) {
     tbufWriteInt16(bw, expr->_func.functionId);
-    tbufWriteUint8(bw, expr->_func.numChilds);
-    for (int i = 0; i < expr->_func.numChilds; ++i) {
-      exprTreeToBinaryImpl(bw, expr->_func.pChilds[i]);
+    tbufWriteUint8(bw, expr->_func.numChildren);
+    for (int i = 0; i < expr->_func.numChildren; ++i) {
+      exprTreeToBinaryImpl(bw, expr->_func.pChildren[i]);
     }
   }
 }
@@ -386,10 +386,10 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
   } else if (pExpr->nodeType == TSQL_NODE_FUNC) {
     pExpr->_func.functionId = tbufReadInt16(br);
-    pExpr->_func.numChilds = tbufReadUint8(br);
-    pExpr->_func.pChilds = (tExprNode**)calloc(pExpr->_func.numChilds, sizeof(tExprNode*));
-    for (int i = 0; i < pExpr->_func.numChilds; ++i) {
-      pExpr->_func.pChilds[i] = exprTreeFromBinaryImpl(br);
+    pExpr->_func.numChildren = tbufReadUint8(br);
+    pExpr->_func.pChildren = (tExprNode**)calloc(pExpr->_func.numChildren, sizeof(tExprNode*));
+    for (int i = 0; i < pExpr->_func.numChildren; ++i) {
+      pExpr->_func.pChildren[i] = exprTreeFromBinaryImpl(br);
     }
   }
   
@@ -641,9 +641,9 @@ tExprNode* exprdup(tExprNode* pNode) {
     *pCloned->pSchema = *pNode->pSchema;
   } else if (pNode->nodeType == TSQL_NODE_FUNC) {
     pCloned->_func.functionId = pNode->_func.functionId;
-    pCloned->_func.numChilds = pNode->_func.numChilds;
-    for (int i = 0; i < pNode->_func.numChilds; ++i) {
-      pCloned->_func.pChilds[i] = exprdup(pNode->_func.pChilds[i]);
+    pCloned->_func.numChildren = pNode->_func.numChildren;
+    for (int i = 0; i < pNode->_func.numChildren; ++i) {
+      pCloned->_func.pChildren[i] = exprdup(pNode->_func.pChildren[i]);
     }
   }
 

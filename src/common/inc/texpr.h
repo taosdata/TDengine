@@ -80,8 +80,8 @@ typedef struct tExprNode {
 
     struct {
       int16_t functionId;
-      uint8_t numChilds;
-      struct tExprNode** pChilds;
+      uint8_t numChildren;
+      struct tExprNode** pChildren;
     } _func;
   };
 } tExprNode;
