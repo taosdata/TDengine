@@ -33,7 +33,10 @@
 #if AVRO_SUPPORT == 1
 #include <avro.h>
 #include <jansson.h>
-#endif
+
+static void print_json_aux(json_t *element, int indent);
+
+#endif /* AVRO_SUPPORT == 1 */
 
 #define TSDB_SUPPORT_NANOSECOND 1
 
@@ -47,10 +50,6 @@
 
 static int  converStringToReadable(char *str, int size, char *buf, int bufsize);
 static int  convertNCharToReadable(char *str, int size, char *buf, int bufsize);
-static void dumpCharset(FILE *fp);
-static void loadFileCharset(FILE *fp, char *fcharset);
-
-static void print_json_aux(json_t *element, int indent);
 
 typedef struct {
   short bytes;
@@ -357,8 +356,10 @@ typedef struct arguments {
     // dump format option
     bool     schemaonly;
     bool     with_property;
+#if AVRO_SUPPORT  == 1
     bool     avro;
     int      avro_codec;
+#endif
     int64_t  start_time;
     char     humanStartTime[HUMAN_TIME_LEN];
     int64_t  end_time;
@@ -390,22 +391,6 @@ static resultStatistics g_resultStatistics = {0};
 static FILE *g_fpOfResult = NULL;
 static int g_numOfCores = 1;
 
-static int dumpOut();
-static int dumpIn();
-static void dumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty,
-        FILE *fp);
-static int dumpCreateTableClause(TableDef *tableDes, int numOfCols,
-        FILE *fp, char* dbName);
-static int getTableDes(
-        char* dbName, char *table,
-        TableDef *stableDes, bool isSuperTable);
-static int64_t dumpTableData(FILE *fp, char *tbName,
-        char* dbName,
-        int precision,
-        char *jsonSchema);
-static int checkParam();
-static void freeDbInfos();
-
 struct arguments g_args = {
     // connection option
     NULL,
@@ -429,8 +414,10 @@ struct arguments g_args = {
     // dump format option
     false,      // schemaonly
     true,       // with_property
+#if AVRO_SUPPORT  == 1
     false,      // avro format
     AVRO_CODEC_SNAPPY,  // avro codec
+#endif
     -INT64_MAX + 1, // start_time
     {0},        // humanStartTime
     INT64_MAX,  // end_time
@@ -591,6 +578,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             break;
 
+#if AVRO_SUPPORT == 1
+        case 'v':
+            g_args.avro = true;
+            break;
+
         case 'd':
             for (int i = AVRO_CODEC_START; i < AVRO_CODEC_UNKNOWN; i ++) {
                 if (0 == strcmp(arg, g_avro_codec[i])) {
@@ -599,6 +591,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
             }
             break;
+#endif
 
         case 'r':
             g_args.resultFile = arg;
@@ -630,9 +623,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case 'N':
             g_args.with_property = false;
-            break;
-        case 'v':
-            g_args.avro = true;
             break;
         case 'S':
             // parse time here.
@@ -1108,433 +1098,6 @@ static void dumpCreateMTableClause(
     free(tmpBuf);
 }
 
-static int convertTbDesToJson(
-        char *dbName, char *tbName, TableDef *tableDes, int colCount,
-        char **jsonSchema)
-{
-    // {
-    // "type": "record",
-    // "name": "dbname.tbname",
-    // "fields": [
-    //      {
-    //      "name": "col0 name",
-    //      "type": "long"
-    //      },
-    //      {
-    //      "name": "col1 name",
-    //      "type": "int"
-    //      },
-    //      {
-    //      "name": "col2 name",
-    //      "type": "float"
-    //      },
-    //      {
-    //      "name": "col3 name",
-    //      "type": "boolean"
-    //      },
-    //      ...
-    //      {
-    //      "name": "coln name",
-    //      "type": "string"
-    //      }
-    // ]
-    // }
-    *jsonSchema = (char *)calloc(1,
-            17 + TSDB_DB_NAME_LEN               /* dbname section */
-            + 17                                /* type: record */
-            + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
-            + 10                                /* fields section */
-            + (TSDB_COL_NAME_LEN + 11 + 16) * colCount + 4);    /* fields section */
-    if (*jsonSchema == NULL) {
-        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        return -1;
-    }
-
-    char *pstr = *jsonSchema;
-    pstr += sprintf(pstr,
-            "{\"type\": \"record\", \"name\": \"%s.%s\", \"fields\": [",
-            dbName, tbName);
-    for (int i = 0; i < colCount; i ++) {
-        if (0 == i) {
-            pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "long");
-        } else {
-            if (strcasecmp(tableDes->cols[i].type, "binary") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "string");
-            } else if (strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "bytes");
-            } else if (strcasecmp(tableDes->cols[i].type, "bool") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "boolean");
-            } else if (strcasecmp(tableDes->cols[i].type, "tinyint") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "int");
-            } else if (strcasecmp(tableDes->cols[i].type, "smallint") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "int");
-            } else if (strcasecmp(tableDes->cols[i].type, "bigint") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "long");
-            } else if (strcasecmp(tableDes->cols[i].type, "timestamp") == 0) {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field, "long");
-            } else {
-                pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
-                    tableDes->cols[i].field,
-                    strtolower(tableDes->cols[i].type, tableDes->cols[i].type));
-            }
-        }
-        if ((i != (colCount -1))
-                && (strcmp(tableDes->cols[i + 1].note, "TAG") != 0)) {
-            pstr += sprintf(pstr, "},");
-        } else {
-            pstr += sprintf(pstr, "}");
-            break;
-        }
-    }
-
-    pstr += sprintf(pstr, "]}");
-
-    debugPrint("%s() LN%d, jsonSchema:\n %s\n", __func__, __LINE__, *jsonSchema);
-
-    return 0;
-}
-
-static int64_t dumpNormalTable(
-        char *dbName,
-        char *stable,
-        char *tbName,
-        int precision,
-        FILE *fp
-        ) {
-    int colCount = 0;
-
-    TableDef *tableDes = (TableDef *)calloc(1, sizeof(TableDef)
-            + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-
-    if (stable != NULL && stable[0] != '\0') {  // dump table schema which is created by using super table
-        colCount = getTableDes(dbName, tbName, tableDes, false);
-
-        if (colCount < 0) {
-            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
-                    __func__,
-                    __LINE__,
-                    tbName);
-            free(tableDes);
-            return -1;
-        }
-
-        // create child-table using super-table
-        dumpCreateMTableClause(dbName, stable, tableDes, colCount, fp);
-    } else {  // dump table definition
-        colCount = getTableDes(dbName, tbName, tableDes, false);
-
-        if (colCount < 0) {
-            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
-                    __func__,
-                    __LINE__,
-                    tbName);
-            free(tableDes);
-            return -1;
-        }
-
-        // create normal-table or super-table
-        dumpCreateTableClause(tableDes, colCount, fp, dbName);
-    }
-
-    char *jsonSchema = NULL;
-    if (g_args.avro) {
-        if (0 != convertTbDesToJson(
-                    dbName, tbName, tableDes, colCount, &jsonSchema)) {
-            errorPrint("%s() LN%d, convertTbDesToJson failed\n",
-                    __func__,
-                    __LINE__);
-            freeTbDes(tableDes);
-            return -1;
-        }
-    }
-
-    int64_t totalRows = 0;
-    if (!g_args.schemaonly) {
-        totalRows = dumpTableData(fp, tbName, dbName, precision,
-            jsonSchema);
-    }
-
-    tfree(jsonSchema);
-    freeTbDes(tableDes);
-    return totalRows;
-}
-
-static int64_t dumpNormalTableBelongStb(
-        SDbInfo *dbInfo, char *stbName, char *ntbName)
-{
-    int64_t count = 0;
-
-    char tmpBuf[4096] = {0};
-    FILE *fp = NULL;
-
-    if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%s.sql",
-                g_args.outpath, dbInfo->name, ntbName);
-    } else {
-        sprintf(tmpBuf, "%s.%s.sql",
-                dbInfo->name, ntbName);
-    }
-
-    fp = fopen(tmpBuf, "w");
-    if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file %s\n",
-                __func__, __LINE__, tmpBuf);
-        return -1;
-    }
-
-    count = dumpNormalTable(
-            dbInfo->name,
-            stbName,
-            ntbName,
-            getPrecisionByString(dbInfo->precision),
-            fp);
-    if (count > 0) {
-        atomic_add_fetch_64(&g_totalDumpOutRows, count);
-    }
-
-    fclose(fp);
-    return count;
-}
-
-static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
-{
-    int64_t count = 0;
-
-    char tmpBuf[4096] = {0};
-    FILE *fp = NULL;
-
-    if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%s.sql",
-                g_args.outpath, dbInfo->name, ntbName);
-    } else {
-        sprintf(tmpBuf, "%s.%s.sql",
-                dbInfo->name, ntbName);
-    }
-
-    fp = fopen(tmpBuf, "w");
-    if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file %s\n",
-                __func__, __LINE__, tmpBuf);
-        return -1;
-    }
-
-    count = dumpNormalTable(
-            dbInfo->name,
-            NULL,
-            ntbName,
-            getPrecisionByString(dbInfo->precision),
-            fp);
-    if (count > 0) {
-        atomic_add_fetch_64(&g_totalDumpOutRows, count);
-    }
-    fclose(fp);
-    return count;
-}
-
-static void *dumpNtbOfDb(void *arg) {
-    threadInfo *pThreadInfo = (threadInfo *)arg;
-
-    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->tableFrom);
-    debugPrint("dump table count = \t%"PRId64"\n",
-            pThreadInfo->tablesOfDumpOut);
-
-    FILE *fp = NULL;
-    char tmpBuf[4096] = {0};
-
-    if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%d.sql",
-                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
-    } else {
-        sprintf(tmpBuf, "%s.%d.sql",
-                pThreadInfo->dbName, pThreadInfo->threadIndex);
-    }
-
-    fp = fopen(tmpBuf, "w");
-
-    if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file %s\n",
-                __func__, __LINE__, tmpBuf);
-        return NULL;
-    }
-
-    int64_t count;
-    for (int64_t i = 0; i < pThreadInfo->tablesOfDumpOut; i++) {
-        debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
-                pThreadInfo->threadIndex, i,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
-        count = dumpNormalTable(
-                pThreadInfo->dbName,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
-                pThreadInfo->precision,
-                fp);
-        if (count < 0) {
-            break;
-        } else {
-            atomic_add_fetch_64(&g_totalDumpOutRows, count);
-        }
-    }
-
-    fclose(fp);
-    return NULL;
-}
-
-static void *dumpNormalTablesOfStb(void *arg) {
-    threadInfo *pThreadInfo = (threadInfo *)arg;
-
-    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->tableFrom);
-    debugPrint("dump table count = \t%"PRId64"\n", pThreadInfo->tablesOfDumpOut);
-
-    char command[COMMAND_SIZE];
-
-    sprintf(command, "SELECT TBNAME FROM %s.%s LIMIT %"PRId64" OFFSET %"PRId64"",
-            pThreadInfo->dbName, pThreadInfo->stbName,
-            pThreadInfo->tablesOfDumpOut, pThreadInfo->tableFrom);
-
-    TAOS_RES *res = taos_query(pThreadInfo->taos, command);
-    int32_t code = taos_errno(res);
-    if (code) {
-        errorPrint("%s() LN%d, failed to run command <%s>. reason: %s\n",
-                __func__, __LINE__, command, taos_errstr(res));
-        taos_free_result(res);
-        return NULL;
-    }
-
-    FILE *fp = NULL;
-    char tmpBuf[4096] = {0};
-
-    if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/%s.%s.%d.sql",
-                g_args.outpath,
-                pThreadInfo->dbName,
-                pThreadInfo->stbName,
-                pThreadInfo->threadIndex);
-    } else {
-        sprintf(tmpBuf, "%s.%s.%d.sql",
-                pThreadInfo->dbName,
-                pThreadInfo->stbName,
-                pThreadInfo->threadIndex);
-    }
-
-    fp = fopen(tmpBuf, "w");
-
-    if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file %s\n",
-                __func__, __LINE__, tmpBuf);
-        return NULL;
-    }
-
-    TAOS_ROW row = NULL;
-    int64_t i = 0;
-    int64_t count;
-    while((row = taos_fetch_row(res)) != NULL) {
-        debugPrint("[%d] sub table %"PRId64": name: %s\n",
-                pThreadInfo->threadIndex, i++, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
-
-        count = dumpNormalTable(
-                pThreadInfo->dbName,
-                pThreadInfo->stbName,
-                (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
-                pThreadInfo->precision,
-                fp);
-        if (count < 0) {
-            break;
-        } else {
-            atomic_add_fetch_64(&g_totalDumpOutRows, count);
-        }
-    }
-
-    fclose(fp);
-    return NULL;
-}
-
-static int64_t dumpNtbOfDbByThreads(
-        SDbInfo *dbInfo,
-        int64_t ntbCount)
-{
-    if (ntbCount <= 0) {
-        return 0;
-    }
-
-    int threads = g_args.thread_num;
-
-    int64_t a = ntbCount / threads;
-    if (a < 1) {
-        threads = ntbCount;
-        a = 1;
-    }
-
-    assert(threads);
-    int64_t b = ntbCount % threads;
-
-    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
-    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    assert(pids);
-    assert(infos);
-
-    for (int64_t i = 0; i < threads; i++) {
-        threadInfo *pThreadInfo = infos + i;
-        pThreadInfo->taos = taos_connect(
-                g_args.host,
-                g_args.user,
-                g_args.password,
-                dbInfo->name,
-                g_args.port
-                );
-        if (NULL == pThreadInfo->taos) {
-            errorPrint("%s() LN%d, Failed to connect to TDengine, reason: %s\n",
-                    __func__,
-                    __LINE__,
-                    taos_errstr(NULL));
-            free(pids);
-            free(infos);
-
-            return -1;
-        }
-
-        pThreadInfo->threadIndex = i;
-        pThreadInfo->tablesOfDumpOut = (i<b)?a+1:a;
-        pThreadInfo->tableFrom = (i==0)?0:
-            ((threadInfo *)(infos + i - 1))->tableFrom +
-            ((threadInfo *)(infos + i - 1))->tablesOfDumpOut;
-        strcpy(pThreadInfo->dbName, dbInfo->name);
-        pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
-
-        pthread_create(pids + i, NULL, dumpNtbOfDb, pThreadInfo);
-    }
-
-    for (int64_t i = 0; i < threads; i++) {
-        pthread_join(pids[i], NULL);
-    }
-
-    for (int64_t i = 0; i < threads; i++) {
-        threadInfo *pThreadInfo = infos + i;
-        taos_close(pThreadInfo->taos);
-    }
-
-    free(pids);
-    free(infos);
-
-    return 0;
-}
-
 static int64_t getNtbCountOfStb(char *dbName, char *stbName)
 {
     TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
@@ -1568,466 +1131,6 @@ static int64_t getNtbCountOfStb(char *dbName, char *stbName)
 
     taos_close(taos);
     return count;
-}
-
-static int64_t dumpNtbOfStbByThreads(
-        SDbInfo *dbInfo, char *stbName)
-{
-    int64_t ntbCount = getNtbCountOfStb(dbInfo->name, stbName);
-
-    if (ntbCount <= 0) {
-        return 0;
-    }
-
-    int threads = g_args.thread_num;
-
-    int64_t a = ntbCount / threads;
-    if (a < 1) {
-        threads = ntbCount;
-        a = 1;
-    }
-
-    assert(threads);
-    int64_t b = ntbCount % threads;
-
-    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
-    assert(pids);
-    assert(infos);
-
-    for (int64_t i = 0; i < threads; i++) {
-        threadInfo *pThreadInfo = infos + i;
-        pThreadInfo->taos = taos_connect(
-                g_args.host,
-                g_args.user,
-                g_args.password,
-                dbInfo->name,
-                g_args.port
-                );
-        if (NULL == pThreadInfo->taos) {
-            errorPrint("%s() LN%d, Failed to connect to TDengine, reason: %s\n",
-                    __func__,
-                    __LINE__,
-                    taos_errstr(NULL));
-            free(pids);
-            free(infos);
-
-            return -1;
-        }
-
-        pThreadInfo->threadIndex = i;
-        pThreadInfo->tablesOfDumpOut = (i<b)?a+1:a;
-        pThreadInfo->tableFrom = (i==0)?0:
-            ((threadInfo *)(infos + i - 1))->tableFrom +
-            ((threadInfo *)(infos + i - 1))->tablesOfDumpOut;
-        strcpy(pThreadInfo->dbName, dbInfo->name);
-        pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
-
-        strcpy(pThreadInfo->stbName, stbName);
-        pthread_create(pids + i, NULL, dumpNormalTablesOfStb, pThreadInfo);
-    }
-
-    for (int64_t i = 0; i < threads; i++) {
-        pthread_join(pids[i], NULL);
-    }
-
-    int64_t records = 0;
-    for (int64_t i = 0; i < threads; i++) {
-        threadInfo *pThreadInfo = infos + i;
-        records += pThreadInfo->rowsOfDumpOut;
-        taos_close(pThreadInfo->taos);
-    }
-
-    free(pids);
-    free(infos);
-
-    return records;
-}
-
-static int dumpStableClasuse(SDbInfo *dbInfo, char *stbName, FILE *fp)
-{
-    uint64_t sizeOfTableDes =
-        (uint64_t)(sizeof(TableDef) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-
-    TableDef *tableDes = (TableDef *)calloc(1, sizeOfTableDes);
-    if (NULL == tableDes) {
-        errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
-                __func__, __LINE__, sizeOfTableDes);
-        exit(-1);
-    }
-
-    int colCount = getTableDes(dbInfo->name,
-            stbName, tableDes, true);
-
-    if (colCount < 0) {
-        free(tableDes);
-        errorPrint("%s() LN%d, failed to get stable[%s] schema\n",
-               __func__, __LINE__, stbName);
-        exit(-1);
-    }
-
-    dumpCreateTableClause(tableDes, colCount, fp, dbInfo->name);
-    free(tableDes);
-
-    return 0;
-}
-
-static int64_t dumpCreateSTableClauseOfDb(
-        SDbInfo *dbInfo, FILE *fp)
-{
-    TAOS *taos = taos_connect(g_args.host,
-            g_args.user, g_args.password, dbInfo->name, g_args.port);
-    if (NULL == taos) {
-        errorPrint(
-                "Failed to connect to TDengine server %s by specified database %s\n",
-                g_args.host, dbInfo->name);
-        return 0;
-    }
-
-    TAOS_ROW row;
-    char command[COMMAND_SIZE] = {0};
-
-    sprintf(command, "SHOW %s.STABLES", dbInfo->name);
-
-    TAOS_RES* res = taos_query(taos, command);
-    int32_t  code = taos_errno(res);
-    if (code != 0) {
-        errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
-                __func__, __LINE__, command, taos_errstr(res));
-        taos_free_result(res);
-        taos_close(taos);
-        exit(-1);
-    }
-
-    int64_t superTblCnt = 0;
-    while ((row = taos_fetch_row(res)) != NULL) {
-        if (0 == dumpStableClasuse(dbInfo,
-                    row[TSDB_SHOW_TABLES_NAME_INDEX], fp)) {
-            superTblCnt ++;
-        }
-    }
-
-    taos_free_result(res);
-
-    fprintf(g_fpOfResult,
-            "# super table counter:               %"PRId64"\n",
-            superTblCnt);
-    g_resultStatistics.totalSuperTblsOfDumpOut += superTblCnt;
-
-    taos_close(taos);
-
-    return superTblCnt;
-}
-
-static int64_t dumpNTablesOfDb(SDbInfo *dbInfo)
-{
-    TAOS *taos = taos_connect(g_args.host,
-            g_args.user, g_args.password, dbInfo->name, g_args.port);
-    if (NULL == taos) {
-        errorPrint(
-                "Failed to connect to TDengine server %s by specified database %s\n",
-                g_args.host, dbInfo->name);
-        return 0;
-    }
-
-    char command[COMMAND_SIZE];
-    TAOS_RES *result;
-    int32_t code;
-
-    sprintf(command, "USE %s", dbInfo->name);
-    result = taos_query(taos, command);
-    code = taos_errno(result);
-    if (code != 0) {
-        errorPrint("invalid database %s, reason: %s\n",
-                dbInfo->name, taos_errstr(result));
-        taos_close(taos);
-        return 0;
-    }
-
-    sprintf(command, "SHOW TABLES");
-    result = taos_query(taos, command);
-    code = taos_errno(result);
-    if (code != 0) {
-        errorPrint("Failed to show %s\'s tables, reason: %s\n",
-                dbInfo->name, taos_errstr(result));
-        taos_close(taos);
-        return 0;
-    }
-
-    g_tablesList = calloc(1, dbInfo->ntables * sizeof(TableInfo));
-
-    TAOS_ROW row;
-    int64_t count = 0;
-    while(NULL != (row = taos_fetch_row(result))) {
-        debugPrint("%s() LN%d, No.\t%"PRId64" table name: %s\n",
-                __func__, __LINE__,
-                count, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
-        tstrncpy(((TableInfo *)(g_tablesList + count))->name,
-                (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], TSDB_TABLE_NAME_LEN);
-        char *stbName = (char *) row[TSDB_SHOW_TABLES_METRIC_INDEX];
-        if (stbName) {
-            tstrncpy(((TableInfo *)(g_tablesList + count))->stable,
-                (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], TSDB_TABLE_NAME_LEN);
-            ((TableInfo *)(g_tablesList + count))->belongStb = true;
-        }
-        count ++;
-    }
-    taos_close(taos);
-
-    int64_t records = dumpNtbOfDbByThreads(dbInfo, count);
-
-    free(g_tablesList);
-    g_tablesList = NULL;
-
-    return records;
-}
-
-static int64_t dumpWholeDatabase(SDbInfo *dbInfo, FILE *fp)
-{
-    dumpCreateDbClause(dbInfo, g_args.with_property, fp);
-
-    fprintf(g_fpOfResult, "\n#### database:                       %s\n",
-            dbInfo->name);
-    g_resultStatistics.totalDatabasesOfDumpOut++;
-
-    dumpCreateSTableClauseOfDb(dbInfo, fp);
-
-    return dumpNTablesOfDb(dbInfo);
-}
-
-static int dumpOut() {
-    TAOS     *taos       = NULL;
-    TAOS_RES *result     = NULL;
-
-    TAOS_ROW row;
-    FILE *fp = NULL;
-    int32_t count = 0;
-
-    char tmpBuf[4096] = {0};
-    if (g_args.outpath[0] != 0) {
-        sprintf(tmpBuf, "%s/dbs.sql", g_args.outpath);
-    } else {
-        sprintf(tmpBuf, "dbs.sql");
-    }
-
-    fp = fopen(tmpBuf, "w");
-    if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file %s\n",
-                __func__, __LINE__, tmpBuf);
-        return -1;
-    }
-
-    g_args.dumpDbCount = getDumpDbCount();
-    debugPrint("%s() LN%d, dump db count: %d\n",
-            __func__, __LINE__, g_args.dumpDbCount);
-
-    if (0 == g_args.dumpDbCount) {
-        errorPrint("%d databases valid to dump\n", g_args.dumpDbCount);
-        fclose(fp);
-        return -1;
-    }
-
-    g_dbInfos = (SDbInfo **)calloc(g_args.dumpDbCount, sizeof(SDbInfo *));
-    if (g_dbInfos == NULL) {
-        errorPrint("%s() LN%d, failed to allocate memory\n",
-                __func__, __LINE__);
-        goto _exit_failure;
-    }
-
-    char command[COMMAND_SIZE];
-
-    /* Connect to server */
-    taos = taos_connect(g_args.host, g_args.user, g_args.password,
-            NULL, g_args.port);
-    if (taos == NULL) {
-        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
-        goto _exit_failure;
-    }
-
-    /* --------------------------------- Main Code -------------------------------- */
-    /* if (g_args.databases || g_args.all_databases) { // dump part of databases or all databases */
-    /*  */
-    dumpCharset(fp);
-
-    sprintf(command, "show databases");
-    result = taos_query(taos, command);
-    int32_t code = taos_errno(result);
-
-    if (code != 0) {
-        errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
-                __func__, __LINE__, command, taos_errstr(result));
-        goto _exit_failure;
-    }
-
-    TAOS_FIELD *fields = taos_fetch_fields(result);
-
-    while ((row = taos_fetch_row(result)) != NULL) {
-        // sys database name : 'log', but subsequent version changed to 'log'
-        if ((strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
-                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
-                && (!g_args.allow_sys)) {
-            continue;
-        }
-
-        if (g_args.databases) {  // input multi dbs
-            if (inDatabasesSeq(
-                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0) {
-                continue;
-            }
-        } else if (!g_args.all_databases) {  // only input one db
-            if (strncasecmp(g_args.arg_list[0],
-                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0)
-                continue;
-        }
-
-        g_dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
-        if (g_dbInfos[count] == NULL) {
-            errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
-                    __func__, __LINE__, (uint64_t)sizeof(SDbInfo));
-            goto _exit_failure;
-        }
-
-        okPrint("%s exists\n", (char *)row[TSDB_SHOW_DB_NAME_INDEX]);
-        tstrncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                min(TSDB_DB_NAME_LEN,
-                    fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
-        if (g_args.with_property) {
-            g_dbInfos[count]->ntables =
-                *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
-            g_dbInfos[count]->vgroups =
-                *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
-            g_dbInfos[count]->replica =
-                *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
-            g_dbInfos[count]->quorum =
-                *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
-            g_dbInfos[count]->days =
-                *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
-
-            tstrncpy(g_dbInfos[count]->keeplist,
-                    (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
-                    min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes + 1));
-            //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
-            //g_dbInfos[count]->daysToKeep1;
-            //g_dbInfos[count]->daysToKeep2;
-            g_dbInfos[count]->cache =
-                *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
-            g_dbInfos[count]->blocks =
-                *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
-            g_dbInfos[count]->minrows =
-                *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
-            g_dbInfos[count]->maxrows =
-                *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
-            g_dbInfos[count]->wallevel =
-                *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
-            g_dbInfos[count]->fsync =
-                *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
-            g_dbInfos[count]->comp =
-                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
-            g_dbInfos[count]->cachelast =
-                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
-
-            tstrncpy(g_dbInfos[count]->precision,
-                    (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
-                    DB_PRECISION_LEN);
-            g_dbInfos[count]->update =
-                *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
-        }
-        count++;
-
-        if (g_args.databases) {
-            if (count > g_args.dumpDbCount)
-                break;
-        } else if (!g_args.all_databases) {
-            if (count >= 1)
-                break;
-        }
-    }
-
-    if (count == 0) {
-        errorPrint("%d databases valid to dump\n", count);
-        goto _exit_failure;
-    }
-
-    taos_close(taos);
-
-    if (g_args.databases || g_args.all_databases) { // case: taosdump --databases dbx,dby ...   OR  taosdump --all-databases
-        for (int i = 0; i < count; i++) {
-            int64_t records = 0;
-            records = dumpWholeDatabase(g_dbInfos[i], fp);
-            if (records >= 0) {
-                okPrint("Database %s dumped\n", g_dbInfos[i]->name);
-                g_totalDumpOutRows += records;
-            }
-        }
-    } else {
-        if (1 == g_args.arg_list_len) {
-            int64_t records = dumpWholeDatabase(g_dbInfos[0], fp);
-            if (records >= 0) {
-                okPrint("Database %s dumped\n", g_dbInfos[0]->name);
-                g_totalDumpOutRows += records;
-            }
-        } else {
-            dumpCreateDbClause(g_dbInfos[0], g_args.with_property, fp);
-        }
-
-        int superTblCnt = 0 ;
-        for (int i = 1; g_args.arg_list[i]; i++) {
-            TableRecordInfo tableRecordInfo;
-
-            if (getTableRecordInfo(g_dbInfos[0]->name,
-                        g_args.arg_list[i],
-                        &tableRecordInfo) < 0) {
-                errorPrint("input the invalid table %s\n",
-                        g_args.arg_list[i]);
-                continue;
-            }
-
-            int64_t records = 0;
-            if (tableRecordInfo.isStb) {  // dump all table of this stable
-                int ret = dumpStableClasuse(
-                        g_dbInfos[0],
-                        tableRecordInfo.tableRecord.stable,
-                        fp);
-                if (ret >= 0) {
-                    superTblCnt++;
-                    records = dumpNtbOfStbByThreads(g_dbInfos[0], g_args.arg_list[i]);
-                }
-            } else if (tableRecordInfo.belongStb){
-                dumpStableClasuse(
-                        g_dbInfos[0],
-                        tableRecordInfo.tableRecord.stable,
-                        fp);
-                records = dumpNormalTableBelongStb(
-                        g_dbInfos[0],
-                        tableRecordInfo.tableRecord.stable,
-                        g_args.arg_list[i]);
-            } else {
-                records = dumpNormalTableWithoutStb(g_dbInfos[0], g_args.arg_list[i]);
-            }
-
-            if (records >= 0) {
-                okPrint("table: %s dumped\n", g_args.arg_list[i]);
-                g_totalDumpOutRows += records;
-            }
-        }
-    }
-
-    /* Close the handle and return */
-    fclose(fp);
-    taos_free_result(result);
-    freeDbInfos();
-    fprintf(stderr, "dump out rows: %" PRId64 "\n", g_totalDumpOutRows);
-    return 0;
-
-_exit_failure:
-    fclose(fp);
-    taos_close(taos);
-    taos_free_result(result);
-    freeDbInfos();
-    errorPrint("dump out rows: %" PRId64 "\n", g_totalDumpOutRows);
-    return -1;
 }
 
 static int getTableDes(
@@ -2215,28 +1318,6 @@ static int getTableDes(
     return colCount;
 }
 
-static void dumpCreateDbClause(
-        SDbInfo *dbInfo, bool isDumpProperty, FILE *fp) {
-    char sqlstr[TSDB_MAX_SQL_LEN] = {0};
-
-    char *pstr = sqlstr;
-    pstr += sprintf(pstr, "CREATE DATABASE IF NOT EXISTS %s ", dbInfo->name);
-    if (isDumpProperty) {
-        pstr += sprintf(pstr,
-                "REPLICA %d QUORUM %d DAYS %d KEEP %s CACHE %d BLOCKS %d MINROWS %d MAXROWS %d FSYNC %d CACHELAST %d COMP %d PRECISION '%s' UPDATE %d",
-                dbInfo->replica, dbInfo->quorum, dbInfo->days,
-                dbInfo->keeplist,
-                dbInfo->cache,
-                dbInfo->blocks, dbInfo->minrows, dbInfo->maxrows,
-                dbInfo->fsync,
-                dbInfo->cachelast,
-                dbInfo->comp, dbInfo->precision, dbInfo->update);
-    }
-
-    pstr += sprintf(pstr, ";");
-    fprintf(fp, "%s\n\n", sqlstr);
-}
-
 static int dumpCreateTableClause(TableDef *tableDes, int numOfCols,
         FILE *fp, char* dbName) {
     int counter = 0;
@@ -2286,6 +1367,208 @@ static int dumpCreateTableClause(TableDef *tableDes, int numOfCols,
 
     debugPrint("%s() LN%d, write string: %s\n", __func__, __LINE__, sqlstr);
     return fprintf(fp, "%s\n\n", sqlstr);
+}
+
+static int dumpStableClasuse(SDbInfo *dbInfo, char *stbName, FILE *fp)
+{
+    uint64_t sizeOfTableDes =
+        (uint64_t)(sizeof(TableDef) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+
+    TableDef *tableDes = (TableDef *)calloc(1, sizeOfTableDes);
+    if (NULL == tableDes) {
+        errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
+                __func__, __LINE__, sizeOfTableDes);
+        exit(-1);
+    }
+
+    int colCount = getTableDes(dbInfo->name,
+            stbName, tableDes, true);
+
+    if (colCount < 0) {
+        free(tableDes);
+        errorPrint("%s() LN%d, failed to get stable[%s] schema\n",
+               __func__, __LINE__, stbName);
+        exit(-1);
+    }
+
+    dumpCreateTableClause(tableDes, colCount, fp, dbInfo->name);
+    free(tableDes);
+
+    return 0;
+}
+
+static int64_t dumpCreateSTableClauseOfDb(
+        SDbInfo *dbInfo, FILE *fp)
+{
+    TAOS *taos = taos_connect(g_args.host,
+            g_args.user, g_args.password, dbInfo->name, g_args.port);
+    if (NULL == taos) {
+        errorPrint(
+                "Failed to connect to TDengine server %s by specified database %s\n",
+                g_args.host, dbInfo->name);
+        return 0;
+    }
+
+    TAOS_ROW row;
+    char command[COMMAND_SIZE] = {0};
+
+    sprintf(command, "SHOW %s.STABLES", dbInfo->name);
+
+    TAOS_RES* res = taos_query(taos, command);
+    int32_t  code = taos_errno(res);
+    if (code != 0) {
+        errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
+                __func__, __LINE__, command, taos_errstr(res));
+        taos_free_result(res);
+        taos_close(taos);
+        exit(-1);
+    }
+
+    int64_t superTblCnt = 0;
+    while ((row = taos_fetch_row(res)) != NULL) {
+        if (0 == dumpStableClasuse(dbInfo,
+                    row[TSDB_SHOW_TABLES_NAME_INDEX], fp)) {
+            superTblCnt ++;
+        }
+    }
+
+    taos_free_result(res);
+
+    fprintf(g_fpOfResult,
+            "# super table counter:               %"PRId64"\n",
+            superTblCnt);
+    g_resultStatistics.totalSuperTblsOfDumpOut += superTblCnt;
+
+    taos_close(taos);
+
+    return superTblCnt;
+}
+
+static void dumpCreateDbClause(
+        SDbInfo *dbInfo, bool isDumpProperty, FILE *fp) {
+    char sqlstr[TSDB_MAX_SQL_LEN] = {0};
+
+    char *pstr = sqlstr;
+    pstr += sprintf(pstr, "CREATE DATABASE IF NOT EXISTS %s ", dbInfo->name);
+    if (isDumpProperty) {
+        pstr += sprintf(pstr,
+                "REPLICA %d QUORUM %d DAYS %d KEEP %s CACHE %d BLOCKS %d MINROWS %d MAXROWS %d FSYNC %d CACHELAST %d COMP %d PRECISION '%s' UPDATE %d",
+                dbInfo->replica, dbInfo->quorum, dbInfo->days,
+                dbInfo->keeplist,
+                dbInfo->cache,
+                dbInfo->blocks, dbInfo->minrows, dbInfo->maxrows,
+                dbInfo->fsync,
+                dbInfo->cachelast,
+                dbInfo->comp, dbInfo->precision, dbInfo->update);
+    }
+
+    pstr += sprintf(pstr, ";");
+    fprintf(fp, "%s\n\n", sqlstr);
+}
+
+#if AVRO_SUPPORT == 1
+
+static int convertTbDesToJson(
+        char *dbName, char *tbName, TableDef *tableDes, int colCount,
+        char **jsonSchema)
+{
+    // {
+    // "type": "record",
+    // "name": "dbname.tbname",
+    // "fields": [
+    //      {
+    //      "name": "col0 name",
+    //      "type": "long"
+    //      },
+    //      {
+    //      "name": "col1 name",
+    //      "type": "int"
+    //      },
+    //      {
+    //      "name": "col2 name",
+    //      "type": "float"
+    //      },
+    //      {
+    //      "name": "col3 name",
+    //      "type": "boolean"
+    //      },
+    //      ...
+    //      {
+    //      "name": "coln name",
+    //      "type": "string"
+    //      }
+    // ]
+    // }
+    *jsonSchema = (char *)calloc(1,
+            17 + TSDB_DB_NAME_LEN               /* dbname section */
+            + 17                                /* type: record */
+            + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
+            + 10                                /* fields section */
+            + (TSDB_COL_NAME_LEN + 11 + 16) * colCount + 4);    /* fields section */
+    if (*jsonSchema == NULL) {
+        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
+        return -1;
+    }
+
+    char *pstr = *jsonSchema;
+    pstr += sprintf(pstr,
+            "{\"type\": \"record\", \"name\": \"%s.%s\", \"fields\": [",
+            dbName, tbName);
+    for (int i = 0; i < colCount; i ++) {
+        if (0 == i) {
+            pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "long");
+        } else {
+            if (strcasecmp(tableDes->cols[i].type, "binary") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "string");
+            } else if (strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "bytes");
+            } else if (strcasecmp(tableDes->cols[i].type, "bool") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "boolean");
+            } else if (strcasecmp(tableDes->cols[i].type, "tinyint") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "int");
+            } else if (strcasecmp(tableDes->cols[i].type, "smallint") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "int");
+            } else if (strcasecmp(tableDes->cols[i].type, "bigint") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "long");
+            } else if (strcasecmp(tableDes->cols[i].type, "timestamp") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "long");
+            } else {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field,
+                    strtolower(tableDes->cols[i].type, tableDes->cols[i].type));
+            }
+        }
+        if ((i != (colCount -1))
+                && (strcmp(tableDes->cols[i + 1].note, "TAG") != 0)) {
+            pstr += sprintf(pstr, "},");
+        } else {
+            pstr += sprintf(pstr, "}");
+            break;
+        }
+    }
+
+    pstr += sprintf(pstr, "]}");
+
+    debugPrint("%s() LN%d, jsonSchema:\n %s\n", __func__, __LINE__, *jsonSchema);
+
+    return 0;
 }
 
 static void print_json_indent(int indent) {
@@ -2628,6 +1911,7 @@ static int64_t writeResultToAvro(
 
     return count;
 }
+#endif /* AVRO_SUPPORT == 1 */
 
 static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbName)
 {
@@ -2844,6 +2128,7 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
         return -1;
     }
 
+#if AVRO_SUPPORT == 1
     if (g_args.avro) {
         char avroFilename[4096] = {0};
 
@@ -2856,14 +2141,200 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
         }
 
         totalRows = writeResultToAvro(avroFilename, jsonSchema, res);
-
-    } else {
+    } else
+#endif
         totalRows = writeResultToSql(res, fp, dbName, tbName);
-    }
 
     taos_free_result(res);
     taos_close(taos);
     return totalRows;
+}
+
+static int64_t dumpNormalTable(
+        char *dbName,
+        char *stable,
+        char *tbName,
+        int precision,
+        FILE *fp
+        ) {
+    int colCount = 0;
+
+    TableDef *tableDes = (TableDef *)calloc(1, sizeof(TableDef)
+            + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+
+    if (stable != NULL && stable[0] != '\0') {  // dump table schema which is created by using super table
+        colCount = getTableDes(dbName, tbName, tableDes, false);
+
+        if (colCount < 0) {
+            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
+                    __func__,
+                    __LINE__,
+                    tbName);
+            free(tableDes);
+            return -1;
+        }
+
+        // create child-table using super-table
+        dumpCreateMTableClause(dbName, stable, tableDes, colCount, fp);
+    } else {  // dump table definition
+        colCount = getTableDes(dbName, tbName, tableDes, false);
+
+        if (colCount < 0) {
+            errorPrint("%s() LN%d, failed to get table[%s] schema\n",
+                    __func__,
+                    __LINE__,
+                    tbName);
+            free(tableDes);
+            return -1;
+        }
+
+        // create normal-table or super-table
+        dumpCreateTableClause(tableDes, colCount, fp, dbName);
+    }
+
+    char *jsonSchema = NULL;
+#if AVRO_SUPPORT == 1
+    if (g_args.avro) {
+        if (0 != convertTbDesToJson(
+                    dbName, tbName, tableDes, colCount, &jsonSchema)) {
+            errorPrint("%s() LN%d, convertTbDesToJson failed\n",
+                    __func__,
+                    __LINE__);
+            freeTbDes(tableDes);
+            return -1;
+        }
+    }
+#endif
+
+    int64_t totalRows = 0;
+    if (!g_args.schemaonly) {
+        totalRows = dumpTableData(fp, tbName, dbName, precision,
+            jsonSchema);
+    }
+
+    tfree(jsonSchema);
+    freeTbDes(tableDes);
+    return totalRows;
+}
+
+static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
+{
+    int64_t count = 0;
+
+    char tmpBuf[4096] = {0};
+    FILE *fp = NULL;
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%s.sql",
+                g_args.outpath, dbInfo->name, ntbName);
+    } else {
+        sprintf(tmpBuf, "%s.%s.sql",
+                dbInfo->name, ntbName);
+    }
+
+    fp = fopen(tmpBuf, "w");
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return -1;
+    }
+
+    count = dumpNormalTable(
+            dbInfo->name,
+            NULL,
+            ntbName,
+            getPrecisionByString(dbInfo->precision),
+            fp);
+    if (count > 0) {
+        atomic_add_fetch_64(&g_totalDumpOutRows, count);
+    }
+    fclose(fp);
+    return count;
+}
+
+static int64_t dumpNormalTableBelongStb(
+        SDbInfo *dbInfo, char *stbName, char *ntbName)
+{
+    int64_t count = 0;
+
+    char tmpBuf[4096] = {0};
+    FILE *fp = NULL;
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%s.sql",
+                g_args.outpath, dbInfo->name, ntbName);
+    } else {
+        sprintf(tmpBuf, "%s.%s.sql",
+                dbInfo->name, ntbName);
+    }
+
+    fp = fopen(tmpBuf, "w");
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return -1;
+    }
+
+    count = dumpNormalTable(
+            dbInfo->name,
+            stbName,
+            ntbName,
+            getPrecisionByString(dbInfo->precision),
+            fp);
+    if (count > 0) {
+        atomic_add_fetch_64(&g_totalDumpOutRows, count);
+    }
+
+    fclose(fp);
+    return count;
+}
+
+static void *dumpNtbOfDb(void *arg) {
+    threadInfo *pThreadInfo = (threadInfo *)arg;
+
+    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->tableFrom);
+    debugPrint("dump table count = \t%"PRId64"\n",
+            pThreadInfo->tablesOfDumpOut);
+
+    FILE *fp = NULL;
+    char tmpBuf[4096] = {0};
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%d.sql",
+                g_args.outpath, pThreadInfo->dbName, pThreadInfo->threadIndex);
+    } else {
+        sprintf(tmpBuf, "%s.%d.sql",
+                pThreadInfo->dbName, pThreadInfo->threadIndex);
+    }
+
+    fp = fopen(tmpBuf, "w");
+
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return NULL;
+    }
+
+    int64_t count;
+    for (int64_t i = 0; i < pThreadInfo->tablesOfDumpOut; i++) {
+        debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
+                pThreadInfo->threadIndex, i,
+                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
+        count = dumpNormalTable(
+                pThreadInfo->dbName,
+                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
+                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
+                pThreadInfo->precision,
+                fp);
+        if (count < 0) {
+            break;
+        } else {
+            atomic_add_fetch_64(&g_totalDumpOutRows, count);
+        }
+    }
+
+    fclose(fp);
+    return NULL;
 }
 
 static int checkParam() {
@@ -3178,9 +2649,11 @@ static void taosGetDirectoryFileList(char *inputDir)
 
     if (fileStat.st_mode & S_IFDIR) {
         taosCheckDatabasesSQLFile(inputDir);
+#if AVRO_SUPPORT == 1
         if (g_args.avro)
             g_tsSqlFileNum = taosGetFilesNum(inputDir, "sql", "avro");
         else
+#endif
             g_tsSqlFileNum += taosGetFilesNum(inputDir, "sql", NULL);
 
         int tsSqlFileNumOfTbls = g_tsSqlFileNum;
@@ -3189,13 +2662,14 @@ static void taosGetDirectoryFileList(char *inputDir)
         }
         taosMallocDumpFiles();
         if (0 != tsSqlFileNumOfTbls) {
+#if AVRO_SUPPORT == 1
             if (g_args.avro) {
                 taosParseDirectory(inputDir, "sql", "avro",
                         g_tsDumpInSqlFiles, tsSqlFileNumOfTbls);
-            } else {
+            } else
+#endif
                 taosParseDirectory(inputDir, "sql", NULL,
                         g_tsDumpInSqlFiles, tsSqlFileNumOfTbls);
-            }
         }
         fprintf(stdout, "\nstart to dispose %d files in %s\n",
                 g_tsSqlFileNum, inputDir);
@@ -3400,6 +2874,530 @@ static int dumpIn() {
     return 0;
 }
 
+static void *dumpNormalTablesOfStb(void *arg) {
+    threadInfo *pThreadInfo = (threadInfo *)arg;
+
+    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->tableFrom);
+    debugPrint("dump table count = \t%"PRId64"\n", pThreadInfo->tablesOfDumpOut);
+
+    char command[COMMAND_SIZE];
+
+    sprintf(command, "SELECT TBNAME FROM %s.%s LIMIT %"PRId64" OFFSET %"PRId64"",
+            pThreadInfo->dbName, pThreadInfo->stbName,
+            pThreadInfo->tablesOfDumpOut, pThreadInfo->tableFrom);
+
+    TAOS_RES *res = taos_query(pThreadInfo->taos, command);
+    int32_t code = taos_errno(res);
+    if (code) {
+        errorPrint("%s() LN%d, failed to run command <%s>. reason: %s\n",
+                __func__, __LINE__, command, taos_errstr(res));
+        taos_free_result(res);
+        return NULL;
+    }
+
+    FILE *fp = NULL;
+    char tmpBuf[4096] = {0};
+
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/%s.%s.%d.sql",
+                g_args.outpath,
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
+    } else {
+        sprintf(tmpBuf, "%s.%s.%d.sql",
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                pThreadInfo->threadIndex);
+    }
+
+    fp = fopen(tmpBuf, "w");
+
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return NULL;
+    }
+
+    TAOS_ROW row = NULL;
+    int64_t i = 0;
+    int64_t count;
+    while((row = taos_fetch_row(res)) != NULL) {
+        debugPrint("[%d] sub table %"PRId64": name: %s\n",
+                pThreadInfo->threadIndex, i++, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
+
+        count = dumpNormalTable(
+                pThreadInfo->dbName,
+                pThreadInfo->stbName,
+                (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
+                pThreadInfo->precision,
+                fp);
+        if (count < 0) {
+            break;
+        } else {
+            atomic_add_fetch_64(&g_totalDumpOutRows, count);
+        }
+    }
+
+    fclose(fp);
+    return NULL;
+}
+
+static int64_t dumpNtbOfDbByThreads(
+        SDbInfo *dbInfo,
+        int64_t ntbCount)
+{
+    if (ntbCount <= 0) {
+        return 0;
+    }
+
+    int threads = g_args.thread_num;
+
+    int64_t a = ntbCount / threads;
+    if (a < 1) {
+        threads = ntbCount;
+        a = 1;
+    }
+
+    assert(threads);
+    int64_t b = ntbCount % threads;
+
+    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+    assert(pids);
+    assert(infos);
+
+    for (int64_t i = 0; i < threads; i++) {
+        threadInfo *pThreadInfo = infos + i;
+        pThreadInfo->taos = taos_connect(
+                g_args.host,
+                g_args.user,
+                g_args.password,
+                dbInfo->name,
+                g_args.port
+                );
+        if (NULL == pThreadInfo->taos) {
+            errorPrint("%s() LN%d, Failed to connect to TDengine, reason: %s\n",
+                    __func__,
+                    __LINE__,
+                    taos_errstr(NULL));
+            free(pids);
+            free(infos);
+
+            return -1;
+        }
+
+        pThreadInfo->threadIndex = i;
+        pThreadInfo->tablesOfDumpOut = (i<b)?a+1:a;
+        pThreadInfo->tableFrom = (i==0)?0:
+            ((threadInfo *)(infos + i - 1))->tableFrom +
+            ((threadInfo *)(infos + i - 1))->tablesOfDumpOut;
+        strcpy(pThreadInfo->dbName, dbInfo->name);
+        pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
+
+        pthread_create(pids + i, NULL, dumpNtbOfDb, pThreadInfo);
+    }
+
+    for (int64_t i = 0; i < threads; i++) {
+        pthread_join(pids[i], NULL);
+    }
+
+    for (int64_t i = 0; i < threads; i++) {
+        threadInfo *pThreadInfo = infos + i;
+        taos_close(pThreadInfo->taos);
+    }
+
+    free(pids);
+    free(infos);
+
+    return 0;
+}
+
+static int64_t dumpNTablesOfDb(SDbInfo *dbInfo)
+{
+    TAOS *taos = taos_connect(g_args.host,
+            g_args.user, g_args.password, dbInfo->name, g_args.port);
+    if (NULL == taos) {
+        errorPrint(
+                "Failed to connect to TDengine server %s by specified database %s\n",
+                g_args.host, dbInfo->name);
+        return 0;
+    }
+
+    char command[COMMAND_SIZE];
+    TAOS_RES *result;
+    int32_t code;
+
+    sprintf(command, "USE %s", dbInfo->name);
+    result = taos_query(taos, command);
+    code = taos_errno(result);
+    if (code != 0) {
+        errorPrint("invalid database %s, reason: %s\n",
+                dbInfo->name, taos_errstr(result));
+        taos_close(taos);
+        return 0;
+    }
+
+    sprintf(command, "SHOW TABLES");
+    result = taos_query(taos, command);
+    code = taos_errno(result);
+    if (code != 0) {
+        errorPrint("Failed to show %s\'s tables, reason: %s\n",
+                dbInfo->name, taos_errstr(result));
+        taos_close(taos);
+        return 0;
+    }
+
+    g_tablesList = calloc(1, dbInfo->ntables * sizeof(TableInfo));
+
+    TAOS_ROW row;
+    int64_t count = 0;
+    while(NULL != (row = taos_fetch_row(result))) {
+        debugPrint("%s() LN%d, No.\t%"PRId64" table name: %s\n",
+                __func__, __LINE__,
+                count, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
+        tstrncpy(((TableInfo *)(g_tablesList + count))->name,
+                (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], TSDB_TABLE_NAME_LEN);
+        char *stbName = (char *) row[TSDB_SHOW_TABLES_METRIC_INDEX];
+        if (stbName) {
+            tstrncpy(((TableInfo *)(g_tablesList + count))->stable,
+                (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], TSDB_TABLE_NAME_LEN);
+            ((TableInfo *)(g_tablesList + count))->belongStb = true;
+        }
+        count ++;
+    }
+    taos_close(taos);
+
+    int64_t records = dumpNtbOfDbByThreads(dbInfo, count);
+
+    free(g_tablesList);
+    g_tablesList = NULL;
+
+    return records;
+}
+
+static int64_t dumpNtbOfStbByThreads(
+        SDbInfo *dbInfo, char *stbName)
+{
+    int64_t ntbCount = getNtbCountOfStb(dbInfo->name, stbName);
+
+    if (ntbCount <= 0) {
+        return 0;
+    }
+
+    int threads = g_args.thread_num;
+
+    int64_t a = ntbCount / threads;
+    if (a < 1) {
+        threads = ntbCount;
+        a = 1;
+    }
+
+    assert(threads);
+    int64_t b = ntbCount % threads;
+
+    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    assert(pids);
+    assert(infos);
+
+    for (int64_t i = 0; i < threads; i++) {
+        threadInfo *pThreadInfo = infos + i;
+        pThreadInfo->taos = taos_connect(
+                g_args.host,
+                g_args.user,
+                g_args.password,
+                dbInfo->name,
+                g_args.port
+                );
+        if (NULL == pThreadInfo->taos) {
+            errorPrint("%s() LN%d, Failed to connect to TDengine, reason: %s\n",
+                    __func__,
+                    __LINE__,
+                    taos_errstr(NULL));
+            free(pids);
+            free(infos);
+
+            return -1;
+        }
+
+        pThreadInfo->threadIndex = i;
+        pThreadInfo->tablesOfDumpOut = (i<b)?a+1:a;
+        pThreadInfo->tableFrom = (i==0)?0:
+            ((threadInfo *)(infos + i - 1))->tableFrom +
+            ((threadInfo *)(infos + i - 1))->tablesOfDumpOut;
+        strcpy(pThreadInfo->dbName, dbInfo->name);
+        pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
+
+        strcpy(pThreadInfo->stbName, stbName);
+        pthread_create(pids + i, NULL, dumpNormalTablesOfStb, pThreadInfo);
+    }
+
+    for (int64_t i = 0; i < threads; i++) {
+        pthread_join(pids[i], NULL);
+    }
+
+    int64_t records = 0;
+    for (int64_t i = 0; i < threads; i++) {
+        threadInfo *pThreadInfo = infos + i;
+        records += pThreadInfo->rowsOfDumpOut;
+        taos_close(pThreadInfo->taos);
+    }
+
+    free(pids);
+    free(infos);
+
+    return records;
+}
+
+static int64_t dumpWholeDatabase(SDbInfo *dbInfo, FILE *fp)
+{
+    dumpCreateDbClause(dbInfo, g_args.with_property, fp);
+
+    fprintf(g_fpOfResult, "\n#### database:                       %s\n",
+            dbInfo->name);
+    g_resultStatistics.totalDatabasesOfDumpOut++;
+
+    dumpCreateSTableClauseOfDb(dbInfo, fp);
+
+    return dumpNTablesOfDb(dbInfo);
+}
+
+static int dumpOut() {
+    TAOS     *taos       = NULL;
+    TAOS_RES *result     = NULL;
+
+    TAOS_ROW row;
+    FILE *fp = NULL;
+    int32_t count = 0;
+
+    char tmpBuf[4096] = {0};
+    if (g_args.outpath[0] != 0) {
+        sprintf(tmpBuf, "%s/dbs.sql", g_args.outpath);
+    } else {
+        sprintf(tmpBuf, "dbs.sql");
+    }
+
+    fp = fopen(tmpBuf, "w");
+    if (fp == NULL) {
+        errorPrint("%s() LN%d, failed to open file %s\n",
+                __func__, __LINE__, tmpBuf);
+        return -1;
+    }
+
+    g_args.dumpDbCount = getDumpDbCount();
+    debugPrint("%s() LN%d, dump db count: %d\n",
+            __func__, __LINE__, g_args.dumpDbCount);
+
+    if (0 == g_args.dumpDbCount) {
+        errorPrint("%d databases valid to dump\n", g_args.dumpDbCount);
+        fclose(fp);
+        return -1;
+    }
+
+    g_dbInfos = (SDbInfo **)calloc(g_args.dumpDbCount, sizeof(SDbInfo *));
+    if (g_dbInfos == NULL) {
+        errorPrint("%s() LN%d, failed to allocate memory\n",
+                __func__, __LINE__);
+        goto _exit_failure;
+    }
+
+    char command[COMMAND_SIZE];
+
+    /* Connect to server */
+    taos = taos_connect(g_args.host, g_args.user, g_args.password,
+            NULL, g_args.port);
+    if (taos == NULL) {
+        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        goto _exit_failure;
+    }
+
+    /* --------------------------------- Main Code -------------------------------- */
+    /* if (g_args.databases || g_args.all_databases) { // dump part of databases or all databases */
+    /*  */
+    dumpCharset(fp);
+
+    sprintf(command, "show databases");
+    result = taos_query(taos, command);
+    int32_t code = taos_errno(result);
+
+    if (code != 0) {
+        errorPrint("%s() LN%d, failed to run command <%s>, reason: %s\n",
+                __func__, __LINE__, command, taos_errstr(result));
+        goto _exit_failure;
+    }
+
+    TAOS_FIELD *fields = taos_fetch_fields(result);
+
+    while ((row = taos_fetch_row(result)) != NULL) {
+        // sys database name : 'log', but subsequent version changed to 'log'
+        if ((strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
+                && (!g_args.allow_sys)) {
+            continue;
+        }
+
+        if (g_args.databases) {  // input multi dbs
+            if (inDatabasesSeq(
+                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0) {
+                continue;
+            }
+        } else if (!g_args.all_databases) {  // only input one db
+            if (strncasecmp(g_args.arg_list[0],
+                        (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                        fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0)
+                continue;
+        }
+
+        g_dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
+        if (g_dbInfos[count] == NULL) {
+            errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
+                    __func__, __LINE__, (uint64_t)sizeof(SDbInfo));
+            goto _exit_failure;
+        }
+
+        okPrint("%s exists\n", (char *)row[TSDB_SHOW_DB_NAME_INDEX]);
+        tstrncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                min(TSDB_DB_NAME_LEN,
+                    fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
+        if (g_args.with_property) {
+            g_dbInfos[count]->ntables =
+                *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+            g_dbInfos[count]->vgroups =
+                *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
+            g_dbInfos[count]->replica =
+                *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
+            g_dbInfos[count]->quorum =
+                *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
+            g_dbInfos[count]->days =
+                *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
+
+            tstrncpy(g_dbInfos[count]->keeplist,
+                    (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
+                    min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes + 1));
+            //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
+            //g_dbInfos[count]->daysToKeep1;
+            //g_dbInfos[count]->daysToKeep2;
+            g_dbInfos[count]->cache =
+                *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
+            g_dbInfos[count]->blocks =
+                *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
+            g_dbInfos[count]->minrows =
+                *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
+            g_dbInfos[count]->maxrows =
+                *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
+            g_dbInfos[count]->wallevel =
+                *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
+            g_dbInfos[count]->fsync =
+                *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
+            g_dbInfos[count]->comp =
+                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+            g_dbInfos[count]->cachelast =
+                (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
+
+            tstrncpy(g_dbInfos[count]->precision,
+                    (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
+                    DB_PRECISION_LEN);
+            g_dbInfos[count]->update =
+                *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
+        }
+        count++;
+
+        if (g_args.databases) {
+            if (count > g_args.dumpDbCount)
+                break;
+        } else if (!g_args.all_databases) {
+            if (count >= 1)
+                break;
+        }
+    }
+
+    if (count == 0) {
+        errorPrint("%d databases valid to dump\n", count);
+        goto _exit_failure;
+    }
+
+    taos_close(taos);
+
+    if (g_args.databases || g_args.all_databases) { // case: taosdump --databases dbx,dby ...   OR  taosdump --all-databases
+        for (int i = 0; i < count; i++) {
+            int64_t records = 0;
+            records = dumpWholeDatabase(g_dbInfos[i], fp);
+            if (records >= 0) {
+                okPrint("Database %s dumped\n", g_dbInfos[i]->name);
+                g_totalDumpOutRows += records;
+            }
+        }
+    } else {
+        if (1 == g_args.arg_list_len) {
+            int64_t records = dumpWholeDatabase(g_dbInfos[0], fp);
+            if (records >= 0) {
+                okPrint("Database %s dumped\n", g_dbInfos[0]->name);
+                g_totalDumpOutRows += records;
+            }
+        } else {
+            dumpCreateDbClause(g_dbInfos[0], g_args.with_property, fp);
+        }
+
+        int superTblCnt = 0 ;
+        for (int i = 1; g_args.arg_list[i]; i++) {
+            TableRecordInfo tableRecordInfo;
+
+            if (getTableRecordInfo(g_dbInfos[0]->name,
+                        g_args.arg_list[i],
+                        &tableRecordInfo) < 0) {
+                errorPrint("input the invalid table %s\n",
+                        g_args.arg_list[i]);
+                continue;
+            }
+
+            int64_t records = 0;
+            if (tableRecordInfo.isStb) {  // dump all table of this stable
+                int ret = dumpStableClasuse(
+                        g_dbInfos[0],
+                        tableRecordInfo.tableRecord.stable,
+                        fp);
+                if (ret >= 0) {
+                    superTblCnt++;
+                    records = dumpNtbOfStbByThreads(g_dbInfos[0], g_args.arg_list[i]);
+                }
+            } else if (tableRecordInfo.belongStb){
+                dumpStableClasuse(
+                        g_dbInfos[0],
+                        tableRecordInfo.tableRecord.stable,
+                        fp);
+                records = dumpNormalTableBelongStb(
+                        g_dbInfos[0],
+                        tableRecordInfo.tableRecord.stable,
+                        g_args.arg_list[i]);
+            } else {
+                records = dumpNormalTableWithoutStb(g_dbInfos[0], g_args.arg_list[i]);
+            }
+
+            if (records >= 0) {
+                okPrint("table: %s dumped\n", g_args.arg_list[i]);
+                g_totalDumpOutRows += records;
+            }
+        }
+    }
+
+    /* Close the handle and return */
+    fclose(fp);
+    taos_free_result(result);
+    freeDbInfos();
+    fprintf(stderr, "dump out rows: %" PRId64 "\n", g_totalDumpOutRows);
+    return 0;
+
+_exit_failure:
+    fclose(fp);
+    taos_close(taos);
+    taos_free_result(result);
+    freeDbInfos();
+    errorPrint("dump out rows: %" PRId64 "\n", g_totalDumpOutRows);
+    return -1;
+}
+
 int main(int argc, char *argv[]) {
     static char verType[32] = {0};
     sprintf(verType, "version: %s\n", version);
@@ -3440,7 +3438,10 @@ int main(int argc, char *argv[]) {
     printf("databasesSeq: %s\n", g_args.databasesSeq);
     printf("schemaonly: %s\n", g_args.schemaonly?"true":"false");
     printf("with_property: %s\n", g_args.with_property?"true":"false");
+#if AVRO_SUPPORT  == 1
     printf("avro format: %s\n", g_args.avro?"true":"false");
+    printf("avro codec: %s\n", g_avro_codec[g_args.avro_codec]);
+#endif
     printf("start_time: %" PRId64 "\n", g_args.start_time);
     printf("human readable start time: %s \n", g_args.humanStartTime);
     printf("end_time: %" PRId64 "\n", g_args.end_time);
@@ -3494,8 +3495,10 @@ int main(int argc, char *argv[]) {
     fprintf(g_fpOfResult, "databasesSeq: %s\n", g_args.databasesSeq);
     fprintf(g_fpOfResult, "schemaonly: %s\n", g_args.schemaonly?"true":"false");
     fprintf(g_fpOfResult, "with_property: %s\n", g_args.with_property?"true":"false");
+#if AVRO_SUPPORT == 1
     fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
     fprintf(g_fpOfResult, "avro codec: %s\n", g_avro_codec[g_args.avro_codec]);
+#endif
     fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", g_args.start_time);
     fprintf(g_fpOfResult, "human readable start time: %s \n", g_args.humanStartTime);
     fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", g_args.end_time);
