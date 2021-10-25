@@ -18,7 +18,7 @@
 #include "cJSON.h"
 #include "thash.h"
 #include "tglobal.h"
-#include "dnodeEps.h"
+#include "dnodeDnodeEps.h"
 #include "dnodeCfg.h"
 
 static struct {
@@ -192,7 +192,7 @@ static int32_t dnodeWriteEps() {
   return 0;
 }
 
-int32_t dnodeInitEps() {
+int32_t dnodeInitDnodeEps() {
   tsDeps.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (tsDeps.dnodeHash == NULL) return -1;
 
@@ -209,7 +209,7 @@ int32_t dnodeInitEps() {
   return ret;
 }
 
-void dnodeCleanupEps() {
+void dnodeCleanupDnodeEps() {
   pthread_mutex_lock(&tsDeps.mutex);
 
   if (tsDeps.dnodeList != NULL) {
@@ -227,7 +227,7 @@ void dnodeCleanupEps() {
   pthread_mutex_destroy(&tsDeps.mutex);
 }
 
-void dnodeUpdateEps(SDnodeEps *data) {
+void dnodeUpdateDnodeEps(SDnodeEps *data) {
   if (data == NULL || data->dnodeNum <= 0) return;
 
   data->dnodeNum = htonl(data->dnodeNum);

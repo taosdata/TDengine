@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_EPS_H_
-#define _TD_DNODE_EPS_H_
+#ifndef _TD_DNODE_DNODE_EPS_H_
+#define _TD_DNODE_DNODE_EPS_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "dnodeInt.h"
 
-int32_t dnodeInitEps();
-void    dnodeCleanupEps();
-void    dnodeUpdateEps(SDnodeEps *data);
+int32_t dnodeInitDnodeEps();
+void    dnodeCleanupDnodeEps();
+void    dnodeUpdateDnodeEps(SDnodeEps *data);
 bool    dnodeIsDnodeEpChanged(int32_t dnodeId, char *epstr);
 void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
 
@@ -31,4 +31,4 @@ void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port
 }
 #endif
 
-#endif /*_TD_DNODE_EPS_H_*/
+#endif /*_TD_DNODE_DNODE_EPS_H_*/

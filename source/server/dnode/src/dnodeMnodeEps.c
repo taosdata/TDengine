@@ -18,7 +18,7 @@
 #include "cJSON.h"
 #include "tglobal.h"
 #include "dnodeCfg.h"
-#include "dnodeEps.h"
+#include "dnodeDnodeEps.h"
 #include "dnodeMnodeEps.h"
 #include "mnode.h"
 

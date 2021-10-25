@@ -29,7 +29,7 @@
 #include "mnode.h"
 
 static struct {
-  EDnRunStat      runStatus;
+  EDnStat      runStatus;
   void *       dnodeTimer;
   SStartupStep startup;
 } tsDmain;
@@ -260,8 +260,8 @@ void dnodeProcessConfigDnodeReq(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-EDnRunStat dnodeGetRunStat() { return tsDmain.runStatus; }
+EDnStat dnodeGetRunStat() { return tsDmain.runStatus; }
 
-void dnodeSetRunStat(EDnRunStat stat) { tsDmain.runStatus = stat; }
+void dnodeSetRunStat(EDnStat stat) { tsDmain.runStatus = stat; }
 
 void* dnodeGetTimer() { return tsDmain.dnodeTimer; }

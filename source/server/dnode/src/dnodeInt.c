@@ -24,7 +24,7 @@
 #include "tstep.h"
 #include "dnodeCfg.h"
 #include "dnodeCheck.h"
-#include "dnodeEps.h"
+#include "dnodeDnodeEps.h"
 #include "dnodeMain.h"
 #include "dnodeMnodeEps.h"
 #include "dnodeStatus.h"
@@ -64,7 +64,7 @@ int32_t dnodeInit() {
   taosStepAdd(tsSteps, "dnode-rpc", rpcInit, rpcCleanup);
   taosStepAdd(tsSteps, "dnode-check", dnodeInitCheck, dnodeCleanupCheck);
   taosStepAdd(tsSteps, "dnode-cfg", dnodeInitCfg, dnodeCleanupCfg);
-  taosStepAdd(tsSteps, "dnode-deps", dnodeInitEps, dnodeCleanupEps);
+  taosStepAdd(tsSteps, "dnode-deps", dnodeInitDnodeEps, dnodeCleanupDnodeEps);
   taosStepAdd(tsSteps, "dnode-meps", dnodeInitMnodeEps, dnodeCleanupMnodeEps);
   //taosStepAdd(tsSteps, "dnode-wal", walInit, walCleanUp);
   //taosStepAdd(tsSteps, "dnode-sync", syncInit, syncCleanUp);

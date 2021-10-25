@@ -19,7 +19,7 @@
 #include "ttimer.h"
 #include "tglobal.h"
 #include "dnodeCfg.h"
-#include "dnodeEps.h"
+#include "dnodeDnodeEps.h"
 #include "dnodeMnodeEps.h"
 #include "dnodeStatus.h"
 #include "dnodeMain.h"
@@ -114,7 +114,7 @@ void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
 
   SDnodeEps *pEps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SVgroupAccess));
-  dnodeUpdateEps(pEps);
+  dnodeUpdateDnodeEps(pEps);
 
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsStatus.dnodeTimer, &tsStatus.statusTimer);
 }
