@@ -426,9 +426,9 @@ typedef struct TAOS_MULTI_BIND {
       
   **说明**  
     协议类型是枚举类型，包含以下三种格式：  
-    SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)  
-    SML_TELNET_PROTOCOL: OpenTSDB文本行协议  
-    SML_JSON_PROTOCOL: OpenTSDB Json协议格式  
+    TSDB_SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)  
+    TSDB_SML_TELNET_PROTOCOL: OpenTSDB文本行协议  
+    TSDB_SML_JSON_PROTOCOL: OpenTSDB Json协议格式  
     
     时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：  
     TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,  
