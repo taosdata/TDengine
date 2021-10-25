@@ -25,7 +25,8 @@ extern "C" {
 #include "wal.h"
 
 typedef uint32_t SyncNodeId;
-typedef int64_t   SyncVersion;
+typedef int32_t SyncGroupId;
+typedef int64_t   SyncIndex;
 typedef uint64_t SSyncTerm;
 
 typedef enum {
@@ -63,7 +64,7 @@ typedef struct SSyncFSM {
   void* pData;
 
   // apply committed log, bufs will be free by raft module
-  int (*applyLog)(struct SSyncFSM *fsm, SyncVersion index, const SSyncBuffer *buf, void *pData);
+  int (*applyLog)(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData);
 
   // cluster commit callback 
   int (*onClusterChanged)(struct SSyncFSM *fsm, const SSyncCluster* cluster, void *pData);
@@ -78,7 +79,7 @@ typedef struct SSyncFSM {
   // call when restore snapshot and log done
   int (*onRestoreDone)(struct SSyncFSM *fsm);
 
-  void (*onRollback)(struct SSyncFSM *fsm, SyncVersion index, const SSyncBuffer *buf);
+  void (*onRollback)(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf);
 
   void (*onRoleChanged)(struct SSyncFSM *fsm, const SNodesRole* pRole);
 
@@ -102,11 +103,11 @@ typedef struct SStateManager {
 } SStateManager;
 
 typedef struct {
-  int32_t  vgId;       // vgroup ID
+  SyncGroupId  vgId;
 
   twalh walHandle;
 
-  SyncVersion snapIndex;    // initial version
+  SyncIndex snapshotIndex;    // initial version
   SSyncCluster syncCfg;    // configuration from mgmt
 
   SSyncFSM fsm;
