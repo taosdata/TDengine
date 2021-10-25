@@ -175,8 +175,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
+## <a class="anchor" id="taosdemo"></a> taosdemo 详细功能列表
 
-**Note:** taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
+taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
+taosdemo 详细使用方法请参照 [如何使用taosdemo对TDengine进行性能测试？](https://www.taosdata.com/cn/documentation/getting-started/taosdemo )。
 
 ## 客户端和报警模块
 

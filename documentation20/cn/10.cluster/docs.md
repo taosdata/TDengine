@@ -1,6 +1,6 @@
 # TDengine 集群安装、管理
 
-多个TDengine服务器，也就是多个taosd的运行实例可以组成一个集群，以保证TDengine的高可靠运行，并提供水平扩展能力。要了解TDengine 2.0的集群管理，需要对集群的基本概念有所了解，请看《TDengine整体架构》一章。而且在安装集群之前，建议先按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章安装并体验单节点功能。
+多个TDengine服务器，也就是多个taosd的运行实例可以组成一个集群，以保证TDengine的高可靠运行，并提供水平扩展能力。要了解TDengine 2.0的集群管理，需要对集群的基本概念有所了解，请看[《TDengine整体架构》](https://www.taosdata.com/cn/documentation/architecture)一章。而且在安装集群之前，建议先按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章安装并体验单节点功能。
 
 集群的每个数据节点是由End Point来唯一标识的，End Point是由FQDN(Fully Qualified Domain Name)外加Port组成，比如 h1.taosdata.com:6030。一般FQDN就是服务器的hostname，可通过Linux命令`hostname -f`获取（如何配置FQDN，请参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)）。端口是这个数据节点对外服务的端口号，缺省是6030，但可以通过taos.cfg里配置参数serverPort进行修改。一个物理节点可能配置了多个hostname, TDengine会自动获取第一个，但也可以通过taos.cfg里配置参数fqdn进行指定。如果习惯IP地址直接访问，可以将参数fqdn设置为本节点的IP地址。
 

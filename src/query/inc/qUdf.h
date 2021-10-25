@@ -51,6 +51,7 @@ typedef struct SUdfInfo {
   SUdfInit init;
   char *content;
   char *path;
+  bool  keep;
 } SUdfInfo;
 
 //script 

@@ -112,6 +112,10 @@ extern "C" {
 #define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 #define TOP_BOTTOM_QUERY_LIMIT   100
 
+// apercentile(arg1,agr2,arg3) param arg3 value is below:
+#define ALGO_DEFAULT 0
+#define ALGO_TDIGEST 1
+
 enum {
   MASTER_SCAN   = 0x0u,
   REVERSE_SCAN  = 0x1u,
@@ -197,6 +201,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
+  int16_t      colId;
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
@@ -228,6 +233,7 @@ int32_t isValidFunction(const char* name, int32_t len);
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)
 #define IS_OUTER_FORWARD(x)       (((x)&TSDB_FUNCSTATE_OF) != 0)
+#define IS_SCALAR_FUNCTION(x)     (((x)&TSDB_FUNCSTATE_SCALAR) != 0)
 
 // determine the real data need to calculated the result
 enum {

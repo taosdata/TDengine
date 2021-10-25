@@ -14,7 +14,8 @@
         {
             "dbinfo": {
 			"name": "gdse",
-			"drop": "yes"
+			"drop": "yes",
+			"keep": 36500
 		},
 		"super_tables": [{
 			"name": "model_1174",

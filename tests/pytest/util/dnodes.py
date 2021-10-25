@@ -275,6 +275,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
+        blm3BinPath = buildPath + "/build/bin/blm3"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -290,8 +291,14 @@ class TDDnode:
 
             print(cmd)
 
+        blm3Cmd = "nohup %s > /dev/null 2>&1 & " % (
+                blm3BinPath)
+        if os.system(blm3Cmd) != 0:
+            tdLog.exit(blm3Cmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
+
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
         if self.valgrind == 0:
@@ -333,6 +340,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
+        blm3BinPath = buildPath + "/build/bin/blm3"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -348,12 +356,29 @@ class TDDnode:
 
             print(cmd)
 
+        blm3Cmd = "%s > /dev/null 2>&1 & " % (blm3BinPath)
+        if os.system(blm3Cmd) != 0:
+            tdLog.exit(blm3Cmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
+        blm3ToBeKilled = "blm3"
+
+        blm3PsCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % blm3ToBeKilled
+        blm3ProcessID = subprocess.check_output(
+                    blm3PsCmd, shell=True).decode("utf-8")
+
+        while(blm3ProcessID):
+            blm3KillCmd = "kill -INT %s > /dev/null 2>&1" % blm3ProcessID
+            os.system(blm3KillCmd)
+            time.sleep(1)
+            blm3ProcessID = subprocess.check_output(
+                    blm3PsCmd, shell=True).decode("utf-8")
+
         if self.valgrind == 0:
             toBeKilled = "taosd"
         else:

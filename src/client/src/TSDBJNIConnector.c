@@ -17,6 +17,7 @@
 #include "taos.h"
 #include "tlog.h"
 #include "tscUtil.h"
+#include "tscParseLine.h"
 
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 
@@ -1052,7 +1053,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JNIEnv *env, jobject jobj,
-                                                                               jobjectArray lines, jlong conn) {
+                                                                               jobjectArray lines, jlong conn,
+                                                                               jint protocol, jint precision) {
   TAOS *taos = (TAOS *)conn;
   if (taos == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
@@ -1070,7 +1072,8 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
     c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
   }
 
-  int code = taos_insert_lines(taos, c_lines, numLines);
+  SSqlObj* result = (SSqlObj*)taos_schemaless_insert(taos, c_lines, numLines, protocol, precision);
+  int code = taos_errno(result);
 
   for (int i = 0; i < numLines; ++i) {
     jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
@@ -1079,9 +1082,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
 
   tfree(c_lines);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(result));
 
     return JNI_TDENGINE_ERROR;
   }
-  return code;
+
+  return (jlong)result;
 }

@@ -87,7 +87,7 @@ IF (TD_ARM_64)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "arm64 is defined")
   SET(COMMON_FLAGS "-Wall -Werror -fPIC -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
-  
+
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
@@ -122,6 +122,24 @@ IF (TD_APLHINE)
   link_libraries(/usr/lib/libargp.a)
   ADD_DEFINITIONS(-D_ALPINE)
   MESSAGE(STATUS "aplhine is defined")
+ENDIF ()
+
+MESSAGE("before BUILD_HTTP: " ${BUILD_HTTP})
+IF ("${BUILD_HTTP}" STREQUAL "")
+  IF (TD_LINUX)
+    IF (TD_ARM_32)
+      SET(BUILD_HTTP "true")
+    ELSE ()
+      SET(BUILD_HTTP "false")
+    ENDIF ()
+  ELSE ()
+    SET(BUILD_HTTP "true")
+  ENDIF ()
+ENDIF ()
+MESSAGE("after BUILD_HTTP: " ${BUILD_HTTP})
+
+IF (${BUILD_HTTP} MATCHES "true")
+  SET(TD_BUILD_HTTP TRUE)
 ENDIF ()
 
 IF (TD_BUILD_HTTP)

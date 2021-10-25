@@ -53,6 +53,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Schemaless 写入](/insert#schemaless)：免于预先建表，将数据直接写入时自动维护元数据结构
 * [Prometheus 写入](/insert#prometheus)：配置Prometheus, 不用任何代码，将数据直接写入
 * [Telegraf 写入](/insert#telegraf)：配置Telegraf, 不用任何代码，将采集数据直接写入
+* [collectd 直接写入](/insert#collectd)：配置 collectd，不用任何代码，将采集数据直接写入
+* [StatsD 直接写入](/insert#statsd)：配置 StatsD，不用任何代码，将采集数据直接写入
 * [EMQ X Broker](/insert#emq)：配置EMQ X，不用任何代码，就可将MQTT数据直接写入
 * [HiveMQ Broker](/insert#hivemq)：配置HiveMQ，不用任何代码，就可将MQTT数据直接写入
 
@@ -117,6 +119,11 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [系统模块](/architecture/taosd)：taosd的功能和模块划分
 * [数据复制](/architecture/replica)：支持实时同步、异步复制，保证系统的High Availibility
 * [技术博客](https://www.taosdata.com/cn/blog/?categories=3)：更多的技术分析和架构设计文章
+
+## [应用 TDengine 快速搭建 IT 运维系统](/devops)
+
+* [devops](/devops/telegraf)：使用 TDengine + Telegraf + Grafana 快速搭建 IT 运维系统
+* [devops](/devops/collectd)：使用 TDengine + collectd_statsd + Grafana 快速搭建 IT 运维系统
 
 ## 常用工具
 
