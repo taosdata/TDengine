@@ -629,10 +629,6 @@ static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
     return false;
   }
 
-  if (pCmd->payload == NULL) {
-    return false;
-  }
-
   size_t len = strlen(pCmd->payload);
 
   char *z = NULL;

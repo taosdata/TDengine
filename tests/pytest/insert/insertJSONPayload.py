@@ -803,6 +803,7 @@ class TDTestCase:
 		"type":	"nchar"
 	    },
 	    "tags":	{
+                "id":   "KEY",
 		"456":	{
 			"value":	true,
 			"type":	"bool"
@@ -836,6 +837,9 @@ class TDTestCase:
 
         tdSql.query("describe `stable`")
         tdSql.checkRows(8)
+
+        tdSql.query("select * from `key`")
+        tdSql.checkRows(1)
 
 
     def stop(self):

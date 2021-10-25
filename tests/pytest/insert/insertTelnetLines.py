@@ -316,7 +316,7 @@ class TDTestCase:
                         "double 1626006833610ms 2 id=for 456=true int=true double=false into=1 from=2 !@#$.%^&*()=false",
                         "from 1626006833610ms 2 id=!@#.^& 456=true int=true double=false into=1 from=2 !@#$.%^&*()=false",
                         "!@#$.%^&*() 1626006833610ms 2 id=none 456=true int=true double=false into=1 from=2 !@#$.%^&*()=false",
-                        "STABLE 1626006833610ms 2 id=!@#.^& 456=true int=true double=false TAG=1 FROM=2 COLUMN=false",
+                        "STABLE 1626006833610ms 2 id=KEY 456=true int=true double=false TAG=1 FROM=2 COLUMN=false",
                      ]
 
         code = self._conn.schemaless_insert(lines4_1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -353,6 +353,9 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         tdSql.query('select * from `none`')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from `key`')
         tdSql.checkRows(1)
 
     def stop(self):
