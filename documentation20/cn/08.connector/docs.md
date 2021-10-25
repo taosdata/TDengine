@@ -465,10 +465,7 @@ int main() {
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
- 
-  // error message buffer
-  char msg[512] = {0};
-   
+    
   // connect to server
   TAOS* taos = taos_connect(host, user, passwd, "test", 0);
    
