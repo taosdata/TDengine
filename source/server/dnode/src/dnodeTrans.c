@@ -21,9 +21,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeTrans.h"
-#include "dnodeMain.h"
-#include "dnodeMnodeEps.h"
-#include "dnodeStatus.h"
+#include "dnodeEps.h"
+#include "dnodeMsg.h"
 #include "mnode.h"
 #include "vnode.h"
 #include "mnode.h"
@@ -98,8 +97,8 @@ static int32_t dnodeInitServer() {
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_GRANT] = mnodeProcessMsg;
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_STATUS] = mnodeProcessMsg;
 
-  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT]       = vnodeProcessMsg;
-  /*tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME]       = vnodeProcessRead;*/
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT] = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessMsg;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -140,7 +139,7 @@ static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 
   if (msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
-    dnodeUpdateMnodeFromPeer(pEpSet);
+    dnodeUpdateMnodeEps(pEpSet);
   }
 
   RpcMsgFp fp = tsTrans.peerMsgFp[msgType];

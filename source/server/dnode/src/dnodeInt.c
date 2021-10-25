@@ -14,67 +14,176 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#if 0
-#include "qScript.h"
-#include "tfile.h"
-#include "tsync.h"
-#include "twal.h"
-#endif
-#include "tstep.h"
-#include "dnodeCfg.h"
 #include "dnodeCheck.h"
 #include "dnodeEps.h"
-#include "dnodeMain.h"
-#include "dnodeMnodeEps.h"
-#include "dnodeStatus.h"
+#include "dnodeMsg.h"
 #include "dnodeTrans.h"
 #include "mnode.h"
+#include "sync.h"
+#include "tcache.h"
+#include "tconfig.h"
+#include "tnote.h"
+#include "tstep.h"
 #include "vnode.h"
+#include "wal.h"
 
-static struct SSteps *tsSteps;
+static struct {
+  EDnStat      runStatus;
+  SStartupStep startup;
+  SSteps      *steps;
+} tsDnode;
 
-static int32_t dnodeInitVnodeModule(void **unused) {
+EDnStat dnodeGetRunStat() { return tsDnode.runStatus; }
+
+void dnodeSetRunStat(EDnStat stat) { tsDnode.runStatus = stat; }
+
+static void dnodeReportStartup(char *name, char *desc) {
+  SStartupStep *startup = &tsDnode.startup;
+  tstrncpy(startup->name, name, strlen(startup->name));
+  tstrncpy(startup->desc, desc, strlen(startup->desc));
+  startup->finished = 0;
+}
+
+static void dnodeReportStartupFinished(char *name, char *desc) {
+  SStartupStep *startup = &tsDnode.startup;
+  tstrncpy(startup->name, name, strlen(startup->name));
+  tstrncpy(startup->desc, desc, strlen(startup->desc));
+  startup->finished = 1;
+}
+
+void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsDnode.startup, sizeof(SStartupStep)); }
+
+static int32_t dnodeInitVnode() {
   SVnodePara para;
-  para.fp.GetDnodeEp = dnodeGetDnodeEp;
+  para.fp.GetDnodeEp = dnodeGetEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
 
   return vnodeInit(para);
 }
 
-static int32_t dnodeInitMnodeModule(void **unused) {
+static int32_t dnodeInitMnode() {
   SMnodePara para;
-  para.fp.GetDnodeEp = dnodeGetDnodeEp;
+  para.fp.GetDnodeEp = dnodeGetEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
   para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
-  dnodeGetCfg(&para.dnodeId, para.clusterId);
+  para.dnodeId = dnodeGetDnodeId();
+  para.clusterId = dnodeGetClusterId();
 
   return mnodeInit(para);
 }
 
+static int32_t dnodeInitTfs() {}
+
+static int32_t dnodeInitMain() {
+  tsDnode.runStatus = DN_RUN_STAT_STOPPED;
+  tscEmbedded = 1;
+  taosIgnSIGPIPE();
+  taosBlockSIGPIPE();
+  taosResolveCRC();
+  taosInitGlobalCfg();
+  taosReadGlobalLogCfg();
+  taosSetCoreDump(tsEnableCoreFile);
+
+  if (!taosMkDir(tsLogDir)) {
+    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+    return -1;
+  }
+
+  char temp[TSDB_FILENAME_LEN];
+  sprintf(temp, "%s/taosdlog", tsLogDir);
+  if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
+    printf("failed to init log file\n");
+  }
+
+  if (!taosReadGlobalCfg()) {
+    taosPrintGlobalCfg();
+    dError("TDengine read global config failed");
+    return -1;
+  }
+
+  dInfo("start to initialize TDengine");
+
+  taosInitNotes();
+
+  return taosCheckGlobalCfg();
+}
+
+static void dnodeCleanupMain() {
+  taos_cleanup();
+  taosCloseLog();
+  taosStopCacheRefreshWorker();
+}
+
+static int32_t dnodeCheckRunning(char *dir) {
+  char filepath[256] = {0};
+  snprintf(filepath, sizeof(filepath), "%s/.running", dir);
+
+  FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
+  if (fd < 0) {
+    dError("failed to open lock file:%s since %s, quit", filepath, strerror(errno));
+    return -1;
+  }
+
+  int32_t ret = taosLockFile(fd);
+  if (ret != 0) {
+    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
+    taosCloseFile(fd);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t dnodeInitDir() {
+  sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
+  sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
+  sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
+
+  if (!taosMkDir(tsDnodeDir)) {
+    dError("failed to create dir:%s since %s", tsDnodeDir, strerror(errno));
+    return -1;
+  }
+
+  if (!taosMkDir(tsMnodeDir)) {
+    dError("failed to create dir:%s since %s", tsMnodeDir, strerror(errno));
+    return -1;
+  }
+
+  if (!taosMkDir(tsVnodeDir)) {
+    dError("failed to create dir:%s since %s", tsVnodeDir, strerror(errno));
+    return -1;
+  }
+
+  if (dnodeCheckRunning(tsDnodeDir) != 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static void dnodeCleanupDir() {}
+
 int32_t dnodeInit() {
-  tsSteps = taosStepInit(24, dnodeReportStartup);
-  if (tsSteps == NULL) return -1;
+  SSteps *steps = taosStepInit(24, dnodeReportStartup);
+  if (steps == NULL) return -1;
 
-  taosStepAdd(tsSteps, "dnode-main", dnodeInitMain, dnodeCleanupMain);
-  taosStepAdd(tsSteps, "dnode-storage", dnodeInitStorage, dnodeCleanupStorage);
-  //taosStepAdd(tsSteps, "dnode-tfs", tfInit, tfCleanup);
-  taosStepAdd(tsSteps, "dnode-rpc", rpcInit, rpcCleanup);
-  taosStepAdd(tsSteps, "dnode-check", dnodeInitCheck, dnodeCleanupCheck);
-  taosStepAdd(tsSteps, "dnode-cfg", dnodeInitCfg, dnodeCleanupCfg);
-  taosStepAdd(tsSteps, "dnode-deps", dnodeInitEps, dnodeCleanupEps);
-  taosStepAdd(tsSteps, "dnode-meps", dnodeInitMnodeEps, dnodeCleanupMnodeEps);
-  //taosStepAdd(tsSteps, "dnode-wal", walInit, walCleanUp);
-  //taosStepAdd(tsSteps, "dnode-sync", syncInit, syncCleanUp);
-  taosStepAdd(tsSteps, "dnode-vnode", dnodeInitVnodeModule, vnodeCleanup);
-  taosStepAdd(tsSteps, "dnode-mnode", dnodeInitMnodeModule, mnodeCleanup);
-  taosStepAdd(tsSteps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
-  taosStepAdd(tsSteps, "dnode-status", dnodeInitStatus, dnodeCleanupStatus);
-  //taosStepAdd(tsSteps, "dnode-script",scriptEnvPoolInit, scriptEnvPoolCleanup);
+  taosStepAdd(steps, "dnode-main", dnodeInitMain, dnodeCleanupMain);
+  taosStepAdd(steps, "dnode-dir", dnodeInitDir, dnodeCleanupDir);
+  taosStepAdd(steps, "dnode-check", dnodeInitCheck, dnodeCleanupCheck);
+  taosStepAdd(steps, "dnode-rpc", rpcInit, rpcCleanup);
+  taosStepAdd(steps, "dnode-tfs", dnodeInitTfs, NULL);
+  taosStepAdd(steps, "dnode-wal", walInit, walCleanUp);
+  taosStepAdd(steps, "dnode-sync", syncInit, syncCleanUp);
+  taosStepAdd(steps, "dnode-eps", dnodeInitEps, dnodeCleanupEps);
+  taosStepAdd(steps, "dnode-vnode", dnodeInitVnode, vnodeCleanup);
+  taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, mnodeCleanup);
+  taosStepAdd(steps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
+  taosStepAdd(steps, "dnode-msg", dnodeInitMsg, dnodeCleanupMsg);
 
-  taosStepExec(tsSteps);
+  tsDnode.steps = steps;
+  taosStepExec(tsDnode.steps);
 
   dnodeSetRunStat(DN_RUN_STAT_RUNNING);
   dnodeReportStartupFinished("TDengine", "initialized successfully");
@@ -86,7 +195,7 @@ int32_t dnodeInit() {
 void dnodeCleanup() {
   if (dnodeGetRunStat() != DN_RUN_STAT_STOPPED) {
     dnodeSetRunStat(DN_RUN_STAT_STOPPED);
-    taosStepCleanup(tsSteps);
-    tsSteps = NULL;
+    taosStepCleanup(tsDnode.steps);
+    tsDnode.steps = NULL;
   }
 }
