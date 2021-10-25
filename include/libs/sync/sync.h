@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_RAFT_SYNC_H
-#define TDENGINE_RAFT_SYNC_H
+#ifndef _TD_LIBS_SYNC_H
+#define _TD_LIBS_SYNC_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,41 +25,40 @@ extern "C" {
 #include "wal.h"
 
 typedef uint32_t SyncNodeId;
-typedef int32_t SyncGroupId;
-typedef int64_t   SyncIndex;
-typedef uint64_t SSyncTerm;
+typedef int32_t  SyncGroupId;
+typedef int64_t  SyncIndex;
+typedef uint64_t SyncTerm;
 
 typedef enum {
-  TAOS_SYNC_ROLE_FOLLOWER  = 0,
+  TAOS_SYNC_ROLE_FOLLOWER = 0,
   TAOS_SYNC_ROLE_CANDIDATE = 1,
-  TAOS_SYNC_ROLE_LEADER  = 2,
+  TAOS_SYNC_ROLE_LEADER = 2,
 } ESyncRole;
 
 typedef struct {
-  void* data;
+  void*  data;
   size_t len;
 } SSyncBuffer;
 
 typedef struct {
-  SyncNodeId  nodeId;    // node ID assigned by TDengine
-  uint16_t  nodePort;  // node sync Port
-  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
+  SyncNodeId nodeId;                   // node ID assigned by TDengine
+  uint16_t   nodePort;                 // node sync Port
+  char       nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
 } SNodeInfo;
 
 typedef struct {
-  int selfIndex;
-  int nNode;
-  SNodeInfo*  nodeInfo;
+  int        selfIndex;
+  int        nNode;
+  SNodeInfo* nodeInfo;
 } SSyncCluster;
 
 typedef struct {
-  int32_t  selfIndex;
-  int nNode;
+  int32_t     selfIndex;
+  int         nNode;
   SyncNodeId* nodeId;
   ESyncRole*  role;
 } SNodesRole;
 
-struct SSyncFSM;
 typedef struct SSyncFSM {
   void* pData;
 
@@ -87,7 +86,7 @@ typedef struct SSyncFSM {
 
 typedef struct SSyncServerState {
   SyncNodeId voteFor;
-  SSyncTerm term;  
+  SyncTerm   term;
 } SSyncServerState;
 
 typedef struct SStateManager {
@@ -103,12 +102,12 @@ typedef struct SStateManager {
 } SStateManager;
 
 typedef struct {
-  SyncGroupId  vgId;
+  SyncGroupId vgId;
 
   twalh walHandle;
 
-  SyncIndex snapshotIndex;    // initial version
-  SSyncCluster syncCfg;    // configuration from mgmt
+  SyncIndex    snapshotIndex;  // initial version
+  SSyncCluster syncCfg;        // configuration from mgmt
 
   SSyncFSM fsm;
 
@@ -118,15 +117,15 @@ typedef struct {
 int32_t syncInit();
 void    syncCleanUp();
 
-SyncNodeId syncStart(const SSyncInfo *);
-void    syncStop(SyncNodeId);
+SyncNodeId syncStart(const SSyncInfo*);
+void       syncStop(SyncNodeId);
 
-int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void *pData, bool isWeak);
+int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void* pData, bool isWeak);
 
-extern int32_t  raftDebugFlag;
+extern int32_t syncDebugFlag;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_RAFT_SYNC_H
+#endif  /*_TD_LIBS_SYNC_H*/
