@@ -774,7 +774,6 @@ out:
 }
 
 static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
-  ASSERT(pTable->lastRow == NULL);
   if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
     return -1;
   }
@@ -802,6 +801,14 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
                    pCol->offset);
   }
   TSKEY lastKey = memRowKey(lastRow);
+  
+  if (!pCfg->cacheLastRow && pTable->lastRow != NULL) {
+    SMemRow cachedLastRow = pTable->lastRow;
+    TSDB_WLOCK_TABLE(pTable);
+    pTable->lastRow = NULL;
+    TSDB_WUNLOCK_TABLE(pTable);
+    taosTZfree(cachedLastRow);
+  }
 
   // during the load data in file, new data would be inserted and last row has been updated
   if (tsdbGetTableLastKeyImpl(pTable) <= lastKey) {
