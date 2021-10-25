@@ -940,6 +940,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     }
     pkv->key = tcalloc(keyLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
+    strntolower_s(pkv->key, pkv->key, (int32_t)keyLen);
     addEscapeCharToString(pkv->key, keyLen);
     //value
     ret = parseValueFromJSON(tag, pkv, info);

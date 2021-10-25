@@ -793,7 +793,7 @@ class TDTestCase:
 
         payload = ['''
         {
-	    "metric":	"123abc",
+	    "metric":	"STABLE",
 	    "timestamp":	{
 		"value":	1626006833,
 		"type":	"s"
@@ -819,7 +819,7 @@ class TDTestCase:
 			"value":	2147483647,
 			"type":	"int"
 		},
-		"from":	{
+		"INSERT":	{
 			"value":	9.2233720368547758e+18,
 			"type":	"bigint"
 		},
@@ -834,7 +834,7 @@ class TDTestCase:
         code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
-        tdSql.query("describe `123abc`")
+        tdSql.query("describe `stable`")
         tdSql.checkRows(8)
 
 
