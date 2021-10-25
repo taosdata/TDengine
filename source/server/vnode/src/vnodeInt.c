@@ -23,8 +23,8 @@
 #include "vnodeWrite.h"
 
 static struct {
-  struct SSteps *steps;
-  SVnodeFp       fp;
+  SSteps  *steps;
+  SVnodeFp fp;
 } tsVint;
 
 int32_t vnodeInit(SVnodePara para) {
@@ -34,11 +34,10 @@ int32_t vnodeInit(SVnodePara para) {
   if (steps == NULL) return -1;
 
   taosStepAdd(steps, "vnode-main", vnodeInitMain, vnodeCleanupMain);
-  taosStepAdd(steps, "vnode-worker",vnodeInitWorker, vnodeCleanupWorker);
+  taosStepAdd(steps, "vnode-worker", vnodeInitWorker, vnodeCleanupWorker);
   taosStepAdd(steps, "vnode-read", vnodeInitRead, vnodeCleanupRead);
   taosStepAdd(steps, "vnode-mgmt", vnodeInitMgmt, vnodeCleanupMgmt);
   taosStepAdd(steps, "vnode-write", vnodeInitWrite, vnodeCleanupWrite);
-  // taosStepAdd(steps, "vnode-queue", tsdbInitCommitQueue, tsdbDestroyCommitQueue);
 
   tsVint.steps = steps;
   return taosStepExec(tsVint.steps);
@@ -49,3 +48,9 @@ void vnodeCleanup() { taosStepCleanup(tsVint.steps); }
 void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port) {
   return (*tsVint.fp.GetDnodeEp)(dnodeId, ep, fqdn, port);
 }
+
+void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
+  (*tsVint.fp.SendMsgToDnode)(epSet, rpcMsg);
+}
+
+void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsVint.fp.SendMsgToMnode)(rpcMsg); }

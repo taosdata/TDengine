@@ -81,9 +81,9 @@ static int32_t vnodeWriteToRQueue(SVnode *pVnode, void *pCont, int32_t contLen, 
   atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
   if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_FETCH) {
-    return taosWriteQitem(pVnode->fqueue, qtype, pRead);
+    return taosWriteQitem(pVnode->pFetchQ, qtype, pRead);
   } else {
-    return taosWriteQitem(pVnode->qqueue, qtype, pRead);
+    return taosWriteQitem(pVnode->pQueryQ, qtype, pRead);
   }
 }
 

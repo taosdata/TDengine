@@ -158,7 +158,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
       }
     }
 
-    int32_t remain = atomic_add_fetch_32(&pVnode->numOfExistQHandle, 1);
+    int32_t remain = atomic_add_fetch_32(&pVnode->numOfQHandle, 1);
     vTrace("vgId:%d, new qhandle created, total qhandle:%d", pVnode->vgId, remain);
   } else {
     assert(pCont != NULL);
@@ -203,7 +203,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
       // If the building of result is not required, simply free it. Otherwise, mandatorily free the qhandle
       if (freehandle || (!buildRes)) {
         if (freehandle) {
-          int32_t remain = atomic_sub_fetch_32(&pVnode->numOfExistQHandle, 1);
+          int32_t remain = atomic_sub_fetch_32(&pVnode->numOfQHandle, 1);
           vTrace("vgId:%d, QInfo:%p, start to free qhandle, remain qhandle:%d", pVnode->vgId, *qhandle, remain);
         }
 
@@ -282,7 +282,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead) {
 
   // kill current query and free corresponding resources.
   if (pRetrieve->free == 1) {
-    int32_t remain = atomic_sub_fetch_32(&pVnode->numOfExistQHandle, 1);
+    int32_t remain = atomic_sub_fetch_32(&pVnode->numOfQHandle, 1);
     vWarn("vgId:%d, QInfo:%" PRIx64 "-%p, retrieve msg received to kill query and free qhandle, remain qhandle:%d",
           pVnode->vgId, pRetrieve->qId, *handle, remain);
 
@@ -296,7 +296,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead) {
 
   // register the qhandle to connect to quit query immediate if connection is broken
   if (vnodeNotifyCurrentQhandle(pRead->rpcHandle, pRetrieve->qId, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-    int32_t remain = atomic_sub_fetch_32(&pVnode->numOfExistQHandle, 1);
+    int32_t remain = atomic_sub_fetch_32(&pVnode->numOfQHandle, 1);
     vError("vgId:%d, QInfo:%" PRIu64 "-%p, retrieve discarded since link is broken, conn:%p, remain qhandle:%d",
            pVnode->vgId, pRetrieve->qhandle, *handle, pRead->rpcHandle, remain);
 
@@ -333,7 +333,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SReadMsg *pRead) {
   // If qhandle is not added into vread queue, the query should be completed already or paused with error.
   // Here free qhandle immediately
   if (freeHandle) {
-    int32_t remain = atomic_sub_fetch_32(&pVnode->numOfExistQHandle, 1);
+    int32_t remain = atomic_sub_fetch_32(&pVnode->numOfQHandle, 1);
     vTrace("vgId:%d, QInfo:%p, start to free qhandle, remain qhandle:%d", pVnode->vgId, *handle, remain);
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
   }

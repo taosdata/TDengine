@@ -75,15 +75,16 @@ SVnode *vnodeAcquire(int32_t vgId) {
 }
 
 SVnode *vnodeAcquireNotClose(int32_t vgId) {
-  SVnode *pVnode = vnodeAcquire(vgId);
-  if (pVnode != NULL && pVnode->preClose == 1) {
-    vnodeRelease(pVnode);
-    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
-    vDebug("vgId:%d, not exist, pre closing", vgId);
-    return NULL;
-  }
+  // SVnode *pVnode = vnodeAcquire(vgId);
+  // if (pVnode != NULL && pVnode->preClose == 1) {
+  //   vnodeRelease(pVnode);
+  //   terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+  //   vDebug("vgId:%d, not exist, pre closing", vgId);
+  //   return NULL;
+  // }
 
-  return pVnode;
+  // return pVnode;
+  return NULL;
 }
 
 void vnodeRelease(SVnode *pVnode) {
@@ -287,6 +288,7 @@ static int32_t vnodeAlterImp(SVnode *pVnode, SCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeAlter(SVnode *pVnode, SCreateVnodeMsg *pVnodeCfg) {
+#if 0  
   vDebug("vgId:%d, current dbCfgVersion:%d vgCfgVersion:%d, input dbCfgVersion:%d vgCfgVersion:%d", pVnode->vgId,
          pVnode->dbCfgVersion, pVnode->vgCfgVersion, pVnodeCfg->cfg.dbCfgVersion, pVnodeCfg->cfg.vgCfgVersion);
 
@@ -304,6 +306,8 @@ int32_t vnodeAlter(SVnode *pVnode, SCreateVnodeMsg *pVnodeCfg) {
   }
 
   return code;
+#endif 
+  return 0;
 }
 
 static void vnodeFindWalRootDir(int32_t vgId, char *walRootDir) {
@@ -371,10 +375,10 @@ int32_t vnodeOpen(int32_t vgId) {
 
   pVnode->fversion = pVnode->version;
 
-  pVnode->wqueue = vnodeAllocWriteQueue(pVnode);
-  pVnode->qqueue = vnodeAllocQueryQueue(pVnode);
-  pVnode->fqueue = vnodeAllocFetchQueue(pVnode);
-  if (pVnode->wqueue == NULL || pVnode->qqueue == NULL || pVnode->fqueue == NULL) {
+  pVnode->pWriteQ = vnodeAllocWriteQueue(pVnode);
+  pVnode->pQueryQ = vnodeAllocQueryQueue(pVnode);
+  pVnode->pFetchQ = vnodeAllocFetchQueue(pVnode);
+  if (pVnode->pWriteQ == NULL || pVnode->pQueryQ == NULL || pVnode->pFetchQ == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
   }
@@ -467,7 +471,7 @@ int32_t vnodeClose(int32_t vgId) {
     return 0;
   }
 
-  pVnode->preClose = 1;
+  // pVnode->preClose = 1;
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
   vnodeRelease(pVnode);
@@ -516,19 +520,19 @@ void vnodeDestroy(SVnode *pVnode) {
     pVnode->wal = NULL;
   }
 
-  if (pVnode->wqueue) {
-    vnodeFreeWriteQueue(pVnode->wqueue);
-    pVnode->wqueue = NULL;
+  if (pVnode->pWriteQ) {
+    vnodeFreeWriteQueue(pVnode->pWriteQ);
+    pVnode->pWriteQ = NULL;
   }
 
-  if (pVnode->qqueue) {
-    vnodeFreeQueryQueue(pVnode->qqueue);
-    pVnode->qqueue = NULL;
+  if (pVnode->pQueryQ) {
+    vnodeFreeQueryQueue(pVnode->pQueryQ);
+    pVnode->pQueryQ = NULL;
   }
 
-  if (pVnode->fqueue) {
-    vnodeFreeFetchQueue(pVnode->fqueue);
-    pVnode->fqueue = NULL;
+  if (pVnode->pFetchQ) {
+    vnodeFreeFetchQueue(pVnode->pFetchQ);
+    pVnode->pFetchQ = NULL;
   }
 
   tfree(pVnode->rootDir);
