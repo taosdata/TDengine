@@ -422,28 +422,39 @@ typedef struct TAOS_MULTI_BIND {
     2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
 
 2.3.0.0版本接口：
-- `int taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, const char* precision, int* affectedRows, char* msg, int msgBufLen)`
+- `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
+  **功能说明**
+    该接口将行协议的文本数据写入到TDengine中。
+    
   **参数说明**
     taos:  数据库连接，通过taos_connect 函数建立的数据库连接。
     lines：文本数据。满足解析格式要求的无模式文本字符串。
     numLines:文本数据的行数，不能为 0 。
     protocol: 行协议类型，用于标识文本数据格式。
     precision：文本数据中的时间戳精度字符串。
-    affectedRows：插入操作完成以后，正确写入到数据库中的记录行数。
-    msg: 如果出现错误（函数返回值不为 0）情况下，错误提示信息。该参数是输入参数，需要用户指定消息输出缓冲区，如果不指定该缓冲区（输入为NULL），即使出现错误也不会得到错误提示信息。
-    msgBufLen: 缓冲区的长度，避免错误提示消息越界。
     
   **返回值**
-    0：无错误发生。
-    非 0 值：发生了错误。此时可以通过msg获取错误信息的提示。该返回值含义可以参考taoserror.h文件中的错误码定义。
-  
+    TAOS_RES 结构体，应用可以通过使用 taos_errstr 获得错误信息，也可以使用 taos_errno 获得错误码。
+    在某些情况下，返回的 TAOS_RES 为 NULL，此时仍然可以调用 taos_errno 来安全地获得错误码信息。
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+      
   **说明**
     协议类型是枚举类型，包含以下三种格式：
     SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)
     SML_TELNET_PROTOCOL: OpenTSDB文本行协议
     SML_JSON_PROTOCOL: OpenTSDB Json协议格式
     
-    时间戳分辨率的说明使用如下字符串：“h“ （小时）、”m“（分钟）、”s“ （秒） ”ms“（毫秒）、”u“ (微秒）、”ns”（纳秒），不区分大小写。需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。对于 OpenTSDB的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+    时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：
+    TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
+    TSDB_SML_TIMESTAMP_HOURS,
+    TSDB_SML_TIMESTAMP_MINUTES,
+    TSDB_SML_TIMESTAMP_SECONDS,
+    TSDB_SML_TIMESTAMP_MILLI_SECONDS,
+    TSDB_SML_TIMESTAMP_MICRO_SECONDS,
+    TSDB_SML_TIMESTAMP_NANO_SECONDS
+    
+    需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。
+    对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
   
 ```c
 #include <stdlib.h>
@@ -468,10 +479,12 @@ int main() {
   };
  
   // schema-less insert
-  int code = taos_schemaless_insert(taos, lines1, 2, SML_LINE_PROTOCOL, "ns", msg, sizeof(msg)/sizeof(msg[0]));
-  if (code != 0) {
-    printf("failed to insert schema-less data, reason: %s\n", msg);
+  TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  if (taos_errno(res) != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
   }
+ 
+  taos_free_result(res);
  
   // close the connection
   taos_close(taos);
