@@ -97,6 +97,9 @@ static int32_t dnodeInitServer() {
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_GRANT] = mnodeProcessMsg;
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_STATUS] = mnodeProcessMsg;
 
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT]       = vnodeProcessMsg;
+  /*tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME]       = vnodeProcessRead;*/
+
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = tsDnodeDnodePort;
@@ -297,6 +300,8 @@ static int32_t dnodeInitShell() {
   tsTrans.shellMsgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessMsg;
   tsTrans.shellMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessMsg;
   tsTrans.shellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = vnodeProcessMsg;
+  tsTrans.shellMsgFp[TSDB_MSG_TYPE_MQ_QUERY] = vnodeProcessMsg;
+  tsTrans.shellMsgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessMsg;
 
   // the following message shall be treated as mnode write
   tsTrans.shellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = mnodeProcessMsg;
