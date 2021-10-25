@@ -75,8 +75,9 @@
     @enduml
 ```
 
+## Leader处理强一致写入请求
 ```plantuml
-    @startuml vnode_process_write
+    @startuml leader_process_stict_consistency
     box "dnode1"
         participant CRPC as crpc
         participant VNODE as vnode
@@ -117,6 +118,8 @@
         sync <- : replication rsp1
         sync <- : replication rsp2
         sync -> vnode: notify apply
+        sync -> : apply rsp1
+        sync -> : apply rsp2
     end
 
     group #lightblue "In VNODE worker threads"
@@ -129,8 +132,9 @@
     @enduml
 ```
 
+## Follower处理强一致写入请求
 ```plantuml
-    @startuml replication_process
+    @startuml follower_process_strict_consistency
     participant SYNC as sync
     participant VNODE as vnode
 
@@ -146,18 +150,81 @@
         end note
 
         <- sync: replication rsp
+
+        -> sync: apply req
+
+        sync -> vnode: notify apply
+    end
+
+    group #lightblue "VNODE worker threads"
+        vnode -> vnode: vnodeApplyReqs()
     end
 
     @enduml
 ```
 
+## Leader处理最终一致写入请求
 ```plantuml
-    @startuml comfirm_process
+    @startuml leader_process_eventual_consistency
+    box "dnode1"
+        participant CRPC as crpc
+        participant VNODE as vnode
+        participant SYNC as sync
+    end box
+
+    -> crpc: create table/submit req
+
+    ' In CRPC threads
+    group #pink "In CRPC threads"
+        crpc -> vnode:vnodeProcessReq()
+        note right
+            A callback function
+            run by CRPC thread
+            to put the request
+            to a vnode queue
+        end note
+    end
+
+    ' In VNODE worker threads
+    group #lightblue "In VNODE worker threads"
+        vnode -> vnode: vnodeProcessReqs()
+        note right
+            VNODE process requests
+            accumulated in a 
+            vnode write queue and
+            process the batch reqs
+            as a whole
+        end note
+
+        vnode -> sync: syncProcessReqs()
+
+        sync -> : replication req1
+        sync -> : replication req2
+
+        sync -> vnode: notify apply
+    end
+
+
+    group #lightblue "In VNODE worker threads"
+        vnode -> vnode: vnodeApplyReqs()
+        vnode -> crpc:
+    end
+
+    <- crpc: create table/submit rsp
+
+    @enduml
+```
+
+## Follower处理最终一致写入请求
+```plantuml
+    @startuml follower_process_eventual_consistency
     participant SYNC as sync
     participant VNODE as vnode
 
     group #pink "SYNC threads"
         -> sync: replication rsp
+
+        sync -> sync: syncProcessReqs()
 
         sync -> vnode: notify VNODE \nthread to process\n the reqs
     end
