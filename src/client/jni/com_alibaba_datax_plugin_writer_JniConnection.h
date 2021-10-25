@@ -29,27 +29,11 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_setOpt
 
 /*
  * Class:     com_alibaba_datax_plugin_writer_JniConnection
- * Method:    getTsCharset
- * Signature: ()Ljava/lang/String;
- */
-JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getTsCharset
-  (JNIEnv *, jclass);
-
-/*
- * Class:     com_alibaba_datax_plugin_writer_JniConnection
  * Method:    connectImp
  * Signature: (Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)J
  */
 JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_connectImp
   (JNIEnv *, jobject, jstring, jint, jstring, jstring, jstring);
-
-/*
- * Class:     com_alibaba_datax_plugin_writer_JniConnection
- * Method:    executeQueryImp
- * Signature: ([BJ)J
- */
-JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_executeQueryImp
-  (JNIEnv *, jobject, jbyteArray, jlong);
 
 /*
  * Class:     com_alibaba_datax_plugin_writer_JniConnection
@@ -69,18 +53,10 @@ JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_get
 
 /*
  * Class:     com_alibaba_datax_plugin_writer_JniConnection
- * Method:    getErrMsgByCode
- * Signature: (J)Ljava/lang/String;
+ * Method:    freeResultSetImp
+ * Signature: (JJ)V
  */
-JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErrMsgByCode
-  (JNIEnv *, jobject, jlong);
-
-/*
- * Class:     com_alibaba_datax_plugin_writer_JniConnection
- * Method:    getAffectedRowsImp
- * Signature: (JJ)I
- */
-JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getAffectedRowsImp
+JNIEXPORT void JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_freeResultSetImp
   (JNIEnv *, jobject, jlong, jlong);
 
 /*

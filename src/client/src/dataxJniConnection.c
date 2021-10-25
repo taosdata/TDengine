@@ -2,7 +2,6 @@
 #include "taos.h"
 #include "tlog.h"
 #include "tscUtil.h"
-//#include "tscParseLine.h"
 
 #include "com_alibaba_datax_plugin_writer_JniConnection.h"
 #include "jniCommon.h"
@@ -93,10 +92,6 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_setOpt
   return res;
 }
 
-JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getTsCharset(JNIEnv *env, jobject jobj) {
-  return (*env)->NewStringUTF(env, (const char *)tsCharset);
-}
-
 JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_connectImp(JNIEnv *env, jobject jobj,
                                                                                       jstring jhost, jint jport,
                                                                                       jstring jdbName, jstring juser,
@@ -159,50 +154,6 @@ JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_conne
   return ret;
 }
 
-JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_executeQueryImp(JNIEnv *env, jobject jobj,
-                                                                                           jbyteArray jsql, jlong con) {
-  TAOS *tscon = (TAOS *)con;
-  if (tscon == NULL) {
-    jniError("jobj:%p, connection already closed", jobj);
-    return JNI_CONNECTION_NULL;
-  }
-
-  if (jsql == NULL) {
-    jniError("jobj:%p, conn:%p, empty sql string", jobj, tscon);
-    return JNI_SQL_NULL;
-  }
-
-  jsize len = (*env)->GetArrayLength(env, jsql);
-
-  char *str = (char *)calloc(1, sizeof(char) * (len + 1));
-  if (str == NULL) {
-    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
-    return JNI_OUT_OF_MEMORY;
-  }
-
-  (*env)->GetByteArrayRegion(env, jsql, 0, len, (jbyte *)str);
-  if ((*env)->ExceptionCheck(env)) {
-    // todo handle error
-  }
-
-  SSqlObj *pSql = taos_query(tscon, str);
-  int32_t  code = taos_errno(pSql);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(code), taos_errstr(pSql));
-  } else {
-    if (pSql->cmd.command == TSDB_SQL_INSERT) {
-      int32_t affectRows = taos_affected_rows(pSql);
-      jniDebug("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, tscon, tstrerror(code), affectRows);
-    } else {
-      jniDebug("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
-    }
-  }
-
-  free(str);
-  return (jlong)pSql;
-}
-
 JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErrCodeImp(JNIEnv *env, jobject jobj,
                                                                                         jlong con, jlong tres) {
   int32_t code = check_for_params(jobj, con, tres);
@@ -219,19 +170,16 @@ JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_get
   return (*env)->NewStringUTF(env, (const char *)taos_errstr(pSql));
 }
 
-JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getAffectedRowsImp(JNIEnv *env, jobject jobj,
-                                                                                             jlong con, jlong res) {
-  TAOS   *tscon = (TAOS *)con;
-  int32_t code = check_for_params(jobj, con, res);
-  if (code != JNI_SUCCESS) {
-    return code;
+JNIEXPORT void JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_freeResultSetImp(JNIEnv *env, jobject jobj,
+                                                                                           jlong con, jlong res) {
+  if ((TAOS *)con == NULL) {
+    jniError("jobj:%p, connection is closed", jobj);
   }
-
-  jint ret = taos_affected_rows((SSqlObj *)res);
-  jniDebug("jobj:%p, conn:%p, sql:%p, res: %p, affect rows:%d", jobj, tscon, (TAOS *)con, (TAOS_RES *)res,
-           (int32_t)ret);
-
-  return ret;
+  if ((TAOS_RES *)res == NULL) {
+    jniError("jobj:%p, conn:%p, res is null", jobj, (TAOS *)con);
+  }
+  taos_free_result((TAOS_RES *)res);
+  jniDebug("jobj:%p, conn:%p, free resultset:%p", jobj, (TAOS *)con, (void *)res);
 }
 
 JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_closeConnectionImp(JNIEnv *env, jobject jobj,
@@ -249,36 +197,36 @@ JNIEXPORT jint JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_closeC
 
 JNIEXPORT jlong JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_insertOpentsdbJson(JNIEnv *env, jobject jobj,
                                                                                               jstring json, jlong con) {
-  TAOS *taos = (TAOS *)con;
-  if (taos == NULL) {
+  // check connection
+  TAOS *conn = (TAOS *)con;
+  if (conn == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
     return JNI_CONNECTION_NULL;
   }
-
+  // java.lang.String -> char *
   char *payload = NULL;
   if (json != NULL) {
     payload = (char *)(*env)->GetStringUTFChars(env, json, NULL);
   }
-
+  // check payload
   if (payload == NULL) {
     jniDebug("jobj:%p, invalid argument: opentsdb insert json is NULL", jobj);
     return JNI_SQL_NULL;
   }
+  // schemaless insert
+  char *payload_arr[1];
+  payload_arr[0] = payload;
+  TAOS_RES *result;
+  result = taos_schemaless_insert(conn, payload_arr, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
 
-  char *message[1];
-  message[0] = payload;
-  int code = taos_schemaless_insert(taos, message, 0, SML_JSON_PROTOCOL, NULL);
-  (*env)->ReleaseStringUTFChars(env, json, payload);
-
-  if (code) {
-    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
-    return code;
+  int code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, conn, tstrerror(code), taos_errstr(result));
+  } else {
+    int32_t affectRows = taos_affected_rows(result);
+    jniDebug("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, conn, tstrerror(code), affectRows);
   }
-  jniDebug("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
-  return code;
-}
 
-JNIEXPORT jstring JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_getErrMsgByCode(JNIEnv *env, jobject jobj,
-                                                                                             jlong code) {
-  return (*env)->NewStringUTF(env, tstrerror(code));
+  (*env)->ReleaseStringUTFChars(env, json, payload);
+  return (jlong)result;
 }

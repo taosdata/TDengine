@@ -48,12 +48,6 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
 
 typedef enum {
-  SML_LINE_PROTOCOL = 0,
-  SML_TELNET_PROTOCOL = 1,
-  SML_JSON_PROTOCOL = 2,
-} SMLProtocolType;
-
-typedef enum {
   TSDB_OPTION_LOCALE,
   TSDB_OPTION_CHARSET,
   TSDB_OPTION_TIMEZONE,
