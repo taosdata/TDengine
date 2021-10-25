@@ -48,6 +48,7 @@ endif(${BUILD_WITH_ROCKSDB})
 ## lucene
 if(${BUILD_WITH_LUCENE})
     cat("${CMAKE_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+    add_definitions(-DUSE_LUCENE)
 endif(${BUILD_WITH_LUCENE})
 
 ## download dependencies

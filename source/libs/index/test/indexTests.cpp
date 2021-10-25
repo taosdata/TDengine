@@ -15,7 +15,6 @@ TEST(IndexTest, index_create_test) {
   }
 
   
-  
   // write   
   for (int i = 0; i < 100000; i++) {
     SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -32,6 +31,7 @@ TEST(IndexTest, index_create_test) {
     val.append("const");    
     indexMultiTermAdd(terms, "tag4", strlen("tag4"), val.c_str(), val.size());
 
+     
     indexPut(index, terms, i);
     indexMultiTermDestroy(terms);
   } 
@@ -39,6 +39,7 @@ TEST(IndexTest, index_create_test) {
 
   // query
   SIndexMultiTermQuery *multiQuery = indexMultiTermQueryCreate(MUST); 
+  
   indexMultiTermQueryAdd(multiQuery, "tag1", strlen("tag1"), "field", strlen("field"), QUERY_PREFIX);
   indexMultiTermQueryAdd(multiQuery, "tag3", strlen("tag3"), "0field0", strlen("0field0"), QUERY_TERM);
 
