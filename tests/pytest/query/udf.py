@@ -210,10 +210,10 @@ class TDTestCase:
         tdSql.query("select max(id) + 5 from tb1")
         tdSql.query("select max(id) + avg(val) from st")
         tdSql.query("select max(id) + avg(val) from tb1")
-        tdSql.error("select abs_max(number) + 5 from st")
-        tdSql.error("select abs_max(number) + 5 from tb1")
+        tdSql.query("select abs_max(number) + 5 from st")
+        tdSql.query("select abs_max(number) + 5 from tb1")
         tdSql.error("select abs_max(number) + max(id) from st")
-        tdSql.error("select abs_max(number)*abs_max(val) from st")     
+        tdSql.query("select abs_max(number)*abs_max(val) from st")     
 
         tdLog.info("======= UDF Nested query test =======")
         tdSql.query("select sum(id) from (select id from st)")

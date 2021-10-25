@@ -155,8 +155,9 @@ int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 
 // tsdb config 
 // For backward compatibility
-bool tsdbForceKeepFile = false;
-bool tsdbForceCompactFile = false; // compact TSDB fileset forcibly
+bool    tsdbForceKeepFile = false;
+bool    tsdbForceCompactFile = false; // compact TSDB fileset forcibly
+int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance
 int8_t  tsEnableBalance = 1;
@@ -1650,6 +1651,17 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsDefaultJSONStrType);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // flush vnode wal file if walSize > walFlushSize and walSize > cache*0.5*blocks
+  cfg.option = "walFlushSize";
+  cfg.ptr = &tsdbWalFlushSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = TSDB_MIN_WAL_FLUSH_SIZE;
+  cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
 
 #ifdef TD_TSZ
