@@ -61,6 +61,9 @@ class TDTestCase:
         tdSql.execute("use db2")
         tdSql.execute("create table stb(ts timestamp, c int) tags(t int)")
         tdSql.error("insert into db2.tb6 using db2.stb tags(1) values(now 1) tb2 using db2. tags( )values(now 2)")
+
+        # case for TD-10691
+        tdSql.error("create table ttb1(ts timestamp, file int )")
         
     def stop(self):
         tdSql.close()
