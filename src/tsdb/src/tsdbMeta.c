@@ -868,7 +868,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper, STable *pST
         tsdbFreeTable(pTable);
         return NULL;
       }
-      taosHashSetFreeFp(pTable->jsonKeyMap, (_hash_free_fn_t)taosArrayDestroy);
+      taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
     }else{
       pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
                                        SL_ALLOW_DUP_KEY, getTagIndexKey);

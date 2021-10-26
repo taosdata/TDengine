@@ -288,6 +288,19 @@ void* taosArrayDestroy(SArray* pArray) {
   return NULL;
 }
 
+void taosArrayDestroyForHash(void* para) {
+  SArray** ppArray = (SArray**)para;
+  if(ppArray == NULL) return;
+
+  SArray* pArray = *ppArray;
+  if (pArray) {
+    tfree(pArray->pData);
+    tfree(pArray);
+  }
+
+  return;
+}
+
 void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
   if (pArray == NULL) {
     return;
