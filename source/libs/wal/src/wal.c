@@ -15,5 +15,10 @@
 
 #include "wal.h"
 
-int32_t  walInit() {return 0;}
+int32_t walInit() { return 0; }
+
 void walCleanUp() {}
+
+twalh walOpen(char *path, SWalCfg *pCfg) { return NULL; }
+
+int32_t walAlter(twalh pWal, SWalCfg *pCfg) { return 0; }

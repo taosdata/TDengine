@@ -423,6 +423,8 @@ do { \
 //#define varDataNetLen(v)       (htons(((VarDataLenT *)(v))[0]))
 //#define varDataNetTLen(v)      (sizeof(VarDataLenT) + varDataNetLen(v))
 
+enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
+enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
 
 #ifdef __cplusplus
 }

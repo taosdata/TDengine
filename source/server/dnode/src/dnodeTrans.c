@@ -96,8 +96,12 @@ static int32_t dnodeInitServer() {
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_GRANT] = mnodeProcessMsg;
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_STATUS] = mnodeProcessMsg;
 
-  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT] = vnodeProcessMsg;
-  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT]    = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_DISCONNECT] = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_ACK]        = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_RESET]      = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME]    = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_QUERY]      = vnodeProcessMsg;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -143,6 +147,7 @@ static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   RpcMsgFp fp = tsTrans.peerMsgFp[msgType];
   if (fp != NULL) {
+    dTrace("RPC %p, peer rsp:%s will be processed", pMsg->handle, taosMsg[msgType]);
     (*fp)(pMsg);
   } else {
     dDebug("RPC %p, peer rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
