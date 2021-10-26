@@ -75,6 +75,7 @@ extern char configDir[];
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
 #define OPT_ABORT          1 /* –abort */
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
+#define MAX_PATH_LEN       4096
 
 #define DEFAULT_START_TIME 1500000000000
 
@@ -3500,13 +3501,9 @@ static int postProceSql(char *host, uint16_t port,
 
     char resEncodingChunk[] = "Encoding: chunked";
     char resHttp[] = "HTTP/1.1 ";
-<<<<<<< HEAD
-    char resHttpOk[] = "HTTP/1.1 200 OK";
-=======
     int resHttpLen = strlen(resHttp);
     char resHttpOk[] = "HTTP/1.1 200 OK";
     int resHttpOkLen = strlen(resHttpOk);
->>>>>>> f22c0c07845757b243eb3b7934b76625fbf29d46
 
     do {
 #ifdef WINDOWS
@@ -3523,7 +3520,6 @@ static int postProceSql(char *host, uint16_t port,
             break;
         received += bytes;
 
-<<<<<<< HEAD
         verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                 __func__, __LINE__, received, resp_len, response_buf);
 
@@ -3536,24 +3532,6 @@ static int postProceSql(char *host, uint16_t port,
                     __func__, __LINE__, received, resp_len, response_buf);
             break;
         } 
-=======
-        response_buf[RESP_BUF_LEN - 1] = '\0';
-
-        if (strlen(response_buf)) {
-            verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
-                    __func__, __LINE__, received, resp_len, response_buf);
-
-            if (((NULL == strstr(response_buf, resEncodingChunk))
-                        && (0 == strncmp(response_buf, resHttp, resHttpLen)))
-                    || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
-                        && (NULL != strstr(response_buf, "\"status\":")))) {
-                debugPrint(
-                        "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
-                        __func__, __LINE__, received, resp_len, response_buf);
-                break;
-            }
-        }
->>>>>>> f22c0c07845757b243eb3b7934b76625fbf29d46
     } while(received < resp_len);
 
     if (received == resp_len) {
@@ -3561,22 +3539,15 @@ static int postProceSql(char *host, uint16_t port,
         ERROR_EXIT("storing complete response from socket");
     }
 
-<<<<<<< HEAD
     response_buf[RESP_BUF_LEN - 1] = '\0';
 
-=======
->>>>>>> f22c0c07845757b243eb3b7934b76625fbf29d46
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
     }
 
     free(request_buf);
 
-<<<<<<< HEAD
     if (NULL == strstr(response_buf, resHttpOk)) {
-=======
-    if (NULL == strstr(response_buf, "\"status\":\"succ\"")) {
->>>>>>> f22c0c07845757b243eb3b7934b76625fbf29d46
         errorPrint("%s() LN%d, Response:\n%s\n",
                 __func__, __LINE__, response_buf);
         return -1;
