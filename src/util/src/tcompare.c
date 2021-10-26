@@ -417,14 +417,20 @@ int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
 
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
+  size_t size = varDataLen(pLeft)/TSDB_NCHAR_SIZE;
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
   wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
-  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  wchar_t *str = calloc(size + 1, sizeof(wchar_t));
 
-  int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  memcpy(str, varDataVal(pLeft), size * sizeof(wchar_t));
+
+  int32_t ret = WCSPatternMatch(pattern, str, size, &pInfo);
+
   free(pattern);
+  free(str);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
