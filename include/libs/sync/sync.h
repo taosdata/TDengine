@@ -24,7 +24,7 @@ extern "C" {
 #include "taosdef.h"
 #include "wal.h"
 
-typedef uint32_t SyncNodeId;
+typedef int64_t SyncNodeId;
 typedef int32_t SyncGroupId;
 typedef int64_t   SyncIndex;
 typedef uint64_t SSyncTerm;
@@ -41,7 +41,6 @@ typedef struct {
 } SSyncBuffer;
 
 typedef struct {
-  SyncNodeId  nodeId;    // node ID assigned by TDengine
   uint16_t  nodePort;  // node sync Port
   char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
 } SNodeInfo;
@@ -55,7 +54,7 @@ typedef struct {
 typedef struct {
   int32_t  selfIndex;
   int nNode;
-  SyncNodeId* nodeId;
+  SNodeInfo* node;
   ESyncRole*  role;
 } SNodesRole;
 
@@ -86,7 +85,7 @@ typedef struct SSyncFSM {
 } SSyncFSM;
 
 typedef struct SSyncServerState {
-  SyncNodeId voteFor;
+  SNodeInfo voteFor;
   SSyncTerm term;  
 } SSyncServerState;
 
@@ -107,8 +106,8 @@ typedef struct {
 
   twalh walHandle;
 
-  SyncIndex snapshotIndex;    // initial version
-  SSyncCluster syncCfg;    // configuration from mgmt
+  SyncIndex snapshotIndex;
+  SSyncCluster syncCfg;
 
   SSyncFSM fsm;
 
@@ -123,7 +122,11 @@ void    syncStop(SyncNodeId);
 
 int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void *pData, bool isWeak);
 
-extern int32_t  raftDebugFlag;
+int32_t syncAddNode(SyncNodeId nodeId, const SNodeInfo *pNode);
+
+int32_t syncRemoveNode(SyncNodeId nodeId, const SNodeInfo *pNode);
+
+extern int32_t  syncDebugFlag;
 
 #ifdef __cplusplus
 }
