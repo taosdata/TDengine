@@ -279,6 +279,10 @@ do { \
 #define TSDB_MAX_TOTAL_BLOCKS           10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
+#define TSDB_MIN_WAL_FLUSH_SIZE         128 // MB
+#define TSDB_MAX_WAL_FLUSH_SIZE         10000000 // MB
+#define TSDB_DEFAULT_WAL_FLUSH_SIZE     1024 // MB
+
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
@@ -452,6 +456,11 @@ typedef enum {
   TD_ROW_OVERWRITE_UPDATE = 1,
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
+
+typedef enum {
+  TSDB_STATIS_OK = 0,    // statis part exist and load successfully
+  TSDB_STATIS_NONE = 1,  // statis part not exist
+} ETsdbStatisStatus;
 
 extern char *qtypeStr[];
 

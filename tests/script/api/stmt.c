@@ -46,6 +46,7 @@ void taos_stmt_init_test() {
   }
   stmt = taos_stmt_init(taos);
   assert(stmt != NULL);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_close(stmt) == 0);
   printf("finish taos_stmt_init test\n");
 }
@@ -127,6 +128,7 @@ void taos_stmt_set_tbname_test() {
   assert(taos_stmt_set_tbname(stmt, name) == 0);
   free(name);
   free(stmt_sql);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   taos_stmt_close(stmt);
   printf("finish taos_stmt_set_tbname test\n");
 }
@@ -166,6 +168,7 @@ void taos_stmt_set_tbname_tags_test() {
   free(stmt_sql);
   free(name);
   free(tags);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   taos_stmt_close(stmt);
   printf("finish taos_stmt_set_tbname_tags test\n");
 }
@@ -194,8 +197,10 @@ void taos_stmt_set_sub_tbname_test() {
   assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
   sprintf(name, "tb");
   assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_load_table_info(taos, "super, tb") == 0);
   assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   free(name);
   free(stmt_sql);
   assert(taos_stmt_close(stmt) == 0);
@@ -238,6 +243,7 @@ void taos_stmt_bind_param_test() {
   assert(taos_stmt_bind_param(stmt, params) != 0);
   assert(taos_stmt_set_tbname(stmt, "super") == 0);
   assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   free(params);
   free(stmt_sql);
   taos_stmt_close(stmt);
@@ -249,6 +255,7 @@ void taos_stmt_bind_single_param_batch_test() {
   TAOS_STMT *      stmt = NULL;
   TAOS_MULTI_BIND *bind = NULL;
   assert(taos_stmt_bind_single_param_batch(stmt, bind, 0) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   printf("finish taos_stmt_bind_single_param_batch test\n");
 }
 
@@ -257,6 +264,7 @@ void taos_stmt_bind_param_batch_test() {
   TAOS_STMT *      stmt = NULL;
   TAOS_MULTI_BIND *bind = NULL;
   assert(taos_stmt_bind_param_batch(stmt, bind) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   printf("finish taos_stmt_bind_param_batch test\n");
 }
 
@@ -293,10 +301,14 @@ void taos_stmt_add_batch_test() {
   params[1].length = &params[1].buffer_length;
   params[1].is_null = NULL;
   assert(taos_stmt_set_tbname(stmt, "super") == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_add_batch(stmt) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   free(params);
   free(stmt_sql);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_close(stmt) == 0);
   printf("finish taos_stmt_add_batch test\n");
 }
@@ -317,10 +329,13 @@ void taos_stmt_execute_test() {
   stmt = taos_stmt_init(taos);
   assert(stmt != NULL);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   char *stmt_sql = calloc(1, 1000);
   sprintf(stmt_sql, "insert into ? values (?,?)");
   assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   TAOS_BIND *params = calloc(2, sizeof(TAOS_BIND));
   int64_t    ts = (int64_t)1591060628000;
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -335,11 +350,17 @@ void taos_stmt_execute_test() {
   params[1].length = &params[1].buffer_length;
   params[1].is_null = NULL;
   assert(taos_stmt_set_tbname(stmt, "super") == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_add_batch(stmt) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 1);
   free(params);
   free(stmt_sql);
   assert(taos_stmt_close(stmt) == 0);

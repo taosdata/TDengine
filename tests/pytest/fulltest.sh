@@ -218,9 +218,9 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
+#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 
 #query
 python3 test.py -f query/distinctOneColTb.py
@@ -391,6 +391,7 @@ python3 ./test.py -f tag_lite/alter_tag.py
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
+python3 test.py -f tools/taosdemoAllTest/TD-10539/create_taosdemo.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py

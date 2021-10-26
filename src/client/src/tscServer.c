@@ -1102,6 +1102,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // support only one udf
   if (pQueryInfo->pUdfInfo != NULL && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+    if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
+      code = tscInvalidOperationMsg(pCmd->payload, "only one udf allowed", NULL);
+      goto _end;
+    }
+    
     pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
     for(int32_t i = 0; i < taosArrayGetSize(pQueryInfo->pUdfInfo); ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -2924,7 +2929,9 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 }
 
 int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool autocreate, bool onlyLocal) {
-  assert(tIsValidName(&pTableMetaInfo->name));
+  if (!tIsValidName(&pTableMetaInfo->name)) {
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
 
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);

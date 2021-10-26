@@ -254,7 +254,10 @@ function install_lib() {
     fi
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${verNumber} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${verNumber} \
+            ${install_main_dir}/driver \
+            && ${csudo} chmod 777 ${install_main_dir}/driver/*
+
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
@@ -263,11 +266,28 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_dir}/driver || ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib ${install_main_2_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/* || ${csudo} chmod 777 ${install_main_2_dir}/driver/*
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib \
+            ${install_main_dir}/driver \
+            || ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib \
+            ${install_main_2_dir}/driver \
+            && ${csudo} chmod 777 ${install_main_dir}/driver/* \
+            || ${csudo} chmod 777 ${install_main_2_dir}/driver/*
 
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${install_main_dir}/driver/libtaos.1.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.* ${install_main_2_dir}/driver/libtaos.1.dylib   || :
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${install_main_dir}/driver/libtaos.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.1.dylib ${install_main_2_dir}/driver/libtaos.dylib   || :
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib ${lib_link_dir}/libtaos.1.dylib || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.${verNumber}.dylib ${lib_link_dir}/libtaos.1.dylib   || :
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* \
+            ${install_main_dir}/driver/libtaos.1.dylib \
+            || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.* \
+            ${install_main_2_dir}/driver/libtaos.1.dylib   || :
+
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib \
+            ${install_main_dir}/driver/libtaos.dylib \
+            || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.1.dylib \
+            ${install_main_2_dir}/driver/libtaos.dylib   || :
+
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
+            ${lib_link_dir}/libtaos.1.dylib \
+            || ${csudo} ln -sf ${install_main_2_dir}/driver/libtaos.${verNumber}.dylib \
+            ${lib_link_dir}/libtaos.1.dylib   || :
+
         ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib   || :
     fi
 
@@ -282,11 +302,17 @@ function install_header() {
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h     || :
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+            ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
         ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
         ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
     else
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_2_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/* || ${csudo} chmod 644 ${install_main_2_dir}/include/*
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+            ${install_main_dir}/include \
+            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+            ${install_main_2_dir}/include \
+            && ${csudo} chmod 644 ${install_main_dir}/include/* \
+            || ${csudo} chmod 644 ${install_main_2_dir}/include/*
     fi
 }
 
@@ -301,7 +327,12 @@ function install_config() {
         ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
         ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg/taos.cfg
     else
-        ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org || ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_2_dir}/cfg/taos.cfg.org
+        if [ "$osType" != "Darwin" ]; then
+            ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
+        else
+            ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org\
+                || ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_2_dir}/cfg/taos.cfg.org
+        fi
     fi
 }
 
@@ -312,14 +343,21 @@ function install_blm3_config() {
             ${csudo} cp ${binary_dir}/test/cfg/blm.toml ${cfg_install_dir}
         [ -f ${cfg_install_dir}/blm.toml ] &&
             ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
-        [ -f ${binary_dir}/test/cfg//blm.toml ] &&
+        [ -f ${binary_dir}/test/cfg/blm.toml ] &&
             ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
         [ -f ${cfg_install_dir}/blm.toml ] &&
             ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
     else
-        [ -f ${binary_dir}/test/cfg//blm.toml ] &&
-            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org \
-                || ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_2_dir}/cfg/blm.toml.org
+        if [ -f "${binary_dir}/test/cfg/blm.toml" ]; then
+            if [ "$osType" != "Darwin" ]; then
+                ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
+                    ${install_main_dir}/cfg/blm.toml.org
+            else
+                ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org \
+                    || ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
+                    ${install_main_2_dir}/cfg/blm.toml.org
+            fi
+        fi
     fi
 }
 
@@ -357,8 +395,9 @@ function install_connector() {
         ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
         ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar  || echo &> /dev/null
     else
-        ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_2_dir}/connector}
-        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null || cp ${binary_dir}/build/lib/*.jar ${install_main_2_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || ${csudo} chmod 777 ${install_main_2_dir}/connector/*.jar || echo &> /dev/null
+        ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_2_dir}/connector
+        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar  || echo &> /dev/null
+        ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_2_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_2_dir}/connector/*.jar  || echo &> /dev/null
     fi
 }
 

@@ -39,17 +39,18 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ```
 
 ### 修改 /etc/telegraf/telegraf.conf 
-假设 TDengine 使用默认用户名 root 和密码 taosdata。增加如下文字：
+配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username和 password 填写 TDengine 实际值：
 ```
 [[outputs.http]]
-  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=metrics"
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
   method = "POST"
   timeout = "5s"
-  username = "root"
-  password = "taosdata"
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
   data_format = "influx"
   influx_max_line_bytes = 250
 ```
+
 然后重启 telegraf：
 ```
 sudo systemctl start telegraf

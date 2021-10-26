@@ -185,6 +185,23 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
   return 0;
 }
 
+bool tsdbIsNeedCommit(STsdbRepo *pRepo) {
+  int nVal = 0;
+  if (sem_getvalue(&pRepo->readyToCommit, &nVal) != 0) {
+    tsdbError("vgId:%d failed to sem_getvalue of readyToCommit", REPO_ID(pRepo));
+    return false;
+  }
+  return nVal > 0;
+}
+
+int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize) {  // MB
+  STsdbCfg *pCfg = &(pRepo->config);
+  if ((walSize > tsdbWalFlushSize) && (walSize > (pCfg->totalBlocks / 2 * pCfg->cacheBlockSize))) {
+    if (tsdbIsNeedCommit(pRepo) && (tsdbAsyncCommit(pRepo) < 0)) return -1;
+  }
+  return 0;
+}
+
 int tsdbCheckCommit(STsdbRepo *pRepo) {
   ASSERT(pRepo->mem != NULL);
   STsdbCfg *pCfg = &(pRepo->config);
@@ -194,9 +211,8 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
   if ((pRepo->mem->extraBuffList != NULL) ||
       ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
     // trigger commit
-    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+    if (tsdbIsNeedCommit(pRepo) && (tsdbAsyncCommit(pRepo) < 0)) return -1;
   }
-
   return 0;
 }
 
@@ -680,7 +696,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     err = -1;
     goto out;
   }
@@ -714,9 +730,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
 
     // file block with sub-blocks has no statistics data
     if (pBlock->numOfSubBlocks <= 1) {
-      tsdbLoadBlockStatis(pReadh, pBlock);
-      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
-      loadStatisData = true;
+      if (tsdbLoadBlockStatis(pReadh, pBlock) == TSDB_STATIS_OK) {
+        tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns, pBlock);
+        loadStatisData = true;
+      }
     }
 
     for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
@@ -782,7 +799,7 @@ out:
 
 static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
   ASSERT(pTable->lastRow == NULL);
-  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+  if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
   }
 

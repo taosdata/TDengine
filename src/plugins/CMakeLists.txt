@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.20)
 PROJECT(TDengine)
 
 if(NOT WIN32)
@@ -32,7 +32,7 @@ ELSE ()
   MESSAGE("")
   MESSAGE("${Green} use blm3 as httpd ${ColourReset}")
   EXECUTE_PROCESS(
-      COMMAND cd blm3
+      COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/blm3
       )
   EXECUTE_PROCESS(
       COMMAND git rev-parse --short HEAD

@@ -53,6 +53,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Schemaless 写入](/insert#schemaless)：免于预先建表，将数据直接写入时自动维护元数据结构
 * [Prometheus 写入](/insert#prometheus)：配置Prometheus, 不用任何代码，将数据直接写入
 * [Telegraf 写入](/insert#telegraf)：配置Telegraf, 不用任何代码，将采集数据直接写入
+* [collectd 直接写入](/insert#collectd)：配置 collectd，不用任何代码，将采集数据直接写入
+* [StatsD 直接写入](/insert#statsd)：配置 StatsD，不用任何代码，将采集数据直接写入
 * [EMQ X Broker](/insert#emq)：配置EMQ X，不用任何代码，就可将MQTT数据直接写入
 * [HiveMQ Broker](/insert#hivemq)：配置HiveMQ，不用任何代码，就可将MQTT数据直接写入
 
@@ -129,7 +131,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [TDengine写入性能测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
 * [IDEA数据库管理工具可视化使用TDengine](https://www.taosdata.com/blog/2020/08/27/1767.html)
 * [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
-* [DataX，支持TDengine的离线数据采集/同步工具](https://github.com/wgzhao/DataX)（文档：[读取插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/reader/tdenginereader.md)、[写入插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/writer/tdenginewriter.md)）
+* [基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)
 
 ## TDengine与其他数据库的对比测试
 
