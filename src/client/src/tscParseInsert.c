@@ -1065,6 +1065,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
       // Remove quotation marks
       if (TK_STRING == sToken.type) {
+        sToken.z = strndup(sToken.z, sToken.n);
         sToken.n = strRmquote(sToken.z, sToken.n);
       }
 
@@ -1073,33 +1074,29 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         tscDestroyBoundColumnInfo(&spd);
+        if (TK_STRING == sToken.type) free(sToken.z);
         return code;
       }
 
       tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal, false);
-    }
 
-    // encode json tag string
-    if(spd.numOfBound == 1 && pTagSchema[spd.boundedColumns[0]].type == TSDB_DATA_TYPE_JSON){
-      char tmp = sToken.z[sToken.n];
-      sToken.z[sToken.n] = 0;
-//      if(sToken.type != TK_STRING) {
-//        tdDestroyKVRowBuilder(&kvRowBuilder);
-//        tscDestroyBoundColumnInfo(&spd);
-//        return tscSQLSyntaxErrMsg(pInsertParam->msg, "json type error, should be string", NULL);
-//      }
-      if(sToken.n > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        tscDestroyBoundColumnInfo(&spd);
-        return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
+      if(pSchema->type == TSDB_DATA_TYPE_JSON){
+        assert(spd.numOfBound == 1);
+        if(sToken.n > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          tscDestroyBoundColumnInfo(&spd);
+          if (TK_STRING == sToken.type) free(sToken.z);
+          return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
+        }
+        code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
+        if (code != TSDB_CODE_SUCCESS) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          tscDestroyBoundColumnInfo(&spd);
+          if (TK_STRING == sToken.type) free(sToken.z);
+          return code;
+        }
+        if (TK_STRING == sToken.type) free(sToken.z);
       }
-      code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
-      if (code != TSDB_CODE_SUCCESS) {
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        tscDestroyBoundColumnInfo(&spd);
-        return code;
-      }
-      sToken.z[sToken.n] = tmp;
     }
 
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
