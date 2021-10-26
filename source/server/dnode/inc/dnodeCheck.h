@@ -21,7 +21,6 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-
 int32_t dnodeInitCheck();
 void    dnodeCleanupCheck();
 

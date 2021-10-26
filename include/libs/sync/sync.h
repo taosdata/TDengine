@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_RAFT_SYNC_H
-#define TDENGINE_RAFT_SYNC_H
+#ifndef _TD_LIBS_SYNC_H
+#define _TD_LIBS_SYNC_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,13 +30,13 @@ typedef int64_t   SyncIndex;
 typedef uint64_t SSyncTerm;
 
 typedef enum {
-  TAOS_SYNC_ROLE_FOLLOWER  = 0,
+  TAOS_SYNC_ROLE_FOLLOWER = 0,
   TAOS_SYNC_ROLE_CANDIDATE = 1,
-  TAOS_SYNC_ROLE_LEADER  = 2,
+  TAOS_SYNC_ROLE_LEADER = 2,
 } ESyncRole;
 
 typedef struct {
-  void* data;
+  void*  data;
   size_t len;
 } SSyncBuffer;
 
@@ -46,9 +46,9 @@ typedef struct {
 } SNodeInfo;
 
 typedef struct {
-  int selfIndex;
-  int nNode;
-  SNodeInfo*  nodeInfo;
+  int        selfIndex;
+  int        nNode;
+  SNodeInfo* nodeInfo;
 } SSyncCluster;
 
 typedef struct {
@@ -58,7 +58,6 @@ typedef struct {
   ESyncRole*  role;
 } SNodesRole;
 
-struct SSyncFSM;
 typedef struct SSyncFSM {
   void* pData;
 
@@ -86,7 +85,7 @@ typedef struct SSyncFSM {
 
 typedef struct SSyncServerState {
   SNodeInfo voteFor;
-  SSyncTerm term;  
+  SSyncTerm term;
 } SSyncServerState;
 
 typedef struct SStateManager {
@@ -102,7 +101,7 @@ typedef struct SStateManager {
 } SStateManager;
 
 typedef struct {
-  SyncGroupId  vgId;
+  SyncGroupId vgId;
 
   twalh walHandle;
 
@@ -117,10 +116,10 @@ typedef struct {
 int32_t syncInit();
 void    syncCleanUp();
 
-SyncNodeId syncStart(const SSyncInfo *);
-void    syncStop(SyncNodeId);
+SyncNodeId syncStart(const SSyncInfo*);
+void       syncStop(SyncNodeId);
 
-int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void *pData, bool isWeak);
+int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void* pData, bool isWeak);
 
 int32_t syncAddNode(SyncNodeId nodeId, const SNodeInfo *pNode);
 
@@ -132,4 +131,4 @@ extern int32_t  syncDebugFlag;
 }
 #endif
 
-#endif  // TDENGINE_RAFT_SYNC_H
+#endif  /*_TD_LIBS_SYNC_H*/

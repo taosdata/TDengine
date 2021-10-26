@@ -65,7 +65,7 @@ void dnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
  * @param fqdn, the fqdn of dnode.
  * @param port, the port of dnode.
  */
-void dnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+void dnodeGetEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
 #ifdef __cplusplus
 }

@@ -218,10 +218,34 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
 }
 
 //mq related
-int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead){
+int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead) {
+  //parse message and optionally move offset
+  void* pMsg = pRead->pCont;
+  tmqConsumeReq *pConsumeMsg = (tmqConsumeReq*) pMsg;
+  tmqMsgHead msgHead = pConsumeMsg->head;
+  //extract head
+  STQ *pTq = pVnode->pTQ;
+  tqGroupHandle *pHandle = tqFindGHandleBycId(pTq, msgHead.clientId);
+  //return msg if offset not moved
+  if(pConsumeMsg->commitOffset == pHandle->consumeOffset) {
+    //return msg
+    return 0;
+  }
+  //or move offset
+  tqMoveOffsetToNext(pHandle);
+  //fetch or register context
+  tqFetchMsg(pHandle, pRead);
+  //judge mode, tail read or catch up read
+  /*int64_t lastVer = walLastVer(pVnode->wal);*/
+  //launch new query
   return 0;
 }
+
 int32_t vnodeProcessTqQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
+  //get operator tree from tq data structure
+  //execute operator tree
+  //put data into ringbuffer
+  //unref memory
   return 0;
 }
 //mq related end
