@@ -60,7 +60,7 @@ typedef struct {
 
 typedef struct {
   SMnodeFp fp;
-  char     clusterId[TSDB_CLUSTER_ID_LEN];
+  int64_t  clusterId;
   int32_t  dnodeId;
 } SMnodePara;
 
