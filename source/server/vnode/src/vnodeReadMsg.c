@@ -236,6 +236,7 @@ int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead) {
   //fetch or register context
   tqFetchMsg(pHandle, pRead);
   //judge mode, tail read or catch up read
+  /*int64_t lastVer = walLastVer(pVnode->wal);*/
   //launch new query
   return 0;
 }

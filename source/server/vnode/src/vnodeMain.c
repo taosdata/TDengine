@@ -797,13 +797,11 @@ static void vnodeInitMsgFp() {
   tsVmain.msgFp[TSDB_MSG_TYPE_MQ_DISCONNECT]    = vnodeProcessWriteMsg;
   tsVmain.msgFp[TSDB_MSG_TYPE_MQ_ACK]           = vnodeProcessWriteMsg;
   tsVmain.msgFp[TSDB_MSG_TYPE_MQ_RESET]         = vnodeProcessWriteMsg;
-  //mq related end
-  tsVmain.msgFp[TSDB_MSG_TYPE_QUERY]            = vnodeProcessReadMsg;
-  tsVmain.msgFp[TSDB_MSG_TYPE_FETCH]            = vnodeProcessReadMsg;
-  //mq related
   tsVmain.msgFp[TSDB_MSG_TYPE_MQ_QUERY]         = vnodeProcessReadMsg;
   tsVmain.msgFp[TSDB_MSG_TYPE_MQ_CONSUME]       = vnodeProcessReadMsg;
   //mq related end
+  tsVmain.msgFp[TSDB_MSG_TYPE_QUERY]            = vnodeProcessReadMsg;
+  tsVmain.msgFp[TSDB_MSG_TYPE_FETCH]            = vnodeProcessReadMsg;
 }
 
 void vnodeProcessMsg(SRpcMsg *pMsg) {
