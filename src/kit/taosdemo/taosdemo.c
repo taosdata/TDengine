@@ -77,6 +77,7 @@ extern char configDir[];
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
 #define OPT_ABORT          1 /* –abort */
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
+#define MAX_PATH_LEN       4096
 
 #define DEFAULT_START_TIME 1500000000000
 
@@ -511,7 +512,7 @@ typedef struct SThreadInfo_S {
     int       threadID;
     char      db_name[TSDB_DB_NAME_LEN];
     uint32_t  time_precision;
-    char      filePath[TSDB_FILENAME_LEN];
+    char      filePath[MAX_PATH_LEN];
     FILE      *fp;
     char      tb_prefix[TSDB_TABLE_NAME_LEN];
     uint64_t  start_table_from;
@@ -9895,7 +9896,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
         errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                g_args.reqPerReq * sizeof(char *),
+                g_args.reqPerReq * (uint64_t)sizeof(char *),
                 strerror(errno));
         return NULL;
     }
@@ -10481,7 +10482,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
         errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                g_args.reqPerReq * sizeof(char *),
+                g_args.reqPerReq * (uint64_t)sizeof(char *),
                 strerror(errno));
         return NULL;
     }
