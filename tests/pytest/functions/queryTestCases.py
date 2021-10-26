@@ -465,7 +465,7 @@ class TDTestCase:
         # tdSql.execute("insert into db.t1 values ('2021-07-01 08:00:04.000', 1001.51, 1001.52, 1001.53, 1001.54)")
 
         # for i in range(1000000):
-        for i in range(1000000):
+        for i in range(10000):
             random1 = random.uniform(1000,1001)
             random2 = random.uniform(1000,1001)
             random3 = random.uniform(1000,1001)
