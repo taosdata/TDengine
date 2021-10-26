@@ -81,6 +81,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
+#define TS_ESCAPE_CHAR    '`'
 
 #define TSDB_TIME_PRECISION_MILLI      0
 #define TSDB_TIME_PRECISION_MICRO      1

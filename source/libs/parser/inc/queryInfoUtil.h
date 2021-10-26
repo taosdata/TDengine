@@ -30,8 +30,10 @@ SSchema *getTableTagSchema(const STableMeta* pTableMeta);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 
 size_t     getNumOfExprs(SQueryStmtInfo* pQueryInfo);
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex,
-                          SSchema* pResSchema, int16_t interSize);
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, struct tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize);
+
+SExprInfo* createBinaryExprInfo(struct tExprNode* pNode, SSchema* pResSchema);
+
 void       addExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index, SExprInfo* pExprInfo);
 void       updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize);
 void       assignExprInfo(SExprInfo* dst, const SExprInfo* src);

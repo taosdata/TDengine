@@ -48,8 +48,6 @@ typedef struct SSqlExpr {
   SColIndex colInfo;
   uint64_t  uid;            // table uid, todo refactor use the pointer
   int32_t   interBytes;     // inter result buffer size
-//  int16_t   colType;        // table column type
-//  int16_t   colBytes;       // table column bytes
   int16_t   numOfParams;    // argument value of each function
   SVariant  param[3];       // parameters are not more than 3
 } SSqlExpr;
@@ -100,6 +98,9 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQ
  * @return
  */
 int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf);
+
+int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
+void initQueryInfo(SQueryStmtInfo* pQueryInfo);
 
 /**
  * Extract request meta info from the sql statement

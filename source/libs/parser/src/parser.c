@@ -23,7 +23,7 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   int32_t index = 0;
 
   do {
-    SToken t0 = tStrGetToken(pStr, &index, false);
+    SToken t0 = tStrGetToken((char*) pStr, &index, false);
     if (t0.type != TK_LP) {
       return t0.type == TK_INSERT || t0.type == TK_IMPORT;
     }
@@ -120,17 +120,12 @@ int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, SMsgB
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
-//    tscDequoteAndTrimToken(t);
     if (parserValidateIdToken(t) != TSDB_CODE_SUCCESS) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
     SName name = {0};
-//    int32_t code = tscSetTableFullName(&name, t, pSql);
-//    if (code != TSDB_CODE_SUCCESS) {
-//      return code;
-//    }
-
+    strndequote(name.tname, t->z, t->n);
     taosArrayPush(tableNameList, &name);
   }
 
@@ -183,7 +178,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
       assert(t != NULL);
 
       if (t->n >= TSDB_FUNC_NAME_LEN) {
-        return parserSetSyntaxErrMsg(msg, msgBufLen, "too long function name", t->z);
+        return buildSyntaxErrMsg(msg, msgBufLen, "too long function name", t->z);
       }
 
       // Let's assume that it is an UDF/UDAF, if it is not a built-in function.
@@ -193,4 +188,6 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
       }
     }
   }
+
+  return code;
 }

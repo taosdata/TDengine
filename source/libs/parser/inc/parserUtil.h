@@ -37,7 +37,7 @@ extern "C" {
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
 TAOS_FIELD createField(const SSchema* pSchema);
-void setSchemaVal(SSchema* pSchema, uint8_t type, int16_t bytes, int16_t colId, const char* name);
+SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 
 SInternalField* insertFieldInfo(SFieldInfo* pFieldInfo, int32_t index, SSchema* field);
 int32_t getNumOfFields(SFieldInfo* pFieldInfo);
@@ -45,7 +45,7 @@ SInternalField* getInternalField(SFieldInfo* pFieldInfo, int32_t index);
 
 int32_t parserValidateIdToken(SToken* pToken);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
-int32_t parserSetSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr);
+int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr);
 
 int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num);
 STableMetaInfo* addEmptyMetaInfo(SQueryStmtInfo* pQueryInfo);
@@ -59,6 +59,8 @@ SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid);
 
 void cleanupTagCond(STagCond* pTagCond);
 void cleanupColumnCond(SArray** pCond);
+
+uint32_t convertRelationalOperator(SToken *pToken);
 
 #ifdef __cplusplus
 }

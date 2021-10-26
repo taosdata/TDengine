@@ -22,7 +22,7 @@ int32_t strdequote(char *z) {
   }
 
   int32_t quote = z[0];
-  if (quote != '\'' && quote != '"') {
+  if (quote != '\'' && quote != '"' && quote != '`') {
     return (int32_t)strlen(z);
   }
 
@@ -76,6 +76,34 @@ int32_t strRmquote(char *z, int32_t len){
     z[j] = 0;
     
     return len - 2 - cnt;
+}
+
+int32_t strndequote(char *dst, const char* z, int32_t len) {
+  assert(dst != NULL);
+  if (z == NULL || len == 0) {
+    return 0;
+  }
+
+  int32_t quote = z[0];
+  int32_t i = 1, j = 0;
+
+  while (z[i] != 0) {
+    if (z[i] == quote) {
+      if (z[i + 1] == quote) {
+        dst[j++] = (char) quote;
+        i++;
+      } else {
+        dst[j++] = 0;
+        return (j - 1);
+      }
+    } else {
+      dst[j++] = z[i];
+    }
+
+    i++;
+  }
+
+  return j + 1;  // only one quote, do nothing
 }
 
 size_t strtrim(char *z) {

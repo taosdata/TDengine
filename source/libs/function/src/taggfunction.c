@@ -4349,10 +4349,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 1
                               "sum",
+                              FUNCTION_AGG,
                               FUNCTION_SUM,
                               FUNCTION_SUM,
                               BASIC_FUNC_SO,
-                              FUNCTION_AGG,
                               function_setup,
                               sum_function,
                               function_finalizer,
@@ -4362,10 +4362,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 2
                               "avg",
+                              FUNCTION_AGG,
                               FUNCTION_AVG,
                               FUNCTION_AVG,
                               BASIC_FUNC_SO,
-                                  FUNCTION_AGG,
                               function_setup,
                               avg_function,
                               avg_finalizer,
@@ -4375,10 +4375,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 3
                               "min",
+                              FUNCTION_AGG,
                               FUNCTION_MIN,
                               FUNCTION_MIN,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               min_func_setup,
                               min_function,
                               function_finalizer,
@@ -4388,10 +4388,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 4
                               "max",
-                              FUNCTION_MAX,
+                                    FUNCTION_AGG,
+                                    FUNCTION_MAX,
                               FUNCTION_MAX,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               max_func_setup,
                               max_function,
                               function_finalizer,
@@ -4401,10 +4401,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 5
                               "stddev",
-                              FUNCTION_STDDEV,
+                                    FUNCTION_AGG,
+                                    FUNCTION_STDDEV,
                               FUNCTION_STDDEV_DST,
                               FUNCSTATE_SO | FUNCSTATE_STREAM,
-                                  FUNCTION_AGG,
                               function_setup,
                               stddev_function,
                               stddev_finalizer,
@@ -4414,10 +4414,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 6
                               "percentile",
-                              FUNCTION_PERCT,
+                                    FUNCTION_AGG,
+                                    FUNCTION_PERCT,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_SO | FUNCSTATE_STREAM,
-                                  FUNCTION_AGG,
                               percentile_function_setup,
                               percentile_function,
                               percentile_finalizer,
@@ -4427,10 +4427,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 7
                               "apercentile",
-                              FUNCTION_APERCT,
+                                    FUNCTION_AGG,
+                                    FUNCTION_APERCT,
                               FUNCTION_APERCT,
                               FUNCSTATE_SO | FUNCSTATE_STREAM | FUNCSTATE_STABLE,
-                                  FUNCTION_AGG,
                               apercentile_function_setup,
                               apercentile_function,
                               apercentile_finalizer,
@@ -4440,10 +4440,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 8
                               "first",
-                              FUNCTION_FIRST,
+                                    FUNCTION_AGG,
+                                    FUNCTION_FIRST,
                               FUNCTION_FIRST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               function_setup,
                               first_function,
                               function_finalizer,
@@ -4453,10 +4453,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 9
                               "last",
-                              FUNCTION_LAST,
+                                    FUNCTION_AGG,
+                                    FUNCTION_LAST,
                               FUNCTION_LAST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               function_setup,
                               last_function,
                               function_finalizer,
@@ -4466,10 +4466,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 10
                               "last_row",
-                              FUNCTION_LAST_ROW,
+                                    FUNCTION_AGG,
+                                    FUNCTION_LAST_ROW,
                               FUNCTION_LAST_ROW,
                               FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               first_last_function_setup,
                               last_row_function,
                               last_row_finalizer,
@@ -4479,10 +4479,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 11
                               "top",
-                              FUNCTION_TOP,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TOP,
                               FUNCTION_TOP,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               top_bottom_function_setup,
                               top_function,
                               top_bottom_func_finalizer,
@@ -4492,10 +4492,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 12
                               "bottom",
-                              FUNCTION_BOTTOM,
+                                    FUNCTION_AGG,
+                                    FUNCTION_BOTTOM,
                               FUNCTION_BOTTOM,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                                  FUNCTION_AGG,
                               top_bottom_function_setup,
                               bottom_function,
                               top_bottom_func_finalizer,
@@ -4505,10 +4505,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 13
                               "spread",
-                              FUNCTION_SPREAD,
+                                    FUNCTION_AGG,
+                                    FUNCTION_SPREAD,
                               FUNCTION_SPREAD,
                               BASIC_FUNC_SO,
-                                  FUNCTION_AGG,
                               spread_function_setup,
                               spread_function,
                               spread_function_finalizer,
@@ -4518,10 +4518,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 14
                               "twa",
-                              FUNCTION_TWA,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TWA,
                               FUNCTION_TWA,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                                  FUNCTION_AGG,
                               twa_function_setup,
                               twa_function,
                               twa_function_finalizer,
@@ -4531,10 +4531,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 15
                               "leastsquares",
-                              FUNCTION_LEASTSQR,
+                                    FUNCTION_AGG,
+                                    FUNCTION_LEASTSQR,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_SO | FUNCSTATE_STREAM,
-                                  FUNCTION_AGG,
                               leastsquares_function_setup,
                               leastsquares_function,
                               leastsquares_finalizer,
@@ -4544,10 +4544,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 16
                               "ts",
-                              FUNCTION_TS,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TS,
                               FUNCTION_TS,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                                  FUNCTION_AGG,
                               function_setup,
                               date_col_output_function,
                               doFinalizer,
@@ -4557,10 +4557,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 17
                               "ts",
-                              FUNCTION_TS_DUMMY,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TS_DUMMY,
                               FUNCTION_TS_DUMMY,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                                  FUNCTION_AGG,
                               function_setup,
                               noop1,
                               doFinalizer,
@@ -4570,10 +4570,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 18
                               "tag_dummy",
-                              FUNCTION_TAG_DUMMY,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TAG_DUMMY,
                               FUNCTION_TAG_DUMMY,
                               BASIC_FUNC_SO,
-                                  FUNCTION_AGG,
                               function_setup,
                               tag_function,
                               doFinalizer,
@@ -4583,10 +4583,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 19
                               "ts",
-                              FUNCTION_TS_COMP,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TS_COMP,
                               FUNCTION_TS_COMP,
                               FUNCSTATE_MO | FUNCSTATE_NEED_TS,
-                                  FUNCTION_AGG,
                               ts_comp_function_setup,
                               ts_comp_function,
                               ts_comp_finalize,
@@ -4596,10 +4596,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 20
                               "tag",
-                              FUNCTION_TAG,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TAG,
                               FUNCTION_TAG,
                               BASIC_FUNC_SO,
-                                  FUNCTION_AGG,
                               function_setup,
                               tag_function,
                               doFinalizer,
@@ -4609,10 +4609,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {//TODO this is a scala function
                               // 21, column project sql function
                               "colprj",
-                              FUNCTION_PRJ,
+                                    FUNCTION_AGG,
+                                    FUNCTION_PRJ,
                               FUNCTION_PRJ,
                               BASIC_FUNC_MO | FUNCSTATE_NEED_TS,
-                              FUNCTION_AGG,
                               function_setup,
                               col_project_function,
                               doFinalizer,
@@ -4622,10 +4622,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 22, multi-output, tag function has only one result
                               "tagprj",
-                              FUNCTION_TAGPRJ,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TAGPRJ,
                               FUNCTION_TAGPRJ,
                               BASIC_FUNC_MO,
-                              FUNCTION_AGG,
                               function_setup,
                               tag_project_function,
                               doFinalizer,
@@ -4635,10 +4635,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 23
                               "arithmetic",
-                              FUNCTION_ARITHM,
+                                    FUNCTION_AGG,
+                                    FUNCTION_ARITHM,
                               FUNCTION_ARITHM,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS,
-                              FUNCTION_AGG,
                               function_setup,
                               arithmetic_function,
                               doFinalizer,
@@ -4648,10 +4648,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 24
                               "diff",
-                              FUNCTION_DIFF,
+                                    FUNCTION_AGG,
+                                    FUNCTION_DIFF,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              FUNCTION_AGG,
                               diff_function_setup,
                               diff_function,
                               doFinalizer,
@@ -4662,10 +4662,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 25
                               "first_dist",
-                              FUNCTION_FIRST_DST,
+                                    FUNCTION_AGG,
+                                    FUNCTION_FIRST_DST,
                               FUNCTION_FIRST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              FUNCTION_AGG,
                               first_last_function_setup,
                               first_dist_function,
                               function_finalizer,
@@ -4675,10 +4675,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 26
                               "last_dist",
-                              FUNCTION_LAST_DST,
+                                    FUNCTION_AGG,
+                                    FUNCTION_LAST_DST,
                               FUNCTION_LAST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              FUNCTION_AGG,
                               first_last_function_setup,
                               last_dist_function,
                               function_finalizer,
@@ -4688,10 +4688,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 27
                               "stddev",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_STDDEV_DST,
+                                    FUNCTION_AGG,
+                                    FUNCTION_STDDEV_DST,
                               FUNCTION_AVG,
                               FUNCSTATE_SO | FUNCSTATE_STABLE,
-                                  FUNCTION_AGG,
                               function_setup,
                               stddev_dst_function,
                               stddev_dst_finalizer,
@@ -4701,10 +4701,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 28
                               "interp",
-                              FUNCTION_INTERP,
+                                    FUNCTION_AGG,
+                                    FUNCTION_INTERP,
                               FUNCTION_INTERP,
                               FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS ,
-                                  FUNCTION_AGG,
                               function_setup,
                               interp_function,
                               doFinalizer,
@@ -4714,10 +4714,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 29
                               "rate",
-                              FUNCTION_RATE,
+                                    FUNCTION_AGG,
+                                    FUNCTION_RATE,
                               FUNCTION_RATE,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                                  FUNCTION_AGG,
                               rate_function_setup,
                               rate_function,
                               rate_finalizer,
@@ -4727,10 +4727,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 30
                               "irate",
-                              FUNCTION_IRATE,
+                                    FUNCTION_AGG,
+                                    FUNCTION_IRATE,
                               FUNCTION_IRATE,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                                  FUNCTION_AGG,
                               rate_function_setup,
                               irate_function,
                               rate_finalizer,
@@ -4740,10 +4740,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 31
                               "tbid",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TID_TAG,
+                                    FUNCTION_AGG,
+                                    FUNCTION_TID_TAG,
                               FUNCTION_TID_TAG,
                               FUNCSTATE_MO | FUNCSTATE_STABLE,
-                              FUNCTION_AGG,
                               function_setup,
                               noop1,
                               noop1,
@@ -4752,10 +4752,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           },
                           {   //32
                               "derivative",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_DERIVATIVE,
+                                    FUNCTION_AGG,
+                                    FUNCTION_DERIVATIVE,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              FUNCTION_AGG,
                               deriv_function_setup,
                               deriv_function,
                               doFinalizer,
@@ -4765,10 +4765,10 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                                 // 33
                               "_block_dist",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_BLKINFO,
+                                    FUNCTION_AGG,
+                                    FUNCTION_BLKINFO,
                               FUNCTION_BLKINFO,
                               FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              FUNCTION_AGG,
                               function_setup,
                               blockInfo_func,
                               blockinfo_func_finalizer,

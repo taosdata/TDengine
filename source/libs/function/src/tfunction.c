@@ -12,13 +12,16 @@ static void doInitFunctionHashTable() {
   functionHashTable = taosHashInit(numOfEntries, MurmurHash3_32, false, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     int32_t len = (uint32_t)strlen(aggFunc[i].name);
-    taosHashPut(functionHashTable, aggFunc[i].name, len, (void*)&aggFunc[i], POINTER_BYTES);
+
+    SAggFunctionInfo* ptr = &aggFunc[i];
+    taosHashPut(functionHashTable, aggFunc[i].name, len, (void*)&ptr, POINTER_BYTES);
   }
 
   numOfEntries = tListLen(scalarFunc);
   for(int32_t i = 0; i < numOfEntries; ++i) {
     int32_t len = (int32_t) strlen(scalarFunc[i].name);
-    taosHashPut(functionHashTable, scalarFunc[i].name, len, (void*)&scalarFunc[i], POINTER_BYTES);
+    SScalarFunctionInfo* ptr = &scalarFunc[i];
+    taosHashPut(functionHashTable, scalarFunc[i].name, len, (void*)&ptr, POINTER_BYTES);
   }
 }
 

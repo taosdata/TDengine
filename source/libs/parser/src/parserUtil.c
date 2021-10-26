@@ -26,6 +26,11 @@ int32_t parserValidateIdToken(SToken* pToken) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
+  // it is a token quoted with escape char '`'
+  if (pToken->z[0] == TS_ESCAPE_CHAR && pToken->z[pToken->n - 1] == TS_ESCAPE_CHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // It is a single part token, not a complex type
     if (isNumber(pToken)) {
@@ -83,7 +88,7 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
-int32_t parserSetSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr) {
+int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
   const char* msgFormat3 = "%s";
@@ -499,13 +504,14 @@ TAOS_FIELD createField(const SSchema* pSchema) {
   return f;
 }
 
-void setSchemaVal(SSchema* pSchema, uint8_t type, int16_t bytes, int16_t colId, const char* name){
-  assert(pSchema != NULL);
-  pSchema->type = type;
-  pSchema->bytes = bytes;
-  pSchema->colId = colId;
+SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name) {
+  SSchema s = {0};
+  s.type = type;
+  s.bytes = bytes;
+  s.colId = colId;
 
-  tstrncpy(pSchema->name, name, tListLen(pSchema->name));
+  tstrncpy(s.name, name, tListLen(s.name));
+  return s;
 }
 
 int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
@@ -1596,6 +1602,52 @@ int32_t getTagFilterSerializeLen(SQueryStmtInfo* pQueryInfo) {
     }
   }
   return 0;
+}
+
+uint32_t convertRelationalOperator(SToken *pToken) {
+  switch (pToken->type) {
+    case TK_LT:
+      return TSDB_RELATION_LESS;
+    case TK_LE:
+      return TSDB_RELATION_LESS_EQUAL;
+    case TK_GT:
+      return TSDB_RELATION_GREATER;
+    case TK_GE:
+      return TSDB_RELATION_GREATER_EQUAL;
+    case TK_NE:
+      return TSDB_RELATION_NOT_EQUAL;
+    case TK_AND:
+      return TSDB_RELATION_AND;
+    case TK_OR:
+      return TSDB_RELATION_OR;
+    case TK_EQ:
+      return TSDB_RELATION_EQUAL;
+    case TK_PLUS:
+      return TSDB_BINARY_OP_ADD;
+
+    case TK_MINUS:
+      return TSDB_BINARY_OP_SUBTRACT;
+    case TK_STAR:
+      return TSDB_BINARY_OP_MULTIPLY;
+    case TK_SLASH:
+    case TK_DIVIDE:
+      return TSDB_BINARY_OP_DIVIDE;
+    case TK_REM:
+      return TSDB_BINARY_OP_REMAINDER;
+    case TK_LIKE:
+      return TSDB_RELATION_LIKE;
+    case TK_MATCH:
+      return TSDB_RELATION_MATCH;
+    case TK_NMATCH:
+      return TSDB_RELATION_NMATCH;
+    case TK_ISNULL:
+      return TSDB_RELATION_ISNULL;
+    case TK_NOTNULL:
+      return TSDB_RELATION_NOTNULL;
+    case TK_IN:
+      return TSDB_RELATION_IN;
+    default: { return 0; }
+  }
 }
 
 #if 0

@@ -55,11 +55,16 @@ SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
-static tExprNode* createUnaryFunctionExprNode(int32_t functionId, SSchema* pSchema) {
-  tExprNode* pColumnNode = calloc(1, sizeof(tExprNode));
-  pColumnNode->nodeType = TEXPR_COL_NODE;
-  pColumnNode->pSchema = calloc(1, sizeof(SSchema));
-  memcpy(pColumnNode->pSchema, pSchema, sizeof(SSchema));
+static tExprNode* createUnaryFunctionExprNode(int32_t functionId, SSchema* pSchema, tExprNode* pColumnNode) {
+
+  if (pColumnNode == NULL) {
+    pColumnNode = calloc(1, sizeof(tExprNode));
+    pColumnNode->nodeType = TEXPR_COL_NODE;
+    pColumnNode->pSchema = calloc(1, sizeof(SSchema));
+    memcpy(pColumnNode->pSchema, pSchema, sizeof(SSchema));
+  } else {
+    assert(pSchema == NULL);
+  }
 
   tExprNode* pNode = calloc(1, sizeof(tExprNode));
   pNode->nodeType = TEXPR_UNARYEXPR_NODE;
@@ -69,7 +74,20 @@ static tExprNode* createUnaryFunctionExprNode(int32_t functionId, SSchema* pSche
   return pNode;
 }
 
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, SSchema* pResSchema, int16_t interSize) {
+SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema) {
+  assert(pNode != NULL && pResSchema != NULL);
+
+  SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
+  if (pExpr == NULL) {
+    return NULL;
+  }
+
+  pExpr->pExpr = pNode;
+  memcpy(&pExpr->base.resSchema, pResSchema, sizeof(SSchema));
+  return pExpr;
+}
+
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize) {
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
   if (pExpr == NULL) {
     return NULL;
@@ -77,29 +95,26 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
 
   SSqlExpr* p = &pExpr->base;
 
-  // set the correct columnIndex index
-  if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+  if (pParamExpr != NULL) {
+    pExpr->pExpr = createUnaryFunctionExprNode(functionId, NULL, pParamExpr);
+  } else if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    assert(pParamExpr == NULL);
+
     SSchema* s = getTbnameColumnSchema();
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
-    pExpr->pExpr = createUnaryFunctionExprNode(functionId, s);
-  } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
+    pExpr->pExpr = createUnaryFunctionExprNode(functionId, s, pParamExpr);
+  } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX || functionId == FUNCTION_BLKINFO) {
+    assert(pParamExpr == NULL);
+
     p->colInfo.colId = pColIndex->columnIndex;
-    SSchema s = {.colId = pColIndex->columnIndex, .bytes = pResSchema->bytes, .type = pResSchema->type};
-    tstrncpy(s.name, pResSchema->name, TSDB_COL_NAME_LEN);
-    pExpr->pExpr = createUnaryFunctionExprNode(functionId, &s);
-  } else if (functionId == FUNCTION_BLKINFO) {
-    p->colInfo.colId = pColIndex->columnIndex;
-    SSchema s = {.colId = pColIndex->columnIndex, .bytes = pResSchema->bytes, .type = pResSchema->type};
-    tstrncpy(s.name, pResSchema->name, TSDB_COL_NAME_LEN);
-    pExpr->pExpr = createUnaryFunctionExprNode(functionId, &s);
-//    p->colBytes = TSDB_MAX_BINARY_LEN;
-//    p->colType  = TSDB_DATA_TYPE_BINARY;
+    SSchema s = createSchema(pResSchema->type, pResSchema->bytes, pColIndex->columnIndex, pResSchema->name);
+    pExpr->pExpr = createUnaryFunctionExprNode(functionId, &s, pParamExpr);
   } else {
     int32_t len = tListLen(p->colInfo.name);
     if (TSDB_COL_IS_TAG(pColIndex->type)) {
       SSchema* pSchema = getTableTagSchema(pTableMetaInfo->pTableMeta);
       p->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
-      pExpr->pExpr = createUnaryFunctionExprNode(functionId, &pSchema[pColIndex->columnIndex]);
+      pExpr->pExpr = createUnaryFunctionExprNode(functionId, &pSchema[pColIndex->columnIndex], pParamExpr);
       snprintf(p->colInfo.name, len, "%s.%s", pTableMetaInfo->aliasName, pSchema[pColIndex->columnIndex].name);
     } else if (pTableMetaInfo->pTableMeta != NULL) {
       // in handling select database/version/server_status(), the pTableMeta is NULL
@@ -107,7 +122,7 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
       p->colInfo.colId = pSchema->colId;
       snprintf(p->colInfo.name, len, "%s.%s", pTableMetaInfo->aliasName, pSchema->name);
 
-      pExpr->pExpr = createUnaryFunctionExprNode(functionId, pSchema);
+      pExpr->pExpr = createUnaryFunctionExprNode(functionId, pSchema, pParamExpr);
     }
   }
 

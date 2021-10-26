@@ -4,7 +4,6 @@
 
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
@@ -88,6 +87,9 @@ int main(int argc, char** argv) {
 TEST(testCase, validateToken_test) {
   char t01[] = "abc";
   EXPECT_EQ(testValidateName(t01), TSDB_CODE_SUCCESS);
+
+  char t110[] = "`1233abc.911`";
+  EXPECT_EQ(testValidateName(t110), TSDB_CODE_SUCCESS);
 
   char t02[] = "'abc'";
   EXPECT_EQ(testValidateName(t02), TSDB_CODE_TSC_INVALID_OPERATION);
@@ -689,7 +691,7 @@ TEST(testCase, generateAST_test) {
 }
 
 TEST(testCase, evaluateAST_test) {
-  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and col < 20 + 99");
+  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and `col` < 20 + 99");
   ASSERT_EQ(info1.valid, true);
 
   char msg[128] = {0};
@@ -700,6 +702,16 @@ TEST(testCase, evaluateAST_test) {
   SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
   ASSERT_EQ(code, 0);
-
-
 }
+
+TEST(testCase, extractMeta_test) {
+  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and `col` < 20 + 99");
+  ASSERT_EQ(info1.valid, true);
+
+  char msg[128] = {0};
+  SMetaReq req  = {0};
+  int32_t ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+}
+
