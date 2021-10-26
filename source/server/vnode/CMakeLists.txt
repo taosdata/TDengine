@@ -16,6 +16,7 @@ target_link_libraries(
     PUBLIC tq
     PUBLIC tsdb
     PUBLIC wal
+    PUBLIC sync
     PUBLIC cjson
 )
 
