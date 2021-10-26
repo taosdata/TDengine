@@ -21,9 +21,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeTrans.h"
-#include "dnodeMain.h"
-#include "dnodeMnodeEps.h"
-#include "dnodeStatus.h"
+#include "dnodeEps.h"
+#include "dnodeMsg.h"
 #include "mnode.h"
 #include "vnode.h"
 
@@ -143,7 +142,7 @@ static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 
   if (msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
-    dnodeUpdateMnodeFromPeer(pEpSet);
+    dnodeUpdateMnodeEps(pEpSet);
   }
 
   RpcMsgFp fp = tsTrans.peerMsgFp[msgType];
