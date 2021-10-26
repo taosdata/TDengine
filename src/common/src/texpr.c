@@ -180,63 +180,125 @@ bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp 
   return param->nodeFilterFn(pItem, pExpr->_node.info);
 }
 
-void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
-                                char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
-  if (pExprs == NULL) {
-    return;
+void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                              char *(*getSourceDataBlock)(void *, const char*, int32_t));
+
+void exprTreeFunctionNodeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                              char *(*getSourceDataBlock)(void *, const char*, int32_t));
+void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                                  char *(*getSourceDataBlock)(void *, const char*, int32_t));
+
+void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                                  char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
+  if (pExpr->nodeType == TSQL_NODE_FUNC) {
+    exprTreeFunctionNodeTraverse(pExpr, numOfRows, pOutput, param, order, getSourceDataBlock);
+  } else if (pExpr->nodeType == TSQL_NODE_EXPR){
+    exprTreeExprNodeTraverse(pExpr, numOfRows, pOutput, param, order, getSourceDataBlock);
+  }
+}
+
+void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                                  char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
+  uint8_t numChildren = pExpr->_func.numChildren;
+  char** pChildrenOutput = calloc(numChildren, sizeof(char*));
+  tExprOperandInfo* pInputs = calloc(numChildren, sizeof(tExprOperandInfo));
+  for (int i = 0; i < numChildren; ++i) {
+    pInputs[i].type = TSDB_DATA_TYPE_DOUBLE;
+    pInputs[i].bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    pInputs[i].numOfRows = numOfRows;
   }
 
-  tExprNode *pLeft = pExprs->_node.pLeft;
-  tExprNode *pRight = pExprs->_node.pRight;
+  for (int i = 0; i < numChildren; ++i) {
+    tExprNode *pChild = pExpr->_func.pChildren[i];
+    if (pChild->nodeType == TSQL_NODE_EXPR || pChild->nodeType == TSQL_NODE_FUNC) {
+      pChildrenOutput[i] = malloc(sizeof(int64_t) * numOfRows);
+      exprTreeInternalNodeTraverse(pChild, numOfRows, pChildrenOutput[i], param, order, getSourceDataBlock);
+      pInputs[i].data = pChildrenOutput[i];
+
+    } else if (pChild->nodeType == TSQL_NODE_COL) {
+      char *pInputData = getSourceDataBlock(param, pChild->pSchema->name, pChild->pSchema->colId);
+      if (order == TSDB_ORDER_DESC) {
+        pChildrenOutput[i] = malloc(sizeof(int64_t) * numOfRows);
+        reverseCopy(pChildrenOutput[i], pInputData, pChild->pSchema->type, numOfRows);
+        pInputs[i].data = pInputData;
+      } else {
+        pInputs[i].data = pInputData;
+      }
+    } else if (pChild->nodeType == TSQL_NODE_VALUE) {
+      pInputs[i].data = (char*)&(pChild->pVal->dKey);
+      pInputs[i].numOfRows = 1;
+    }
+  }
+
+  _expr_scalar_function_t scalarFn = getExprScalarFunction(pExpr->_func.functionId);
+  tExprOperandInfo output;
+  output.data = pOutput;
+  output.type = TSDB_DATA_TYPE_DOUBLE;
+  output.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  scalarFn(pInputs, numChildren, &output, order);
+
+  for (int i = 0; i < numChildren; ++i) {
+    tfree(pChildrenOutput[i]);
+  }
+  tfree(pInputs);
+  tfree(pChildrenOutput);
+}
+
+void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                            char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
+
+  tExprNode *pLeft = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
 
   /* the left output has result from the left child syntax tree */
   char *pLeftOutput = (char*)malloc(sizeof(int64_t) * numOfRows);
-  if (pLeft->nodeType == TSQL_NODE_EXPR) {
-    arithmeticTreeTraverse(pLeft, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
+  if (pLeft->nodeType == TSQL_NODE_EXPR || pLeft->nodeType == TSQL_NODE_FUNC) {
+    exprTreeInternalNodeTraverse(pLeft, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
   }
 
   /* the right output has result from the right child syntax tree */
   char *pRightOutput = malloc(sizeof(int64_t) * numOfRows);
-  char *pdata = malloc(sizeof(int64_t) * numOfRows);
+  char *pData = malloc(sizeof(int64_t) * numOfRows);
 
-  if (pRight->nodeType == TSQL_NODE_EXPR) {
-    arithmeticTreeTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
+  if (pRight->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_FUNC) {
+    exprTreeInternalNodeTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
   }
 
-  if (pLeft->nodeType == TSQL_NODE_EXPR) {
-    if (pRight->nodeType == TSQL_NODE_EXPR) {
+  if (pLeft->nodeType == TSQL_NODE_EXPR || pLeft->nodeType == TSQL_NODE_FUNC) {
+    if (pRight->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_FUNC) {
       /*
        * exprLeft + exprRight
        * the type of returned value of one expression is always double float precious
        */
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
       OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // exprLeft + columnRight
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
 
       // set input buffer
       char *pInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
       if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pInputData, pRight->pSchema->type, numOfRows);
-        OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pdata, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
+        reverseCopy(pData, pInputData, pRight->pSchema->type, numOfRows);
+        OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       } else {
         OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       }
 
     } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // exprLeft + 12
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
       OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
     }
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
     // column data specified on left-hand-side
     char *pLeftInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
-    if (pRight->nodeType == TSQL_NODE_EXPR) {  // columnLeft + expr2
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+    if (pRight->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_FUNC) {  // columnLeft + expr2
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
 
       if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
-        OperatorFn(pdata, numOfRows, pLeft->pSchema->type, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
+        reverseCopy(pData, pLeftInputData, pLeft->pSchema->type, numOfRows);
+        OperatorFn(pData, numOfRows, pLeft->pSchema->type, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
       } else {
         OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
       }
@@ -244,45 +306,45 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // columnLeft + columnRight
       // column data specified on right-hand-side
       char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
 
       // both columns are descending order, do not reverse the source data
       OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, order);
     } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // columnLeft + 12
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
 
       if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
-        OperatorFn(pdata, numOfRows, pLeft->pSchema->type, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
+        reverseCopy(pData, pLeftInputData, pLeft->pSchema->type, numOfRows);
+        OperatorFn(pData, numOfRows, pLeft->pSchema->type, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
       } else {
         OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
       }
     }
   } else {
     // column data specified on left-hand-side
-    if (pRight->nodeType == TSQL_NODE_EXPR) {  // 12 + expr2
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+    if (pRight->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_FUNC) {  // 12 + expr2
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
       OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // 12 + columnRight
       // column data specified on right-hand-side
       char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
 
       if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pRightInputData, pRight->pSchema->type, numOfRows);
-        OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pdata, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
+        reverseCopy(pData, pRightInputData, pRight->pSchema->type, numOfRows);
+        OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       } else {
         OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       }
 
     } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // 12 + 12
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
+      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
       OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
     }
   }
 
-  tfree(pdata);
+  tfree(pData);
   tfree(pLeftOutput);
   tfree(pRightOutput);
 }

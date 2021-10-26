@@ -19,11 +19,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct {
+  int16_t type;
+  int16_t bytes;
+  int16_t numOfRows;
+  char* data;
+} tExprOperandInfo;
 
 typedef void (*_arithmetic_operator_fn_t)(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight,
                                           int32_t rightType, void *output, int32_t order);
 
 _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr);
+
+
+typedef void (*_expr_scalar_function_t)(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order);
+
+_expr_scalar_function_t getExprScalarFunction(uint16_t scalar);
 
 #ifdef __cplusplus
 }

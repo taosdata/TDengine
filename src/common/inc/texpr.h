@@ -41,6 +41,15 @@ struct SSchema;
 #define QUERY_COND_REL_PREFIX_MATCH_LEN 6
 #define QUERY_COND_REL_PREFIX_NMATCH_LEN 7
 
+#define TSDB_FUNC_FLAG_UDF          0x8000
+#define TSDB_FUNC_FLAG_SCALAR       0x4000
+#define TSDB_FUNC_IS_SCALAR(id)     ((((id) & TSDB_FUNC_FLAG_UDF) == 0) && (((id) & TSDB_FUNC_FLAG_SCALAR) != 0))
+#define TSDB_FUNC_SCALAR_INDEX(id)  ((id) & ~TSDB_FUNC_FLAG_SCALAR)
+///////////////////////////////////////////
+// SCALAR FUNCTIONS
+#define TSDB_FUNC_SCALAR_POW          (TSDB_FUNC_FLAG_SCALAR | 0x0000)
+#define TSDB_FUNC_SCALAR_LOG          (TSDB_FUNC_FLAG_SCALAR | 0x0001)
+#define TSDB_FUNC_SCALAR_MAX_NUM      2
 typedef bool (*__result_filter_fn_t)(const void *, void *);
 typedef void (*__do_filter_suppl_fn_t)(void *, void *);
 
@@ -102,8 +111,8 @@ void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 
-void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
-                            char *(*cb)(void *, const char*, int32_t));
+void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                                  char *(*getSourceDataBlock)(void *, const char*, int32_t));
 
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len);
 

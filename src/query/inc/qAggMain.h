@@ -23,6 +23,7 @@ extern "C" {
 #include "os.h"
 
 #include "tname.h"
+#include "texpr.h"
 #include "taosdef.h"
 #include "trpc.h"
 #include "tvariant.h"
@@ -85,16 +86,6 @@ extern "C" {
 // #define TSDB_FUNC_HISTOGRAM    40
 // #define TSDB_FUNC_HLL          41
 // #define TSDB_FUNC_MODE         42
-
-#define TSDB_FUNC_FLAG_UDF          0x8000
-#define TSDB_FUNC_FLAG_SCALAR       0x4000
-#define TSDB_FUNC_IS_SCALAR(id)     ((((id) & TSDB_FUNC_FLAG_UDF) == 0) && (((id) & TSDB_FUNC_FLAG_SCALAR) != 0))
-#define TSDB_FUNC_SCALAR_INDEX(id)  ((id) & ~TSDB_FUNC_FLAG_SCALAR)
-///////////////////////////////////////////
-// SCALAR FUNCTIONS
-#define TSDB_FUNC_SCALAR_POW          (TSDB_FUNC_FLAG_SCALAR | 0x0000)
-#define TSDB_FUNC_SCALAR_LOG          (TSDB_FUNC_FLAG_SCALAR | 0x0001)
-#define TSDB_FUNC_SCALAR_MAX_NUM      2
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM

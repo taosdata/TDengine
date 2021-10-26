@@ -19,6 +19,7 @@
 #include "tutil.h"
 #include "tarithoperator.h"
 #include "tcompare.h"
+#include "texpr.h"
 
 //GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                
 
@@ -405,6 +406,20 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
       return vectorDivide;
     case TSDB_BINARY_OP_REMAINDER:
       return vectorRemainder;
+    default:
+      assert(0);
+      return NULL;
+  }
+}
+
+void vectorPow(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+
+}
+
+_expr_scalar_function_t getExprScalarFunction(uint16_t scalarFunc) {
+  switch (scalarFunc) {
+    case TSDB_FUNC_SCALAR_POW:
+      return vectorPow;
     default:
       assert(0);
       return NULL;
