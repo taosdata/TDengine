@@ -567,6 +567,7 @@ typedef struct SThreadInfo_S {
     char**    lines;
     int       sockfd;
     bool      rest;
+    bool      sml;
     SNormalTable* tableList;
 } threadInfo;
 
@@ -6923,21 +6924,13 @@ static int generateSampleFromRand(
                 case TSDB_DATA_TYPE_BINARY:
                     dataLen = (columns)?columns[c].dataLen:g_args.binwidth;
                     rand_string(data, dataLen);
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=\"%s\",", c, data);
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", data);
-                    }
+                    pos += sprintf(buff + pos, "%s,", data);
                     break;
 
                 case TSDB_DATA_TYPE_NCHAR:
                     dataLen = (columns)?columns[c].dataLen:g_args.binwidth;
                     rand_string(data, dataLen - 1);
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=L\"%s\",", c, data);
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", data);
-                    }
+                    pos += sprintf(buff + pos, "%s,", data);
                     break;
 
                 case TSDB_DATA_TYPE_INT:
@@ -6946,35 +6939,19 @@ static int generateSampleFromRand(
                     } else {
                         tmp = rand_int_str();
                     }
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%si32,", c, tmp);
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", tmp);
-                    }
+                    pos += sprintf(buff + pos, "%s,", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_UINT:
-                if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%su32,", c, rand_uint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_uint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_uint_str());
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%si64,", c, rand_bigint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_bigint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_bigint_str());
                     break;
 
                 case TSDB_DATA_TYPE_UBIGINT:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%su64,", c, rand_ubigint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_ubigint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_ubigint_str());
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
@@ -6987,70 +6964,35 @@ static int generateSampleFromRand(
                     } else {
                         tmp = rand_float_str();
                     }
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%sf32,", c, tmp);
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", tmp);
-                    }
+                    pos += sprintf(buff + pos, "%s,", tmp);
                     break;
 
                 case TSDB_DATA_TYPE_DOUBLE:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%sf64,", c, rand_double_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_double_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_double_str());
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%si16,", c, rand_smallint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_smallint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_smallint_str());
                     break;
 
                 case TSDB_DATA_TYPE_USMALLINT:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%su16,", c, rand_usmallint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_usmallint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_usmallint_str());
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%si8,", c, rand_tinyint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_tinyint_str());
                     break;
 
                 case TSDB_DATA_TYPE_UTINYINT:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%su8,", c, rand_utinyint_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_utinyint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_utinyint_str());
                     break;
 
                 case TSDB_DATA_TYPE_BOOL:
-                    if (SML_IFACE == stbInfo->iface) {
-                        pos += sprintf(buff + pos, "c%d=%s,", c, rand_bool_str());
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_bool_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_bool_str());
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
-                    if (SML_IFACE == stbInfo->iface) {
-                        errorPrint2("%s() LN%d, unsupport data type %s for schemaless\n",
-                            __func__, __LINE__,
-                            (columns)?(columns[c].dataType):g_args.dataType[c]);
-                        exit(EXIT_FAILURE);
-                    } else {
-                        pos += sprintf(buff + pos, "%s,", rand_bigint_str());
-                    }
+                    pos += sprintf(buff + pos, "%s,", rand_bigint_str());
                     break;
 
                 case TSDB_DATA_TYPE_NULL:
@@ -7157,7 +7099,8 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
     debugPrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
             __func__, __LINE__,
             (iface==TAOSC_IFACE)?
-            "taosc":(iface==REST_IFACE)?"rest":"stmt");
+            "taosc":(iface==REST_IFACE)?"rest":
+            (iface==STMT_IFACE)?"stmt":"sml");
 
     switch(iface) {
         case TAOSC_IFACE:
@@ -7196,7 +7139,10 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             affectedRows = k;
             break;
         case SML_IFACE:
-            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, 0, pThreadInfo->time_precision);
+            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k,
+                TSDB_SML_LINE_PROTOCOL, pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI?
+                TSDB_SML_TIMESTAMP_MILLI_SECONDS:pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO?
+                TSDB_SML_TIMESTAMP_MICRO_SECONDS:TSDB_TIME_PRECISION_NANO);
             code = taos_errno(res);
             affectedRows = taos_affected_rows(res);
             if (code != TSDB_CODE_SUCCESS) {
@@ -10438,7 +10384,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             // measure prepare + insert
             startTs = taosGetTimestampUs();
 
-            int32_t generated;
+            int32_t generated = 0;
             if (stbInfo->iface == STMT_IFACE) {
                 generated = prepareStbStmt(
                         pThreadInfo,
@@ -10450,6 +10396,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                         insertRows, j, start_time,
                         &(pThreadInfo->samplePos));
             } else if (stbInfo->iface == SML_IFACE) {
+                pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
+                assert(pThreadInfo->lines);
                 for (int k = 0; k < g_args.reqPerReq;k++) {
                     pThreadInfo->lines[k] = calloc(BUFFER_SIZE, 1);
                     if (NULL == pThreadInfo->lines[k]) {
@@ -10505,7 +10453,15 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
             endTs = taosGetTimestampUs();
-            tmfree(pThreadInfo->buffer);
+            if(stbInfo->iface == TAOSC_IFACE || stbInfo->iface == REST_IFACE) {
+                tmfree(pThreadInfo->buffer);
+            } else if (stbInfo->iface == SML_IFACE) {
+                for (int k = 0; k < g_args.reqPerReq;k++) {
+                    tmfree(pThreadInfo->lines[k]);
+                }
+                tmfree(pThreadInfo->lines);
+            }
+            
             uint64_t delay = endTs - startTs;
             performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
                     __func__, __LINE__, delay/1000.0);
@@ -10540,7 +10496,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                 lastPrintTime = currentPrintTime;
             }
 
-            if (i >= insertRows)
+            if (j >= insertRows)
                 break;
         }   // insertRows
 
@@ -11304,11 +11260,9 @@ static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo
             __func__, __LINE__, stbInfo->startTime);
 
     // read sample data from file first
-    int ret;
-    if (stbInfo) {
+    int ret = 0;
+    if (SML_IFACE != stbInfo->iface) {
         ret = prepareSampleForStb(stbInfo);
-    } else {
-        ret = prepareSampleForNtb();
     }
     if (0 != ret) {
         errorPrint2("%s() LN%d, prepare sample data for stable failed!\n",
@@ -11416,8 +11370,8 @@ static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char
         assert(tableList != NULL);
         for (int64_t j = 0; j < pThreadInfo->ntables; j++) {
             SNormalTable *tbInfo = tableList + j;
-            int           superTblsChild = 0;
-            int           normalTblsOffset = 0;
+            int superTblsChild = 0;
+            int normalTblsOffset = 0;
             for (int k = 0; k < g_Dbs.db[dbNum].superTblCount; k++) {
                 superTblsChild += g_Dbs.db[dbNum].superTbls[k].childTblCount;
                 if ((j + pThreadInfo->start_table_from) < superTblsChild) {
@@ -11428,6 +11382,7 @@ static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char
                     snprintf(tbInfo->tbName, TSDB_TABLE_NAME_LEN, "%s%"PRId64"",
                         g_Dbs.db[dbNum].superTbls[k].childTblPrefix, tbInfo->tbSeq);
                     if (SML_IFACE == g_Dbs.db[dbNum].superTbls[k].iface) {
+                        pThreadInfo->sml = true;
                         tbInfo->smlHead = (char *)calloc(1, HEAD_BUFF_LEN);
                         assert(tbInfo->smlHead);
                         generateSmlHead(tbInfo->smlHead, &(g_Dbs.db[dbNum].superTbls[k]), pThreadInfo, tbInfo->tbSeq);
@@ -11523,6 +11478,7 @@ static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char
         for (int64_t j = 0; j < pThreadInfo->ntables; j++) {
             SNormalTable* tbInfo = pThreadInfo->tableList + j;
             tmfree(tbInfo->tbName);
+            tmfree(tbInfo->smlHead);
         }
         tsem_destroy(&(pThreadInfo->lock_sem));
         tmfree(pThreadInfo->tableList);
