@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "vnodeMain.h"
+
 #include "vnodeMgmt.h"
 #include "vnodeMgmtMsg.h"
 

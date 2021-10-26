@@ -19,7 +19,7 @@
 #include "tqueue.h"
 #include "tworker.h"
 #include "taosmsg.h"
-#include "vnodeMain.h"
+
 #include "vnodeStatus.h"
 #include "vnodeWrite.h"
 #include "vnodeWriteMsg.h"

@@ -79,6 +79,22 @@ void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
+int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeDrop(int32_t vgId);
+int32_t vnodeOpen(int32_t vgId);
+int32_t vnodeAlter(SVnode *pVnode, SCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeSync(int32_t vgId);
+int32_t vnodeClose(int32_t vgId);
+void    vnodeCleanUp(SVnode *pVnode);
+void    vnodeDestroy(SVnode *pVnode);
+int32_t vnodeCompact(int32_t vgId);
+void    vnodeBackup(int32_t vgId);
+void    vnodeGetStatus(struct SStatusMsg *status);
+
+SVnode *vnodeAcquire(int32_t vgId);
+SVnode *vnodeAcquireNotClose(int32_t vgId);
+void    vnodeRelease(SVnode *pVnode);
+
 #ifdef __cplusplus
 }
 #endif
