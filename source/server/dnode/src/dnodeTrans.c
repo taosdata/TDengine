@@ -98,8 +98,12 @@ static int32_t dnodeInitServer() {
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_GRANT] = mnodeProcessMsg;
   tsTrans.peerMsgFp[TSDB_MSG_TYPE_DM_STATUS] = mnodeProcessMsg;
 
-  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT]       = vnodeProcessMsg;
-  /*tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME]       = vnodeProcessRead;*/
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONNECT]    = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_DISCONNECT] = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_ACK]        = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_RESET]      = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_CONSUME]    = vnodeProcessMsg;
+  tsTrans.peerMsgFp[TSDB_MSG_TYPE_MQ_QUERY]      = vnodeProcessMsg;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
