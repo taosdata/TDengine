@@ -1841,6 +1841,15 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
       qError("dump value to type[%d] failed", type);
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
+
+    // match/nmatch for nchar type need convert from ucs4 to mbs
+    if(type == TSDB_DATA_TYPE_NCHAR &&
+        (unit->compare.optr == TSDB_RELATION_MATCH || unit->compare.optr == TSDB_RELATION_NMATCH)){
+      char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
+      int32_t len = taosUcs4ToMbs(varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
+      varDataSetLen(newValData, len);
+      varDataCopy(fi->data, newValData);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2960,17 +2969,14 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
       all = false;
       continue;
     }
-    // match nchar
+    // match/nmatch for nchar type need convert from ucs4 to mbs
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == TSDB_RELATION_MATCH || info->cunits[uidx].optr == TSDB_RELATION_NMATCH)){
-      char newColData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-      char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
+      char *newColData = calloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
       int len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       varDataSetLen(newColData, len);
-      len = taosUcs4ToMbs(varDataVal(info->cunits[uidx].valData), varDataLen(info->cunits[uidx].valData), varDataVal(newValData));
-      varDataSetLen(newValData, len);
-
-      (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, newValData);
+      (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, info->cunits[uidx].valData);
+      tfree(newColData);
     }else{
       (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
     }
@@ -3022,13 +3028,11 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *
               (*p)[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
             } else {
               if(cunit->dataType == TSDB_DATA_TYPE_NCHAR && (cunit->optr == TSDB_RELATION_MATCH || cunit->optr == TSDB_RELATION_NMATCH)){
-                char newColData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-                char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
+                char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
                 int len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
                 varDataSetLen(newColData, len);
-                len = taosUcs4ToMbs(varDataVal(cunit->valData), varDataLen(cunit->valData), varDataVal(newValData));
-                varDataSetLen(newValData, len);
-                (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, newValData);
+                (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
+                tfree(newColData);
               }else{
                 (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
               }
