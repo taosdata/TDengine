@@ -406,7 +406,14 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {
   if (pContext->session == NULL) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_SESSION_FULL);
   } else {
+    // httpProcessRequestCb called by another thread and a subsequent thread calls this
+    // function again, if this function called by httpProcessRequestCb executes memset
+    // just before the subsequent thread executes *Cmd function, nativSql will be NULL
+    pthread_mutex_lock(&pContext->ctxMutex);
+
     httpExecCmd(pContext);
+
+    pthread_mutex_unlock(&pContext->ctxMutex);
   }
 }
 

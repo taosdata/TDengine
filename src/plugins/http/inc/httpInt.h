@@ -140,28 +140,29 @@ typedef enum {
 } EHTTP_CONTEXT_FAILED_CAUSE;
 
 typedef struct HttpContext {
-  int32_t      refCount;
-  SOCKET       fd;
-  uint32_t     accessTimes;
-  uint32_t     lastAccessTime;
-  int32_t      state;
-  uint8_t      reqType;
-  uint8_t      parsed;
-  uint8_t      error;
-  char         ipstr[22];
-  char         user[TSDB_USER_LEN];  // parsed from auth token or login message
-  char         pass[HTTP_PASSWORD_LEN];
-  char         db[/*TSDB_ACCT_ID_LEN + */TSDB_DB_NAME_LEN];
-  TAOS *       taos;
-  void *       ppContext;
-  HttpSession *session;
-  z_stream     gzipStream;
-  HttpParser  *parser;
-  HttpSqlCmd   singleCmd;
-  HttpSqlCmds *multiCmds;
-  JsonBuf *    jsonBuf;
-  HttpEncodeMethod *encodeMethod;
-  HttpDecodeMethod *decodeMethod;
+  int32_t            refCount;
+  SOCKET             fd;
+  uint32_t           accessTimes;
+  uint32_t           lastAccessTime;
+  int32_t            state;
+  uint8_t            reqType;
+  uint8_t            parsed;
+  uint8_t            error;
+  char               ipstr[22];
+  char               user[TSDB_USER_LEN];  // parsed from auth token or login message
+  char               pass[HTTP_PASSWORD_LEN];
+  char               db[/*TSDB_ACCT_ID_LEN + */TSDB_DB_NAME_LEN];
+  TAOS *             taos;
+  void *             ppContext;
+  pthread_mutex_t    ctxMutex;
+  HttpSession       *session;
+  z_stream           gzipStream;
+  HttpParser        *parser;
+  HttpSqlCmd         singleCmd;
+  HttpSqlCmds       *multiCmds;
+  JsonBuf           *jsonBuf;
+  HttpEncodeMethod  *encodeMethod;
+  HttpDecodeMethod  *decodeMethod;
   struct HttpThread *pThread;
 } HttpContext;
 
