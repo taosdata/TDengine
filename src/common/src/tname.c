@@ -243,8 +243,12 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
     return false;
   }
+  int32_t maxTagLen = TSDB_MAX_TAGS_LEN;
+  if (numOfTags == 1 && pSchema[numOfCols].type == TSDB_DATA_TYPE_JSON){
+    maxTagLen = TSDB_MAX_JSON_TAGS_LEN;
+  }
 
-  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
+  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, maxTagLen)) {
     return false;
   }
 
