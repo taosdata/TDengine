@@ -148,6 +148,19 @@ static int tqFetch(tqGroupHandle* ghandle, void** msg) {
   return totSize;
 }
 
+
+tqGroupHandle* tqGetGroupHandle(STQ* pTq, int64_t cId) {
+  return NULL;
+}
+
+int tqLaunchQuery(tqGroupHandle* ghandle) {
+  return 0;
+}
+
+int tqSendLaunchQuery(STQ* pTq, int64_t topicId, int64_t cgId, void* query) {
+  return 0;
+}
+
 /*int tqMoveOffsetToNext(tqGroupHandle* ghandle) {*/
   /*return 0;*/
 /*}*/
@@ -268,3 +281,16 @@ int tqDeserializeBufItem(const void* pBytes, tqBufferItem **pBufItem) {
   return 0;
 }
 
+
+int tqGetGHandleSSize(const tqGroupHandle *gHandle) {
+  return 0;
+}
+int tqListHandleSSize(const tqListHandle *listHandle) {
+  return 0;
+}
+int tqBufHandleSSize(const tqBufferHandle *bufHandle) {
+  return 0;
+}
+int tqBufItemSSize(const tqBufferItem *bufItem) {
+  return 0;
+}
