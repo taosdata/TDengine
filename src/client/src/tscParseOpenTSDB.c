@@ -888,7 +888,6 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
   if (tags == NULL || tags->type != cJSON_Object) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
-
   //only pick up the first ID value as child table name
   cJSON *id = cJSON_GetObjectItem(tags, "ID");
   if (id != NULL) {
@@ -912,7 +911,6 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       return TSDB_CODE_TSC_DUP_TAG_NAMES;
     }
   }
-
   int32_t tagNum = cJSON_GetArraySize(tags);
   //at least one tag pair required
   if (tagNum <= 0) {

@@ -2020,7 +2020,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
                         convertNCharToReadable((char *)row[col], length[col],
                                 tbuf, COMMAND_SIZE);
                         curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
-                                "\'%s\'", tbuf);
+                                "%s", tbuf);
                         break;
                     }
                 case TSDB_DATA_TYPE_TIMESTAMP:
