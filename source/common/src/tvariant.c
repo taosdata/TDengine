@@ -15,20 +15,65 @@
 #include "os.h"
 
 #include "taos.h"
-#include "thash.h"
 #include "taosdef.h"
+#include "thash.h"
 #include "ttime.h"
 #include "ttokendef.h"
 #include "ttypes.h"
 #include "tutil.h"
 #include "tvariant.h"
 
-#define SET_EXT_INFO(converted, res, minv, maxv, exti) do {                                                       \
-                                                        if (converted == NULL || exti == NULL || *converted == false) { break; }  \
-                                                        if ((res) < (minv)) { *exti = -1; break; }                                  \
-                                                        if ((res) > (maxv)) { *exti = 1; break; }                                   \
-                                                        assert(0);                                                                  \
-                                                       } while (0)
+#define SET_EXT_INFO(converted, res, minv, maxv, exti)              \
+  do {                                                              \
+    if (converted == NULL || exti == NULL || *converted == false) { \
+      break;                                                        \
+    }                                                               \
+    if ((res) < (minv)) {                                           \
+      *exti = -1;                                                   \
+      break;                                                        \
+    }                                                               \
+    if ((res) > (maxv)) {                                           \
+      *exti = 1;                                                    \
+      break;                                                        \
+    }                                                               \
+    assert(0);                                                      \
+  } while (0)
+
+int32_t toInteger(const char* z, int32_t n, int32_t base, int64_t* value, bool* isSigned) {
+  errno = 0;
+  char* endPtr = NULL;
+
+  int32_t index = 0;
+
+  bool specifiedSign = (z[0] == '+' || z[0] == '-');
+  if (specifiedSign) {
+    *isSigned = true;
+    index = 1;
+  }
+
+  uint64_t val = strtoull(&z[index], &endPtr, base);
+  if (errno == ERANGE || errno == EINVAL) {
+    errno = 0;
+    return -1;
+  }
+
+  if (specifiedSign && val > INT64_MAX) {
+    return -1;
+  }
+
+  if (endPtr - &z[index] != n - index) {
+    return -1;
+  }
+
+  *isSigned = specifiedSign || (val <= INT64_MAX);
+  if (*isSigned) {
+    *value = (z[0] == '-')? -val:val;
+  } else {
+    *(uint64_t*) value = val;
+  }
+
+  return 0;
+}
 
 void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
   int32_t ret = 0;
@@ -43,7 +88,6 @@ void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
       } else {
         return;
       }
-
       break;
     }
 
@@ -51,38 +95,38 @@ void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_INT:{
-//      ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
-//      if (ret != 0) {
-//        SToken t = {0};
-//        tGetToken(token->z, &t.type);
-//        if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
-//          pVar->nType = -1;   // -1 means error type
-//          return;
-//        }
-//
-//        // data overflow, try unsigned parse the input number
-//        ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
-//        if (ret != 0) {
-//          pVar->nType = -1;   // -1 means error type
-//          return;
-//        }
-//      }
+      bool sign = true;
 
+      int32_t base = 10;
+      if (type == TK_HEX) {
+        base = 16;
+      } else if (type == TK_OCT) {
+        base = 8;
+      } else if (type == TK_BIN) {
+        base = 2;
+      }
+
+      ret = toInteger(z, n, base, &pVar->i64, &sign);
+      if (ret != 0) {
+        pVar->nType = -1;   // -1 means error type
+        return;
+      }
+
+      pVar->nType = (sign)? TSDB_DATA_TYPE_BIGINT:TSDB_DATA_TYPE_UBIGINT;
       break;
     }
-
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_FLOAT: {
       pVar->d = strtod(z, NULL);
       break;
     }
-
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(z, n);
       pVar->nLen = strRmquote(pVar->pz, n);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
+      assert(0);
       pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);                           
       break;                             
     }                            
@@ -94,7 +138,6 @@ void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
   
   pVar->nType = type;
 }
-
 
 /**
  * create SVariant from binary string, not ascii data
@@ -901,7 +944,7 @@ int32_t taosVariantDump(SVariant *pVariant, char *payload, int16_t type, bool in
  *
  * It is actually the bigint/binary/bool/nchar type transfer
  */
-int32_t tVariantTypeSetType(SVariant *pVariant, char type) {
+int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
   if (pVariant == NULL || pVariant->nType == 0) {  // value is not set
     return 0;
   }

@@ -11,3 +11,5 @@ target_link_libraries(
     PUBLIC util
     INTERFACE api
 )
+
+ADD_SUBDIRECTORY(test)

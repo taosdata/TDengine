@@ -17,6 +17,8 @@
 #define TDENGINE_COMMON_H
 
 #include "taosdef.h"
+#include "taosmsg.h"
+#include "tarray.h"
 
 //typedef struct STimeWindow {
 //  TSKEY skey;
@@ -35,5 +37,33 @@
 //  int16_t colId;
 //  int16_t bytes;
 //} SSchema;
+
+typedef struct SColumnDataAgg {
+  int16_t colId;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+} SColumnDataAgg;
+
+typedef struct SDataBlockInfo {
+  STimeWindow window;
+  int32_t     rows;
+  int32_t     numOfCols;
+  int64_t     uid;
+} SDataBlockInfo;
+
+typedef struct SSDataBlock {
+  SColumnDataAgg *pBlockAgg;
+  SArray         *pDataBlock;   // SArray<SColumnInfoData>
+  SDataBlockInfo info;
+} SSDataBlock;
+
+typedef struct SColumnInfoData {
+  SColumnInfo info;     // TODO filter info needs to be removed
+  char       *pData;    // the corresponding block data in memory
+} SColumnInfoData;
 
 #endif  // TDENGINE_COMMON_H

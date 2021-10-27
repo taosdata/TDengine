@@ -14,3 +14,11 @@
  */
 
 #include "catalogInt.h"
+
+struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
+  return NULL;
+}
+
+int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
+  return 0;
+}

@@ -325,7 +325,7 @@ alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = str
 alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
 alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
-%type typename {TAOS_FIELD}
+%type typename {SField}
 typename(A) ::= ids(X). { 
   X.type = 0;
   tSetColumnType (&A, &X);
@@ -425,11 +425,11 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
   setCreatedTableName(pInfo, &V, &U);
 }
 
-%type column{TAOS_FIELD}
+%type column{SField}
 %type columnlist{SArray*}
 %destructor columnlist {taosArrayDestroy($$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {taosArrayPush(X, &Y); A = X;  }
-columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
+columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(SField)); taosArrayPush(A, &X);}
 
 // The information used for a column is the name and type of column:
 // tinyint smallint int bigint float double bool timestamp binary(x) nchar(x)
@@ -601,7 +601,7 @@ fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     toTSDBType(Y.type);
     taosVariantCreate(&A, Y.z, Y.n, Y.type);
 
-    tVariantListInsert(X, &A, -1, 0);
+    tListItemInsert(X, &A, -1, 0);
     N = X;
 }
 
@@ -719,10 +719,10 @@ expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
-expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tAppendFuncName(pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
+expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tRecordFuncName(pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
 
 // for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
-expr(A) ::= ID(X) LP STAR RP(Y).     { tAppendFuncName(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
+expr(A) ::= ID(X) LP STAR RP(Y).     { tRecordFuncName(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
 
 // is (not) null expression
 expr(A) ::= expr(X) IS NULL.           {A = tSqlExprCreate(X, NULL, TK_ISNULL);}

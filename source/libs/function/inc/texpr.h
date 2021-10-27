@@ -25,7 +25,7 @@ extern "C" {
 #include "taosmsg.h"
 #include "taosdef.h"
 #include "tskiplist.h"
-#include "tbuffer.h"
+#include "function.h"
 
 struct tExprNode;
 struct SSchema;
@@ -43,13 +43,6 @@ struct SSchema;
 typedef bool (*__result_filter_fn_t)(const void *, void *);
 typedef void (*__do_filter_suppl_fn_t)(void *, void *);
 
-enum {
-  TSQL_NODE_DUMMY = 0x0,
-  TSQL_NODE_EXPR  = 0x1,
-  TSQL_NODE_COL   = 0x2,
-  TSQL_NODE_VALUE = 0x4,
-};
-
 /**
  * this structure is used to filter data in tags, so the offset of filtered tag column in tagdata string is required
  */
@@ -61,36 +54,15 @@ typedef struct tQueryInfo {
   bool          indexed;  // indexed columns
 } tQueryInfo;
 
-typedef struct tExprNode {
-  uint8_t nodeType;
-  union {
-    struct {
-      uint8_t           optr;   // filter operator
-      uint8_t           hasPK;  // 0: do not contain primary filter, 1: contain
-      void             *info;   // support filter operation on this expression only available for leaf node
-      struct tExprNode *pLeft;  // left child pointer
-      struct tExprNode *pRight; // right child pointer
-    } _node;
-
-    SSchema            *pSchema;
-    struct SVariant    *pVal;
-  };
-} tExprNode;
-
 typedef struct SExprTraverseSupp {
   __result_filter_fn_t   nodeFilterFn;
   __do_filter_suppl_fn_t setupInfoFn;
   void                  *pExtInfo;
 } SExprTraverseSupp;
 
-void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
-
-void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
 tExprNode* exprdup(tExprNode* pTree);
-
-void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 

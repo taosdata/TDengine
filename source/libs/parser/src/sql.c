@@ -108,13 +108,13 @@ typedef union {
   int yy130;
   SArray* yy135;
   SIntervalVal yy160;
-  TAOS_FIELD yy181;
   SVariant yy191;
   SLimit yy247;
   SCreateDbInfo yy256;
   SWindowStateVal yy258;
   int32_t yy262;
   SCreateAcctInfo yy277;
+  SField yy304;
   SRelationInfo* yy460;
   SSqlNode* yy488;
   SSessionWindowVal yy511;
@@ -2431,10 +2431,10 @@ static void yy_reduce(
 { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy256, &yymsp[-2].minor.yy0);}
         break;
       case 62: /* cmd ::= CREATE FUNCTION ids AS ids OUTPUTTYPE typename bufsize */
-{ setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy181, &yymsp[0].minor.yy0, 1);}
+{ setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy304, &yymsp[0].minor.yy0, 1);}
         break;
       case 63: /* cmd ::= CREATE AGGREGATE FUNCTION ids AS ids OUTPUTTYPE typename bufsize */
-{ setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy181, &yymsp[0].minor.yy0, 2);}
+{ setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &yymsp[-5].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy304, &yymsp[0].minor.yy0, 2);}
         break;
       case 64: /* cmd ::= CREATE USER ids PASS ids */
 { setCreateUserSql(pInfo, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);}
@@ -2601,29 +2601,29 @@ static void yy_reduce(
       case 133: /* typename ::= ids */
 { 
   yymsp[0].minor.yy0.type = 0;
-  tSetColumnType (&yylhsminor.yy181, &yymsp[0].minor.yy0);
+  tSetColumnType (&yylhsminor.yy304, &yymsp[0].minor.yy0);
 }
-  yymsp[0].minor.yy181 = yylhsminor.yy181;
+  yymsp[0].minor.yy304 = yylhsminor.yy304;
         break;
       case 134: /* typename ::= ids LP signed RP */
 {
   if (yymsp[-1].minor.yy531 <= 0) {
     yymsp[-3].minor.yy0.type = 0;
-    tSetColumnType(&yylhsminor.yy181, &yymsp[-3].minor.yy0);
+    tSetColumnType(&yylhsminor.yy304, &yymsp[-3].minor.yy0);
   } else {
     yymsp[-3].minor.yy0.type = -yymsp[-1].minor.yy531;  // negative value of name length
-    tSetColumnType(&yylhsminor.yy181, &yymsp[-3].minor.yy0);
+    tSetColumnType(&yylhsminor.yy304, &yymsp[-3].minor.yy0);
   }
 }
-  yymsp[-3].minor.yy181 = yylhsminor.yy181;
+  yymsp[-3].minor.yy304 = yylhsminor.yy304;
         break;
       case 135: /* typename ::= ids UNSIGNED */
 {
   yymsp[-1].minor.yy0.type = 0;
   yymsp[-1].minor.yy0.n = ((yymsp[0].minor.yy0.z + yymsp[0].minor.yy0.n) - yymsp[-1].minor.yy0.z);
-  tSetColumnType (&yylhsminor.yy181, &yymsp[-1].minor.yy0);
+  tSetColumnType (&yylhsminor.yy304, &yymsp[-1].minor.yy0);
 }
-  yymsp[-1].minor.yy181 = yylhsminor.yy181;
+  yymsp[-1].minor.yy304 = yylhsminor.yy304;
         break;
       case 136: /* signed ::= INTEGER */
 { yylhsminor.yy531 = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
@@ -2711,18 +2711,18 @@ static void yy_reduce(
   yymsp[-4].minor.yy110 = yylhsminor.yy110;
         break;
       case 152: /* columnlist ::= columnlist COMMA column */
-{taosArrayPush(yymsp[-2].minor.yy135, &yymsp[0].minor.yy181); yylhsminor.yy135 = yymsp[-2].minor.yy135;  }
+{taosArrayPush(yymsp[-2].minor.yy135, &yymsp[0].minor.yy304); yylhsminor.yy135 = yymsp[-2].minor.yy135;  }
   yymsp[-2].minor.yy135 = yylhsminor.yy135;
         break;
       case 153: /* columnlist ::= column */
-{yylhsminor.yy135 = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(yylhsminor.yy135, &yymsp[0].minor.yy181);}
+{yylhsminor.yy135 = taosArrayInit(4, sizeof(SField)); taosArrayPush(yylhsminor.yy135, &yymsp[0].minor.yy304);}
   yymsp[0].minor.yy135 = yylhsminor.yy135;
         break;
       case 154: /* column ::= ids typename */
 {
-  tSetColumnInfo(&yylhsminor.yy181, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy181);
+  tSetColumnInfo(&yylhsminor.yy304, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy304);
 }
-  yymsp[-1].minor.yy181 = yylhsminor.yy181;
+  yymsp[-1].minor.yy304 = yylhsminor.yy304;
         break;
       case 161: /* tagitem ::= NULL */
 { yymsp[0].minor.yy0.type = 0; taosVariantCreate(&yylhsminor.yy191, yymsp[0].minor.yy0.z, yymsp[0].minor.yy0.n, yymsp[0].minor.yy0.type); }
@@ -2893,7 +2893,7 @@ static void yy_reduce(
     toTSDBType(yymsp[-3].minor.yy0.type);
     taosVariantCreate(&A, yymsp[-3].minor.yy0.z, yymsp[-3].minor.yy0.n, yymsp[-3].minor.yy0.type);
 
-    tVariantListInsert(yymsp[-1].minor.yy135, &A, -1, 0);
+    tListItemInsert(yymsp[-1].minor.yy135, &A, -1, 0);
     yymsp[-5].minor.yy135 = yymsp[-1].minor.yy135;
 }
         break;
@@ -3049,11 +3049,11 @@ static void yy_reduce(
   yymsp[0].minor.yy526 = yylhsminor.yy526;
         break;
       case 247: /* expr ::= ID LP exprlist RP */
-{ tAppendFuncName(pInfo->funcs, &yymsp[-3].minor.yy0); yylhsminor.yy526 = tSqlExprCreateFunction(yymsp[-1].minor.yy135, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type); }
+{ tRecordFuncName(pInfo->funcs, &yymsp[-3].minor.yy0); yylhsminor.yy526 = tSqlExprCreateFunction(yymsp[-1].minor.yy135, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type); }
   yymsp[-3].minor.yy526 = yylhsminor.yy526;
         break;
       case 248: /* expr ::= ID LP STAR RP */
-{ tAppendFuncName(pInfo->funcs, &yymsp[-3].minor.yy0); yylhsminor.yy526 = tSqlExprCreateFunction(NULL, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type); }
+{ tRecordFuncName(pInfo->funcs, &yymsp[-3].minor.yy0); yylhsminor.yy526 = tSqlExprCreateFunction(NULL, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type); }
   yymsp[-3].minor.yy526 = yylhsminor.yy526;
         break;
       case 249: /* expr ::= expr IS NULL */
