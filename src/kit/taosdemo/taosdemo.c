@@ -9862,7 +9862,8 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         batchPerTblTimes = 1;
     }
 
-    char *smlHead[pThreadInfo->ntables];
+    char *smlHead = calloc(pThreadInfo->ntables, sizeof(char *));
+    assert(smlHead);
     for (int t = 0; t < pThreadInfo->ntables; t++) {
         smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
         if (NULL == smlHead[t]) {
@@ -10463,7 +10464,8 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
     pThreadInfo->samplePos = 0;
 
-    char *smlHead[pThreadInfo->ntables];
+    char *smlHead = calloc(pThreadInfo->ntables, sizeof(char *));
+    assert(smlHead);
     for (int t = 0; t < pThreadInfo->ntables; t++) {
         smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
         if (NULL == smlHead[t]) {
