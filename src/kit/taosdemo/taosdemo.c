@@ -7080,10 +7080,9 @@ static int prepareSampleForStb(SSuperTable *stbInfo) {
     return 0;
 }
 
-static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
+static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, SSuperTable* stbInfo)
 {
     int32_t affectedRows;
-    SSuperTable* stbInfo = pThreadInfo->stbInfo;
     TAOS_RES* res;
     int32_t code;
     uint16_t iface;
@@ -7128,10 +7127,10 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
 
         case STMT_IFACE:
             debugPrint("%s() LN%d, stmt=%p",
-                    __func__, __LINE__, pThreadInfo->stmt);
-            if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
+                    __func__, __LINE__, g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt);
+            if (0 != taos_stmt_execute(g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt)) {
                 errorPrint2("%s() LN%d, failied to execute insert statement. reason: %s\n",
-                        __func__, __LINE__, taos_stmt_errstr(pThreadInfo->stmt));
+                        __func__, __LINE__, taos_stmt_errstr(g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt));
 
                 fprintf(stderr, "\n\033[31m === Please reduce batch number if WAL size exceeds limit. ===\033[0m\n\n");
                 exit(EXIT_FAILURE);
@@ -8285,7 +8284,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
 {
     int ret;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    TAOS_STMT *stmt = pThreadInfo->stmt;
+    TAOS_STMT *stmt = g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt;
 
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
         char* tagsValBuf = NULL;
@@ -8350,7 +8349,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
     for (k = 0; k < batch;) {
         /* columnCount + 1 (ts) */
         if (-1 == prepareStbStmtBindRand(
-                    pThreadInfo->bind_ts,
+                    g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->bind_ts : stbInfo->bind_ts,
                     bindArray, stbInfo,
                     startTime, k,
                     pThreadInfo->time_precision
@@ -8389,6 +8388,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
 #if STMT_BIND_PARAM_BATCH == 1
 static int execStbBindParamBatch(
         threadInfo *pThreadInfo,
+        SSuperTable* stbInfo,
         char *tableName,
         int64_t tableSeq,
         uint32_t batch,
@@ -8398,12 +8398,10 @@ static int execStbBindParamBatch(
         int64_t *pSamplePos)
 {
     int ret;
-    TAOS_STMT *stmt = pThreadInfo->stmt;
 
-    SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    assert(stbInfo);
+    TAOS_STMT *stmt = (g_insertType==INTERLACE_INSERT_MODE) ? pThreadInfo->stmt: stbInfo->stmt;
 
-    uint32_t columnCount = pThreadInfo->stbInfo->columnCount;
+    uint32_t columnCount = stbInfo->columnCount;
 
     uint32_t thisBatch = MAX_SAMPLES - (*pSamplePos);
 
@@ -8413,19 +8411,32 @@ static int execStbBindParamBatch(
     verbosePrint("%s() LN%d, batch=%d pos=%"PRId64" thisBatch=%d\n",
             __func__, __LINE__, batch, *pSamplePos, thisBatch);
 
-    memset(pThreadInfo->bindParams, 0,
-            (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
-    memset(pThreadInfo->is_null, 0, thisBatch);
+    if (g_insertType==INTERLACE_INSERT_MODE) {
+        memset(pThreadInfo->bindParams, 0, (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
+        memset(pThreadInfo->is_null, 0, thisBatch);
+    } else {
+        memset(stbInfo->bindParams, 0, (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
+        memset(stbInfo->is_null, 0, thisBatch);
+    }
 
     for (int c = 0; c < columnCount + 1; c ++) {
-        TAOS_MULTI_BIND *param = (TAOS_MULTI_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
+        TAOS_MULTI_BIND *param = NULL;
+        if (g_insertType==INTERLACE_INSERT_MODE) {
+            param = (TAOS_MULTI_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
+        } else {
+            param = (TAOS_MULTI_BIND *)(stbInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
+        }
 
         char data_type;
 
         if (c == 0) {
             data_type = TSDB_DATA_TYPE_TIMESTAMP;
             param->buffer_length = sizeof(int64_t);
-            param->buffer = pThreadInfo->bind_ts_array;
+            if (g_insertType==INTERLACE_INSERT_MODE) {
+                param->buffer = pThreadInfo->bind_ts_array;
+            } else {
+                param->buffer = stbInfo->bind_ts_array;
+            }
 
         } else {
             data_type = stbInfo->columns[c-1].data_type;
@@ -8549,7 +8560,11 @@ static int execStbBindParamBatch(
                 param->length[b] = param->buffer_length;
             }
         }
-        param->is_null = pThreadInfo->is_null;
+        if (g_insertType==INTERLACE_INSERT_MODE) {
+            param->is_null = pThreadInfo->is_null;
+        } else {
+            param->is_null = stbInfo->is_null;
+        }
         param->num = thisBatch;
     }
 
@@ -8562,7 +8577,11 @@ static int execStbBindParamBatch(
                     stbInfo->disorderRatio,
                     stbInfo->disorderRange);
         } else {
-            *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timeStampStep * k;
+            if (g_insertType == INTERLACE_INSERT_MODE) {
+                *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timeStampStep * k;
+            } else {
+                *(stbInfo->bind_ts_array + k) = startTime + stbInfo->timeStampStep * k;
+            }
         }
 
         debugPrint("%s() LN%d, k=%d ts=%"PRId64"\n",
@@ -8581,7 +8600,12 @@ static int execStbBindParamBatch(
         }
     }
 
-    ret = taos_stmt_bind_param_batch(stmt, (TAOS_MULTI_BIND *)pThreadInfo->bindParams);
+    if (g_insertType==INTERLACE_INSERT_MODE) {
+        ret = taos_stmt_bind_param_batch(stmt, (TAOS_MULTI_BIND *) pThreadInfo->bindParams);
+    } else {
+        ret = taos_stmt_bind_param_batch(stmt, (TAOS_MULTI_BIND *) stbInfo->bindParams);
+    }
+    
     if (0 != ret) {
         errorPrint2("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
                 __func__, __LINE__, taos_stmt_errstr(stmt));
@@ -8589,7 +8613,7 @@ static int execStbBindParamBatch(
     }
 
     for (int c = 0; c < stbInfo->columnCount + 1; c ++) {
-        TAOS_MULTI_BIND *param = (TAOS_MULTI_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
+        TAOS_MULTI_BIND *param = (TAOS_MULTI_BIND *)(g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->bindParams : stbInfo->bindParams + sizeof(TAOS_MULTI_BIND) * c);
         free(param->length);
     }
 
@@ -8821,11 +8845,20 @@ static int parseSampleToStmtBatchForThread(
 {
     uint32_t columnCount = (stbInfo)?stbInfo->columnCount:g_args.columnCount;
 
-    pThreadInfo->bind_ts_array = malloc(sizeof(int64_t) * batch);
-    assert(pThreadInfo->bind_ts_array);
+    if (g_insertType==INTERLACE_INSERT_MODE) {
+        pThreadInfo->bind_ts_array = malloc(sizeof(int64_t) * batch);
+    } else {
+        stbInfo->bind_ts_array = malloc(sizeof(int64_t) * batch);
+    }
+    
+    assert(g_insertType==INTERLACE_INSERT_MODE ? g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->bind_ts : stbInfo->bind_ts_array : stbInfo->bind_ts_array);
 
-    pThreadInfo->bindParams = malloc(sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
-    assert(pThreadInfo->bindParams);
+    if (g_insertType==INTERLACE_INSERT_MODE) {
+        pThreadInfo->bindParams = malloc(sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
+    } else {
+        stbInfo->bindParams = malloc(sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
+    }
+    assert(g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->bindParams : stbInfo->bindParams);
 
     pThreadInfo->is_null = malloc(batch);
     assert(pThreadInfo->is_null);
@@ -9001,7 +9034,7 @@ static uint32_t execBindParam(
 {
     int ret;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    TAOS_STMT *stmt = pThreadInfo->stmt;
+    TAOS_STMT *stmt = g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt;
 
     uint32_t k;
     for (k = 0; k < batch;) {
@@ -9010,7 +9043,7 @@ static uint32_t execBindParam(
         /* columnCount + 1 (ts) */
         if (-1 == prepareStbStmtBindStartTime(
                     tableName,
-                    pThreadInfo->bind_ts,
+                    g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->bind_ts : stbInfo->bind_ts,
                     bindArray, stbInfo,
                     startTime, k
                     /* is column */)) {
@@ -9049,6 +9082,7 @@ static uint32_t execBindParam(
 
 static int32_t prepareStbStmt(
         threadInfo *pThreadInfo,
+        SSuperTable *stbInfo,
         char *tableName,
         int64_t tableSeq,
         uint32_t batch,
@@ -9058,8 +9092,12 @@ static int32_t prepareStbStmt(
         int64_t *pSamplePos)
 {
     int ret;
-    SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    TAOS_STMT *stmt = pThreadInfo->stmt;
+    TAOS_STMT *stmt = NULL;
+    if (g_insertType==INTERLACE_INSERT_MODE) {
+        stmt = pThreadInfo->stmt;
+    } else {
+        stmt = stbInfo->stmt;   
+    }
 
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
         char* tagsValBuf = NULL;
@@ -9116,6 +9154,7 @@ static int32_t prepareStbStmt(
 #if STMT_BIND_PARAM_BATCH == 1
     return execStbBindParamBatch(
         pThreadInfo,
+        stbInfo,
         tableName,
         tableSeq,
         batch,
@@ -9319,6 +9358,7 @@ static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t inter
                 if (stbInfo) {
                     generated = prepareStbStmt(
                             pThreadInfo,
+                            NULL,
                             tableName,
                             tableSeq,
                             batch,
@@ -9355,7 +9395,7 @@ static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t inter
 
                 startTs = taosGetTimestampUs();
 
-                int64_t affectedRows = execInsert(pThreadInfo, generated);
+                int64_t affectedRows = execInsert(pThreadInfo, generated, stbInfo);
 
                 endTs = taosGetTimestampUs();
                 uint64_t delay = endTs - startTs;
@@ -10022,7 +10062,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                     maxSqlLen, batchPerTbl);
             goto free_of_interlace;
         }
-        int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
+        int64_t affectedRows = execInsert(pThreadInfo, recOfBatch, stbInfo);
 
         endTs = taosGetTimestampUs();
         uint64_t delay = endTs - startTs;
@@ -10292,7 +10332,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows)
                     maxSqlLen, batchPerTbl);
             goto free_of_interlace;
         }
-        int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
+        int64_t affectedRows = execInsert(pThreadInfo, recOfBatch, stbInfo);
 
         endTs = taosGetTimestampUs();
         uint64_t delay = endTs - startTs;
@@ -10388,6 +10428,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             if (stbInfo->iface == STMT_IFACE) {
                 generated = prepareStbStmt(
                         pThreadInfo,
+                        stbInfo,
                         tbInfo->tbName,
                         tbInfo->tbSeq,
                         (g_args.reqPerReq>stbInfo->insertRows)?
@@ -10450,7 +10491,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             // only measure insert
             // startTs = taosGetTimestampUs();
 
-            int32_t affectedRows = execInsert(pThreadInfo, generated);
+            int32_t affectedRows = execInsert(pThreadInfo, generated, stbInfo);
 
             endTs = taosGetTimestampUs();
             if(stbInfo->iface == TAOSC_IFACE || stbInfo->iface == REST_IFACE) {
@@ -10919,8 +10960,13 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     || ((stbInfo)
                         && (stbInfo->iface == STMT_IFACE))) {
 
-                pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
-                if (NULL == pThreadInfo->stmt) {
+                if (g_insertType==INTERLACE_INSERT_MODE) {
+                    pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
+                } else {
+                    stbInfo->stmt = taos_stmt_init(pThreadInfo->taos);
+                }
+                if ( (g_insertType==INTERLACE_INSERT_MODE) ? (NULL == pThreadInfo->stmt)
+                : (NULL ==stbInfo->stmt)) {
                     free(pids);
                     free(infos);
                     errorPrint2(
@@ -10930,15 +10976,19 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     exit(EXIT_FAILURE);
                 }
 
-                if (0 != taos_stmt_prepare(pThreadInfo->stmt, stmtBuffer, 0)) {
+                if (0 != taos_stmt_prepare(g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt, stmtBuffer, 0)) {
                     free(pids);
                     free(infos);
                     free(stmtBuffer);
                     errorPrint2("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
-                            ret, taos_stmt_errstr(pThreadInfo->stmt));
+                            ret, taos_stmt_errstr(g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt));
                     exit(EXIT_FAILURE);
                 }
-                pThreadInfo->bind_ts = malloc(sizeof(int64_t));
+                if (g_insertType==INTERLACE_INSERT_MODE) {
+                    pThreadInfo->bind_ts = malloc(sizeof(int64_t));
+                } else {
+                    stbInfo->bind_ts = malloc(sizeof(int64_t));
+                }
 
                 if (stbInfo) {
 #if STMT_BIND_PARAM_BATCH == 1
@@ -11028,14 +11078,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         tsem_destroy(&(pThreadInfo->lock_sem));
         taos_close(pThreadInfo->taos);
 
-        if (pThreadInfo->stmt) {
-            taos_stmt_close(pThreadInfo->stmt);
+        if (g_insertType==INTERLACE_INSERT_MODE ? pThreadInfo->stmt: stbInfo->stmt) {
+            taos_stmt_close((g_insertType==INTERLACE_INSERT_MODE) ? pThreadInfo->stmt: stbInfo->stmt);
         }
 
-        tmfree((char *)pThreadInfo->bind_ts);
+        tmfree((g_insertType==INTERLACE_INSERT_MODE) ? pThreadInfo->bind_ts : stbInfo->bind_ts);
 #if STMT_BIND_PARAM_BATCH == 1
-        tmfree((char *)pThreadInfo->bind_ts_array);
-        tmfree(pThreadInfo->bindParams);
+        tmfree((g_insertType==INTERLACE_INSERT_MODE) ? g_insertType==INTERLACE_INSERT_MODE ?
+            pThreadInfo->bind_ts : stbInfo->bind_ts_array : stbInfo->bind_ts_array);
+        tmfree((g_insertType==INTERLACE_INSERT_MODE) ? pThreadInfo->bindParams : stbInfo->bindParams);
         tmfree(pThreadInfo->is_null);
         if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
 #ifdef WINDOWS
@@ -11231,7 +11282,7 @@ static void *queryNtableAggrFunc(void *sarg) {
     return NULL;
 }
 
-static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo) {
+static int setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo) {
     int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
     if (0 != precision[0]) {
         if (0 == strncasecmp(precision, "ms", 2)) {
@@ -11242,7 +11293,7 @@ static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo
             timePrec = TSDB_TIME_PRECISION_NANO;
         } else {
             errorPrint2("Not support precision: %s\n", precision);
-            exit(EXIT_FAILURE);
+            return -1;
         }
     }        
     if (0 == strncasecmp(stbInfo->startTimestamp, "now", 3)) {
@@ -11253,7 +11304,8 @@ static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo
                     &stbInfo->startTime,
                     strlen(stbInfo->startTimestamp),
                     timePrec, 0)) {
-            ERROR_EXIT("failed to parse time!\n");
+            errorPrint2("%s() LN%d, failed to parse time!\n",__func__, __LINE__);
+            return -1;
         }
     }
     debugPrint("%s() LN%d, startTime= %"PRId64"\n",
@@ -11267,13 +11319,14 @@ static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo
     if (0 != ret) {
         errorPrint2("%s() LN%d, prepare sample data for stable failed!\n",
                 __func__, __LINE__);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     if (stbInfo->iface == REST_IFACE) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
-            ERROR_EXIT("convert host to server address");
+            errorPrint2("%s() LN%d, failed to convert host to server address\n", __func__, __LINE__);
+            return -1;
         }
     }
 
@@ -11311,7 +11364,7 @@ static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo
                     "%s() LN%d, connect to server fail from insert sub thread, reason: %s\n",
                     __func__, __LINE__,
                     taos_errstr(NULL));
-            exit(EXIT_FAILURE);
+            return -1;
         }
         stbInfo->stmt = taos_stmt_init(taos);
         if (NULL == stbInfo->stmt) {
@@ -11319,28 +11372,35 @@ static void setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo
                     "%s() LN%d, failed init stmt, reason: %s\n",
                     __func__, __LINE__,
                     taos_errstr(NULL));
-            exit(EXIT_FAILURE);
+            return -1;
         }
 
         if (0 != taos_stmt_prepare(stbInfo->stmt, stmtBuffer, 0)) {
             errorPrint2("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
                     ret, taos_stmt_errstr(stbInfo->stmt));
-            exit(EXIT_FAILURE);
+            return -1;
         }
         stbInfo->bind_ts = malloc(sizeof(int64_t));
 
         parseSampleToStmtBatchForStb(stbInfo, g_args.reqPerReq);
+        free(stmtBuffer);
     }
+
+    return 0;
         
 }
 
 static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char* precision) {
 
     int threads = g_Dbs.threadCount;
-    
+    int32_t code = 0;
     uint64_t tableFrom = 0;
     for (uint64_t i = 0; i < g_Dbs.db[dbNum].superTblCount; i++) {
-        setUpStableInfo(precision, db_name, &g_Dbs.db[dbNum].superTbls[i]);
+        code = setUpStableInfo(precision, db_name, &g_Dbs.db[dbNum].superTbls[i]);
+        if (0 != code) {
+            errorPrint2("%s() LN%d, failed to set up stable info, num: %"PRIu64"\n", __func__, __LINE__, i);
+            exit(EXIT_FAILURE);
+        }
     }
     int64_t a = g_totalChildTables / threads;
     if (a < 1) {
@@ -11461,11 +11521,11 @@ static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char
     double  avgDelay = 0;
 
     for (uint64_t i = 0; i < g_Dbs.db[dbNum].superTblCount; i++) {
-        SSuperTable* stbInfo = g_Dbs.db[dbNum].superTbls;
+        SSuperTable* stbInfo = &(g_Dbs.db[dbNum].superTbls[i]);
         if (stbInfo->stmt) {
             taos_stmt_close(stbInfo->stmt);
-            tmfree((char *)stbInfo->bind_ts);
-            tmfree((char *)stbInfo->bind_ts_array);
+            tmfree(stbInfo->bind_ts);
+            tmfree(stbInfo->bind_ts_array);
             tmfree(stbInfo->bindParams);
             tmfree(stbInfo->is_null);
         }
