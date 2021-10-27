@@ -3548,7 +3548,7 @@ static int postProceSql(char *host, uint16_t port,
 
     do {
 #ifdef WINDOWS
-        bytes = recv(pThreadInfo->sockfds, response_buf + received, resp_len - received, 0);
+        bytes = recv(pThreadInfo->sockfd, response_buf + received, resp_len - received, 0);
 #else
         bytes = read(pThreadInfo->sockfd, response_buf + received, resp_len - received);
 #endif
