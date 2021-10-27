@@ -1435,58 +1435,65 @@ static bool isNchar(char *pVal, uint16_t len) {
   return false;
 }
 
-static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSmlLinesInfo* info) {
+static int32_t isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSmlLinesInfo* info) {
   if (len == 0) {
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
   if ((len == 1) && pVal[0] == '0') {
     *tsType = SML_TIME_STAMP_NOW;
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
 
-  //Default no appendix
-  if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
-    if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
-      if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
-        *tsType = info->tsType;
-      } else {
-        *tsType = SML_TIME_STAMP_NANO_SECONDS;
-      }
-    } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
-      if (len == SML_TIMESTAMP_SECOND_DIGITS) {
-        *tsType = SML_TIME_STAMP_SECONDS;
-      } else if (len == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
-        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-      } else {
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
-      }
+  for (int i = 0; i < len; ++i) {
+    if(!isdigit(pVal[i])) {
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-    return true;
   }
 
-  if (pVal[len - 1] == 's') {
-    switch (pVal[len - 2]) {
-      case 'm':
-        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-        break;
-      case 'u':
-        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-        break;
-      case 'n':
-        *tsType = SML_TIME_STAMP_NANO_SECONDS;
-        break;
-      default:
-        if (isdigit(pVal[len - 2])) {
-          *tsType = SML_TIME_STAMP_SECONDS;
-          break;
-        } else {
-          return false;
-        }
+  /* For InfluxDB line protocol use user passed timestamp precision
+   * For OpenTSDB protocols only 10 digit(seconds) or 13 digits(milliseconds)
+   *     precision allowed
+   */
+  if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
+    if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
+      *tsType = info->tsType;
+    } else {
+      *tsType = SML_TIME_STAMP_NANO_SECONDS;
     }
-    //printf("Type is timestamp(%s)\n", pVal);
-    return true;
+  } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
+    if (len == SML_TIMESTAMP_SECOND_DIGITS) {
+      *tsType = SML_TIME_STAMP_SECONDS;
+    } else if (len == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
+      *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+    } else {
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    }
   }
-  return false;
+  return TSDB_CODE_SUCCESS;
+
+  //if (pVal[len - 1] == 's') {
+  //  switch (pVal[len - 2]) {
+  //    case 'm':
+  //      *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+  //      break;
+  //    case 'u':
+  //      *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+  //      break;
+  //    case 'n':
+  //      *tsType = SML_TIME_STAMP_NANO_SECONDS;
+  //      break;
+  //    default:
+  //      if (isdigit(pVal[len - 2])) {
+  //        *tsType = SML_TIME_STAMP_SECONDS;
+  //        break;
+  //      } else {
+  //        return false;
+  //      }
+  //  }
+  //  //printf("Type is timestamp(%s)\n", pVal);
+  //  return true;
+  //}
+  //return false;
 }
 
 static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info) {
@@ -1750,14 +1757,6 @@ bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
 static int32_t getTimeStampValue(char *value, uint16_t len,
                                  SMLTimeStampType type, int64_t *ts, SSmlLinesInfo* info) {
 
-  if (len >= 2) {
-    for (int i = 0; i < len - 2; ++i) {
-      if(!isdigit(value[i])) {
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
-      }
-    }
-  }
-
   //No appendix or no timestamp given (len = 0)
   if (len != 0 && type != SML_TIME_STAMP_NOW) {
     *ts = (int64_t)strtoll(value, NULL, 10);
@@ -1806,13 +1805,13 @@ int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   SMLTimeStampType type;
   int64_t tsVal;
 
-  strntolower_s(value, value, len);
-  if (!isTimeStamp(value, len, &type, info)) {
-    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+  ret = isTimeStamp(value, len, &type, info);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
   }
 
   ret = getTimeStampValue(value, len, type, &tsVal, info);
-  if (ret) {
+  if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
   tscDebug("SML:0x%"PRIx64"Timestamp after conversion:%"PRId64, info->id, tsVal);
