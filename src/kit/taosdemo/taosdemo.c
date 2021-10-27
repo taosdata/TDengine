@@ -3482,8 +3482,14 @@ static int postProceSql(char *host, uint16_t port,
         'w', 'x', 'y', 'z', '0', '1', '2', '3',
         '4', '5', '6', '7', '8', '9', '+', '/'};
 
-    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
-            g_Dbs.user, g_Dbs.password);
+    if (g_args.test_mode == INSERT_TEST) {
+        snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
+                g_Dbs.user, g_Dbs.password);
+    } else {
+        snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
+                g_queryInfo.user, g_queryInfo.password);
+    }
+
     size_t userpass_buf_len = strlen(userpass_buf);
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
@@ -12581,29 +12587,6 @@ static int subscribeTestProcess() {
     return 0;
 }
 
-static void initOfInsertMeta() {
-    memset(&g_Dbs, 0, sizeof(SDbs));
-
-    // set default values
-    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
-    g_Dbs.port = 6030;
-    tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
-    g_Dbs.threadCount = 2;
-
-    g_Dbs.use_metric = g_args.use_metric;
-}
-
-static void initOfQueryMeta() {
-    memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
-
-    // set default values
-    tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
-    g_queryInfo.port = 6030;
-    tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
-}
-
 static void setParaFromArg() {
     char type[20];
     char length[20];
@@ -12915,8 +12898,6 @@ int main(int argc, char *argv[]) {
 
     if (g_args.metaFile) {
         g_totalChildTables = 0;
-        initOfInsertMeta();
-        initOfQueryMeta();
 
         if (false == getInfoFromJsonFile(g_args.metaFile)) {
             printf("Failed to read %s\n", g_args.metaFile);
