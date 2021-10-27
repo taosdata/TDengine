@@ -815,9 +815,6 @@ try:
 except AttributeError:
     print("WARNING: libtaos(%s) does not support insert_lines" % taos_get_client_info())
 
-
-
-
 def taos_schemaless_insert(connection, lines, protocol, precision):
     # type: (c_void_p, list[str] | tuple(str)) -> None
     num_of_lines = len(lines)
