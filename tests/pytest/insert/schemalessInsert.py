@@ -435,66 +435,71 @@ class TDTestCase:
     
     def influxTsCheckCase(self):
         tdCom.cleanTb()
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1'
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 454093'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.HOUR.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 2'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 21:00:00")
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 454094'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.HOUR.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 3'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 22:00:00")
+
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 27245538'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MINUTE.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 4'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:18:00")
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 27245539'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MINUTE.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 5'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:19:00")
+
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1634731694'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 6'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:08:14")
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1634731695'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 7'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:08:15")
+
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1634731684002'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 8'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:08:04.002000")
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1634731684003'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 9'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:08:04.003000")
+
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1634731684000001'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MICRO_SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 10'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:08:04.000001")
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1634731684000002'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MICRO_SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 11'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-10-20 20:08:04.000002")
+
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
-        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 12'
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:33:53.639000")
+        input_sql = f'{tdCom.getLongName(len=10, mode="letters")},t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1626007833639000000'
         stb_name = input_sql.split(",")[0]
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        tdSql.query(f'select * from {stb_name}')
-        tdSql.checkData(0, 0, 0)
+        res = tdSql.query(f'select * from {stb_name}', True)
+        tdSql.checkEqual(str(res[0][0]), "2021-07-11 20:50:33.639000")
 
     def iuCheckCase(self):
         tdCom.cleanTb()
@@ -814,7 +819,6 @@ class TDTestCase:
             input_sql2 = f'{stb_name},t0=t,t1="abc{symbol}aaa" c0=f 1626006833639000000ns'
             self._conn.schemaless_insert([input_sql1], TDSmlProtocolType.LINE.value, None)
             self._conn.schemaless_insert([input_sql2], TDSmlProtocolType.LINE.value, None)
-        
 
     def duplicateIdTagColInsertCheckCase(self):
         """
@@ -1158,6 +1162,15 @@ class TDTestCase:
             stb_name = input_sql.split(",")[0]
             self.resCmp(input_sql, stb_name)
 
+    def tbnameTagsColsNameCheckCase(self):
+        input_sql = 'rFa$sta,id=rFas$ta_1,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?,=7u64 1626006933640000000ns'
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, None)
+        query_sql = 'select * from `rfa$sta`'
+        query_res = tdSql.query(query_sql, True)
+        tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+        col_tag_res = tdSql.getColNameList(query_sql)
+        tdSql.checkEqual(col_tag_res, ['_ts', 'c)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
             stb --> supertable
@@ -1415,11 +1428,10 @@ class TDTestCase:
         tdSql.checkRows(3)
 
     def test(self):
-        input_sql1 = "rfasta,id=rfasta_1,t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006933640000000ns"
-        input_sql2 = "rfasta,id=rfasta_1,t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006933640000000ns"
+        input_sql1 = "rfa$sta,id=rfas$ta_1,T!0=true,t@1=127i8,t#2=32767i16,t$3=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t(8=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c,9=7u64 1626006933640000000ns"
         try:
-            self._conn.schemaless_insert([input_sql1])
-            self._conn.schemaless_insert([input_sql2])
+            self._conn.schemaless_insert([input_sql1], TDSmlProtocolType.LINE.value, None)
+            # self._conn.schemaless_insert([input_sql2])
         except SchemalessError as err:
             print(err.errno)
 
@@ -1464,6 +1476,7 @@ class TDTestCase:
         self.chineseCheckCase()
         self.spellCheckCase()
         self.defaultTypeCheckCase()
+        self.tbnameTagsColsNameCheckCase()
 
         # MultiThreads
         self.stbInsertMultiThreadCheckCase()
@@ -1493,8 +1506,9 @@ class TDTestCase:
         print("running {}".format(__file__))
         self.createDb()
         try:
-            # self.influxTsCheckCase()
-            self.runAll()
+            # self.tbnameTagsColsNameCheckCase()
+            self.influxTsCheckCase()
+            # self.runAll()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err

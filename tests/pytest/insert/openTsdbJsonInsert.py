@@ -1377,6 +1377,15 @@ class TDTestCase:
             stb_name = input_sql["metric"]
             self.resCmp(input_sql, stb_name)
 
+    def tbnameTagsColsNameCheckCase(self):
+        input_json = {'metric': 'rFa$sta', 'timestamp': {'value': 1626006834, 'type': 's'}, 'value': {'value': True, 'type': 'bool'}, 'tags': {'Tt!0': {'value': False, 'type': 'bool'}, 'tT@1': {'value': 127, 'type': 'tinyint'}, 't@2': {'value': 32767, 'type': 'smallint'}, 't$3': {'value': 2147483647, 'type': 'int'}, 't%4': {'value': 9223372036854775807, 'type': 'bigint'}, 't^5': {'value': 11.12345027923584, 'type': 'float'}, 't&6': {'value': 22.123456789, 'type': 'double'}, 't*7': {'value': 'binaryTagValue', 'type': 'binary'}, 't!@#$%^&*()_+[];:<>?,9': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': 'rFas$ta_1'}}
+        self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+        query_sql = 'select * from `rfa$sta`'
+        query_res = tdSql.query(query_sql, True)
+        tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), True, False, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'binaryTagValue', 'ncharTagValue')])
+        col_tag_res = tdSql.getColNameList(query_sql)
+        tdSql.checkEqual(col_tag_res, ['ts', 'value', 'tt!0', 'tt@1', 't@2', 't$3', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+
     def pointTransCheckCase(self, value_type="obj"):
         """
             metric value "." trans to "_"
@@ -1687,6 +1696,7 @@ class TDTestCase:
         self.batchErrorInsertCheckCase()
         self.chineseCheckCase()
         self.spellCheckCase()
+        self.tbnameTagsColsNameCheckCase()
         # # MultiThreads
         # mv to no value type
         self.sStbStbDdataInsertMultiThreadCheckCase()

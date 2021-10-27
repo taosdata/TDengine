@@ -1076,6 +1076,15 @@ class TDTestCase:
             stb_name = input_sql.split(" ")[0]
             self.resCmp(input_sql, stb_name)
 
+    def tbnameTagsColsNameCheckCase(self):
+        input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 \"t$3\"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+        query_sql = 'select * from `rfa$sta`'
+        query_res = tdSql.query(query_sql, True)
+        tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+        col_tag_res = tdSql.getColNameList(query_sql)
+        tdSql.checkEqual(col_tag_res, ['ts', 'value', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
             stb --> supertable
@@ -1369,6 +1378,7 @@ class TDTestCase:
         self.spellCheckCase()
         self.pointTransCheckCase()
         self.defaultTypeCheckCase()
+        self.tbnameTagsColsNameCheckCase()
         # # MultiThreads
         self.stbInsertMultiThreadCheckCase()
         self.sStbStbDdataInsertMultiThreadCheckCase()
