@@ -232,13 +232,16 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
   cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
 
   // Read input.
-  char c;
+  void *console = GetStdHandle(STD_INPUT_HANDLE);
+  unsigned long read;
+  wchar_t c;
+  char mbStr[16];
   while (1) {
-    c = getchar();
-
+    int ret = ReadConsole(console, &c, 1, &read, NULL);
+    int size = WideCharToMultiByte(CP_UTF8, 0, &c, read, mbStr, sizeof(mbStr), NULL, NULL);
+    mbStr[size] = 0;
     switch (c) {
       case '\n':
-      case '\r':
         if (isReadyGo(&cmd)) {
           sprintf(command, "%s%s", cmd.buffer, cmd.command);
           free(cmd.buffer);
@@ -251,8 +254,12 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
           updateBuffer(&cmd);
         }
         break;
+      case '\r':
+        break;
       default:
-        insertChar(&cmd, c);
+        for (int i = 0; i < size; ++i) {
+          insertChar(&cmd, mbStr[i]);
+        }
     }
   }
 
