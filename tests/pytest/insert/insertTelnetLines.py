@@ -32,10 +32,10 @@ class TDTestCase:
         ### metric ###
         print("============= step1 : test metric  ================")
         lines0 = [
-                        "stb0_0 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
-                        "stb0_1 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
-                        "stb0_2 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
-                        "`.stb0.3.` 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
+                        "stb0_0 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
+                        "stb0_1 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
+                        "stb0_2 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
+                        "`.stb0.3.` 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
                    ]
 
         code = self._conn.schemaless_insert(lines0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -59,28 +59,24 @@ class TDTestCase:
         ### timestamp ###
         print("============= step2 : test timestamp  ================")
         lines1 = [
-                      "stb1 1626006833s 1i8 host=\"host0\"",
-                      "stb1 1626006833639000000ns 2i8 host=\"host0\"",
-                      "stb1 1626006833640000us 3i8 host=\"host0\"",
-                      "stb1 1626006833641 4i8 host=\"host0\"",
-                      "stb1 1626006834 5i8 host=\"host0\"",
-                      "stb1 1626006833651ms 6i8 host=\"host0\"",
-                      "stb1 0 7i8 host=\"host0\"",
+                      "stb1 1626006833641 1i8 host=\"host0\"",
+                      "stb1 1626006834 2i8 host=\"host0\"",
+                      "stb1 0 3i8 host=\"host0\"",
                     ]
 
         code = self._conn.schemaless_insert(lines1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from stb1")
-        tdSql.checkRows(7)
+        tdSql.checkRows(3)
 
         ### metric value ###
         print("============= step3 : test metric value  ================")
 
         #tinyint
         lines2_0 = [
-                        "stb2_0 1626006833651ms -127i8 host=\"host0\"",
-                        "stb2_0 1626006833652ms 127i8 host=\"host0\""
+                        "stb2_0 1626006833651 -127i8 host=\"host0\"",
+                        "stb2_0 1626006833652 127i8 host=\"host0\""
                      ]
         code = self._conn.schemaless_insert(lines2_0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
@@ -94,8 +90,8 @@ class TDTestCase:
 
         #smallint
         lines2_1 = [
-                        "stb2_1 1626006833651ms -32767i16 host=\"host0\"",
-                        "stb2_1 1626006833652ms 32767i16 host=\"host0\""
+                        "stb2_1 1626006833651 -32767i16 host=\"host0\"",
+                        "stb2_1 1626006833652 32767i16 host=\"host0\""
                      ]
         code = self._conn.schemaless_insert(lines2_1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
@@ -109,8 +105,8 @@ class TDTestCase:
 
         #int
         lines2_2 = [
-                        "stb2_2 1626006833651ms -2147483647i32 host=\"host0\"",
-                        "stb2_2 1626006833652ms 2147483647i32 host=\"host0\""
+                        "stb2_2 1626006833651 -2147483647i32 host=\"host0\"",
+                        "stb2_2 1626006833652 2147483647i32 host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_2, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -125,8 +121,8 @@ class TDTestCase:
 
         #bigint
         lines2_3 = [
-                        "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
-                        "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
+                        "stb2_3 1626006833651 -9223372036854775807i64 host=\"host0\"",
+                        "stb2_3 1626006833652 9223372036854775807i64 host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_3, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -141,16 +137,16 @@ class TDTestCase:
 
         #float
         lines2_4 = [
-                        "stb2_4 1626006833610ms 3f32 host=\"host0\"",
-                        "stb2_4 1626006833620ms -3f32 host=\"host0\"",
-                        "stb2_4 1626006833630ms 3.4f32 host=\"host0\"",
-                        "stb2_4 1626006833640ms -3.4f32 host=\"host0\"",
-                        "stb2_4 1626006833650ms 3.4E10f32 host=\"host0\"",
-                        "stb2_4 1626006833660ms -3.4e10f32 host=\"host0\"",
-                        "stb2_4 1626006833670ms 3.4E+2f32 host=\"host0\"",
-                        "stb2_4 1626006833680ms -3.4e-2f32 host=\"host0\"",
-                        "stb2_4 1626006833700ms 3.4E38f32 host=\"host0\"",
-                        "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
+                        "stb2_4 1626006833610 3f32 host=\"host0\"",
+                        "stb2_4 1626006833620 -3f32 host=\"host0\"",
+                        "stb2_4 1626006833630 3.4f32 host=\"host0\"",
+                        "stb2_4 1626006833640 -3.4f32 host=\"host0\"",
+                        "stb2_4 1626006833650 3.4E10f32 host=\"host0\"",
+                        "stb2_4 1626006833660 -3.4e10f32 host=\"host0\"",
+                        "stb2_4 1626006833670 3.4E+2f32 host=\"host0\"",
+                        "stb2_4 1626006833680 -3.4e-2f32 host=\"host0\"",
+                        "stb2_4 1626006833700 3.4E38f32 host=\"host0\"",
+                        "stb2_4 1626006833710 -3.4E38f32 host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_4, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -165,17 +161,17 @@ class TDTestCase:
 
         #double
         lines2_5 = [
-                        "stb2_5 1626006833610ms 3f64 host=\"host0\"",
-                        "stb2_5 1626006833620ms -3f64 host=\"host0\"",
-                        "stb2_5 1626006833630ms 3.4f64 host=\"host0\"",
-                        "stb2_5 1626006833640ms -3.4f64 host=\"host0\"",
-                        "stb2_5 1626006833650ms 3.4E10f64 host=\"host0\"",
-                        "stb2_5 1626006833660ms -3.4e10f64 host=\"host0\"",
-                        "stb2_5 1626006833670ms 3.4E+2f64 host=\"host0\"",
-                        "stb2_5 1626006833680ms -3.4e-2f64 host=\"host0\"",
-                        "stb2_5 1626006833690ms 1.7E308f64 host=\"host0\"",
-                        "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\"",
-                        "stb2_5 1626006833710ms 3 host=\"host0\""
+                        "stb2_5 1626006833610 3f64 host=\"host0\"",
+                        "stb2_5 1626006833620 -3f64 host=\"host0\"",
+                        "stb2_5 1626006833630 3.4f64 host=\"host0\"",
+                        "stb2_5 1626006833640 -3.4f64 host=\"host0\"",
+                        "stb2_5 1626006833650 3.4E10f64 host=\"host0\"",
+                        "stb2_5 1626006833660 -3.4e10f64 host=\"host0\"",
+                        "stb2_5 1626006833670 3.4E+2f64 host=\"host0\"",
+                        "stb2_5 1626006833680 -3.4e-2f64 host=\"host0\"",
+                        "stb2_5 1626006833690 1.7E308f64 host=\"host0\"",
+                        "stb2_5 1626006833700 -1.7E308f64 host=\"host0\"",
+                        "stb2_5 1626006833710 3 host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_5, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -190,16 +186,16 @@ class TDTestCase:
 
         #bool
         lines2_6 = [
-                        "stb2_6 1626006833610ms t host=\"host0\"",
-                        "stb2_6 1626006833620ms T host=\"host0\"",
-                        "stb2_6 1626006833630ms true host=\"host0\"",
-                        "stb2_6 1626006833640ms True host=\"host0\"",
-                        "stb2_6 1626006833650ms TRUE host=\"host0\"",
-                        "stb2_6 1626006833660ms f host=\"host0\"",
-                        "stb2_6 1626006833670ms F host=\"host0\"",
-                        "stb2_6 1626006833680ms false host=\"host0\"",
-                        "stb2_6 1626006833690ms False host=\"host0\"",
-                        "stb2_6 1626006833700ms FALSE host=\"host0\""
+                        "stb2_6 1626006833610 t host=\"host0\"",
+                        "stb2_6 1626006833620 T host=\"host0\"",
+                        "stb2_6 1626006833630 true host=\"host0\"",
+                        "stb2_6 1626006833640 True host=\"host0\"",
+                        "stb2_6 1626006833650 TRUE host=\"host0\"",
+                        "stb2_6 1626006833660 f host=\"host0\"",
+                        "stb2_6 1626006833670 F host=\"host0\"",
+                        "stb2_6 1626006833680 false host=\"host0\"",
+                        "stb2_6 1626006833690 False host=\"host0\"",
+                        "stb2_6 1626006833700 FALSE host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_6, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -214,9 +210,9 @@ class TDTestCase:
 
         #binary
         lines2_7 = [
-                        "stb2_7 1626006833610ms \"  binary_val  .!@#$%^&*  \" host=\"host0\"",
-                        "stb2_7 1626006833620ms \"binary_val.:;,./?|+-=\" host=\"host0\"",
-                        "stb2_7 1626006833630ms \"binary_val.()[]{}<>\" host=\"host0\""
+                        "stb2_7 1626006833610 \"  binary_val  .!@#$%^&*  \" host=\"host0\"",
+                        "stb2_7 1626006833620 \"binary_val.:;,./?|+-=\" host=\"host0\"",
+                        "stb2_7 1626006833630 \"binary_val.()[]{}<>\" host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_7, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -231,8 +227,8 @@ class TDTestCase:
 
         #nchar
         lines2_8 = [
-                        "stb2_8 1626006833610ms L\"  nchar_val  数值一  \" host=\"host0\"",
-                        "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\""
+                        "stb2_8 1626006833610 L\"  nchar_val  数值一  \" host=\"host0\"",
+                        "stb2_8 1626006833620 L\"nchar_val数值二\" host=\"host0\""
                      ]
 
         code = self._conn.schemaless_insert(lines2_8, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -249,8 +245,8 @@ class TDTestCase:
         print("============= step3 : test tags  ================")
         #tag value types
         lines3_0 = [
-                        "stb3_0 1626006833610ms 1 t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=3.4E38f32 t6=1.7E308f64 t7=true t8=\"binary_val_1\" t9=L\"标签值1\"",
-                        "stb3_0 1626006833610ms 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
+                        "stb3_0 1626006833610 1 t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=3.4E38f32 t6=1.7E308f64 t7=true t8=\"binary_val_1\" t9=L\"标签值1\"",
+                        "stb3_0 1626006833610 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
                      ]
 
         code = self._conn.schemaless_insert(lines3_0, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
@@ -292,9 +288,9 @@ class TDTestCase:
 
         #tag ID as child table name
         lines3_1 = [
-                        "stb3_1 1626006833610ms 1 id=child_table1 host=host1",
-                        "stb3_1 1626006833610ms 2 host=host2 iD=child_table2",
-                        "stb3_1 1626006833610ms 3 ID=child_table3 host=host3"
+                        "stb3_1 1626006833610 1 id=child_table1 host=host1",
+                        "stb3_1 1626006833610 2 host=host2 iD=child_table2",
+                        "stb3_1 1626006833610 3 ID=child_table3 host=host3"
                      ]
 
         code = self._conn.schemaless_insert(lines3_1, TDSmlProtocolType.TELNET.value, TDSmlTimestampType.NOT_CONFIGURED.value)
