@@ -511,7 +511,7 @@ typedef struct SThreadInfo_S {
     int       threadID;
     char      db_name[TSDB_DB_NAME_LEN];
     uint32_t  time_precision;
-    char      filePath[TSDB_FILENAME_LEN];
+    char      filePath[384];
     FILE      *fp;
     char      tb_prefix[TSDB_TABLE_NAME_LEN];
     uint64_t  start_table_from;
