@@ -26,13 +26,13 @@ extern "C" {
 //create persistent storage for meta info such as consuming offset
 //return value > 0: cgId
 //return value <= 0: error code
-int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqGroupHandle** handle);
+//int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqBufferHandle** handle);
 //create ring buffer in memory and load consuming offset
 //int tqOpenTCGroup(STQ*, const char* topic, int cgId);
 //destroy ring buffer and persist consuming offset
 //int tqCloseTCGroup(STQ*, const char* topic, int cgId);
 //delete persistent storage for meta info
-int tqDropTCGroup(STQ*, const char* topic, int cgId);
+//int tqDropTCGroup(STQ*, const char* topic, int cgId);
 
 #ifdef __cplusplus
 }
