@@ -28,15 +28,12 @@ def test_schemaless_insert(conn):
             'stf,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000',
         ]
         conn.schemaless_insert(lines, 0, "ns")
-        print("inserted")
 
         lines = [
             'stf,t1=5i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"passitagin_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000',
         ]
         conn.schemaless_insert(lines, 0, "ns")
-        print("inserted")
         result = conn.query("select * from st")
-        print(*result.fields)
         all = result.rows_iter()
         for row in all:
             print(row)
