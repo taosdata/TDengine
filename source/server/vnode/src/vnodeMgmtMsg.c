@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "vnodeMain.h"
+
 #include "vnodeMgmtMsg.h"
 
 static SCreateVnodeMsg* vnodeParseVnodeMsg(SRpcMsg *rpcMsg) {

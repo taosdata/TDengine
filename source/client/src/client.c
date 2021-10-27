@@ -19,3 +19,5 @@
 //
 //}
 
+int  taos_init() { return 0; }
+void taos_cleanup(void) {}

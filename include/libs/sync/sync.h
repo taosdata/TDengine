@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_RAFT_SYNC_H
-#define TDENGINE_RAFT_SYNC_H
+#ifndef _TD_LIBS_SYNC_H
+#define _TD_LIBS_SYNC_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,9 +24,9 @@ extern "C" {
 #include "taosdef.h"
 #include "wal.h"
 
-typedef uint32_t SyncNodeId;
-typedef int32_t  SyncGroupId;
-typedef int64_t  SyncIndex;
+typedef int64_t SyncNodeId;
+typedef int32_t SyncGroupId;
+typedef int64_t   SyncIndex;
 typedef uint64_t SSyncTerm;
 
 typedef enum {
@@ -41,9 +41,8 @@ typedef struct {
 } SSyncBuffer;
 
 typedef struct {
-  SyncNodeId nodeId;                   // node ID assigned by TDengine
-  uint16_t   nodePort;                 // node sync Port
-  char       nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
+  uint16_t  nodePort;  // node sync Port
+  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
 } SNodeInfo;
 
 typedef struct {
@@ -53,13 +52,12 @@ typedef struct {
 } SSyncCluster;
 
 typedef struct {
-  int32_t     selfIndex;
-  int         nNode;
-  SyncNodeId* nodeId;
+  int32_t  selfIndex;
+  int nNode;
+  SNodeInfo* node;
   ESyncRole*  role;
 } SNodesRole;
 
-struct SSyncFSM;
 typedef struct SSyncFSM {
   void* pData;
 
@@ -86,8 +84,8 @@ typedef struct SSyncFSM {
 } SSyncFSM;
 
 typedef struct SSyncServerState {
-  SyncNodeId voteFor;
-  SSyncTerm  term;
+  SNodeInfo voteFor;
+  SSyncTerm term;
 } SSyncServerState;
 
 typedef struct SStateManager {
@@ -107,8 +105,8 @@ typedef struct {
 
   twalh walHandle;
 
-  SyncIndex    snapshotIndex;  // initial version
-  SSyncCluster syncCfg;        // configuration from mgmt
+  SyncIndex snapshotIndex;
+  SSyncCluster syncCfg;
 
   SSyncFSM fsm;
 
@@ -123,10 +121,14 @@ void       syncStop(SyncNodeId);
 
 int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void* pData, bool isWeak);
 
-extern int32_t raftDebugFlag;
+int32_t syncAddNode(SyncNodeId nodeId, const SNodeInfo *pNode);
+
+int32_t syncRemoveNode(SyncNodeId nodeId, const SNodeInfo *pNode);
+
+extern int32_t  syncDebugFlag;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_RAFT_SYNC_H
+#endif  /*_TD_LIBS_SYNC_H*/
