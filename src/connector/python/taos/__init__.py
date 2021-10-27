@@ -440,6 +440,7 @@ from .cursor import *
 from .result import *
 from .statement import *
 from .subscription import *
+from .schemaless import *
 
 try:
     import importlib.metadata
@@ -468,6 +469,8 @@ __all__ = [
     "TaosRow",
     "TaosStmt",
     "PrecisionEnum",
+    "SmlPrecision",
+    "SmlProtocol"
 ]
 
 def connect(*args, **kwargs):

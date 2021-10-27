@@ -83,7 +83,16 @@ class ResultError(DatabaseError):
 class SchemalessError(DatabaseError):
     """taos_schemaless_insert errors."""
 
-    pass
+    def __init__(self, msg=None, errno=0xffff, affected_rows=0):
+        DatabaseError.__init__(self, msg, errno)
+        self.affected_rows = affected_rows
+
+    def __str__(self):
+        return self._full_msg + "(affected rows: %d)" % self.affected_rows
+
+    # @property
+    # def affected_rows(self):
+    #     return self.affected_rows
 
 
 class StatementError(DatabaseError):
