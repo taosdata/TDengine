@@ -77,6 +77,7 @@ extern char configDir[];
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
 #define OPT_ABORT          1 /* –abort */
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
+#define MAX_PATH_LEN  4096
 
 #define DEFAULT_START_TIME 1500000000000
 
@@ -511,7 +512,7 @@ typedef struct SThreadInfo_S {
     int       threadID;
     char      db_name[TSDB_DB_NAME_LEN];
     uint32_t  time_precision;
-    char      filePath[TSDB_FILENAME_LEN];
+    char      filePath[MAX_PATH_LEN];
     FILE      *fp;
     char      tb_prefix[TSDB_TABLE_NAME_LEN];
     uint64_t  start_table_from;
@@ -3574,7 +3575,7 @@ static int postProceSql(char *host, uint16_t port,
                         "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                         __func__, __LINE__, received, resp_len, response_buf);
                 break;
-            } 
+            }
         }
     } while(received < resp_len);
 
@@ -4380,7 +4381,7 @@ static int createSuperTable(
 
     superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
-    
+
     snprintf(command, BUFFER_SIZE,
         superTbl->escapeChar ?
         "CREATE TABLE IF NOT EXISTS %s.`%s` (ts TIMESTAMP%s) TAGS %s":
@@ -4515,7 +4516,7 @@ int createDatabasesAndStables(char *command) {
             if (g_Dbs.db[i].superTbls[j].iface == SML_IFACE) {
                 goto skip;
             }
-            
+
             sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
                     g_Dbs.db[i].superTbls[j].stbName);
             ret = queryDbExec(taos, command, NO_INSERT_TYPE, true);
@@ -4575,7 +4576,7 @@ static void* createTable(void *sarg)
             i <= pThreadInfo->end_table_to; i++) {
         if (0 == g_Dbs.use_metric) {
             snprintf(pThreadInfo->buffer, buff_len,
-                    g_args.escapeChar ? 
+                    g_args.escapeChar ?
                     "CREATE TABLE IF NOT EXISTS %s.`%s%"PRIu64"` %s;" :
                     "CREATE TABLE IF NOT EXISTS %s.%s%"PRIu64" %s;",
                     pThreadInfo->db_name,
@@ -6604,7 +6605,7 @@ static int getRowDataFromSample(
             stbInfo->sampleDataBuf
             + stbInfo->lenOfOneRow * (*sampleUsePos));
     }
-    
+
     dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
 
     (*sampleUsePos)++;
@@ -7139,7 +7140,7 @@ static void getTableName(char *pTblName,
     if (stbInfo) {
         if (AUTO_CREATE_SUBTBL != stbInfo->autoCreateTable) {
             if (stbInfo->childTblLimit > 0) {
-                snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+                snprintf(pTblName, TSDB_TABLE_NAME_LEN,
                         stbInfo->escapeChar ? "`%s`" : "%s",
                         stbInfo->childTblName +
                         (tableSeq - stbInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
@@ -7152,12 +7153,12 @@ static void getTableName(char *pTblName,
                         stbInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
             }
         } else {
-            snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+            snprintf(pTblName, TSDB_TABLE_NAME_LEN,
             stbInfo->escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                     stbInfo->childTblPrefix, tableSeq);
         }
     } else {
-        snprintf(pTblName, TSDB_TABLE_NAME_LEN, 
+        snprintf(pTblName, TSDB_TABLE_NAME_LEN,
         g_args.escapeChar ? "`%s%"PRIu64"`" : "%s%"PRIu64"",
                 g_args.tb_prefix, tableSeq);
     }
@@ -9713,7 +9714,7 @@ static void generateSmlHead(char* smlHead, SSuperTable* stbInfo, threadInfo* pTh
         }
 }
 
-static void generateSmlTail(char* line, char* smlHead, SSuperTable* stbInfo, 
+static void generateSmlTail(char* line, char* smlHead, SSuperTable* stbInfo,
                                 threadInfo* pThreadInfo, int64_t timestamp) {
     int dataLen = 0;
     dataLen = snprintf(line, BUFFER_SIZE, "%s ", smlHead);
@@ -9860,7 +9861,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     } else {
         batchPerTblTimes = 1;
     }
-    
+
     char *smlHead[pThreadInfo->ntables];
     for (int t = 0; t < pThreadInfo->ntables; t++) {
         smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
@@ -9869,7 +9870,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
             exit(EXIT_FAILURE);
         }
         generateSmlHead(smlHead[t], stbInfo, pThreadInfo, t);
-        
+
     }
 
     pThreadInfo->totalInsertRows = 0;
@@ -9895,11 +9896,11 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
         errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                g_args.reqPerReq * sizeof(char *),
+                g_args.reqPerReq * (uint64_t)sizeof(char *),
                 strerror(errno));
         return NULL;
     }
-    
+
     while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
         if ((flagSleep) && (insert_interval)) {
             st = taosGetTimestampMs();
@@ -10470,7 +10471,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
             exit(EXIT_FAILURE);
         }
         generateSmlHead(smlHead[t], stbInfo, pThreadInfo, t);
-        
+
     }
     int currentPercent = 0;
     int percentComplete = 0;
@@ -10481,14 +10482,14 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
         errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                g_args.reqPerReq * sizeof(char *),
+                g_args.reqPerReq * (uint64_t)sizeof(char *),
                 strerror(errno));
         return NULL;
     }
-    
+
     for (uint64_t i = 0; i < pThreadInfo->ntables; i++) {
         int64_t timestamp = pThreadInfo->start_time;
-        
+
         for (uint64_t j = 0; j < insertRows;) {
             for (int k = 0; k < g_args.reqPerReq; k++) {
                 pThreadInfo->lines[k] = calloc(BUFFER_SIZE, 1);
@@ -10956,7 +10957,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     int64_t ntables = 0;
     uint64_t tableFrom;
-    
+
     if (stbInfo) {
         if (stbInfo->iface != SML_IFACE) {
             int64_t limit;
@@ -11198,7 +11199,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               pThreadInfo->start_time = pThreadInfo->start_time + rand_int() % 10000 - rand_tinyint();
               }
               */
-        
+
         if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
 #ifdef WINDOWS
             WSADATA wsaData;
@@ -11223,7 +11224,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             }
             pThreadInfo->sockfd = sockfd;
         }
-        
+
 
         tsem_init(&(pThreadInfo->lock_sem), 0, 0);
         if (ASYNC_MODE == g_Dbs.asyncMode) {
