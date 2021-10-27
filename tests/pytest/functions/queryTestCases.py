@@ -418,10 +418,14 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t1 int)")
 
+        nowtime = int(round(time.time() * 1000))
         for i in range(1000):
             tdSql.execute(f"create table db.t1{i} using db.stb1 tags({i})")
+            sql = f"insert into db.t1{i} values"
             for j in range(260):
-                tdSql.execute(f"insert into db.t1{i} values (now-100d, {i+j})")
+                sql += f"({nowtime-1000*i-j}, {i+j})"
+                # tdSql.execute(f"insert into db.t1{i} values (now-100d, {i+j})")
+            tdSql.execute(sql)
 
         # tdDnodes.stop(dnode_index)
         # tdDnodes.start(dnode_index)
