@@ -91,11 +91,8 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY){
       bytes -= VARSTR_HEADER_SIZE;
     }
-    else if(pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+    else if(pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       bytes -= VARSTR_HEADER_SIZE;
-      bytes = bytes / TSDB_NCHAR_SIZE;
-    }
-    else if(pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       bytes = bytes / TSDB_NCHAR_SIZE;
     }
 

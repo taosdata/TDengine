@@ -5180,8 +5180,12 @@ void getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, i
   }
 
   int32_t length = 0;
-  taosMbsToUcs4(varDataVal(out), varDataLen(out), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length);
+
+  if(!taosMbsToUcs4(varDataVal(out), varDataLen(out), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length)){
+    tscError("getJsonTagValueElment mbstoucs4 error! length:%d", length);
+  }
   varDataSetLen(dst, length);
+  assert(varDataTLen(dst) <= bytes);
 }
 
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
@@ -5192,9 +5196,11 @@ void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
   }
 
   int32_t length = 0;
-  taosMbsToUcs4(json, strlen(json), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length);
+  if(!taosMbsToUcs4(json, strlen(json), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length)){
+    tscError("getJsonTagValueAll mbstoucs4 error! length:%d", length);
+  }
   varDataSetLen(dst, length);
-  assert(length <= bytes);
+  assert(varDataTLen(dst) <= bytes);
   tfree(json);
 }
 
