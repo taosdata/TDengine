@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "function.h"
+#include <astGenerator.h>
 #include "astGenerator.h"
+#include "function.h"
 #include "parserInt.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
@@ -108,18 +109,6 @@ static int32_t evaluateImpl(tSqlExpr* pExpr, int32_t tsPrecision) {
   }
 
   return  TSDB_CODE_SUCCESS;
-}
-
-static STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
-  assert(pQueryInfo != NULL);
-
-  if (pQueryInfo->pTableMetaInfo == NULL) {
-    assert(pQueryInfo->numOfTables == 0);
-    return NULL;
-  }
-
-  assert(tableIndex >= 0 && tableIndex <= pQueryInfo->numOfTables && pQueryInfo->pTableMetaInfo != NULL);
-  return pQueryInfo->pTableMetaInfo[tableIndex];
 }
 
 typedef struct SVgroupTableInfo {
@@ -792,10 +781,6 @@ int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf*
       }
     }
 
-    int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
-    int32_t timeWindowQuery =
-        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
-
     if (validateSelectNodeList(pQueryInfo, pSqlNode->pSelNodeList, false, pMsgBuf) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -869,6 +854,11 @@ int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf*
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 
+int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
+  assert(pQueryInfo != NULL && pMsgBuf != NULL);
+  return 0;
+}
+
 static int32_t distinctCompatibleCheck(SQueryStmtInfo* pQueryInfo, bool joinQuery, SMsgBuf* pMsgBuf) {
   const char* msg6 = "not support distinct mixed with join";
   const char* msg7 = "not support distinct mixed with groupby";
@@ -890,7 +880,7 @@ static int32_t distinctCompatibleCheck(SQueryStmtInfo* pQueryInfo, bool joinQuer
 }
 
 static int32_t resColId = 5000;
-static int32_t getNewResColId() {
+int32_t getNewResColId() {
   return resColId++;
 }
 
@@ -927,24 +917,24 @@ void setResultColName(char* name, tSqlExprItem* pItem, SToken* pToken, SToken* f
 }
 
 SExprInfo* doAddOneExprInfo(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
-                           SSchema* pColSchema, const char* token) {
+                           SSchema* pColSchema, SSchema* pResultSchema, tExprNode* pExprNode, int32_t interSize, const char* token) {
   STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
 
-  SSchema resultSchema = createSchema(pColSchema->type, pColSchema->bytes, getNewResColId(), pColSchema->name);
-
-  SExprInfo* pExpr = createExprInfo(pTableMetaInfo, functionId, pIndex, NULL, &resultSchema, 0);
+  SExprInfo* pExpr = createExprInfo(pTableMetaInfo, functionId, pIndex, pExprNode, pResultSchema, interSize);
   addExprInfo(pQueryInfo, outputColIndex, pExpr);
 
   tstrncpy(pExpr->base.token, token, sizeof(pExpr->base.token));
 
   pExpr->base.colInfo.flag = pIndex->type;
-  columnListInsert(pTableMetaInfo->tagColList, pIndex->columnIndex, pTableMetaInfo->pTableMeta->uid, pColSchema);
-  addResColumnInfo(pQueryInfo, outputColIndex, pColSchema, pExpr);
 
+  SArray* p = TSDB_COL_IS_TAG(pIndex->type)?pTableMetaInfo->tagColList:pQueryInfo->colList;
+  columnListInsert(p, pIndex->columnIndex, pTableMetaInfo->pTableMeta->uid, pColSchema);
+
+  addResColumnInfo(pQueryInfo, outputColIndex, pColSchema, pExpr);
   return pExpr;
 }
 
-void doAddResColumnOrSourceColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* index, int32_t outputIndex, SExprInfo* pExpr, SSchema* pColSchema, bool finalResult) {
+void doAddSourceColumnAndResColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* index, int32_t outputIndex, SExprInfo* pExpr, SSchema* pColSchema, bool finalResult) {
   columnListInsert(pQueryInfo->colList, index->columnIndex, pExpr->base.uid, pColSchema);
 
   if (finalResult) {
@@ -956,30 +946,28 @@ void doAddResColumnOrSourceColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* inde
   }
 }
 
-static int32_t setMultipleExprsInSelect(SQueryStmtInfo* pQueryInfo, SSchema* pSchema, int32_t functionId,
-                                       const char* name, int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult,
-                                       SMsgBuf* pMsgBuf) {
+static int32_t addOneExprInfo(SQueryStmtInfo* pQueryInfo, tSqlExprItem* pItem, int32_t functionId,
+                              int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult, SMsgBuf* pMsgBuf) {
   const char* msg1 = "not support column types";
+
+  STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pColIndex->tableIndex);
+  SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
+
   if (functionId == FUNCTION_SPREAD) {
     if (IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type == TSDB_DATA_TYPE_BOOL) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   }
 
-  int16_t resType = 0;
-  int16_t resBytes = 0;
-  int32_t interBufSize = 0;
-  getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resType, &resBytes, &interBufSize, 0, false);
+  char name[TSDB_COL_NAME_LEN] = {0};
+  SToken t = {.z = pSchema->name, .n = (uint32_t)strnlen(pSchema->name, TSDB_COL_NAME_LEN)};
+  setResultColName(name, pItem, &t, &pItem->pNode->Expr.operand, true);
 
-  STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pColIndex->tableIndex);
+  SResultDataInfo resInfo = {0};
+  getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resInfo, 0, false);
 
-  SSchema resultSchema = createSchema(resType, resBytes, getNewResColId(), name);
-
-  SExprInfo* pExpr = createExprInfo(pTableMetaInfo, functionId, pColIndex, NULL, &resultSchema, interBufSize);
-  addExprInfo(pQueryInfo, resColIdx, pExpr);
-  tstrncpy(pExpr->base.token, resultSchema.name, tListLen(pExpr->base.token));
-  
-  doAddResColumnOrSourceColumn(pQueryInfo, pColIndex, resColIdx, pExpr, pSchema, finalResult);
+  SSchema resultSchema = createSchema(resInfo.type, resInfo.bytes, getNewResColId(), name);
+  doAddOneExprInfo(pQueryInfo, resColIdx, functionId, pColIndex, pSchema, &resultSchema, NULL, resInfo.intermediateBytes, name);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1028,11 +1016,172 @@ static void setTsOutputExprInfo(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTab
   addResColumnInfo(pQueryInfo, outputIndex, &pExpr->base.resSchema, pExpr);
 }
 
+// todo handle count(a+b)
+static int32_t setColumnIndex(SQueryStmtInfo* pQueryInfo, SArray* pParamList, SColumnIndex* index, SMsgBuf* pMsgBuf) {
+  const char* msg3 = "illegal column name";
+  const char* msg4 = "invalid table name";
+
+  if (pParamList != NULL) {
+    tSqlExprItem* pParamElem = taosArrayGet(pParamList, 0);
+
+    SToken* pToken = &pParamElem->pNode->columnName;
+    int16_t tokenId = pParamElem->pNode->tokenId;
+    if ((pToken->z == NULL || pToken->n == 0) && (TK_INTEGER != tokenId)) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
+
+    // select count(table.*), select count(1), count(2)
+    if (tokenId == TK_ALL || tokenId == TK_INTEGER) {
+      // check if the table name is valid or not
+      SToken tmpToken = pParamElem->pNode->columnName;
+      if (getTableIndexByName(&tmpToken, pQueryInfo, index) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg4);
+      }
+
+      index->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+    } else {
+      // count the number of table created according to the super table
+      if (getColumnIndexByName(pToken, pQueryInfo, index, pMsgBuf) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg3);
+      }
+    }
+  } else {  // count(*) is equalled to count(primary_timestamp_key)
+    *index = (SColumnIndex) {0, PRIMARYKEY_TIMESTAMP_COL_INDEX, false};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doAddAllColumnExprInSelectClause(SQueryStmtInfo *pQueryInfo, STableMetaInfo* pTableMetaInfo, tSqlExprItem* pItem, int32_t functionId,
+    int32_t tableIndex, int32_t* colIndex, bool finalResult, SMsgBuf* pMsgBuf) {
+  for (int32_t i = 0; i < getNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
+    SColumnIndex index = {.tableIndex = tableIndex, .columnIndex = i, .type = TSDB_COL_NORMAL};
+
+    if (addOneExprInfo(pQueryInfo, pItem, functionId, *colIndex, &index, finalResult, pMsgBuf) != 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    (*colIndex)++;
+  }
+}
+
+static int32_t extractFunctionParameterInfo(SQueryStmtInfo* pQueryInfo, int32_t tokenId, STableMetaInfo** pTableMetaInfo, SSchema* columnSchema,
+                                            tExprNode** pNode, SColumnIndex* pIndex, tSqlExprItem* pParamElem, SMsgBuf* pMsgBuf);
+
+static int32_t doHandleOneParam(SQueryStmtInfo *pQueryInfo, tSqlExprItem* pItem, tSqlExprItem* pParamElem, int32_t functionId,
+    int32_t* outputIndex, bool finalResult, SMsgBuf* pMsgBuf) {
+  const char* msg3 = "illegal column name";
+  const char* msg4 = "invalid table name";
+  const char* msg6 = "functions applied to tags are not allowed";
+
+  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+
+  if (pParamElem->pNode->tokenId == TK_ALL) { // select table.*
+    SToken tmpToken = pParamElem->pNode->columnName;
+
+    if (getTableIndexByName(&tmpToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+      return buildInvalidOperationMsg(pMsgBuf, msg4);
+    }
+
+    STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
+    doAddAllColumnExprInSelectClause(pQueryInfo, pTableMetaInfo, pItem, functionId, index.tableIndex, outputIndex, finalResult, pMsgBuf);
+  } else {
+    tExprNode* pNode = NULL;
+    int32_t tokenId = pParamElem->pNode->tokenId;
+    SSchema columnSchema = {0};
+    STableMetaInfo* pTableMetaInfo = {0};
+
+    extractFunctionParameterInfo(pQueryInfo, tokenId, &pTableMetaInfo, &columnSchema, &pNode, &index, pParamElem, pMsgBuf);
+
+    if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
+
+    // functions can not be applied to tags
+    if (TSDB_COL_IS_TAG(index.type)) {
+      return buildInvalidOperationMsg(pMsgBuf, msg6);
+    }
+
+    if (addOneExprInfo(pQueryInfo, pItem, functionId, (*outputIndex)++, &index, finalResult, pMsgBuf) != 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+}
+
 static int32_t multiColumnListInsert(SQueryStmtInfo* pQueryInfo, SArray* pColumnList, SMsgBuf* pMsgBuf);
+
+int32_t extractFunctionParameterInfo(SQueryStmtInfo* pQueryInfo, int32_t tokenId, STableMetaInfo** pTableMetaInfo, SSchema* columnSchema,
+                              tExprNode** pNode, SColumnIndex* pIndex, tSqlExprItem* pParamElem, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "not support column types";
+  const char* msg2 = "invalid parameters";
+  const char* msg3 = "illegal column name";
+  const char* msg6 = "functions applied to tags are not allowed";
+  const char* msg13 = "nested function is not supported";
+  
+  if (tokenId == TK_ALL || tokenId == TK_ID) {  // simple parameter
+    if ((getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, pIndex, pMsgBuf) != TSDB_CODE_SUCCESS)) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
+
+    // functions can not be applied to tags
+    if (TSDB_COL_IS_TAG(pIndex->type)) {
+      return buildInvalidOperationMsg(pMsgBuf, msg6);
+    }
+
+    *pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
+
+    // 2. check if sql function can be applied on this column data type
+    *columnSchema = *(SSchema*) getOneColumnSchema((*pTableMetaInfo)->pTableMeta, pIndex->columnIndex);
+  } else if (tokenId == TK_PLUS || tokenId == TK_MINUS || tokenId == TK_STAR || tokenId == TK_REM || tokenId == TK_CONCAT) {
+    int32_t arithmeticType = NON_ARITHMEIC_EXPR;
+    SArray* pColumnList = taosArrayInit(4, sizeof(SColumnIndex));
+    if (validateComplexExpr(pParamElem->pNode, pQueryInfo, pColumnList, &arithmeticType, pMsgBuf) != TSDB_CODE_SUCCESS) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+
+    if (arithmeticType != NORMAL_ARITHMETIC) {
+      return buildInvalidOperationMsg(pMsgBuf, msg13);
+    }
+
+    *pTableMetaInfo = getMetaInfo(pQueryInfo, 0);  // todo get the first table meta.
+    *columnSchema = createSchema(TSDB_DATA_TYPE_DOUBLE, sizeof(double), getNewResColId(), "");
+
+    SArray* colList = taosArrayInit(10, sizeof(SColIndex));
+    int32_t ret = sqlExprToExprNode(pNode, pParamElem->pNode, pQueryInfo, colList, NULL, pMsgBuf);
+    if (ret != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(colList);
+      tExprTreeDestroy(*pNode, NULL);
+      return buildInvalidOperationMsg(pMsgBuf, msg2);
+    }
+
+    pIndex->tableIndex = 0;
+    multiColumnListInsert(pQueryInfo, pColumnList, pMsgBuf);
+  } else {
+    assert(0);
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkForkParam(tSqlExpr* pSqlExpr, size_t k, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "invalid parameters";
+
+  if (k == 0) {
+    if (pSqlExpr->Expr.paramList != NULL && taosArrayGetSize(pSqlExpr->Expr.paramList) != 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  } else {
+    if (pSqlExpr->Expr.paramList == NULL || taosArrayGetSize(pSqlExpr->Expr.paramList) != k) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem, bool finalResult, SMsgBuf* pMsgBuf) {
   STableMetaInfo* pTableMetaInfo = NULL;
   int32_t functionId = pItem->functionId;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   const char* msg1 = "not support column types";
   const char* msg2 = "invalid parameters";
@@ -1056,53 +1205,27 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
     case FUNCTION_COUNT: {
       // more than one parameter for count() function
       SArray* pParamList = pItem->pNode->Expr.paramList;
-      if (pParamList != NULL && taosArrayGetSize(pParamList) != 1) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      if ((code = checkForkParam(pItem->pNode, 1, pMsgBuf)) != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
-      SExprInfo* pExpr = NULL;
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-
-      if (pParamList != NULL) {
-        tSqlExprItem* pParamElem = taosArrayGet(pParamList, 0);
-
-        SToken* pToken = &pParamElem->pNode->columnName;
-        int16_t tokenId = pParamElem->pNode->tokenId;
-        if ((pToken->z == NULL || pToken->n == 0) && (TK_INTEGER != tokenId)) {
-          return buildInvalidOperationMsg(pMsgBuf, msg3);
-        }
-
-        // select count(table.*), select count(1), count(2)
-        if (tokenId == TK_ALL || tokenId == TK_INTEGER) {
-          // check if the table name is valid or not
-          SToken tmpToken = pParamElem->pNode->columnName;
-          if (getTableIndexByName(&tmpToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
-            return buildInvalidOperationMsg(pMsgBuf, msg4);
-          }
-
-          index = (SColumnIndex) {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-        } else {
-          // count the number of table created according to the super table
-          if (getColumnIndexByName(pToken, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
-            return buildInvalidOperationMsg(pMsgBuf, msg3);
-          }
-        }
-      } else {  // count(*) is equalled to count(primary_timestamp_key)
-        index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX, false};
+      code = setColumnIndex(pQueryInfo, pParamList, &index, pMsgBuf);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       int32_t size = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       SSchema s = createSchema(TSDB_DATA_TYPE_BIGINT, size, getNewResColId(), "");
 
-      pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
-      pExpr = createExprInfo(pTableMetaInfo, functionId, &index, NULL, &s, size);
-      addExprInfo(pQueryInfo, colIndex, pExpr);
+      char token[TSDB_COL_NAME_LEN] = {0};
+      setTokenAndResColumnName(pItem, s.name, token,sizeof(s.name) - 1);
 
-      setTokenAndResColumnName(pItem, pExpr->base.resSchema.name, pExpr->base.token,sizeof(pExpr->base.resSchema.name) - 1);
+      STableMeta* pTableMeta = getMetaInfo(pQueryInfo, index.tableIndex)->pTableMeta;
+      int32_t outputIndex = getNumOfFields(&pQueryInfo->fieldsInfo);
+      SSchema* ps = getOneColumnSchema(pTableMeta, index.columnIndex);
 
-      int32_t outputColumnIndex = getNumOfFields(&pQueryInfo->fieldsInfo);
-      SSchema* ps = getOneColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
-      doAddResColumnOrSourceColumn(pQueryInfo, &index, outputColumnIndex, pExpr, ps, finalResult);
+      doAddOneExprInfo(pQueryInfo, outputIndex, functionId, &index, ps, &s, NULL, size, token);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -1134,61 +1257,23 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
       SSchema columnSchema = {0};
 
-      if (tokenId == TK_ALL || tokenId == TK_ID) {  // simple parameter
-        if ((getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS)) {
-          return buildInvalidOperationMsg(pMsgBuf, msg3);
-        }
-
-        // functions can not be applied to tags
-        if (TSDB_COL_IS_TAG(index.type)) {
-          return buildInvalidOperationMsg(pMsgBuf, msg6);
-        }
-
-        pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
-
-        // 2. check if sql function can be applied on this column data type
-        columnSchema = *(SSchema*) getOneColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
-
+      code = extractFunctionParameterInfo(pQueryInfo, tokenId, &pTableMetaInfo, &columnSchema, &pNode, &index, pParamElem,pMsgBuf);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      
+      if (tokenId == TK_ALL || tokenId == TK_ID) {
         if (!IS_NUMERIC_TYPE(columnSchema.type)) {
           return buildInvalidOperationMsg(pMsgBuf, msg1);
         } else if (IS_UNSIGNED_NUMERIC_TYPE(columnSchema.type) && (functionId == FUNCTION_DIFF || functionId == FUNCTION_DERIVATIVE)) {
           return buildInvalidOperationMsg(pMsgBuf, msg9);
         }
-      } else if (tokenId == TK_PLUS || tokenId == TK_MINUS || tokenId == TK_TIMES || tokenId == TK_REM || tokenId == TK_CONCAT) {
-        int32_t arithmeticType = NON_ARITHMEIC_EXPR;
-        SArray* pColumnList = taosArrayInit(4, sizeof(SColumnIndex));
-        if (validateComplexExpr(pParamElem->pNode, pQueryInfo, pColumnList, &arithmeticType, pMsgBuf) != TSDB_CODE_SUCCESS) {
-          return buildInvalidOperationMsg(pMsgBuf, msg1);
-        }
-
-        if (arithmeticType != NORMAL_ARITHMETIC) {
-          return buildInvalidOperationMsg(pMsgBuf, msg13);
-        }
-
-        pTableMetaInfo = getMetaInfo(pQueryInfo, 0);  // get the first table meta.
-        columnSchema = createSchema(TSDB_DATA_TYPE_DOUBLE, sizeof(double), getNewResColId(), "");
-
-        SArray* colList = taosArrayInit(10, sizeof(SColIndex));
-        int32_t ret = sqlExprToExprNode(&pNode, pItem->pNode, pQueryInfo, colList, NULL, pMsgBuf);
-        if (ret != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(colList);
-          tExprTreeDestroy(pNode, NULL);
-          return buildInvalidOperationMsg(pMsgBuf, msg2);
-        }
-
-        multiColumnListInsert(pQueryInfo, pColumnList, pMsgBuf);
-      } else {
-        assert(0);
       }
 
       int32_t precision = pTableMetaInfo->pTableMeta->tableInfo.precision;
 
-      int16_t resultType = 0;
-      int16_t resultSize = 0;
-      int32_t intermediateResSize = 0;
-
-      if (getResultDataInfo(columnSchema.type, columnSchema.bytes, functionId, 0, &resultType, &resultSize,
-                            &intermediateResSize, 0, false) != TSDB_CODE_SUCCESS) {
+      SResultDataInfo resInfo = {0};
+      if (getResultDataInfo(columnSchema.type, columnSchema.bytes, functionId, 0, &resInfo, 0, false) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
@@ -1199,10 +1284,12 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
         numOfOutput += 1;
       }
 
-      SSchema s = createSchema(resultType, resultSize, getNewResColId(), "ts");
+      SSchema s = createSchema(resInfo.type, resInfo.bytes, getNewResColId(), "ts");
 
-      SExprInfo* pExpr = createExprInfo(pTableMetaInfo, functionId, &index, pNode, &s, intermediateResSize);
-      addExprInfo(pQueryInfo, numOfOutput, pExpr);
+      char token[TSDB_COL_NAME_LEN] = {0};
+      setTokenAndResColumnName(pItem, s.name, token, sizeof(s.name) - 1);
+
+      SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, numOfOutput, functionId, &index, &columnSchema, &s, pNode, resInfo.intermediateBytes, token);
 
       if (functionId == FUNCTION_LEASTSQR) { // set the leastsquares parameters
         char val[8] = {0};
@@ -1224,7 +1311,7 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
         char val[8] = {0};
 
         int64_t tickPerSec = 0;
-        int32_t code = getTickPerSecond(&pParamElem[1].pNode->value, precision, (char*) &tickPerSec, pMsgBuf);
+        code = getTickPerSecond(&pParamElem[1].pNode->value, precision, (char*) &tickPerSec, pMsgBuf);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -1242,11 +1329,6 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
 
         addExprInfoParam(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
       }
-
-      setTokenAndResColumnName(pItem, pExpr->base.resSchema.name, pExpr->base.token, sizeof(pExpr->base.resSchema.name) - 1);
-
-      numOfOutput = getNumOfFields(&pQueryInfo->fieldsInfo);
-      doAddResColumnOrSourceColumn(pQueryInfo, &index, numOfOutput, pExpr, &columnSchema, finalResult);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -1267,60 +1349,11 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
           return buildInvalidOperationMsg(pMsgBuf, msg8);
         }
 
-        /* in first/last function, multiple columns can be add to resultset */
+        // in first/last function, multiple columns can be add to resultset
         for (int32_t i = 0; i < taosArrayGetSize(pParamList); ++i) {
           tSqlExprItem* pParamElem = taosArrayGet(pParamList, i);
-          if (pParamElem->pNode->tokenId != TK_ALL && pParamElem->pNode->tokenId != TK_ID) {
-            return buildInvalidOperationMsg(pMsgBuf, msg3);
-          }
-
-          SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-
-          if (pParamElem->pNode->tokenId == TK_ALL) { // select table.*
-            SToken tmpToken = pParamElem->pNode->columnName;
-
-            if (getTableIndexByName(&tmpToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
-              return buildInvalidOperationMsg(pMsgBuf, msg4);
-            }
-
-            pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
-            SSchema* pSchema = getTableColumnSchema(pTableMetaInfo->pTableMeta);
-
-            char name[TSDB_COL_NAME_LEN] = {0};
-            for (int32_t j = 0; j < getNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
-              index.columnIndex = j;
-              SToken t = {.z = pSchema[j].name, .n = (uint32_t)strnlen(pSchema[j].name, TSDB_COL_NAME_LEN)};
-              setResultColName(name, pItem, &t, &pItem->pNode->exprToken, true);
-
-              if (setMultipleExprsInSelect(pQueryInfo, &pSchema[j], functionId, name, colIndex++, &index, finalResult, pMsgBuf) != 0) {
-                return TSDB_CODE_TSC_INVALID_OPERATION;
-              }
-            }
-
-          } else {
-            if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
-              return buildInvalidOperationMsg(pMsgBuf, msg3);
-            }
-
-            pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
-
-            // functions can not be applied to tags
-            if ((index.columnIndex >= getNumOfColumns(pTableMetaInfo->pTableMeta)) || (index.columnIndex < 0)) {
-              return buildInvalidOperationMsg(pMsgBuf, msg6);
-            }
-
-            char name[TSDB_COL_NAME_LEN] = {0};
-            SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
-
-            bool multiColOutput = taosArrayGetSize(pItem->pNode->Expr.paramList) > 1;
-            setResultColName(name, pItem, &pParamElem->pNode->columnName, &pItem->pNode->exprToken, multiColOutput);
-
-            if (setMultipleExprsInSelect(pQueryInfo, pSchema, functionId, name, colIndex++, &index, finalResult, pMsgBuf) != 0) {
-              return TSDB_CODE_TSC_INVALID_OPERATION;
-            }
-          }
+          doHandleOneParam(pQueryInfo, pItem, pParamElem, functionId, &colIndex, finalResult, pMsgBuf);
         }
-
       } else {  // select function(*) from xxx
         int32_t numOfFields = 0;
 
@@ -1331,21 +1364,7 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
 
         for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
           pTableMetaInfo = getMetaInfo(pQueryInfo, j);
-          SSchema* pSchema = getTableColumnSchema(pTableMetaInfo->pTableMeta);
-
-          for (int32_t i = 0; i < getNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
-            SColumnIndex index = {.tableIndex = j, .columnIndex = i, .type = TSDB_COL_NORMAL};
-
-            char name[TSDB_COL_NAME_LEN] = {0};
-            SToken t = {.z = pSchema[i].name, .n = (uint32_t)strnlen(pSchema[i].name, TSDB_COL_NAME_LEN)};
-            setResultColName(name, pItem, &t, &pItem->pNode->Expr.operand, true);
-
-            if (setMultipleExprsInSelect(pQueryInfo, &pSchema[index.columnIndex], functionId, name, colIndex, &index, finalResult, pMsgBuf) != 0) {
-              return TSDB_CODE_TSC_INVALID_OPERATION;
-            }
-            colIndex++;
-          }
-
+          doAddAllColumnExprInSelectClause(pQueryInfo, pTableMetaInfo, pItem, functionId, j, &colIndex, finalResult, pMsgBuf);
           numOfFields += getNumOfColumns(pTableMetaInfo->pTableMeta);
         }
       }
@@ -1358,8 +1377,8 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
     case FUNCTION_APERCT: {
       // 1. valid the number of parameters
       // no parameters or more than one parameter for function
-      if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      if ((code = checkForkParam(pItem->pNode, 2, pMsgBuf)) != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
@@ -1391,14 +1410,9 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
       }
 
       SVariant* pVariant = &pParamElem[1].pNode->value;
-
-      int16_t  resultType = pSchema->type;
-      int16_t  resultSize = pSchema->bytes;
-      int32_t  interResult = 0;
-
+      SResultDataInfo resInfo = {0};
       char val[8] = {0};
 
-      SExprInfo* pExpr = NULL;
       if (functionId == FUNCTION_PERCT || functionId == FUNCTION_APERCT) {
         taosVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
 
@@ -1407,7 +1421,8 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
           return buildInvalidOperationMsg(pMsgBuf, msg5);
         }
 
-        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize, &interResult, 0, false);
+
+        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resInfo, 0, false);
 
         /*
          * sql function transformation
@@ -1415,12 +1430,6 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
          * for dp = 100, it is max,
          */
         colIndex += 1;  // the first column is ts
-
-        SSchema s = createSchema(resultType, resultSize, getNewResColId(), "");
-
-        pExpr = createExprInfo(pTableMetaInfo, functionId, &index, NULL, &s, interResult);
-        addExprInfo(pQueryInfo, colIndex, pExpr);
-        addExprInfoParam(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
       } else {
         taosVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
@@ -1432,16 +1441,19 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
         // set the first column ts for top/bottom query
         setTsOutputExprInfo(pQueryInfo, pTableMetaInfo, colIndex, index.tableIndex);
         colIndex += 1;  // the first column is ts
-
-        SSchema s = createSchema(resultType, resultSize, getNewResColId(), "");
-        pExpr = createExprInfo(pTableMetaInfo, functionId, &index, NULL, &s, resultSize);
-        addExprInfo(pQueryInfo, colIndex, pExpr);
-
-        addExprInfoParam(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
       }
 
-      setTokenAndResColumnName(pItem, pExpr->base.resSchema.name, pExpr->base.token, sizeof(pExpr->base.resSchema.name) - 1);
-      doAddResColumnOrSourceColumn(pQueryInfo, &index, colIndex, pExpr, pSchema, finalResult);
+      SSchema s = createSchema(resInfo.type, resInfo.bytes, getNewResColId(), "");
+
+      char token[TSDB_COL_NAME_LEN] = {0};
+      setTokenAndResColumnName(pItem, s.name, token, sizeof(s.name) - 1);
+      SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, colIndex, functionId, &index, pSchema, &s, NULL, resInfo.intermediateBytes, token);
+
+      if (functionId == FUNCTION_PERCT || functionId == FUNCTION_APERCT) {
+        addExprInfoParam(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
+      } else {
+        addExprInfoParam(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+      }
       return TSDB_CODE_SUCCESS;
     }
 
@@ -1452,8 +1464,8 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
       }
 
       // no parameters or more than one parameter for function
-      if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) != 1) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      if ((code = checkForkParam(pItem->pNode, 1, pMsgBuf)) != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       tSqlExprItem* pParamItem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
@@ -1499,47 +1511,40 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
         s = pTagSchema[index.columnIndex];
       }
 
-      int16_t bytes = 0;
-      int16_t type  = 0;
-      int32_t inter = 0;
-
-      int32_t ret = getResultDataInfo(s.type, s.bytes, FUNCTION_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
+      SResultDataInfo resInfo = {0};
+      int32_t ret = getResultDataInfo(s.type, s.bytes, FUNCTION_TID_TAG, 0, &resInfo, 0, 0);
       assert(ret == TSDB_CODE_SUCCESS);
 
-      s.type = (uint8_t)type;
-      s.bytes = bytes;
+      s.type  = (uint8_t)resInfo.type;
+      s.bytes = resInfo.bytes;
       s.colId = getNewResColId();
       TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
-
-      doAddOneExprInfo(pQueryInfo, 0, FUNCTION_TID_TAG, &index, &s, s.name);
+      
+      doAddOneExprInfo(pQueryInfo, 0, FUNCTION_TID_TAG, &index, &s, &s, NULL, 0, s.name);
       return TSDB_CODE_SUCCESS;
     }
 
     case FUNCTION_BLKINFO: {
       // no parameters or more than one parameter for function
-      if (pItem->pNode->Expr.paramList != NULL && taosArrayGetSize(pItem->pNode->Expr.paramList) != 0) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      if ((code = checkForkParam(pItem->pNode, 0, pMsgBuf))!= TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       SColumnIndex index = {.tableIndex = 0, .columnIndex = 0, .type = TSDB_COL_NORMAL};
       pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
 
-      int32_t inter   = 0;
-      int16_t resType = 0;
-      int16_t bytes   = 0;
+      SResultDataInfo resInfo = {0};
+      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resInfo, 0, 0);
 
-      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, 0);
+      SSchema s = createSchema(resInfo.type, resInfo.bytes, getNewResColId(), "block_dist");
+      SSchema colSchema = {0};
 
-      SSchema s = createSchema(TSDB_DATA_TYPE_BINARY, bytes, getNewResColId(), "block_dist");
-      SExprInfo* pExpr = createExprInfo(pTableMetaInfo, functionId, &index, NULL, &s, 0);
-      addExprInfo(pQueryInfo, 0, pExpr);
-
-      setTokenAndResColumnName(pItem, pExpr->base.resSchema.name, pExpr->base.token, TSDB_COL_NAME_LEN);
+      char token[TSDB_COL_NAME_LEN] = {0};
+      setTokenAndResColumnName(pItem, s.name, token, sizeof(s.name) - 1);
+      SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, colIndex, functionId, &index, &colSchema, &s, NULL, resInfo.intermediateBytes, token);
 
       int64_t rowSize = pTableMetaInfo->pTableMeta->tableInfo.rowSize;
       addExprInfoParam(&pExpr->base, (char*) &rowSize, TSDB_DATA_TYPE_BIGINT, 8);
-      doAddResColumnOrSourceColumn(pQueryInfo, &index, 0, pExpr, &s, true);
-
       return TSDB_CODE_SUCCESS;
     }
 
@@ -1570,19 +1575,15 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
         return buildInvalidOperationMsg(pMsgBuf, msg6);
       }
 
-      int32_t inter   = 0;
-      int16_t resType = 0;
-      int16_t bytes   = 0;
-      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, false/*, pUdfInfo*/);
+      SResultDataInfo resInfo = {0};
+      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resInfo, 0, false/*, pUdfInfo*/);
 
-      SSchema s = createSchema(resType, bytes, getNewResColId(), "");
-      SExprInfo *pExpr = createExprInfo(pTableMetaInfo, functionId, &index, NULL, &s, inter);
-      addExprInfo(pQueryInfo, colIndex, pExpr);
+      SSchema s = createSchema(resInfo.type, resInfo.bytes, getNewResColId(), "");
+      SSchema* colSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, index.tableIndex);
 
-      setTokenAndResColumnName(pItem, s.name, pExpr->base.token, sizeof(pExpr->base.resSchema.name) - 1);
-
-      s = createSchema(resType, bytes, pExpr->base.colInfo.colId, "");
-      doAddResColumnOrSourceColumn(pQueryInfo, &index, colIndex, pExpr, &s, finalResult);
+      char token[TSDB_COL_NAME_LEN] = {0};
+      setTokenAndResColumnName(pItem, s.name, token, sizeof(s.name) - 1);
+      doAddOneExprInfo(pQueryInfo, colIndex, functionId, &index, colSchema, &s, NULL, resInfo.intermediateBytes, token);
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -1591,7 +1592,7 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
 }
 
 SExprInfo* doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SColumnIndex* pColIndex, const char* aliasName, int32_t colId) {
-  STableMeta*     pTableMeta = getMetaInfo(pQueryInfo, pColIndex->tableIndex)->pTableMeta;
+  STableMeta* pTableMeta = getMetaInfo(pQueryInfo, pColIndex->tableIndex)->pTableMeta;
 
   SSchema* pSchema = getOneColumnSchema(pTableMeta, pColIndex->columnIndex);
   SColumnIndex index = *pColIndex;
@@ -1608,8 +1609,7 @@ SExprInfo* doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, S
 
   const char* name = (aliasName == NULL)? pSchema->name:aliasName;
   SSchema s = createSchema(pSchema->type, pSchema->bytes, colId, name);
-
-  return doAddOneExprInfo(pQueryInfo, outputColIndex, functionId, &index, &s, pSchema->name);
+  return doAddOneExprInfo(pQueryInfo, outputColIndex, functionId, &index, pSchema, &s, NULL, 0, pSchema->name);
 }
 
 static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* pIndex, int32_t startPos) {
@@ -1704,7 +1704,7 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
 
     char rawName[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(rawName, pItem->pNode->exprToken.z, MIN(TSDB_COL_NAME_LEN, TSDB_COL_NAME_LEN));
-    SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, startPos, FUNCTION_PRJ, &index, &colSchema, rawName);
+    SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, startPos, FUNCTION_PRJ, &index, &colSchema, &colSchema, NULL, 0, rawName);
 
     // NOTE: the first parameter is reserved for the tag column id during join query process.
     pExpr->base.numOfParams = 2;
@@ -1745,10 +1745,13 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
         functionId = FUNCTION_TAGPRJ;
       }
 
-      colSchema.colId = getNewResColId();
+      SSchema resultSchema = colSchema;
+      resultSchema.colId = getNewResColId();
+
       char rawName[TSDB_COL_NAME_LEN] = {0};
-      setTokenAndResColumnName(pItem, colSchema.name, rawName, sizeof(colSchema.name) - 1);
-      doAddOneExprInfo(pQueryInfo, startPos, functionId, &index, &colSchema, rawName);
+      setTokenAndResColumnName(pItem, resultSchema.name, rawName, sizeof(colSchema.name) - 1);
+
+      doAddOneExprInfo(pQueryInfo, startPos, functionId, &index, &colSchema, &resultSchema, NULL, 0, rawName);
     } else {
       STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
       if (TSDB_COL_IS_TAG(index.type) && UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
@@ -2182,7 +2185,7 @@ int32_t validateSelectNodeList(SQueryStmtInfo* pQueryInfo, SArray* pSelNodeList,
   const char* msg3 = "not support query expression";
   const char* msg4 = "not support distinct mixed with proj/agg func";
   const char* msg5 = "invalid function name";
-  const char* msg9 = "_block_dist not support subquery, only support stable/table";
+  const char* msg6 = "_block_dist not support subquery, only support stable/table";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2237,10 +2240,6 @@ int32_t validateSelectNodeList(SQueryStmtInfo* pQueryInfo, SArray* pSelNodeList,
       }
     } else {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
-    }
-
-    if (pQueryInfo->fieldsInfo.numOfOutput > TSDB_MAX_COLUMNS) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   }
 
@@ -2754,6 +2753,10 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   for(int32_t i = 0; i < len; ++i) {
     SSqlNode* p = taosArrayGetP(pInfo->list, i);
     validateSqlNode(p, pQueryInfo, &buf);
+  }
+
+  if ((code = checkForInvalidExpr(pQueryInfo, &buf)) != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   // convert the sqlnode into queryinfo

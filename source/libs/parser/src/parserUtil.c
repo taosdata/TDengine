@@ -834,20 +834,6 @@ void columnCopy(SColumn* pDest, const SColumn* pSrc) {
   pDest->info.bytes      = pSrc->info.bytes;
 }
 
-void columnListCopy(SArray* dst, const SArray* src, uint64_t tableUid) {
-  assert(src != NULL && dst != NULL);
-
-  size_t num = taosArrayGetSize(src);
-  for (int32_t i = 0; i < num; ++i) {
-    SColumn* pCol = taosArrayGetP(src, i);
-
-    if (pCol->tableUid == tableUid) {
-      SColumn* p = columnClone(pCol);
-      taosArrayPush(dst, &p);
-    }
-  }
-}
-
 void columnListCopyAll(SArray* dst, const SArray* src) {
   assert(src != NULL && dst != NULL);
 
@@ -856,6 +842,20 @@ void columnListCopyAll(SArray* dst, const SArray* src) {
     SColumn* pCol = taosArrayGetP(src, i);
     SColumn* p = columnClone(pCol);
     taosArrayPush(dst, &p);
+  }
+}
+
+void columnListCopy(SArray* dst, const SArray* src, uint64_t uid) {
+  assert(src != NULL && dst != NULL);
+
+  size_t num = taosArrayGetSize(src);
+  for (int32_t i = 0; i < num; ++i) {
+    SColumn* pCol = taosArrayGetP(src, i);
+
+    if (pCol->tableUid == uid) {
+      SColumn* p = columnClone(pCol);
+      taosArrayPush(dst, &p);
+    }
   }
 }
 
@@ -1705,7 +1705,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryStmtInfo* pQueryInfo, SQueryAttr* pQue
   pQueryAttr->pExpr1 = calloc(pQueryAttr->numOfOutput, sizeof(SExprInfo));
   for(int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     SExprInfo* pExpr = getExprInfo(pQueryInfo, i);
-    tscExprAssign(&pQueryAttr->pExpr1[i], pExpr);
+    ExprInfoCopy(&pQueryAttr->pExpr1[i], pExpr);
 
     if (pQueryAttr->pExpr1[i].base.functionId == FUNCTION_ARITHM) {
       for (int32_t j = 0; j < pQueryAttr->pExpr1[i].base.numOfParams; ++j) {
@@ -1736,7 +1736,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryStmtInfo* pQueryInfo, SQueryAttr* pQue
     pQueryAttr->pExpr2 = calloc(pQueryAttr->numOfExpr2, sizeof(SExprInfo));
     for(int32_t i = 0; i < pQueryAttr->numOfExpr2; ++i) {
       SExprInfo* p = taosArrayGetP(pQueryInfo->exprList1, i);
-      tscExprAssign(&pQueryAttr->pExpr2[i], p);
+      ExprInfoCopy(&pQueryAttr->pExpr2[i], p);
     }
   }
 

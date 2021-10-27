@@ -178,8 +178,14 @@ typedef struct SScalarFunctionInfo {
   void    (*exec)(SQLFunctionCtx *pCtx);
 } SScalarFunctionInfo;
 
-int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable/*, SUdfInfo* pUdfInfo*/);
+typedef struct SResultDataInfo {
+  int16_t type;
+  int16_t bytes;
+  int32_t intermediateBytes;
+} SResultDataInfo;
+
+int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
+                          bool isSuperTable);
 
 /**
  * If the given name is a valid built-in sql function, the value of true will be returned.

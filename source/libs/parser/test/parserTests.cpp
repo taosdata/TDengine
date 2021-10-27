@@ -65,278 +65,278 @@ void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq *req) {
 }
 }
 
-TEST(testCase, validateAST_test) {
-  SSqlInfo info1 = doGenerateAST("select a a1111, a+b + 22, tbname from `t.1abc` where ts<now+2h and `col` < 20 + 99");
-  ASSERT_EQ(info1.valid, true);
-
-  char    msg[128] = {0};
-  SMsgBuf buf;
-  buf.len = 128;
-  buf.buf = msg;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-  ASSERT_EQ(code, 0);
-
-  SMetaReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-
-  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
-  initQueryInfo(pQueryInfo);
-  setTableMetaInfo(pQueryInfo, &req);
-
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-
-  SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
-
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-  ASSERT_EQ(p1->base.uid, 110);
-  ASSERT_EQ(p1->base.numOfParams, 0);
-  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_INT);
-  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1111");
-  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.a");
-  ASSERT_EQ(p1->base.colInfo.colId, 1);
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p1->base.token, "a");
-
-  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
-
-  SExprInfo* p2 = (SExprInfo*) taosArrayGetP(pExprList, 1);
-  ASSERT_EQ(p2->base.uid, 0);
-  ASSERT_EQ(p2->base.numOfParams, 1);  // it is the serialized binary string of expression.
-  ASSERT_EQ(p2->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_STRCASEEQ(p2->base.resSchema.name, "a+b + 22");
-
-//  ASSERT_STRCASEEQ(p2->base.colInfo.name, "t.1abc.a");
+//TEST(testCase, validateAST_test) {
+//  SSqlInfo info1 = doGenerateAST("select a a1111, a+b + 22, tbname from `t.1abc` where ts<now+2h and `col` < 20 + 99");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char    msg[128] = {0};
+//  SMsgBuf buf;
+//  buf.len = 128;
+//  buf.buf = msg;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+//  ASSERT_EQ(code, 0);
+//
+//  SMetaReq req = {0};
+//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
+//  initQueryInfo(pQueryInfo);
+//  setTableMetaInfo(pQueryInfo, &req);
+//
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//
+//  SArray* pExprList = pQueryInfo->exprList;
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
+//
+//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+//  ASSERT_EQ(p1->base.uid, 110);
+//  ASSERT_EQ(p1->base.numOfParams, 0);
+//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_INT);
+//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1111");
+//  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.a");
 //  ASSERT_EQ(p1->base.colInfo.colId, 1);
 //  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p2->base.token, "a+b + 22");
-
-  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 3);
-}
-
-TEST(testCase, function_Test) {
-  SSqlInfo info1 = doGenerateAST("select count(a) from `t.1abc`");
-  ASSERT_EQ(info1.valid, true);
-
-  char    msg[128] = {0};
-  SMsgBuf buf;
-  buf.len = 128;
-  buf.buf = msg;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-  ASSERT_EQ(code, 0);
-
-  SMetaReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-
-  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
-  initQueryInfo(pQueryInfo);
-  setTableMetaInfo(pQueryInfo, &req);
-
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-
-  SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
-
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-  ASSERT_EQ(p1->base.uid, 110);
-  ASSERT_EQ(p1->base.numOfParams, 0);
-  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_STRCASEEQ(p1->base.resSchema.name, "count(a)");
-  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.a");
-  ASSERT_EQ(p1->base.colInfo.colId, 1);
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p1->base.token, "count(a)");
-  ASSERT_EQ(p1->base.interBytes, 8);
-
-  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 2);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
-}
-
-TEST(testCase, function_Test2) {
-  SSqlInfo info1 = doGenerateAST("select count(a) abc from `t.1abc`");
-  ASSERT_EQ(info1.valid, true);
-
-  char    msg[128] = {0};
-  SMsgBuf buf;
-  buf.len = 128;
-  buf.buf = msg;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-  ASSERT_EQ(code, 0);
-
-  SMetaReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-
-  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
-  initQueryInfo(pQueryInfo);
-  setTableMetaInfo(pQueryInfo, &req);
-
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-
-  SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
-
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-  ASSERT_EQ(p1->base.uid, 110);
-  ASSERT_EQ(p1->base.numOfParams, 0);
-  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_STRCASEEQ(p1->base.resSchema.name, "abc");
-  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.a");
-  ASSERT_EQ(p1->base.colInfo.colId, 1);
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p1->base.token, "count(a)");
-  ASSERT_EQ(p1->base.interBytes, 8);
-
-  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 2);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
-}
-
-TEST(testCase, function_Test3) {
-  SSqlInfo info1 = doGenerateAST("select first(*) from `t.1abc`");
-  ASSERT_EQ(info1.valid, true);
-
-  char    msg[128] = {0};
-  SMsgBuf buf;
-  buf.len = 128;
-  buf.buf = msg;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-  ASSERT_EQ(code, 0);
-
-  SMetaReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-
-  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
-  initQueryInfo(pQueryInfo);
-  setTableMetaInfo(pQueryInfo, &req);
-
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-
-  SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 4);
-
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-  ASSERT_EQ(p1->base.uid, 110);
-  ASSERT_EQ(p1->base.numOfParams, 0);
-  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT_STRCASEEQ(p1->base.resSchema.name, "first(ts)");
-  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.ts");
-  ASSERT_EQ(p1->base.colInfo.colId, 0);
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p1->base.token, "first(ts)");
-  ASSERT_EQ(p1->base.interBytes, 24);
-
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 4);
-}
-
-TEST(testCase, function_Test4) {
-  SSqlInfo info1 = doGenerateAST("select _block_dist() as a1 from `t.1abc`");
-  ASSERT_EQ(info1.valid, true);
-
-  char    msg[128] = {0};
-  SMsgBuf buf;
-  buf.len = 128;
-  buf.buf = msg;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-  ASSERT_EQ(code, 0);
-
-  SMetaReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-
-  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
-  initQueryInfo(pQueryInfo);
-  setTableMetaInfo(pQueryInfo, &req);
-
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-
-  SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
-
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-  ASSERT_EQ(p1->base.uid, 110);
-  ASSERT_EQ(p1->base.numOfParams, 1);
-  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BINARY);
-  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1");
+//  ASSERT_STRCASEEQ(p1->base.token, "a");
+//
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
+//
+//  SExprInfo* p2 = (SExprInfo*) taosArrayGetP(pExprList, 1);
+//  ASSERT_EQ(p2->base.uid, 0);
+//  ASSERT_EQ(p2->base.numOfParams, 1);  // it is the serialized binary string of expression.
+//  ASSERT_EQ(p2->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
+//  ASSERT_STRCASEEQ(p2->base.resSchema.name, "a+b + 22");
+//
+////  ASSERT_STRCASEEQ(p2->base.colInfo.name, "t.1abc.a");
+////  ASSERT_EQ(p1->base.colInfo.colId, 1);
+////  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+//  ASSERT_STRCASEEQ(p2->base.token, "a+b + 22");
+//
+//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
+//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 3);
+//}
+//
+//TEST(testCase, function_Test) {
+//  SSqlInfo info1 = doGenerateAST("select count(a) from `t.1abc`");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char    msg[128] = {0};
+//  SMsgBuf buf;
+//  buf.len = 128;
+//  buf.buf = msg;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+//  ASSERT_EQ(code, 0);
+//
+//  SMetaReq req = {0};
+//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
+//  initQueryInfo(pQueryInfo);
+//  setTableMetaInfo(pQueryInfo, &req);
+//
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//
+//  SArray* pExprList = pQueryInfo->exprList;
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
+//
+//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+//  ASSERT_EQ(p1->base.uid, 110);
+//  ASSERT_EQ(p1->base.numOfParams, 0);
+//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BIGINT);
+//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "count(a)");
+//  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.a");
+//  ASSERT_EQ(p1->base.colInfo.colId, 1);
+//  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+//  ASSERT_STRCASEEQ(p1->base.token, "count(a)");
+//  ASSERT_EQ(p1->base.interBytes, 8);
+//
+//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 2);
+//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
+//}
+//
+//TEST(testCase, function_Test2) {
+//  SSqlInfo info1 = doGenerateAST("select count(a) abc from `t.1abc`");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char    msg[128] = {0};
+//  SMsgBuf buf;
+//  buf.len = 128;
+//  buf.buf = msg;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+//  ASSERT_EQ(code, 0);
+//
+//  SMetaReq req = {0};
+//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
+//  initQueryInfo(pQueryInfo);
+//  setTableMetaInfo(pQueryInfo, &req);
+//
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//
+//  SArray* pExprList = pQueryInfo->exprList;
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
+//
+//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+//  ASSERT_EQ(p1->base.uid, 110);
+//  ASSERT_EQ(p1->base.numOfParams, 0);
+//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BIGINT);
+//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "abc");
+//  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.a");
+//  ASSERT_EQ(p1->base.colInfo.colId, 1);
+//  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+//  ASSERT_STRCASEEQ(p1->base.token, "count(a)");
+//  ASSERT_EQ(p1->base.interBytes, 8);
+//
+//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 2);
+//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
+//}
+//
+//TEST(testCase, function_Test3) {
+//  SSqlInfo info1 = doGenerateAST("select first(*) from `t.1abc`");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char    msg[128] = {0};
+//  SMsgBuf buf;
+//  buf.len = 128;
+//  buf.buf = msg;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+//  ASSERT_EQ(code, 0);
+//
+//  SMetaReq req = {0};
+//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
+//  initQueryInfo(pQueryInfo);
+//  setTableMetaInfo(pQueryInfo, &req);
+//
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//
+//  SArray* pExprList = pQueryInfo->exprList;
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 4);
+//
+//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+//  ASSERT_EQ(p1->base.uid, 110);
+//  ASSERT_EQ(p1->base.numOfParams, 0);
+//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_TIMESTAMP);
+//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "first(ts)");
 //  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.ts");
 //  ASSERT_EQ(p1->base.colInfo.colId, 0);
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p1->base.token, "_block_dist()");
-  ASSERT_EQ(p1->base.interBytes, 0);
-
-  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 1);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
-}
-
-TEST(testCase, function_Test5) {
-  SSqlInfo info1 = doGenerateAST("select sum(a) + avg(b)  as a1 from `t.1abc`");
-  ASSERT_EQ(info1.valid, true);
-
-  char    msg[128] = {0};
-  SMsgBuf buf;
-  buf.len = 128;
-  buf.buf = msg;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-  ASSERT_EQ(code, 0);
-
-  SMetaReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-
-  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
-  initQueryInfo(pQueryInfo);
-  setTableMetaInfo(pQueryInfo, &req);
-
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-  ASSERT_EQ(ret, 0);
-
-  SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
-
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-  ASSERT_EQ(p1->base.uid, 0);
-  ASSERT_EQ(p1->base.numOfParams, 1);
-  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1");
-//  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.ts");
-//  ASSERT_EQ(p1->base.colInfo.colId, 0);
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
-  ASSERT_STRCASEEQ(p1->base.token, "sum(a) + avg(b)");
-  ASSERT_EQ(p1->base.interBytes, 0);
-
-  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
-}
+//  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+//  ASSERT_STRCASEEQ(p1->base.token, "first(ts)");
+//  ASSERT_EQ(p1->base.interBytes, 24);
+//
+//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 4);
+//}
+//
+//TEST(testCase, function_Test4) {
+//  SSqlInfo info1 = doGenerateAST("select _block_dist() as a1 from `t.1abc`");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char    msg[128] = {0};
+//  SMsgBuf buf;
+//  buf.len = 128;
+//  buf.buf = msg;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+//  ASSERT_EQ(code, 0);
+//
+//  SMetaReq req = {0};
+//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
+//  initQueryInfo(pQueryInfo);
+//  setTableMetaInfo(pQueryInfo, &req);
+//
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//
+//  SArray* pExprList = pQueryInfo->exprList;
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
+//
+//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+//  ASSERT_EQ(p1->base.uid, 110);
+//  ASSERT_EQ(p1->base.numOfParams, 1);
+//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BINARY);
+//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1");
+////  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.ts");
+////  ASSERT_EQ(p1->base.colInfo.colId, 0);
+//  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+//  ASSERT_STRCASEEQ(p1->base.token, "_block_dist()");
+//  ASSERT_EQ(p1->base.interBytes, 0);
+//
+//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 1);
+//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
+//}
+//
+//TEST(testCase, function_Test5) {
+//  SSqlInfo info1 = doGenerateAST("select sum(a) + avg(b)  as a1 from `t.1abc`");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char    msg[128] = {0};
+//  SMsgBuf buf;
+//  buf.len = 128;
+//  buf.buf = msg;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+//  ASSERT_EQ(code, 0);
+//
+//  SMetaReq req = {0};
+//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  SQueryStmtInfo* pQueryInfo = (SQueryStmtInfo*)calloc(1, sizeof(SQueryStmtInfo));
+//  initQueryInfo(pQueryInfo);
+//  setTableMetaInfo(pQueryInfo, &req);
+//
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//  ASSERT_EQ(ret, 0);
+//
+//  SArray* pExprList = pQueryInfo->exprList;
+//  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
+//
+//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+//  ASSERT_EQ(p1->base.uid, 0);
+//  ASSERT_EQ(p1->base.numOfParams, 1);
+//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
+//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1");
+////  ASSERT_STRCASEEQ(p1->base.colInfo.name, "t.1abc.ts");
+////  ASSERT_EQ(p1->base.colInfo.colId, 0);
+//  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+//  ASSERT_STRCASEEQ(p1->base.token, "sum(a) + avg(b)");
+//  ASSERT_EQ(p1->base.interBytes, 0);
+//
+//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
+//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
+//}
 
 TEST(testCase, function_Test6) {
-  SSqlInfo info1 = doGenerateAST("select sum(a+b) as a1 from `t.1abc`");
+  SSqlInfo info1 = doGenerateAST("select sum(a+b) as a1, first(b*a) from `t.1abc`");
   ASSERT_EQ(info1.valid, true);
 
   char    msg[128] = {0};
@@ -362,7 +362,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(ret, 0);
 
   SArray* pExprList = pQueryInfo->exprList;
-  ASSERT_EQ(taosArrayGetSize(pExprList), 1);
+  ASSERT_EQ(taosArrayGetSize(pExprList), 2);
 
   SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
   ASSERT_EQ(p1->base.uid, 110);
@@ -374,5 +374,5 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(p1->base.interBytes, 16);
 
   ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
+  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 }

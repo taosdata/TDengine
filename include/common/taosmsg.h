@@ -460,7 +460,6 @@ typedef struct SColumnInfo {
 
 typedef struct STableIdInfo {
   uint64_t uid;
-  int32_t  tid;
   TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
 

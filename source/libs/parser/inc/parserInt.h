@@ -26,12 +26,6 @@ extern "C" {
 
 struct SSqlNode;
 
-typedef struct SColumnIndex {
-  int16_t tableIndex;
-  int16_t columnIndex;
-  int16_t type;               // normal column/tag/ user input constant column
-} SColumnIndex;
-
 typedef struct SInsertStmtInfo {
   SHashObj *pTableBlockHashList;     // data block for each table
   SArray   *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
@@ -40,28 +34,6 @@ typedef struct SInsertStmtInfo {
   uint32_t  insertType;              // insert data from [file|sql statement| bound statement]
   char     *sql;                     // current sql statement position
 } SInsertStmtInfo;
-
-// the structure for sql function in select clause
-typedef struct SSqlExpr {
-  char      token[TSDB_COL_NAME_LEN];      // original token
-  SSchema   resSchema;
-  SColIndex colInfo;
-  uint64_t  uid;            // table uid, todo refactor use the pointer
-  int32_t   interBytes;     // inter result buffer size
-  int16_t   numOfParams;    // argument value of each function
-  SVariant  param[3];       // parameters are not more than 3
-} SSqlExpr;
-
-typedef struct SExprInfo {
-  SSqlExpr           base;
-  struct tExprNode  *pExpr;
-} SExprInfo;
-
-typedef struct SColumn {
-  uint64_t     tableUid;
-  int32_t      columnIndex;
-  SColumnInfo  info;
-} SColumn;
 
 typedef struct SInternalField {
   TAOS_FIELD      field;
@@ -100,7 +72,10 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQ
 int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf);
 
 int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
+
 void initQueryInfo(SQueryStmtInfo* pQueryInfo);
+
+int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
 
 /**
  * Extract request meta info from the sql statement

@@ -50,8 +50,8 @@ int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalIn
 int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num);
 STableMetaInfo* addEmptyMetaInfo(SQueryStmtInfo* pQueryInfo);
 
-void columnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
 void columnListCopyAll(SArray* dst, const SArray* src);
+
 void columnListDestroy(SArray* pColumnList);
 
 SColumn* columnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);

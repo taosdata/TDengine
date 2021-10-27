@@ -43,12 +43,7 @@ int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** 
   }
 
   struct SCatalog* pCatalog = getCatalogHandle(NULL);
-  int32_t code = qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
-  if (code != 0) {
-    return code;
-  }
-
-  return 0;
+  return qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
 }
 
 int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg, int32_t msgLen) {

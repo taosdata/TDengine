@@ -698,7 +698,6 @@ err_ret:
   tfree(tmp);
 }
 
-
 tExprNode* exprdup(tExprNode* pNode) {
   if (pNode == NULL) {
     return NULL;

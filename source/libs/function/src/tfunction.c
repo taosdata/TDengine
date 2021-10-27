@@ -414,7 +414,7 @@ bool timeWindowInterpoRequired(SArray* pFunctionIdList) {
   return false;
 }
 
-//SQueryType setQueryType(SArray* pFunctionIdList) {
+//SQueryAttrInfo setQueryType(SArray* pFunctionIdList) {
 //  assert(pFunctionIdList != NULL);
 //
 //

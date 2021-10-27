@@ -1,5 +1,4 @@
 #include "queryInfoUtil.h"
-#include <function.h>
 #include "astGenerator.h"
 #include "function.h"
 #include "os.h"
@@ -166,12 +165,17 @@ SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index) {
   return taosArrayGetP(pQueryInfo->exprList, index);
 }
 
-void destroyExprInfo(SArray* pExprInfo) {
+void destroyExprInfo(SExprInfo* pExprInfo) {
+  tExprTreeDestroy(pExprInfo->pExpr, NULL);
+  tfree(pExprInfo);
+}
+
+void dropAllExprInfo(SArray* pExprInfo) {
   size_t size = taosArrayGetSize(pExprInfo);
 
   for(int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
-//    tSqlExprDestroy(&pExpr->base);
+    destroyExprInfo(pExpr);
   }
 
   taosArrayDestroy(pExprInfo);
@@ -199,7 +203,6 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
   }
 #endif
 
-  assert(0);
 //  dst->pExpr = exprdup(src->pExpr);
   memset(dst->base.param, 0, sizeof(SVariant) * tListLen(dst->base.param));
   for (int32_t j = 0; j < src->base.numOfParams; ++j) {
@@ -207,7 +210,7 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
   }
 }
 
-int32_t copyOneExprInfo(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy) {
+int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy) {
   assert(src != NULL && dst != NULL);
 
   size_t size = taosArrayGetSize(src);
@@ -236,13 +239,9 @@ int32_t copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy) {
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = taosArrayGetP(src, i);
 
-    if (deepcopy) {
-      SExprInfo* p1 = calloc(1, sizeof(SExprInfo));
-      assignExprInfo(p1, pExpr);
-      taosArrayPush(dst, &p1);
-    } else {
-      taosArrayPush(dst, &pExpr);
-    }
+    SExprInfo* p1 = calloc(1, sizeof(SExprInfo));
+    assignExprInfo(p1, pExpr);
+    taosArrayPush(dst, &p1);
   }
 
   return 0;
@@ -290,11 +289,11 @@ static void freeQueryInfoImpl(SQueryStmtInfo* pQueryInfo) {
   cleanupColumnCond(&pQueryInfo->colCond);
   cleanupFieldInfo(&pQueryInfo->fieldsInfo);
 
-  destroyExprInfo(pQueryInfo->exprList);
+  dropAllExprInfo(pQueryInfo->exprList);
   pQueryInfo->exprList = NULL;
 
   if (pQueryInfo->exprList1 != NULL) {
-    destroyExprInfo(pQueryInfo->exprList1);
+    dropAllExprInfo(pQueryInfo->exprList1);
     pQueryInfo->exprList1 = NULL;
   }
 
