@@ -62,24 +62,24 @@ typedef struct SSyncFSM {
   void* pData;
 
   // apply committed log, bufs will be free by raft module
-  int (*applyLog)(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData);
+  int (*applyLog)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf, void* pData);
 
-  // cluster commit callback 
-  int (*onClusterChanged)(struct SSyncFSM *fsm, const SSyncCluster* cluster, void *pData);
+  // cluster commit callback
+  int (*onClusterChanged)(struct SSyncFSM* fsm, const SSyncCluster* cluster, void* pData);
 
   // fsm return snapshot in ppBuf, bufs will be free by raft module
   // TODO: getSnapshot SHOULD be async?
-  int (*getSnapshot)(struct SSyncFSM *fsm, SSyncBuffer **ppBuf, int* objId, bool *isLast);
+  int (*getSnapshot)(struct SSyncFSM* fsm, SSyncBuffer** ppBuf, int* objId, bool* isLast);
 
   // fsm apply snapshot with pBuf data
-  int (*applySnapshot)(struct SSyncFSM *fsm, SSyncBuffer *pBuf, int objId, bool isLast);
+  int (*applySnapshot)(struct SSyncFSM* fsm, SSyncBuffer* pBuf, int objId, bool isLast);
 
   // call when restore snapshot and log done
-  int (*onRestoreDone)(struct SSyncFSM *fsm);
+  int (*onRestoreDone)(struct SSyncFSM* fsm);
 
-  void (*onRollback)(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf);
+  void (*onRollback)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf);
 
-  void (*onRoleChanged)(struct SSyncFSM *fsm, const SNodesRole* pRole);
+  void (*onRoleChanged)(struct SSyncFSM* fsm, const SNodesRole* pRole);
 
 } SSyncFSM;
 
