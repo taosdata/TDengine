@@ -64,7 +64,7 @@ typedef struct {
   SMLTimeStampType tsType;
   SHashObj* smlDataToSchema;
 
-  int64_t affectedRows;
+  int32_t affectedRows;
 } SSmlLinesInfo;
 
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
