@@ -5191,10 +5191,10 @@ void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
     return;
   }
 
-  assert(strlen(json) <= bytes);
   int32_t length = 0;
   taosMbsToUcs4(json, strlen(json), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length);
   varDataSetLen(dst, length);
+  assert(length <= bytes);
   tfree(json);
 }
 
