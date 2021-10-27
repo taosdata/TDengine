@@ -14,8 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "tglobal.h"
 #include "dnodeCheck.h"
 
 #define MIN_AVAIL_MEMORY_MB 32

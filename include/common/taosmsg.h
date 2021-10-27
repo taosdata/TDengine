@@ -363,6 +363,8 @@ typedef struct {
 } SConnectRsp;
 
 typedef struct {
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_KEY_LEN];
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
@@ -374,12 +376,6 @@ typedef struct {
   int64_t maxInbound;
   int64_t maxOutbound;
   int8_t  accessState;  // Configured only by command
-} SAcctCfg;
-
-typedef struct {
-  char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
-  SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
@@ -660,15 +656,18 @@ typedef struct SVgroupAccess {
 } SVgroupAccess;
 
 typedef struct {
-  int32_t  dnodeId;
-  uint32_t moduleStatus;
-  uint32_t numOfVnodes;
-  char     clusterId[TSDB_CLUSTER_ID_LEN];
-  char     reserved[16];
+  int32_t dnodeId;
+  int8_t  dropped;
+  char    reserved[19];
+  int64_t clusterId;
+  int32_t numOfDnodes;
+  int32_t numOfVnodes;
 } SDnodeCfg;
 
 typedef struct {
   int32_t  dnodeId;
+  int8_t   isMnode;
+  int8_t   reserved;
   uint16_t dnodePort;
   char     dnodeFqdn[TSDB_FQDN_LEN];
 } SDnodeEp;
@@ -679,55 +678,29 @@ typedef struct {
 } SDnodeEps;
 
 typedef struct {
-  int32_t mnodeId;
-  char    mnodeEp[TSDB_EP_LEN];
-} SMInfo;
-
-typedef struct SMInfos {
-  int8_t inUse;
-  int8_t mnodeNum;
-  SMInfo mnodeInfos[TSDB_MAX_REPLICA];
-} SMInfos;
-
-typedef struct {
-  int32_t  numOfMnodes;               // tsNumOfMnodes
-  int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
-  int32_t  offlineThreshold;          // tsOfflineThreshold
-  int32_t  statusInterval;            // tsStatusInterval
-  int32_t  maxtablesPerVnode;
-  int32_t  maxVgroupsPerDb;
-  char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
-  char     reserve[2];                // to solve arm32 bus error
-  char     timezone[64];              // tsTimezone
-  int64_t  checkTime;                 // 1970-01-01 00:00:00.000
-  char     locale[TSDB_LOCALE_LEN];   // tsLocale
-  char     charset[TSDB_LOCALE_LEN];  // tsCharset
-  int8_t   enableBalance;             // tsEnableBalance
-  int8_t   flowCtrl;
-  int8_t   slaveQuery;
-  int8_t   adjustMaster;
-  int8_t   reserved[4];
+  int32_t statusInterval;  // tsStatusInterval
+  int8_t  reserved[36];
+  int64_t checkTime;                 // 1970-01-01 00:00:00.000
+  char    timezone[64];              // tsTimezone
+  char    locale[TSDB_LOCALE_LEN];   // tsLocale
+  char    charset[TSDB_LOCALE_LEN];  // tsCharset
 } SClusterCfg;
 
 typedef struct SStatusMsg {
   uint32_t    version;
   int32_t     dnodeId;
+  uint32_t    lastReboot;  // time stamp for last reboot
+  int32_t     openVnodes;
+  int32_t     numOfCores;
+  float       diskAvailable;
+  int8_t      reserved[36];
   char        dnodeEp[TSDB_EP_LEN];
-  uint32_t    moduleStatus;
-  uint32_t    lastReboot;        // time stamp for last reboot
-  uint16_t    reserve1;          // from config file
-  uint16_t    openVnodes;
-  uint16_t    numOfCores;
-  float       diskAvailable;  // GB
-  char        clusterId[TSDB_CLUSTER_ID_LEN];
-  uint8_t     alternativeRole;
-  uint8_t     reserve2[15];
+  int64_t     clusterId;
   SClusterCfg clusterCfg;
   SVnodeLoad  load[];
 } SStatusMsg;
 
 typedef struct {
-  SMInfos       mnodes;
   SDnodeCfg     dnodeCfg;
   SVgroupAccess vgAccess[];
 } SStatusRsp;
@@ -863,9 +836,9 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t dnodeId;
-  char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
-  SMInfos mnodes;
+  int32_t  dnodeId;
+  int32_t  mnodeNum;
+  SDnodeEp mnodeEps[];
 } SCreateMnodeMsg;
 
 typedef struct {

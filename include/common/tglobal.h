@@ -151,8 +151,6 @@ extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;
 extern char    tsVnodeDir[];
 extern char    tsMnodeDir[];
-extern char    tsMnodeBakDir[];
-extern char    tsMnodeTmpDir[];
 extern int64_t tsTickPerDay[3];
 extern int32_t tsTopicBianryLen;
 

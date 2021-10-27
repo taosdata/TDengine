@@ -1,5 +1,5 @@
 add_subdirectory(transport)
-add_subdirectory(raft)
+add_subdirectory(sync)
 add_subdirectory(tkv)
 add_subdirectory(index)
 add_subdirectory(wal)

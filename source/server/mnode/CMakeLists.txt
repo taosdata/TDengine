@@ -8,4 +8,5 @@ target_include_directories(
 target_link_libraries(
     mnode
     PUBLIC transport
+    PUBLIC cjson
 )
