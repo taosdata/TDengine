@@ -155,7 +155,6 @@ sql alter table ctb0 set tag `456 123`=2
 #sql alter table ctb0 set tag `abc.123`=2
 #change tag has bug when using dot in tagname
 
-
 print ======================= test insert specific tags automatically create table
 
 sql alter table ctb0 set tag `321`=2
