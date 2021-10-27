@@ -1082,7 +1082,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
       if(pSchema->type == TSDB_DATA_TYPE_JSON){
         assert(spd.numOfBound == 1);
-        if(sToken.n > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
+        if(sToken.n > TSDB_MAX_JSON_TAGS_LEN/TSDB_NCHAR_SIZE){
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
           if (TK_STRING == sToken.type) free(sToken.z);

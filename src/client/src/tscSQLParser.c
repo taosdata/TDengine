@@ -1528,18 +1528,21 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   }
 
   int32_t nLen = 0;
+  bool isJsonTag = false;
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
     if (p->bytes == 0) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
       return false;
     }
-
+    if(p->type == TSDB_DATA_TYPE_JSON){
+      isJsonTag = true;
+    }
     nLen += p->bytes;
   }
 
   // max tag row length must be less than TSDB_MAX_TAGS_LEN
-  if (nLen > TSDB_MAX_TAGS_LEN) {
+  if (!isJsonTag && nLen > TSDB_MAX_TAGS_LEN) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     return false;
   }
@@ -6118,7 +6121,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(pMsg, msg25);
       }
-      if (pItem->pVar.nType > TSDB_MAX_TAGS_LEN / TSDB_NCHAR_SIZE) {
+      if (pItem->pVar.nType > TSDB_MAX_JSON_TAGS_LEN / TSDB_NCHAR_SIZE) {
         tscError("json tag too long");
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(pMsg, msg14);
@@ -7686,11 +7689,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
               } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
                 pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
               }
-            } else if (pSchema->type == TSDB_DATA_TYPE_JSON) {
-              if (pItem->pVar.nLen > TSDB_MAX_TAGS_LEN) {
-                tdDestroyKVRowBuilder(&kvRowBuilder);
-                return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-              }
             }
             ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
@@ -7778,7 +7776,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
-      if(pItem->pVar.nLen > TSDB_MAX_TAGS_LEN/TSDB_NCHAR_SIZE){
+      if(pItem->pVar.nLen > TSDB_MAX_JSON_TAGS_LEN/TSDB_NCHAR_SIZE){
         tscError("json tag too long");
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);

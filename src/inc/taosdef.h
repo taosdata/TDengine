@@ -50,7 +50,6 @@ extern const int32_t TYPE_BYTES[16];
 #define DOUBLE_BYTES  sizeof(double)
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
-#define JSON_BYTES (TSDB_MAX_TAGS_LEN + VARSTR_HEADER_SIZE)
 #define TSDB_KEYSIZE            sizeof(TSKEY)
 
 #if LINUX
@@ -222,6 +221,7 @@ do { \
    */
 #define TSDB_MAX_BYTES_PER_ROW    49151
 #define TSDB_MAX_TAGS_LEN         16384
+#define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2)
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
 #define TSDB_MAX_JSON_KEY_LEN     256
