@@ -89,7 +89,7 @@ ELSEIF (TD_DARWIN)
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
 
   # generate dynamic library (*.dylib)
-  ADD_LIBRARY(taos SHARED ${SRC} jni/jniCommon.h)
+  ADD_LIBRARY(taos SHARED ${SRC})
   TARGET_LINK_LIBRARIES(taos query trpc tutil pthread m lua cJson)
 
   SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
