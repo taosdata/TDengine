@@ -19,7 +19,7 @@
 #include "tqueue.h"
 #include "tworker.h"
 #include "taosmsg.h"
-#include "vnodeMain.h"
+
 #include "vnodeStatus.h"
 #include "vnodeWrite.h"
 #include "vnodeWriteMsg.h"
@@ -96,7 +96,7 @@ static int32_t vnodeWriteToWQueue(SVnode *pVnode, SWalHead *pHead, int32_t qtype
   atomic_add_fetch_32(&tsVwrite.queuedMsgs, 1);
   atomic_add_fetch_32(&pVnode->refCount, 1);
   atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
-  taosWriteQitem(pVnode->wqueue, pWrite->qtype, pWrite);
+  taosWriteQitem(pVnode->pWriteQ, pWrite->qtype, pWrite);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -153,10 +153,10 @@ static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t 
 #if 0  
   pWrite->code = walWrite(pVnode->wal, pHead);
   if (pWrite->code < 0) return false;
-#endif  
+
 
   pVnode->version = pHead->version;
-
+#endif  
   // write data locally
   switch (msgType) {
     case TSDB_MSG_TYPE_SUBMIT:

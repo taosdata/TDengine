@@ -16,18 +16,19 @@
 #ifndef _TD_VNODE_INT_H_
 #define _TD_VNODE_INT_H_
 
-#include "os.h"
 #include "amalloc.h"
 #include "meta.h"
+#include "os.h"
+#include "sync.h"
 #include "taosmsg.h"
+#include "tlog.h"
 #include "tq.h"
+#include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
-#include "vnode.h"
-#include "tlog.h"
-#include "tqueue.h"
-#include "wal.h"
 #include "tworker.h"
+#include "vnode.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,51 +44,28 @@ extern int32_t vDebugFlag;
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
-  SMeta *        pMeta;
-  STsdb *        pTsdb;
-  STQ *          pTQ;
-  SMemAllocator *allocator;
-
-  int32_t  vgId;      // global vnode group ID
-  int32_t  refCount;  // reference count
-  int64_t  queuedWMsgSize;
-  int32_t  queuedWMsg;
-  int32_t  queuedRMsg;
-  int32_t  numOfExistQHandle;  // current initialized and existed query handle in current dnode
-  int32_t  flowctrlLevel;
-  int8_t   preClose;  // drop and close switch
-  int8_t   reserved[3];
-  int64_t  sequence;  // for topic
-  int8_t   status;
-  int8_t   role;
-  int8_t   accessState;
-  int8_t   isFull;
-  int8_t   isCommiting;
-  int8_t   dbReplica;
-  int8_t   dropped;
-  int8_t   dbType;
-  uint64_t version;   // current version
-  uint64_t cversion;  // version while commit start
-  uint64_t fversion;  // version on saved data file
-  void *   wqueue;    // write queue
-  void *   qqueue;    // read query queue
-  void *   fqueue;    // read fetch/cancel queue
-  void *   wal;
-  void *   tsdb;
-  int64_t  sync;
-  void *   events;
-  void *   cq;  // continuous query
-  int32_t  dbCfgVersion;
-  int32_t  vgCfgVersion;
-  // STsdbCfg tsdbCfg;
-#if 0  
-  SSyncCfg syncCfg;
-#endif  
-  SWalCfg  walCfg;
-  void *   qMgmt;
-  char *   rootDir;
-  tsem_t   sem;
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int32_t         vgId;      // global vnode group ID
+  int32_t         refCount;  // reference count
+  SMemAllocator  *allocator;
+  SMeta          *pMeta;
+  STsdb          *pTsdb;
+  STQ            *pTQ;
+  twalh           pWal;
+  SyncNodeId      syncNode;
+  taos_queue      pWriteQ;  // write queue
+  taos_queue      pQueryQ;  // read query queue
+  taos_queue      pFetchQ;  // read fetch/cancel queue
+  SWalCfg         walCfg;
+  SSyncCluster    syncCfg;
+  char            db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int64_t         queuedWMsgSize;
+  int32_t         queuedWMsg;
+  int32_t         queuedRMsg;
+  int32_t         numOfQHandle;  // current initialized and existed query handle in current dnode
+  int8_t          status;
+  int8_t          role;
+  int8_t          accessState;
+  int8_t          dropped;
   pthread_mutex_t statusMutex;
 } SVnode;
 
@@ -97,7 +75,25 @@ typedef struct {
   void *  qhandle;  // used by query and retrieve msg
 } SVnRsp;
 
+void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+
+int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeDrop(int32_t vgId);
+int32_t vnodeOpen(int32_t vgId);
+int32_t vnodeAlter(SVnode *pVnode, SCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeSync(int32_t vgId);
+int32_t vnodeClose(int32_t vgId);
+void    vnodeCleanUp(SVnode *pVnode);
+void    vnodeDestroy(SVnode *pVnode);
+int32_t vnodeCompact(int32_t vgId);
+void    vnodeBackup(int32_t vgId);
+void    vnodeGetStatus(struct SStatusMsg *status);
+
+SVnode *vnodeAcquire(int32_t vgId);
+SVnode *vnodeAcquireNotClose(int32_t vgId);
+void    vnodeRelease(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

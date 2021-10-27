@@ -25,7 +25,6 @@ int32_t dnodeInitTrans();
 void    dnodeCleanupTrans();
 void    dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
 void    dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
-void    dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);
 
 #ifdef __cplusplus
 }

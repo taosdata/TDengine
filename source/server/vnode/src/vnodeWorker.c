@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "vnodeMain.h"
+
 #include "vnodeWorker.h"
 
 enum { CLEANUP_TASK = 0, DESTROY_TASK = 1, BACKUP_TASK = 2 };

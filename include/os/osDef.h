@@ -178,6 +178,12 @@ extern "C" {
   #define setThreadName(name)
 #endif
 
+#if defined(_WIN32)
+#define TD_DIRSEP	"\\"
+#else
+#define TD_DIRSEP	"/"
+#endif
+
 #ifdef __cplusplus
 }
 #endif

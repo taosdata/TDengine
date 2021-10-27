@@ -166,6 +166,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_NO_USER_FROM_CONN         TAOS_DEF_ERROR_CODE(0, 0x0354)  //"Can not get user from conn")
 #define TSDB_CODE_MND_TOO_MANY_USERS            TAOS_DEF_ERROR_CODE(0, 0x0355)  //"Too many users")
 
+#define TSDB_CODE_MND_MNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0348)  //"Mnode already exists")
+#define TSDB_CODE_MND_MNODE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x0349)  //"Mnode not there")
+
 #define TSDB_CODE_MND_TABLE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0360)  //"Table already exists")
 #define TSDB_CODE_MND_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0361)  //"Table name too long")
 #define TSDB_CODE_MND_INVALID_TABLE_NAME        TAOS_DEF_ERROR_CODE(0, 0x0362)  //"Table does not exist")
