@@ -3104,40 +3104,26 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      SExprInfo* pExpr = NULL;
-      SColumnList ids = createColumnList(1, index.tableIndex, 0);
-
-      if (pUdfInfo->needTs != 0) {
-        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-        pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
-                                         TSDB_KEYSIZE, getNewResColId(pCmd), TSDB_KEYSIZE, false);
-        tstrncpy(pExpr->base.aliasName, aAggs[TSDB_FUNC_TS_DUMMY].name, sizeof(pExpr->base.aliasName));
-
-        insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS_DUMMY].name, pExpr);
-
-        colIndex += 1;  // the first column is ts
-      }
-
       int32_t inter   = 0;
       int16_t resType = 0;
       int16_t bytes   = 0;
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, false, pUdfInfo);
 
-      pExpr = tscExprAppend(pQueryInfo, functionId, &index, resType, bytes, getNewResColId(pCmd), inter, false);
+      SExprInfo* pExpr = tscExprAppend(pQueryInfo, functionId, &index, resType, bytes, getNewResColId(pCmd), inter, false);
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token, sizeof(pExpr->base.aliasName) - 1);
 
+      if (pUdfInfo->needTs != 0) {
+        pExpr->base.udfNeedTs = pUdfInfo->needTs;
+      }
+
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
       uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
-      ids = createColumnList(1, index.tableIndex, index.columnIndex);
+      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
         insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->base.aliasName, pExpr);
-
-        if (pUdfInfo->needTs != 0) {
-          pExpr->base.udfNeedTs = pUdfInfo->needTs;
-        }
       } else {
         for (int32_t i = 0; i < ids.num; ++i) {
           tscColumnListInsert(pQueryInfo->colList, index.columnIndex, uid, pSchema);
@@ -9192,6 +9178,66 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     if ((code = doFunctionsCompatibleCheck(pCmd, pQueryInfo,tscGetErrorMsgPayload(pCmd))) != TSDB_CODE_SUCCESS) {
       return code;
+    }
+
+    // check if there is already a timestamp or not
+    if (pQueryInfo->pUdfInfo) {
+      size_t numOfExpr = taosArrayGetSize(pSqlNode->pSelNodeList);
+      for (int32_t i = 0; i < numOfExpr; ++i) {
+        tSqlExprItem* pItem = taosArrayGet(pSqlNode->pSelNodeList, i);
+
+        type = pItem->pNode->type;
+        if (type == SQL_NODE_SQLFUNCTION) {
+          tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
+          if (pParamElem->pNode->tokenId != TK_ID) {
+            continue;
+          }
+
+          pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
+
+          SUdfInfo *pUdfInfo = NULL;
+          if (pItem->pNode->functionId < 0) {
+            pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
+            if (pUdfInfo == NULL) {
+              continue;
+            }
+          } else {
+            continue;
+          }
+
+          if (pUdfInfo->needTs == 0) {
+            continue;
+          }
+
+          bool found = false;
+          int32_t numOfOutput = (int32_t) tscNumOfExprs(pQueryInfo);
+          for (int32_t j = 0; j < numOfOutput; j++) {
+            SExprInfo *pExpr = taosArrayGetP(pQueryInfo->exprList, i);
+            int32_t colId = pExpr->base.colInfo.colId;
+            if (colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+              found = true;
+              break;
+            }
+          }
+
+          if (found) {
+            break;
+          }
+
+          SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+          if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+            continue;
+          }
+
+          SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+          SExprInfo *pExpr = tscExprInsert(pQueryInfo, PRIMARYKEY_TIMESTAMP_COL_INDEX, TSDB_FUNC_TS, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
+                                           TSDB_KEYSIZE, getNewResColId(pCmd), TSDB_KEYSIZE, false);
+          tstrncpy(pExpr->base.aliasName, aAggs[TSDB_FUNC_TS].name, sizeof(pExpr->base.aliasName));
+
+          SColumnList ids = createColumnList(1, index.tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX);
+          insertResultField(pQueryInfo, PRIMARYKEY_TIMESTAMP_COL_INDEX, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS].name, pExpr);
+        }
+      }
     }
 
     updateLastScanOrderIfNeeded(pQueryInfo);
