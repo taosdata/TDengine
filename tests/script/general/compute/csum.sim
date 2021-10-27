@@ -88,6 +88,18 @@ sql select csum(tbcol) as b from $tb where ts <= $ms interval(1m) -x step6
   return -1
 step6:
 
+print =============== csum result overflow follow sum behavior
+sql create table overflow(ts timestamp, c1 bigint)
+sql insert into overflow values(now-1s, NULL)(now, 9223372036854775807)(now+1s, 9223372036854775807)
+sql select csum(c1) from overflow
+print $data00 , $data01, $data10, $data11
+if $data01 != 9223372036854775807 then
+  return -1
+endi
+if $data11 != -2 then
+  return -1
+endi
+
 print =============== clear
 sql drop database $db
 sql show databases
