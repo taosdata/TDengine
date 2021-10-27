@@ -1311,7 +1311,7 @@ int32_t addExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSqlEx
         char val[8] = {0};
 
         int64_t tickPerSec = 0;
-        code = getTickPerSecond(&pParamElem[1].pNode->value, precision, (char*) &tickPerSec, pMsgBuf);
+        code = getTickPerSecond(&pParamElem[1].pNode->value, precision, &tickPerSec, pMsgBuf);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2258,12 +2258,14 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
     return TSDB_CODE_SUCCESS;
   }
 
+  // Evaluate expression in where clause
   int32_t code = evaluateImpl(pNode->pWhere, tsPrecision);
   if (code != TSDB_CODE_SUCCESS) {
     strncpy(pMsgBuf->buf, "invalid time expression in sql", pMsgBuf->len);
     return code;
   }
 
+  // Evaluate the expression in select clause
   size_t size = taosArrayGetSize(pNode->pSelNodeList);
   for(int32_t i = 0; i < size; ++i) {
     tSqlExprItem* pItem = taosArrayGet(pNode->pSelNodeList, i);
@@ -2272,7 +2274,6 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
       return code;
     }
   }
-  code = evaluateImpl(pNode->pSelNodeList, tsPrecision);
 
   return code;
 }
