@@ -64,6 +64,8 @@ _libtaos.taos_consume.restype = ctypes.c_void_p
 _libtaos.taos_fetch_lengths.restype = ctypes.POINTER(ctypes.c_int)
 _libtaos.taos_free_result.restype = None
 _libtaos.taos_query.restype = ctypes.POINTER(ctypes.c_void_p)
+_libtaos.taos_schemaless_insert.restype = ctypes.c_void_p
+
 try:
     _libtaos.taos_stmt_errstr.restype = c_char_p
 except AttributeError:
@@ -812,9 +814,6 @@ try:
     _libtaos.taos_insert_lines.argstype = c_void_p, c_void_p, c_int
 except AttributeError:
     print("WARNING: libtaos(%s) does not support insert_lines" % taos_get_client_info())
-
-
-
 
 def taos_schemaless_insert(connection, lines, protocol, precision):
     # type: (c_void_p, list[str] | tuple(str)) -> None
