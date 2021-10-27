@@ -41,6 +41,7 @@ static void print_json_aux(json_t *element, int indent);
 #define TSDB_SUPPORT_NANOSECOND 1
 
 #define MAX_FILE_NAME_LEN       256             // max file name length on linux is 255
+#define MAX_PATH_LEN            4096            // max path length on linux is 4095
 #define COMMAND_SIZE            65536
 #define MAX_RECORDS_PER_REQ     32766
 //#define DEFAULT_DUMP_FILE "taosdump.sql"
@@ -215,14 +216,13 @@ typedef struct {
 typedef struct {
     pthread_t threadID;
     int32_t   threadIndex;
-    int32_t   totalThreads;
     char      dbName[TSDB_DB_NAME_LEN];
     char      stbName[TSDB_TABLE_NAME_LEN];
     int       precision;
     TAOS      *taos;
     int64_t   rowsOfDumpOut;
-    int64_t   tablesOfDumpOut;
-    int64_t   tableFrom;
+    int64_t   count;
+    int64_t   from;
 } threadInfo;
 
 typedef struct {
@@ -1911,6 +1911,12 @@ static int64_t writeResultToAvro(
 
     return count;
 }
+
+static void dumpInAvroWorkThreads()
+{
+
+}
+
 #endif /* AVRO_SUPPORT == 1 */
 
 static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbName)
@@ -2130,7 +2136,7 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
 
 #if AVRO_SUPPORT == 1
     if (g_args.avro) {
-        char avroFilename[4096] = {0};
+        char avroFilename[MAX_PATH_LEN] = {0};
 
         if (g_args.outpath[0] != 0) {
             sprintf(avroFilename, "%s/%s.%s.avro",
@@ -2221,7 +2227,7 @@ static int64_t dumpNormalTableWithoutStb(SDbInfo *dbInfo, char *ntbName)
 {
     int64_t count = 0;
 
-    char tmpBuf[4096] = {0};
+    char tmpBuf[MAX_PATH_LEN] = {0};
     FILE *fp = NULL;
 
     if (g_args.outpath[0] != 0) {
@@ -2257,7 +2263,7 @@ static int64_t dumpNormalTableBelongStb(
 {
     int64_t count = 0;
 
-    char tmpBuf[4096] = {0};
+    char tmpBuf[MAX_PATH_LEN] = {0};
     FILE *fp = NULL;
 
     if (g_args.outpath[0] != 0) {
@@ -2292,12 +2298,12 @@ static int64_t dumpNormalTableBelongStb(
 static void *dumpNtbOfDb(void *arg) {
     threadInfo *pThreadInfo = (threadInfo *)arg;
 
-    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->tableFrom);
+    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->from);
     debugPrint("dump table count = \t%"PRId64"\n",
-            pThreadInfo->tablesOfDumpOut);
+            pThreadInfo->count);
 
     FILE *fp = NULL;
-    char tmpBuf[4096] = {0};
+    char tmpBuf[MAX_PATH_LEN] = {0};
 
     if (g_args.outpath[0] != 0) {
         sprintf(tmpBuf, "%s/%s.%d.sql",
@@ -2316,14 +2322,14 @@ static void *dumpNtbOfDb(void *arg) {
     }
 
     int64_t count;
-    for (int64_t i = 0; i < pThreadInfo->tablesOfDumpOut; i++) {
+    for (int64_t i = 0; i < pThreadInfo->count; i++) {
         debugPrint("[%d] No.\t%"PRId64" table name: %s\n",
                 pThreadInfo->threadIndex, i,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name);
+                ((TableInfo *)(g_tablesList + pThreadInfo->from+i))->name);
         count = dumpNormalTable(
                 pThreadInfo->dbName,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->stable,
-                ((TableInfo *)(g_tablesList + pThreadInfo->tableFrom+i))->name,
+                ((TableInfo *)(g_tablesList + pThreadInfo->from+i))->stable,
+                ((TableInfo *)(g_tablesList + pThreadInfo->from+i))->name,
                 pThreadInfo->precision,
                 fp);
         if (count < 0) {
@@ -2531,155 +2537,9 @@ _exit_no_charset:
 // ========  dumpIn support multi threads functions ================================//
 
 static char    **g_tsDumpInSqlFiles   = NULL;
-static int32_t   g_tsSqlFileNum = 0;
-static char      g_tsDbSqlFile[MAX_FILE_NAME_LEN] = {0};
 static char      g_tsCharset[64] = {0};
 
-static int taosGetFilesNum(const char *directoryName,
-        const char *prefix, const char *prefix2)
-{
-    char cmd[1024] = { 0 };
-
-    if (prefix2)
-        sprintf(cmd, "ls %s/*.%s %s/*.%s | wc -l ",
-                directoryName, prefix, directoryName, prefix2);
-    else
-        sprintf(cmd, "ls %s/*.%s | wc -l ", directoryName, prefix);
-
-    FILE *fp = popen(cmd, "r");
-    if (fp == NULL) {
-        errorPrint("failed to execute:%s, error:%s\n", cmd, strerror(errno));
-        exit(-1);
-    }
-
-    int fileNum = 0;
-    if (fscanf(fp, "%d", &fileNum) != 1) {
-        errorPrint("failed to execute:%s, parse result error\n", cmd);
-        exit(-1);
-    }
-
-    if (fileNum <= 0) {
-        errorPrint("directory:%s is empty\n", directoryName);
-        exit(-1);
-    }
-
-    pclose(fp);
-    return fileNum;
-}
-
-static void taosParseDirectory(const char *directoryName,
-        const char *prefix, const char *prefix2,
-        char **fileArray, int totalFiles)
-{
-    char cmd[1024] = { 0 };
-
-    if (prefix2) {
-        sprintf(cmd, "ls %s/*.%s %s/*.%s | sort",
-                directoryName, prefix, directoryName, prefix2);
-    } else {
-        sprintf(cmd, "ls %s/*.%s | sort", directoryName, prefix);
-    }
-
-    FILE *fp = popen(cmd, "r");
-    if (fp == NULL) {
-        errorPrint("failed to execute:%s, error:%s\n", cmd, strerror(errno));
-        exit(-1);
-    }
-
-    int fileNum = 0;
-    while (fscanf(fp, "%128s", fileArray[fileNum++])) {
-        if (strcmp(fileArray[fileNum-1], g_tsDbSqlFile) == 0) {
-            fileNum--;
-        }
-        if (fileNum >= totalFiles) {
-            break;
-        }
-    }
-
-    if (fileNum != totalFiles) {
-        errorPrint("directory:%s changed while read\n", directoryName);
-        pclose(fp);
-        exit(-1);
-    }
-
-    pclose(fp);
-}
-
-static void taosCheckDatabasesSQLFile(const char *directoryName)
-{
-    char cmd[1024] = { 0 };
-    sprintf(cmd, "ls %s/dbs.sql", directoryName);
-
-    FILE *fp = popen(cmd, "r");
-    if (fp == NULL) {
-        errorPrint("failed to execute:%s, error:%s\n", cmd, strerror(errno));
-        exit(-1);
-    }
-
-    while (fscanf(fp, "%128s", g_tsDbSqlFile)) {
-        break;
-    }
-
-    pclose(fp);
-}
-
-static void taosMallocDumpFiles()
-{
-    g_tsDumpInSqlFiles = (char**)calloc(g_tsSqlFileNum, sizeof(char*));
-    for (int i = 0; i < g_tsSqlFileNum; i++) {
-        g_tsDumpInSqlFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
-    }
-}
-
-static void freeDumpFiles()
-{
-    for (int i = 0; i < g_tsSqlFileNum; i++) {
-        tfree(g_tsDumpInSqlFiles[i]);
-    }
-    tfree(g_tsDumpInSqlFiles);
-}
-
-static void taosGetDirectoryFileList(char *inputDir)
-{
-    struct stat fileStat;
-    if (stat(inputDir, &fileStat) < 0) {
-        errorPrint("%s not exist\n", inputDir);
-        exit(-1);
-    }
-
-    if (fileStat.st_mode & S_IFDIR) {
-        taosCheckDatabasesSQLFile(inputDir);
-#if AVRO_SUPPORT == 1
-        if (g_args.avro)
-            g_tsSqlFileNum = taosGetFilesNum(inputDir, "sql", "avro");
-        else
-#endif
-            g_tsSqlFileNum += taosGetFilesNum(inputDir, "sql", NULL);
-
-        int tsSqlFileNumOfTbls = g_tsSqlFileNum;
-        if (g_tsDbSqlFile[0] != 0) {
-            tsSqlFileNumOfTbls--;
-        }
-        taosMallocDumpFiles();
-        if (0 != tsSqlFileNumOfTbls) {
-#if AVRO_SUPPORT == 1
-            if (g_args.avro) {
-                taosParseDirectory(inputDir, "sql", "avro",
-                        g_tsDumpInSqlFiles, tsSqlFileNumOfTbls);
-            } else
-#endif
-                taosParseDirectory(inputDir, "sql", NULL,
-                        g_tsDumpInSqlFiles, tsSqlFileNumOfTbls);
-        }
-        fprintf(stdout, "\nstart to dispose %d files in %s\n",
-                g_tsSqlFileNum, inputDir);
-    } else {
-        errorPrint("%s is not a directory\n", inputDir);
-        exit(-1);
-    }
-}
-
-static FILE* taosOpenDumpInFile(char *fptr) {
+static FILE* openDumpInFile(char *fptr) {
     wordexp_t full_path;
 
     if (wordexp(fptr, &full_path, 0) != 0) {
@@ -2759,132 +2619,251 @@ static int dumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
     return 0;
 }
 
-static void* dumpInWorkThreadFp(void *arg)
+static void* dumpInSqlWorkThreadFp(void *arg)
 {
     threadInfo *pThread = (threadInfo*)arg;
     setThreadName("dumpInWorkThrd");
+    verbosePrint("[%d] process %"PRId64" files from %"PRId64"\n",
+                    pThread->threadIndex, pThread->count, pThread->from);
 
-    for (int32_t f = 0; f < g_tsSqlFileNum; ++f) {
-        if (f % pThread->totalThreads == pThread->threadIndex) {
-            char *SQLFileName = g_tsDumpInSqlFiles[f];
-            FILE* fp = taosOpenDumpInFile(SQLFileName);
-            if (NULL == fp) {
-                continue;
-            }
-            fprintf(stderr, ", Success Open input file: %s\n",
-                    SQLFileName);
-            dumpInOneFile(pThread->taos, fp, g_tsCharset, g_args.encode, SQLFileName);
+    for (int64_t i = 0; i < pThread->count; i++) {
+        char sqlFile[MAX_PATH_LEN];
+        sprintf(sqlFile, "%s/%s", g_args.inpath, g_tsDumpInSqlFiles[pThread->from + i]);
+
+        FILE* fp = openDumpInFile(sqlFile);
+        if (NULL == fp) {
+            errorPrint("[%d] Failed to open input file: %s\n",
+                    pThread->threadIndex, sqlFile);
+            continue;
+        }
+
+        if (0 == dumpInOneFile(pThread->taos, fp, g_tsCharset, g_args.encode,
+                    sqlFile)) {
+            okPrint("[%d] Success dump in file: %s\n",
+                    pThread->threadIndex, sqlFile);
         }
     }
 
     return NULL;
 }
 
-static void startDumpInWorkThreads()
+static int64_t getFilesNum(char *ext)
 {
-    pthread_attr_t  thattr;
+    int64_t count = 0;
+
+    int namelen, extlen;
+    struct dirent *pDirent;
+    DIR *pDir;
+
+    extlen = strlen(ext);
+
+    bool isSql = (0 == strcmp(ext, "sql"));
+
+    pDir = opendir(g_args.inpath);
+    if (pDir != NULL) {
+        while ((pDirent = readdir(pDir)) != NULL) {
+            namelen = strlen (pDirent->d_name);
+
+            if (namelen > extlen) {
+                if (strcmp (ext, &(pDirent->d_name[namelen - extlen])) == 0) {
+                    if (isSql) {
+                        if (0 == strcmp(pDirent->d_name, "dbs.sql")) {
+                            continue;
+                        }
+                    }
+                    verbosePrint("%s found\n", pDirent->d_name);
+                    count ++;
+                }
+            }
+        }
+        closedir (pDir);
+    }
+
+    debugPrint("%"PRId64" .%s files found!\n", count, ext);
+    return count;
+}
+
+static void createDumpinSqlList(char *ext, int64_t count)
+{
+    g_tsDumpInSqlFiles = (char**)calloc(count, sizeof(char*));
+    assert(g_tsDumpInSqlFiles);
+
+    for (int64_t i = 0; i < count; i++) {
+        g_tsDumpInSqlFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
+        assert(g_tsDumpInSqlFiles[i]);
+    }
+
+    int namelen, extlen;
+    struct dirent *pDirent;
+    DIR *pDir;
+
+    extlen = strlen(ext);
+
+    bool isSql = (0 == strcmp(ext, "sql"));
+
+    count = 0;
+    pDir = opendir(g_args.inpath);
+    if (pDir != NULL) {
+        while ((pDirent = readdir(pDir)) != NULL) {
+            namelen = strlen (pDirent->d_name);
+
+            if (namelen > extlen) {
+                if (strcmp (ext, &(pDirent->d_name[namelen - extlen])) == 0) {
+                    if (isSql) {
+                        if (0 == strcmp(pDirent->d_name, "dbs.sql")) {
+                            continue;
+                        }
+                    }
+                    verbosePrint("%s found\n", pDirent->d_name);
+                    strncpy(g_tsDumpInSqlFiles[count++], pDirent->d_name, MAX_FILE_NAME_LEN);
+                }
+            }
+        }
+        closedir (pDir);
+    }
+
+    debugPrint("%"PRId64" .%s files filled to list!\n", count, ext);
+}
+
+static void freeFileList(char **fileList, int64_t count)
+{
+    for (int64_t i = 0; i < count; i++) {
+        tfree(fileList[i]);
+    }
+    tfree(fileList);
+}
+
+static void dumpInSqlWorkThreads()
+{
+    int32_t threads = g_args.thread_num;
+
+    int64_t sqlFileCount = getFilesNum("sql");
+
+    createDumpinSqlList("sql", sqlFileCount);
+
     threadInfo *pThread;
-    int32_t         totalThreads = g_args.thread_num;
 
-    if (totalThreads > g_tsSqlFileNum) {
-        totalThreads = g_tsSqlFileNum;
+    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+    threadInfo *infos = (threadInfo *)calloc(
+            threads, sizeof(threadInfo));
+    assert(pids);
+    assert(infos);
+
+    int64_t a = sqlFileCount / threads;
+    if (a < 1) {
+        threads = sqlFileCount;
+        a = 1;
     }
 
-    threadInfo *threadObj = (threadInfo *)calloc(
-            totalThreads, sizeof(threadInfo));
-
-    if (NULL == threadObj) {
-        errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
+    int64_t b = 0;
+    if (threads != 0) {
+        b = sqlFileCount % threads;
     }
 
-    for (int32_t t = 0; t < totalThreads; ++t) {
-        pThread = threadObj + t;
+    int64_t from = 0;
+
+    for (int32_t t = 0; t < threads; ++t) {
+        pThread = infos + t;
         pThread->threadIndex = t;
-        pThread->totalThreads = totalThreads;
+
+        pThread->from = from;
+        pThread->count = t<b?a+1:a;
+        from += pThread->count;
+        verbosePrint(
+                "Thread[%d] takes care sql files total %"PRId64" files from %"PRId64"\n",
+                t, pThread->count, pThread->from);
+
         pThread->taos = taos_connect(g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
         if (pThread->taos == NULL) {
             errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
-            free(threadObj);
+            free(infos);
+            free(pids);
             return;
         }
-        pthread_attr_init(&thattr);
-        pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
-        if (pthread_create(&(pThread->threadID), &thattr,
-                    dumpInWorkThreadFp, (void*)pThread) != 0) {
-            errorPrint("%s() LN%d, thread:%d failed to start\n",
+        if (pthread_create(pids + t, NULL,
+                    dumpInSqlWorkThreadFp, (void*)pThread) != 0) {
+            errorPrint("%s() LN%d, thread[%d] failed to start\n",
                     __func__, __LINE__, pThread->threadIndex);
-            exit(0);
+            exit(EXIT_FAILURE);
         }
     }
 
-    for (int t = 0; t < totalThreads; ++t) {
-        pthread_join(threadObj[t].threadID, NULL);
+    for (int t = 0; t < threads; ++t) {
+        pthread_join(pids[t], NULL);
     }
 
-    for (int t = 0; t < totalThreads; ++t) {
-        taos_close(threadObj[t].taos);
+    for (int t = 0; t < threads; ++t) {
+        taos_close(infos[t].taos);
     }
-    free(threadObj);
+    free(infos);
+    free(pids);
+
+    freeFileList(g_tsDumpInSqlFiles, sqlFileCount);
 }
 
-static int dumpIn() {
-    assert(g_args.isDumpIn);
-
-    TAOS     *taos    = NULL;
-    FILE     *fp      = NULL;
-
-    taos = taos_connect(
+static int dumpInDbs()
+{
+    TAOS *taos = taos_connect(
             g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
+
     if (taos == NULL) {
         errorPrint("%s() LN%d, failed to connect to TDengine server\n",
                 __func__, __LINE__);
         return -1;
     }
 
-    taosGetDirectoryFileList(g_args.inpath);
+    char dbsSql[MAX_PATH_LEN];
+    sprintf(dbsSql, "%s/%s", g_args.inpath, "dbs.sql");
 
-    int32_t  tsSqlFileNumOfTbls = g_tsSqlFileNum;
-    if (g_tsDbSqlFile[0] != 0) {
-        tsSqlFileNumOfTbls--;
+    FILE *fp = openDumpInFile(dbsSql);
+    if (NULL == fp) {
+        errorPrint("%s() LN%d, failed to open input file %s\n",
+                __func__, __LINE__, dbsSql);
+        return -1;
+    }
+    debugPrint("Success Open input file: %s\n", dbsSql);
+    loadFileCharset(fp, g_tsCharset);
 
-        fp = taosOpenDumpInFile(g_tsDbSqlFile);
-        if (NULL == fp) {
-            errorPrint("%s() LN%d, failed to open input file %s\n",
-                    __func__, __LINE__, g_tsDbSqlFile);
-            return -1;
-        }
-        fprintf(stderr, "Success Open input file: %s\n", g_tsDbSqlFile);
-
-        loadFileCharset(fp, g_tsCharset);
-
-        dumpInOneFile(taos, fp, g_tsCharset, g_args.encode,
-                g_tsDbSqlFile);
+    if(0 == dumpInOneFile(taos, fp, g_tsCharset, g_args.encode, dbsSql)) {
+        okPrint("Success dump in file: %s !\n", dbsSql);
     }
 
     taos_close(taos);
 
-    if (0 != tsSqlFileNumOfTbls) {
-        startDumpInWorkThreads();
+    return 0;
+}
+
+static int dumpIn() {
+    assert(g_args.isDumpIn);
+
+    if (dumpInDbs()) {
+        errorPrint("%s", "Failed to dump dbs in!\n");
+        exit(EXIT_FAILURE);
     }
 
-    freeDumpFiles();
+    dumpInSqlWorkThreads();
+
+#if AVRO_SUPPORT  == 1
+    dumpInAvroWorkThreads();
+#endif
+
     return 0;
 }
 
 static void *dumpNormalTablesOfStb(void *arg) {
     threadInfo *pThreadInfo = (threadInfo *)arg;
 
-    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->tableFrom);
-    debugPrint("dump table count = \t%"PRId64"\n", pThreadInfo->tablesOfDumpOut);
+    debugPrint("dump table from = \t%"PRId64"\n", pThreadInfo->from);
+    debugPrint("dump table count = \t%"PRId64"\n", pThreadInfo->count);
 
     char command[COMMAND_SIZE];
 
     sprintf(command, "SELECT TBNAME FROM %s.%s LIMIT %"PRId64" OFFSET %"PRId64"",
             pThreadInfo->dbName, pThreadInfo->stbName,
-            pThreadInfo->tablesOfDumpOut, pThreadInfo->tableFrom);
+            pThreadInfo->count, pThreadInfo->from);
 
     TAOS_RES *res = taos_query(pThreadInfo->taos, command);
     int32_t code = taos_errno(res);
@@ -2896,7 +2875,7 @@ static void *dumpNormalTablesOfStb(void *arg) {
     }
 
     FILE *fp = NULL;
-    char tmpBuf[4096] = {0};
+    char tmpBuf[MAX_PATH_LEN] = {0};
 
     if (g_args.outpath[0] != 0) {
         sprintf(tmpBuf, "%s/%s.%s.%d.sql",
@@ -2988,10 +2967,10 @@ static int64_t dumpNtbOfDbByThreads(
         }
 
         pThreadInfo->threadIndex = i;
-        pThreadInfo->tablesOfDumpOut = (i<b)?a+1:a;
-        pThreadInfo->tableFrom = (i==0)?0:
-            ((threadInfo *)(infos + i - 1))->tableFrom +
-            ((threadInfo *)(infos + i - 1))->tablesOfDumpOut;
+        pThreadInfo->count = (i<b)?a+1:a;
+        pThreadInfo->from = (i==0)?0:
+            ((threadInfo *)(infos + i - 1))->from +
+            ((threadInfo *)(infos + i - 1))->count;
         strcpy(pThreadInfo->dbName, dbInfo->name);
         pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
 
@@ -3122,10 +3101,10 @@ static int64_t dumpNtbOfStbByThreads(
         }
 
         pThreadInfo->threadIndex = i;
-        pThreadInfo->tablesOfDumpOut = (i<b)?a+1:a;
-        pThreadInfo->tableFrom = (i==0)?0:
-            ((threadInfo *)(infos + i - 1))->tableFrom +
-            ((threadInfo *)(infos + i - 1))->tablesOfDumpOut;
+        pThreadInfo->count = (i<b)?a+1:a;
+        pThreadInfo->from = (i==0)?0:
+            ((threadInfo *)(infos + i - 1))->from +
+            ((threadInfo *)(infos + i - 1))->count;
         strcpy(pThreadInfo->dbName, dbInfo->name);
         pThreadInfo->precision = getPrecisionByString(dbInfo->precision);
 
@@ -3171,7 +3150,7 @@ static int dumpOut() {
     FILE *fp = NULL;
     int32_t count = 0;
 
-    char tmpBuf[4096] = {0};
+    char tmpBuf[MAX_PATH_LEN] = {0};
     if (g_args.outpath[0] != 0) {
         sprintf(tmpBuf, "%s/dbs.sql", g_args.outpath);
     } else {
