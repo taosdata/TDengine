@@ -110,7 +110,8 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   pNode->numOfOutput = numOfOutput;
   pNode->pExpr = calloc(numOfOutput, sizeof(SExprInfo));
   for(int32_t i = 0; i < numOfOutput; ++i) {
-    assignExprInfo(&pNode->pExpr[i], pExpr[i]);
+    SExprInfo* pExprInfo = taosArrayGet(pNode->pExpr, i);
+    assignExprInfo(pExprInfo, pExpr[i]);
   }
 
   pNode->pPrevNodes = taosArrayInit(4, POINTER_BYTES);
