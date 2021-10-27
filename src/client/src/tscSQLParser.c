@@ -3999,8 +3999,17 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
     return checkAndSetJoinCondInfo(pCmd, pQueryInfo, pExpr->pRight);
   }
 
+  tSqlExpr* pLeft = pExpr->pLeft;
+  tSqlExpr* pRight = pExpr->pRight;
+  if(pLeft->tokenId == TK_ARROW){
+    pLeft = pLeft->pLeft;
+  }
+  if(pRight->tokenId == TK_ARROW){
+    pRight = pRight->pLeft;
+  }
+
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-  if (getColumnIndexByName(&pExpr->pLeft->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+  if (getColumnIndexByName(&pLeft->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
@@ -4034,7 +4043,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
   int16_t leftIdx = index.tableIndex;
 
   index = (SColumnIndex)COLUMN_INDEX_INITIALIZER;
-  if (getColumnIndexByName(&pExpr->pRight->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+  if (getColumnIndexByName(&pRight->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
@@ -4293,8 +4302,23 @@ static bool validateJoinExprNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
   const char* msg3 = "join column must have same type";
   const char* msg4 = "self join is not allowed";
   const char* msg5 = "join table must be the same type(table to table, super table to super table)";
+  const char* msg6 = "tag json key must be string";
+  const char* msg7 = "tag json key in json must be same";
 
   tSqlExpr* pRight = pExpr->pRight;
+  if(pRight->tokenId == TK_ARROW){
+    if(!IS_VAR_DATA_TYPE(pExpr->pLeft->pRight->value.nType) || pExpr->pLeft->pRight->value.nType != pExpr->pRight->pRight->value.nType){
+      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      return false;
+    }
+   if(pExpr->pLeft->pRight->value.nLen != pExpr->pRight->pRight->value.nLen
+        || strncmp(pExpr->pLeft->pRight->value.pz, pExpr->pRight->pRight->value.pz, pExpr->pRight->pRight->value.nLen) != 0){
+     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+     return false;
+   }
+
+    pRight = pExpr->pRight->pLeft;
+  }
 
   if (pRight->tokenId != TK_ID) {
     return true;
@@ -4648,7 +4672,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       }
     }
 
-    if (pRight != NULL && pRight->tokenId == TK_ID) {  // join on tag columns for stable query
+    if (pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
       if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }

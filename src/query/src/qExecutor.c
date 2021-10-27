@@ -137,6 +137,14 @@ do {                                       \
   }                                        \
 } while (0)
 
+#define GET_JSON_KEY(exprInfo)  \
+char* param = NULL; \
+int32_t paramLen = 0; \
+if(exprInfo->base.numOfParams > 0){ \
+  param = exprInfo->base.param[0].pz; \
+  paramLen = exprInfo->base.param[0].nLen;  \
+}
+
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
@@ -3047,7 +3055,7 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
                            
 
 static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t numOfTags, int16_t colId);
-static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, int16_t type, int16_t bytes);
+static void doSetTagValueInParam(void* pTable, char* param, int32_t paraLen, int32_t tagColId,  tVariant *tag, int16_t type, int16_t bytes);
 
 static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   SQLFunctionCtx* pCtx = pTableScanInfo->pCtx;
@@ -3129,7 +3137,8 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
       // compare tag first
       tVariant t = {0};
-      doSetTagValueInParam(pRuntimeEnv->current->pTable, tagId, &t, pColInfo->type, pColInfo->bytes);
+      GET_JSON_KEY(pExprInfo)
+      doSetTagValueInParam(pRuntimeEnv->current->pTable, param, paramLen, tagId, &t, pColInfo->type, pColInfo->bytes);
       setTimestampListJoinInfo(pRuntimeEnv, &t, pRuntimeEnv->current);
 
       STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
@@ -3336,7 +3345,7 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
  * set tag value in SQLFunctionCtx
  * e.g.,tag information into input buffer
  */
-static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, int16_t type, int16_t bytes) {
+static void doSetTagValueInParam(void* pTable, char* param, int32_t paramLen, int32_t tagColId, tVariant *tag, int16_t type, int16_t bytes) {
   tVariantDestroy(tag);
 
   char* val = NULL;
@@ -3359,10 +3368,13 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
   } else if(type == TSDB_DATA_TYPE_JSON){
     char jsonVal[TSDB_MAX_JSON_TAGS_LEN] = {0};
-    getJsonTagValueAll(val, jsonVal, TSDB_MAX_JSON_TAGS_LEN);
+    if(param && paramLen > 0){
+      getJsonTagValueElment(pTable, param, paramLen, jsonVal, bytes);
+    }else{
+      getJsonTagValueAll(val, jsonVal, TSDB_MAX_JSON_TAGS_LEN);
+    }
     tVariantCreateFromBinary(tag, jsonVal, varDataTLen(jsonVal), type);
-  }
-  else {
+  } else {
     tVariantCreateFromBinary(tag, val, bytes, type);
   }
 }
@@ -3391,8 +3403,8 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
 
     int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i64;
     SColumnInfo* pColInfo = doGetTagColumnInfoById(pQueryAttr->tagColList, pQueryAttr->numOfTags, tagColId);
-
-    doSetTagValueInParam(pTable, tagColId, &pCtx[0].tag, pColInfo->type, pColInfo->bytes);
+    GET_JSON_KEY(pExprInfo)
+    doSetTagValueInParam(pTable, param, paramLen, tagColId, &pCtx[0].tag, pColInfo->type, pColInfo->bytes);
     return;
   } else {
     // set tag value, by which the results are aggregated.
@@ -3408,7 +3420,8 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
       }
 
       // todo use tag column index to optimize performance
-      doSetTagValueInParam(pTable, pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->base.resType,
+      GET_JSON_KEY(pLocalExprInfo)
+      doSetTagValueInParam(pTable, param, paramLen,pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->base.resType,
                            pLocalExprInfo->base.resBytes);
 
       if (IS_NUMERIC_TYPE(pLocalExprInfo->base.resType)
@@ -4011,7 +4024,8 @@ void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExpr
     int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i64;
     SColumnInfo* pColInfo = doGetTagColumnInfoById(pQueryAttr->tagColList, pQueryAttr->numOfTags, tagColId);
 
-    doSetTagValueInParam(pTable, tagColId, &pCtx->tag, pColInfo->type, pColInfo->bytes);
+    GET_JSON_KEY(pExprInfo)
+    doSetTagValueInParam(pTable, param, paramLen, tagColId, &pCtx->tag, pColInfo->type, pColInfo->bytes);
 
     int16_t tagType = pCtx[0].tag.nType;
     if (tagType == TSDB_DATA_TYPE_BINARY || tagType == TSDB_DATA_TYPE_NCHAR) {
