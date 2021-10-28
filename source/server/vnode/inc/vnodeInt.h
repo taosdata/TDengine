@@ -16,11 +16,12 @@
 #ifndef _TD_VNODE_INT_H_
 #define _TD_VNODE_INT_H_
 
+#include "os.h"
 #include "amalloc.h"
 #include "meta.h"
-#include "os.h"
 #include "sync.h"
 #include "taosmsg.h"
+#include "tglobal.h"
 #include "tlog.h"
 #include "tq.h"
 #include "tqueue.h"
@@ -43,57 +44,75 @@ extern int32_t vDebugFlag;
 #define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 
+typedef struct STsdbCfg {
+  int32_t cacheBlockSize;  // MB
+  int32_t totalBlocks;
+  int32_t daysPerFile;
+  int32_t daysToKeep0;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
+  int32_t minRowsPerFileBlock;
+  int32_t maxRowsPerFileBlock;
+  uint8_t precision;  // time resolution
+  int8_t  compression;
+  int8_t  cacheLastRow;
+  int8_t  update;
+} STsdbCfg;
+
+typedef struct SMetaCfg {
+} SMetaCfg;
+
+typedef struct SSyncCluster {
+  int8_t    replica;
+  int8_t    quorum;
+  SNodeInfo nodes[TSDB_MAX_REPLICA];
+} SSyncCfg;
+
+typedef struct SVnodeCfg {
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int8_t   dropped;
+  SWalCfg  wal;
+  STsdbCfg tsdb;
+  SMetaCfg meta;
+  SSyncCfg sync;
+} SVnodeCfg;
+
 typedef struct {
-  int32_t         vgId;      // global vnode group ID
-  int32_t         refCount;  // reference count
-  SMemAllocator  *allocator;
-  SMeta          *pMeta;
-  STsdb          *pTsdb;
-  STQ            *pTQ;
-  twalh           pWal;
-  SyncNodeId      syncNode;
-  taos_queue      pWriteQ;  // write queue
-  taos_queue      pQueryQ;  // read query queue
-  taos_queue      pFetchQ;  // read fetch/cancel queue
-  SWalCfg         walCfg;
-  SSyncCluster    syncCfg;
-  char            db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
-  int64_t         queuedWMsgSize;
-  int32_t         queuedWMsg;
-  int32_t         queuedRMsg;
-  int32_t         numOfQHandle;  // current initialized and existed query handle in current dnode
-  int8_t          status;
-  int8_t          role;
-  int8_t          accessState;
-  int8_t          dropped;
-  pthread_mutex_t statusMutex;
+  int32_t          vgId;      // global vnode group ID
+  int32_t          refCount;  // reference count
+  SMemAllocator   *allocator;
+  SMeta           *pMeta;
+  STsdb           *pTsdb;
+  STQ             *pTQ;
+  twalh            pWal;
+  void            *pQuery;
+  SyncNodeId       syncNode;
+  taos_queue       pWriteQ;  // write queue
+  taos_queue       pQueryQ;  // read query queue
+  taos_queue       pFetchQ;  // read fetch/cancel queue
+  SVnodeCfg        cfg;
+  SSyncServerState term;
+  int64_t          queuedWMsgSize;
+  int32_t          queuedWMsg;
+  int32_t          queuedRMsg;
+  int32_t          numOfQHandle;  // current initialized and existed query handle in current dnode
+  int8_t           role;
+  int8_t           accessState;
+  int8_t           dropped;
+  int8_t           status;
+  pthread_mutex_t  statusMutex;
 } SVnode;
 
 typedef struct {
   int32_t len;
-  void *  rsp;
-  void *  qhandle;  // used by query and retrieve msg
+  void   *rsp;
+  void   *qhandle;  // used by query and retrieve msg
 } SVnRsp;
 
 void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-
-int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeDrop(int32_t vgId);
-int32_t vnodeOpen(int32_t vgId);
-int32_t vnodeAlter(SVnode *pVnode, SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeSync(int32_t vgId);
-int32_t vnodeClose(int32_t vgId);
-void    vnodeCleanUp(SVnode *pVnode);
-void    vnodeDestroy(SVnode *pVnode);
-int32_t vnodeCompact(int32_t vgId);
-void    vnodeBackup(int32_t vgId);
-void    vnodeGetStatus(struct SStatusMsg *status);
-
-SVnode *vnodeAcquire(int32_t vgId);
-SVnode *vnodeAcquireNotClose(int32_t vgId);
-void    vnodeRelease(SVnode *pVnode);
+void vnodeReportStartup(char *name, char *desc);
 
 #ifdef __cplusplus
 }

@@ -14,14 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "taosmsg.h"
-#include "tglobal.h"
-// #include "query.h"
-
+#include "vnodeMain.h"
 #include "vnodeRead.h"
 #include "vnodeReadMsg.h"
-#include "vnodeStatus.h"
 
 static struct {
   SWorkerPool query;
@@ -49,11 +44,6 @@ static int32_t vnodeWriteToRQueue(SVnode *pVnode, void *pCont, int32_t contLen, 
     return TSDB_CODE_APP_NOT_READY;
   }
 #endif  
-
-  if (!vnodeInReadyStatus(pVnode)) {
-    vDebug("vgId:%d, failed to write into vread queue, vnode status is %s", pVnode->vgId, vnodeStatus[pVnode->status]);
-    return TSDB_CODE_APP_NOT_READY;
-  }
 
   int32_t   size = sizeof(SReadMsg) + contLen;
   SReadMsg *pRead = taosAllocateQitem(size);
@@ -119,7 +109,7 @@ void vnodeProcessReadMsg(SRpcMsg *pMsg) {
     pHead->contLen = htonl(pHead->contLen);
 
     assert(pHead->contLen > 0);
-    SVnode *pVnode = vnodeAcquireNotClose(pHead->vgId);
+    SVnode *pVnode = vnodeAcquire(pHead->vgId);
     if (pVnode != NULL) {
       code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);
       if (code == TSDB_CODE_SUCCESS) queuedMsgNum++;

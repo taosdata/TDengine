@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "taosmsg.h"
-#include "tglobal.h"
-// #include "query.h"
-#include "vnodeStatus.h"
+#include "vnodeMain.h"
 #include "vnodeRead.h"
 #include "vnodeReadMsg.h"
 
@@ -225,16 +221,16 @@ int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead) {
   tmqMsgHead msgHead = pConsumeMsg->head;
   //extract head
   STQ *pTq = pVnode->pTQ;
-  tqGroupHandle *pHandle = tqFindGHandleBycId(pTq, msgHead.clientId);
+  /*tqBufferHandle *pHandle = tqGetHandle(pTq, msgHead.clientId);*/
   //return msg if offset not moved
-  if(pConsumeMsg->commitOffset == pHandle->consumeOffset) {
+  /*if(pConsumeMsg->commitOffset == pHandle->consumeOffset) {*/
     //return msg
-    return 0;
-  }
+    /*return 0;*/
+  /*}*/
   //or move offset
-  tqMoveOffsetToNext(pHandle);
+  /*tqMoveOffsetToNext(pHandle);*/
   //fetch or register context
-  tqFetchMsg(pHandle, pRead);
+  /*tqFetchMsg(pHandle, pRead);*/
   //judge mode, tail read or catch up read
   /*int64_t lastVer = walLastVer(pVnode->wal);*/
   //launch new query

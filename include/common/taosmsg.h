@@ -706,41 +706,30 @@ typedef struct {
 } SStatusRsp;
 
 typedef struct {
-  uint32_t vgId;
-  int32_t  dbCfgVersion;
-  int32_t  maxTables;
-  int32_t  cacheBlockSize;
-  int32_t  totalBlocks;
-  int32_t  daysPerFile;
-  int32_t  daysToKeep;
-  int32_t  daysToKeep1;
-  int32_t  daysToKeep2;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
-  int32_t  commitTime;
-  int32_t  fsyncPeriod;
-  int8_t   precision;
-  int8_t   compression;
-  int8_t   walLevel;
-  int8_t   vgReplica;
-  int8_t   wals;
-  int8_t   quorum;
-  int8_t   update;
-  int8_t   cacheLastRow;
-  int32_t  vgCfgVersion;
-  int8_t   dbReplica;
-  int8_t   dbType;
-  int8_t   reserved[8];
-} SVnodeCfg;
-
-typedef struct {
-  int32_t  nodeId;
-  char     nodeEp[TSDB_EP_LEN];
+  uint16_t port;
+  char     fqdn[TSDB_FQDN_LEN];
 } SVnodeDesc;
 
 typedef struct {
   char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
-  SVnodeCfg  cfg;
+  uint32_t   vgId;
+  int32_t    cacheBlockSize;
+  int32_t    totalBlocks;
+  int32_t    daysPerFile;
+  int32_t    daysToKeep0;
+  int32_t    daysToKeep1;
+  int32_t    daysToKeep2;
+  int32_t    minRowsPerFileBlock;
+  int32_t    maxRowsPerFileBlock;
+  int8_t     precision;
+  int8_t     compression;
+  int8_t     cacheLastRow;
+  int8_t     update;
+  int8_t     walLevel;
+  int8_t     replica;
+  int8_t     quorum;
+  int8_t     reserved[9];
+  int32_t    fsyncPeriod;
   SVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
 
