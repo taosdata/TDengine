@@ -22,14 +22,10 @@ class TDTestCase:
 
     def run(self):
         # TD-5903 show db.vgroups xxx. xxx is invalid content, but still returns results.
-        # PR: 
 
         tdSql.execute("create database if not exists test_5903")
         tdSql.execute("show test_5903.vgroups")
         tdSql.error("show test_5903.vgroups xxx")
-        #res = tdSql.query('show test_5903.vgroups', True)
-        #expected_res = [(datetime.datetime(2020, 9, 13, 20, 26, 40), 'aaa', True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'aaa', 'aaa')]
-        #tdSql.checkEqual(res, expected_res)
 
     def stop(self):
         tdSql.close()
