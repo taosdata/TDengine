@@ -65,6 +65,8 @@ static void taosGetSystemTimezone() {
   struct tm tm1;
   localtime_r(&tx1, &tm1);
 
+  tsDaylight = daylight;
+
   /*
    * format example:
    *
