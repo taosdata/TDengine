@@ -167,7 +167,7 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     int32_t     num = (int32_t) taosArrayGetSize(pExprs);
     SQueryPlanNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info, NULL);
 
-    if (pQueryInfo->distinct) {
+    if (pQueryInfo->info.distinct) {
       pNode = createQueryNode(QNODE_DISTINCT, "Distinct", &pNode, 1, pExprs->pData, num, info, NULL);
     }
 
