@@ -135,7 +135,7 @@ typedef struct tqBufferHandle {
 } tqBufferHandle;
 
 typedef struct tqListHandle {
-  tqBufferHandle* bufHandle;
+  tqBufferHandle bufHandle;
   struct tqListHandle* next;
 } tqListHandle;
 
@@ -176,22 +176,20 @@ int tqMoveOffsetToNext(tqGroupHandle*);
 int tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
 int tqRegisterContext(tqGroupHandle*, void*);
 int tqLaunchQuery(tqGroupHandle*);
-int tqSendLaunchQuery(STQ*, int64_t topicId, int64_t cgId, void* query);
+int tqSendLaunchQuery(tqGroupHandle*);
 
-int tqSerializeGroupHandle(tqGroupHandle *gHandle, void** ppBytes, int32_t offset);
-int tqSerializeListHandle(tqListHandle *listHandle, void** ppBytes, int32_t offset);
-int tqSerializeBufHandle(tqBufferHandle *bufHandle, void** ppBytes, int32_t offset);
-int tqSerializeBufItem(tqBufferItem *bufItem, void** ppBytes, int32_t offset);
+int tqSerializeGroupHandle(tqGroupHandle *gHandle, void** ppBytes);
+void* tqSerializeListHandle(tqListHandle *listHandle, void* ptr);
+void* tqSerializeBufHandle(tqBufferHandle *bufHandle, void* ptr);
+void* tqSerializeBufItem(tqBufferItem *bufItem, void* ptr);
 
-int tqDeserializeGroupHandle(const void* pBytes, tqGroupHandle **pGhandle);
-int tqDeserializeListHandle(const void* pBytes, tqListHandle **pListHandle);
-int tqDeserializeBufHandle(const void* pBytes, tqBufferHandle **pBufHandle);
-int tqDeserializeBufItem(const void* pBytes, tqBufferItem **pBufItem);
+const void* tqDeserializeGroupHandle(const void* pBytes, tqGroupHandle *ghandle);
+const void* tqDeserializeBufHandle(const void* pBytes, tqBufferHandle *bufHandle);
+const void* tqDeserializeBufItem(const void* pBytes, tqBufferItem *bufItem);
 
 int tqGetGHandleSSize(const tqGroupHandle *gHandle);
-int tqListHandleSSize(const tqListHandle *listHandle);
-int tqBufHandleSSize(const tqBufferHandle *bufHandle);
-int tqBufItemSSize(const tqBufferItem *bufItem);
+int tqBufHandleSSize();
+int tqBufItemSSize();
 
 #ifdef __cplusplus
 }
