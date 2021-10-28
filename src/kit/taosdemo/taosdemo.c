@@ -9027,7 +9027,6 @@ static uint32_t execBindParam(
 
 static int32_t prepareStbStmt(
         threadInfo *pThreadInfo,
-        SSuperTable *stbInfo,
         char *tableName,
         int64_t tableSeq,
         uint32_t batch,
@@ -9039,7 +9038,7 @@ static int32_t prepareStbStmt(
     int ret;
     TAOS_STMT *stmt = NULL;
     stmt = pThreadInfo->stmt;
-
+    SSuperTable * stbInfo = pThreadInfo->stbInfo;
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
         char* tagsValBuf = NULL;
 
@@ -9299,7 +9298,6 @@ static void* syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo, uint32_t inter
                 if (stbInfo) {
                     generated = prepareStbStmt(
                             pThreadInfo,
-                            NULL,
                             tableName,
                             tableSeq,
                             batch,
@@ -10427,10 +10425,10 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                     previousStbNum = currentStbNum;
                     stmtPrepared = true;
                 }
-                
+
+                pThreadInfo->stbInfo = stbInfo;
                 generated = prepareStbStmt(
                         pThreadInfo,
-                        stbInfo,
                         tbInfo->tbName,
                         tbInfo->tbSeq,
                         (g_args.reqPerReq>stbInfo->insertRows)?
