@@ -658,7 +658,6 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   }
   if (pTable->lastColSVersion != schemaVersion(pSchema)) {
     if (tsdbInitColIdCacheWithSchema(pTable, pSchema) < 0) {
-      TSDB_WUNLOCK_TABLE(pTable);
       return -1;
     }
   }
