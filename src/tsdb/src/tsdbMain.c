@@ -955,12 +955,6 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
     SBlockIdx *pIdx = readh.pBlkIdx;
 
     if (pIdx && (cacheLastRowTableNum > 0) && (pTable->lastRow == NULL)) {
-      if (tsdbGetTableLastKeyImpl(pTable) < pTable->lastKey) {
-        TSDB_WLOCK_TABLE(pTable);
-        pTable->lastKey = pIdx->maxKey;
-        TSDB_WUNLOCK_TABLE(pTable);
-      }
-
       if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
         tsdbUnLockFS(REPO_FS(pRepo));
         tsdbDestroyReadH(&readh);
