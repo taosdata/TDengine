@@ -163,8 +163,12 @@ namespace TDengineDriver
 
         [DllImport("taos", EntryPoint = "taos_close", CallingConvention = CallingConvention.Cdecl)]
         static extern public int Close(IntPtr taos);
-        //get precision£¬in parameter restultset
+         //get precision in  restultset
         [DllImport("taos", EntryPoint = "taos_result_precision", CallingConvention = CallingConvention.Cdecl)]
         static extern public int ResultPrecision(IntPtr taos);
+
+        //schemaless API 
+        [DllImport("taos",SetLastError = true, EntryPoint = "taos_schemaless_insert", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr SchemalessInsert(IntPtr taos, string[] lines, int numLines, int protocol, int precision);
     }
 }
