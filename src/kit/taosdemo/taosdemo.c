@@ -1404,6 +1404,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     exit(EXIT_FAILURE);
                 }
                 arguments->interlaceRows = atoi(argv[++i]);
+                g_insertType == INTERLACE_INSERT_MODE;
             } else if (0 == strncmp(argv[i], "--interlace-rows=", strlen("--interlace-rows="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--interlace-rows=")))) {
                     arguments->interlaceRows = atoi((char *)(argv[i]+strlen("--interlace-rows=")));
@@ -10563,7 +10564,11 @@ static void* syncWrite(void *sarg) {
         }
     } else {
       // progressive mode
-      return syncWriteProgressive(pThreadInfo);
+      if (g_args.use_metric) {
+          return syncWriteProgressive(pThreadInfo);
+      } else {
+          return NULL;
+      }
     }
 
     return NULL;
@@ -11689,7 +11694,7 @@ static int insertTestProcess() {
     // create sub threads for inserting data
     //start = taosGetTimestampMs();
     for (int i = 0; i < g_Dbs.dbCount; i++) {
-        if (g_Dbs.use_metric) {
+        if (g_args.use_metric) {
             if (g_Dbs.db[i].superTblCount > 0) {
                 if (INTERLACE_INSERT_MODE == g_insertType) {
                     for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
