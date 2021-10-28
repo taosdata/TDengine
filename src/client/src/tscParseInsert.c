@@ -1251,8 +1251,16 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     sToken = tStrGetToken(str, &index, false);
     str += index;
 
+    char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // used for deleting Escape character backstick(`)
+    strncpy(tmpTokenBuf, sToken.z, sToken.n);
+    sToken.z = tmpTokenBuf;
+
     if (TK_STRING == sToken.type) {
       tscDequoteAndTrimToken(&sToken);
+    }
+
+    if (TK_ID == sToken.type) {
+      tscRmEscapeAndTrimToken(&sToken);
     }
 
     if (sToken.type == TK_RP) {
