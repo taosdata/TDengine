@@ -221,8 +221,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SReadMsg *pRead) {
 int32_t vnodeProcessConsumeMsg(SVnode *pVnode, SReadMsg *pRead) {
   //parse message and optionally move offset
   void* pMsg = pRead->pCont;
-  tmqConsumeReq *pConsumeMsg = (tmqConsumeReq*) pMsg;
-  tmqMsgHead msgHead = pConsumeMsg->head;
+  TmqConsumeReq *pConsumeMsg = (TmqConsumeReq*) pMsg;
+  TmqMsgHead msgHead = pConsumeMsg->head;
   //extract head
   STQ *pTq = pVnode->pTQ;
   /*tqBufferHandle *pHandle = tqGetHandle(pTq, msgHead.clientId);*/
