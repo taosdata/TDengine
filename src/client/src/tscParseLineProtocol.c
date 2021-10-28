@@ -20,7 +20,7 @@
 #include "tscParseLine.h"
 
 typedef struct  {
-  char sTableName[TSDB_TABLE_NAME_LEN];
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
   SHashObj* tagHash;
   SHashObj* fieldHash;
   SArray* tags; //SArray<SSchema>
@@ -64,7 +64,7 @@ typedef enum {
 } ESchemaAction;
 
 typedef struct {
-  char sTableName[TSDB_TABLE_NAME_LEN];
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
   SArray* tags; //SArray<SSchema>
   SArray* fields; //SArray<SSchema>
 } SCreateSTableActionInfo;
@@ -536,7 +536,7 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
 
     tscDebug("SML:0x%" PRIx64 " retrieve table meta. super table name: %s", info->id, tableName);
 
-    char tableNameLowerCase[TSDB_TABLE_NAME_LEN];
+    char tableNameLowerCase[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
     strtolower(tableNameLowerCase, tableName);
 
     char sql[256];
@@ -623,7 +623,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memset(&schemaAction.createSTable, 0, sizeof(SCreateSTableActionInfo));
-      memcpy(schemaAction.createSTable.sTableName, pointSchema->sTableName, TSDB_TABLE_NAME_LEN);
+      memcpy(schemaAction.createSTable.sTableName, pointSchema->sTableName, TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR);
       schemaAction.createSTable.tags = pointSchema->tags;
       schemaAction.createSTable.fields = pointSchema->fields;
       applySchemaAction(taos, &schemaAction, info);
