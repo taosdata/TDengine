@@ -64,6 +64,7 @@ SMeta *metaOpen(SMetaOpts *pMetaOpts) {
 
   // TODO: need to figure out how to persist the START UID
   tableUidGeneratorInit(&(pMeta->uidGenerator), IVLD_TB_UID);
+  return pMeta;
 }
 
 void metaClose(SMeta *pMeta) {

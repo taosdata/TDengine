@@ -3,11 +3,12 @@ add_library(tq ${TQ_SRC})
 target_include_directories(
     tq
     PUBLIC "${CMAKE_SOURCE_DIR}/include/server/vnode/tq"
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/wal"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    PRIVATE "${CMAKE_SOURCE_DIR}/include/os"
 )
 
 target_link_libraries(
-    wal
+    tq
+    PUBLIC wal
+    PUBLIC os
+    PUBLIC util
 )

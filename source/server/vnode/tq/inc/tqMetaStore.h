@@ -13,28 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TQ_INT_H_
-#define _TD_TQ_INT_H_
+#ifndef _TQ_META_STORE_H_
+#define _TQ_META_STORE_H_
 
-#include "tq.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//create persistent storage for meta info such as consuming offset
-//return value > 0: cgId
-//return value <= 0: error code
-//int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqBufferHandle** handle);
-//create ring buffer in memory and load consuming offset
-//int tqOpenTCGroup(STQ*, const char* topic, int cgId);
-//destroy ring buffer and persist consuming offset
-//int tqCloseTCGroup(STQ*, const char* topic, int cgId);
-//delete persistent storage for meta info
-//int tqDropTCGroup(STQ*, const char* topic, int cgId);
+typedef struct TqKvHandle {
+  int64_t key;
+  int64_t offset;
+  void *valueInUse;
+  void *valueInTxn;
+  //serializer
+} TqKvHandle;
+
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TQ_INT_H_*/
+#endif /* ifndef _TQ_META_STORE_H_ */

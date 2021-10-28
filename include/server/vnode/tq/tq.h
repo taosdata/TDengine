@@ -17,6 +17,7 @@
 #define _TD_TQ_H_
 
 #include "os.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,14 +80,14 @@ typedef struct TmqConsumeRsp {
 
 typedef struct TmqSubscribeReq {
   TmqMsgHead head;
-  int64_t topicLen;
-  char topic[];
+  int32_t topicNum;
+  int64_t topic[];
 } TmqSubscribeReq;
 
 typedef struct tmqSubscribeRsp {
   TmqMsgHead head;
   int64_t vgId;
-  char ep[]; //TSDB_EP_LEN
+  char ep[TSDB_EP_LEN]; //TSDB_EP_LEN
 } TmqSubscribeRsp;
 
 typedef struct TmqHeartbeatReq {
@@ -98,17 +99,17 @@ typedef struct TmqHeartbeatRsp {
 } TmqHeartbeatRsp;
 
 typedef struct TqTopicVhandle {
-  //name
-  //
+  int64_t topicId;
   //executor for filter
-  //
+  void*  filterExec;
   //callback for mnode
-  //
+  //trigger when vnode list associated topic change
+  void* (*mCallback)(void*, void*);
 } TqTopicVhandle;
 
 typedef struct STQ {
   //the collection of group handle
-
+  //the handle of kvstore
 } STQ;
 
 #define TQ_BUFFER_SIZE 8
