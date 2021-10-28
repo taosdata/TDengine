@@ -4025,7 +4025,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
   (*leftNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
   (*leftNode)->tagColId = pTagSchema1->colId;
-  if(pLeft->tokenId == TK_ARROW) {
+  if(pExpr->pLeft->tokenId == TK_ARROW) {
     tstrncpy((*leftNode)->tagJsonKeyName, pExpr->pLeft->pRight->value.pz, TSDB_MAX_JSON_KEY_LEN + 1);
   }
 
@@ -4062,7 +4062,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
   (*rightNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
   (*rightNode)->tagColId = pTagSchema2->colId;
-  if(pRight->tokenId == TK_ARROW) {
+  if(pExpr->pRight->tokenId == TK_ARROW) {
     tstrncpy((*rightNode)->tagJsonKeyName, pRight->pLeft->pRight->value.pz, TSDB_MAX_JSON_KEY_LEN + 1);
   }
 
