@@ -9149,37 +9149,6 @@ static int32_t generateStbProgressiveData(
             pSamplePos, &dataLen);
 }
 
-// static int32_t generateProgressiveDataWithoutStb(
-//         char *tableName,
-//         /* int64_t tableSeq, */
-//         threadInfo *pThreadInfo, char *buffer,
-//         int64_t insertRows,
-//         uint64_t recordFrom, int64_t startTime, /*int64_t *pSamplePos, */
-//         int64_t *pRemainderBufLen)
-// {
-//     assert(buffer != NULL);
-//     char *pstr = buffer;
-
-//     memset(buffer, 0, *pRemainderBufLen);
-
-//     int64_t headLen = generateSQLHeadWithoutStb(
-//             tableName, pThreadInfo->db_name,
-//             buffer, *pRemainderBufLen);
-
-//     if (headLen <= 0) {
-//         return 0;
-//     }
-//     pstr += headLen;
-//     *pRemainderBufLen -= headLen;
-
-//     int64_t dataLen;
-
-//     return generateDataTailWithoutStb(
-//             g_args.reqPerReq, pstr, *pRemainderBufLen, insertRows, recordFrom,
-//             startTime,
-//             /*pSamplePos, */&dataLen);
-// }
-
 static void printStatPerThread(threadInfo *pThreadInfo)
 {
     if (0 == pThreadInfo->totalDelay)
