@@ -2091,7 +2091,7 @@ static int getTableDes(
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
                     char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' '
                     convertNCharToReadable((char *)row[TSDB_SHOW_TABLES_NAME_INDEX], length[0], tbuf, COL_NOTE_LEN);
-                    sprintf(tableDes->cols[i].value, "\'%s\'", tbuf);
+                    sprintf(tableDes->cols[i].value, "%s", tbuf);
                     break;
                 }
             case TSDB_DATA_TYPE_TIMESTAMP:
@@ -3005,7 +3005,13 @@ int main(int argc, char *argv[]) {
     printf("debug_print: %d\n", g_args.debug_print);
 
     for (int32_t i = 0; i < g_args.arg_list_len; i++) {
-        printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
+        if (g_args.databases || g_args.all_databases) {
+            errorPrint("%s is an invalid input if database(s) be already specified.\n",
+                    g_args.arg_list[i]);
+            exit(EXIT_FAILURE);
+        } else {
+            printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
+        }
     }
 
     printf("==============================\n");

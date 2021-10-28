@@ -72,10 +72,9 @@ class TaosConnection(object):
         taos_select_db(self._conn, database)
 
     def execute(self, sql):
-        # type: (str) -> None
+        # type: (str) -> int
         """Simplely execute sql ignoring the results"""
-        res = taos_query(self._conn, sql)
-        taos_free_result(res)
+        return self.query(sql).affected_rows
 
     def query(self, sql):
         # type: (str) -> TaosResult
@@ -118,7 +117,7 @@ class TaosConnection(object):
         return TaosStream(stream)
 
     def schemaless_insert(self, lines, protocol, precision):
-        # type: (list[str]) -> None
+        # type: (list[str], SmlProtocol, SmlPrecision) -> int
         """
         1.Line protocol and schemaless support
 
@@ -171,6 +170,7 @@ class TaosConnection(object):
         conn.schemaless_insert(lines, 2, None)
 
         """
+        print(lines, protocol, precision)
         return taos_schemaless_insert(self._conn, lines, protocol, precision)
 
 

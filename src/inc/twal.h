@@ -66,6 +66,7 @@ int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
 uint64_t walGetVersion(twalh);
 void     walResetVersion(twalh, uint64_t newVer);
+int64_t  walGetFSize(twalh);
 
 #ifdef __cplusplus
 }
