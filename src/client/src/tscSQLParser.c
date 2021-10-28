@@ -9342,8 +9342,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
 int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, uint64_t *uid) {
   if (pSqlExpr->type != SQL_NODE_EXPR && pSqlExpr->type != SQL_NODE_SQLFUNCTION) {
-    assert(pSqlExpr->pLeft == NULL && pSqlExpr->pRight == NULL &&
-           ( pSqlExpr->Expr.paramList == NULL || taosArrayGetSize(pSqlExpr->Expr.paramList) == 0));
+    assert(pSqlExpr->pLeft == NULL && pSqlExpr->pRight == NULL);
     if (pSqlExpr->type == SQL_NODE_VALUE) {
       int32_t ret = TSDB_CODE_SUCCESS;
       *pExpr = calloc(1, sizeof(tExprNode));
