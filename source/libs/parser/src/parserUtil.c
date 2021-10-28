@@ -576,13 +576,6 @@ TAOS_FIELD* getFieldInfo(SFieldInfo* pFieldInfo, int32_t index) {
   return &((SInternalField*)TARRAY_GET_ELEM(pFieldInfo->internalField, index))->field;
 }
 
-int16_t getFieldInfoOffset(SQueryStmtInfo* pQueryInfo, int32_t index) {
-  SInternalField* pInfo = getInternalField(&pQueryInfo->fieldsInfo, index);
-  assert(pInfo != NULL && pInfo->pExpr->pExpr == NULL);
-  return 0;
-//  return pInfo->pExpr->base.offset;
-}
-
 int32_t fieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize) {
   assert(pFieldInfo1 != NULL && pFieldInfo2 != NULL);
 
@@ -780,8 +773,8 @@ SColumn* columnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid
 }
 
 SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid) {
-  SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  return columnListInsert(pColumnList, PRIMARYKEY_TIMESTAMP_COL_INDEX, tableUid, &s);
+  SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_ID};
+  return columnListInsert(pColumnList, PRIMARYKEY_TIMESTAMP_COL_ID, tableUid, &s);
 }
 
 void columnCopy(SColumn* pDest, const SColumn* pSrc);

@@ -7,6 +7,6 @@ target_include_directories(
 )
 
 target_link_libraries(
-        function
-        PRIVATE os util common
+    function
+    PRIVATE os util common
 )

@@ -30,9 +30,7 @@ SSchema *getTableTagSchema(const STableMeta* pTableMeta);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 
 size_t     getNumOfExprs(SQueryStmtInfo* pQueryInfo);
-//SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, struct tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize);
 SExprInfo* createBinaryExprInfo(struct tExprNode* pNode, SSchema* pResSchema);
-void       destroyExprInfoList();
 
 void       addExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index, SExprInfo* pExprInfo);
 void       updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize);
@@ -42,9 +40,11 @@ int32_t    copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy);
 
 void       addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
+int32_t    getExprFunctionId(SExprInfo *pExprInfo);
 void       cleanupFieldInfo(SFieldInfo* pFieldInfo);
 
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
+SArray* extractFunctionIdList(SArray* pExprInfoList);
 
 #ifdef __cplusplus
 }

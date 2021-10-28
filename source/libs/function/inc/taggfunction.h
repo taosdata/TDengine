@@ -56,8 +56,6 @@ typedef struct SResultRowCellInfo {
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
-
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 #define TOP_BOTTOM_QUERY_LIMIT   100
 
 enum {

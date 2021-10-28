@@ -24,6 +24,7 @@ extern "C" {
 #include "common.h"
 #include "tname.h"
 #include "tvariant.h"
+#include "function.h"
 
 typedef struct SColumn {
   uint64_t     tableUid;
@@ -130,20 +131,6 @@ typedef struct STableMetaInfo {
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
-typedef struct SQueryAttrInfo {
-  bool             stableQuery;
-  bool             groupbyColumn;
-  bool             simpleAgg;
-  bool             arithmeticOnAgg;
-  bool             projectionQuery;
-  bool             hasFilter;
-  bool             onlyTagQuery;
-  bool             orderProjectQuery;
-  bool             stateWindow;
-  bool             globalMerge;
-  bool             multigroupResult;
-} SQueryAttrInfo;
-
 typedef struct SQueryStmtInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
@@ -177,7 +164,6 @@ typedef struct SQueryStmtInfo {
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   bool             distinct;   // distinct tag or not
-  bool             onlyHasTagCond;
   int32_t          bufLen;
   char*            buf;
   SArray          *pUdfInfo;
@@ -186,7 +172,7 @@ typedef struct SQueryStmtInfo {
   SArray            *pUpstream;   // SArray<struct SQueryStmtInfo>
   struct SQueryStmtInfo *pDownstream;
   int32_t            havingFieldNum;
-  SQueryAttrInfo     info;
+  SMultiFunctionsDesc     info;
 } SQueryStmtInfo;
 
 typedef struct SColumnIndex {

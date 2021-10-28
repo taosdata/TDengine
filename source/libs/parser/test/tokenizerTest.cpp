@@ -667,51 +667,59 @@ TEST(testCase, isValidNumber_test) {
   EXPECT_EQ(tGetNumericStringType(&t1), TK_FLOAT);
 }
 
-TEST(testCase, generateAST_test) {
-  SSqlInfo info = doGenerateAST("select * from t1 where ts < now");
-  ASSERT_EQ(info.valid, true);
-
-  SSqlInfo info1 = doGenerateAST("select * from `t.1abc` where ts<now+2h  and col < 20+99");
-  ASSERT_EQ(info1.valid, true);
-
-  char msg[128] = {0};
-
-  SMsgBuf msgBuf = {0};
-  msgBuf.buf = msg;
-  msgBuf.len = 128;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
-  ASSERT_EQ(code, 0);
-
-  SSqlInfo info2 = doGenerateAST("select * from abc where ts<now+2");
-  SSqlNode* pNode2 = (SSqlNode*) taosArrayGetP(((SArray*)info2.list), 0);
-  code = evaluateSqlNode(pNode2, TSDB_TIME_PRECISION_MILLI, &msgBuf);
-  ASSERT_NE(code, 0);
-}
-
-TEST(testCase, evaluateAST_test) {
-  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and `col` < 20 + 99");
-  ASSERT_EQ(info1.valid, true);
-
-  char msg[128] = {0};
-  SMsgBuf msgBuf = {0};
-  msgBuf.buf = msg;
-  msgBuf.len = 128;
-
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
-  ASSERT_EQ(code, 0);
-}
-
-TEST(testCase, extractMeta_test) {
-  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and `col` < 20 + 99");
-  ASSERT_EQ(info1.valid, true);
-
-  char msg[128] = {0};
-  SMetaReq req  = {0};
-  int32_t ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-}
+//TEST(testCase, generateAST_test) {
+//  SSqlInfo info = doGenerateAST("select * from t1 where ts < now");
+//  ASSERT_EQ(info.valid, true);
+//
+//  SSqlInfo info1 = doGenerateAST("select * from `t.1abc` where ts<now+2h  and col < 20+99");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char msg[128] = {0};
+//
+//  SMsgBuf msgBuf = {0};
+//  msgBuf.buf = msg;
+//  msgBuf.len = 128;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
+//  ASSERT_EQ(code, 0);
+//
+//  SSqlInfo info2 = doGenerateAST("select * from abc where ts<now+2");
+//  SSqlNode* pNode2 = (SSqlNode*) taosArrayGetP(((SArray*)info2.list), 0);
+//  code = evaluateSqlNode(pNode2, TSDB_TIME_PRECISION_MILLI, &msgBuf);
+//  ASSERT_NE(code, 0);
+//
+//  destroySqlInfo(&info);
+//  destroySqlInfo(&info1);
+//  destroySqlInfo(&info2);
+//}
+//
+//TEST(testCase, evaluateAST_test) {
+//  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and `col` < 20 + 99");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char msg[128] = {0};
+//  SMsgBuf msgBuf = {0};
+//  msgBuf.buf = msg;
+//  msgBuf.len = 128;
+//
+//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
+//  ASSERT_EQ(code, 0);
+//  destroySqlInfo(&info1);
+//}
+//
+//TEST(testCase, extractMeta_test) {
+//  SSqlInfo info1 = doGenerateAST("select a, b+22 from `t.1abc` where ts<now+2h and `col` < 20 + 99");
+//  ASSERT_EQ(info1.valid, true);
+//
+//  char msg[128] = {0};
+//  SMetaReq req  = {0};
+//  int32_t ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+//  ASSERT_EQ(ret, 0);
+//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+//
+//  qParserClearupMetaRequestInfo(&req);
+//  destroySqlInfo(&info1);
+//}
 

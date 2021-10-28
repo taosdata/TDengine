@@ -298,7 +298,7 @@ void* destroyCreateTableSql(SCreateTableSql* pCreate);
 void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken);
 void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPath, SField *output, SToken* bufSize, int32_t funcType);
 
-void SqlInfoDestroy(SSqlInfo *pInfo);
+void destroySqlInfo(SSqlInfo *pInfo);
 
 void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
 void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken, SToken* existsCheck,int16_t dbType,int16_t tableType);

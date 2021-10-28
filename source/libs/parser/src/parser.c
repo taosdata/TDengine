@@ -186,3 +186,12 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
 
   return code;
 }
+
+void qParserClearupMetaRequestInfo(SMetaReq* pMetaReq) {
+  if (pMetaReq == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pMetaReq->pTableName);
+  taosArrayDestroy(pMetaReq->pUdf);
+}
