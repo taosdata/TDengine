@@ -7161,6 +7161,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
           }else{
             getJsonTagValueAll(data, output, bytes);
           }
+          count += 1;
           continue;
         }
       }
