@@ -55,7 +55,7 @@ static SStep tsMnodeSteps[] = {
   {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes},
   {"sdb",     sdbInit,          sdbCleanUp},
   {"balance", bnInit,           bnCleanUp},
-  {"grant",   grantInit,        grantCleanUp},
+  // {"grant",   grantInit,        grantCleanUp},
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };
 
