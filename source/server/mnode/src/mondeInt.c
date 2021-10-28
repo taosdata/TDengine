@@ -39,7 +39,7 @@
 static struct {
   int32_t  state;
   int32_t  dnodeId;
-  char     clusterId[TSDB_CLUSTER_ID_LEN];
+  int64_t  clusterId;
   tmr_h    timer;
   SMnodeFp fp;
   SSteps * steps1;
@@ -50,7 +50,7 @@ tmr_h mnodeGetTimer() { return tsMint.timer; }
 
 int32_t mnodeGetDnodeId() { return tsMint.dnodeId; }
 
-char *mnodeGetClusterId() { return tsMint.clusterId; }
+int64_t mnodeGetClusterId() { return tsMint.clusterId; }
 
 EMnStatus mnodeGetStatus() { return tsMint.state; }
 
@@ -71,12 +71,14 @@ int32_t mnodeGetStatistics(SMnodeStat *stat) { return 0; }
 static int32_t mnodeSetPara(SMnodePara para) {
   tsMint.fp = para.fp;
   tsMint.dnodeId = para.dnodeId;
-  strncpy(tsMint.clusterId, para.clusterId, TSDB_CLUSTER_ID_LEN);
+  tsMint.clusterId = para.clusterId;
 
   if (tsMint.fp.SendMsgToDnode == NULL) return -1;
   if (tsMint.fp.SendMsgToMnode == NULL) return -1;
   if (tsMint.fp.SendRedirectMsg == NULL) return -1;
+  if (tsMint.fp.GetDnodeEp == NULL) return -1;
   if (tsMint.dnodeId < 0) return -1;
+  if (tsMint.clusterId < 0) return -1;
 
   return 0;
 }
@@ -141,7 +143,7 @@ static void mnodeCleanupStep2() { taosStepCleanup(tsMint.steps2); }
 
 static bool mnodeNeedDeploy() {
   if (tsMint.dnodeId > 0) return false;
-  if (tsMint.clusterId[0] != 0) return false;
+  if (tsMint.clusterId > 0) return false;
   if (strcmp(tsFirst, tsLocalEp) != 0) return false;
   return true;
 }
@@ -154,7 +156,7 @@ int32_t mnodeDeploy() {
     tsMint.state = MN_STATUS_INIT;
   }
 
-  if (tsMint.dnodeId <= 0 || tsMint.clusterId[0] == 0) {
+  if (tsMint.dnodeId <= 0 || tsMint.clusterId <= 0) {
     mError("failed to deploy mnode since cluster not ready");
     return TSDB_CODE_MND_NOT_READY;
   }

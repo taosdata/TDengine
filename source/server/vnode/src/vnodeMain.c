@@ -108,6 +108,11 @@ static void vnodeDestroyVnode(SVnode *pVnode) {
   int32_t code = 0;
   int32_t vgId = pVnode->vgId;
 
+  if (pVnode->pSync != NULL) {
+    syncStop(pVnode->pSync);
+    pVnode->pSync = NULL;
+  }
+
   if (pVnode->pQuery) {
     // todo
   }
@@ -125,7 +130,8 @@ static void vnodeDestroyVnode(SVnode *pVnode) {
   }
 
   if (pVnode->pWal) {
-    // todo
+    walClose(pVnode->pWal);
+    pVnode->pWal = NULL;
   }
 
   if (pVnode->allocator) {
@@ -161,6 +167,56 @@ static void vnodeCleanupVnode(SVnode *pVnode) {
   vnodeRelease(pVnode);
 }
 
+static inline int32_t vnodeLogWrite(struct SSyncLogStore *logStore, SyncIndex index, SSyncBuffer *pBuf) {
+  SVnode *pVnode = logStore->pData;  // vnode status can be checked here
+  return walWrite(pVnode->pWal, index, pBuf->data, (int32_t)pBuf->len);
+}
+
+static inline int32_t vnodeLogCommit(struct SSyncLogStore *logStore, SyncIndex index) {
+  SVnode *pVnode = logStore->pData;  // vnode status can be checked here
+  return walCommit(pVnode->pWal, index);
+}
+
+static inline int32_t vnodeLogPrune(struct SSyncLogStore *logStore, SyncIndex index) {
+  SVnode *pVnode = logStore->pData;  // vnode status can be checked here
+  return walPrune(pVnode->pWal, index);
+}
+
+static inline int32_t vnodeLogRollback(struct SSyncLogStore *logStore, SyncIndex index) {
+  SVnode *pVnode = logStore->pData;  // vnode status can be checked here
+  return walRollback(pVnode->pWal, index);
+}
+
+static inline int32_t vnodeSaveServerState(struct SStateManager *stateMng, SSyncServerState *pState) {
+  SVnode *pVnode = stateMng->pData;
+  return vnodeSaveState(pVnode->vgId, pState);
+}
+
+static inline int32_t vnodeReadServerState(struct SStateManager *stateMng, SSyncServerState *pState) {
+  SVnode *pVnode = stateMng->pData;
+  return vnodeSaveState(pVnode->vgId, pState);
+}
+
+static inline int32_t vnodeApplyLog(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData) {
+  return 0;
+}
+
+static inline int32_t vnodeOnClusterChanged(struct SSyncFSM *fsm, const SSyncCluster *cluster, void *pData) { return 0; }
+
+static inline int32_t vnodeGetSnapshot(struct SSyncFSM *fsm, SSyncBuffer **ppBuf, int32_t *objId, bool *isLast) {
+  return 0;
+}
+
+static inline int32_t vnodeApplySnapshot(struct SSyncFSM *fsm, SSyncBuffer *pBuf, int32_t objId, bool isLast) {
+  return 0;
+}
+
+static inline int32_t vnodeOnRestoreDone(struct SSyncFSM *fsm) { return 0; }
+
+static inline void vnodeOnRollback(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf) {}
+
+static inline void vnodeOnRoleChanged(struct SSyncFSM *fsm, const SNodesRole *pRole) {}
+
 static int32_t vnodeOpenVnode(int32_t vgId) {
   int32_t code = 0;
 
@@ -177,6 +233,9 @@ static int32_t vnodeOpenVnode(int32_t vgId) {
   pVnode->role = TAOS_SYNC_ROLE_CANDIDATE;
   pthread_mutex_init(&pVnode->statusMutex, NULL);
 
+  vDebug("vgId:%d, vnode is opened", pVnode->vgId);
+  taosHashPut(tsVnode.hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnode *));
+
   code = vnodeReadCfg(vgId, &pVnode->cfg);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to read config file, set cfgVersion to 0", pVnode->vgId);
@@ -185,7 +244,7 @@ static int32_t vnodeOpenVnode(int32_t vgId) {
     return 0;
   }
 
-  code = vnodeReadTerm(vgId, &pVnode->term);
+  code = vnodeSaveState(vgId, &pVnode->term);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to read term file since %s", pVnode->vgId, tstrerror(code));
     pVnode->cfg.dropped = 1;
@@ -209,8 +268,33 @@ static int32_t vnodeOpenVnode(int32_t vgId) {
     return terrno;
   }
 
-  vDebug("vgId:%d, vnode is opened", pVnode->vgId);
-  taosHashPut(tsVnode.hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnode *));
+  // create sync node
+  SSyncInfo syncInfo = {0};
+  syncInfo.vgId = vgId;
+  syncInfo.snapshotIndex = 0;  // todo, from tsdb
+  memcpy(&syncInfo.syncCfg, &pVnode->cfg.sync, sizeof(SSyncCluster));
+  syncInfo.fsm.pData = pVnode;
+  syncInfo.fsm.applyLog = vnodeApplyLog;
+  syncInfo.fsm.onClusterChanged = vnodeOnClusterChanged;
+  syncInfo.fsm.getSnapshot = vnodeGetSnapshot;
+  syncInfo.fsm.applySnapshot = vnodeApplySnapshot;
+  syncInfo.fsm.onRestoreDone = vnodeOnRestoreDone;
+  syncInfo.fsm.onRollback = vnodeOnRollback;
+  syncInfo.fsm.onRoleChanged = vnodeOnRoleChanged;
+  syncInfo.logStore.pData = pVnode;
+  syncInfo.logStore.logWrite = vnodeLogWrite;
+  syncInfo.logStore.logCommit = vnodeLogCommit;
+  syncInfo.logStore.logPrune = vnodeLogPrune;
+  syncInfo.logStore.logRollback = vnodeLogRollback;
+  syncInfo.stateManager.pData = pVnode;
+  syncInfo.stateManager.saveServerState = vnodeSaveServerState;
+  syncInfo.stateManager.readServerState = vnodeReadServerState;
+
+  pVnode->pSync = syncStart(&syncInfo);
+  if (pVnode->pSync == NULL) {
+    vnodeCleanupVnode(pVnode);
+    return terrno;
+  }
 
   vnodeSetReadyStatus(pVnode);
   return TSDB_CODE_SUCCESS;
@@ -313,7 +397,7 @@ int32_t vnodeAlterVnode(SVnode * pVnode, SVnodeCfg *pCfg) {
   }
 
   if (syncChanged) {
-    // todo
+    syncReconfig(pVnode->pSync, &pVnode->cfg.sync);
   }
 
   vnodeRelease(pVnode);
