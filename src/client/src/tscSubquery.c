@@ -1912,7 +1912,12 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       // set get tags query type
       TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
-      tscAddFuncInSelectClause(pNewQueryInfo, 0, TSDB_FUNC_TID_TAG, &colIndex, &s1, TSDB_COL_TAG, getNewResColId(pCmd));
+      SExprInfo* pExpr = tscAddFuncInSelectClause(pNewQueryInfo, 0, TSDB_FUNC_TID_TAG, &colIndex, &s1, TSDB_COL_TAG, getNewResColId(pCmd));
+      if(strlen(pTagCond->joinInfo.joinTables[0]->tagJsonKeyName) > 0){
+        tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), pTagCond->joinInfo.joinTables[0]->tagJsonKeyName,
+           strlen(pTagCond->joinInfo.joinTables[0]->tagJsonKeyName), TSDB_DATA_TYPE_BINARY);
+        pExpr->base.numOfParams++;
+      }
       size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
   
       tscDebug(

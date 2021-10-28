@@ -4025,6 +4025,9 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
   (*leftNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
   (*leftNode)->tagColId = pTagSchema1->colId;
+  if(pLeft->tokenId == TK_ARROW) {
+    tstrncpy((*leftNode)->tagJsonKeyName, pExpr->pLeft->pRight->value.pz, TSDB_MAX_JSON_KEY_LEN + 1);
+  }
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
@@ -4059,6 +4062,9 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
   (*rightNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
   (*rightNode)->tagColId = pTagSchema2->colId;
+  if(pRight->tokenId == TK_ARROW) {
+    tstrncpy((*rightNode)->tagJsonKeyName, pRight->pLeft->pRight->value.pz, TSDB_MAX_JSON_KEY_LEN + 1);
+  }
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
@@ -4304,6 +4310,7 @@ static bool validateJoinExprNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
   const char* msg5 = "join table must be the same type(table to table, super table to super table)";
   const char* msg6 = "tag json key must be string";
   const char* msg7 = "tag json key in json must be same";
+  const char* msg8 = "tag json key is too long, no more than 256 bytes";
 
   tSqlExpr* pRight = pExpr->pRight;
   if(pRight->tokenId == TK_ARROW){
@@ -4311,11 +4318,15 @@ static bool validateJoinExprNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       return false;
     }
-   if(pExpr->pLeft->pRight->value.nLen != pExpr->pRight->pRight->value.nLen
+    if(pExpr->pLeft->pRight->value.nLen > TSDB_MAX_JSON_KEY_LEN){
+      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+      return false;
+    }
+    if(pExpr->pLeft->pRight->value.nLen != pExpr->pRight->pRight->value.nLen
         || strncmp(pExpr->pLeft->pRight->value.pz, pExpr->pRight->pRight->value.pz, pExpr->pRight->pRight->value.nLen) != 0){
      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
      return false;
-   }
+    }
 
     pRight = pExpr->pRight->pLeft;
   }

@@ -28,6 +28,7 @@ typedef struct STblCond {
 typedef struct SJoinNode {
   uint64_t uid;
   int16_t  tagColId;
+  char  tagJsonKeyName[TSDB_MAX_JSON_KEY_LEN + 1];   // for tag json key
   SArray*  tsJoin;
   SArray*  tagJoin;
 } SJoinNode;
