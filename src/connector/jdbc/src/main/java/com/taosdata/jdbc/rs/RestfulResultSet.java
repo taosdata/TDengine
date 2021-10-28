@@ -255,8 +255,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return null;
+        }
+        wasNull = false;
         if (value instanceof byte[])
             return new String((byte[]) value);
         return value.toString();
