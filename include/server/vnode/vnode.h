@@ -46,6 +46,11 @@ typedef struct {
    */
   void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
+  /**
+   * Report the startup progress.
+   */
+  void (*ReportStartup)(char *name, char *desc);
+
 } SVnodeFp;
 
 typedef struct {

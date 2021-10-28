@@ -37,6 +37,8 @@ void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
 
 void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsVint.fp.SendMsgToMnode)(rpcMsg); }
 
+void vnodeReportStartup(char *name, char *desc) { (*tsVint.fp.ReportStartup)(name, desc); }
+
 void vnodeProcessMsg(SRpcMsg *pMsg) {
   if (tsVint.msgFp[pMsg->msgType]) {
     (*tsVint.msgFp[pMsg->msgType])(pMsg);
