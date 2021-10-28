@@ -4063,7 +4063,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
   (*rightNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
   (*rightNode)->tagColId = pTagSchema2->colId;
   if(pExpr->pRight->tokenId == TK_ARROW) {
-    tstrncpy((*rightNode)->tagJsonKeyName, pRight->pLeft->pRight->value.pz, TSDB_MAX_JSON_KEY_LEN + 1);
+    tstrncpy((*rightNode)->tagJsonKeyName, pExpr->pRight->pRight->value.pz, TSDB_MAX_JSON_KEY_LEN + 1);
   }
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
