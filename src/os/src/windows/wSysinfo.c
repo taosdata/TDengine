@@ -91,6 +91,17 @@ static void taosGetSystemTimezone() {
       strcpy(tsTimezone, tz);
     }
     cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+    int64_t timezone = _timezone;
+    int32_t daylight = _daylight;
+    char **tzname = _tzname;
+#endif
+#endif
+
+    tsDaylight = daylight;
+
     uInfo("timezone not configured, use default");
   }
 }
