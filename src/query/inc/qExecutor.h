@@ -228,6 +228,7 @@ typedef struct SQueryAttr {
   bool             createFilterOperator; // if filter operator is needed
   bool             multigroupResult; // multigroup result can exist in one SSDataBlock
   bool             needSort;         // need sort rowRes
+  bool             skipOffset;       // can skip offset if true 
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number

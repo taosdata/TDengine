@@ -37,6 +37,9 @@
                     .tid = (_checkInfo)->tableId.tid,                                  \
                     .uid = (_checkInfo)->tableId.uid})
 
+// limit offset start optimization for rows read over this value
+#define OFFSET_SKIP_THRESHOLD 5000
+
 enum {
   TSDB_QUERY_TYPE_ALL      = 1,
   TSDB_QUERY_TYPE_LAST     = 2,
@@ -115,6 +118,9 @@ typedef struct STsdbQueryHandle {
   STsdbRepo*     pTsdb;
   SQueryFilePos  cur;              // current position
   int16_t        order;
+  int64_t        offset;           // limit offset
+  int64_t        srows;            //  skip offset rows
+  int64_t        frows;            // forbid offset rows  
   STimeWindow    window;           // the primary query time window that applies to all queries
   SDataStatis*   statis;           // query level statistics, only one table block statistics info exists at any time
   int32_t        numOfBlocks;
@@ -409,6 +415,9 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   }
 
   pQueryHandle->order       = pCond->order;
+  pQueryHandle->offset      = pCond->offset;
+  pQueryHandle->srows       = 0;
+  pQueryHandle->frows       = 0;
   pQueryHandle->pTsdb       = tsdb;
   pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
   pQueryHandle->cur.fid     = INT32_MIN;
@@ -525,6 +534,9 @@ void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond) {
   }
 
   pQueryHandle->order       = pCond->order;
+  pQueryHandle->offset      = pCond->offset;
+  pQueryHandle->srows       = 0;
+  pQueryHandle->frows       = 0;
   pQueryHandle->window      = pCond->twindow;
   pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
   pQueryHandle->cur.fid     = -1;
@@ -1033,6 +1045,51 @@ static int32_t binarySearchForBlock(SBlock* pBlock, int32_t numOfBlocks, TSKEY s
   return midSlot;
 }
 
+// skip blocks . return value is skip blocks number, skip rows reduce from *pOffset
+static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, uint32_t numBlocks, int64_t s, int64_t e) {
+  int32_t num = 0;
+  SBlock* blocks = pBlockInfo->blocks;
+
+  // asc
+  if(ASCENDING_TRAVERSE(q->order)) {
+    for(int32_t i = 0; i < numBlocks; i++) {
+      SBlock* pBlock = &blocks[i];
+      if(i == 0 && pBlock->keyFirst != s) { 
+        //first block only keyFirst == s can skip
+        q->frows += pBlock->numOfRows;
+        continue;
+      } else {
+        // skip to read
+        if(q->srows + q->frows + pBlock->numOfRows <= q->offset) {
+          q->srows += pBlock->numOfRows;
+          num ++;
+        } else {
+          break;
+        }
+      }
+    }
+  } else { // des
+    for(int32_t i = numBlocks - 1; i >= 0; i--) {
+      SBlock* pBlock = &blocks[i];
+      if(i == numBlocks - 1 && pBlock->keyLast != e) { 
+        //first block only keyFirst == s can skipƒ
+        q->frows += pBlock->numOfRows;
+        continue;
+      } else {
+        // skip to read
+        if(q->srows + q->frows + pBlock->numOfRows <= q->offset) {
+          q->srows += pBlock->numOfRows;
+          num ++;
+        } else {
+          break;
+        }
+      }
+    }    
+  }
+
+  return num;
+}
+
 static int32_t loadBlockInfo(STsdbQueryHandle * pQueryHandle, int32_t index, int32_t* numOfBlocks) {
   int32_t code = 0;
 
@@ -1083,21 +1140,38 @@ static int32_t loadBlockInfo(STsdbQueryHandle * pQueryHandle, int32_t index, int
 
   // discard the unqualified data block based on the query time window
   int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
-  int32_t end = start;
-
   if (s > pCompInfo->blocks[start].keyLast) {
     return 0;
   }
 
+  int32_t end = start;
   // todo speedup the procedure of located end block
   while (end < (int32_t)compIndex->numOfBlocks && (pCompInfo->blocks[end].keyFirst <= e)) {
     end += 1;
   }
 
-  pCheckInfo->numOfBlocks = (end - start);
+  // calc offset can skip blocks number
+  int32_t nSkip = 0;
+  if(pQueryHandle->offset > 0) {
+     nSkip = offsetSkipBlock(pQueryHandle, pCompInfo, compIndex->numOfBlocks, s, e);
+  }
 
-  if (start > 0) {
-    memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SBlock));
+  pCheckInfo->numOfBlocks = (end - start) - nSkip;
+  if(pCheckInfo->numOfBlocks > 0) {
+    if(nSkip > 0) {
+      if(ASCENDING_TRAVERSE(pQueryHandle->order)) {
+        if(start > 0)
+          memmove(pCompInfo->blocks, &pCompInfo->blocks[start], 1 * sizeof(SBlock));
+        if(pCheckInfo->numOfBlocks > 1)
+          memmove(pCompInfo->blocks + 1, &pCompInfo->blocks[start + nSkip + 1], (pCheckInfo->numOfBlocks - 1) * sizeof(SBlock));
+      } else {
+        if(start > 0 && pCheckInfo->numOfBlocks > 1)
+          memmove(pCompInfo->blocks, &pCompInfo->blocks[start], (pCheckInfo->numOfBlocks - 1) * sizeof(SBlock));
+        memmove(pCompInfo->blocks + (pCheckInfo->numOfBlocks - 1), &pCompInfo->blocks[end - 1], 1 * sizeof(SBlock)); 
+      }
+    } else if(start > 0) {
+      memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SBlock));
+    }
   }
 
   (*numOfBlocks) += pCheckInfo->numOfBlocks;
@@ -4207,4 +4281,13 @@ void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *re
 
   //apply the hierarchical filter expression to every node in skiplist to find the qualified nodes
   applyFilterToSkipListNode(pSkipList, pExpr, result, param);
+}
+
+// obtain queryHandle attribute
+int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle) {
+  STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
+  if (pQueryHandle) {
+    return pQueryHandle->srows;
+  }
+  return 0;
 }

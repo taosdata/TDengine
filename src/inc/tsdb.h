@@ -172,6 +172,7 @@ typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 typedef struct STsdbQueryCond {
   STimeWindow  twindow;
   int32_t      order;             // desc|asc order to iterate the data block
+  int64_t      offset;            // skip offset put down to tsdb
   int32_t      numOfCols;
   SColumnInfo *colList;
   bool         loadExternalRows;  // load external rows or not
@@ -390,6 +391,9 @@ void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond);
 void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList);
 
 int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist* pTableBlockInfo);
+
+// obtain queryHandle attribute
+int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle);
 
 /**
  * get the statistics of repo usage
