@@ -12,6 +12,7 @@ except:
 from .error import *
 from .bind import *
 from .field import *
+from .schemaless import *
 
 
 # stream callback
@@ -810,27 +811,27 @@ def taos_stmt_use_result(stmt):
     return result
 
 try:
-    _libtaos.taos_insert_lines.restype = c_int
-    _libtaos.taos_insert_lines.argstype = c_void_p, c_void_p, c_int
+    _libtaos.taos_schemaless_insert.restype = c_void_p
+    _libtaos.taos_schemaless_insert.argstype = c_void_p, c_void_p, c_int, c_int, c_int
 except AttributeError:
-    print("WARNING: libtaos(%s) does not support insert_lines" % taos_get_client_info())
+    print("WARNING: libtaos(%s) does not support taos_schemaless_insert" % taos_get_client_info())
 
 def taos_schemaless_insert(connection, lines, protocol, precision):
-    # type: (c_void_p, list[str] | tuple(str)) -> None
+    # type: (c_void_p, list[str] | tuple(str), SmlProtocol, SmlPrecision) -> int
     num_of_lines = len(lines)
     lines = (c_char_p(line.encode("utf-8")) for line in lines)
     lines_type = ctypes.c_char_p * num_of_lines
     p_lines = lines_type(*lines)
     res = c_void_p(_libtaos.taos_schemaless_insert(connection, p_lines, num_of_lines, protocol, precision))
     errno = taos_errno(res)
+    affected_rows = taos_affected_rows(res)
     if errno != 0:
         errstr = taos_errstr(res)
         taos_free_result(res)
-        print("schemaless_insert error affected rows: {}".format(taos_affected_rows(res)))
-        raise SchemalessError(errstr, errno)
+        raise SchemalessError(errstr, errno, affected_rows)
 
     taos_free_result(res)
-    return errno
+    return affected_rows
 
 class CTaosInterface(object):
     def __init__(self, config=None):
