@@ -31,6 +31,7 @@ static int32_t vnodeParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCf
   *vgId = htonl(pCreate->vgId);
 
   pCfg->dropped = 0;
+  pCfg->quorum = pCreate->quorum;
   tstrncpy(pCfg->db, pCreate->db, sizeof(pCfg->db));
 
   pCfg->tsdb.cacheBlockSize = htonl(pCreate->cacheBlockSize);
@@ -50,11 +51,11 @@ static int32_t vnodeParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCf
   pCfg->wal.walLevel = pCreate->walLevel;
 
   pCfg->sync.replica = pCreate->replica;
-  pCfg->sync.quorum = pCreate->quorum;
-
+  pCfg->sync.selfIndex = pCreate->selfIndex;
+  
   for (int32_t j = 0; j < pCreate->replica; ++j) {
-    pCfg->sync.nodes[j].nodePort = htons(pCreate->nodes[j].port);
-    tstrncpy(pCfg->sync.nodes[j].nodeFqdn, pCreate->nodes[j].fqdn, TSDB_FQDN_LEN);
+    pCfg->sync.nodeInfo[j].nodePort = htons(pCreate->nodes[j].port);
+    tstrncpy(pCfg->sync.nodeInfo[j].nodeFqdn, pCreate->nodes[j].fqdn, TSDB_FQDN_LEN);
   }
 
   return 0;

@@ -108,6 +108,11 @@ static void vnodeDestroyVnode(SVnode *pVnode) {
   int32_t code = 0;
   int32_t vgId = pVnode->vgId;
 
+  if (pVnode->pSync != NULL) {
+    syncStop(pVnode->pSync);
+    pVnode->pSync = NULL;
+  }
+
   if (pVnode->pQuery) {
     // todo
   }
@@ -177,6 +182,9 @@ static int32_t vnodeOpenVnode(int32_t vgId) {
   pVnode->role = TAOS_SYNC_ROLE_CANDIDATE;
   pthread_mutex_init(&pVnode->statusMutex, NULL);
 
+  vDebug("vgId:%d, vnode is opened", pVnode->vgId);
+  taosHashPut(tsVnode.hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnode *));
+
   code = vnodeReadCfg(vgId, &pVnode->cfg);
   if (code != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to read config file, set cfgVersion to 0", pVnode->vgId);
@@ -209,8 +217,34 @@ static int32_t vnodeOpenVnode(int32_t vgId) {
     return terrno;
   }
 
-  vDebug("vgId:%d, vnode is opened", pVnode->vgId);
-  taosHashPut(tsVnode.hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnode *));
+  // create sync node
+  SSyncInfo syncInfo = {0};
+  syncInfo.vgId = vgId;
+  syncInfo.snapshotIndex = 0;      // todo, from tsdb
+  memcpy(&syncInfo.syncCfg, &pVnode->cfg.sync, sizeof(SSyncCluster));
+  syncInfo.fsm.pData = pVnode;
+  syncInfo.fsm.applyLog = NULL;
+  syncInfo.fsm.onClusterChanged = NULL;
+  syncInfo.fsm.getSnapshot = NULL;
+  syncInfo.fsm.applySnapshot = NULL;
+  syncInfo.fsm.onRestoreDone = NULL;
+  syncInfo.fsm.onRollback = NULL;
+  syncInfo.logStore.pData = pVnode;
+  syncInfo.logStore.logWrite = NULL;
+  syncInfo.logStore.logCommit = NULL;
+  syncInfo.logStore.logPrune = NULL;
+  syncInfo.logStore.logRollback = NULL;
+  syncInfo.stateManager.pData = pVnode;
+  syncInfo.stateManager.saveServerState = NULL;
+  syncInfo.stateManager.readServerState = NULL;
+  // syncInfo.stateManager.saveCluster = NULL;
+  // syncInfo.stateManager.readCluster = NULL;
+
+  pVnode->pSync = syncStart(&syncInfo);
+  if (pVnode->pSync == NULL) {
+    vnodeCleanupVnode(pVnode);
+    return terrno;
+  }
 
   vnodeSetReadyStatus(pVnode);
   return TSDB_CODE_SUCCESS;
@@ -313,7 +347,7 @@ int32_t vnodeAlterVnode(SVnode * pVnode, SVnodeCfg *pCfg) {
   }
 
   if (syncChanged) {
-    // todo
+    syncReconfig(pVnode->pSync, &pVnode->cfg.sync);
   }
 
   vnodeRelease(pVnode);

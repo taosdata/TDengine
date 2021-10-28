@@ -62,19 +62,14 @@ typedef struct STsdbCfg {
 typedef struct SMetaCfg {
 } SMetaCfg;
 
-typedef struct SSyncCluster {
-  int8_t    replica;
-  int8_t    quorum;
-  SNodeInfo nodes[TSDB_MAX_REPLICA];
-} SSyncCfg;
-
 typedef struct SVnodeCfg {
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
-  int8_t   dropped;
-  SWalCfg  wal;
-  STsdbCfg tsdb;
-  SMetaCfg meta;
-  SSyncCfg sync;
+  char         db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int8_t       dropped;
+  int8_t       quorum;
+  SWalCfg      wal;
+  STsdbCfg     tsdb;
+  SMetaCfg     meta;
+  SSyncCluster sync;
 } SVnodeCfg;
 
 typedef struct {
@@ -86,7 +81,7 @@ typedef struct {
   STQ             *pTQ;
   twalh            pWal;
   void            *pQuery;
-  SyncNodeId       syncNode;
+  SSyncNode       *pSync;
   taos_queue       pWriteQ;  // write queue
   taos_queue       pQueryQ;  // read query queue
   taos_queue       pFetchQ;  // read fetch/cancel queue

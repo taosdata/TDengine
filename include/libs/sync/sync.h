@@ -23,9 +23,9 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 
-typedef int64_t SyncNodeId;
-typedef int32_t SyncGroupId;
-typedef int64_t   SyncIndex;
+typedef int32_t  SyncNodeId;
+typedef int32_t  SyncGroupId;
+typedef int64_t  SyncIndex;
 typedef uint64_t SSyncTerm;
 
 typedef enum {
@@ -41,21 +41,21 @@ typedef struct {
 
 typedef struct {
   SyncNodeId nodeId;
-  uint16_t  nodePort;  // node sync Port
-  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
+  uint16_t   nodePort;                 // node sync Port
+  char       nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
 } SNodeInfo;
 
 typedef struct {
-  int        selfIndex;
-  int        nNode;
-  SNodeInfo* nodeInfo;
+  int       selfIndex;
+  int       replica;
+  SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCluster;
 
 typedef struct {
-  int32_t  selfIndex;
-  int nNode;
-  SNodeInfo* node;
-  ESyncRole*  role;
+  int32_t   selfIndex;
+  int       replica;
+  SNodeInfo node[TSDB_MAX_REPLICA];
+  ESyncRole role[TSDB_MAX_REPLICA];
 } SNodesRole;
 
 typedef struct SSyncFSM {
@@ -101,13 +101,13 @@ typedef struct SSyncLogStore {
 
 typedef struct SSyncServerState {
   SyncNodeId voteFor;
-  SSyncTerm term;
+  SSyncTerm  term;
 } SSyncServerState;
 
 typedef struct SSyncClusterConfig {
   // Log index number of current cluster config.
   SyncIndex index;
-  
+
   // Log index number of previous cluster config.
   SyncIndex prevIndex;
 
@@ -122,21 +122,17 @@ typedef struct SStateManager {
 
   const SSyncServerState* (*readServerState)(struct SStateManager* stateMng);
 
-  void (*saveCluster)(struct SStateManager* stateMng, const SSyncClusterConfig* cluster);
+  // void (*saveCluster)(struct SStateManager* stateMng, const SSyncClusterConfig* cluster);
 
-  const SSyncClusterConfig* (*readCluster)(struct SStateManager* stateMng);
+  // const SSyncClusterConfig* (*readCluster)(struct SStateManager* stateMng);
 } SStateManager;
 
 typedef struct {
-  SyncGroupId vgId;
-
-  SyncIndex snapshotIndex;
-  SSyncCluster syncCfg;
-
-  SSyncFSM fsm;
-
+  SyncGroupId   vgId;
+  SyncIndex     snapshotIndex;
+  SSyncCluster  syncCfg;
+  SSyncFSM      fsm;
   SSyncLogStore logStore;
-
   SStateManager stateManager;
 } SSyncInfo;
 
@@ -146,19 +142,20 @@ typedef struct SSyncNode SSyncNode;
 int32_t syncInit();
 void    syncCleanUp();
 
-SSyncNode syncStart(const SSyncInfo*);
-void       syncStop(SyncNodeId);
+SSyncNode* syncStart(const SSyncInfo*);
+void       syncReconfig(const SSyncNode*, const SSyncCluster*);
+void       syncStop(const SSyncNode*);
 
-int32_t syncPropose(SSyncNode syncNode, SSyncBuffer buffer, void* pData, bool isWeak);
+int32_t syncPropose(SSyncNode* syncNode, SSyncBuffer buffer, void* pData, bool isWeak);
 
-int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode);
+//int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
-int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode);
+//int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
-extern int32_t  syncDebugFlag;
+extern int32_t syncDebugFlag;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_LIBS_SYNC_H*/
+#endif /*_TD_LIBS_SYNC_H*/

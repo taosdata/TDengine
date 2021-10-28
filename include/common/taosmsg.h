@@ -721,6 +721,8 @@ typedef struct {
   int32_t    daysToKeep2;
   int32_t    minRowsPerFileBlock;
   int32_t    maxRowsPerFileBlock;
+  int32_t    fsyncPeriod;
+  int8_t     reserved[16];
   int8_t     precision;
   int8_t     compression;
   int8_t     cacheLastRow;
@@ -728,8 +730,7 @@ typedef struct {
   int8_t     walLevel;
   int8_t     replica;
   int8_t     quorum;
-  int8_t     reserved[9];
-  int32_t    fsyncPeriod;
+  int8_t     selfIndex;
   SVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
 
