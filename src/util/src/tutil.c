@@ -53,13 +53,13 @@ int32_t strdequote(char *z) {
 }
 
 
-int32_t strRmquote(char *z, int32_t len){  
+int32_t strRmquote(char *z, int32_t len){
     // delete escape character: \\, \', \"
     char delim = z[0];
     if (delim != '\'' && delim != '\"') {
       return len;
     }
-  
+
     int32_t cnt = 0;
     int32_t j = 0;
     for (uint32_t k = 1; k < len - 1; ++k) {
@@ -74,23 +74,24 @@ int32_t strRmquote(char *z, int32_t len){
           continue;
         }
       }
-  
+
       z[j] = z[k];
       j++;
     }
-  
+
     z[j] = 0;
-    
+
     return len - 2 - cnt;
 }
 
 int32_t strRmquoteEscape(char *z, int32_t len) {
   if (len <= 0) return len;
-  
+
   if (z[0] == '\'' || z[0] == '\"') {
     return strRmquote(z, len);
   } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
     memmove(z, z + 1, len - 2);
+    z[len - 2] = '\0';
     return len - 2;
   }
 
