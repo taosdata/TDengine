@@ -127,7 +127,7 @@ function add_newHostname_to_hosts() {
   iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
   arr=($iphost)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
     if [[ "$s" == "$localIp" ]]; then
       return
@@ -182,7 +182,7 @@ function is_correct_ipaddr() {
   IFS=" "
   arr=($iplist)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
    if [[ "$s" == "$newIp" ]]; then
      return 0
@@ -279,9 +279,6 @@ function install_blm3_config() {
         [ -f ${cfg_install_dir}/blm.toml ] &&
             ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
     fi
-
-    # restore the backup standard input, and turn off 6
-    exec 0<&6 6<&-
 
     [ -f ${cfg_dir}/blm.toml ] &&
         ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.org
