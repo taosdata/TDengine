@@ -220,12 +220,24 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOu
       if (order == TSDB_ORDER_DESC) {
         pChildrenOutput[i] = malloc(sizeof(int64_t) * numOfRows);
         reverseCopy(pChildrenOutput[i], pInputData, pChild->pSchema->type, numOfRows);
-        pInputs[i].data = pInputData;
+        pInputs[i].data = pChildrenOutput[i];
       } else {
         pInputs[i].data = pInputData;
       }
+      pInputs[i].type = pChild->pSchema->type;
+      pInputs[i].bytes = pChild->pSchema->bytes;
     } else if (pChild->nodeType == TSQL_NODE_VALUE) {
-      pInputs[i].data = (char*)&(pChild->pVal->dKey);
+      int32_t len = pChild->pVal->nLen;
+      if (IS_VAR_DATA_TYPE(pChild->pVal->nType)) {
+        len = len + VARSTR_HEADER_SIZE;
+      } else {
+        len = tDataTypes[pChild->pVal->nType].bytes;
+      }
+      pChildrenOutput[i] = malloc(len);
+      tVariantDump(pChild->pVal, pChildrenOutput[i], pChild->pVal->nType, true);
+      pInputs[i].data = pChildrenOutput[i];
+      pInputs[i].type = pChild->pVal->nType;
+      pInputs[i].bytes = len;
       pInputs[i].numOfRows = 1;
     }
   }

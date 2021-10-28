@@ -3699,11 +3699,15 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       ++prjNum;
     }
 
-    if (functionId == TSDB_FUNC_CEIL || functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND) {
+    if (IS_SCALAR_FUNCTION(functionId)) {
       ++scalarFuncNum;
     }
 
     if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      ++scalarFuncNum;
+    }
+
+    if (functionId == TSDB_FUNC_ARITHM) {
       ++scalarFuncNum;
     }
 
@@ -4363,6 +4367,7 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
 
     *uid = id;
   } else {
+    pExpr->functionId = functionId;
     size_t numChilds = taosArrayGetSize(pExpr->Expr.paramList);
     for (int i = 0; i < numChilds; ++i) {
       tSqlExprItem* pParamElem= taosArrayGet(pExpr->Expr.paramList, i);
