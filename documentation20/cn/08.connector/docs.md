@@ -573,6 +573,14 @@ cd C:\TDengine\connector\python
 python -m pip install .
 ```
 
+**PyPI**
+
+从2.1.1版本开始，用户可以从[PyPI](https://pypi.org/project/taospy/)安装：
+
+```sh
+pip install taospy
+```
+
 * 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
 对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
 
@@ -607,6 +615,22 @@ python3 PythonChecker.py -host <fqdn>
 验证通过将打印出成功信息。
 
 ### Python连接器的使用
+
+#### PEP-249 兼容API
+
+您可以像其他数据库一样，使用类似 [PEP-249](https://www.python.org/dev/peps/pep-0249/) 数据库API规范风格的API：
+
+```python
+import taos
+
+conn = taos.connect()
+cursor = conn.cursor()
+
+cursor.execute("show databases")
+results = cursor.fetchall()
+for row in results:
+    print(row)
+```
 
 #### 代码示例
 
@@ -662,6 +686,44 @@ c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
 ```
+
+* 从v2.1.0版本开始, 我们提供另外一种API：`connection.query`
+
+    ```python
+    import taos
+
+    conn = taos.connect()
+    conn.execute("create database if not exists pytest")
+
+    result = conn.query("show databases")
+    num_of_fields = result.field_count
+    for field in result.fields:
+        print(field)
+    for row in result:
+        print(row)
+    conn.execute("drop database pytest")
+    ```
+
+    `query` 方法会返回一个 `TaosResult` 类对象，并提供了以下有用的属性或方法:
+
+    属性:
+
+    - `fields`: `TaosFields` 集合类，提供返回数据的列信息。
+    - `field_count`: 返回数据的列数.
+    - `affected_rows`: 插入数据的行数.
+    - `row_count`: 查询数据结果数.
+    - `precision`: 当前数据库的时间精度.
+
+    方法:
+
+    - `fetch_all()`: 类似于 `cursor.fetchall()` 返回同样的集合数据
+    - `fetch_all_into_dict()`: v2.1.1 新添加的API，将上面的数据转换成字典类型返回
+    - `blocks_iter()` `rows_iter()`: 根据底层API提供的两种不同迭代器。
+    - `fetch_rows_a`: 异步API
+    - `errno`: 错误码
+    - `errstr`: 错误信息
+    - `close`: 关闭结果对象，一般不需要直接调用
+
 
 * 创建订阅
 
