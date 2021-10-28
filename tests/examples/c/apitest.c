@@ -15,7 +15,7 @@ static void prepare_data(TAOS* taos) {
   result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
   usleep(100000);
-  result = taos_query(taos, "create database test precision 'us';");
+  result = taos_query(taos, "create database test precision 'ns';");
   taos_free_result(result);
   usleep(100000);
   taos_select_db(taos, "test");
@@ -293,7 +293,7 @@ void verify_schema_less(TAOS* taos) {
   result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
   usleep(100000);
-  result = taos_query(taos, "create database test precision 'us' update 1;");
+  result = taos_query(taos, "create database test precision 'ns' update 1 keep 36500;");
   taos_free_result(result);
   usleep(100000);
 
@@ -400,6 +400,21 @@ void verify_schema_less(TAOS* taos) {
     printf("\033[31m [lines6]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", code, taos_errstr(result), affected_rows);
   }
   taos_free_result(result);
+
+  //Test timestamp precision
+  char* lines7[] = {
+      "stts,t1=10i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1",
+  };
+
+  for (int precision = TSDB_SML_TIMESTAMP_HOURS; precision <= TSDB_SML_TIMESTAMP_NANO_SECONDS; ++precision) {
+    result = taos_schemaless_insert(taos, lines7, 1, TSDB_SML_LINE_PROTOCOL, precision);
+    code = taos_errno(result);
+    if (code != TSDB_CODE_SUCCESS) {
+      affected_rows = taos_affected_rows(result);
+      printf("\033[31m [lines7_%d]taos_schemaless_insert failed, code: %d,%s, affected rows:%d \033[0m\n", precision, code, taos_errstr(result), affected_rows);
+    }
+    taos_free_result(result);
+  }
 
 }
 
