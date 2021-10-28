@@ -349,7 +349,8 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
   // NOTE: mix types tags are not supported
   size_t sz = 0;
-  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR ||
+      pBlock->tag.nType == TSDB_DATA_TYPE_JSON) {
     char* tp = realloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
     assert(tp != NULL);
 
