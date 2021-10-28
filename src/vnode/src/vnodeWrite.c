@@ -169,7 +169,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 }
 
 static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
-  if (tsdbIsNeedCommit(pVnode->tsdb)) {
+  if (pVnode->isCommiting == 0) {
     return tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
   }
   return 0;
@@ -189,7 +189,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     ASSERT(code != 0);
   }
 
-  if (((++pVnode->tblMsgVer) & 16383) == 0) {  // lazy check
+  if (((++pVnode->tblMsgVer) & 32767) == 0) {  // lazy check
     vnodeCheckWal(pVnode);
   }
 
