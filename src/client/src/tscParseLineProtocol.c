@@ -161,7 +161,7 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   for (int j = 0; j < point->tagNum; ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     TAOS_SML_KV* tagKv = point->tags + j;
-    char tagName[TSDB_COL_NAME_LEN] = {0};
+    char tagName[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
     strtolower(tagName, tagKv->key);
     taosStringBuilderAppendString(&sb, tagName);
     taosStringBuilderAppendChar(&sb, '=');
@@ -261,7 +261,7 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
 
 static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded, SSmlLinesInfo* info) {
-  char fieldNameLowerCase[TSDB_COL_NAME_LEN] = {0};
+  char fieldNameLowerCase[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
   strtolower(fieldNameLowerCase, pointColField->name);
 
   size_t* pDbIndex = taosHashGet(dbAttrHash, fieldNameLowerCase, strlen(fieldNameLowerCase));
@@ -659,7 +659,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
 
       SSchema* pointColTs = taosArrayGet(pointSchema->fields, 0);
       SSchema* dbColTs = taosArrayGet(dbSchema.fields, 0);
-      memcpy(pointColTs->name, dbColTs->name, TSDB_COL_NAME_LEN);
+      memcpy(pointColTs->name, dbColTs->name, TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
 
       for (int j = 1; j < pointFieldSize; ++j) {
         SSchema* pointCol = taosArrayGet(pointSchema->fields, j);

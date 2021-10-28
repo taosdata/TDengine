@@ -22,6 +22,7 @@
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "tscUtil.h"
 
 SSqlInfo qSqlParse(const char *pStr) {
   void *pParser = ParseAlloc(malloc);
@@ -67,7 +68,9 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
-        
+      case TK_ID:
+        tscRmEscapeAndTrimToken(&t0);
+        //fall through
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {
