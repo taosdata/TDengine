@@ -28,7 +28,6 @@ static struct {
 
 static int32_t vnodeParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCfg *pCfg) {
   SCreateVnodeMsg *pCreate = rpcMsg->pCont;
-
   *vgId = htonl(pCreate->vgId);
 
   pCfg->dropped = 0;
