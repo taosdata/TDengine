@@ -5790,7 +5790,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   bool udf = false;
 
   if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
-    int32_t usize = taosArrayGetSize(pQueryInfo->pUdfInfo);
+    int32_t usize = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
     
     for (int32_t i = 0; i < usize; ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -8644,7 +8644,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           
           for (int32_t j = 0; j < usize; ++j) {
             SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
-            int32_t len = strlen(pUdfInfo->name);
+            int32_t len = (int32_t)strlen(pUdfInfo->name);
             if (len == t->n && strncasecmp(info.name, pUdfInfo->name, t->n) == 0) {
               exist = 1;
               break;

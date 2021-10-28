@@ -3554,7 +3554,7 @@ static int postProceSql(char *host, uint16_t port,
 
     do {
 #ifdef WINDOWS
-        bytes = recv(pThreadInfo->sockfds, response_buf + received, resp_len - received, 0);
+        bytes = recv(pThreadInfo->sockfd, response_buf + received, resp_len - received, 0);
 #else
         bytes = read(pThreadInfo->sockfd, response_buf + received, resp_len - received);
 #endif
@@ -9868,14 +9868,16 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         batchPerTblTimes = 1;
     }
 
-    char *smlHead[pThreadInfo->ntables];
+    char **smlHeadList = calloc(pThreadInfo->ntables, sizeof(char *));
+    assert(smlHeadList);
     for (int t = 0; t < pThreadInfo->ntables; t++) {
-        smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
-        if (NULL == smlHead[t]) {
+        char* smlHead = *((char **)smlHeadList + t * sizeof(char *));
+        smlHead = (char *)calloc(HEAD_BUFF_LEN, 1);
+        if (NULL == smlHead) {
             errorPrint2("calloc failed! size:%d\n", HEAD_BUFF_LEN);
             exit(EXIT_FAILURE);
         }
-        generateSmlHead(smlHead[t], stbInfo, pThreadInfo, t);
+        generateSmlHead(smlHead, stbInfo, pThreadInfo, t);
 
     }
 
@@ -9925,7 +9927,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                     errorPrint2("Failed to alloc %d bytes, reason:%s\n",
                         BUFFER_SIZE, strerror(errno));
                 }
-                generateSmlTail(pThreadInfo->lines[j], smlHead[i], stbInfo, pThreadInfo, timestamp);
+                generateSmlTail(pThreadInfo->lines[j], *((char **)smlHeadList + i * sizeof(char *)), stbInfo, pThreadInfo, timestamp);
                 timestamp += timeStampStep;
             }
             tableSeq ++;
@@ -10044,8 +10046,9 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 free_of_interlace:
     tmfree(pThreadInfo->lines);
     for (int index = 0; index < pThreadInfo->ntables; index++) {
-        free(smlHead[index]);
+        tmfree(*(smlHeadList + index*(sizeof(char*))));
     }
+    tmfree(smlHeadList);
     printStatPerThread(pThreadInfo);
     return NULL;
 }
@@ -10469,14 +10472,16 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
     pThreadInfo->samplePos = 0;
 
-    char *smlHead[pThreadInfo->ntables];
+    char *smlHeadList = calloc(pThreadInfo->ntables, sizeof(char *));
+    assert(smlHeadList);
     for (int t = 0; t < pThreadInfo->ntables; t++) {
-        smlHead[t] = (char *)calloc(HEAD_BUFF_LEN, 1);
-        if (NULL == smlHead[t]) {
+        char* smlHead = *((char**)smlHeadList + t * sizeof(char *));
+        smlHead = (char *)calloc(HEAD_BUFF_LEN, 1);
+        if (NULL == smlHead) {
             errorPrint2("calloc failed! size:%d\n", HEAD_BUFF_LEN);
             exit(EXIT_FAILURE);
         }
-        generateSmlHead(smlHead[t], stbInfo, pThreadInfo, t);
+        generateSmlHead(smlHead, stbInfo, pThreadInfo, t);
 
     }
     int currentPercent = 0;
@@ -10503,7 +10508,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
                     errorPrint2("Failed to alloc %d bytes, reason:%s\n",
                         BUFFER_SIZE, strerror(errno));
                 }
-                generateSmlTail(pThreadInfo->lines[k], smlHead[i], stbInfo, pThreadInfo, timestamp);
+                generateSmlTail(pThreadInfo->lines[k], *((char**)smlHeadList + i * sizeof(char *)), stbInfo, pThreadInfo, timestamp);
                 timestamp += timeStampStep;
                 j++;
                 if (j == insertRows) {
@@ -10559,8 +10564,9 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     }
     tmfree(pThreadInfo->lines);
     for (int index = 0; index < pThreadInfo->ntables; index++) {
-        free(smlHead[index]);
+        free(*((char**)smlHeadList + index * sizeof(char *)));
     }
+    tmfree(smlHeadList);
     return NULL;
 }
 

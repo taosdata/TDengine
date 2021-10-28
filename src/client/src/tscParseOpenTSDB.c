@@ -509,7 +509,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
   strntolower_s(pSml->stableName, pSml->stableName, (int32_t)stableLen);
-  addEscapeCharToString(pSml->stableName, stableLen);
+  addEscapeCharToString(pSml->stableName, (int32_t)stableLen);
 
   return TSDB_CODE_SUCCESS;
 
@@ -903,7 +903,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     memcpy(*childTableName, id->valuestring, idLen);
     strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
-    addEscapeCharToString(*childTableName, idLen);
+    addEscapeCharToString(*childTableName, (int32_t)idLen);
 
     //check duplicate IDs
     cJSON_DeleteItemFromObject(tags, "ID");
@@ -940,7 +940,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     pkv->key = tcalloc(keyLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
     strntolower_s(pkv->key, pkv->key, (int32_t)keyLen);
-    addEscapeCharToString(pkv->key, keyLen);
+    addEscapeCharToString(pkv->key, (int32_t)keyLen);
     //value
     ret = parseValueFromJSON(tag, pkv, info);
     if (ret != TSDB_CODE_SUCCESS) {

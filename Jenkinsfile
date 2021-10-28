@@ -179,9 +179,9 @@ def pre_test_win(){
     git clean -dfx
     mkdir debug
     cd debug
-    call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
+    call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    nmake || exit 8
+    set CL=/MP nmake nmake || exit 8
     nmake install || exit 8
     xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
@@ -470,35 +470,35 @@ pipeline {
           }
         } 
         
-        // stage('build'){
-        //   agent{label " wintest "}
-        //   steps {
-        //     pre_test()
-        //     script{             
-        //         while(win_stop == 0){
-        //           sleep(1)
-        //           }
-        //       }
-        //     }
-        // }
-        // stage('test'){
-        //   agent{label "win"}
-        //   steps{
+        stage('build'){
+          agent{label " wintest "}
+          steps {
+            pre_test()
+            script{             
+                while(win_stop == 0){
+                  sleep(1)
+                  }
+              }
+            }
+        }
+        stage('test'){
+          agent{label "win"}
+          steps{
             
-        //     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-        //         pre_test_win()
-        //         timeout(time: 20, unit: 'MINUTES'){
-        //         bat'''
-        //         cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-        //         .\\test-all.bat Wintest
-        //         '''
-        //         }
-        //     }     
-        //     script{
-        //       win_stop=1
-        //     }
-        //   }
-        // }
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                pre_test_win()
+                timeout(time: 20, unit: 'MINUTES'){
+                bat'''
+                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                .\\test-all.bat wintest
+                '''
+                }
+            }     
+            script{
+              win_stop=1
+            }
+          }
+        }
           
                
     }
