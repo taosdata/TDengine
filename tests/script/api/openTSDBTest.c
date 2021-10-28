@@ -22,9 +22,9 @@ void verify_telnet_insert(TAOS* taos) {
 
   /* metric */
   char* lines0[] = {
-      "stb0_0 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
-      "stb0_1 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
-      "stb0_2 1626006833639000000ns 4i8 host=\"host0\" interface=\"eth0\"",
+      "stb0_0 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
+      "stb0_1 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
+      "stb0_2 1626006833639 4i8 host=\"host0\" interface=\"eth0\"",
   };
   result = taos_schemaless_insert(taos, lines0, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -35,15 +35,11 @@ void verify_telnet_insert(TAOS* taos) {
 
   /* timestamp */
   char* lines1[] = {
-      "stb1 1626006833s 1i8 host=\"host0\"",
-      "stb1 1626006833639000000ns 2i8 host=\"host0\"",
-      "stb1 1626006833640000us 3i8 host=\"host0\"",
-      "stb1 1626006833641 4i8 host=\"host0\"",
-      "stb1 1626006832 5i8 host=\"host0\"",
-      "stb1 1626006833651ms 6i8 host=\"host0\"",
-      "stb1 0 7i8 host=\"host0\"",
+      "stb1 1626006833641 1i8 host=\"host0\"",
+      "stb1 1626006832 2i8 host=\"host0\"",
+      "stb1 0 3i8 host=\"host0\"",
   };
-  result = taos_schemaless_insert(taos, lines1, 7, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
+  result = taos_schemaless_insert(taos, lines1, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
   if (code) {
     printf("lines1 code: %d, %s.\n", code, tstrerror(code));
@@ -53,8 +49,8 @@ void verify_telnet_insert(TAOS* taos) {
   /* metric value */
   //tinyint
   char* lines2_0[] = {
-      "stb2_0 1626006833651ms -127i8 host=\"host0\"",
-      "stb2_0 1626006833652ms 127i8 host=\"host0\""
+      "stb2_0 1626006833651 -127i8 host=\"host0\"",
+      "stb2_0 1626006833652 127i8 host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_0, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -65,8 +61,8 @@ void verify_telnet_insert(TAOS* taos) {
 
   //smallint
   char* lines2_1[] = {
-      "stb2_1 1626006833651ms -32767i16 host=\"host0\"",
-      "stb2_1 1626006833652ms 32767i16 host=\"host0\""
+      "stb2_1 1626006833651 -32767i16 host=\"host0\"",
+      "stb2_1 1626006833652 32767i16 host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_1, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -77,8 +73,8 @@ void verify_telnet_insert(TAOS* taos) {
 
   //int
   char* lines2_2[] = {
-      "stb2_2 1626006833651ms -2147483647i32 host=\"host0\"",
-      "stb2_2 1626006833652ms 2147483647i32 host=\"host0\""
+      "stb2_2 1626006833651 -2147483647i32 host=\"host0\"",
+      "stb2_2 1626006833652 2147483647i32 host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_2, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -89,8 +85,8 @@ void verify_telnet_insert(TAOS* taos) {
 
   //bigint
   char* lines2_3[] = {
-      "stb2_3 1626006833651ms -9223372036854775807i64 host=\"host0\"",
-      "stb2_3 1626006833652ms 9223372036854775807i64 host=\"host0\""
+      "stb2_3 1626006833651 -9223372036854775807i64 host=\"host0\"",
+      "stb2_3 1626006833652 9223372036854775807i64 host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_3, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -101,16 +97,16 @@ void verify_telnet_insert(TAOS* taos) {
 
   //float
   char* lines2_4[] = {
-      "stb2_4 1626006833610ms 3f32 host=\"host0\"",
-      "stb2_4 1626006833620ms -3f32 host=\"host0\"",
-      "stb2_4 1626006833630ms 3.4f32 host=\"host0\"",
-      "stb2_4 1626006833640ms -3.4f32 host=\"host0\"",
-      "stb2_4 1626006833650ms 3.4E10f32 host=\"host0\"",
-      "stb2_4 1626006833660ms -3.4e10f32 host=\"host0\"",
-      "stb2_4 1626006833670ms 3.4E+2f32 host=\"host0\"",
-      "stb2_4 1626006833680ms -3.4e-2f32 host=\"host0\"",
-      "stb2_4 1626006833700ms 3.4E38f32 host=\"host0\"",
-      "stb2_4 1626006833710ms -3.4E38f32 host=\"host0\""
+      "stb2_4 1626006833610 3f32 host=\"host0\"",
+      "stb2_4 1626006833620 -3f32 host=\"host0\"",
+      "stb2_4 1626006833630 3.4f32 host=\"host0\"",
+      "stb2_4 1626006833640 -3.4f32 host=\"host0\"",
+      "stb2_4 1626006833650 3.4E10f32 host=\"host0\"",
+      "stb2_4 1626006833660 -3.4e10f32 host=\"host0\"",
+      "stb2_4 1626006833670 3.4E+2f32 host=\"host0\"",
+      "stb2_4 1626006833680 -3.4e-2f32 host=\"host0\"",
+      "stb2_4 1626006833700 3.4E38f32 host=\"host0\"",
+      "stb2_4 1626006833710 -3.4E38f32 host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_4, 10, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -121,17 +117,17 @@ void verify_telnet_insert(TAOS* taos) {
 
   //double
   char* lines2_5[] = {
-      "stb2_5 1626006833610ms 3f64 host=\"host0\"",
-      "stb2_5 1626006833620ms -3f64 host=\"host0\"",
-      "stb2_5 1626006833630ms 3.4f64 host=\"host0\"",
-      "stb2_5 1626006833640ms -3.4f64 host=\"host0\"",
-      "stb2_5 1626006833650ms 3.4E10f64 host=\"host0\"",
-      "stb2_5 1626006833660ms -3.4e10f64 host=\"host0\"",
-      "stb2_5 1626006833670ms 3.4E+2f64 host=\"host0\"",
-      "stb2_5 1626006833680ms -3.4e-2f64 host=\"host0\"",
-      "stb2_5 1626006833690ms 1.7E308f64 host=\"host0\"",
-      "stb2_5 1626006833700ms -1.7E308f64 host=\"host0\"",
-      "stb2_5 1626006833710ms 3.15 host=\"host0\""
+      "stb2_5 1626006833610 3f64 host=\"host0\"",
+      "stb2_5 1626006833620 -3f64 host=\"host0\"",
+      "stb2_5 1626006833630 3.4f64 host=\"host0\"",
+      "stb2_5 1626006833640 -3.4f64 host=\"host0\"",
+      "stb2_5 1626006833650 3.4E10f64 host=\"host0\"",
+      "stb2_5 1626006833660 -3.4e10f64 host=\"host0\"",
+      "stb2_5 1626006833670 3.4E+2f64 host=\"host0\"",
+      "stb2_5 1626006833680 -3.4e-2f64 host=\"host0\"",
+      "stb2_5 1626006833690 1.7E308f64 host=\"host0\"",
+      "stb2_5 1626006833700 -1.7E308f64 host=\"host0\"",
+      "stb2_5 1626006833710 3.15 host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_5, 11, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -142,16 +138,16 @@ void verify_telnet_insert(TAOS* taos) {
 
   //bool
   char* lines2_6[] = {
-      "stb2_6 1626006833610ms t host=\"host0\"",
-      "stb2_6 1626006833620ms T host=\"host0\"",
-      "stb2_6 1626006833630ms true host=\"host0\"",
-      "stb2_6 1626006833640ms True host=\"host0\"",
-      "stb2_6 1626006833650ms TRUE host=\"host0\"",
-      "stb2_6 1626006833660ms f host=\"host0\"",
-      "stb2_6 1626006833670ms F host=\"host0\"",
-      "stb2_6 1626006833680ms false host=\"host0\"",
-      "stb2_6 1626006833690ms False host=\"host0\"",
-      "stb2_6 1626006833700ms FALSE host=\"host0\""
+      "stb2_6 1626006833610 t host=\"host0\"",
+      "stb2_6 1626006833620 T host=\"host0\"",
+      "stb2_6 1626006833630 true host=\"host0\"",
+      "stb2_6 1626006833640 True host=\"host0\"",
+      "stb2_6 1626006833650 TRUE host=\"host0\"",
+      "stb2_6 1626006833660 f host=\"host0\"",
+      "stb2_6 1626006833670 F host=\"host0\"",
+      "stb2_6 1626006833680 false host=\"host0\"",
+      "stb2_6 1626006833690 False host=\"host0\"",
+      "stb2_6 1626006833700 FALSE host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_6, 10, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -162,9 +158,9 @@ void verify_telnet_insert(TAOS* taos) {
 
   //binary
   char* lines2_7[] = {
-      "stb2_7 1626006833610ms \"binary_val.!@#$%^&*\" host=\"host0\"",
-      "stb2_7 1626006833620ms \"binary_val.:;,./?|+-=\" host=\"host0\"",
-      "stb2_7 1626006833630ms \"binary_val.()[]{}<>\" host=\"host0\""
+      "stb2_7 1626006833610 \"binary_val.!@#$%^&*\" host=\"host0\"",
+      "stb2_7 1626006833620 \"binary_val.:;,./?|+-=\" host=\"host0\"",
+      "stb2_7 1626006833630 \"binary_val.()[]{}<>\" host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_7, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -175,8 +171,8 @@ void verify_telnet_insert(TAOS* taos) {
 
   //nchar
   char* lines2_8[] = {
-      "stb2_8 1626006833610ms L\"nchar_val数值一\" host=\"host0\"",
-      "stb2_8 1626006833620ms L\"nchar_val数值二\" host=\"host0\""
+      "stb2_8 1626006833610 L\"nchar_val数值一\" host=\"host0\"",
+      "stb2_8 1626006833620 L\"nchar_val数值二\" host=\"host0\""
   };
   result = taos_schemaless_insert(taos, lines2_8, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -188,8 +184,8 @@ void verify_telnet_insert(TAOS* taos) {
   /* tags */
   //tag value types
   char* lines3_0[] = {
-      "stb3_0 1626006833610ms 1 t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=3.4E38f32 t6=1.7E308f64 t7=true t8=\"binary_val_1\" t9=L\"标签值1\"",
-      "stb3_0 1626006833610ms 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
+      "stb3_0 1626006833610 1 t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=3.4E38f32 t6=1.7E308f64 t7=true t8=\"binary_val_1\" t9=L\"标签值1\"",
+      "stb3_0 1626006833610 2 t1=-127i8 t2=-32767i16 t3=-2147483647i32 t4=-9223372036854775807i64 t5=-3.4E38f32 t6=-1.7E308f64 t7=false t8=\"binary_val_2\" t9=L\"标签值2\""
   };
   result = taos_schemaless_insert(taos, lines3_0, 2, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);
@@ -200,9 +196,9 @@ void verify_telnet_insert(TAOS* taos) {
 
   //tag ID as child table name
   char* lines3_1[] = {
-      "stb3_1 1626006833610ms 1 id=child_table1 host=host1",
-      "stb3_1 1626006833610ms 2 host=host2 iD=child_table2",
-      "stb3_1 1626006833610ms 3 ID=child_table3 host=host3"
+      "stb3_1 1626006833610 1 id=child_table1 host=host1",
+      "stb3_1 1626006833610 2 host=host2 iD=child_table2",
+      "stb3_1 1626006833610 3 ID=child_table3 host=host3"
   };
   result = taos_schemaless_insert(taos, lines3_1, 3, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
   code = taos_errno(result);

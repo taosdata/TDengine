@@ -628,7 +628,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
         t0.n = 0;
         return t0;
       }
-    
+
       t = str[++(*i)];
     }
 
