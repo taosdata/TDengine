@@ -627,27 +627,30 @@ int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
 }
 
 int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
-  ASSERT(pTable->lastCols == NULL);
-
-  int16_t numOfColumn = pSchema->numOfCols;
-
-  pTable->lastCols = (SDataCol*)malloc(numOfColumn * sizeof(SDataCol));
+  TSDB_WLOCK_TABLE(pTable);
   if (pTable->lastCols == NULL) {
-    return -1;
-  }
+    int16_t numOfColumn = pSchema->numOfCols;
 
-  for (int16_t i = 0; i < numOfColumn; ++i) {
-    STColumn *pCol = schemaColAt(pSchema, i);
-    SDataCol* pDataCol = &(pTable->lastCols[i]);
-    pDataCol->bytes = 0;
-    pDataCol->pData = NULL;
-    pDataCol->colId = pCol->colId;
-  }
+    pTable->lastCols = (SDataCol *)malloc(numOfColumn * sizeof(SDataCol));
+    if (pTable->lastCols == NULL) {
+      TSDB_WUNLOCK_TABLE(pTable);
+      return -1;
+    }
 
-  pTable->lastColSVersion = schemaVersion(pSchema);
-  pTable->maxColNum = numOfColumn;
-  pTable->restoreColumnNum = 0;
-  pTable->hasRestoreLastColumn = false;
+    for (int16_t i = 0; i < numOfColumn; ++i) {
+      STColumn *pCol = schemaColAt(pSchema, i);
+      SDataCol *pDataCol = &(pTable->lastCols[i]);
+      pDataCol->bytes = 0;
+      pDataCol->pData = NULL;
+      pDataCol->colId = pCol->colId;
+    }
+
+    pTable->lastColSVersion = schemaVersion(pSchema);
+    pTable->maxColNum = numOfColumn;
+    pTable->restoreColumnNum = 0;
+    pTable->hasRestoreLastColumn = false;
+  }
+  TSDB_WUNLOCK_TABLE(pTable);
   return 0;
 }
 

@@ -590,6 +590,28 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
   pQueryHandle->next = doFreeColumnInfoData(pQueryHandle->next);
 }
 
+static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
+  STsdbRepo* pRepo = pQueryHandle->pTsdb;
+
+  size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  int32_t code = 0;
+  for (size_t i = 0; i < numOfTables; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    STable*          pTable = pCheckInfo->pTableObj;
+    if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
+      continue;
+    }
+    code = tsdbLoadLastCache(pRepo, pTable);
+    if (code != 0) {
+      tsdbError("%p uid:%" PRId64 ", tid:%d, failed to load last cache since %s", pQueryHandle, pTable->tableId.uid,
+                pTable->tableId.tid, tstrerror(terrno));
+      break;
+    }
+  }
+
+  return code;
+}
+
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
   pCond->twindow = updateLastrowForEachGroup(groupList);
 
@@ -617,30 +639,6 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   }
   
   return pQueryHandle;
-}
-
-static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
-  STsdbRepo* pRepo = pQueryHandle->pTsdb;
-
-  size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  size_t  i = 0;
-  int32_t code = 0;
-  for (i = 0; i < numOfTables; ++i) {
-    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
-    STable*          pTable = pCheckInfo->pTableObj;
-    if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
-      continue;
-    }
-
-    if (tsdbLockRepo(pRepo) < 0) return -1;
-    code = tsdbLoadLastCache(pRepo, pTable);
-    if (tsdbUnlockRepo(pRepo) != 0) return -1;
-    if (code != 0) {
-      break;
-    }
-  }
-
-  return code;
 }
 
 TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
@@ -2809,6 +2807,9 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     }
     
     int32_t i = 0, j = 0;
+
+    // lock pTable->lastCols[i] as it would be released when schema update(tsdbUpdateLastColSchema)
+    TSDB_RLOCK_TABLE(pTable);
     while(i < tgNumOfCols && j < numOfCols) {
       pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
       if (pTable->lastCols[j].colId < pColInfo->info.colId) {
@@ -2895,6 +2896,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       i++;
       j++;
     }
+    TSDB_RUNLOCK_TABLE(pTable);
 
     // leave the real ts column as the last row, because last function only (not stable) use the last row as res
     if (priKey != TSKEY_INITIAL_VAL) {

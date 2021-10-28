@@ -148,7 +148,7 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
     if (tsdbLockRepo(pRepo) < 0) return;
     // tsdbCacheLastData(pRepo, &oldCfg);
     // lazy load last cache when query or update
-    pRepo->cacheLastConfigVersion += 1;
+    ++pRepo->cacheLastConfigVersion;
     tsdbUnlockRepo(pRepo);
   }
 
