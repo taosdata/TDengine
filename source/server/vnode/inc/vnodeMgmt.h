@@ -21,6 +21,14 @@ extern "C" {
 #endif
 #include "vnodeInt.h"
 
+
+typedef struct {
+  SVnode *pVnode;
+  SRpcMsg rpcMsg;
+  char    pCont[];
+} SVnMgmtMsg;
+
+
 int32_t vnodeInitMgmt();
 void    vnodeCleanupMgmt();
 void    vnodeProcessMgmtMsg(SRpcMsg *pMsg);

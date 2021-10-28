@@ -13,23 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_MGMT_MSG_H_
-#define _TD_VNODE_MGMT_MSG_H_
+#ifndef _TD_VNODE_MAIN_H_
+#define _TD_VNODE_MAIN_H_
+
+#include "vnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-int32_t vnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg);
-int32_t vnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg);
-int32_t vnodeProcessSyncVnodeMsg(SRpcMsg *rpcMsg);
-int32_t vnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg);
-int32_t vnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg);
-int32_t vnodeProcessAlterStreamReq(SRpcMsg *pMsg);
+int32_t vnodeInitMain();
+void    vnodeCleanupMain();
+
+SVnode *vnodeAcquireInAllState(int32_t vgId);
+SVnode *vnodeAcquire(int32_t vgId);
+void    vnodeRelease(SVnode *pVnode);
+
+int32_t vnodeCreateVnode(int32_t vgId, SVnodeCfg *pCfg);
+int32_t vnodeAlterVnode(SVnode *pVnode, SVnodeCfg *pCfg);
+int32_t vnodeDropVnode(SVnode *pVnode);
+int32_t vnodeSyncVnode(SVnode *pVnode);
+int32_t vnodeCompactVnode(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_MGMT_H_*/
+#endif /*_TD_VNODE_MAIN_H_*/

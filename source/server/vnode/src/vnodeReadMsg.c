@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "taosmsg.h"
-#include "tglobal.h"
-// #include "query.h"
-#include "vnodeStatus.h"
+#include "vnodeMain.h"
 #include "vnodeRead.h"
 #include "vnodeReadMsg.h"
 
