@@ -296,7 +296,7 @@ int32_t vnodeWriteCfg(int32_t vgId, SVnodeCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeReadTerm(int32_t vgId, SSyncServerState *pState) {
+int32_t vnodeReadState(int32_t vgId, SSyncServerState *pState) {
   int32_t ret = TSDB_CODE_VND_APP_ERROR;
   int32_t len = 0;
   int32_t maxLen = 100;
@@ -305,7 +305,7 @@ int32_t vnodeReadTerm(int32_t vgId, SSyncServerState *pState) {
   FILE   *fp = NULL;
 
   char file[PATH_MAX + 30] = {0};
-  sprintf(file, "%s/vnode%d/term.json", tsVnodeDir, vgId);
+  sprintf(file, "%s/vnode%d/state.json", tsVnodeDir, vgId);
 
   len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
@@ -343,9 +343,9 @@ PARSE_TERM_ERROR:
   return ret;
 }
 
-int32_t vnodeWriteTerm(int32_t vgId, SSyncServerState *pState) {
+int32_t vnodeSaveState(int32_t vgId, SSyncServerState *pState) {
   char file[PATH_MAX + 30] = {0};
-  sprintf(file, "%s/vnode%d/term.json", tsVnodeDir, vgId);
+  sprintf(file, "%s/vnode%d/state.json", tsVnodeDir, vgId);
 
   FILE *fp = fopen(file, "w");
   if (!fp) {

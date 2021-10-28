@@ -79,7 +79,7 @@ typedef struct {
   SMeta           *pMeta;
   STsdb           *pTsdb;
   STQ             *pTQ;
-  twalh            pWal;
+  SWal            *pWal;
   void            *pQuery;
   SSyncNode       *pSync;
   taos_queue       pWriteQ;  // write queue

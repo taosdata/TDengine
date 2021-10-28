@@ -19,6 +19,18 @@ int32_t walInit() { return 0; }
 
 void walCleanUp() {}
 
-twalh walOpen(char *path, SWalCfg *pCfg) { return NULL; }
+SWal *walOpen(char *path, SWalCfg *pCfg) { return NULL; }
 
-int32_t walAlter(twalh pWal, SWalCfg *pCfg) { return 0; }
+int32_t walAlter(SWal *pWal, SWalCfg *pCfg) { return 0; }
+
+void walClose(SWal *pWal) {}
+
+void walFsync(SWal *pWal, bool force) {}
+
+int64_t walWrite(SWal *pWal, int64_t index, void *body, int32_t bodyLen) {}
+
+int32_t walCommit(SWal *pWal, int64_t ver) { return 0; }
+
+int32_t walRollback(SWal *pWal, int64_t ver) { return 0; }
+
+int32_t walPrune(SWal *pWal, int64_t ver) { return 0; }
