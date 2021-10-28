@@ -70,7 +70,7 @@ typedef struct {
 } SCreateSTableActionInfo;
 
 typedef struct {
-  char sTableName[TSDB_TABLE_NAME_LEN];
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
   SSchema* field;
 } SAlterSTableActionInfo;
 
@@ -155,7 +155,7 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   qsort(point->tags, point->tagNum, sizeof(TAOS_SML_KV), compareSmlColKv);
 
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
-  char sTableName[TSDB_TABLE_NAME_LEN] = {0};
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
   strtolower(sTableName, point->stableName);
   taosStringBuilderAppendString(&sb, sTableName);
   for (int j = 0; j < point->tagNum; ++j) {
@@ -214,8 +214,8 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
     for (int j = 0; j < point->tagNum; ++j) {
       TAOS_SML_KV* tagKv = point->tags + j;
       if (!point->childTableName) {
-        char childTableName[TSDB_TABLE_NAME_LEN];
-        int32_t tableNameLen = TSDB_TABLE_NAME_LEN;
+        char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
+        int32_t tableNameLen = TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE;
         getSmlMd5ChildTableName(point, childTableName, &tableNameLen, info);
         point->childTableName = calloc(1, tableNameLen+1);
         strncpy(point->childTableName, childTableName, tableNameLen);
@@ -281,7 +281,7 @@ static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash
         action->action = SCHEMA_ACTION_CHANGE_COLUMN_SIZE;
       }
       memset(&action->alterSTable, 0,  sizeof(SAlterSTableActionInfo));
-      memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN);
+      memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
       action->alterSTable.field = pointColField;
       *actionNeeded = true;
     }
@@ -292,7 +292,7 @@ static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash
       action->action = SCHEMA_ACTION_ADD_COLUMN;
     }
     memset(&action->alterSTable, 0, sizeof(SAlterSTableActionInfo));
-    memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN);
+    memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
     action->alterSTable.field = pointColField;
     *actionNeeded = true;
   }
