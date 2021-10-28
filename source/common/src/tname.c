@@ -120,29 +120,6 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
-/*
- * tablePrefix.columnName
- * extract table name and save it in pTable, with only column name in pToken
- */
-//void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
-//  const char sep = TS_PATH_DELIMITER[0];
-//
-//  if (pToken == pTable || pToken == NULL || pTable == NULL) {
-//    return;
-//  }
-//
-//  char* r = strnchr(pToken->z, sep, pToken->n, false);
-//
-//  if (r != NULL) {  // record the table name token
-//    pTable->n = (uint32_t)(r - pToken->z);
-//    pTable->z = pToken->z;
-//
-//    r += 1;
-//    pToken->n -= (uint32_t)(r - pToken->z);
-//    pToken->z = r;
-//  }
-//}
-
 static struct SSchema _s = {
     .colId = TSDB_TBNAME_COLUMN_INDEX,
     .type  = TSDB_DATA_TYPE_BINARY,

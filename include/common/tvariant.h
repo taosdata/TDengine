@@ -36,6 +36,8 @@ typedef struct SVariant {
   };
 } SVariant;
 
+int32_t toInteger(const char* z, int32_t n, int32_t base, int64_t* value, bool* issigned);
+
 bool taosVariantIsValid(SVariant *pVar);
 
 void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type);

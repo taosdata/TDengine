@@ -2667,19 +2667,7 @@ void tscColumnCopy(SColumn* pDest, const SColumn* pSrc) {
   pDest->info.bytes      = pSrc->info.bytes;
 }
 
-void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid) {
-  assert(src != NULL && dst != NULL);
 
-  size_t num = taosArrayGetSize(src);
-  for (int32_t i = 0; i < num; ++i) {
-    SColumn* pCol = taosArrayGetP(src, i);
-
-    if (pCol->tableUid == tableUid) {
-      SColumn* p = tscColumnClone(pCol);
-      taosArrayPush(dst, &p);
-    }
-  }
-}
 
 void tscColumnListCopyAll(SArray* dst, const SArray* src) {
   assert(src != NULL && dst != NULL);

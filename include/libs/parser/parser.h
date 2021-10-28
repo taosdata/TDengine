@@ -23,6 +23,29 @@ extern "C" {
 #include "catalog.h"
 #include "common.h"
 #include "tname.h"
+#include "tvariant.h"
+
+typedef struct SColumn {
+  uint64_t     tableUid;
+  int32_t      columnIndex;
+  SColumnInfo  info;
+} SColumn;
+
+// the structure for sql function in select clause
+typedef struct SSqlExpr {
+  char      token[TSDB_COL_NAME_LEN];      // original token
+  SSchema   resSchema;
+  SColIndex colInfo;
+  uint64_t  uid;            // table uid, todo refactor use the pointer
+  int32_t   interBytes;     // inter result buffer size
+  int16_t   numOfParams;    // argument value of each function
+  SVariant  param[3];       // parameters are not more than 3
+} SSqlExpr;
+
+typedef struct SExprInfo {
+  SSqlExpr           base;
+  struct tExprNode  *pExpr;
+} SExprInfo;
 
 //typedef struct SInterval {
 //  int32_t  tz;            // query client timezone
@@ -95,10 +118,7 @@ typedef struct STagCond {
 
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
-  uint32_t       tableMetaSize;
-  size_t         tableMetaCapacity;
   SVgroupsInfo  *vgroupList;
-  SArray        *pVgroupTables;   // SArray<SVgroupTableInfo>
 
   /*
    * 1. keep the vgroup index during the multi-vnode super table projection query
@@ -109,6 +129,20 @@ typedef struct STableMetaInfo {
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
+
+typedef struct SQueryAttrInfo {
+  bool             stableQuery;
+  bool             groupbyColumn;
+  bool             simpleAgg;
+  bool             arithmeticOnAgg;
+  bool             projectionQuery;
+  bool             hasFilter;
+  bool             onlyTagQuery;
+  bool             orderProjectQuery;
+  bool             stateWindow;
+  bool             globalMerge;
+  bool             multigroupResult;
+} SQueryAttrInfo;
 
 typedef struct SQueryStmtInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
@@ -152,18 +186,14 @@ typedef struct SQueryStmtInfo {
   SArray            *pUpstream;   // SArray<struct SQueryStmtInfo>
   struct SQueryStmtInfo *pDownstream;
   int32_t            havingFieldNum;
-  bool               stableQuery;
-  bool               groupbyColumn;
-  bool               simpleAgg;
-  bool               arithmeticOnAgg;
-  bool               projectionQuery;
-  bool               hasFilter;
-  bool               onlyTagQuery;
-  bool               orderProjectQuery;
-  bool               stateWindow;
-  bool               globalMerge;
-  bool               multigroupResult;
+  SQueryAttrInfo     info;
 } SQueryStmtInfo;
+
+typedef struct SColumnIndex {
+  int16_t tableIndex;
+  int16_t columnIndex;
+  int16_t type;               // normal column/tag/ user input constant column
+} SColumnIndex;
 
 struct SInsertStmtInfo;
 
@@ -205,6 +235,17 @@ int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo*
  * @return
  */
 int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql);
+
+void assignExprInfo(SExprInfo* dst, const SExprInfo* src);
+void columnListCopy(SArray* dst, const SArray* src, uint64_t uid);
+void columnListDestroy(SArray* pColumnList);
+
+void dropAllExprInfo(SArray* pExprInfo);
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, struct tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize);
+int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
+
+STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
+int32_t getNewResColId();
 
 #ifdef __cplusplus
 }

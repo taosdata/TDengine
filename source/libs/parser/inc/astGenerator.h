@@ -42,12 +42,6 @@ enum SQL_NODE_FROM_TYPE {
   SQL_NODE_FROM_TABLELIST  = 2,
 };
 
-//enum SQL_EXPR_FLAG {
-//  EXPR_FLAG_TS_ERROR = 1,
-//  EXPR_FLAG_NS_TIMESTAMP = 2,
-//  EXPR_FLAG_TIMESTAMP_VAR = 3,
-//};
-
 extern char tTokenTypeSwitcher[13];
 
 #define toTSDBType(x)                          \
@@ -239,7 +233,7 @@ typedef struct tSqlExpr {
   // The complete string of the function(col, param), and the function name is kept in exprToken
   struct {
     SToken           operand;
-    struct SArray   *paramList;      // function parameters list
+    struct SArray   *paramList;   // function parameters list
   } Expr;
 
   SToken             columnName;  // table column info
@@ -252,6 +246,7 @@ typedef struct tSqlExpr {
 // used in select clause. select <SArray> from xxx
 typedef struct tSqlExprItem {
   tSqlExpr          *pNode;      // The list of expressions
+  int32_t            functionId;
   char              *aliasName;  // alias name, null-terminated string
   bool               distinct;
 } tSqlExprItem;
@@ -267,7 +262,7 @@ SRelationInfo *addSubquery(SRelationInfo *pRelationInfo, SArray *pSub, SToken *p
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SToken *pFuncToken, SToken *endToken, int32_t optType);
-SArray *  tAppendFuncName(SArray *pList, SToken *pToken);
+SArray *  tRecordFuncName(SArray *pList, SToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);
@@ -277,6 +272,7 @@ bool      tSqlExprIsParentOfLeaf(tSqlExpr *pExpr);
 void      tSqlExprDestroy(tSqlExpr *pExpr);
 SArray *  tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SToken *pDistinct, SToken *pToken);
 void      tSqlExprListDestroy(SArray *pList);
+void      tSqlExprEvaluate(tSqlExpr* pExpr);
 
 SSqlNode *tSetQuerySqlNode(SToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                            SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
@@ -299,6 +295,8 @@ SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SToken *pTableNameToken, SToken *pIfNotExists);
 void* destroyCreateTableSql(SCreateTableSql* pCreate);
+void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SToken* pToken);
+void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPath, SField *output, SToken* bufSize, int32_t funcType);
 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 

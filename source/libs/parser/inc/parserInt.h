@@ -35,6 +35,21 @@ typedef struct SInsertStmtInfo {
   char     *sql;                     // current sql statement position
 } SInsertStmtInfo;
 
+typedef struct SInternalField {
+  TAOS_FIELD      field;
+  bool            visible;
+  SExprInfo      *pExpr;
+} SInternalField;
+
+typedef struct SMsgBuf {
+  int32_t len;
+  char   *buf;
+} SMsgBuf;
+
+void clearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
+
+void clearAllTableMetaInfo(SQueryStmtInfo* pQueryInfo, bool removeMeta, uint64_t id);
+
 /**
  * Validate the sql info, according to the corresponding metadata info from catalog.
  * @param pCatalog
@@ -44,15 +59,33 @@ typedef struct SInsertStmtInfo {
  * @param msg
  * @return
  */
-int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg);
+int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg, int32_t msgLen);
 
 /**
- *
- * @param pSqlNode
- * @param pMetaInfo
+ * Evaluate the numeric and timestamp arithmetic expression in the WHERE clause.
+ * @param pNode
+ * @param tsPrecision
+ * @param msg
+ * @param msgBufLen
  * @return
  */
-int32_t qParserExtractRequestedMetaInfo(const struct SSqlNode* pSqlNode, SMetaReq* pMetaInfo);
+int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf);
+
+int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
+
+void initQueryInfo(SQueryStmtInfo* pQueryInfo);
+
+int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
+
+/**
+ * Extract request meta info from the sql statement
+ * @param pSqlInfo
+ * @param pMetaInfo
+ * @param msg
+ * @param msgBufLen
+ * @return
+ */
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen);
 
 #ifdef __cplusplus
 }

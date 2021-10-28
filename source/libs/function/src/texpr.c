@@ -15,7 +15,6 @@
 
 #include "os.h"
 
-#include "texpr.h"
 #include "exception.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -26,21 +25,21 @@
 #include "thash.h"
 #include "tskiplist.h"
 #include "texpr.h"
-#include "tarithoperator.h"
+//#include "tarithoperator.h"
 #include "tvariant.h"
 
-static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
-  if (pLeft->nodeType == TSQL_NODE_COL) {
-    // if left node is the primary column,return true
-    return (strcmp(primaryColumnName, pLeft->pSchema->name) == 0) ? 1 : 0;
-  } else {
-    // if any children have query on primary key, their parents are also keep this value
-    return ((pLeft->nodeType == TSQL_NODE_EXPR && pLeft->_node.hasPK == 1) ||
-            (pRight->nodeType == TSQL_NODE_EXPR && pRight->_node.hasPK == 1)) == true
-               ? 1
-               : 0;
-  }
-}
+//static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
+//  if (pLeft->nodeType == TEXPR_COL_NODE) {
+//    // if left node is the primary column,return true
+//    return (strcmp(primaryColumnName, pLeft->pSchema->name) == 0) ? 1 : 0;
+//  } else {
+//    // if any children have query on primary key, their parents are also keep this value
+//    return ((pLeft->nodeType == TEXPR_BINARYEXPR_NODE && pLeft->_node.hasPK == 1) ||
+//            (pRight->nodeType == TEXPR_BINARYEXPR_NODE && pRight->_node.hasPK == 1)) == true
+//               ? 1
+//               : 0;
+//  }
+//}
 
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
   switch(type) {
@@ -114,11 +113,11 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
     return;
   }
 
-  if (pNode->nodeType == TSQL_NODE_EXPR) {
+  if (pNode->nodeType == TEXPR_BINARYEXPR_NODE || pNode->nodeType == TEXPR_UNARYEXPR_NODE) {
     doExprTreeDestroy(&pNode, fp);
-  } else if (pNode->nodeType == TSQL_NODE_VALUE) {
+  } else if (pNode->nodeType == TEXPR_VALUE_NODE) {
     taosVariantDestroy(pNode->pVal);
-  } else if (pNode->nodeType == TSQL_NODE_COL) {
+  } else if (pNode->nodeType == TEXPR_COL_NODE) {
     tfree(pNode->pSchema);
   }
 
@@ -130,17 +129,17 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     return;
   }
   
-  if ((*pExpr)->nodeType == TSQL_NODE_EXPR) {
+  if ((*pExpr)->nodeType == TEXPR_BINARYEXPR_NODE) {
     doExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
     doExprTreeDestroy(&(*pExpr)->_node.pRight, fp);
   
     if (fp != NULL) {
       fp((*pExpr)->_node.info);
     }
-  } else if ((*pExpr)->nodeType == TSQL_NODE_VALUE) {
+  } else if ((*pExpr)->nodeType == TEXPR_VALUE_NODE) {
     taosVariantDestroy((*pExpr)->pVal);
     free((*pExpr)->pVal);
-  } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
+  } else if ((*pExpr)->nodeType == TEXPR_COL_NODE) {
     free((*pExpr)->pSchema);
   }
 
@@ -153,7 +152,7 @@ bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp 
   tExprNode *pRight = pExpr->_node.pRight;
 
   //non-leaf nodes, recursively traverse the expression tree in the post-root order
-  if (pLeft->nodeType == TSQL_NODE_EXPR && pRight->nodeType == TSQL_NODE_EXPR) {
+  if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE && pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
     if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
       if (exprTreeApplyFilter(pLeft, pItem, param)) {
         return true;
@@ -180,26 +179,26 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
   if (pExprs == NULL) {
     return;
   }
-
+#if 0
   tExprNode *pLeft = pExprs->_node.pLeft;
   tExprNode *pRight = pExprs->_node.pRight;
 
   /* the left output has result from the left child syntax tree */
   char *pLeftOutput = (char*)malloc(sizeof(int64_t) * numOfRows);
-  if (pLeft->nodeType == TSQL_NODE_EXPR) {
+  if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE) {
     arithmeticTreeTraverse(pLeft, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
   }
 
-  /* the right output has result from the right child syntax tree */
+  // the right output has result from the right child syntax tree
   char *pRightOutput = malloc(sizeof(int64_t) * numOfRows);
   char *pdata = malloc(sizeof(int64_t) * numOfRows);
 
-  if (pRight->nodeType == TSQL_NODE_EXPR) {
+  if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
     arithmeticTreeTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
   }
 
-  if (pLeft->nodeType == TSQL_NODE_EXPR) {
-    if (pRight->nodeType == TSQL_NODE_EXPR) {
+  if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE) {
+    if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
       /*
        * exprLeft + exprRight
        * the type of returned value of one expression is always double float precious
@@ -207,7 +206,7 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
       OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
 
-    } else if (pRight->nodeType == TSQL_NODE_COL) {  // exprLeft + columnRight
+    } else if (pRight->nodeType == TEXPR_COL_NODE) {  // exprLeft + columnRight
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
 
       // set input buffer
@@ -219,14 +218,14 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
         OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       }
 
-    } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // exprLeft + 12
+    } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // exprLeft + 12
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
       OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
     }
-  } else if (pLeft->nodeType == TSQL_NODE_COL) {
+  } else if (pLeft->nodeType == TEXPR_COL_NODE) {
     // column data specified on left-hand-side
     char *pLeftInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
-    if (pRight->nodeType == TSQL_NODE_EXPR) {  // columnLeft + expr2
+    if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {  // columnLeft + expr2
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
 
       if (order == TSDB_ORDER_DESC) {
@@ -236,14 +235,14 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
         OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
       }
 
-    } else if (pRight->nodeType == TSQL_NODE_COL) {  // columnLeft + columnRight
+    } else if (pRight->nodeType == TEXPR_COL_NODE) {  // columnLeft + columnRight
       // column data specified on right-hand-side
       char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
 
       // both columns are descending order, do not reverse the source data
       OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, order);
-    } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // columnLeft + 12
+    } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // columnLeft + 12
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
 
       if (order == TSDB_ORDER_DESC) {
@@ -255,11 +254,11 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
     }
   } else {
     // column data specified on left-hand-side
-    if (pRight->nodeType == TSQL_NODE_EXPR) {  // 12 + expr2
+    if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {  // 12 + expr2
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
       OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
 
-    } else if (pRight->nodeType == TSQL_NODE_COL) {  // 12 + columnRight
+    } else if (pRight->nodeType == TEXPR_COL_NODE) {  // 12 + columnRight
       // column data specified on right-hand-side
       char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
@@ -271,7 +270,7 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
         OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       }
 
-    } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // 12 + 12
+    } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // 12 + 12
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
       OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
     }
@@ -280,12 +279,14 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
   tfree(pdata);
   tfree(pLeftOutput);
   tfree(pRightOutput);
+#endif
+
 }
 
 static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
   tbufWriteUint8(bw, expr->nodeType);
   
-  if (expr->nodeType == TSQL_NODE_VALUE) {
+  if (expr->nodeType == TEXPR_VALUE_NODE) {
     SVariant* pVal = expr->pVal;
     
     tbufWriteUint32(bw, pVal->nType);
@@ -296,16 +297,15 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
       tbufWriteInt64(bw, pVal->i64);
     }
     
-  } else if (expr->nodeType == TSQL_NODE_COL) {
+  } else if (expr->nodeType == TEXPR_COL_NODE) {
     SSchema* pSchema = expr->pSchema;
     tbufWriteInt16(bw, pSchema->colId);
     tbufWriteInt16(bw, pSchema->bytes);
     tbufWriteUint8(bw, pSchema->type);
     tbufWriteString(bw, pSchema->name);
     
-  } else if (expr->nodeType == TSQL_NODE_EXPR) {
+  } else if (expr->nodeType == TEXPR_BINARYEXPR_NODE) {
     tbufWriteUint8(bw, expr->_node.optr);
-    tbufWriteUint8(bw, expr->_node.hasPK);
     exprTreeToBinaryImpl(bw, expr->_node.pLeft);
     exprTreeToBinaryImpl(bw, expr->_node.pRight);
   }
@@ -353,7 +353,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
   CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, pExpr, NULL);
   pExpr->nodeType = tbufReadUint8(br);
   
-  if (pExpr->nodeType == TSQL_NODE_VALUE) {
+  if (pExpr->nodeType == TEXPR_VALUE_NODE) {
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     pExpr->pVal = pVal;
   
@@ -366,7 +366,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
       pVal->i64 = tbufReadInt64(br);
     }
     
-  } else if (pExpr->nodeType == TSQL_NODE_COL) {
+  } else if (pExpr->nodeType == TEXPR_COL_NODE) {
     SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
     pExpr->pSchema = pSchema;
 
@@ -375,9 +375,8 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pSchema->type = tbufReadUint8(br);
     tbufReadToString(br, pSchema->name, TSDB_COL_NAME_LEN);
     
-  } else if (pExpr->nodeType == TSQL_NODE_EXPR) {
+  } else if (pExpr->nodeType == TEXPR_BINARYEXPR_NODE) {
     pExpr->_node.optr = tbufReadUint8(br);
-    pExpr->_node.hasPK = tbufReadUint8(br);
     pExpr->_node.pLeft = exprTreeFromBinaryImpl(br);
     pExpr->_node.pRight = exprTreeFromBinaryImpl(br);
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
@@ -406,12 +405,12 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   tExprNode* expr = exception_calloc(1, sizeof(tExprNode));
   CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, expr, NULL);
 
-  expr->nodeType = TSQL_NODE_EXPR;
+  expr->nodeType = TEXPR_BINARYEXPR_NODE;
 
   tExprNode* left = exception_calloc(1, sizeof(tExprNode));
   expr->_node.pLeft = left;
 
-  left->nodeType = TSQL_NODE_COL;
+  left->nodeType = TEXPR_COL_NODE;
   SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
   left->pSchema = pSchema;
 
@@ -421,7 +420,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   expr->_node.pRight = right;
 
   if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
+    right->nodeType = TEXPR_VALUE_NODE;
     expr->_node.optr = TSDB_RELATION_LIKE;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
@@ -432,7 +431,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     pVal->nLen = (int32_t)len;
 
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_MATCH, QUERY_COND_REL_PREFIX_MATCH_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
+    right->nodeType = TEXPR_VALUE_NODE;
     expr->_node.optr = TSDB_RELATION_MATCH;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
@@ -442,7 +441,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     pVal->nType = TSDB_DATA_TYPE_BINARY;
     pVal->nLen = (int32_t)len;
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_NMATCH, QUERY_COND_REL_PREFIX_NMATCH_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
+    right->nodeType = TEXPR_VALUE_NODE;
     expr->_node.optr = TSDB_RELATION_NMATCH;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
@@ -452,7 +451,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     pVal->nType = TSDB_DATA_TYPE_BINARY;
     pVal->nLen = (int32_t)len;
   } else if (strncmp(tbnameCond, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN) == 0) {
-    right->nodeType = TSQL_NODE_VALUE;
+    right->nodeType = TEXPR_VALUE_NODE;
     expr->_node.optr = TSDB_RELATION_IN;
     SVariant* pVal = exception_calloc(1, sizeof(SVariant));
     right->pVal = pVal;
@@ -699,25 +698,23 @@ err_ret:
   tfree(tmp);
 }
 
-
 tExprNode* exprdup(tExprNode* pNode) {
   if (pNode == NULL) {
     return NULL;
   }
 
   tExprNode* pCloned = calloc(1, sizeof(tExprNode));
-  if (pNode->nodeType == TSQL_NODE_EXPR) {
+  if (pNode->nodeType == TEXPR_BINARYEXPR_NODE) {
     tExprNode* pLeft  = exprdup(pNode->_node.pLeft);
     tExprNode* pRight = exprdup(pNode->_node.pRight);
 
     pCloned->_node.pLeft  = pLeft;
     pCloned->_node.pRight = pRight;
     pCloned->_node.optr  = pNode->_node.optr;
-    pCloned->_node.hasPK = pNode->_node.hasPK;
-  } else if (pNode->nodeType == TSQL_NODE_VALUE) {
+  } else if (pNode->nodeType == TEXPR_VALUE_NODE) {
     pCloned->pVal = calloc(1, sizeof(SVariant));
     taosVariantAssign(pCloned->pVal, pNode->pVal);
-  } else if (pNode->nodeType == TSQL_NODE_COL) {
+  } else if (pNode->nodeType == TEXPR_COL_NODE) {
     pCloned->pSchema = calloc(1, sizeof(SSchema));
     *pCloned->pSchema = *pNode->pSchema;
   }
