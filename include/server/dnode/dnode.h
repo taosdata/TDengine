@@ -67,6 +67,11 @@ void dnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
  */
 void dnodeGetEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
+/**
+ * Report the startup progress.
+ */
+void dnodeReportStartup(char *name, char *desc);
+
 #ifdef __cplusplus
 }
 #endif

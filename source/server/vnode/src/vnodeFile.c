@@ -280,90 +280,77 @@ int32_t vnodeWriteCfg(int32_t vgId, SVnodeCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeReadTerm(int32_t vgId, SSyncServerState *pState){
-#if 0  
+int32_t vnodeReadTerm(int32_t vgId, SSyncServerState *pState) {
+  int32_t ret = TSDB_CODE_VND_APP_ERROR;
   int32_t len = 0;
   int32_t maxLen = 100;
-  char *  content = calloc(1, maxLen + 1);
-  cJSON * root = NULL;
-  FILE *  fp = NULL;
+  char   *content = calloc(1, maxLen + 1);
+  cJSON  *root = NULL;
+  FILE   *fp = NULL;
 
-  terrno = TSDB_CODE_VND_INVALID_VRESION_FILE;
-  char file[TSDB_FILENAME_LEN + 30] = {0};
-  sprintf(file, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
-
-  fp = fopen(file, "r");
-  if (!fp) {
-    if (errno != ENOENT) {
-      vError("vgId:%d, failed to read %s, error:%s", pVnode->vgId, file, strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      terrno = TSDB_CODE_SUCCESS;
-    }
-    goto PARSE_VER_ERROR;
-  }
+  char file[PATH_MAX + 30] = {0};
+  sprintf(file, "%s/vnode%d/term.json", tsVnodeDir, vgId);
 
   len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
-    vError("vgId:%d, failed to read %s, content is null", pVnode->vgId, file);
-    goto PARSE_VER_ERROR;
+    vError("vgId:%d, failed to read %s since content is null", vgId, file);
+    goto PARSE_TERM_ERROR;
   }
 
   root = cJSON_Parse(content);
   if (root == NULL) {
-    vError("vgId:%d, failed to read %s, invalid json format", pVnode->vgId, file);
-    goto PARSE_VER_ERROR;
+    vError("vgId:%d, failed to read %s since invalid json format", vgId, file);
+    goto PARSE_TERM_ERROR;
   }
 
-  cJSON *ver = cJSON_GetObjectItem(root, "version");
-  if (!ver || ver->type != cJSON_Number) {
-    vError("vgId:%d, failed to read %s, version not found", pVnode->vgId, file);
-    goto PARSE_VER_ERROR;
+  cJSON *term = cJSON_GetObjectItem(root, "term");
+  if (!term || term->type != cJSON_Number) {
+    vError("vgId:%d, failed to read %s since term not found", vgId, file);
+    goto PARSE_TERM_ERROR;
   }
-#if 0  
-  pVnode->version = (uint64_t)ver->valueint;
+  pState->term = (uint64_t)term->valueint;
 
-  terrno = TSDB_CODE_SUCCESS;
-  vInfo("vgId:%d, read %s successfully, fver:%" PRIu64, pVnode->vgId, file, pVnode->version);
-#endif
+  cJSON *voteFor = cJSON_GetObjectItem(root, "voteFor");
+  if (!voteFor || voteFor->type != cJSON_Number) {
+    vError("vgId:%d, failed to read %s since voteFor not found", vgId, file);
+    goto PARSE_TERM_ERROR;
+  }
+  pState->voteFor = (int64_t)voteFor->valueint;
 
-PARSE_VER_ERROR:
+  vInfo("vgId:%d, read %s success, voteFor:%" PRIu64 ", term:%" PRIu64, vgId, file, pState->voteFor, pState->term);
+
+PARSE_TERM_ERROR:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
 
-  return terrno;
-#endif
-  return 0;
+  return ret;
 }
 
-int32_t vnodeWriteTerm(int32_t vgid, SSyncServerState *pState) {
-#if 0
-  char file[TSDB_FILENAME_LEN + 30] = {0};
-  sprintf(file, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
+int32_t vnodeWriteTerm(int32_t vgId, SSyncServerState *pState) {
+  char file[PATH_MAX + 30] = {0};
+  sprintf(file, "%s/vnode%d/term.json", tsVnodeDir, vgId);
 
   FILE *fp = fopen(file, "w");
   if (!fp) {
-    vError("vgId:%d, failed to write %s, reason:%s", pVnode->vgId, file, strerror(errno));
+    vError("vgId:%d, failed to write %s since %s", vgId, file, strerror(errno));
     return -1;
   }
 
   int32_t len = 0;
   int32_t maxLen = 100;
-  char *  content = calloc(1, maxLen + 1);
+  char   *content = calloc(1, maxLen + 1);
 
-#if 0
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRIu64 "\n", pVnode->fversion);
+  len += snprintf(content + len, maxLen - len, "  \"term\": %" PRIu64 "\n", pState->term);
+  len += snprintf(content + len, maxLen - len, "  \"voteFor\": %" PRIu64 "\n", pState->voteFor);
   len += snprintf(content + len, maxLen - len, "}\n");
-#endif
+
   fwrite(content, 1, len, fp);
   taosFsyncFile(fileno(fp));
   fclose(fp);
   free(content);
-  terrno = 0;
 
-  // vInfo("vgId:%d, successed to write %s, fver:%" PRIu64, pVnode->vgId, file, pVnode->fversion);
-#endif   
+  vInfo("vgId:%d, write %s success, voteFor:%" PRIu64 ", term:%" PRIu64, vgId, file, pState->voteFor, pState->term);
   return TSDB_CODE_SUCCESS;
 }

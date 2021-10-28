@@ -77,8 +77,6 @@ typedef struct SVnodeCfg {
   SSyncCfg sync;
 } SVnodeCfg;
 
-
-
 typedef struct {
   int32_t          vgId;      // global vnode group ID
   int32_t          refCount;  // reference count
@@ -114,6 +112,7 @@ typedef struct {
 void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
 void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+void vnodeReportStartup(char *name, char *desc);
 
 #ifdef __cplusplus
 }
