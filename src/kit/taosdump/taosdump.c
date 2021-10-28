@@ -1289,7 +1289,7 @@ static int getTableDes(
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
                     char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' '
                     convertNCharToReadable((char *)row[TSDB_SHOW_TABLES_NAME_INDEX], length[0], tbuf, COL_NOTE_LEN);
-                    sprintf(tableDes->cols[i].value, "\'%s\'", tbuf);
+                    sprintf(tableDes->cols[i].value, "%s", tbuf);
                     break;
                 }
             case TSDB_DATA_TYPE_TIMESTAMP:
@@ -2026,7 +2026,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
                         convertNCharToReadable((char *)row[col], length[col],
                                 tbuf, COMMAND_SIZE);
                         curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
-                                "%s", tbuf);
+                                "\'%s\'", tbuf);
                         break;
                     }
                 case TSDB_DATA_TYPE_TIMESTAMP:
@@ -3028,6 +3028,7 @@ static int64_t dumpNTablesOfDb(SDbInfo *dbInfo)
     }
 
     g_tablesList = calloc(1, dbInfo->ntables * sizeof(TableInfo));
+    assert(g_tablesList);
 
     TAOS_ROW row;
     int64_t count = 0;
