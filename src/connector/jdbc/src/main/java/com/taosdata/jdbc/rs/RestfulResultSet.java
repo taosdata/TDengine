@@ -255,6 +255,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null)
             return null;
         if (value instanceof byte[])
@@ -267,11 +268,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null) {
-            wasNull = true;
+        wasNull = value == null;
+        if (value == null)
             return false;
-        }
-        wasNull = false;
         if (value instanceof Boolean)
             return (boolean) value;
         return Boolean.parseBoolean(value.toString());
@@ -282,11 +281,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null) {
-            wasNull = true;
+        wasNull = value == null;
+        if (value == null)
             return 0;
-        }
-        wasNull = false;
         long valueAsLong = Long.parseLong(value.toString());
         if (valueAsLong == Byte.MIN_VALUE)
             return 0;
@@ -306,11 +303,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null) {
-            wasNull = true;
+        wasNull = value == null;
+        if (value == null)
             return 0;
-        }
-        wasNull = false;
         long valueAsLong = Long.parseLong(value.toString());
         if (valueAsLong == Short.MIN_VALUE)
             return 0;
@@ -324,11 +319,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null) {
-            wasNull = true;
+        wasNull = value == null;
+        if (value == null)
             return 0;
-        }
-        wasNull = false;
         long valueAsLong = Long.parseLong(value.toString());
         if (valueAsLong == Integer.MIN_VALUE)
             return 0;
@@ -342,15 +335,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null) {
-            wasNull = true;
+        wasNull = value == null;
+        if (value == null)
             return 0;
-        }
-
-        wasNull = false;
-        if (value instanceof Timestamp) {
+        if (value instanceof Timestamp)
             return ((Timestamp) value).getTime();
-        }
         long valueAsLong = 0;
         try {
             valueAsLong = Long.parseLong(value.toString());
@@ -367,11 +356,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null) {
-            wasNull = true;
+        wasNull = value == null;
+        if (value == null)
             return 0;
-        }
-        wasNull = false;
         if (value instanceof Float)
             return (float) value;
         if (value instanceof Double)
@@ -384,11 +371,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null) {
-            wasNull = true;
             return 0;
         }
-        wasNull = false;
         if (value instanceof Double || value instanceof Float)
             return (double) value;
         return Double.parseDouble(value.toString());
@@ -399,6 +385,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null)
             return null;
         if (value instanceof byte[])
@@ -425,6 +412,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null)
             return null;
         if (value instanceof Timestamp)
@@ -437,6 +425,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null)
             return null;
         if (value instanceof Timestamp)
@@ -454,6 +443,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null)
             return null;
         if (value instanceof Timestamp)
@@ -470,6 +460,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             ret = Utils.parseTimestamp(value.toString());
         } catch (Exception e) {
             ret = null;
+            wasNull = true;
         }
         return ret;
     }
@@ -485,7 +476,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public Object getObject(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        return resultSet.get(pos).get(columnIndex - 1);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
+        return value;
     }
 
     @Override
@@ -504,9 +497,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
+        wasNull = value == null;
         if (value == null)
             return null;
-
         if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
             return new BigDecimal(Long.parseLong(value.toString()));
         if (value instanceof Double || value instanceof Float)
