@@ -170,7 +170,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
 static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
   if (pVnode->isCommiting == 0) {
-    return tsdbCheckWal(pVnode->tsdb, walGetFSize(pVnode->wal) >> 20);
+    return tsdbCheckWal(pVnode->tsdb, (uint32_t)(walGetFSize(pVnode->wal) >> 20));
   }
   return 0;
 }
