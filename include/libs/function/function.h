@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TFUNCTION_H
-#define TDENGINE_TFUNCTION_H
+#ifndef TDENGINE_FUNCTION_H
+#define TDENGINE_FUNCTION_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +23,8 @@ extern "C" {
 #include "common.h"
 #include "tvariant.h"
 #include "tbuffer.h"
+
+#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 
 #define FUNCTION_SCALAR       1
 #define FUNCTION_AGG          2
@@ -184,6 +186,25 @@ typedef struct SResultDataInfo {
   int32_t intermediateBytes;
 } SResultDataInfo;
 
+
+typedef struct SMultiFunctionsDesc {
+  bool stableQuery;
+  bool groupbyColumn;
+  bool simpleAgg;
+  bool arithmeticOnAgg;
+  bool projectionQuery;
+  bool hasFilter;
+  bool onlyTagQuery;
+  bool orderProjectQuery;
+  bool stateWindow;
+  bool globalMerge;
+  bool multigroupResult;
+  bool blockDistribution;
+  bool timewindow;
+  bool topbotQuery;
+  bool interpQuery;
+} SMultiFunctionsDesc;
+
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
 
@@ -199,8 +220,10 @@ bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* funct
 
 const char* qGetFunctionName(int32_t functionId);
 
+void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TFUNCTION_H
+#endif  // TDENGINE_FUNCTION_H

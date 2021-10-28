@@ -44,41 +44,41 @@ typedef struct {
   EWalType walLevel;     // wal level
 } SWalCfg;
 
-typedef void *  twalh;  // WAL HANDLE
-typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
+struct SWal;
+typedef struct SWal SWal;  // WAL HANDLE
+typedef int32_t (*FWalWrite)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
-//module initialization
-int32_t  walInit();
-void     walCleanUp();
+// module initialization
+int32_t walInit();
+void    walCleanUp();
 
-//handle open and ctl
-twalh    walOpen(char *path, SWalCfg *pCfg);
-int32_t  walAlter(twalh, SWalCfg *pCfg);
-void     walStop(twalh);
-void     walClose(twalh);
+// handle open and ctl
+SWal   *walOpen(char *path, SWalCfg *pCfg);
+int32_t walAlter(SWal *, SWalCfg *pCfg);
+void    walClose(SWal *);
 
-//write
-//int64_t  walWriteWithMsgType(twalh, int8_t msgType, void* body, int32_t bodyLen);
-int64_t  walWrite(twalh, void* body, int32_t bodyLen);
-int64_t  walWriteBatch(twalh, void** bodies, int32_t* bodyLen, int32_t batchSize);
+// write
+// int64_t  walWriteWithMsgType(SWal*, int8_t msgType, void* body, int32_t bodyLen);
+int64_t walWrite(SWal *, int64_t index, void *body, int32_t bodyLen);
+int64_t walWriteBatch(SWal *, void **bodies, int32_t *bodyLen, int32_t batchSize);
 
-//apis for lifecycle management
-void     walFsync(twalh, bool force);
-int32_t  walCommit(twalh, int64_t ver);
-//truncate after
-int32_t  walRollback(twalh, int64_t ver);
-//notify that previous log can be pruned safely
-int32_t  walPrune(twalh, int64_t ver);
+// apis for lifecycle management
+void    walFsync(SWal *, bool force);
+int32_t walCommit(SWal *, int64_t ver);
+// truncate after
+int32_t walRollback(SWal *, int64_t ver);
+// notify that previous log can be pruned safely
+int32_t walPrune(SWal *, int64_t ver);
 
-//read
-int32_t  walRead(twalh, SWalHead **, int64_t ver);
-int32_t  walReadWithFp(twalh, FWalWrite writeFp, int64_t verStart, int readNum);
+// read
+int32_t walRead(SWal *, SWalHead **, int64_t ver);
+int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
 
-//lifecycle check
-int32_t  walFirstVer(twalh);
-int32_t  walPersistedVer(twalh);
-int32_t  walLastVer(twalh);
-//int32_t  walDataCorrupted(twalh);
+// lifecycle check
+int32_t walFirstVer(SWal *);
+int32_t walPersistedVer(SWal *);
+int32_t walLastVer(SWal *);
+// int32_t  walDataCorrupted(SWal*);
 
 #ifdef __cplusplus
 }

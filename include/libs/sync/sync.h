@@ -22,11 +22,10 @@ extern "C" {
 
 #include <stdint.h>
 #include "taosdef.h"
-#include "wal.h"
 
-typedef int64_t SyncNodeId;
-typedef int32_t SyncGroupId;
-typedef int64_t   SyncIndex;
+typedef int32_t  SyncNodeId;
+typedef int32_t  SyncGroupId;
+typedef int64_t  SyncIndex;
 typedef uint64_t SSyncTerm;
 
 typedef enum {
@@ -41,41 +40,42 @@ typedef struct {
 } SSyncBuffer;
 
 typedef struct {
-  uint16_t  nodePort;  // node sync Port
-  char      nodeFqdn[TSDB_FQDN_LEN]; // node FQDN  
+  SyncNodeId nodeId;
+  uint16_t   nodePort;                 // node sync Port
+  char       nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
 } SNodeInfo;
 
 typedef struct {
-  int        selfIndex;
-  int        nNode;
-  SNodeInfo* nodeInfo;
+  int32_t   selfIndex;
+  int32_t   replica;
+  SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCluster;
 
 typedef struct {
-  int32_t  selfIndex;
-  int nNode;
-  SNodeInfo* node;
-  ESyncRole*  role;
+  int32_t   selfIndex;
+  int32_t   replica;
+  SNodeInfo node[TSDB_MAX_REPLICA];
+  ESyncRole role[TSDB_MAX_REPLICA];
 } SNodesRole;
 
 typedef struct SSyncFSM {
   void* pData;
 
   // apply committed log, bufs will be free by raft module
-  int (*applyLog)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf, void* pData);
+  int32_t (*applyLog)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf, void* pData);
 
   // cluster commit callback
-  int (*onClusterChanged)(struct SSyncFSM* fsm, const SSyncCluster* cluster, void* pData);
+  int32_t (*onClusterChanged)(struct SSyncFSM* fsm, const SSyncCluster* cluster, void* pData);
 
   // fsm return snapshot in ppBuf, bufs will be free by raft module
   // TODO: getSnapshot SHOULD be async?
-  int (*getSnapshot)(struct SSyncFSM* fsm, SSyncBuffer** ppBuf, int* objId, bool* isLast);
+  int32_t (*getSnapshot)(struct SSyncFSM* fsm, SSyncBuffer** ppBuf, int32_t* objId, bool* isLast);
 
   // fsm apply snapshot with pBuf data
-  int (*applySnapshot)(struct SSyncFSM* fsm, SSyncBuffer* pBuf, int objId, bool isLast);
+  int32_t (*applySnapshot)(struct SSyncFSM* fsm, SSyncBuffer* pBuf, int32_t objId, bool isLast);
 
   // call when restore snapshot and log done
-  int (*onRestoreDone)(struct SSyncFSM* fsm);
+  int32_t (*onRestoreDone)(struct SSyncFSM* fsm);
 
   void (*onRollback)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf);
 
@@ -83,52 +83,79 @@ typedef struct SSyncFSM {
 
 } SSyncFSM;
 
+typedef struct SSyncLogStore {
+  void* pData;
+
+  // write log with given index
+  int32_t (*logWrite)(struct SSyncLogStore* logStore, SyncIndex index, SSyncBuffer* pBuf);
+
+  // mark log with given index has been commtted
+  int32_t (*logCommit)(struct SSyncLogStore* logStore, SyncIndex index);
+
+  // prune log before given index
+  int32_t (*logPrune)(struct SSyncLogStore* logStore, SyncIndex index);
+
+  // rollback log after given index
+  int32_t (*logRollback)(struct SSyncLogStore* logStore, SyncIndex index);
+} SSyncLogStore;
+
 typedef struct SSyncServerState {
-  SNodeInfo voteFor;
-  SSyncTerm term;
+  SyncNodeId voteFor;
+  SSyncTerm  term;
 } SSyncServerState;
+
+typedef struct SSyncClusterConfig {
+  // Log index number of current cluster config.
+  SyncIndex index;
+
+  // Log index number of previous cluster config.
+  SyncIndex prevIndex;
+
+  // current cluster
+  const SSyncCluster* cluster;
+} SSyncClusterConfig;
 
 typedef struct SStateManager {
   void* pData;
 
-  void (*saveServerState)(struct SStateManager* stateMng, const SSyncServerState* state);
+  int32_t (*saveServerState)(struct SStateManager* stateMng, SSyncServerState* state);
 
-  const SSyncServerState* (*readServerState)(struct SStateManager* stateMng);
+  int32_t (*readServerState)(struct SStateManager* stateMng, SSyncServerState* state);
 
-  void (*saveCluster)(struct SStateManager* stateMng, const SSyncCluster* cluster);
+  // void (*saveCluster)(struct SStateManager* stateMng, const SSyncClusterConfig* cluster);
 
-  const SSyncCluster* (*readCluster)(struct SStateManager* stateMng);
+  // const SSyncClusterConfig* (*readCluster)(struct SStateManager* stateMng);
 } SStateManager;
 
 typedef struct {
-  SyncGroupId vgId;
-
-  twalh walHandle;
-
-  SyncIndex snapshotIndex;
-  SSyncCluster syncCfg;
-
-  SSyncFSM fsm;
-
+  SyncGroupId   vgId;
+  SyncIndex     snapshotIndex;
+  SSyncCluster  syncCfg;
+  SSyncFSM      fsm;
+  SSyncLogStore logStore;
   SStateManager stateManager;
 } SSyncInfo;
+
+struct SSyncNode;
+typedef struct SSyncNode SSyncNode;
 
 int32_t syncInit();
 void    syncCleanUp();
 
-SyncNodeId syncStart(const SSyncInfo*);
-void       syncStop(SyncNodeId);
+SSyncNode* syncStart(const SSyncInfo*);
+void       syncReconfig(const SSyncNode*, const SSyncCluster*);
+void       syncStop(const SSyncNode*);
 
-int32_t syncPropose(SyncNodeId nodeId, SSyncBuffer buffer, void* pData, bool isWeak);
+int32_t syncPropose(SSyncNode* syncNode, SSyncBuffer buffer, void* pData, bool isWeak);
 
-int32_t syncAddNode(SyncNodeId nodeId, const SNodeInfo *pNode);
+// int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
-int32_t syncRemoveNode(SyncNodeId nodeId, const SNodeInfo *pNode);
+// int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
-extern int32_t  syncDebugFlag;
+extern int32_t syncDebugFlag;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_LIBS_SYNC_H*/
+#endif /*_TD_LIBS_SYNC_H*/

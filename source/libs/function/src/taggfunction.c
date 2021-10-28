@@ -513,7 +513,7 @@ static void count_func_merge(SQLFunctionCtx *pCtx) {
  * @return
  */
 int32_t countRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  if (colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     return BLK_DATA_NO_NEEDED;
   } else {
     return BLK_DATA_STATIS_NEEDED;
@@ -2303,10 +2303,10 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   tValuePair **tvp = pRes->res;
   
   // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[1].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (pCtx->param[1].i64 == PRIMARYKEY_TIMESTAMP_COL_ID) {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
-  } else /*if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX)*/ {
+  } else /*if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_ID)*/ {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }

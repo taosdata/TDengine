@@ -73,7 +73,9 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf);
 
 int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
 
-void initQueryInfo(SQueryStmtInfo* pQueryInfo);
+SQueryStmtInfo* createQueryInfo();
+
+void destroyQueryInfo(SQueryStmtInfo* pQueryInfo);
 
 int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
 
@@ -86,6 +88,12 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
  * @return
  */
 int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen);
+
+/**
+ * Destroy the meta data request structure.
+ * @param pMetaInfo
+ */
+void qParserClearupMetaRequestInfo(SMetaReq* pMetaInfo);
 
 #ifdef __cplusplus
 }

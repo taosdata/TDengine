@@ -242,7 +242,6 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
 }
 
 void      tSqlExprCompact(tSqlExpr **pExpr) {
-
   if (*pExpr == NULL || tSqlExprIsParentOfLeaf(*pExpr)) {
     return;
   }
@@ -770,8 +769,11 @@ void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SToken *pName, SToken *pPa
   }
 }
 
-void SqlInfoDestroy(SSqlInfo *pInfo) {
-  if (pInfo == NULL) return;;
+void destroySqlInfo(SSqlInfo *pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+
   taosArrayDestroy(pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);

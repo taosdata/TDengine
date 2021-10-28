@@ -23,6 +23,8 @@ extern "C" {
 #include "taosdef.h"
 #include "taosmsg.h"
 
+#define TIME_IS_VAR_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
+
 /*
  * @return timestamp decided by global conf variable, tsTimePrecision
  * if precision == TSDB_TIME_PRECISION_MICRO, it returns timestamp in microsecond.
@@ -49,7 +51,6 @@ int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePre
 void    deltaToUtcInitOnce();
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
-
 
 #ifdef __cplusplus
 }

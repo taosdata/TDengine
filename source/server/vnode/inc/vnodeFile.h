@@ -21,8 +21,10 @@ extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeReadCfg(SVnode *pVnode);
-int32_t vnodeWriteCfg(SCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeReadCfg(int32_t vgId, SVnodeCfg *pCfg);
+int32_t vnodeWriteCfg(int32_t vgId, SVnodeCfg *pCfg);
+int32_t vnodeReadState(int32_t vgId, SSyncServerState *pState);
+int32_t vnodeSaveState(int32_t vgid, SSyncServerState *pState);
 
 #ifdef __cplusplus
 }

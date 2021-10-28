@@ -15,12 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobal.h"
-#include "tqueue.h"
-#include "tworker.h"
-#include "taosmsg.h"
-
-#include "vnodeStatus.h"
+#include "vnodeMain.h"
 #include "vnodeWrite.h"
 #include "vnodeWriteMsg.h"
 
@@ -66,11 +61,6 @@ static int32_t vnodeWriteToWQueue(SVnode *pVnode, SWalHead *pHead, int32_t qtype
   if (pHead->len > TSDB_MAX_WAL_SIZE) {
     vError("vgId:%d, wal len:%d exceeds limit, hver:%" PRIu64, pVnode->vgId, pHead->len, pHead->version);
     return TSDB_CODE_WAL_SIZE_LIMIT;
-  }
-
-  if (!vnodeInReadyStatus(pVnode)) {
-    vError("vgId:%d, failed to write into vwqueue, vstatus is %s", pVnode->vgId, vnodeStatus[pVnode->status]);
-    return TSDB_CODE_APP_NOT_READY;
   }
 
   if (tsVwrite.queuedBytes > tsMaxVnodeQueuedBytes) {
@@ -122,7 +112,7 @@ void vnodeProcessWriteMsg(SRpcMsg *pRpcMsg) {
   pMsg->vgId = htonl(pMsg->vgId);
   pMsg->contLen = htonl(pMsg->contLen);
 
-  SVnode *pVnode = vnodeAcquireNotClose(pMsg->vgId);
+  SVnode *pVnode = vnodeAcquire(pMsg->vgId);
   if (pVnode == NULL) {
     code = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {

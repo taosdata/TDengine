@@ -37,7 +37,7 @@ EDnStat dnodeGetRunStat() { return tsDnode.runStatus; }
 
 void dnodeSetRunStat(EDnStat stat) { tsDnode.runStatus = stat; }
 
-static void dnodeReportStartup(char *name, char *desc) {
+void dnodeReportStartup(char *name, char *desc) {
   SStartupStep *startup = &tsDnode.startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
@@ -58,6 +58,7 @@ static int32_t dnodeInitVnode() {
   para.fp.GetDnodeEp = dnodeGetEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
+  para.fp.ReportStartup = dnodeReportStartup;
 
   return vnodeInit(para);
 }

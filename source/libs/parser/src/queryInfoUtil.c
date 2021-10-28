@@ -1,4 +1,5 @@
 #include "queryInfoUtil.h"
+#include <function.h>
 #include "astGenerator.h"
 #include "function.h"
 #include "os.h"
@@ -55,7 +56,6 @@ SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
 }
 
 static tExprNode* createUnaryFunctionExprNode(int32_t functionId, SSchema* pSchema, tExprNode* pColumnNode) {
-
   if (pColumnNode == NULL) {
     pColumnNode = calloc(1, sizeof(tExprNode));
     pColumnNode->nodeType = TEXPR_COL_NODE;
@@ -167,6 +167,10 @@ SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index) {
 
 void destroyExprInfo(SExprInfo* pExprInfo) {
   tExprTreeDestroy(pExprInfo->pExpr, NULL);
+
+  for(int32_t i = 0; i < pExprInfo->base.numOfParams; ++i) {
+    taosVariantDestroy(&pExprInfo->base.param[i]);
+  }
   tfree(pExprInfo);
 }
 
@@ -190,6 +194,11 @@ void addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
   pExpr->numOfParams += 1;
 
   assert(pExpr->numOfParams <= 3);
+}
+
+int32_t getExprFunctionId(SExprInfo *pExprInfo) {
+  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
+  return pExprInfo->pExpr->_node.functionId;
 }
 
 void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
@@ -284,62 +293,11 @@ int32_t getResRowLength(SArray* pExprList) {
   return size;
 }
 
-static void freeQueryInfoImpl(SQueryStmtInfo* pQueryInfo) {
-  cleanupTagCond(&pQueryInfo->tagCond);
-  cleanupColumnCond(&pQueryInfo->colCond);
-  cleanupFieldInfo(&pQueryInfo->fieldsInfo);
-
-  dropAllExprInfo(pQueryInfo->exprList);
-  pQueryInfo->exprList = NULL;
-
-  if (pQueryInfo->exprList1 != NULL) {
-    dropAllExprInfo(pQueryInfo->exprList1);
-    pQueryInfo->exprList1 = NULL;
-  }
-
-  columnListDestroy(pQueryInfo->colList);
-  pQueryInfo->colList = NULL;
-
-  if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
-    taosArrayDestroy(pQueryInfo->groupbyExpr.columnInfo);
-    pQueryInfo->groupbyExpr.columnInfo = NULL;
-  }
-
-  pQueryInfo->fillType = 0;
-
-  tfree(pQueryInfo->fillVal);
-  tfree(pQueryInfo->buf);
-
-  taosArrayDestroy(pQueryInfo->pUpstream);
-  pQueryInfo->pUpstream = NULL;
-  pQueryInfo->bufLen = 0;
-}
-
-void freeQueryInfo(SQueryStmtInfo* pQueryInfo, bool removeCachedMeta, uint64_t id) {
-  while(pQueryInfo != NULL) {
-    SQueryStmtInfo* p = pQueryInfo->sibling;
-
-    size_t numOfUpstream = taosArrayGetSize(pQueryInfo->pUpstream);
-    for(int32_t i = 0; i < numOfUpstream; ++i) {
-      SQueryStmtInfo* pUpQueryInfo = taosArrayGetP(pQueryInfo->pUpstream, i);
-      freeQueryInfoImpl(pUpQueryInfo);
-      clearAllTableMetaInfo(pUpQueryInfo, removeCachedMeta, id);
-      tfree(pUpQueryInfo);
-    }
-
-    freeQueryInfoImpl(pQueryInfo);
-    clearAllTableMetaInfo(pQueryInfo, removeCachedMeta, id);
-
-    tfree(pQueryInfo);
-    pQueryInfo = p;
-  }
-}
-
 SArray* extractFunctionIdList(SArray* pExprInfoList) {
   assert(pExprInfoList != NULL);
 
   size_t len = taosArrayGetSize(pExprInfoList);
-  SArray* p = taosArrayInit(len, sizeof(int16_t));
+  SArray* p = taosArrayInit(len, sizeof(int32_t));
   for(int32_t i = 0; i < len; ++i) {
     SExprInfo* pExprInfo = taosArrayGetP(pExprInfoList, i);
     taosArrayPush(p, &pExprInfo->pExpr->_node.functionId);

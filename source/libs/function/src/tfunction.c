@@ -52,7 +52,7 @@ bool isTagsQuery(SArray* pFunctionIdList) {
     int16_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
 
     // "select count(tbname)" query
-//    if (functId == FUNCTION_COUNT && pExpr->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+//    if (functId == FUNCTION_COUNT && pExpr->base.colpDesc->colId == TSDB_TBNAME_COLUMN_INDEX) {
 //      continue;
 //    }
 
@@ -80,19 +80,6 @@ bool isTagsQuery(SArray* pFunctionIdList) {
 //  return false;
 //}
 
-bool isBlockInfoQuery(SArray* pFunctionIdList) {
-  int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
-  for (int32_t i = 0; i < num; ++i) {
-    int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
-
-    if (f == FUNCTION_BLKINFO) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 bool isProjectionQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
@@ -101,8 +88,12 @@ bool isProjectionQuery(SArray* pFunctionIdList) {
       continue;
     }
 
-    if (f != FUNCTION_PRJ && f != FUNCTION_TAGPRJ && f != FUNCTION_TAG &&
-        f != FUNCTION_TS && f != FUNCTION_ARITHM && f != FUNCTION_DIFF &&
+    if (f != FUNCTION_PRJ &&
+        f != FUNCTION_TAGPRJ &&
+        f != FUNCTION_TAG &&
+        f != FUNCTION_TS &&
+        f != FUNCTION_ARITHM &&
+        f != FUNCTION_DIFF &&
         f != FUNCTION_DERIVATIVE) {
       return false;
     }
@@ -111,7 +102,7 @@ bool isProjectionQuery(SArray* pFunctionIdList) {
   return true;
 }
 
-bool isDiffDerivQuery(SArray* pFunctionIdList) {
+bool isDiffDerivativeQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
     int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
@@ -127,7 +118,7 @@ bool isDiffDerivQuery(SArray* pFunctionIdList) {
   return false;
 }
 
-bool isPointInterpQuery(SArray* pFunctionIdList) {
+bool isInterpQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
     int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
@@ -264,8 +255,6 @@ bool needReverseScan(SArray* pFunctionIdList) {
 }
 
 bool isSimpleAggregateRv(SArray* pFunctionIdList) {
-  assert(0);
-
 //  if (pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0) {
 //    return false;
 //  }
@@ -380,33 +369,17 @@ bool isProjectionQueryOnSTable(SArray* pFunctionIdList, int32_t tableIndex) {
 }
 
 bool hasTagValOutput(SArray* pFunctionIdList) {
-//  size_t    numOfExprs = getNumOfExprs(pQueryInfo);
-//  SExprInfo* pExpr1 = getExprInfo(pQueryInfo, 0);
-//
-//  if (numOfExprs == 1 && pExpr1->base.functionId == FUNCTION_TS_COMP) {
+  size_t size = taosArrayGetSize(pFunctionIdList);
+
+  //  if (numOfExprs == 1 && pExpr1->base.functionId == FUNCTION_TS_COMP) {
 //    return true;
 //  }
-//
-//  for (int32_t i = 0; i < numOfExprs; ++i) {
-//    SExprInfo* pExpr = getExprInfo(pQueryInfo, i);
-//    if (pExpr == NULL) {
-//      continue;
-//    }
-//
-//    // ts_comp column required the tag value for join filter
-//    if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag)) {
-//      return true;
-//    }
-//  }
 
-  return false;
-}
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t functionId = *(int16_t*) taosArrayGet(pFunctionIdList, i);
 
-bool timeWindowInterpoRequired(SArray* pFunctionIdList) {
-  int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
-  for (int32_t i = 0; i < num; ++i) {
-    int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
-    if (f == FUNCTION_TWA || f == FUNCTION_INTERP) {
+    // ts_comp column required the tag value for join filter
+    if (functionId == FUNCTION_TAG || functionId == FUNCTION_TAGPRJ) {
       return true;
     }
   }
@@ -414,8 +387,28 @@ bool timeWindowInterpoRequired(SArray* pFunctionIdList) {
   return false;
 }
 
-//SQueryAttrInfo setQueryType(SArray* pFunctionIdList) {
-//  assert(pFunctionIdList != NULL);
+//bool timeWindowInterpoRequired(SArray* pFunctionIdList) {
+//  int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
+//  for (int32_t i = 0; i < num; ++i) {
+//    int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
+//    if (f == FUNCTION_TWA || f == FUNCTION_INTERP) {
+//      return true;
+//    }
+//  }
 //
-//
+//  return false;
 //}
+
+void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc) {
+  assert(pFunctionIdList != NULL);
+
+
+  pDesc->blockDistribution = isBlockDistQuery(pFunctionIdList);
+  if (pDesc->blockDistribution) {
+    return;
+  }
+
+  pDesc->projectionQuery = isProjectionQuery(pFunctionIdList);
+  pDesc->onlyTagQuery    = isTagsQuery(pFunctionIdList);
+  pDesc->interpQuery     = isInterpQuery(pFunctionIdList);
+}

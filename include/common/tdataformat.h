@@ -308,7 +308,7 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
       SET_DOUBLE_PTR(pData, value);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      if (pSrcSchema->columns[srcIdx].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      if (pSrcSchema->columns[srcIdx].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
       } else {
         *(TSKEY *)pData = *(TSKEY *)value;

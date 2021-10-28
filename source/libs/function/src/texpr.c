@@ -128,18 +128,26 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   if (*pExpr == NULL) {
     return;
   }
-  
-  if ((*pExpr)->nodeType == TEXPR_BINARYEXPR_NODE) {
+
+  int32_t type = (*pExpr)->nodeType;
+  if (type == TEXPR_BINARYEXPR_NODE) {
     doExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
     doExprTreeDestroy(&(*pExpr)->_node.pRight, fp);
   
     if (fp != NULL) {
       fp((*pExpr)->_node.info);
     }
-  } else if ((*pExpr)->nodeType == TEXPR_VALUE_NODE) {
+  } else if (type == TEXPR_UNARYEXPR_NODE) {
+    doExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
+    if (fp != NULL) {
+      fp((*pExpr)->_node.info);
+    }
+
+    assert((*pExpr)->_node.pRight == NULL);
+  } else if (type == TEXPR_VALUE_NODE) {
     taosVariantDestroy((*pExpr)->pVal);
     free((*pExpr)->pVal);
-  } else if ((*pExpr)->nodeType == TEXPR_COL_NODE) {
+  } else if (type == TEXPR_COL_NODE) {
     free((*pExpr)->pSchema);
   }
 

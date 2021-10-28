@@ -202,12 +202,13 @@ static void mnodeSendTelemetryReport() {
     return;
   }
 
-  char clusterId[TSDB_CLUSTER_ID_LEN] = {0};
-  mnodeGetClusterId(clusterId);
+  int64_t clusterId = mnodeGetClusterId();
+  char    clusterIdStr[20] = {0};
+  snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, clusterId);
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
   mnodeBeginObject(&bw);
-  mnodeAddStringField(&bw, "instanceId", clusterId);
+  mnodeAddStringField(&bw, "instanceId", clusterIdStr);
   mnodeAddIntField(&bw, "reportVersion", 1);
   mnodeAddOsInfo(&bw);
   mnodeAddCpuInfo(&bw);
