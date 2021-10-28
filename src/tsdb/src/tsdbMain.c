@@ -806,7 +806,7 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
   
   // during the load data in file, new data would be inserted and last row has been updated
   TSDB_WLOCK_TABLE(pTable);
-  if (tsdbGetTableLastKeyImpl(pTable) < lastKey) {
+  if ((pTable->lastRow == NULL) || (tsdbGetTableLastKeyImpl(pTable) < lastKey)) {
     pTable->lastKey = lastKey;
     pTable->lastRow = lastRow;
     TSDB_WUNLOCK_TABLE(pTable);
