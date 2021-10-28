@@ -18,18 +18,60 @@
 
 #include "os.h"
 
+#define TQ_INUSE_SIZE 0xFF
+#define TQ_PAGE_SIZE 4096
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct TqKvHandle {
+typedef struct TqMetaHandle {
   int64_t key;
   int64_t offset;
   void *valueInUse;
   void *valueInTxn;
-  //serializer
-} TqKvHandle;
+} TqMetaHandle;
 
+typedef struct TqMetaList {
+  TqMetaHandle handle;
+  struct TqMetaList* next;
+  struct TqMetaList* inTxnPrev;
+  struct TqMetaList* inTxnNext;
+  struct TqMetaList* unpersistPrev;
+  struct TqMetaList* unpersistNext;
+} TqMetaList;
+
+typedef struct TqMetaStore {
+  TqMetaList* inUse[TQ_INUSE_SIZE];
+  TqMetaList* unpersistHead;
+  //deserializer
+  //serializer
+  //deleter
+} TqMetaStore;
+
+typedef struct TqMetaPageBuf {
+  int16_t offset;
+  char buffer[TQ_PAGE_SIZE];
+} TqMetaPageBuf;
+
+TqMetaStore*  TqStoreOpen(const char* path, void* serializer(void* ), void* deserializer(void*));
+int32_t       TqStoreClose(TqMetaStore*);
+int32_t       TqStoreDelete(TqMetaStore*);
+int32_t       TqStoreCommitAll(TqMetaStore*);
+int32_t       TqStorePersist(TqMetaStore*);
+
+TqMetaHandle* TqHandleGetInUse(TqMetaStore*, int64_t key);
+int32_t       TqHandlePutInUse(TqMetaStore*, TqMetaHandle* handle);
+TqMetaHandle* TqHandleGetInTxn(TqMetaStore*, int64_t key);
+int32_t       TqHandlePutInTxn(TqMetaStore*, TqMetaHandle* handle);
+//delete in-use-handle, make in-txn-handle in use
+int32_t       TqHandleCommit(TqMetaStore*, int64_t key);
+//delete in-txn-handle
+int32_t       TqHandleAbort(TqMetaStore*, int64_t key);
+//delete in-use-handle
+int32_t       TqHandleDel(TqMetaStore*, int64_t key);
+//delete in-use-handle and in-txn-handle
+int32_t       TqHandleClear(TqMetaStore*, int64_t key);
 
 #ifdef __cplusplus
 }
