@@ -620,16 +620,21 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     // set the join condition tag column info, todo extract method
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       assert(pQueryInfo->tagCond.joinInfo.hasJoin);
+      pExpr->base.numOfParams = 0;    // the value is 0 by default. just make sure.
+      // add json tag key, if there is no json tag key, just hold place.
+      tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), pQueryInfo->tagCond.joinInfo.joinTables[0]->tagJsonKeyName,
+                               strlen(pQueryInfo->tagCond.joinInfo.joinTables[0]->tagJsonKeyName), TSDB_DATA_TYPE_BINARY);
+      pExpr->base.numOfParams++;
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-      tVariant* pVariant = &pExpr->base.param[0];
+      tVariant* pVariant = &pExpr->base.param[pExpr->base.numOfParams];
 
       pVariant->i64   = colId;
       pVariant->nType = TSDB_DATA_TYPE_BIGINT;
       pVariant->nLen  = sizeof(int64_t);
 
-      pExpr->base.numOfParams = 1;
+      pExpr->base.numOfParams++;
     }
 
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -808,16 +813,21 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = 1};
   
   SColumnIndex index = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS_COMP, &index, &colSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
+  SExprInfo *pExpr = tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS_COMP, &index, &colSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
   
   // set the tags value for ts_comp function
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    SExprInfo *pExpr = tscExprGet(pQueryInfo, 0);
-    int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-    pExpr->base.param[0].i64 = tagColId;
-    pExpr->base.param[0].nLen = sizeof(int64_t);
-    pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
-    pExpr->base.numOfParams = 1;
+      pExpr->base.numOfParams = 0;    // the value is 0 by default. just make sure.
+      // add json tag key, if there is no json tag key, just hold place.
+      tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), pSupporter->tagCond.joinInfo.joinTables[0]->tagJsonKeyName,
+                               strlen(pSupporter->tagCond.joinInfo.joinTables[0]->tagJsonKeyName), TSDB_DATA_TYPE_BINARY);
+      pExpr->base.numOfParams++;
+
+      int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
+      pExpr->base.param[pExpr->base.numOfParams].i64 = tagColId;
+      pExpr->base.param[pExpr->base.numOfParams].nLen = sizeof(int64_t);
+      pExpr->base.param[pExpr->base.numOfParams].nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->base.numOfParams++;
   }
 
   // add the filter tag column
@@ -1929,15 +1939,6 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       SSchema      colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = 1};
       SColumnIndex colIndex = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
       tscAddFuncInSelectClause(pNewQueryInfo, 0, TSDB_FUNC_TS_COMP, &colIndex, &colSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
-
-      // set the tags value for ts_comp function
-      SExprInfo *pExpr = tscExprGet(pNewQueryInfo, 0);
-
-      if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-        int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-        pExpr->base.param->i64 = tagColId;
-        pExpr->base.numOfParams = 1;
-      }
 
       // add the filter tag column
       if (pSupporter->colList != NULL) {

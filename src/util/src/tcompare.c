@@ -581,7 +581,8 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     case TSDB_DATA_TYPE_USMALLINT:  DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
     case TSDB_DATA_TYPE_UINT:       DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
     case TSDB_DATA_TYPE_UBIGINT:    DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       tstr* t1 = (tstr*) f1;
       tstr* t2 = (tstr*) f2;
 

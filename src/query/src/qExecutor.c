@@ -3398,10 +3398,10 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   SExprInfo* pExprInfo = &pExpr[0];
-  if (pQueryAttr->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP && pQueryAttr->stableQuery) {
-    assert(pExprInfo->base.numOfParams == 1);
+  if (pQueryAttr->numOfOutput == 2 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP && pQueryAttr->stableQuery) {
+    assert(pExprInfo->base.numOfParams == 2);
 
-    int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i64;
+    int16_t      tagColId = (int16_t)pExprInfo->base.param[1].i64;
     SColumnInfo* pColInfo = doGetTagColumnInfoById(pQueryAttr->tagColList, pQueryAttr->numOfTags, tagColId);
     GET_JSON_KEY(pExprInfo)
     doSetTagValueInParam(pTable, param, paramLen, tagColId, &pCtx[0].tag, pColInfo->type, pColInfo->bytes);
@@ -4019,21 +4019,21 @@ void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExpr
   if (pQueryAttr->stableQuery && (pRuntimeEnv->pTsBuf != NULL) &&
       (pExpr->functionId == TSDB_FUNC_TS || pExpr->functionId == TSDB_FUNC_PRJ) &&
       (pExpr->colInfo.colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
-    assert(pExpr->numOfParams == 1);
+    assert(pExpr->numOfParams == 2);
 
-    int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i64;
+    int16_t      tagColId = (int16_t)pExprInfo->base.param[1].i64;
     SColumnInfo* pColInfo = doGetTagColumnInfoById(pQueryAttr->tagColList, pQueryAttr->numOfTags, tagColId);
 
     GET_JSON_KEY(pExprInfo)
     doSetTagValueInParam(pTable, param, paramLen, tagColId, &pCtx->tag, pColInfo->type, pColInfo->bytes);
 
     int16_t tagType = pCtx[0].tag.nType;
-    if (tagType == TSDB_DATA_TYPE_BINARY || tagType == TSDB_DATA_TYPE_NCHAR) {
+    if (tagType == TSDB_DATA_TYPE_BINARY || tagType == TSDB_DATA_TYPE_NCHAR || tagType == TSDB_DATA_TYPE_JSON) {
       qDebug("QInfo:0x%"PRIx64" set tag value for join comparison, colId:%" PRId64 ", val:%s", GET_QID(pRuntimeEnv),
-             pExprInfo->base.param[0].i64, pCtx[0].tag.pz);
+             pExprInfo->base.param[1].i64, pCtx[0].tag.pz);
     } else {
       qDebug("QInfo:0x%"PRIx64" set tag value for join comparison, colId:%" PRId64 ", val:%" PRId64, GET_QID(pRuntimeEnv),
-             pExprInfo->base.param[0].i64, pCtx[0].tag.i64);
+             pExprInfo->base.param[1].i64, pCtx[0].tag.i64);
     }
   }
 }
