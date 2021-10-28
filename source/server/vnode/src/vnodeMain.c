@@ -44,7 +44,6 @@ static struct {
   SHashObj *hash;
   int32_t   openVnodes;
   int32_t   totalVnodes;
-  void (*msgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 } tsVnode;
 
 static bool vnodeSetInitStatus(SVnode *pVnode) {
@@ -566,34 +565,7 @@ void vnodeRelease(SVnode *pVnode) {
   }
 }
 
-static void vnodeInitMsgFp() {
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = vnodeProcessMgmtMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = vnodeProcessMgmtMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE] = vnodeProcessMgmtMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = vnodeProcessMgmtMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = vnodeProcessMgmtMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = vnodeProcessMgmtMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MD_DROP_STABLE] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_SUBMIT] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = vnodeProcessWriteMsg;
-  // mq related
-  tsVnode.msgFp[TSDB_MSG_TYPE_MQ_CONNECT] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MQ_DISCONNECT] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MQ_ACK] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MQ_RESET] = vnodeProcessWriteMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MQ_QUERY] = vnodeProcessReadMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessReadMsg;
-  // mq related end
-  tsVnode.msgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessReadMsg;
-  tsVnode.msgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessReadMsg;
-}
-
 int32_t vnodeInitMain() {
-  vnodeInitMsgFp();
-
   tsVnode.hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (tsVnode.hash == NULL) {
     vError("failed to init vnode mgmt");
@@ -652,13 +624,5 @@ void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
       }
       vnodeRelease(pVnode);
     }
-  }
-}
-
-void vnodeProcessMsg(SRpcMsg *pMsg) {
-  if (tsVnode.msgFp[pMsg->msgType]) {
-    (*tsVnode.msgFp[pMsg->msgType])(pMsg);
-  } else {
-    assert(0);
   }
 }

@@ -15,8 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tqueue.h"
-#include "tworker.h"
 #include "vnodeMain.h"
 #include "vnodeWrite.h"
 #include "vnodeWriteMsg.h"

@@ -77,8 +77,6 @@ typedef struct SVnodeCfg {
   SSyncCfg sync;
 } SVnodeCfg;
 
-
-
 typedef struct {
   int32_t          vgId;      // global vnode group ID
   int32_t          refCount;  // reference count
