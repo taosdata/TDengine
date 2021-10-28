@@ -144,6 +144,25 @@ if $data30 != @456 123@ then
   return -1
 endi
 
+##MODIFY TAG
+
+sql alter stable stb0 add tag `key` binary(10)
+sql alter stable stb0 add tag `value` nchar(10)
+sql alter stable stb0 modify tag `key` binary(15)
+sql alter stable stb0 modify tag `value` nchar(15)
+
+sql describe stb0;
+if $rows != 7 then
+  return -1
+endi
+if $data52 != 15 then
+  return -1
+endi
+if $data62 != 15 then
+  return -1
+endi
+
+
 ##SET TAG
 
 sql insert into ctb0 values (now, 1)
@@ -154,6 +173,7 @@ sql alter table ctb0 set tag `321`=2
 sql alter table ctb0 set tag `456 123`=2
 #sql alter table ctb0 set tag `abc.123`=2
 #change tag has bug when using dot in tagname
+
 
 print ======================= test insert specific tags automatically create table
 
