@@ -323,6 +323,7 @@ typedef struct SSuperTable_S {
     uint64_t     batchCreateTableNum;     // 0: no batch,  > 0: batch table number in one sql
     uint8_t      autoCreateTable;         // 0: create sub table, 1: auto create sub table
     uint16_t     iface;                   // 0: taosc, 1: rest, 2: stmt
+    int          lineProtocol;
     int64_t      childTblLimit;
     uint64_t     childTblOffset;
 
@@ -552,6 +553,7 @@ typedef struct SThreadInfo_S {
 
     char**    lines;
     int       sockfd;
+    int       tsPrecision;
 } threadInfo;
 
 #ifdef WINDOWS
@@ -5738,6 +5740,27 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 goto PARSE_OVER;
             }
 
+            cJSON *stbLineProtocol = cJSON_GetObjectItem(stbInfo, "line_protocol"); // taosc , rest, stmt
+            if (stbLineProtocol && stbLineProtocol->type == cJSON_String
+                    && stbLineProtocol->valuestring != NULL) {
+                if (0 == strcasecmp(stbLineProtocol->valuestring, "line")) {
+                    g_Dbs.db[i].superTbls[j].lineProtocol= TSDB_SML_LINE_PROTOCOL;
+                } else if (0 == strcasecmp(stbLineProtocol->valuestring, "telnet")) {
+                    g_Dbs.db[i].superTbls[j].lineProtocol= TSDB_SML_TELNET_PROTOCOL;
+                } else if (0 == strcasecmp(stbLineProtocol->valuestring, "json")) {
+                    g_Dbs.db[i].superTbls[j].lineProtocol= TSDB_SML_JSON_PROTOCOL;
+                } else {
+                    errorPrint("failed to read json, line_protocol %s not recognized\n",
+                            stbLineProtocol->valuestring);
+                    goto PARSE_OVER;
+                }
+            } else if (!stbLineProtocol) {
+                g_Dbs.db[i].superTbls[j].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+            } else {
+                errorPrint("%s", "failed to read json, line_protocol not found\n");
+                goto PARSE_OVER;
+            }
+
             cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
             if ((childTbl_limit) && (g_Dbs.db[i].drop != true)
                     && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
@@ -7120,10 +7143,8 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             affectedRows = k;
             break;
         case SML_IFACE:
-            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, TSDB_SML_LINE_PROTOCOL,
-                pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI?
-                TSDB_SML_TIMESTAMP_MILLI_SECONDS:pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO?
-                TSDB_SML_TIMESTAMP_MICRO_SECONDS:TSDB_SML_TIMESTAMP_NANO_SECONDS);
+            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, stbInfo->lineProtocol,
+                pThreadInfo->tsPrecision);
             code = taos_errno(res);
             affectedRows = taos_affected_rows(res);
             if (code != TSDB_CODE_SUCCESS) {
@@ -10914,13 +10935,17 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         char* precision, SSuperTable* stbInfo) {
 
     int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
+    int tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
     if (0 != precision[0]) {
         if (0 == strncasecmp(precision, "ms", 2)) {
             timePrec = TSDB_TIME_PRECISION_MILLI;
+            tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
         } else if (0 == strncasecmp(precision, "us", 2)) {
             timePrec = TSDB_TIME_PRECISION_MICRO;
+            tsPrecision = TSDB_SML_TIMESTAMP_MICRO_SECONDS;
         } else if (0 == strncasecmp(precision, "ns", 2)) {
             timePrec = TSDB_TIME_PRECISION_NANO;
+            tsPrecision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
         } else {
             errorPrint2("Not support precision: %s\n", precision);
             exit(EXIT_FAILURE);
@@ -11135,6 +11160,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
         tstrncpy(pThreadInfo->db_name, db_name, TSDB_DB_NAME_LEN);
         pThreadInfo->time_precision = timePrec;
+        pThreadInfo->tsPrecision = tsPrecision;
         pThreadInfo->stbInfo = stbInfo;
 
         pThreadInfo->start_time = startTime;
@@ -12664,6 +12690,9 @@ static void setParaFromArg() {
         } else {
             g_Dbs.db[0].superTbls[0].iface = g_args.iface;
         }
+
+        g_Dbs.db[0].superTbls[0].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+
         tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
                 "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
         g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
