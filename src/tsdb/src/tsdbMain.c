@@ -940,6 +940,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
     }
 
     if (tsdbLoadBlockIdx(&readh) < 0) {
+      tsdbUnLockFS(REPO_FS(pRepo));
       tsdbDestroyReadH(&readh);
       return -1;
     }
