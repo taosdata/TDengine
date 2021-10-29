@@ -177,7 +177,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
       }
 
       // Let's assume that it is an UDF/UDAF, if it is not a built-in function.
-      if (!qIsBuiltinFunction(t->z, t->n)) {
+      if (qIsBuiltinFunction(t->z, t->n) < 0) {
         char* fname = strndup(t->z, t->n);
         taosArrayPush(pMetaInfo->pUdf, &fname);
       }

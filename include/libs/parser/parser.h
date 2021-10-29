@@ -163,7 +163,6 @@ typedef struct SQueryStmtInfo {
   int64_t          vgroupLimit;    // table limit in case of super table projection query + global order + limit
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
-  bool             distinct;   // distinct tag or not
   int32_t          bufLen;
   char*            buf;
   SArray          *pUdfInfo;
@@ -231,6 +230,8 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
+SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
+
 int32_t getNewResColId();
 
 #ifdef __cplusplus

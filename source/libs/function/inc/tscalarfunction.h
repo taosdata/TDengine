@@ -28,6 +28,7 @@ extern struct SScalarFunctionInfo scalarFunc[1];
 #define FUNCTION_ROUND        40
 #define FUNCTION_MAVG         41
 #define FUNCTION_CSUM         42
+#define FUNCCTION_CONCAT      43
 
 #ifdef __cplusplus
 }

@@ -212,7 +212,7 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
   }
 #endif
 
-//  dst->pExpr = exprdup(src->pExpr);
+  dst->pExpr = exprdup(src->pExpr);
   memset(dst->base.param, 0, sizeof(SVariant) * tListLen(dst->base.param));
   for (int32_t j = 0; j < src->base.numOfParams; ++j) {
     taosVariantAssign(&dst->base.param[j], &src->base.param[j]);

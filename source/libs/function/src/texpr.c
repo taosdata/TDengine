@@ -228,7 +228,7 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
 
     } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // exprLeft + 12
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
+      OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
     }
   } else if (pLeft->nodeType == TEXPR_COL_NODE) {
     // column data specified on left-hand-side
@@ -255,16 +255,16 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
 
       if (order == TSDB_ORDER_DESC) {
         reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
-        OperatorFn(pdata, numOfRows, pLeft->pSchema->type, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
+        OperatorFn(pdata, numOfRows, pLeft->pSchema->type, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
       } else {
-        OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
+        OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
       }
     }
   } else {
     // column data specified on left-hand-side
     if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {  // 12 + expr2
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
+      OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
 
     } else if (pRight->nodeType == TEXPR_COL_NODE) {  // 12 + columnRight
       // column data specified on right-hand-side
@@ -273,14 +273,14 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
 
       if (order == TSDB_ORDER_DESC) {
         reverseCopy(pdata, pRightInputData, pRight->pSchema->type, numOfRows);
-        OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pdata, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
+        OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, pdata, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       } else {
-        OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
+        OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
       }
 
     } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // 12 + 12
       _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(&pLeft->pVal->i64, 1, pLeft->pVal->nType, &pRight->pVal->i64, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
+      OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
     }
   }
 
@@ -302,7 +302,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
       tbufWriteInt32(bw, pVal->nLen);
       tbufWrite(bw, pVal->pz, pVal->nLen);
     } else {
-      tbufWriteInt64(bw, pVal->i64);
+      tbufWriteInt64(bw, pVal->i);
     }
     
   } else if (expr->nodeType == TEXPR_COL_NODE) {
@@ -371,7 +371,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
       pVal->pz = calloc(1, pVal->nLen + 1);
       tbufReadToBuffer(br, pVal->pz, pVal->nLen);
     } else {
-      pVal->i64 = tbufReadInt64(br);
+      pVal->i = tbufReadInt64(br);
     }
     
   } else if (pExpr->nodeType == TEXPR_COL_NODE) {

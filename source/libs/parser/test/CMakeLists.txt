@@ -8,7 +8,7 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(parserTest ${SOURCE_LIST})
 TARGET_LINK_LIBRARIES(
         parserTest
-        PUBLIC os util common parser catalog transport gtest function
+        PUBLIC os util common parser catalog transport gtest function planner
 )
 
 TARGET_INCLUDE_DIRECTORIES(
