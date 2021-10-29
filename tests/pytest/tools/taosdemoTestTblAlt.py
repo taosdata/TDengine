@@ -54,7 +54,9 @@ class TDTestCase:
         binPath = buildPath + "/build/bin/"
 
         if(threadID == 0):
-            os.system("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT -m t" %
+            print("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT -m t" %
+                      (binPath, self.numberOfTables, self.numberOfRecords))
+            os.system("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)
