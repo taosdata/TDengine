@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <cli@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,15 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_RAFT_INT_H_
-#define _TD_RAFT_INT_H_
+#ifndef _TD_LIBS_SYNC_RAFT_H
+#define _TD_LIBS_SYNC_RAFT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct SSyncRaft {
+  
+} SSyncRaft;
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_RAFT_INT_H_*/
+#endif /* _TD_LIBS_SYNC_RAFT_H */

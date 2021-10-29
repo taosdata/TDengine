@@ -152,7 +152,7 @@ int32_t syncPropose(SSyncNode* syncNode, SSyncBuffer buffer, void* pData, bool i
 
 // int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
-extern int32_t syncDebugFlag;
+extern int32_t sDebugFlag;
 
 #ifdef __cplusplus
 }
