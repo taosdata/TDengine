@@ -488,7 +488,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       break;
     }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = compareStrRegexCompMatch;
       } else if (optr == TSDB_RELATION_NMATCH) {

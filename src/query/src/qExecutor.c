@@ -3398,7 +3398,7 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   SExprInfo* pExprInfo = &pExpr[0];
-  if (pQueryAttr->numOfOutput == 2 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP && pQueryAttr->stableQuery) {
+  if (pQueryAttr->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP && pQueryAttr->stableQuery) {
     assert(pExprInfo->base.numOfParams == 2);
 
     int16_t      tagColId = (int16_t)pExprInfo->base.param[1].i64;
