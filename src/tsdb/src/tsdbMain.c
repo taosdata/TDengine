@@ -185,19 +185,10 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
   return 0;
 }
 
-bool tsdbIsNeedCommit(STsdbRepo *pRepo) {
-  int nVal = 0;
-  if (sem_getvalue(&pRepo->readyToCommit, &nVal) != 0) {
-    tsdbError("vgId:%d failed to sem_getvalue of readyToCommit", REPO_ID(pRepo));
-    return false;
-  }
-  return nVal > 0;
-}
-
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize) {  // MB
   STsdbCfg *pCfg = &(pRepo->config);
   if ((walSize > tsdbWalFlushSize) && (walSize > (pCfg->totalBlocks / 2 * pCfg->cacheBlockSize))) {
-    if (tsdbIsNeedCommit(pRepo) && (tsdbAsyncCommit(pRepo) < 0)) return -1;
+    if (tsdbAsyncCommit(pRepo) < 0) return -1;
   }
   return 0;
 }
@@ -211,7 +202,7 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
   if ((pRepo->mem->extraBuffList != NULL) ||
       ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
     // trigger commit
-    if (tsdbIsNeedCommit(pRepo) && (tsdbAsyncCommit(pRepo) < 0)) return -1;
+    if (tsdbAsyncCommit(pRepo) < 0) return -1;
   }
   return 0;
 }

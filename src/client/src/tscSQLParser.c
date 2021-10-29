@@ -3174,6 +3174,14 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
 
   int16_t columnIndex = COLUMN_INDEX_INITIAL_VAL;
 
+  char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
+  strncpy(tmpTokenBuf, pToken->z, pToken->n);
+  pToken->z = tmpTokenBuf;
+
+  if (pToken->type == TK_ID) {
+    tscRmEscapeAndTrimToken(pToken);
+  }
+
   for (int16_t i = 0; i < numOfCols; ++i) {
     if (pToken->n != strlen(pSchema[i].name)) {
       continue;
@@ -4515,10 +4523,8 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 // check for match expression
 static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg1 = "regular expression string should be less than %d characters";
-  const char* msg2 = "illegal column type for match/nmatch";
   const char* msg3 = "invalid regular expression";
 
-  tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
@@ -4526,11 +4532,6 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       char tmp[64] = {0};
       sprintf(tmp, msg1, tsMaxRegexStringLen);
       return invalidOperationMsg(msgBuf, tmp);
-    }
-
-    SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
-      return invalidOperationMsg(msgBuf, msg2);
     }
 
     if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
@@ -5782,7 +5783,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   bool udf = false;
 
   if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
-    int32_t usize = taosArrayGetSize(pQueryInfo->pUdfInfo);
+    int32_t usize = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
     
     for (int32_t i = 0; i < usize; ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -6313,6 +6314,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
+    //handle Escape character backstick
+    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+      memmove(name.z, name.z + 1, name.n);
+      name.z[name.n - TS_ESCAPE_CHAR_SIZE] = '\0';
+      name.n -= TS_ESCAPE_CHAR_SIZE;
+    }
+
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
@@ -6646,6 +6654,9 @@ int32_t validateColumnName(char* name) {
     }
 
     return validateColumnName(token.z);
+  } else if (token.type == TK_ID) {
+    strRmquoteEscape(name, token.n);
+    return TSDB_CODE_SUCCESS;
   } else {
     if (isNumber(&token)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -6781,16 +6792,21 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
     tVariantListItem* p1 = (s > 1) ? taosArrayGet(pKeep, 1) : p0;
     tVariantListItem* p2 = (s > 2) ? taosArrayGet(pKeep, 2) : p1;
 
-    if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
+    int32_t daysToKeep0 = (int32_t)p0->pVar.i64;
+    int32_t daysToKeep1 = (int32_t)(int32_t)p1->pVar.i64;
+    int32_t daysToKeep2 = (int32_t)p2->pVar.i64;
+    if (daysToKeep0 <= 0 || daysToKeep1 <= 0 || daysToKeep2 <= 0 ||
+        daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
-    if (!(((int32_t)p0->pVar.i64 <= (int32_t)p1->pVar.i64) && ((int32_t)p1->pVar.i64 <= (int32_t)p2->pVar.i64))) {
+
+    if (!((daysToKeep0 <= daysToKeep1) && (daysToKeep1 <= daysToKeep2))) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
-    pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
-    pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
+    pMsg->daysToKeep0 = htonl(daysToKeep0);
+    pMsg->daysToKeep1 = htonl(daysToKeep1);
+    pMsg->daysToKeep2 = htonl(daysToKeep2);
 
   }
 
@@ -7711,7 +7727,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
     SStrToken* pToken = &pCreateTableInfo->stableName;
-    
+
     bool dbIncluded = false;
     char      buf[TSDB_TABLE_FNAME_LEN];
     SStrToken sTblToken;
@@ -7771,8 +7787,17 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
       for (int32_t i = 0; i < nameSize; ++i) {
         SStrToken* sToken = taosArrayGet(pNameList, i);
+
+        char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
+        strncpy(tmpTokenBuf, sToken->z, sToken->n);
+        sToken->z = tmpTokenBuf;
+
         if (TK_STRING == sToken->type) {
           tscDequoteAndTrimToken(sToken);
+        }
+
+        if (TK_ID == sToken->type) {
+          tscRmEscapeAndTrimToken(sToken);
         }
 
         tVariantListItem* pItem = taosArrayGet(pValList, i);
@@ -8617,7 +8642,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           
           for (int32_t j = 0; j < usize; ++j) {
             SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
-            int32_t len = strlen(pUdfInfo->name);
+            int32_t len = (int32_t)strlen(pUdfInfo->name);
             if (len == t->n && strncasecmp(info.name, pUdfInfo->name, t->n) == 0) {
               exist = 1;
               break;

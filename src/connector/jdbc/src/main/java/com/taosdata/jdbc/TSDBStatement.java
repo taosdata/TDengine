@@ -84,8 +84,7 @@ public class TSDBStatement extends AbstractStatement {
         long pSql = this.connection.getConnector().executeQuery(sql);
         // if pSql is create/insert/update/delete/alter SQL
         if (this.connection.getConnector().isUpdateQuery(pSql)) {
-            int rows = this.connection.getConnector().getAffectedRows(pSql);
-            this.affectedRows = rows == 0 ? -1 : this.connection.getConnector().getAffectedRows(pSql);
+            this.affectedRows = this.connection.getConnector().getAffectedRows(pSql);
             this.connection.getConnector().freeResultSet(pSql);
             return false;
         }
