@@ -318,6 +318,7 @@ class TDTestCase:
         """
             normal tags and cols, one for every elm
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
@@ -326,6 +327,7 @@ class TDTestCase:
         """
             check all normal type
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
@@ -340,6 +342,7 @@ class TDTestCase:
             please test :
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
@@ -352,6 +355,7 @@ class TDTestCase:
         """
             test ts list --> ["1626006833640ms", "1626006834s", "1626006822639022"]
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(ts=1626006833640)
         self.resCmp(input_sql, stb_name, ts_type=TDSmlTimestampType.MILLI_SECOND.value)
@@ -370,8 +374,8 @@ class TDTestCase:
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
 
     def openTstbTelnetTsCheckCase(self):
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        # for ts_tag in [TDSmlTimestampType.SECOND.value, TDSmlTimestampType.MICRO_SECOND.value, None]:
         input_sql = f'{tdCom.getLongName(len=10, mode="letters")} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
         stb_name = input_sql.split(" ")[0]
         self.resCmp(input_sql, stb_name, ts=0)
@@ -394,6 +398,7 @@ class TDTestCase:
             check id.index in tags
             eg: t0=**,id=**,t1=**
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -403,6 +408,7 @@ class TDTestCase:
             check id param
             eg: id and ID
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -415,6 +421,7 @@ class TDTestCase:
         """
             id not exist
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -429,6 +436,7 @@ class TDTestCase:
         """
             max tag count is 128
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         for input_sql in [self.genLongSql(128)[0]]:
             tdCom.cleanTb()
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -445,6 +453,7 @@ class TDTestCase:
             test illegal id name
             mix "`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?"
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         rstr = list("~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
@@ -456,6 +465,7 @@ class TDTestCase:
         """
             id is start with num
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(tb_name="1aaabbb")
         self.resCmp(input_sql, stb_name)
@@ -464,6 +474,7 @@ class TDTestCase:
         """
             check now unsupported
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="now")[0]
         try:
@@ -476,6 +487,7 @@ class TDTestCase:
         """
             check date format ts unsupported
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
@@ -488,6 +500,7 @@ class TDTestCase:
         """
             check ts format like 16260068336390us19
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(ts="16260068336390us19")[0]
         try:
@@ -503,6 +516,7 @@ class TDTestCase:
             chech upper tag
             length of stb_name tb_name <= 192
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         stb_name_192 = tdCom.getLongName(len=192, mode="letters")
         tb_name_192 = tdCom.getLongName(len=192, mode="letters")
         tdCom.cleanTb()
@@ -523,10 +537,11 @@ class TDTestCase:
 
     def tagNameLengthCheckCase(self):
         """
-            check tag name limit <= 64
+            check tag name limit <= 62
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        tag_name = tdCom.getLongName(62, "letters")
+        tag_name = tdCom.getLongName(61, "letters")
         tag_name = f'T{tag_name}'
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833640 L"bcdaaa" {tag_name}=f'
@@ -542,6 +557,7 @@ class TDTestCase:
         """
             check full type tag value limit
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         # nchar
         # * legal nchar could not be larger than 16374/4
@@ -560,6 +576,7 @@ class TDTestCase:
         """
             check full type col value limit
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         # i8
         for value in ["-127i8", "127i8"]:
@@ -679,6 +696,7 @@ class TDTestCase:
         """
             test illegal tag col value
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
@@ -714,6 +732,7 @@ class TDTestCase:
         '''
             check blank case
         '''
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql_list = [f'{tdCom.getLongName(7, "letters")}   1626006833640 "abc aaa" t0=t',
                         f'{tdCom.getLongName(7, "letters")} 1626006833640   t t0="abaaa"',
@@ -729,6 +748,7 @@ class TDTestCase:
         """
             check duplicate Id Tag Col
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql_id = self.genFullTypeSql(id_double_tag=True)[0]
         try:
@@ -750,6 +770,7 @@ class TDTestCase:
         """
             case no id when stb exist
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(tb_name="sub_table_0123456", t0="f", value="f")
         self.resCmp(input_sql, stb_name)
@@ -762,6 +783,7 @@ class TDTestCase:
         """
             check duplicate insert when stb exist
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
@@ -772,6 +794,7 @@ class TDTestCase:
         """
             check length increase
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
@@ -788,6 +811,7 @@ class TDTestCase:
             * col is added without value when update==0
             * col is added with value when update==1
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
@@ -813,6 +837,7 @@ class TDTestCase:
         """
             check tag count add
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", value="f")
@@ -829,6 +854,7 @@ class TDTestCase:
             condition: stb not change
             insert two table, keep tag unchange, change col
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(t0="f", value="f", id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -851,6 +877,7 @@ class TDTestCase:
         """
             check nchar length limit
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
@@ -875,6 +902,7 @@ class TDTestCase:
         """
             test batch insert
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -901,6 +929,7 @@ class TDTestCase:
         """
             test multi insert
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         sql_list = []
         stb_name = tdCom.getLongName(8, "letters")
@@ -916,6 +945,7 @@ class TDTestCase:
         """
             test batch error insert
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(8, "letters")
         lines = ["st123456 1626006833640 3i 64 t1=3i64 t2=4f64 t3=\"t3\"",
@@ -930,6 +960,7 @@ class TDTestCase:
         """
             test multi cols insert
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(c_multi_tag=True)[0]
         try:
@@ -942,6 +973,7 @@ class TDTestCase:
         """
             test blank col insert
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(c_blank_tag=True)[0]
         try:
@@ -954,6 +986,7 @@ class TDTestCase:
         """
             test blank tag insert
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(t_blank_tag=True)[0]
         try:
@@ -966,6 +999,7 @@ class TDTestCase:
         """
             check nchar ---> chinese
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(chinese_tag=True)
         self.resCmp(input_sql, stb_name)
@@ -974,6 +1008,7 @@ class TDTestCase:
         '''
             multi_field
         '''
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(multi_field_tag=True)[0]
         try:
@@ -983,6 +1018,8 @@ class TDTestCase:
             tdSql.checkNotEqual(err.errno, 0)
 
     def spellCheckCase(self):
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
+        tdCom.cleanTb()
         stb_name = tdCom.getLongName(8, "letters")
         input_sql_list = [f'{stb_name}_1 1626006833640 127I8 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
                             f'{stb_name}_2 1626006833640 32767I16 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
@@ -1002,6 +1039,7 @@ class TDTestCase:
         """
             metric value "." trans to "_"
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genFullTypeSql(point_trans_tag=True)[0]
         stb_name = f'`{input_sql.split(" ")[0]}`'
@@ -1009,6 +1047,7 @@ class TDTestCase:
         tdSql.execute("drop table `.point.trans.test`")
 
     def defaultTypeCheckCase(self):
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(8, "letters")
         input_sql_list = [f'{stb_name}_1 1626006833640 9223372036854775807 t0=f t1=127 t2=32767i16 t3=2147483647i32 t4=9223372036854775807 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
@@ -1021,7 +1060,9 @@ class TDTestCase:
             self.resCmp(input_sql, stb_name)
 
     def tbnameTagsColsNameCheckCase(self):
-        input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 \"t$3\"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
+        tdCom.cleanTb()
+        input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         query_sql = 'select * from `rfa$sta`'
         query_res = tdSql.query(query_sql, True)
@@ -1093,6 +1134,7 @@ class TDTestCase:
         """
             thread input different stb
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql = self.genSqlList()[0]
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
@@ -1103,6 +1145,7 @@ class TDTestCase:
         """
             thread input same stb tb, different data, result keep first data
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -1120,6 +1163,7 @@ class TDTestCase:
         """
             thread input same stb tb, different data, add columes and tags,  result keep first data
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -1137,6 +1181,7 @@ class TDTestCase:
         """
             thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -1154,6 +1199,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(value="\"binaryTagValue\"")
         self.resCmp(input_sql, stb_name)
@@ -1166,6 +1212,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data, add col, mul tag
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(value="\"binaryTagValue\"")
         self.resCmp(input_sql, stb_name)
@@ -1182,6 +1229,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data, add tag, mul col
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(value="\"binaryTagValue\"")
         self.resCmp(input_sql, stb_name)
@@ -1194,6 +1242,7 @@ class TDTestCase:
         """
             thread input same stb tb, different ts
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -1213,6 +1262,7 @@ class TDTestCase:
         """
             thread input same stb tb, different ts, add col, mul tag
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -1230,6 +1280,7 @@ class TDTestCase:
         """
             thread input same stb tb, different ts, add tag, mul col
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -1252,6 +1303,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, data, ts
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(value="\"binaryTagValue\"")
         self.resCmp(input_sql, stb_name)
@@ -1264,6 +1316,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, data, ts, add col, mul tag
         """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql(value="\"binaryTagValue\"")
         self.resCmp(input_sql, stb_name)
@@ -1299,8 +1352,7 @@ class TDTestCase:
         self.dateFormatTsCheckCase()
         self.illegalTsCheckCase()
         self.tbnameCheckCase()
-        # TODO
-        # self.tagNameLengthCheckCase()
+        self.tagNameLengthCheckCase()
         self.tagValueLengthCheckCase()
         self.colValueLengthCheckCase()
         self.tagColIllegalValueCheckCase()
