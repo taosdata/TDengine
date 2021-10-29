@@ -99,6 +99,7 @@ extern const int32_t TYPE_BYTES[15];
 
 #define TS_PATH_DELIMITER "."
 #define TS_ESCAPE_CHAR '`'
+#define TS_ESCAPE_CHAR_SIZE 2
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -294,7 +295,7 @@ do { \
 #define TSDB_DEFAULT_DAYS_PER_FILE      10
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
-#define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
+#define TSDB_MAX_KEEP                   36500   // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               3650     // ten years
 
 #define TSDB_DEFAULT_MIN_ROW_FBLOCK     100

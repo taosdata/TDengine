@@ -213,7 +213,7 @@ else
   exit 1
 fi
 
-make -j8
+make
 
 cd ${curr_dir}
 

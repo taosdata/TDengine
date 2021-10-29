@@ -647,7 +647,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
   TSKEY          now = taosGetTimestamp(pRepo->config.precision);
   TSKEY          minKey = now - tsTickPerDay[pRepo->config.precision] * pRepo->config.keep;
   TSKEY          maxKey = now + tsTickPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-
+  
   terrno = TSDB_CODE_SUCCESS;
   pMsg->length = htonl(pMsg->length);
   pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);

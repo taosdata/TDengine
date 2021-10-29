@@ -1670,7 +1670,7 @@ static unsigned int yy_find_shift_action(
 ){
   int i;
   int stateno = pParser->yytos->stateno;
-
+ 
   if( stateno>YY_MAX_SHIFT ) return stateno;
   assert( stateno <= YY_SHIFT_COUNT );
 #if defined(YYCOVERAGE)
@@ -1701,7 +1701,7 @@ static unsigned int yy_find_shift_action(
 #ifdef YYWILDCARD
       {
         int j = i - iLookAhead + YYWILDCARD;
-        if(
+        if( 
 #if YY_SHIFT_MIN+YYWILDCARD<0
           j>=0 &&
 #endif
@@ -2798,7 +2798,7 @@ static void yy_reduce(
         break;
       case 178: /* selcollist ::= sclp STAR */
 {
-   tSqlExpr *pNode = tSqlExprCreateIdValue(NULL, TK_ALL);
+   tSqlExpr *pNode = tSqlExprCreateIdValue(pInfo, NULL, TK_ALL);
    yylhsminor.yy247 = tSqlExprListAppend(yymsp[-1].minor.yy247, pNode, 0, 0);
 }
   yymsp[-1].minor.yy247 = yylhsminor.yy247;
@@ -3006,58 +3006,58 @@ static void yy_reduce(
   yymsp[-2].minor.yy44 = yylhsminor.yy44;
         break;
       case 233: /* expr ::= ID */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_ID);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_ID);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 234: /* expr ::= ID DOT ID */
-{ yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[-2].minor.yy0, TK_ID);}
+{ yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[-2].minor.yy0, TK_ID);}
   yymsp[-2].minor.yy44 = yylhsminor.yy44;
         break;
       case 235: /* expr ::= ID DOT STAR */
-{ yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[-2].minor.yy0, TK_ALL);}
+{ yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[-2].minor.yy0, TK_ALL);}
   yymsp[-2].minor.yy44 = yylhsminor.yy44;
         break;
       case 236: /* expr ::= INTEGER */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_INTEGER);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_INTEGER);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 237: /* expr ::= MINUS INTEGER */
       case 238: /* expr ::= PLUS INTEGER */ yytestcase(yyruleno==238);
-{ yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_INTEGER; yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[-1].minor.yy0, TK_INTEGER);}
+{ yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_INTEGER; yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[-1].minor.yy0, TK_INTEGER);}
   yymsp[-1].minor.yy44 = yylhsminor.yy44;
         break;
       case 239: /* expr ::= FLOAT */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_FLOAT);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_FLOAT);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 240: /* expr ::= MINUS FLOAT */
       case 241: /* expr ::= PLUS FLOAT */ yytestcase(yyruleno==241);
-{ yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_FLOAT; yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[-1].minor.yy0, TK_FLOAT);}
+{ yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_FLOAT; yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[-1].minor.yy0, TK_FLOAT);}
   yymsp[-1].minor.yy44 = yylhsminor.yy44;
         break;
       case 242: /* expr ::= STRING */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_STRING);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_STRING);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 243: /* expr ::= NOW */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_NOW); }
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_NOW); }
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 244: /* expr ::= VARIABLE */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_VARIABLE);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_VARIABLE);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 245: /* expr ::= PLUS VARIABLE */
       case 246: /* expr ::= MINUS VARIABLE */ yytestcase(yyruleno==246);
-{ yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_VARIABLE; yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[-1].minor.yy0, TK_VARIABLE);}
+{ yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_VARIABLE; yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[-1].minor.yy0, TK_VARIABLE);}
   yymsp[-1].minor.yy44 = yylhsminor.yy44;
         break;
       case 247: /* expr ::= BOOL */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_BOOL);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_BOOL);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 248: /* expr ::= NULL */
-{ yylhsminor.yy44 = tSqlExprCreateIdValue(&yymsp[0].minor.yy0, TK_NULL);}
+{ yylhsminor.yy44 = tSqlExprCreateIdValue(pInfo, &yymsp[0].minor.yy0, TK_NULL);}
   yymsp[0].minor.yy44 = yylhsminor.yy44;
         break;
       case 249: /* expr ::= ID LP exprlist RP */
@@ -3579,7 +3579,7 @@ void Parse(
       yy_syntax_error(yypParser,yymajor, yyminor);
       yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
       yymajor = YYNOCODE;
-
+      
 #else  /* YYERRORSYMBOL is not defined */
       /* This is what we do if the grammar does not define ERROR:
       **
