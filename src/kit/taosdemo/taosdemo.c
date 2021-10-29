@@ -326,6 +326,8 @@ typedef struct SSuperTable_S {
     uint16_t     iface;                   // 0: taosc, 1: rest, 2: stmt
     int64_t      childTblLimit;
     uint64_t     childTblOffset;
+    uint64_t     startTable;
+    uint64_t     endTable;
 
     //  int          multiThreadWriteOneTbl;  // 0: no, 1: yes
     uint32_t     interlaceRows;           //
@@ -726,10 +728,10 @@ SArguments g_args = {
 
 static SDbs            g_Dbs;
 static int64_t         g_totalChildTables = DEFAULT_CHILDTABLES;
+static int64_t         g_totalProgressiveTables = 0;
 static int64_t         g_actualChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
-static PROG_OR_INTERLACE_MODE g_insertType = INVALID_INSERT_MODE;
 
 #if _MSC_VER <= 1900
 #define __func__ __FUNCTION__
@@ -1404,7 +1406,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     exit(EXIT_FAILURE);
                 }
                 arguments->interlaceRows = atoi(argv[++i]);
-                g_insertType = INTERLACE_INSERT_MODE;
             } else if (0 == strncmp(argv[i], "--interlace-rows=", strlen("--interlace-rows="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--interlace-rows=")))) {
                     arguments->interlaceRows = atoi((char *)(argv[i]+strlen("--interlace-rows=")));
@@ -1510,6 +1511,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             }
 
             g_totalChildTables = arguments->ntables;
+            g_totalProgressiveTables = arguments->ntables;
         } else if ((0 == strncmp(argv[i], "-n", strlen("-n")))
                 || (0 == strncmp(argv[i], "--records", strlen("--records")))) {
             if (2 == strlen(argv[i])) {
@@ -5295,6 +5297,21 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
     }
 
+    cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
+    if (interlaceRows && interlaceRows->type == cJSON_Number) {
+        if (interlaceRows->valueint < 0) {
+            errorPrint("%s", "failed to read json, interlaceRows input mistake\n");
+            goto PARSE_OVER;
+
+        }
+        g_args.interlaceRows = interlaceRows->valueint;
+    } else if (!interlaceRows) {
+        g_args.interlaceRows = DEFAULT_INTERLACE_ROWS; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+    } else {
+        errorPrint("%s", "failed to read json, interlaceRows input mistake\n");
+        goto PARSE_OVER;
+    }
+
     cJSON* maxSqlLen = cJSON_GetObjectItem(root, "max_sql_len");
     if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
         if (maxSqlLen->valueint < 0) {
@@ -5690,14 +5707,30 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
             }
 
-            cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
-            if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
-                errorPrint("%s",
-                        "failed to read json, childtable_count input mistake\n");
-                goto PARSE_OVER;
+            cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
+            if ((childTbl_limit) && (g_Dbs.db[i].drop != true)
+                    && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
+                if (childTbl_limit->type != cJSON_Number) {
+                    errorPrint("%s", "failed to read json, childtable_limit\n");
+                    goto PARSE_OVER;
+                }
+                g_Dbs.db[i].superTbls[j].childTblLimit = childTbl_limit->valueint;
+            } else {
+                g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result, drop = yes mean all table need recreate, limit value is invalid.
             }
-            g_Dbs.db[i].superTbls[j].childTblCount = count->valueint;
-            g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
+
+            cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
+            if ((childTbl_offset) && (g_Dbs.db[i].drop != true)
+                    && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
+                if ((childTbl_offset->type != cJSON_Number)
+                        || (0 > childTbl_offset->valueint)) {
+                    errorPrint("%s", "failed to read json, childtable_offset\n");
+                    goto PARSE_OVER;
+                }
+                g_Dbs.db[i].superTbls[j].childTblOffset = childTbl_offset->valueint;
+            } else {
+                g_Dbs.db[i].superTbls[j].childTblOffset = 0;
+            }
 
             cJSON *dataSource = cJSON_GetObjectItem(stbInfo, "data_source");
             if (dataSource && dataSource->type == cJSON_String
@@ -5735,31 +5768,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             } else {
                 errorPrint("%s", "failed to read json, insert_mode not found\n");
                 goto PARSE_OVER;
-            }
-
-            cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
-            if ((childTbl_limit) && (g_Dbs.db[i].drop != true)
-                    && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
-                if (childTbl_limit->type != cJSON_Number) {
-                    errorPrint("%s", "failed to read json, childtable_limit\n");
-                    goto PARSE_OVER;
-                }
-                g_Dbs.db[i].superTbls[j].childTblLimit = childTbl_limit->valueint;
-            } else {
-                g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result, drop = yes mean all table need recreate, limit value is invalid.
-            }
-
-            cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
-            if ((childTbl_offset) && (g_Dbs.db[i].drop != true)
-                    && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
-                if ((childTbl_offset->type != cJSON_Number)
-                        || (0 > childTbl_offset->valueint)) {
-                    errorPrint("%s", "failed to read json, childtable_offset\n");
-                    goto PARSE_OVER;
-                }
-                g_Dbs.db[i].superTbls[j].childTblOffset = childTbl_offset->valueint;
-            } else {
-                g_Dbs.db[i].superTbls[j].childTblOffset = 0;
             }
 
             cJSON *ts = cJSON_GetObjectItem(stbInfo, "start_timestamp");
@@ -5902,23 +5910,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     errorPrint("%s", "failed to read json, interlace rows input mistake\n");
                     goto PARSE_OVER;
                 }
-                if (stbInterlaceRows->valueint > 0) {
-                    if (INVALID_INSERT_MODE == g_insertType) {
-                        g_insertType = INTERLACE_INSERT_MODE;
-                    } else if (PROGRESSIVE_INSERT_MODE == g_insertType) {
-                        errorPrint("%s\n", "cannot combine interlace with progressive insert mode");
-                        goto PARSE_OVER;
-                    }
-                }
-
-                if (stbInterlaceRows->valueint == 0) {
-                    if (INVALID_INSERT_MODE == g_insertType) {
-                        g_insertType = PROGRESSIVE_INSERT_MODE;
-                    } else if (INTERLACE_INSERT_MODE == g_insertType) {
-                        errorPrint("%s\n", "cannot combine interlace with progressive insert mode");
-                        goto PARSE_OVER;
-                    }
-                }
                 g_Dbs.db[i].superTbls[j].interlaceRows = stbInterlaceRows->valueint;
 
                 if (g_Dbs.db[i].superTbls[j].interlaceRows > g_Dbs.db[i].superTbls[j].insertRows) {
@@ -5936,6 +5927,20 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 errorPrint(
                         "%s", "failed to read json, interlace rows input mistake\n");
                 goto PARSE_OVER;
+            }
+
+            cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
+            if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
+                errorPrint("%s",
+                        "failed to read json, childtable_count input mistake\n");
+                goto PARSE_OVER;
+            }
+            g_Dbs.db[i].superTbls[j].childTblCount = count->valueint;
+            if (-1 == g_Dbs.db[i].superTbls[j].childTblLimit) {
+                g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount -
+                    g_Dbs.db[i].superTbls[j].childTblOffset;
+            } else {
+                g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblLimit;
             }
 
             cJSON* disorderRatio = cJSON_GetObjectItem(stbInfo, "disorder_ratio");
@@ -9086,8 +9091,8 @@ static int32_t prepareStbStmt(
     } else {
         ret = taos_stmt_set_tbname(stmt, tableName);
         if (0 != ret) {
-            errorPrint2("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
-                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            errorPrint2("%s() LN%d, stmt_set_tbname(%s) failed! reason: %s\n",
+                    __func__, __LINE__, tableName, taos_stmt_errstr(stmt));
             return -1;
         }
     }
@@ -10598,20 +10603,19 @@ static void* syncWrite(void *sarg) {
             interlaceRows = g_args.interlaceRows;
     }
 
-    if (INTERLACE_INSERT_MODE == g_insertType) {
-        // interlace mode
-        if (stbInfo) {
-            if (STMT_IFACE == stbInfo->iface) {
+        
+    if (stbInfo) {
+    // interlace mode
+        if (STMT_IFACE == stbInfo->iface) {
 #if STMT_BIND_PARAM_BATCH == 1
-                return syncWriteInterlaceStmtBatch(pThreadInfo, interlaceRows);
+            return syncWriteInterlaceStmtBatch(pThreadInfo, interlaceRows);
 #else
-                return syncWriteInterlaceStmt(pThreadInfo, interlaceRows);
+            return syncWriteInterlaceStmt(pThreadInfo, interlaceRows);
 #endif
-            } else if (SML_IFACE == stbInfo->iface) {
-                return syncWriteInterlaceSml(pThreadInfo, interlaceRows);
-            } else {
-                return syncWriteInterlace(pThreadInfo, interlaceRows);
-            }
+        } else if (SML_IFACE == stbInfo->iface) {
+            return syncWriteInterlaceSml(pThreadInfo, interlaceRows);
+        } else {
+            return syncWriteInterlace(pThreadInfo, interlaceRows);
         }
     } else {
         // progressive mode
@@ -11293,7 +11297,7 @@ static void *queryNtableAggrFunc(void *sarg) {
     return NULL;
 }
 
-static int setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo) {
+static int setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo, int dbNum) {
     int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
     if (0 != precision[0]) {
         if (0 == strncasecmp(precision, "ms", 2)) {
@@ -11306,7 +11310,7 @@ static int setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo)
             errorPrint2("Not support precision: %s\n", precision);
             return -1;
         }
-    }        
+    }
     if (0 == strncasecmp(stbInfo->startTimestamp, "now", 3)) {
         stbInfo->startTime = taosGetTimestamp(timePrec);
     } else {
@@ -11340,6 +11344,18 @@ static int setUpStableInfo(char* precision, char* db_name, SSuperTable* stbInfo)
             return -1;
         }
     }
+
+    if (g_Dbs.db[dbNum].drop) {
+        stbInfo->childTblLimit = -1;
+        stbInfo->childTblOffset = 0;
+    }
+
+    if (stbInfo->childTblLimit == -1) {
+        g_totalProgressiveTables += stbInfo->childTblCount - stbInfo->childTblOffset;
+    } else {
+        g_totalProgressiveTables += stbInfo->childTblLimit;
+    }
+    
     return 0;   
 }
 
@@ -11349,21 +11365,24 @@ static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char
     int32_t code = 0;
     uint64_t tableFrom = 0;
     for (uint64_t i = 0; i < g_Dbs.db[dbNum].superTblCount; i++) {
-        code = setUpStableInfo(precision, db_name, &g_Dbs.db[dbNum].superTbls[i]);
+        if (g_Dbs.db[dbNum].superTbls[i].interlaceRows > 0) {
+            continue;
+        }
+        code = setUpStableInfo(precision, db_name, &g_Dbs.db[dbNum].superTbls[i], dbNum);
         if (0 != code) {
             errorPrint2("%s() LN%d, failed to set up stable info, num: %"PRIu64"\n", __func__, __LINE__, i);
             exit(EXIT_FAILURE);
         }
     }
-    int64_t a = g_totalChildTables / threads;
+    int64_t a = g_totalProgressiveTables / threads;
     if (a < 1) {
-        threads = g_totalChildTables;
+        threads = g_totalProgressiveTables;
         a = 1;
     }
 
     int64_t b = 0;
     if (threads != 0) {
-        b = g_totalChildTables % threads;
+        b = g_totalProgressiveTables % threads;
     }
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
@@ -11384,29 +11403,43 @@ static void startMultiThreadProgressiveInsertData(int dbNum, char* db_name, char
         for (int64_t j = 0; j < pThreadInfo->ntables; j++) {
             SNormalTable *tbInfo = tableList + j;
             if (g_args.use_metric) {
-                int superTblsChild = 0;
-                int normalTblsOffset = 0;
+                int upperTbls = 0;
+                int lowerTbls = 0;
                 for (int k = 0; k < g_Dbs.db[dbNum].superTblCount; k++) {
-                    superTblsChild += g_Dbs.db[dbNum].superTbls[k].childTblCount;
-                    if ((j + pThreadInfo->start_table_from) < superTblsChild) {
-                        tbInfo->stbInfo = &(g_Dbs.db[dbNum].superTbls[k]);
-                        tbInfo->tbSeq = j + pThreadInfo->start_table_from - normalTblsOffset;
+                    SSuperTable* stbInfo = &(g_Dbs.db[dbNum].superTbls[k]);
+                    if (-1 == stbInfo->childTblLimit) {
+                        upperTbls += stbInfo->childTblCount - stbInfo->childTblOffset;
+                    } else {
+                        upperTbls += stbInfo->childTblLimit;
+                    }
+                    if (stbInfo->interlaceRows > 0) {
+                        goto skip;
+                    }
+                    if ((j + pThreadInfo->start_table_from) < upperTbls) {
+                        tbInfo->stbInfo = stbInfo;
+                        tbInfo->tbSeq = j + pThreadInfo->start_table_from - lowerTbls +
+                            stbInfo->childTblOffset;
+                        assert(tbInfo->tbSeq >= 0);
                         tbInfo->tbName = calloc(1, TSDB_TABLE_NAME_LEN);
                         assert(tbInfo->tbName);
                         snprintf(tbInfo->tbName, TSDB_TABLE_NAME_LEN, "%s%"PRId64"",
-                            g_Dbs.db[dbNum].superTbls[k].childTblPrefix, tbInfo->tbSeq);
-                        if (SML_IFACE == g_Dbs.db[dbNum].superTbls[k].iface) {
+                            stbInfo->childTblPrefix, tbInfo->tbSeq);
+                        if (SML_IFACE == stbInfo->iface) {
                             pThreadInfo->sml = true;
                             tbInfo->smlHead = (char *)calloc(1, HEAD_BUFF_LEN);
                             assert(tbInfo->smlHead);
-                            generateSmlHead(tbInfo->smlHead, &(g_Dbs.db[dbNum].superTbls[k]), pThreadInfo, tbInfo->tbSeq);
-                        } else if (REST_IFACE  == g_Dbs.db[dbNum].superTbls[k].iface) {
+                            generateSmlHead(tbInfo->smlHead, stbInfo, pThreadInfo, tbInfo->tbSeq);
+                        } else if (REST_IFACE  == stbInfo->iface) {
                             pThreadInfo->rest = true;
                         }
-                        
                         break;
                     }
-                    normalTblsOffset += g_Dbs.db[dbNum].superTbls[k].childTblCount;
+                    skip:
+                    if (-1 == stbInfo->childTblLimit) {
+                        lowerTbls += stbInfo->childTblCount - stbInfo->childTblOffset;
+                    } else {
+                        lowerTbls += stbInfo->childTblLimit;
+                    }
                 }
                 assert(tbInfo->stbInfo);
             } else {
@@ -11675,11 +11708,10 @@ static void prompt()
 static int insertTestProcess() {
 
     setupForAnsiEscape();
-    int ret = printfInsertMeta();
+    if (printfInsertMeta()){
+        return -1;
+    }
     resetAfterAnsiEscape();
-
-    if (ret == -1)
-        exit(EXIT_FAILURE);
 
     debugPrint("%d result file: %s\n", __LINE__, g_Dbs.resultFile);
     g_fpOfInsertResult = fopen(g_Dbs.resultFile, "a");
@@ -11688,8 +11720,9 @@ static int insertTestProcess() {
         return -1;
     }
 
-    if (g_fpOfInsertResult)
+    if (g_fpOfInsertResult){
         printfInsertMetaToFile(g_fpOfInsertResult);
+    }
 
     prompt();
 
@@ -11700,8 +11733,9 @@ static int insertTestProcess() {
     assert(cmdBuffer);
 
     if(createDatabasesAndStables(cmdBuffer) != 0) {
-        if (g_fpOfInsertResult)
+        if (g_fpOfInsertResult){
             fclose(g_fpOfInsertResult);
+        }
         free(cmdBuffer);
         return -1;
     }
@@ -11709,8 +11743,9 @@ static int insertTestProcess() {
 
     // pretreatment
     if (prepareSampleData() != 0) {
-        if (g_fpOfInsertResult)
+        if (g_fpOfInsertResult) {
             fclose(g_fpOfInsertResult);
+        }
         return -1;
     }
 
@@ -11749,34 +11784,25 @@ static int insertTestProcess() {
     //start = taosGetTimestampMs();
     for (int i = 0; i < g_Dbs.dbCount; i++) {
         if (g_args.use_metric) {
-            if (g_Dbs.db[i].superTblCount > 0) {
-                if (INTERLACE_INSERT_MODE == g_insertType) {
-                    for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-                        SSuperTable* stbInfo = &g_Dbs.db[i].superTbls[j];
-                        if (stbInfo && (stbInfo->insertRows > 0)) {
-                            startMultiThreadInsertData(
-                                    g_Dbs.threadCount,
-                                    g_Dbs.db[i].dbName,
-                                    g_Dbs.db[i].dbCfg.precision,
-                                    stbInfo);
-                        }
-                    }
-                } else {
-                    startMultiThreadProgressiveInsertData(
-                        i,
-                        g_Dbs.db[i].dbName,
-                        g_Dbs.db[i].dbCfg.precision);
+            for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+                SSuperTable* stbInfo = &g_Dbs.db[i].superTbls[j];
+                if (stbInfo->interlaceRows == 0) {
+                    startMultiThreadProgressiveInsertData(i, g_Dbs.db[i].dbName, g_Dbs.db[i].dbCfg.precision);
+                    break;
+                }
+            }
+            for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+                SSuperTable* stbInfo = &g_Dbs.db[i].superTbls[j];
+                if (stbInfo->interlaceRows > 0) {
+                    startMultiThreadInsertData(g_Dbs.threadCount, g_Dbs.db[i].dbName, g_Dbs.db[i].dbCfg.precision, stbInfo);
                 }
             }
         } else {
             if (SML_IFACE == g_args.iface) {
                 errorPrint2("%s\n", "Schemaless insertion must include stable");
-                exit(EXIT_FAILURE);
+                return -1;
             } else {
-                startMultiThreadProgressiveInsertData(
-                        i,
-                        g_Dbs.db[i].dbName,
-                        g_Dbs.db[i].dbCfg.precision);
+                startMultiThreadProgressiveInsertData(i, g_Dbs.db[i].dbName, g_Dbs.db[i].dbCfg.precision);
             }
         }
     }
@@ -13003,7 +13029,6 @@ int main(int argc, char *argv[]) {
 
     if (g_args.metaFile) {
         g_totalChildTables = 0;
-
         if (false == getInfoFromJsonFile(g_args.metaFile)) {
             printf("Failed to read %s\n", g_args.metaFile);
             return 1;
