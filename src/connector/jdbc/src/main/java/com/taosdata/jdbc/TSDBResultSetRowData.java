@@ -49,7 +49,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setBooleanValue(int col, boolean value) {
         setBoolean(col - 1, value);
@@ -86,7 +86,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setByteValue(int colIndex, byte value) {
         setByte(colIndex - 1, value);
@@ -100,7 +100,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setShortValue(int colIndex, short value) {
         setShort(colIndex - 1, value);
@@ -114,7 +114,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setIntValue(int colIndex, int value) {
         setInt(colIndex - 1, value);
@@ -194,7 +194,7 @@ public class TSDBResultSetRowData {
 
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setLongValue(int colIndex, long value) {
         setLong(colIndex - 1, value);
@@ -262,7 +262,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setFloatValue(int colIndex, float value) {
         setFloat(colIndex - 1, value);
@@ -302,7 +302,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setDoubleValue(int colIndex, double value) {
         setDouble(colIndex - 1, value);
@@ -342,7 +342,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setStringValue(int colIndex, String value) {
         data.set(colIndex - 1, value);
@@ -361,7 +361,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setByteArrayValue(int colIndex, byte[] value) {
         setByteArray(colIndex - 1, value);
@@ -424,7 +424,7 @@ public class TSDBResultSetRowData {
     }
 
     /**
-     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use an index start from 1 in JDBC api
      */
     public void setTimestampValue(int colIndex, long value) {
         setTimestamp(colIndex - 1, value, 0);

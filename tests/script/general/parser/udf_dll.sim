@@ -452,6 +452,7 @@ if $data31 != 2 then
    return -1
 endi
 
+sql_error select add_one(f1) from tb1 order by ts desc;
 
 sql select add_one(f1) from tb1 limit 2;
 if $rows != 2 then

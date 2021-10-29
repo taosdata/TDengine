@@ -15,13 +15,14 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self._conn = conn 
+        self._conn = conn
 
     def run(self):
         print("running {}".format(__file__))
@@ -42,17 +43,17 @@ class TDTestCase:
                     "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000"
                 ]
 
-        code = self._conn.schemaless_insert(lines, 0, "ns")
+        code = self._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         print("schemaless_insert result {}".format(code))
 
         lines2 = [  "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
                     "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000"
                 ]
 
-        code = self._conn.schemaless_insert([ lines2[0] ], 0, "ns")
+        code = self._conn.schemaless_insert([ lines2[0] ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         print("schemaless_insert result {}".format(code))
 
-        self._conn.schemaless_insert([ lines2[1] ], 0, "ns")
+        code = self._conn.schemaless_insert([ lines2[1] ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select * from st")
@@ -76,13 +77,60 @@ class TDTestCase:
         self._conn.schemaless_insert([
                                 "sth,t1=4i64,t2=5f64,t4=5f64,ID=childtable c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641",
                                 "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654"
-                                ], 0, "ms")
+                                ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
         tdSql.execute('reset query cache')
 
         tdSql.query('select tbname, * from sth')
         tdSql.checkRows(2)
 
         tdSql.query('select tbname, * from childtable')
+        tdSql.checkRows(1)
+
+        ###Special Character and keyss
+        self._conn.schemaless_insert([
+                                "1234,id=3456,abc=4i64,def=3i64 123=3i64,int=2i64,bool=false,into=5f64,column=7u64,!@#$.%^&*()=false 1626006933641",
+                                "int,id=and,123=4i64,smallint=5f64,double=5f64,of=3i64,key=L\"passitagin_stf\",!@#$.%^&*()=false abc=false 1626006933654",
+                                "double,id=for,123=4i64,smallint=5f64,double=5f64,of=3i64,key=L\"passitagin_stf\",!@#$.%^&*()=false abc=false 1626006933664",
+                                "from,id=!@#$.%^,123=4i64,smallint=5f64,double=5f64,of=3i64,key=L\"passitagin_stf\",!@#$.%^&*()=false abc=false 1626006933674",
+                                "!@#$.%^&*(),id=none,123=4i64,smallint=5f64,double=5f64,of=3i64,key=L\"passitagin_stf\",!@#$.%^&*()=false abc=false 1626006933684",
+                                "STABLE,id=CREATE,123=4i64,smallint=5f64,DOUBLE=5f64,of=3i64,key=L\"passitagin_stf\",!@#$.%^&*()=false SELECT=false 1626006933684",
+                                ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+        tdSql.execute('reset query cache')
+
+        tdSql.query('describe `1234`')
+        tdSql.checkRows(9)
+
+        tdSql.query('describe `int`')
+        tdSql.checkRows(8)
+
+        tdSql.query('describe `double`')
+        tdSql.checkRows(8)
+
+        tdSql.query('describe `from`')
+        tdSql.checkRows(8)
+
+        tdSql.query('describe `!@#$.%^&*()`')
+        tdSql.checkRows(8)
+
+        tdSql.query('describe `stable`')
+        tdSql.checkRows(8)
+
+        tdSql.query('select * from `3456`')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from `and`')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from `for`')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from `!@#$.%^`')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from `none`')
+        tdSql.checkRows(1)
+
+        tdSql.query('select * from `create`')
         tdSql.checkRows(1)
     def stop(self):
         tdSql.close()

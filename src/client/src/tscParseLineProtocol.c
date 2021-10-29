@@ -499,6 +499,7 @@ static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSc
   for (int i=0; i<tableMeta->tableInfo.numOfColumns; ++i) {
     SSchema field;
     tstrncpy(field.name, tableMeta->schema[i].name, strlen(tableMeta->schema[i].name)+1);
+    addEscapeCharToString(field.name, (int16_t)strlen(field.name));
     field.type = tableMeta->schema[i].type;
     field.bytes = tableMeta->schema[i].bytes;
     taosArrayPush(schema->fields, &field);
@@ -510,6 +511,7 @@ static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSc
     int j = i + tableMeta->tableInfo.numOfColumns;
     SSchema field;
     tstrncpy(field.name, tableMeta->schema[j].name, strlen(tableMeta->schema[j].name)+1);
+    addEscapeCharToString(field.name, (int16_t)strlen(field.name));
     field.type = tableMeta->schema[j].type;
     field.bytes = tableMeta->schema[j].bytes;
     taosArrayPush(schema->tags, &field);
@@ -1175,6 +1177,15 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
+void addEscapeCharToString(char *str, int32_t len) {
+  if (str == NULL) {
+    return;
+  }
+  memmove(str + 1, str, len);
+  str[0] = str[len + 1] = TS_ESCAPE_CHAR;
+  str[len + 2] = '\0';
+}
+
 bool isValidInteger(char *str) {
   char *c = str;
   if (*c != '+' && *c != '-' && !isdigit(*c)) {
@@ -1435,58 +1446,65 @@ static bool isNchar(char *pVal, uint16_t len) {
   return false;
 }
 
-static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSmlLinesInfo* info) {
+static int32_t isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType, SSmlLinesInfo* info) {
   if (len == 0) {
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
   if ((len == 1) && pVal[0] == '0') {
     *tsType = SML_TIME_STAMP_NOW;
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
 
-  //Default no appendix
-  if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
-    if (info->protocol == SML_LINE_PROTOCOL) {
-      if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
-        *tsType = info->tsType;
-      } else {
-        *tsType = SML_TIME_STAMP_NANO_SECONDS;
-      }
-    } else if (info->protocol == SML_TELNET_PROTOCOL) {
-      if (len == SML_TIMESTAMP_SECOND_DIGITS) {
-        *tsType = SML_TIME_STAMP_SECONDS;
-      } else if (len == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
-        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-      } else {
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
-      }
+  for (int i = 0; i < len; ++i) {
+    if(!isdigit(pVal[i])) {
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-    return true;
   }
 
-  if (pVal[len - 1] == 's') {
-    switch (pVal[len - 2]) {
-      case 'm':
-        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-        break;
-      case 'u':
-        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-        break;
-      case 'n':
-        *tsType = SML_TIME_STAMP_NANO_SECONDS;
-        break;
-      default:
-        if (isdigit(pVal[len - 2])) {
-          *tsType = SML_TIME_STAMP_SECONDS;
-          break;
-        } else {
-          return false;
-        }
+  /* For InfluxDB line protocol use user passed timestamp precision
+   * For OpenTSDB protocols only 10 digit(seconds) or 13 digits(milliseconds)
+   *     precision allowed
+   */
+  if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
+    if (info->tsType != SML_TIME_STAMP_NOT_CONFIGURED) {
+      *tsType = info->tsType;
+    } else {
+      *tsType = SML_TIME_STAMP_NANO_SECONDS;
     }
-    //printf("Type is timestamp(%s)\n", pVal);
-    return true;
+  } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
+    if (len == SML_TIMESTAMP_SECOND_DIGITS) {
+      *tsType = SML_TIME_STAMP_SECONDS;
+    } else if (len == SML_TIMESTAMP_MILLI_SECOND_DIGITS) {
+      *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+    } else {
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    }
   }
-  return false;
+  return TSDB_CODE_SUCCESS;
+
+  //if (pVal[len - 1] == 's') {
+  //  switch (pVal[len - 2]) {
+  //    case 'm':
+  //      *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+  //      break;
+  //    case 'u':
+  //      *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+  //      break;
+  //    case 'n':
+  //      *tsType = SML_TIME_STAMP_NANO_SECONDS;
+  //      break;
+  //    default:
+  //      if (isdigit(pVal[len - 2])) {
+  //        *tsType = SML_TIME_STAMP_SECONDS;
+  //        break;
+  //      } else {
+  //        return false;
+  //      }
+  //  }
+  //  //printf("Type is timestamp(%s)\n", pVal);
+  //  return true;
+  //}
+  //return false;
 }
 
 static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info) {
@@ -1750,14 +1768,6 @@ bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
 static int32_t getTimeStampValue(char *value, uint16_t len,
                                  SMLTimeStampType type, int64_t *ts, SSmlLinesInfo* info) {
 
-  if (len >= 2) {
-    for (int i = 0; i < len - 2; ++i) {
-      if(!isdigit(value[i])) {
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
-      }
-    }
-  }
-
   //No appendix or no timestamp given (len = 0)
   if (len != 0 && type != SML_TIME_STAMP_NOW) {
     *ts = (int64_t)strtoll(value, NULL, 10);
@@ -1806,13 +1816,13 @@ int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   SMLTimeStampType type;
   int64_t tsVal;
 
-  strntolower_s(value, value, len);
-  if (!isTimeStamp(value, len, &type, info)) {
-    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+  ret = isTimeStamp(value, len, &type, info);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
   }
 
   ret = getTimeStampValue(value, len, type, &tsVal, info);
-  if (ret) {
+  if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
   tscDebug("SML:0x%"PRIx64"Timestamp after conversion:%"PRId64, info->id, tsVal);
@@ -1884,15 +1894,10 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
 static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash, SSmlLinesInfo* info) {
   const char *cur = *index;
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
-  uint16_t len = 0;
+  int16_t len = 0;
 
-  //key field cannot start with digit
-  if (isdigit(*cur)) {
-    tscError("SML:0x%"PRIx64" Tag key cannot start with digit", info->id);
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
   while (*cur != '\0') {
-    if (len >= TSDB_COL_NAME_LEN - 1) {
+    if (len > TSDB_COL_NAME_LEN - 1) {
       tscError("SML:0x%"PRIx64" Key field cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
@@ -1919,9 +1924,11 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pKV->key = calloc(len + 1, 1);
+  pKV->key = calloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
-  //tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
+  strntolower_s(pKV->key, pKV->key, (int32_t)len);
+  addEscapeCharToString(pKV->key, len);
+  tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
@@ -1932,7 +1939,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   char *value = NULL;
-  uint16_t len = 0;
+  int16_t len = 0;
   bool searchQuote = false;
   start = cur = *index;
 
@@ -2013,21 +2020,15 @@ error:
 static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index,
                                    uint8_t *has_tags, SSmlLinesInfo* info) {
   const char *cur = *index;
-  uint16_t len = 0;
+  int16_t len = 0;
 
-  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + 1, 1);    // +1 to avoid 1772 line over write
+  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  if (isdigit(*cur)) {
-    tscError("SML:0x%"PRIx64" Measurement field cannnot start with digit", info->id);
-    free(pSml->stableName);
-    pSml->stableName = NULL;
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-  }
 
   while (*cur != '\0') {
-    if (len >= TSDB_TABLE_NAME_LEN - 1) {
+    if (len > TSDB_TABLE_NAME_LEN - 1) {
       tscError("SML:0x%"PRIx64" Measurement field cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       free(pSml->stableName);
       pSml->stableName = NULL;
@@ -2061,7 +2062,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     pSml->stableName = NULL;
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
-  pSml->stableName[len] = '\0';
+  addEscapeCharToString(pSml->stableName, len);
   *index = cur + 1;
   tscDebug("SML:0x%"PRIx64" Stable name in measurement:%s|len:%d", info->id, pSml->stableName, len);
 
@@ -2117,17 +2118,11 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField && (strcasecmp(pkv->key, "ID") == 0)) {
-      ret = isValidChildTableName(pkv->value, pkv->length, info);
-      if (ret) {
-        free(pkv->key);
-        free(pkv->value);
-        goto error;
-      }
-      smlData->childTableName = malloc( pkv->length + 1);
+    if (!isField && (strcasecmp(pkv->key, "`ID`") == 0)) {
+      smlData->childTableName = malloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
-      smlData->childTableName[pkv->length] = '\0';
+      addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
       free(pkv->value);
     } else {
@@ -2273,7 +2268,7 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType) {
+int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int *affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -2317,6 +2312,9 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType p
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_sml_insert error: %s", info->id, tstrerror((code)));
   }
+  if (affectedRows != NULL) {
+    *affectedRows = info->affectedRows;
+  }
 
 cleanup:
   tscDebug("SML:0x%"PRIx64" taos_insert_lines finish inserting %d lines. code: %d", info->id, numLines, code);
@@ -2332,51 +2330,56 @@ cleanup:
   return code;
 }
 
-int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
-  if (precision == NULL) {
-    *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
-    return TSDB_CODE_SUCCESS;
-  }
-  if (strcmp(precision, "μ") == 0) {
-    *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t len = (int32_t)strlen(precision);
-  if (len == 1) {
-    switch (precision[0]) {
-      case 'u':
-        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
-        break;
-      case 's':
-        *tsType = SML_TIME_STAMP_SECONDS;
-        break;
-      case 'm':
-        *tsType = SML_TIME_STAMP_MINUTES;
-        break;
-      case 'h':
-        *tsType = SML_TIME_STAMP_HOURS;
-        break;
-      default:
-        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
-    }
-  } else if (len == 2 && precision[1] == 's') {
-    switch (precision[0]) {
-      case 'm':
-        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
-        break;
-      case 'n':
-        *tsType = SML_TIME_STAMP_NANO_SECONDS;
-        break;
-      default:
-        return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
-    }
-  } else {
-    return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
+static int32_t convertPrecisionType(int precision, SMLTimeStampType *tsType) {
+  switch (precision) {
+    case TSDB_SML_TIMESTAMP_NOT_CONFIGURED:
+      *tsType = SML_TIME_STAMP_NOT_CONFIGURED;
+      break;
+    case TSDB_SML_TIMESTAMP_HOURS:
+      *tsType = SML_TIME_STAMP_HOURS;
+      break;
+    case TSDB_SML_TIMESTAMP_MILLI_SECONDS:
+      *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+      break;
+    case TSDB_SML_TIMESTAMP_NANO_SECONDS:
+      *tsType = SML_TIME_STAMP_NANO_SECONDS;
+      break;
+    case TSDB_SML_TIMESTAMP_MICRO_SECONDS:
+      *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+      break;
+    case TSDB_SML_TIMESTAMP_SECONDS:
+      *tsType = SML_TIME_STAMP_SECONDS;
+      break;
+    case TSDB_SML_TIMESTAMP_MINUTES:
+      *tsType = SML_TIME_STAMP_MINUTES;
+      break;
+    default:
+      return TSDB_CODE_TSC_INVALID_PRECISION_TYPE;
   }
 
   return TSDB_CODE_SUCCESS;
 }
+
+//make a dummy SSqlObj
+static SSqlObj* createSmlQueryObj(TAOS* taos, int32_t affected_rows, int32_t code) {
+  SSqlObj *pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  if (pNew == NULL) {
+    return NULL;
+  }
+  pNew->signature = pNew;
+  pNew->pTscObj = taos;
+  pNew->fp = NULL;
+
+  tsem_init(&pNew->rspSem, 0, 0);
+  registerSqlObj(pNew);
+
+  pNew->res.numOfRows = affected_rows;
+  pNew->res.code = code;
+
+
+  return pNew;
+}
+
 
 /**
  * taos_schemaless_insert() parse and insert data points into database according to
@@ -2399,31 +2402,35 @@ int32_t convertPrecisionStrType(char* precision, SMLTimeStampType *tsType) {
  *
  */
 
-int taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, char* timePrecision) {
-  int code;
+TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
+  int code = TSDB_CODE_SUCCESS;
+  int affected_rows = 0;
   SMLTimeStampType tsType;
 
-  if (protocol == SML_LINE_PROTOCOL) {
-    code = convertPrecisionStrType(timePrecision, &tsType);
+  if (protocol == TSDB_SML_LINE_PROTOCOL) {
+    code = convertPrecisionType(precision, &tsType);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      return NULL;
     }
   }
 
   switch (protocol) {
-    case SML_LINE_PROTOCOL:
-      code = taos_insert_lines(taos, lines, numLines, protocol, tsType);
+    case TSDB_SML_LINE_PROTOCOL:
+      code = taos_insert_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
       break;
-    case SML_TELNET_PROTOCOL:
-      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType);
+    case TSDB_SML_TELNET_PROTOCOL:
+      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
       break;
-    case SML_JSON_PROTOCOL:
-      code = taos_insert_json_payload(taos, *lines, protocol, tsType);
+    case TSDB_SML_JSON_PROTOCOL:
+      code = taos_insert_json_payload(taos, *lines, protocol, tsType, &affected_rows);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
       break;
   }
 
-  return code;
+
+  SSqlObj *pSql = createSmlQueryObj(taos, affected_rows, code);
+
+  return (TAOS_RES*)pSql;
 }

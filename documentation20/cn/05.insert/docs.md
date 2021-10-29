@@ -243,7 +243,7 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 {
 port: 8125
 , backends: ["./backends/repeater"]
-, repeater: [{ host: '127.0.0.1', port: 8126}]
+, repeater: [{ host: '127.0.0.1', port: 6044}]
 }
 ```
 
