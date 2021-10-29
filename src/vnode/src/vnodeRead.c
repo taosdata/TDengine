@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "query.h"
 #include "vnodeStatus.h"
+#include "tgrant.h"
 
 int32_t vNumOfExistedQHandle;   // current initialized and existed query handle in current dnode
 
@@ -55,6 +56,11 @@ int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
+    vDebug("vgId:%d, grant expired, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    return TSDB_CODE_GRANT_EXPIRED;
+  }
+
   if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
