@@ -4341,6 +4341,13 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
   }
 
+  pExpr->functionId = functionId;
+  size_t numChilds = taosArrayGetSize(pExpr->Expr.paramList);
+  for (int i = 0; i < numChilds; ++i) {
+    tSqlExprItem* pParamElem= taosArrayGet(pExpr->Expr.paramList, i);
+    validateSQLExprTerm(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
+  }
+
   if (*type == AGG_ARIGHTMEIC) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
 
@@ -4348,7 +4355,6 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
 
     // sql function list in selection clause.
     // Append the sqlExpr into exprList of pQueryInfo structure sequentially
-    pExpr->functionId = functionId;
     if (pExpr->functionId < 0) {
       SUdfInfo* pUdfInfo = NULL;
       pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pExpr->Expr.operand.z, pExpr->Expr.operand.n);
@@ -4389,13 +4395,6 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
 
     *uid = id;
-  } else {
-    pExpr->functionId = functionId;
-    size_t numChilds = taosArrayGetSize(pExpr->Expr.paramList);
-    for (int i = 0; i < numChilds; ++i) {
-      tSqlExprItem* pParamElem= taosArrayGet(pExpr->Expr.paramList, i);
-      validateSQLExprTerm(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
-    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4426,12 +4425,6 @@ static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
   } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
     validateArithmeticSQLFunc(pCmd, pExpr, pQueryInfo, pList, type, uid);
   } else if (pExpr->type == SQL_NODE_TABLE_COLUMN) {
-    if (*type == NON_ARITHMEIC_EXPR) {
-      *type = NORMAL_ARITHMETIC;
-    } else if (*type == AGG_ARIGHTMEIC) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&pExpr->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) !=
         TSDB_CODE_SUCCESS) {

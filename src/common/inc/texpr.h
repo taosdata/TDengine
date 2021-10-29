@@ -110,7 +110,7 @@ void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 
-void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+void exprTreeNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                   char *(*getSourceDataBlock)(void *, const char*, int32_t));
 
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len);

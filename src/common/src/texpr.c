@@ -188,6 +188,22 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pO
 void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                   char *(*getSourceDataBlock)(void *, const char*, int32_t));
 
+void exprTreeNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
+                          char *(*getSourceDataBlock)(void*, const char*, int32_t)) {
+  if (pExpr->nodeType == TSQL_NODE_FUNC || pExpr->nodeType == TSQL_NODE_EXPR) {
+    exprTreeInternalNodeTraverse(pExpr, numOfRows, pOutput, param, order, getSourceDataBlock);
+  } else if (pExpr->nodeType == TSQL_NODE_COL) {
+    char *pInputData = getSourceDataBlock(param, pExpr->pSchema->name, pExpr->pSchema->colId);
+    if (order == TSDB_ORDER_DESC) {
+      reverseCopy(pOutput, pInputData, pExpr->pSchema->type, numOfRows);
+    } else {
+      memcpy(pOutput, pInputData, pExpr->pSchema->bytes*numOfRows);
+    }
+  } else if (pExpr->nodeType == TSQL_NODE_VALUE) {
+    tVariantDump(pExpr->pVal, pOutput, pExpr->pVal->nType, true);
+  }
+}
+
 void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                   char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
   if (pExpr->nodeType == TSQL_NODE_FUNC) {

@@ -696,7 +696,6 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
       op = OP_Filter;
       taosArrayPush(plan, &op);
     }
-  } else {
     if (pQueryAttr->pExpr2 != NULL) {
       op = OP_Project;
       taosArrayPush(plan, &op);
