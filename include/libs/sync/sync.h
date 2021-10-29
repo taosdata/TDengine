@@ -89,6 +89,10 @@ typedef struct SSyncLogStore {
   // write log with given index
   int32_t (*logWrite)(struct SSyncLogStore* logStore, SyncIndex index, SSyncBuffer* pBuf);
 
+  // read log from given index with limit, return the actual num in nBuf
+  int32_t (*logRead)(struct SSyncLogStore* logStore, SyncIndex index, int limit,
+                      SSyncBuffer* pBuf, int* nBuf);
+
   // mark log with given index has been commtted
   int32_t (*logCommit)(struct SSyncLogStore* logStore, SyncIndex index);
 
@@ -102,6 +106,7 @@ typedef struct SSyncLogStore {
 typedef struct SSyncServerState {
   SyncNodeId voteFor;
   SSyncTerm  term;
+  SyncIndex  commitIndex;
 } SSyncServerState;
 
 typedef struct SSyncClusterConfig {
@@ -146,7 +151,7 @@ SSyncNode* syncStart(const SSyncInfo*);
 void       syncReconfig(const SSyncNode*, const SSyncCluster*);
 void       syncStop(const SSyncNode*);
 
-int32_t syncPropose(SSyncNode* syncNode, SSyncBuffer buffer, void* pData, bool isWeak);
+int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, bool isWeak);
 
 // int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode);
 

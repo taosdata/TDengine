@@ -40,6 +40,9 @@ typedef struct SSyncManager {
   // worker threads
   SSyncWorker worker[TAOS_SYNC_MAX_WORKER];
 
+  // sync net worker
+  SSyncWorker netWorker;
+
   // vgroup hash table
   SHashObj* vgroupTable;
 

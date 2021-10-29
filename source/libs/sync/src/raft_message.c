@@ -13,21 +13,5 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_RAFT_H
-#define _TD_LIBS_SYNC_RAFT_H
-
-#include "sync.h"
 #include "raft_message.h"
 
-typedef struct SSyncRaft {
-  // owner sync node
-  SSyncNode* pNode;
-
-  SSyncInfo info;
-
-} SSyncRaft;
-
-int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
-int32_t syncRaftStep(SSyncRaft* pRaft, const RaftMessage* pMsg);
-
-#endif /* _TD_LIBS_SYNC_RAFT_H */

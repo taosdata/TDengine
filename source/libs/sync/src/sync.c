@@ -75,7 +75,15 @@ SSyncNode* syncStart(const SSyncInfo* pInfo) {
 
   SSyncNode *pNode = (SSyncNode*)malloc(sizeof(SSyncNode));
   if (pNode == NULL) {
-    syncInfo("malloc vgroup %d node fail", pInfo->vgId);
+    syncError("malloc vgroup %d node fail", pInfo->vgId);
+    pthread_mutex_unlock(&gSyncManager->mutex);
+    return NULL;
+  }
+
+  // start raft
+  pNode->raft.pNode = pNode;
+  if (syncRaftStart(&pNode->raft, pInfo) != 0) {
+    syncError("raft start at %d node fail", pInfo->vgId);
     pthread_mutex_unlock(&gSyncManager->mutex);
     return NULL;
   }
@@ -102,8 +110,17 @@ void syncStop(const SSyncNode* pNode) {
   taosHashRemove(gSyncManager->vgroupTable, &pNode->vgId, sizeof(SyncGroupId));
   pthread_mutex_unlock(&gSyncManager->mutex);
 
-  pthread_mutex_destroy(&pNode->mutex);
+  pthread_mutex_destroy(&((*ppNode)->mutex));
   free(*ppNode);
+}
+
+int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
+  RaftMessage msg;
+
+  pthread_mutex_lock(&syncNode->mutex);
+  int32_t ret = syncRaftStep(&syncNode->raft, syncInitPropMsg(&msg, pBuf, pData, isWeak));
+  pthread_mutex_unlock(&syncNode->mutex);
+  return ret;
 }
 
 void syncReconfig(const SSyncNode* pNode, const SSyncCluster* pCfg) {}
