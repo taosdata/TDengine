@@ -109,10 +109,12 @@ static int32_t evaluateSqlNodeImpl(tSqlExpr* pExpr, int32_t tsPrecision) {
     // other types of data are handled in the parent level.
   } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
     SArray* pParam = pExpr->Expr.paramList;
-    size_t size = taosArrayGetSize(pParam);
-    for(int32_t i = 0; i < size; ++i) {
-      tSqlExprItem* pItem = taosArrayGet(pParam, i);
-      evaluateSqlNodeImpl(pItem->pNode, tsPrecision);
+
+    if (pParam != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pParam); ++i) {
+        tSqlExprItem* pItem = taosArrayGet(pParam, i);
+        evaluateSqlNodeImpl(pItem->pNode, tsPrecision);
+      }
     }
   }
 
