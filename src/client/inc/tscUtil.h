@@ -147,6 +147,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  * @return
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
+bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
 bool tscQueryContainsFunction(SQueryInfo* pQueryInfo, int16_t functionId);

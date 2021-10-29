@@ -3879,183 +3879,84 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
-/**
- *
- * @param pCtx
- */
+static void interp_function(SQLFunctionCtx *pCtx) {
+  int32_t fillType = (int32_t) pCtx->param[2].i64;
+  //bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
 
-static void interp_function_impl(SQLFunctionCtx *pCtx) {
-  int32_t type = (int32_t) pCtx->param[2].i64;
-  if (type == TSDB_FILL_NONE) {
-    return;
+  if (pCtx->start.key == pCtx->startTs) {
+    assert(pCtx->start.key != INT64_MIN);
+    
+    SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->start.val);
+    
+    goto interp_success_exit;    
+  } else if (pCtx->end.key == pCtx->startTs && pCtx->end.key != INT64_MIN && fillType == TSDB_FILL_NEXT) {
+    SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->end.val);
+    
+    goto interp_success_exit;    
   }
 
-  bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
-
-  if (pCtx->colId == 0 && pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-    *(TSKEY *)pCtx->pOutput = pCtx->startTs;
-  } else if (type == TSDB_FILL_NULL) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-  } else if (type == TSDB_FILL_SET_VALUE) {
-    tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
-  } else {
-    if (pCtx->start.key != INT64_MIN && ((ascQuery && pCtx->start.key <= pCtx->startTs && pCtx->end.key >= pCtx->startTs) || ((!ascQuery) && pCtx->start.key >= pCtx->startTs && pCtx->end.key <= pCtx->startTs))) {
-      if (type == TSDB_FILL_PREV) {
-        if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
-          SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->start.val);
-        } else {
-          assignVal(pCtx->pOutput, pCtx->start.ptr, pCtx->outputBytes, pCtx->inputType);
-        }
-      } else if (type == TSDB_FILL_NEXT) {
-        if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
-          SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->end.val);
-        } else {
-          assignVal(pCtx->pOutput, pCtx->end.ptr, pCtx->outputBytes, pCtx->inputType);
-        }
-      } else if (type == TSDB_FILL_LINEAR) {
-        SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
-        SPoint point2 = {.key = pCtx->end.key, .val = &pCtx->end.val};
-        SPoint point  = {.key = pCtx->startTs, .val = pCtx->pOutput};
-
-        int32_t srcType = pCtx->inputType;
-        if (IS_NUMERIC_TYPE(srcType)) {  // TODO should find the not null data?
-          if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
-            setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
-          } else {
-            taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
-          }
-        } else {
-          setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
-        }
-      }
-    } else {
-      if (GET_RES_INFO(pCtx)->numOfRes > 0) {
-        return;
-      }
-    
-      // no data generated yet
-      if (pCtx->size < 1) {
-        return;
-      }
-
-      // check the timestamp in input buffer
-      TSKEY skey = GET_TS_DATA(pCtx, 0);
-
-      if (type == TSDB_FILL_PREV) {
-        if ((ascQuery && skey > pCtx->startTs) || ((!ascQuery) && skey < pCtx->startTs)) {
-          return;
-        }
-
-        if (pCtx->size > 1) {
-          TSKEY ekey = GET_TS_DATA(pCtx, 1);
-          if ((ascQuery &&  ekey > skey && ekey <= pCtx->startTs) ||
-             ((!ascQuery) && ekey < skey && ekey >= pCtx->startTs)){
-            skey = ekey;
-          }
-        }
-        assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
-      } else if (type == TSDB_FILL_NEXT) {
-        TSKEY ekey = skey;
-        char* val = NULL;
-        
-        if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
-          if (pCtx->size > 1) {
-            ekey = GET_TS_DATA(pCtx, 1);
-            if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
-              setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
-              SET_VAL(pCtx, 1, 1);
-              return;
-            }
-
-            val = ((char*)pCtx->pInput) + pCtx->inputBytes;            
-          } else {
-            setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
-            SET_VAL(pCtx, 1, 1);
-            return;
-          }
-        } else {
-          val = (char*)pCtx->pInput;
-        }
-        
-        assignVal(pCtx->pOutput, val, pCtx->outputBytes, pCtx->inputType);
-      } else if (type == TSDB_FILL_LINEAR) {
-        if (pCtx->size <= 1) {
-          return;
-        }
+  switch (fillType) {
+    case TSDB_FILL_NULL:
+      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      break;
       
-        TSKEY ekey = GET_TS_DATA(pCtx, 1);
+    case TSDB_FILL_SET_VALUE:
+      tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
+      break;
       
-        // no data generated yet
-        if ((ascQuery && !(skey <= pCtx->startTs && ekey >= pCtx->startTs))
-           || ((!ascQuery) && !(skey >= pCtx->startTs && ekey <= pCtx->startTs))) {
-          return;
-        }
-        
-        char *start = GET_INPUT_DATA(pCtx, 0);
-        char *end = GET_INPUT_DATA(pCtx, 1);
-
-        SPoint point1 = {.key = skey, .val = start};
-        SPoint point2 = {.key = ekey, .val = end};
-        SPoint point = {.key = pCtx->startTs, .val = pCtx->pOutput};
-
-        int32_t srcType = pCtx->inputType;
-        if (IS_NUMERIC_TYPE(srcType)) {  // TODO should find the not null data?
-          if (isNull(start, srcType) || isNull(end, srcType)) {
-            setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
-          } else {
-            taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, srcType);
-          }
-        } else {
-          setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
-        }
+    case TSDB_FILL_LINEAR:
+      if (pCtx->start.key == INT64_MIN || pCtx->start.key > pCtx->startTs 
+       || pCtx->end.key == INT64_MIN || pCtx->end.key < pCtx->startTs) {
+        goto interp_exit;
       }
-    }
-  }
+      
+      SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
+      SPoint point2 = {.key = pCtx->end.key, .val = &pCtx->end.val};
+      SPoint point  = {.key = pCtx->startTs, .val = pCtx->pOutput};
 
-  SET_VAL(pCtx, 1, 1);
-}
-
-static void interp_function(SQLFunctionCtx *pCtx) {  
-  // at this point, the value is existed, return directly
-  if (pCtx->size > 0) {
-    bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
-    TSKEY key;
-    char *pData;
-    int32_t typedData = 0;
-    
-    if (ascQuery) {
-      key = GET_TS_DATA(pCtx, 0);
-      pData = GET_INPUT_DATA(pCtx, 0);
-    } else {
-      key = pCtx->start.key;
-      if (key == INT64_MIN) {
-        key = GET_TS_DATA(pCtx, 0);
-        pData = GET_INPUT_DATA(pCtx, 0);
-      } else {        
-        if (!(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL)) {
-          pData = pCtx->start.ptr;
-        } else {
-          typedData = 1;
-          pData = (char *)&pCtx->start.val;
-        }
-      }
-    }
-    
-    //if (key == pCtx->startTs && (ascQuery || !(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL))) {
-    if (key == pCtx->startTs) {
-      if (typedData) {
-        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)pData);
+      int32_t srcType = pCtx->inputType;
+      if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
+        setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
       } else {
-        assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+        taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
       }
-      
-      SET_VAL(pCtx, 1, 1);
-    } else {
-      interp_function_impl(pCtx);
-    }
-  } else {  //no qualified data rows and interpolation is required
-    interp_function_impl(pCtx);
+      break;
+
+    case TSDB_FILL_PREV:
+      if (pCtx->start.key == INT64_MIN || pCtx->start.key > pCtx->startTs) {
+        goto interp_exit;
+      }
+
+      SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->start.val);
+      break;
+
+    case TSDB_FILL_NEXT:
+      if (pCtx->end.key == INT64_MIN || pCtx->end.key < pCtx->startTs) {
+        goto interp_exit;
+      }
+    
+      SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->end.val);
+      break;
+
+    case TSDB_FILL_NONE:
+    default:
+      goto interp_exit;
   }
+
+
+interp_success_exit:  
+
+  *(TSKEY*)pCtx->ptsOutputBuf = pCtx->startTs;
+
+  INC_INIT_VAL(pCtx, 1);
+
+interp_exit:
+
+  pCtx->start.key = INT64_MIN;
+  pCtx->end.key = INT64_MIN;
+  pCtx->endTs = pCtx->startTs;
+
+  return;
 }
 
 static bool ts_comp_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
@@ -5376,7 +5277,7 @@ SAggFunctionInfo aAggs[] = {{
                               "interp",
                               TSDB_FUNC_INTERP,
                               TSDB_FUNC_INTERP,
-                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS ,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
                               interp_function,
                               doFinalizer,

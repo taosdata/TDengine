@@ -483,8 +483,8 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 //////////////////////// The SELECT statement /////////////////////////////////
 %type select {SSqlNode*}
 %destructor select {destroySqlNode($$);}
-select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_option(K) sliding_opt(S) session_option(H) windowstate_option(D) fill_opt(F)groupby_opt(P) having_opt(N) orderby_opt(Z) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &D, &S, F, &L, &G, N);
+select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) range_option(R) interval_option(K) sliding_opt(S) session_option(H) windowstate_option(D) fill_opt(F)groupby_opt(P) having_opt(N) orderby_opt(Z) slimit_opt(G) limit_opt(L). {
+  A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &D, &S, F, &L, &G, N, &R);
 }
 
 select(A) ::= LP select(B) RP. {A = B;}
@@ -502,7 +502,7 @@ cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 // select client_version()
 // select server_state()
 select(A) ::= SELECT(T) selcollist(W). {
-  A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
@@ -572,6 +572,22 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
 %type tmvar {SStrToken}
 tmvar(A) ::= VARIABLE(X).   {A = X;}
+
+
+%type timestamp {tSqlExpr*}
+%destructor timestamp {tSqlExprDestroy($$);}
+
+timestamp(A) ::= INTEGER(X).          { A = tSqlExprCreateTimestamp(&X, TK_INTEGER);}
+timestamp(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateTimestamp(&X, TK_INTEGER);}
+timestamp(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateTimestamp(&X, TK_INTEGER);}
+timestamp(A) ::= STRING(X).           { A = tSqlExprCreateTimestamp(&X, TK_STRING);}
+timestamp(A) ::= NOW(X).              { A = tSqlExprCreateTimestamp(&X, TK_NOW); }
+timestamp(A) ::= NOW PLUS  VARIABLE(Y).   {A = tSqlExprCreateTimestamp(&Y, TK_PLUS);  }
+timestamp(A) ::= NOW MINUS VARIABLE(Y).   {A = tSqlExprCreateTimestamp(&Y, TK_MINUS); }
+
+%type range_option {SRangeVal}
+range_option(N) ::= . {N.start = 0; N.end = 0;}
+range_option(N) ::= RANGE LP timestamp(E) COMMA timestamp(X) RP. {N.start = E; N.end = X;}
 
 %type interval_option {SIntervalVal}
 interval_option(N) ::= intervalKey(A) LP tmvar(E) RP.                {N.interval = E; N.offset.n = 0; N.token = A;}
@@ -922,4 +938,4 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES.
+  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
