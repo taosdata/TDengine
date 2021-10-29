@@ -27,7 +27,6 @@ int32_t  getNumOfColumns(const STableMeta* pTableMeta);
 int32_t  getNumOfTags(const STableMeta* pTableMeta);
 SSchema *getTableColumnSchema(const STableMeta *pTableMeta);
 SSchema *getTableTagSchema(const STableMeta* pTableMeta);
-SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 
 size_t     getNumOfExprs(SQueryStmtInfo* pQueryInfo);
 SExprInfo* createBinaryExprInfo(struct tExprNode* pNode, SSchema* pResSchema);

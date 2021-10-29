@@ -1790,6 +1790,8 @@ static void setTsOutputExprInfo(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTab
   SSchema s = createSchema(TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE, getNewResColId(), "ts");
 
   SExprInfo* pExpr = createExprInfo(pTableMetaInfo, FUNCTION_TS_DUMMY, &indexTS, NULL, &s, TSDB_KEYSIZE);
+  strncpy(pExpr->base.token, "ts", tListLen(pExpr->base.token));
+
   addExprInfo(pQueryInfo, outputIndex, pExpr);
 
   SSchema* pSourceSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, indexTS.columnIndex);

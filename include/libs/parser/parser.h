@@ -230,6 +230,8 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
+SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
+
 int32_t getNewResColId();
 
 #ifdef __cplusplus

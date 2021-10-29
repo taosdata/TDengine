@@ -108,9 +108,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   pNode->pExpr = taosArrayInit(numOfOutput, POINTER_BYTES);
 
   for(int32_t i = 0; i < numOfOutput; ++i) {
-    SExprInfo* p = calloc(1, sizeof(SExprInfo));
-    assignExprInfo(p, pExpr[i]);
-    taosArrayPush(pNode->pExpr, &p);
+    taosArrayPush(pNode->pExpr, &pExpr[i]);
   }
 
   pNode->pPrevNodes = taosArrayInit(4, POINTER_BYTES);
@@ -183,15 +181,15 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     // table source column projection, generate the projection expr
     int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
     SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
-    SSchema*    pSchema = pTableMetaInfo->pTableMeta->schema;
 
     STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
-    SSchema resultSchema = *pSchema;
-    resultSchema.colId = getNewResColId();
 
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumn* pCol = taosArrayGetP(tableCols, i);
       SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
+
+      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, i);
+      SSchema resultSchema = *pSchema;
 
       SExprInfo* p = createExprInfo(pTableMetaInfo1, FUNCTION_PRJ, &index, NULL, &resultSchema, 0);
       pExpr[i] = p;
@@ -252,7 +250,8 @@ static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryIn
 static SQueryPlanNode* doCreateQueryPlanForOneTable(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
                                                 SArray* tableCols) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameExtractFullName(&pTableMetaInfo->name, name);
+  tstrncpy(name, pTableMetaInfo->name.tname, TSDB_TABLE_FNAME_LEN);
+//  tNameExtractFullName(&pTableMetaInfo->name, name);
 
   SQueryTableInfo info = {.tableName = strdup(name), .uid = pTableMetaInfo->pTableMeta->uid,};
 
@@ -450,9 +449,11 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
       len += len1;
 
       SInterval* pInterval = pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "interval:%" PRId64 "(%s), sliding:%" PRId64 "(%s), offset:%" PRId64 "\n",
+
+      // todo dynamic return the time precision
+      len1 = sprintf(buf + len, "interval:%" PRId64 "(%s), sliding:%" PRId64 "(%s), offset:%" PRId64 "(%s)\n",
                      pInterval->interval, TSDB_TIME_PRECISION_MILLI_STR, pInterval->sliding, TSDB_TIME_PRECISION_MILLI_STR,
-                     pInterval->offset);
+                     pInterval->offset, TSDB_TIME_PRECISION_MILLI_STR);
       len += len1;
 
       break;
