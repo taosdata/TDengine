@@ -2454,7 +2454,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg12 = "parameter is out of range [1, 100]";
   const char* msg13 = "parameter list required";
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
-  const char* msg15 = "parameter is out of range [0, 1000]";
+  const char* msg15 = "parameter is out of range [1, 1000]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
