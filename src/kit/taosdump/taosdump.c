@@ -28,11 +28,17 @@
 #include "tsdb.h"
 #include "tutil.h"
 
+
+static char    **g_tsDumpInSqlFiles   = NULL;
+static char      g_tsCharset[63] = {0};
+
 #define AVRO_SUPPORT    1
 
 #if AVRO_SUPPORT == 1
 #include <avro.h>
 #include <jansson.h>
+
+static char    **g_tsDumpInAvroFiles   = NULL;
 
 static void print_json_aux(json_t *element, int indent);
 
@@ -321,8 +327,10 @@ static struct argp_option options[] = {
     // dump format options
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
+#if AVRO_SUPPORT  == 1
     {"avro", 'v', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 3},
     {"avro-codec", 'd', "snappy", 0,  "Choose an avro codec among null, deflate, snappy, and lzma.", 4},
+#endif
     {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00:000+0800 or '2017-10-01 00:00:00.000+0800'",  8},
     {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  9},
     {"data-batch",  'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Max value is 32766. Default is 1.", 10},
@@ -415,8 +423,8 @@ struct arguments g_args = {
     false,      // schemaonly
     true,       // with_property
 #if AVRO_SUPPORT  == 1
-    false,      // avro format
-    AVRO_CODEC_SNAPPY,  // avro codec
+    false,      // avro
+    AVRO_CODEC_SNAPPY,  // avro_codec
 #endif
     -INT64_MAX + 1, // start_time
     {0},        // humanStartTime
@@ -660,8 +668,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.abort = 1;
             break;
         case ARGP_KEY_ARG:
-            g_args.arg_list     = &state->argv[state->next - 1];
-            g_args.arg_list_len = state->argc - state->next + 1;
+            if (strlen(state->argv[state->next - 1])) {
+                g_args.arg_list     = &state->argv[state->next - 1];
+                g_args.arg_list_len = state->argc - state->next + 1;
+            }
             state->next             = state->argc;
             break;
 
@@ -1466,6 +1476,134 @@ static void dumpCreateDbClause(
     fprintf(fp, "%s\n\n", sqlstr);
 }
 
+static FILE* openDumpInFile(char *fptr) {
+    wordexp_t full_path;
+
+    if (wordexp(fptr, &full_path, 0) != 0) {
+        errorPrint("illegal file name: %s\n", fptr);
+        return NULL;
+    }
+
+    char *fname = full_path.we_wordv[0];
+
+    FILE *f = NULL;
+    if ((fname) && (strlen(fname) > 0)) {
+        f = fopen(fname, "r");
+        if (f == NULL) {
+            errorPrint("%s() LN%d, failed to open file %s\n",
+                    __func__, __LINE__, fname);
+        }
+    }
+
+    wordfree(&full_path);
+    return f;
+}
+
+static int64_t getFilesNum(char *ext)
+{
+    int64_t count = 0;
+
+    int namelen, extlen;
+    struct dirent *pDirent;
+    DIR *pDir;
+
+    extlen = strlen(ext);
+
+    bool isSql = (0 == strcmp(ext, "sql"));
+
+    pDir = opendir(g_args.inpath);
+    if (pDir != NULL) {
+        while ((pDirent = readdir(pDir)) != NULL) {
+            namelen = strlen (pDirent->d_name);
+
+            if (namelen > extlen) {
+                if (strcmp (ext, &(pDirent->d_name[namelen - extlen])) == 0) {
+                    if (isSql) {
+                        if (0 == strcmp(pDirent->d_name, "dbs.sql")) {
+                            continue;
+                        }
+                    }
+                    verbosePrint("%s found\n", pDirent->d_name);
+                    count ++;
+                }
+            }
+        }
+        closedir (pDir);
+    }
+
+    debugPrint("%"PRId64" .%s files found!\n", count, ext);
+    return count;
+}
+
+static void freeFileList(char **fileList, int64_t count)
+{
+    for (int64_t i = 0; i < count; i++) {
+        tfree(fileList[i]);
+    }
+    tfree(fileList);
+}
+
+static void createDumpinList(char *ext, int64_t count)
+{
+    bool isSql = (0 == strcmp(ext, "sql"));
+
+    if (isSql) {
+        g_tsDumpInSqlFiles = (char **)calloc(count, sizeof(char *));
+        assert(g_tsDumpInSqlFiles);
+
+        for (int64_t i = 0; i < count; i++) {
+            g_tsDumpInSqlFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
+            assert(g_tsDumpInSqlFiles[i]);
+        }
+    }
+#if AVRO_SUPPORT  == 1
+    else {
+        g_tsDumpInAvroFiles = (char **)calloc(count, sizeof(char *));
+        assert(g_tsDumpInAvroFiles);
+
+        for (int64_t i = 0; i < count; i++) {
+            g_tsDumpInAvroFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
+            assert(g_tsDumpInAvroFiles[i]);
+        }
+
+    }
+#endif
+
+    int namelen, extlen;
+    struct dirent *pDirent;
+    DIR *pDir;
+
+    extlen = strlen(ext);
+
+    count = 0;
+    pDir = opendir(g_args.inpath);
+    if (pDir != NULL) {
+        while ((pDirent = readdir(pDir)) != NULL) {
+            namelen = strlen (pDirent->d_name);
+
+            if (namelen > extlen) {
+                if (strcmp (ext, &(pDirent->d_name[namelen - extlen])) == 0) {
+                    verbosePrint("%s found\n", pDirent->d_name);
+                    if (isSql) {
+                        if (0 == strcmp(pDirent->d_name, "dbs.sql")) {
+                            continue;
+                        }
+                        strncpy(g_tsDumpInSqlFiles[count++], pDirent->d_name, MAX_FILE_NAME_LEN);
+                    }
+#if AVRO_SUPPORT == 1
+                    else {
+                        strncpy(g_tsDumpInSqlFiles[count++], pDirent->d_name, MAX_FILE_NAME_LEN);
+                    }
+#endif
+                }
+            }
+        }
+        closedir (pDir);
+    }
+
+    debugPrint("%"PRId64" .%s files filled to list!\n", count, ext);
+}
+
 #if AVRO_SUPPORT == 1
 
 static int convertTbDesToJson(
@@ -1817,7 +1955,8 @@ static int64_t writeResultToAvro(
     int rval = avro_file_writer_create_with_codec
         (avroFilename, schema, &db, g_avro_codec[g_args.avro_codec], 0);
     if (rval) {
-        errorPrint("There was an error creating %s\n", avroFilename);
+        errorPrint("There was an error creating %s. reason: %s\n",
+                avroFilename, avro_strerror());
         exit(EXIT_FAILURE);
     }
 
@@ -1912,9 +2051,108 @@ static int64_t writeResultToAvro(
     return count;
 }
 
-static void dumpInAvroWorkThreads()
+static int dumpInOneAvroFile(TAOS* taos, char* fcharset,
+        char* encode, char* sqlFilepath, char *avroFilepath)
 {
+    debugPrint("sqlFilepath:  %s\navroFilepath: %s\n", sqlFilepath, avroFilepath);
+    return 0;
+}
 
+static void* dumpInAvroWorkThreadFp(void *arg)
+{
+    threadInfo *pThread = (threadInfo*)arg;
+    setThreadName("dumpInAvroWorkThrd");
+    verbosePrint("[%d] process %"PRId64" files from %"PRId64"\n",
+                    pThread->threadIndex, pThread->count, pThread->from);
+
+    for (int64_t i = 0; i < pThread->count; i++) {
+        char sqlFile[MAX_PATH_LEN];
+        char avroFile[MAX_PATH_LEN];
+        sprintf(sqlFile, "%s/%s", g_args.inpath, g_tsDumpInSqlFiles[pThread->from + i]);
+        sprintf(avroFile, "%s/%s", g_args.inpath, g_tsDumpInAvroFiles[pThread->from + i]);
+
+        if (0 == dumpInOneAvroFile(pThread->taos, g_tsCharset, g_args.encode,
+                    sqlFile, avroFile)) {
+            okPrint("[%d] Success dump in file: %s\n",
+                    pThread->threadIndex, avroFile);
+        }
+    }
+
+    return NULL;
+}
+
+static int64_t dumpInAvroWorkThreads()
+{
+    int64_t ret = 0;
+
+    int32_t threads = g_args.thread_num;
+
+    int64_t avroFileCount = getFilesNum("avro");
+
+    createDumpinList("avro", avroFileCount);
+
+    threadInfo *pThread;
+
+    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+    threadInfo *infos = (threadInfo *)calloc(
+            threads, sizeof(threadInfo));
+    assert(pids);
+    assert(infos);
+
+    int64_t a = avroFileCount / threads;
+    if (a < 1) {
+        threads = avroFileCount;
+        a = 1;
+    }
+
+    int64_t b = 0;
+    if (threads != 0) {
+        b = avroFileCount % threads;
+    }
+
+    int64_t from = 0;
+
+    for (int32_t t = 0; t < threads; ++t) {
+        pThread = infos + t;
+        pThread->threadIndex = t;
+
+        pThread->from = from;
+        pThread->count = t<b?a+1:a;
+        from += pThread->count;
+        verbosePrint(
+                "Thread[%d] takes care avro files total %"PRId64" files from %"PRId64"\n",
+                t, pThread->count, pThread->from);
+
+        pThread->taos = taos_connect(g_args.host, g_args.user, g_args.password,
+            NULL, g_args.port);
+        if (pThread->taos == NULL) {
+            errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+            free(infos);
+            free(pids);
+            return -1;
+        }
+
+        if (pthread_create(pids + t, NULL,
+                    dumpInAvroWorkThreadFp, (void*)pThread) != 0) {
+            errorPrint("%s() LN%d, thread[%d] failed to start\n",
+                    __func__, __LINE__, pThread->threadIndex);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    for (int t = 0; t < threads; ++t) {
+        pthread_join(pids[t], NULL);
+    }
+
+    for (int t = 0; t < threads; ++t) {
+        taos_close(infos[t].taos);
+    }
+    free(infos);
+    free(pids);
+
+    freeFileList(g_tsDumpInAvroFiles, avroFileCount);
+
+    return ret;
 }
 
 #endif /* AVRO_SUPPORT == 1 */
@@ -2536,33 +2774,7 @@ _exit_no_charset:
 
 // ========  dumpIn support multi threads functions ================================//
 
-static char    **g_tsDumpInSqlFiles   = NULL;
-static char      g_tsCharset[64] = {0};
-
-static FILE* openDumpInFile(char *fptr) {
-    wordexp_t full_path;
-
-    if (wordexp(fptr, &full_path, 0) != 0) {
-        errorPrint("illegal file name: %s\n", fptr);
-        return NULL;
-    }
-
-    char *fname = full_path.we_wordv[0];
-
-    FILE *f = NULL;
-    if ((fname) && (strlen(fname) > 0)) {
-        f = fopen(fname, "r");
-        if (f == NULL) {
-            errorPrint("%s() LN%d, failed to open file %s\n",
-                    __func__, __LINE__, fname);
-        }
-    }
-
-    wordfree(&full_path);
-    return f;
-}
-
-static int dumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
+static int dumpInOneSqlFile(TAOS* taos, FILE* fp, char* fcharset,
         char* encode, char* fileName) {
     int       read_len = 0;
     char *    cmd      = NULL;
@@ -2615,7 +2827,6 @@ static int dumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
 
     tfree(cmd);
     tfree(line);
-    fclose(fp);
     return 0;
 }
 
@@ -2637,109 +2848,24 @@ static void* dumpInSqlWorkThreadFp(void *arg)
             continue;
         }
 
-        if (0 == dumpInOneFile(pThread->taos, fp, g_tsCharset, g_args.encode,
+        if (0 == dumpInOneSqlFile(pThread->taos, fp, g_tsCharset, g_args.encode,
                     sqlFile)) {
             okPrint("[%d] Success dump in file: %s\n",
                     pThread->threadIndex, sqlFile);
         }
+        fclose(fp);
     }
 
     return NULL;
 }
 
-static int64_t getFilesNum(char *ext)
-{
-    int64_t count = 0;
-
-    int namelen, extlen;
-    struct dirent *pDirent;
-    DIR *pDir;
-
-    extlen = strlen(ext);
-
-    bool isSql = (0 == strcmp(ext, "sql"));
-
-    pDir = opendir(g_args.inpath);
-    if (pDir != NULL) {
-        while ((pDirent = readdir(pDir)) != NULL) {
-            namelen = strlen (pDirent->d_name);
-
-            if (namelen > extlen) {
-                if (strcmp (ext, &(pDirent->d_name[namelen - extlen])) == 0) {
-                    if (isSql) {
-                        if (0 == strcmp(pDirent->d_name, "dbs.sql")) {
-                            continue;
-                        }
-                    }
-                    verbosePrint("%s found\n", pDirent->d_name);
-                    count ++;
-                }
-            }
-        }
-        closedir (pDir);
-    }
-
-    debugPrint("%"PRId64" .%s files found!\n", count, ext);
-    return count;
-}
-
-static void createDumpinSqlList(char *ext, int64_t count)
-{
-    g_tsDumpInSqlFiles = (char**)calloc(count, sizeof(char*));
-    assert(g_tsDumpInSqlFiles);
-
-    for (int64_t i = 0; i < count; i++) {
-        g_tsDumpInSqlFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
-        assert(g_tsDumpInSqlFiles[i]);
-    }
-
-    int namelen, extlen;
-    struct dirent *pDirent;
-    DIR *pDir;
-
-    extlen = strlen(ext);
-
-    bool isSql = (0 == strcmp(ext, "sql"));
-
-    count = 0;
-    pDir = opendir(g_args.inpath);
-    if (pDir != NULL) {
-        while ((pDirent = readdir(pDir)) != NULL) {
-            namelen = strlen (pDirent->d_name);
-
-            if (namelen > extlen) {
-                if (strcmp (ext, &(pDirent->d_name[namelen - extlen])) == 0) {
-                    if (isSql) {
-                        if (0 == strcmp(pDirent->d_name, "dbs.sql")) {
-                            continue;
-                        }
-                    }
-                    verbosePrint("%s found\n", pDirent->d_name);
-                    strncpy(g_tsDumpInSqlFiles[count++], pDirent->d_name, MAX_FILE_NAME_LEN);
-                }
-            }
-        }
-        closedir (pDir);
-    }
-
-    debugPrint("%"PRId64" .%s files filled to list!\n", count, ext);
-}
-
-static void freeFileList(char **fileList, int64_t count)
-{
-    for (int64_t i = 0; i < count; i++) {
-        tfree(fileList[i]);
-    }
-    tfree(fileList);
-}
-
-static void dumpInSqlWorkThreads()
+static int dumpInSqlWorkThreads()
 {
     int32_t threads = g_args.thread_num;
 
     int64_t sqlFileCount = getFilesNum("sql");
 
-    createDumpinSqlList("sql", sqlFileCount);
+    createDumpinList("sql", sqlFileCount);
 
     threadInfo *pThread;
 
@@ -2779,7 +2905,7 @@ static void dumpInSqlWorkThreads()
             errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
             free(infos);
             free(pids);
-            return;
+            return -1;
         }
 
         if (pthread_create(pids + t, NULL,
@@ -2801,6 +2927,8 @@ static void dumpInSqlWorkThreads()
     free(pids);
 
     freeFileList(g_tsDumpInSqlFiles, sqlFileCount);
+
+    return 0;
 }
 
 static int dumpInDbs()
@@ -2827,30 +2955,34 @@ static int dumpInDbs()
     debugPrint("Success Open input file: %s\n", dbsSql);
     loadFileCharset(fp, g_tsCharset);
 
-    if(0 == dumpInOneFile(taos, fp, g_tsCharset, g_args.encode, dbsSql)) {
+    if(0 == dumpInOneSqlFile(taos, fp, g_tsCharset, g_args.encode, dbsSql)) {
         okPrint("Success dump in file: %s !\n", dbsSql);
     }
 
+    fclose(fp);
     taos_close(taos);
 
     return 0;
 }
 
-static int dumpIn() {
+static int64_t dumpIn() {
     assert(g_args.isDumpIn);
 
+    int64_t ret = 0;
     if (dumpInDbs()) {
         errorPrint("%s", "Failed to dump dbs in!\n");
         exit(EXIT_FAILURE);
     }
 
-    dumpInSqlWorkThreads();
+    ret = dumpInSqlWorkThreads();
 
 #if AVRO_SUPPORT  == 1
-    dumpInAvroWorkThreads();
+    if (0 == ret) {
+        ret = dumpInAvroWorkThreads();
+    }
 #endif
 
-    return 0;
+    return ret;
 }
 
 static void *dumpNormalTablesOfStb(void *arg) {
@@ -3508,6 +3640,7 @@ int main(int argc, char *argv[]) {
                 tm.tm_year + 1900, tm.tm_mon + 1,
                 tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
         if (dumpIn() < 0) {
+            errorPrint("%s\n", "dumpIn() failed!");
             ret = -1;
         }
     } else {
@@ -3539,4 +3672,3 @@ int main(int argc, char *argv[]) {
 
     return ret;
 }
-
