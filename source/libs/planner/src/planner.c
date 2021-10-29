@@ -251,7 +251,6 @@ static SQueryPlanNode* doCreateQueryPlanForOneTable(SQueryStmtInfo* pQueryInfo, 
                                                 SArray* tableCols) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tstrncpy(name, pTableMetaInfo->name.tname, TSDB_TABLE_FNAME_LEN);
-//  tNameExtractFullName(&pTableMetaInfo->name, name);
 
   SQueryTableInfo info = {.tableName = strdup(name), .uid = pTableMetaInfo->pTableMeta->uid,};
 
@@ -354,12 +353,6 @@ static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
   tfree(pQueryNode);
 }
 
-bool hasAliasName(SExprInfo* pExpr) {
-  assert(pExpr != NULL);
-  return true;
-//  return strncmp(pExpr->base.token, pExpr->base., tListLen(pExpr->base.aliasName)) != 0;
-}
-
 static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level, int32_t totalLen) {
   if (level > 0) {
     sprintf(buf + totalLen, "%*c", level, ' ');
@@ -409,13 +402,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
-//        if (hasAliasName(&pQueryNode->pExpr[i])) {
-          len1 = sprintf(buf + len,"[%s #%s]", pExpr->token, pExpr->resSchema.name);
-//        } else {
-//          len1 = sprintf(buf + len,"[%s]", pExpr->token);
-//        }
-
-        len += len1;
+        len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
         if (i < pQueryNode->numOfOutput - 1) {
           len1 = sprintf(buf + len, ", ");
           len += len1;
@@ -432,13 +419,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
-        if (hasAliasName(pExprInfo)) {
-          len1 = sprintf(buf + len,"[%s #%s]", pExpr->token, pExpr->resSchema.name);
-        } else {
-          len1 = sprintf(buf + len,"[%s]", pExpr->token);
-        }
-
-        len += len1;
+        len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
         if (i < pQueryNode->numOfOutput - 1) {
           len1 = sprintf(buf + len,", ");
           len += len1;
@@ -464,12 +445,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
-
-        if (hasAliasName(pExprInfo)) {
-          len1 = sprintf(buf + len,"[%s #%s]", pExpr->token, pExpr->resSchema.name);
-        } else {
-          len1 = sprintf(buf + len,"[%s]", pExpr->token);
-        }
+        len1 = sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
 
         len += len1;
         if (i < pQueryNode->numOfOutput - 1) {
