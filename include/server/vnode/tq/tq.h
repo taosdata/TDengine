@@ -17,113 +17,114 @@
 #define _TD_TQ_H_
 
 #include "os.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct tmqMsgHead {
+typedef struct TmqMsgHead {
   int32_t protoVer;
   int32_t msgType;
   int64_t cgId;
   int64_t clientId;
-} tmqMsgHead;
+} TmqMsgHead;
 
-typedef struct tmqOneAck {
+typedef struct TmqOneAck {
   int64_t topicId;
   int64_t consumeOffset;
-} tmqOneAck;
+} TmqOneAck;
 
-typedef struct tmqAcks {
+typedef struct TmqAcks {
   int32_t ackNum;
   //should be sorted
-  tmqOneAck acks[];
-} tmqAcks;
+  TmqOneAck acks[];
+} TmqAcks;
 
 //TODO: put msgs into common
-typedef struct tmqConnectReq {
-  tmqMsgHead head;
-  tmqAcks acks;
-} tmqConnectReq;
+typedef struct TmqConnectReq {
+  TmqMsgHead head;
+  TmqAcks acks;
+} TmqConnectReq;
 
-typedef struct tmqConnectRsp {
-  tmqMsgHead head;
+typedef struct TmqConnectRsp {
+  TmqMsgHead head;
   int8_t status;
-} tmqConnectRsp;
+} TmqConnectRsp;
 
-typedef struct tmqDisconnectReq {
-  tmqMsgHead head;
-} tmqDisconnectReq;
+typedef struct TmqDisconnectReq {
+  TmqMsgHead head;
+} TmqDiscconectReq;
 
-typedef struct tmqDisconnectRsp {
-  tmqMsgHead head;
+typedef struct TmqDisconnectRsp {
+  TmqMsgHead head;
   int8_t status;
-} tmqDiconnectRsp;
+} TmqDisconnectRsp;
 
-typedef struct tmqConsumeReq {
-  tmqMsgHead head;
-  tmqAcks acks;
-} tmqConsumeReq;
+typedef struct TmqConsumeReq {
+  TmqMsgHead head;
+  TmqAcks acks;
+} TmqConsumeReq;
 
-typedef struct tmqMsgContent {
+typedef struct TmqMsgContent {
   int64_t topicId;
   int64_t msgLen;
   char    msg[];
-} tmqMsgContent;
+} TmqMsgContent;
 
-typedef struct tmqConsumeRsp {
-  tmqMsgHead    head;
+typedef struct TmqConsumeRsp {
+  TmqMsgHead    head;
   int64_t       bodySize;
-  tmqMsgContent msgs[];
-} tmqConsumeRsp;
+  TmqMsgContent msgs[];
+} TmqConsumeRsp;
 
-typedef struct tmqMnodeSubscribeReq {
-  tmqMsgHead head;
-  int64_t topicLen;
-  char topic[];
-} tmqSubscribeReq;
+typedef struct TmqSubscribeReq {
+  TmqMsgHead head;
+  int32_t topicNum;
+  int64_t topic[];
+} TmqSubscribeReq;
 
-typedef struct tmqMnodeSubscribeRsp {
-  tmqMsgHead head;
+typedef struct tmqSubscribeRsp {
+  TmqMsgHead head;
   int64_t vgId;
-  char ep[]; //TSDB_EP_LEN
-} tmqSubscribeRsp;
+  char ep[TSDB_EP_LEN]; //TSDB_EP_LEN
+} TmqSubscribeRsp;
 
-typedef struct tmqHeartbeatReq {
+typedef struct TmqHeartbeatReq {
 
-} tmqHeartbeatReq;
+} TmqHeartbeatReq;
 
-typedef struct tmqHeartbeatRsp {
+typedef struct TmqHeartbeatRsp {
 
-} tmqHeartbeatRsp;
+} TmqHeartbeatRsp;
 
-typedef struct tqTopicVhandle {
-  //name
-  //
+typedef struct TqTopicVhandle {
+  int64_t topicId;
   //executor for filter
-  //
+  void*  filterExec;
   //callback for mnode
-  //
-} tqTopicVhandle;
+  //trigger when vnode list associated topic change
+  void* (*mCallback)(void*, void*);
+} TqTopicVhandle;
 
 typedef struct STQ {
   //the collection of group handle
-
+  //the handle of kvstore
 } STQ;
 
 #define TQ_BUFFER_SIZE 8
 
 //TODO: define a serializer and deserializer
-typedef struct tqBufferItem {
+typedef struct TqBufferItem {
   int64_t offset;
   //executors are identical but not concurrent
   //so it must be a copy in each item
   void* executor;
   int64_t size;
   void* content;
-} tqBufferItem;
+} TqBufferItem;
 
-typedef struct tqBufferHandle {
+typedef struct TqBufferHandle {
   //char* topic; //c style, end with '\0'
   //int64_t cgId;
   //void* ahandle;
@@ -131,32 +132,32 @@ typedef struct tqBufferHandle {
   int64_t topicId;
   int32_t head;
   int32_t tail;
-  tqBufferItem buffer[TQ_BUFFER_SIZE];
-} tqBufferHandle;
+  TqBufferItem buffer[TQ_BUFFER_SIZE];
+} TqBufferHandle;
 
-typedef struct tqListHandle {
-  tqBufferHandle* bufHandle;
-  struct tqListHandle* next;
-} tqListHandle;
+typedef struct TqListHandle {
+  TqBufferHandle bufHandle;
+  struct TqListHandle* next;
+} TqListHandle;
 
-typedef struct tqGroupHandle {
+typedef struct TqGroupHandle {
   int64_t cId;
   int64_t cgId;
   void* ahandle;
   int32_t topicNum;
-  tqListHandle *head; 
-} tqGroupHandle;
+  TqListHandle *head; 
+} TqGroupHandle;
 
-typedef struct tqQueryExec {
+typedef struct TqQueryExec {
   void* src;
-  tqBufferItem* dest;
+  TqBufferItem* dest;
   void* executor;
-} tqQueryExec;
+} TqQueryExec;
 
-typedef struct tqQueryMsg {
-  tqQueryExec *exec;
-  struct tqQueryMsg *next;
-} tqQueryMsg;
+typedef struct TqQueryMsg {
+  TqQueryExec *exec;
+  struct TqQueryMsg *next;
+} TqQueryMsg;
 
 //init in each vnode
 STQ* tqInit(void* ref_func(void*), void* unref_func(void*));
@@ -166,32 +167,30 @@ void tqCleanUp(STQ*);
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
 
-int tqConsume(STQ*, tmqConsumeReq*);
+int tqConsume(STQ*, TmqConsumeReq*);
 
-tqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
+TqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
 
 int tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int tqCloseTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int tqMoveOffsetToNext(tqGroupHandle*);
+int tqMoveOffsetToNext(TqGroupHandle*);
 int tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
-int tqRegisterContext(tqGroupHandle*, void*);
-int tqLaunchQuery(tqGroupHandle*);
-int tqSendLaunchQuery(STQ*, int64_t topicId, int64_t cgId, void* query);
+int tqRegisterContext(TqGroupHandle*, void* ahandle);
+int tqLaunchQuery(TqGroupHandle*);
+int tqSendLaunchQuery(TqGroupHandle*);
 
-int tqSerializeGroupHandle(tqGroupHandle *gHandle, void** ppBytes, int32_t offset);
-int tqSerializeListHandle(tqListHandle *listHandle, void** ppBytes, int32_t offset);
-int tqSerializeBufHandle(tqBufferHandle *bufHandle, void** ppBytes, int32_t offset);
-int tqSerializeBufItem(tqBufferItem *bufItem, void** ppBytes, int32_t offset);
+int tqSerializeGroupHandle(TqGroupHandle *gHandle, void** ppBytes);
+void* tqSerializeListHandle(TqListHandle *listHandle, void* ptr);
+void* tqSerializeBufHandle(TqBufferHandle *bufHandle, void* ptr);
+void* tqSerializeBufItem(TqBufferItem *bufItem, void* ptr);
 
-int tqDeserializeGroupHandle(const void* pBytes, tqGroupHandle **pGhandle);
-int tqDeserializeListHandle(const void* pBytes, tqListHandle **pListHandle);
-int tqDeserializeBufHandle(const void* pBytes, tqBufferHandle **pBufHandle);
-int tqDeserializeBufItem(const void* pBytes, tqBufferItem **pBufItem);
+const void* tqDeserializeGroupHandle(const void* pBytes, TqGroupHandle *ghandle);
+const void* tqDeserializeBufHandle(const void* pBytes, TqBufferHandle *bufHandle);
+const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem *bufItem);
 
-int tqGetGHandleSSize(const tqGroupHandle *gHandle);
-int tqListHandleSSize(const tqListHandle *listHandle);
-int tqBufHandleSSize(const tqBufferHandle *bufHandle);
-int tqBufItemSSize(const tqBufferItem *bufItem);
+int tqGetGHandleSSize(const TqGroupHandle *gHandle);
+int tqBufHandleSSize();
+int tqBufItemSSize();
 
 #ifdef __cplusplus
 }

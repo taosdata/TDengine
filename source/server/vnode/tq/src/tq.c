@@ -22,18 +22,18 @@
 //
 //handle management message
 //
-static int tqProtoCheck(tmqMsgHead *pMsg) {
+static int tqProtoCheck(TmqMsgHead *pMsg) {
   return pMsg->protoVer == 0;
 }
 
-static int tqAckOneTopic(tqBufferHandle *bhandle, tmqOneAck *pAck, tqQueryMsg** ppQuery) {
+static int tqAckOneTopic(TqBufferHandle *bhandle, TmqOneAck *pAck, TqQueryMsg** ppQuery) {
   //clean old item and move forward
   int32_t consumeOffset = pAck->consumeOffset;
   int idx = consumeOffset % TQ_BUFFER_SIZE;
   ASSERT(bhandle->buffer[idx].content && bhandle->buffer[idx].executor);
   tfree(bhandle->buffer[idx].content);
   if( 1 /* TODO: need to launch new query */) {
-    tqQueryMsg* pNewQuery = malloc(sizeof(tqQueryMsg));
+    TqQueryMsg* pNewQuery = malloc(sizeof(TqQueryMsg));
     if(pNewQuery == NULL) {
       //TODO: memory insufficient
       return -1;
@@ -49,19 +49,19 @@ static int tqAckOneTopic(tqBufferHandle *bhandle, tmqOneAck *pAck, tqQueryMsg** 
   return 0;
 }
 
-static int tqAck(tqGroupHandle* ghandle, tmqAcks* pAcks) {
+static int tqAck(TqGroupHandle* ghandle, TmqAcks* pAcks) {
   int32_t ackNum = pAcks->ackNum;
-  tmqOneAck *acks = pAcks->acks;
+  TmqOneAck *acks = pAcks->acks;
   //double ptr for acks and list
   int i = 0;
-  tqListHandle* node = ghandle->head;
+  TqListHandle* node = ghandle->head;
   int ackCnt = 0;
-  tqQueryMsg *pQuery = NULL;
+  TqQueryMsg *pQuery = NULL;
   while(i < ackNum && node->next) {
-    if(acks[i].topicId == node->next->bufHandle->topicId) {
+    if(acks[i].topicId == node->next->bufHandle.topicId) {
       ackCnt++;
-      tqAckOneTopic(node->next->bufHandle, &acks[i], &pQuery);
-    } else if(acks[i].topicId < node->next->bufHandle->topicId) {
+      tqAckOneTopic(&node->next->bufHandle, &acks[i], &pQuery);
+    } else if(acks[i].topicId < node->next->bufHandle.topicId) {
       i++;
     } else {
       node = node->next;
@@ -73,12 +73,12 @@ static int tqAck(tqGroupHandle* ghandle, tmqAcks* pAcks) {
   return ackCnt;
 }
 
-static int tqCommitTCGroup(tqGroupHandle* handle) {
+static int tqCommitTCGroup(TqGroupHandle* handle) {
   //persist modification into disk
   return 0;
 }
 
-int tqCreateTCGroup(STQ *pTq, int64_t topicId, int64_t cgId, int64_t cId, tqGroupHandle** handle) {
+int tqCreateTCGroup(STQ *pTq, int64_t topicId, int64_t cgId, int64_t cId, TqGroupHandle** handle) {
   //create in disk
   return 0;
 }
@@ -99,13 +99,13 @@ int tqDropTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
   return 0;
 }
 
-static int tqFetch(tqGroupHandle* ghandle, void** msg) {
-  tqListHandle* head = ghandle->head;
-  tqListHandle* node = head;
+static int tqFetch(TqGroupHandle* ghandle, void** msg) {
+  TqListHandle* head = ghandle->head;
+  TqListHandle* node = head;
   int totSize = 0;
   //TODO: make it a macro
   int sizeLimit = 4 * 1024;
-  tmqMsgContent* buffer = malloc(sizeLimit);
+  TmqMsgContent* buffer = malloc(sizeLimit);
   if(buffer == NULL) {
     //TODO:memory insufficient
     return -1;
@@ -114,7 +114,7 @@ static int tqFetch(tqGroupHandle* ghandle, void** msg) {
   //until all topic iterated or msgs over sizeLimit
   while(node->next) {
     node = node->next;
-    tqBufferHandle* bufHandle = node->bufHandle;
+    TqBufferHandle* bufHandle = &node->bufHandle;
     int idx = bufHandle->nextConsumeOffset % TQ_BUFFER_SIZE;
     if(bufHandle->buffer[idx].content != NULL &&
         bufHandle->buffer[idx].offset == bufHandle->nextConsumeOffset
@@ -140,28 +140,23 @@ static int tqFetch(tqGroupHandle* ghandle, void** msg) {
       }
     }
   }
-  if(totSize == 0) {
-    //no msg
-    return -1;
-  }
-
   return totSize;
 }
 
 
-tqGroupHandle* tqGetGroupHandle(STQ* pTq, int64_t cId) {
+TqGroupHandle* tqGetGroupHandle(STQ* pTq, int64_t cId) {
   return NULL;
 }
 
-int tqLaunchQuery(tqGroupHandle* ghandle) {
+int tqLaunchQuery(TqGroupHandle* ghandle) {
   return 0;
 }
 
-int tqSendLaunchQuery(STQ* pTq, int64_t topicId, int64_t cgId, void* query) {
+int tqSendLaunchQuery(TqGroupHandle* gHandle) {
   return 0;
 }
 
-/*int tqMoveOffsetToNext(tqGroupHandle* ghandle) {*/
+/*int tqMoveOffsetToNext(TqGroupHandle* ghandle) {*/
   /*return 0;*/
 /*}*/
 
@@ -176,13 +171,13 @@ int tqCommit(STQ* pTq) {
   return 0;
 }
 
-int tqConsume(STQ* pTq, tmqConsumeReq* pMsg) {
-  if(!tqProtoCheck((tmqMsgHead *)pMsg)) {
+int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
+  if(!tqProtoCheck((TmqMsgHead *)pMsg)) {
     //proto version invalid
     return -1;
   }
   int64_t clientId = pMsg->head.clientId;
-  tqGroupHandle *ghandle = tqGetGroupHandle(pTq, clientId);
+  TqGroupHandle *ghandle = tqGetGroupHandle(pTq, clientId);
   if(ghandle == NULL) {
     //client not connect
     return -1;
@@ -194,9 +189,9 @@ int tqConsume(STQ* pTq, tmqConsumeReq* pMsg) {
     }
   }
 
-  tmqConsumeRsp *pRsp = (tmqConsumeRsp*) pMsg;
+  TmqConsumeRsp *pRsp = (TmqConsumeRsp*) pMsg;
 
-  if(tqFetch(ghandle, (void**)&pRsp->msgs) < 0) {
+  if(tqFetch(ghandle, (void**)&pRsp->msgs) <= 0) {
     //fetch error
     return -1;
   }
@@ -209,14 +204,9 @@ int tqConsume(STQ* pTq, tmqConsumeReq* pMsg) {
   return 0;
 }
 
-
-int tqSerializeGroupHandle(tqGroupHandle *gHandle, void** ppBytes, int32_t offset) {
+int tqSerializeGroupHandle(TqGroupHandle *gHandle, void** ppBytes) {
   //calculate size
   int sz = tqGetGHandleSSize(gHandle);
-  if(sz <= 0) {
-    //TODO: err
-    return -1;
-  }
   void* ptr = realloc(*ppBytes, sz);
   if(ptr == NULL) {
     free(ppBytes);
@@ -224,29 +214,30 @@ int tqSerializeGroupHandle(tqGroupHandle *gHandle, void** ppBytes, int32_t offse
     return -1;
   }
   *ppBytes = ptr;
-  //do serialize
+  //do serialization
   *(int64_t*)ptr = gHandle->cId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   *(int64_t*)ptr = gHandle->cgId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   *(int32_t*)ptr = gHandle->topicNum;
+  ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
   if(gHandle->topicNum > 0) {
-    tqSerializeListHandle(gHandle->head, ppBytes, ptr - *ppBytes);
+    tqSerializeListHandle(gHandle->head, ptr);
   }
   return 0;
 }
 
-int tqSerializeListHandle(tqListHandle *listHandle, void** ppBytes, int32_t offset) {
-  void* ptr = POINTER_SHIFT(*ppBytes, offset);
-  tqListHandle *node = listHandle;
-  while(node->next) {
+void* tqSerializeListHandle(TqListHandle *listHandle, void* ptr) {
+  TqListHandle *node = listHandle;
+  ASSERT(node != NULL);
+  while(node) {
+    ptr = tqSerializeBufHandle(&node->bufHandle, ptr);
     node = node->next;
-    offset = tqSerializeBufHandle(node->bufHandle, ppBytes, offset);
   }
-  return offset;
+  return ptr;
 }
-int tqSerializeBufHandle(tqBufferHandle *bufHandle, void** ppBytes, int32_t offset) {
-  void *ptr = POINTER_SHIFT(*ppBytes, offset);
+
+void* tqSerializeBufHandle(TqBufferHandle *bufHandle, void* ptr) {
   *(int64_t*)ptr = bufHandle->nextConsumeOffset;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   *(int64_t*)ptr = bufHandle->topicId;
@@ -256,41 +247,87 @@ int tqSerializeBufHandle(tqBufferHandle *bufHandle, void** ppBytes, int32_t offs
   *(int32_t*)ptr = bufHandle->tail;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
   for(int i = 0; i < TQ_BUFFER_SIZE; i++) {
-    int sz = tqSerializeBufItem(&bufHandle->buffer[i], ppBytes, ptr - *ppBytes);
-    ptr = POINTER_SHIFT(ptr, sz);
+    ptr = tqSerializeBufItem(&bufHandle->buffer[i], ptr);
   }
-  return ptr - *ppBytes;
+  return ptr;
 }
 
-int tqSerializeBufItem(tqBufferItem *bufItem, void** ppBytes, int32_t offset) {
-  void *ptr = POINTER_SHIFT(*ppBytes, offset);
+void* tqSerializeBufItem(TqBufferItem *bufItem, void* ptr) {
   //TODO: do we need serialize this? 
-  return 0;
+  //mainly for executor
+  return ptr;
 }
 
-int tqDeserializeGroupHandle(const void* pBytes, tqGroupHandle **pGhandle) {
-  return 0;
-}
-int tqDeserializeListHandle(const void* pBytes, tqListHandle **pListHandle) {
-  return 0;
-}
-int tqDeserializeBufHandle(const void* pBytes, tqBufferHandle **pBufHandle) {
-  return 0;
-}
-int tqDeserializeBufItem(const void* pBytes, tqBufferItem **pBufItem) {
-  return 0;
+const void* tqDeserializeGroupHandle(const void* pBytes, TqGroupHandle *gHandle) {
+  const void* ptr = pBytes;
+  gHandle->cId = *(int64_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
+  gHandle->cgId = *(int64_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
+  gHandle->ahandle = NULL;
+  gHandle->topicNum = *(int32_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
+  gHandle->head = NULL;
+  TqListHandle *node = gHandle->head;
+  for(int i = 0; i < gHandle->topicNum; i++) {
+    if(gHandle->head == NULL) {
+      if((node = malloc(sizeof(TqListHandle))) == NULL) {
+        //TODO: error
+        return NULL;
+      }
+      node->next= NULL;
+      ptr = tqDeserializeBufHandle(ptr, &node->bufHandle); 
+      gHandle->head = node;
+    } else {
+      node->next = malloc(sizeof(TqListHandle));
+      if(node->next == NULL) {
+        //TODO: error
+        return NULL;
+      }
+      node->next->next = NULL;
+      ptr = tqDeserializeBufHandle(ptr, &node->next->bufHandle);
+      node = node->next;
+    }
+  }
+  return ptr;
 }
 
+const void* tqDeserializeBufHandle(const void* pBytes, TqBufferHandle *bufHandle) {
+  const void* ptr = pBytes;
+  bufHandle->nextConsumeOffset = *(int64_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
+  bufHandle->topicId = *(int64_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
+  bufHandle->head = *(int32_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
+  bufHandle->tail = *(int32_t*)ptr;
+  ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
+  for(int i = 0; i < TQ_BUFFER_SIZE; i++) {
+    ptr = tqDeserializeBufItem(ptr, &bufHandle->buffer[i]);
+  }
+  return ptr;
+}
 
-int tqGetGHandleSSize(const tqGroupHandle *gHandle) {
-  return 0;
+const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem *bufItem) {
+  return pBytes;
 }
-int tqListHandleSSize(const tqListHandle *listHandle) {
-  return 0;
+
+//TODO: make this a macro
+int tqGetGHandleSSize(const TqGroupHandle *gHandle) {
+  return sizeof(int64_t) * 2
+    + sizeof(int32_t)
+    + gHandle->topicNum * tqBufHandleSSize();
 }
-int tqBufHandleSSize(const tqBufferHandle *bufHandle) {
-  return 0;
+
+//TODO: make this a macro
+int tqBufHandleSSize() {
+  return sizeof(int64_t) * 2
+    + sizeof(int32_t) * 2
+    + TQ_BUFFER_SIZE * tqBufItemSSize();
 }
-int tqBufItemSSize(const tqBufferItem *bufItem) {
+
+int tqBufItemSSize() {
+  //TODO: do this need serialization?
+  //mainly for executor
   return 0;
 }

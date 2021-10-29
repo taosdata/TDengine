@@ -15,5 +15,12 @@
 
 #include "sync.h"
 
-int32_t  syncInit() {return 0;}
+int32_t syncInit() { return 0; }
+
 void syncCleanUp() {}
+
+SSyncNode* syncStart(const SSyncInfo* pInfo) { return NULL; }
+
+void syncStop(const SSyncNode* pNode) {}
+
+void syncReconfig(const SSyncNode* pNode, const SSyncCluster* pCfg) {}

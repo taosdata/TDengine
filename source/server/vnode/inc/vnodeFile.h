@@ -23,8 +23,8 @@ extern "C" {
 
 int32_t vnodeReadCfg(int32_t vgId, SVnodeCfg *pCfg);
 int32_t vnodeWriteCfg(int32_t vgId, SVnodeCfg *pCfg);
-int32_t vnodeReadTerm(int32_t vgId, SSyncServerState *pState);
-int32_t vnodeWriteTerm(int32_t vgid, SSyncServerState *pState);
+int32_t vnodeReadState(int32_t vgId, SSyncServerState *pState);
+int32_t vnodeSaveState(int32_t vgid, SSyncServerState *pState);
 
 #ifdef __cplusplus
 }
