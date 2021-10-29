@@ -201,8 +201,8 @@ pipeline {
       stage('pre_build'){
           agent{label 'master'}
           options { skipDefaultCheckout() } 
-          when{
-                changeRequest()
+          when {
+              changeRequest()
           }
           steps {
             script{
@@ -322,21 +322,9 @@ pipeline {
               '''
 
               sh '''
-              cd ${WKC}/src/connector/node-rest/
-              npm install
-              npm run build 
-              npm run build:test
-              npm run test
-
-              '''
-
-              sh '''
-                cd ${WKC}/tests/examples/C#/taosdemo
-                mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo -c /etc/taos
-                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
-                mcs -out:nano *.cs > /dev/null 2>&1
-                echo '' |./nano
+              cd ${WKC}/tests/examples/C#/taosdemo
+              mcs -out:taosdemo *.cs > /dev/null 2>&1
+              echo '' |./taosdemo -c /etc/taos
               '''
               sh '''
                 cd ${WKC}/tests/gotest

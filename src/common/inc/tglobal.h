@@ -217,6 +217,8 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
+extern int8_t tsClientMerge;
+
 #ifdef TD_TSZ
 // lossy
 extern char lossyColumns[];
@@ -231,6 +233,7 @@ extern int8_t tsDeadLockKillQuery;
 
 // schemaless
 extern char tsDefaultJSONStrType[];
+
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];
