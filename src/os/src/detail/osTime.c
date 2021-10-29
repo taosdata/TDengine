@@ -343,15 +343,20 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
   assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
          toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
+  double tempResult = time;
   switch(fromPrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
       switch (toPrecision) {
         case TSDB_TIME_PRECISION_MILLI:
           return time;
         case TSDB_TIME_PRECISION_MICRO:
-          return time * 1000;
+          tempResult *= 1000;
+          time *= 1000;
+          goto end_;
         case TSDB_TIME_PRECISION_NANO:
-          return time * 1000000;
+          tempResult *= 1000000;
+          time *= 1000000;
+          goto end_;
       }
     } // end from milli
     case TSDB_TIME_PRECISION_MICRO: {
@@ -361,7 +366,9 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
         case TSDB_TIME_PRECISION_MICRO:
           return time;
         case TSDB_TIME_PRECISION_NANO:
-          return time * 1000;
+          tempResult *= 1000;
+          time *= 1000;
+          goto end_;
       }
     } //end from micro
     case TSDB_TIME_PRECISION_NANO: {
@@ -379,6 +386,10 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
       return time;  // only to pass windows compilation
     }
   } //end switch fromPrecision
+end_:
+  if (tempResult > (double)INT64_MAX) return INT64_MAX;
+  if (tempResult < (double)INT64_MIN) return INT64_MIN + 1;  // INT64_MIN means NULL
+  return time;
 }
 
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
