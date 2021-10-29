@@ -68,6 +68,9 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
+      case TK_ID:
+        tscRmEscapeAndTrimToken(&t0);
+        //fall through
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {
@@ -617,10 +620,7 @@ void tSetDbName(SStrToken *pCpxName, SStrToken *pDb) {
 }
 
 void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
-  int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]) - TS_ESCAPE_CHAR_SIZE;
-  if (pName->z[0] == '`' && pName->z[pName->n - 1] == '`') {
-    maxLen = maxLen + TS_ESCAPE_CHAR_SIZE;
-  }
+  int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
 
   // column name is too long, set the it to be invalid.
   if ((int32_t) pName->n >= maxLen) {

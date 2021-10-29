@@ -57,7 +57,7 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef struct taosField {
-  char     name[67]; //65 + 2(for backstick escape characters)
+  char     name[65];
   uint8_t  type;
   int16_t  bytes;
 } TAOS_FIELD;
