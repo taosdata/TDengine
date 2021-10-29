@@ -2007,6 +2007,22 @@ static SUdfInfo* isValidUdf(SArray* pUdfInfo, const char* name, int32_t len) {
   return NULL;
 }
 
+static bool willProcessFunctionWithExpr(const tSqlExprItem* pItem) {
+  assert(pItem->pNode->type == SQL_NODE_SQLFUNCTION);
+  int32_t functionId = pItem->pNode->functionId;
+
+  if (TSDB_FUNC_IS_SCALAR(functionId)) {
+    return true;
+  } else if (functionId == TSDB_FUNC_SUM ||
+             functionId == TSDB_FUNC_AVG ||
+             functionId == TSDB_FUNC_MAX ||
+             functionId == TSDB_FUNC_MIN) {
+    return true;
+  }
+
+  return false;
+}
+
 int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool joinQuery,
                                bool timeWindowQuery, bool outerQuery) {
   assert(pSelNodeList != NULL && pCmd != NULL);
@@ -2045,7 +2061,12 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     } 
 
     int32_t type = pItem->pNode->type;
-    if (type == SQL_NODE_SQLFUNCTION) {
+    if (type == SQL_NODE_EXPR) {
+      int32_t code = handleArithmeticExpr(pCmd, pQueryInfo, i, pItem);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else if (type == SQL_NODE_SQLFUNCTION) {
       hasAgg = true; 
       if (hasDistinct)  break;
 
@@ -2069,9 +2090,16 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
         pItem->pNode->functionId = pUdfInfo->functionId;
       }
 
-      // sql function in selection clause, append sql function info in pSqlCmd structure sequentially
-      if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, pItem, true, pUdfInfo) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (willProcessFunctionWithExpr(pItem)) {
+        int32_t code = handleArithmeticExpr(pCmd, pQueryInfo, i, pItem);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      } else {
+        // sql function in selection clause, append sql function info in pSqlCmd structure sequentially
+        if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, pItem, true, pUdfInfo) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
     } else if (type == SQL_NODE_TABLE_COLUMN || type == SQL_NODE_VALUE) {
       // use the dynamic array list to decide if the function is valid or not
@@ -2079,12 +2107,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
       if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem, outerQuery) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-    } else if (type == SQL_NODE_EXPR) {
-      int32_t code = handleArithmeticExpr(pCmd, pQueryInfo, i, pItem);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-    } else {
+    }  else {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -4310,10 +4333,10 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
   } else if (*type == NORMAL_ARITHMETIC) {
     if (!TSDB_FUNC_IS_SCALAR(functionId)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      *type = AGG_ARIGHTMEIC;
     }
   } else {
-    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+    if (!TSDB_FUNC_IS_SCALAR(functionId)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }

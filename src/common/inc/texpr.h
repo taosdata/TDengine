@@ -41,9 +41,8 @@ struct SSchema;
 #define QUERY_COND_REL_PREFIX_MATCH_LEN 6
 #define QUERY_COND_REL_PREFIX_NMATCH_LEN 7
 
-#define TSDB_FUNC_FLAG_UDF          0x8000
 #define TSDB_FUNC_FLAG_SCALAR       0x4000
-#define TSDB_FUNC_IS_SCALAR(id)     ((((id) & TSDB_FUNC_FLAG_UDF) == 0) && (((id) & TSDB_FUNC_FLAG_SCALAR) != 0))
+#define TSDB_FUNC_IS_SCALAR(id)     ((((id) > 0)) && (((id) & TSDB_FUNC_FLAG_SCALAR) != 0))
 #define TSDB_FUNC_SCALAR_INDEX(id)  ((id) & ~TSDB_FUNC_FLAG_SCALAR)
 ///////////////////////////////////////////
 // SCALAR FUNCTIONS
