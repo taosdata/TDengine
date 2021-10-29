@@ -469,7 +469,37 @@ pipeline {
             }
           }
         } 
-        
+        stage('arm64centos7') {
+          agent{label " arm64centos7 "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm64centos8') {
+          agent{label " arm64centos8 "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm32bionic') {
+          agent{label " arm32bionic "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm64bionic') {
+          agent{label " arm64bionic "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm64focal') {
+          agent{label " arm64focal "}
+          steps {     
+              pre_test()    
+            }
+        }
+
         stage('build'){
           agent{label " wintest "}
           steps {
