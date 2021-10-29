@@ -37,22 +37,22 @@ SToken createToken(char* s) {
 }  // namespace
 
 static void _init_tvariant_bool(SVariant* t) {
-  t->i64 = TSDB_FALSE;
+  t->i = TSDB_FALSE;
   t->nType = TSDB_DATA_TYPE_BOOL;
 }
 
 static void _init_tvariant_tinyint(SVariant* t) {
-  t->i64 = -27;
+  t->i = -27;
   t->nType = TSDB_DATA_TYPE_TINYINT;
 }
 
 static void _init_tvariant_int(SVariant* t) {
-  t->i64 = -23997659;
+  t->i = -23997659;
   t->nType = TSDB_DATA_TYPE_INT;
 }
 
 static void _init_tvariant_bigint(SVariant* t) {
-  t->i64 = -3333333333333;
+  t->i = -3333333333333;
   t->nType = TSDB_DATA_TYPE_BIGINT;
 }
 
@@ -359,19 +359,19 @@ TEST(testCase, tvariant_convert) {
   _init_tvariant_bool(&t);
 
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 0);
+  EXPECT_EQ(t.i, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
-  EXPECT_EQ(t.i64, 0);
+  EXPECT_EQ(t.i, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_SMALLINT), 0);
-  EXPECT_EQ(t.i64, 0);
+  EXPECT_EQ(t.i, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, 0);
+  EXPECT_EQ(t.i, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -394,23 +394,23 @@ TEST(testCase, tvariant_convert) {
   // 2. tinyint to other data types
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 1);
+  EXPECT_EQ(t.i, 1);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
-  EXPECT_EQ(t.i64, -27);
+  EXPECT_EQ(t.i, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_SMALLINT), 0);
-  EXPECT_EQ(t.i64, -27);
+  EXPECT_EQ(t.i, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_INT), 0);
-  EXPECT_EQ(t.i64, -27);
+  EXPECT_EQ(t.i, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, -27);
+  EXPECT_EQ(t.i, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -434,7 +434,7 @@ TEST(testCase, tvariant_convert) {
   // types//////////////////////////////////////////////////////////////////
   _init_tvariant_int(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 1);
+  EXPECT_EQ(t.i, 1);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
@@ -444,11 +444,11 @@ TEST(testCase, tvariant_convert) {
 
   _init_tvariant_int(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_INT), 0);
-  EXPECT_EQ(t.i64, -23997659);
+  EXPECT_EQ(t.i, -23997659);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, -23997659);
+  EXPECT_EQ(t.i, -23997659);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -472,7 +472,7 @@ TEST(testCase, tvariant_convert) {
   // type//////////////////////////////////////////////////////////////////////////////
   _init_tvariant_bigint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 1);
+  EXPECT_EQ(t.i, 1);
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
@@ -485,7 +485,7 @@ TEST(testCase, tvariant_convert) {
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, -3333333333333);
+  EXPECT_EQ(t.i, -3333333333333);
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -509,11 +509,11 @@ TEST(testCase, tvariant_convert) {
   // types////////////////////////////////////////////////////////////////////////
   _init_tvariant_float(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 1);
+  EXPECT_EQ(t.i, 1);
 
   _init_tvariant_float(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, -8991212199);
+  EXPECT_EQ(t.i, -8991212199);
 
   _init_tvariant_float(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -539,14 +539,14 @@ TEST(testCase, tvariant_convert) {
   t.nLen = strlen(t.pz);
   t.nType = TSDB_DATA_TYPE_BINARY;
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 1);
+  EXPECT_EQ(t.i, 1);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), -1);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, 200000);
+  EXPECT_EQ(t.i, 200000);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -572,14 +572,14 @@ TEST(testCase, tvariant_convert) {
   t.nLen = wcslen(t.wpz);
   t.nType = TSDB_DATA_TYPE_NCHAR;
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64, 0);
+  EXPECT_EQ(t.i, 0);
 
   _init_tvariant_nchar(&t);
   EXPECT_LE(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
 
   _init_tvariant_nchar(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64, -2000000);
+  EXPECT_EQ(t.i, -2000000);
 
   _init_tvariant_nchar(&t);
   EXPECT_EQ(taosVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);

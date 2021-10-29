@@ -375,25 +375,25 @@ void tSqlExprEvaluate(tSqlExpr* pExpr) {
 
       switch (optrType) {
         case TK_PLUS: {
-          pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
+          pExpr->value.i = pLeft->value.i + pRight->value.i;
           break;
         }
         case TK_MINUS: {
-          pExpr->value.i64 = pLeft->value.i64 - pRight->value.i64;
+          pExpr->value.i = pLeft->value.i - pRight->value.i;
           break;
         }
         case TK_STAR: {
-          pExpr->value.i64 = pLeft->value.i64 * pRight->value.i64;
+          pExpr->value.i = pLeft->value.i * pRight->value.i;
           break;
         }
         case TK_DIVIDE: {
           pExpr->tokenId = TK_FLOAT;
           pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
-          pExpr->value.d = (double)pLeft->value.i64 / pRight->value.i64;
+          pExpr->value.d = (double)pLeft->value.i / pRight->value.i;
           break;
         }
         case TK_REM: {
-          pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
+          pExpr->value.i = pLeft->value.i % pRight->value.i;
           break;
         }
         default:
@@ -411,8 +411,8 @@ void tSqlExprEvaluate(tSqlExpr* pExpr) {
       pExpr->tokenId = TK_FLOAT;
       pExpr->type = SQL_NODE_VALUE;
 
-      double left  = (pLeft->value.nType  == TSDB_DATA_TYPE_DOUBLE) ? pLeft->value.d : pLeft->value.i64;
-      double right = (pRight->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->value.d : pRight->value.i64;
+      double left  = (pLeft->value.nType  == TSDB_DATA_TYPE_DOUBLE) ? pLeft->value.d : pLeft->value.i;
+      double right = (pRight->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->value.d : pRight->value.i;
 
       switch (optrType) {
         case TK_PLUS: {

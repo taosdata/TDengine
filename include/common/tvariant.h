@@ -27,8 +27,8 @@ typedef struct SVariant {
   uint32_t   nType;
   int32_t    nLen;  // only used for string, for number, it is useless
   union {
-    int64_t  i64;
-    uint64_t u64;
+    int64_t  i;
+    uint64_t u;
     double   d;
     char    *pz;
     wchar_t *wpz;
