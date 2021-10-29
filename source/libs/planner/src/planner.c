@@ -46,21 +46,18 @@ typedef struct SJoinCond {
 static SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo);
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode);
 
-  int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
+int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
   return 0;
 }
 
-int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode* pQueryNode) {
+int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode) {
   SArray* upstream = createQueryPlanImpl((struct SQueryStmtInfo*) pQueryInfo);
   assert(taosArrayGetSize(upstream) == 1);
 
-  /*SQueryPlanNode* p = */taosArrayGetP(upstream, 0);
+  *pQueryNode = taosArrayGetP(upstream, 0);
+
   taosArrayDestroy(upstream);
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t qQueryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
-  return 0;
 }
 
 int32_t qQueryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql) {
@@ -108,10 +105,12 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   }
 
   pNode->numOfOutput = numOfOutput;
-  pNode->pExpr = calloc(numOfOutput, sizeof(SExprInfo));
+  pNode->pExpr = taosArrayInit(numOfOutput, POINTER_BYTES);
+
   for(int32_t i = 0; i < numOfOutput; ++i) {
-    SExprInfo* pExprInfo = taosArrayGet(pNode->pExpr, i);
-    assignExprInfo(pExprInfo, pExpr[i]);
+    SExprInfo* p = calloc(1, sizeof(SExprInfo));
+    assignExprInfo(p, pExpr[i]);
+    taosArrayPush(pNode->pExpr, &p);
   }
 
   pNode->pPrevNodes = taosArrayInit(4, POINTER_BYTES);
@@ -199,7 +198,6 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     }
 
     pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExpr, numOfCols, info, NULL);
-//    dropAllExprInfo(pExpr);
     tfree(pExpr);
   }
 
@@ -568,14 +566,15 @@ int32_t queryPlanToStringImpl(char* buf, SQueryPlanNode* pQueryNode, int32_t lev
   return len;
 }
 
-char* queryPlanToString(SQueryPlanNode* pQueryNode) {
+int32_t qQueryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
   assert(pQueryNode);
 
-  char* buf = calloc(1, 4096);
+  *str = calloc(1, 4096);
 
-  int32_t len = sprintf(buf, "===== logic plan =====\n");
-  queryPlanToStringImpl(buf, pQueryNode, 0, len);
-  return buf;
+  int32_t len = sprintf(*str, "===== logic plan =====\n");
+  queryPlanToStringImpl(*str, pQueryNode, 0, len);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SQueryPlanNode* queryPlanFromString() {

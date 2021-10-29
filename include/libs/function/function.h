@@ -186,7 +186,6 @@ typedef struct SResultDataInfo {
   int32_t intermediateBytes;
 } SResultDataInfo;
 
-
 typedef struct SMultiFunctionsDesc {
   bool stableQuery;
   bool groupbyColumn;
@@ -223,6 +222,8 @@ bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* funct
 const char* qGetFunctionName(int32_t functionId);
 
 void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc);
+
+tExprNode* exprdup(tExprNode* pTree);
 
 #ifdef __cplusplus
 }

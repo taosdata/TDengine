@@ -56,7 +56,7 @@ int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode);
  * @param pQueryNode
  * @return
  */
-int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode* pQueryNode);
+int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode);
 
 /**
  * Convert the query plan to string, in order to display it in the shell.

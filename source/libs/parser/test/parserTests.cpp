@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <function.h>
 #include <gtest/gtest.h>
 #include <iostream>
 #pragma GCC diagnostic ignored "-Wwrite-strings"

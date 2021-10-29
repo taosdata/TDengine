@@ -486,6 +486,12 @@ int32_t validateGroupbyNode(SQueryStmtInfo* pQueryInfo, SArray* pList, SMsgBuf* 
   const char* msg7 = "normal column and tags can not be mixed up in group by clause";
   const char* msg8 = "normal column can only locate at the end of group by clause";
 
+  SGroupbyExpr* pGroupExpr = &(pQueryInfo->groupbyExpr);
+  pGroupExpr->columnInfo = taosArrayInit(4, sizeof(SColIndex));
+  if (pGroupExpr->columnInfo == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
   // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
   if (pList == NULL) {
@@ -494,12 +500,6 @@ int32_t validateGroupbyNode(SQueryStmtInfo* pQueryInfo, SArray* pList, SMsgBuf* 
 
   if (pQueryInfo->numOfTables > 1) {
     return buildInvalidOperationMsg(pMsgBuf, msg4);
-  }
-
-  SGroupbyExpr* pGroupExpr = &(pQueryInfo->groupbyExpr);
-  pGroupExpr->columnInfo = taosArrayInit(4, sizeof(SColIndex));
-  if (pGroupExpr->columnInfo == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   size_t num = taosArrayGetSize(pList);
@@ -1855,9 +1855,6 @@ static int32_t doAddAllColumnExprInSelectClause(SQueryStmtInfo *pQueryInfo, STab
     (*colIndex)++;
   }
 }
-
-static int32_t extractFunctionParameterInfo(SQueryStmtInfo* pQueryInfo, int32_t tokenId, STableMetaInfo** pTableMetaInfo, SSchema* columnSchema,
-                                            tExprNode** pNode, SColumnIndex* pIndex, tSqlExprItem* pParamElem, SMsgBuf* pMsgBuf);
 
 static int32_t doHandleOneParam(SQueryStmtInfo *pQueryInfo, tSqlExprItem* pItem, tSqlExprItem* pParamElem, int32_t functionId,
     int32_t* outputIndex, bool finalResult, SMsgBuf* pMsgBuf) {

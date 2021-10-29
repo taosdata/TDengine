@@ -62,7 +62,6 @@ typedef struct SExprTraverseSupp {
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
-tExprNode* exprdup(tExprNode* pTree);
 
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 

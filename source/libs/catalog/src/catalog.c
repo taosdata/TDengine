@@ -16,7 +16,7 @@
 #include "catalogInt.h"
 
 struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
-  return NULL;
+  return (struct SCatalog*) 0x1;
 }
 
 int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
