@@ -14,12 +14,16 @@
  */
 
 #include "syncInt.h"
+#include "ttimer.h"
 
 SSyncManager* gSyncManager = NULL;
+
+#define SYNC_TICK_TIMER 50
 
 static int syncOpenWorkerPool(SSyncManager* syncManager);
 static int syncCloseWorkerPool(SSyncManager* syncManager);
 static void *syncWorkerMain(void *argv);
+static void syncNodeTick(void *param, void *tmrId);
 
 int32_t syncInit() { 
   if (gSyncManager != NULL) {
@@ -33,6 +37,14 @@ int32_t syncInit() {
   }
 
   pthread_mutex_init(&gSyncManager->mutex, NULL);
+
+  // init sync timer manager
+  gSyncManager->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
+  if (gSyncManager->syncTimerManager == NULL) {
+    syncCleanUp();
+    return -1;
+  }
+
   // init worker pool
   if (syncOpenWorkerPool(gSyncManager) != 0) {
     syncCleanUp();
@@ -56,6 +68,7 @@ void syncCleanUp() {
   if (gSyncManager->vgroupTable) {
     taosHashCleanup(gSyncManager->vgroupTable);
   }
+  taosTmrCleanUp(gSyncManager->syncTimerManager);
   syncCloseWorkerPool(gSyncManager);
   pthread_mutex_unlock(&gSyncManager->mutex);
   pthread_mutex_destroy(&gSyncManager->mutex);
@@ -79,6 +92,8 @@ SSyncNode* syncStart(const SSyncInfo* pInfo) {
     pthread_mutex_unlock(&gSyncManager->mutex);
     return NULL;
   }
+
+  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)pInfo->vgId, gSyncManager->syncTimerManager);
 
   // start raft
   pNode->raft.pNode = pNode;
@@ -106,7 +121,8 @@ void syncStop(const SSyncNode* pNode) {
     return;
   }
   assert(*ppNode == pNode);
-  
+  taosTmrStop(pNode->syncTimer);
+
   taosHashRemove(gSyncManager->vgroupTable, &pNode->vgId, sizeof(SyncGroupId));
   pthread_mutex_unlock(&gSyncManager->mutex);
 
@@ -158,4 +174,19 @@ static void *syncWorkerMain(void *argv) {
   setThreadName("syncWorker");
 
   return NULL;
+}
+
+static void syncNodeTick(void *param, void *tmrId) {
+  SyncGroupId vgId = (SyncGroupId)param;
+  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &vgId, sizeof(SyncGroupId));
+  if (ppNode == NULL) {
+    return;
+  }
+  SSyncNode *pNode = *ppNode;
+
+  pthread_mutex_lock(&pNode->mutex);
+  syncRaftTick(&pNode->raft);
+  pthread_mutex_unlock(&pNode->mutex);
+
+  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)pNode->vgId, gSyncManager->syncTimerManager);
 }

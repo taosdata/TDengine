@@ -15,3 +15,8 @@
 
 #include "raft_message.h"
 
+void syncFreeMessage(const RaftMessage* pMsg) {
+  if (!syncIsInternalMsg(pMsg)) {
+    free((RaftMessage*)pMsg);
+  }
+}

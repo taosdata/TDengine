@@ -30,8 +30,10 @@ typedef struct SSyncWorker {
 
 struct SSyncNode {
   pthread_mutex_t   mutex;
+  int32_t      refCount;
   SyncGroupId   vgId;
   SSyncRaft raft;
+  void* syncTimer;
 };
 
 typedef struct SSyncManager {
@@ -45,6 +47,9 @@ typedef struct SSyncManager {
 
   // vgroup hash table
   SHashObj* vgroupTable;
+
+  // timer manager
+  void* syncTimerManager;
 
 } SSyncManager;
 

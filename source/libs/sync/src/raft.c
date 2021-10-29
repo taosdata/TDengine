@@ -67,8 +67,10 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 }
 
 int32_t syncRaftStep(SSyncRaft* pRaft, const RaftMessage* pMsg) {
-  if (!syncIsInternalMsg(pMsg)) {
-    free(pMsg);
-  }
+  syncFreeMessage(pMsg);
+  return 0;
+}
+
+int32_t syncRaftTick(SSyncRaft* pRaft) {
   return 0;
 }

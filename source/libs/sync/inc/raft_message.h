@@ -73,4 +73,6 @@ static FORCE_INLINE bool syncIsInternalMsg(const RaftMessage* pMsg) {
   return pMsg->msgType == RAFT_MSG_INTERNAL_PROP;
 }
 
+void syncFreeMessage(const RaftMessage* pMsg);
+
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */
