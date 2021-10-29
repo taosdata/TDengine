@@ -194,22 +194,18 @@ static int32_t vnodeProcessAlterStreamReq(SRpcMsg *pMsg) {
   return TSDB_CODE_VND_MSG_NOT_PROCESSED;
 }
 
-static int32_t vnodeProcessMgmtStart(void *unused, SVnMgmtMsg *pMgmt, int32_t qtype) {
+static void vnodeProcessMgmtReq(SVnMgmtMsg *pMgmt, void *unused) {
   SRpcMsg *pMsg = &pMgmt->rpcMsg;
   int32_t  msgType = pMsg->msgType;
+  int32_t  code = 0;
 
   if (tsVmgmt.msgFp[msgType]) {
     vTrace("msg:%p, ahandle:%p type:%s will be processed", pMgmt, pMsg->ahandle, taosMsg[msgType]);
-    return (*tsVmgmt.msgFp[msgType])(pMsg);
+    code = (*tsVmgmt.msgFp[msgType])(pMsg);
   } else {
     vError("msg:%p, ahandle:%p type:%s not processed since no handle", pMgmt, pMsg->ahandle, taosMsg[msgType]);
-    return TSDB_CODE_DND_MSG_NOT_PROCESSED;
+    code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
   }
-}
-
-static void vnodeProcessMgmtEnd(void *unused, SVnMgmtMsg *pMgmt, int32_t qtype, int32_t code) {
-  SRpcMsg *pMsg = &pMgmt->rpcMsg;
-  vTrace("msg:%p, is processed, result:%s", pMgmt, tstrerror(code));
 
   SRpcMsg rsp = {.code = code, .handle = pMsg->handle};
   rpcSendResponse(&rsp);
@@ -235,9 +231,9 @@ static int32_t vnodeWriteToMgmtQueue(SRpcMsg *pMsg) {
   memcpy(pMgmt->pCont, pMsg->pCont, pMsg->contLen);
 
   if (pMsg->msgType == TSDB_MSG_TYPE_MD_CREATE_VNODE) {
-    return taosWriteQitem(tsVmgmt.createQueue, TAOS_QTYPE_RPC, pMgmt);
+    return taosWriteQitem(tsVmgmt.createQueue, pMgmt);
   } else {
-    return taosWriteQitem(tsVmgmt.workerQueue, TAOS_QTYPE_RPC, pMgmt);
+    return taosWriteQitem(tsVmgmt.workerQueue, pMgmt);
   }
 }
 
@@ -257,27 +253,23 @@ int32_t vnodeInitMgmt() {
 
   SWorkerPool *pPool = &tsVmgmt.createPool;
   pPool->name = "vnode-mgmt-create";
-  pPool->startFp = (ProcessStartFp)vnodeProcessMgmtStart;
-  pPool->endFp = (ProcessEndFp)vnodeProcessMgmtEnd;
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  tsVmgmt.createQueue = tWorkerAllocQueue(pPool, NULL);
+  tsVmgmt.createQueue = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)vnodeProcessMgmtReq);
 
   pPool = &tsVmgmt.workerPool;
   pPool->name = "vnode-mgmt-worker";
-  pPool->startFp = (ProcessStartFp)vnodeProcessMgmtStart;
-  pPool->endFp = (ProcessEndFp)vnodeProcessMgmtEnd;
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  tsVmgmt.workerQueue = tWorkerAllocQueue(pPool, NULL);
+  tsVmgmt.workerQueue = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)vnodeProcessMgmtReq);
 
   vInfo("vmgmt is initialized");
   return TSDB_CODE_SUCCESS;

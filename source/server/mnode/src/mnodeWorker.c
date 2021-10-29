@@ -28,10 +28,10 @@ static struct {
   SWorkerPool write;
   SWorkerPool peerReq;
   SWorkerPool peerRsp;
-  taos_queue  readQ;
-  taos_queue  writeQ;
-  taos_queue  peerReqQ;
-  taos_queue  peerRspQ;
+  taos_queue        readQ;
+  taos_queue        writeQ;
+  taos_queue        peerReqQ;
+  taos_queue        peerRspQ;
   int32_t (*writeMsgFp[TSDB_MSG_TYPE_MAX])(SMnMsg *);
   int32_t (*readMsgFp[TSDB_MSG_TYPE_MAX])(SMnMsg *);
   int32_t (*peerReqFp[TSDB_MSG_TYPE_MAX])(SMnMsg *);
@@ -81,7 +81,7 @@ static void mnodeDispatchToWriteQueue(SRpcMsg *pRpcMsg) {
       rpcSendResponse(&rpcRsp);
     } else {
       mTrace("msg:%p, app:%p type:%s is put into wqueue", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-      taosWriteQitem(tsMworker.writeQ, TAOS_QTYPE_RPC, pMsg);
+      taosWriteQitem(tsMworker.writeQ, pMsg);
     }
   }
 
@@ -93,7 +93,7 @@ void mnodeReDispatchToWriteQueue(SMnMsg *pMsg) {
     mnodeSendRedirectMsg(&pMsg->rpcMsg, true);
     mnodeCleanupMsg(pMsg);
   } else {
-    taosWriteQitem(tsMworker.writeQ, TAOS_QTYPE_RPC, pMsg);
+    taosWriteQitem(tsMworker.writeQ, pMsg);
   }
 }
 
@@ -107,7 +107,7 @@ static void mnodeDispatchToReadQueue(SRpcMsg *pRpcMsg) {
       rpcSendResponse(&rpcRsp);
     } else {
       mTrace("msg:%p, app:%p type:%s is put into rqueue", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
-      taosWriteQitem(tsMworker.readQ, TAOS_QTYPE_RPC, pMsg);
+      taosWriteQitem(tsMworker.readQ, pMsg);
     }
   }
 
@@ -125,7 +125,7 @@ static void mnodeDispatchToPeerQueue(SRpcMsg *pRpcMsg) {
     } else {
       mTrace("msg:%p, app:%p type:%s is put into peer req queue", pMsg, pMsg->rpcMsg.ahandle,
              taosMsg[pMsg->rpcMsg.msgType]);
-      taosWriteQitem(tsMworker.peerReqQ, TAOS_QTYPE_RPC, pMsg);
+      taosWriteQitem(tsMworker.peerReqQ, pMsg);
     }
   }
 
@@ -140,13 +140,13 @@ void mnodeDispatchToPeerRspQueue(SRpcMsg *pRpcMsg) {
   } else {
     mTrace("msg:%p, app:%p type:%s is put into peer rsp queue", pMsg, pMsg->rpcMsg.ahandle,
            taosMsg[pMsg->rpcMsg.msgType]);
-    taosWriteQitem(tsMworker.peerRspQ, TAOS_QTYPE_RPC, pMsg);
+    taosWriteQitem(tsMworker.peerRspQ, pMsg);
   }
 
   // rpcFreeCont(pRpcMsg->pCont);
 }
 
-static void mnodeSendRpcRsp(void *ahandle, SMnMsg *pMsg, int32_t qtype, int32_t code) {
+void mnodeSendRsp(SMnMsg *pMsg, int32_t code) {
   if (pMsg == NULL) return;
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
@@ -155,19 +155,13 @@ static void mnodeSendRpcRsp(void *ahandle, SMnMsg *pMsg, int32_t qtype, int32_t 
   }
 
   SRpcMsg rpcRsp = {
-    .handle  = pMsg->rpcMsg.handle,
-    .pCont   = pMsg->rpcRsp.rsp,
-    .contLen = pMsg->rpcRsp.len,
-    .code    = code,
+      .handle = pMsg->rpcMsg.handle,
+      .pCont = pMsg->rpcRsp.rsp,
+      .contLen = pMsg->rpcRsp.len,
+      .code = code,
   };
 
   rpcSendResponse(&rpcRsp);
-  mnodeCleanupMsg(pMsg);
-}
-
-void mnodeSendRsp(SMnMsg *pMsg, int32_t code) { mnodeSendRpcRsp(NULL, pMsg, 0, code); }
-
-static void mnodeProcessPeerRspEnd(void *ahandle, SMnMsg *pMsg, int32_t qtype, int32_t code) {
   mnodeCleanupMsg(pMsg);
 }
 
@@ -290,13 +284,15 @@ static void mnodeInitMsgFp() {
 //   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN] = mnodeProcessKillConnectionMsg;
 }
 
-static int32_t mnodeProcessWriteReq(void *unused, SMnMsg *pMsg, int32_t qtype) {
+static void mnodeProcessWriteReq(SMnMsg *pMsg, void *unused) {
   int32_t msgType = pMsg->rpcMsg.msgType;
-  void *ahandle = pMsg->rpcMsg.ahandle;
+  void   *ahandle = pMsg->rpcMsg.ahandle;
+  int32_t code = 0;
 
   if (pMsg->rpcMsg.pCont == NULL) {
     mError("msg:%p, app:%p type:%s content is null", pMsg, ahandle, taosMsg[msgType]);
-    return TSDB_CODE_MND_INVALID_MSG_LEN;
+    code = TSDB_CODE_MND_INVALID_MSG_LEN;
+    goto PROCESS_WRITE_REQ_END;
   }
 
   if (!mnodeIsMaster()) {
@@ -309,31 +305,39 @@ static int32_t mnodeProcessWriteReq(void *unused, SMnMsg *pMsg, int32_t qtype) {
     mDebug("msg:%p, app:%p type:%s in write queue, is redirected, numOfEps:%d inUse:%d", pMsg, ahandle,
            taosMsg[msgType], epSet->numOfEps, epSet->inUse);
 
-    return TSDB_CODE_RPC_REDIRECT;
+    code = TSDB_CODE_RPC_REDIRECT;
+    goto PROCESS_WRITE_REQ_END;
   }
 
   if (tsMworker.writeMsgFp[msgType] == NULL) {
     mError("msg:%p, app:%p type:%s not processed", pMsg, ahandle, taosMsg[msgType]);
-    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
+    code = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+    goto PROCESS_WRITE_REQ_END;
   }
 
-  return (*tsMworker.writeMsgFp[msgType])(pMsg);
+  code = (*tsMworker.writeMsgFp[msgType])(pMsg);
+
+PROCESS_WRITE_REQ_END:
+  mnodeSendRsp(pMsg, code);
 }
 
-static int32_t mnodeProcessReadReq(void* unused, SMnMsg *pMsg, int32_t qtype) {
+static void mnodeProcessReadReq(SMnMsg *pMsg, void *unused) {
   int32_t msgType = pMsg->rpcMsg.msgType;
-  void *ahandle = pMsg->rpcMsg.ahandle;
+  void   *ahandle = pMsg->rpcMsg.ahandle;
+  int32_t code = 0;
 
   if (pMsg->rpcMsg.pCont == NULL) {
     mError("msg:%p, app:%p type:%s in mread queue, content is null", pMsg, ahandle, taosMsg[msgType]);
-    return TSDB_CODE_MND_INVALID_MSG_LEN;
+    code = TSDB_CODE_MND_INVALID_MSG_LEN;
+    goto PROCESS_READ_REQ_END;
   }
 
   if (!mnodeIsMaster()) {
     SMnRsp *rpcRsp = &pMsg->rpcRsp;
     SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
     if (!epSet) {
-      return TSDB_CODE_MND_OUT_OF_MEMORY;
+      code = TSDB_CODE_MND_OUT_OF_MEMORY;
+      goto PROCESS_READ_REQ_END;
     }
     mnodeGetMnodeEpSetForShell(epSet, true);
     rpcRsp->rsp = epSet;
@@ -341,25 +345,32 @@ static int32_t mnodeProcessReadReq(void* unused, SMnMsg *pMsg, int32_t qtype) {
 
     mDebug("msg:%p, app:%p type:%s in mread queue is redirected, numOfEps:%d inUse:%d", pMsg, ahandle, taosMsg[msgType],
            epSet->numOfEps, epSet->inUse);
-    return TSDB_CODE_RPC_REDIRECT;
+    code = TSDB_CODE_RPC_REDIRECT;
+    goto PROCESS_READ_REQ_END;
   }
 
   if (tsMworker.readMsgFp[msgType] == NULL) {
     mError("msg:%p, app:%p type:%s in mread queue, not processed", pMsg, ahandle, taosMsg[msgType]);
-    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
+    code = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+    goto PROCESS_READ_REQ_END;
   }
 
   mTrace("msg:%p, app:%p type:%s will be processed in mread queue", pMsg, ahandle, taosMsg[msgType]);
-  return (*tsMworker.readMsgFp[msgType])(pMsg);
+  code = (*tsMworker.readMsgFp[msgType])(pMsg);
+
+PROCESS_READ_REQ_END:
+  mnodeSendRsp(pMsg, code);
 }
 
-static int32_t mnodeProcessPeerReq(void *unused, SMnMsg *pMsg, int32_t qtype) {
+static void mnodeProcessPeerReq(SMnMsg *pMsg, void *unused) {
   int32_t msgType = pMsg->rpcMsg.msgType;
-  void *  ahandle = pMsg->rpcMsg.ahandle;
+  void   *ahandle = pMsg->rpcMsg.ahandle;
+  int32_t code = 0;
 
   if (pMsg->rpcMsg.pCont == NULL) {
     mError("msg:%p, ahandle:%p type:%s in mpeer queue, content is null", pMsg, ahandle, taosMsg[msgType]);
-    return TSDB_CODE_MND_INVALID_MSG_LEN;
+    code = TSDB_CODE_MND_INVALID_MSG_LEN;
+    goto PROCESS_PEER_REQ_END;
   }
 
   if (!mnodeIsMaster()) {
@@ -372,24 +383,29 @@ static int32_t mnodeProcessPeerReq(void *unused, SMnMsg *pMsg, int32_t qtype) {
     mDebug("msg:%p, ahandle:%p type:%s in mpeer queue is redirected, numOfEps:%d inUse:%d", pMsg, ahandle,
            taosMsg[msgType], epSet->numOfEps, epSet->inUse);
 
-    return TSDB_CODE_RPC_REDIRECT;
+    code = TSDB_CODE_RPC_REDIRECT;
+    goto PROCESS_PEER_REQ_END;
   }
 
   if (tsMworker.peerReqFp[msgType] == NULL) {
     mError("msg:%p, ahandle:%p type:%s in mpeer queue, not processed", pMsg, ahandle, taosMsg[msgType]);
-    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
+    code = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+    goto PROCESS_PEER_REQ_END;
   }
 
-  return (*tsMworker.peerReqFp[msgType])(pMsg);
+  code = (*tsMworker.peerReqFp[msgType])(pMsg);
+
+PROCESS_PEER_REQ_END:
+  mnodeSendRsp(pMsg, code);
 }
 
-static int32_t mnodeProcessPeerRsp(void *ahandle, SMnMsg *pMsg, int32_t qtype) {
+static void mnodeProcessPeerRsp(SMnMsg *pMsg, void *unused) {
   int32_t  msgType = pMsg->rpcMsg.msgType;
   SRpcMsg *pRpcMsg = &pMsg->rpcMsg;
 
   if (!mnodeIsMaster()) {
     mError("msg:%p, ahandle:%p type:%s not processed for not master", pRpcMsg, pRpcMsg->ahandle, taosMsg[msgType]);
-    return 0;
+    mnodeCleanupMsg(pMsg);
   }
 
   if (tsMworker.peerRspFp[msgType]) {
@@ -398,7 +414,7 @@ static int32_t mnodeProcessPeerRsp(void *ahandle, SMnMsg *pMsg, int32_t qtype) {
     mError("msg:%p, ahandle:%p type:%s is not processed", pRpcMsg, pRpcMsg->ahandle, taosMsg[msgType]);
   }
 
-  return 0;
+  mnodeCleanupMsg(pMsg);
 }
 
 int32_t mnodeInitWorker() {
@@ -406,20 +422,16 @@ int32_t mnodeInitWorker() {
 
   SWorkerPool *pPool = &tsMworker.write;
   pPool->name = "mnode-write";
-  pPool->startFp = (ProcessStartFp)mnodeProcessWriteReq;
-  pPool->endFp = (ProcessEndFp)mnodeSendRpcRsp;
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.writeQ = tWorkerAllocQueue(pPool, NULL);
+    tsMworker.writeQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessWriteReq);
   }
 
   pPool = &tsMworker.read;
   pPool->name = "mnode-read";
-  pPool->startFp = (ProcessStartFp)mnodeProcessReadReq;
-  pPool->endFp = (ProcessEndFp)mnodeSendRpcRsp;
   pPool->min = 2;
   pPool->max = (int32_t)(tsNumOfCores * tsNumOfThreadsPerCore / 2);
   pPool->max = MAX(2, pPool->max);
@@ -427,31 +439,27 @@ int32_t mnodeInitWorker() {
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.readQ = tWorkerAllocQueue(pPool, NULL);
+    tsMworker.readQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessReadReq);
   }
 
   pPool = &tsMworker.peerReq;
   pPool->name = "mnode-peer-req";
-  pPool->startFp = (ProcessStartFp)mnodeProcessPeerReq;
-  pPool->endFp = (ProcessEndFp)mnodeSendRpcRsp;
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.peerReqQ = tWorkerAllocQueue(pPool, NULL);
+    tsMworker.peerReqQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessPeerReq);
   }
 
   pPool = &tsMworker.peerRsp;
   pPool->name = "mnode-peer-rsp";
-  pPool->startFp = (ProcessStartFp)mnodeProcessPeerRsp;
-  pPool->endFp = (ProcessEndFp)mnodeProcessPeerRspEnd;
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.peerRspQ = tWorkerAllocQueue(pPool, NULL);
+    tsMworker.peerRspQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessPeerRsp);
   }
 
   mInfo("mnode worker is initialized");

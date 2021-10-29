@@ -58,11 +58,11 @@ void tWorkerCleanup(SWorkerPool *pool) {
 }
 
 static void *tWorkerThreadFp(SWorker *worker) {
-  SWorkerPool *pool = worker->pool;
+  SWorkerPool    *pool = worker->pool;
+  FProcessOneItem fp = NULL;
 
-  void *  msg = NULL;
-  void *  ahandle = NULL;
-  int32_t qtype = 0;
+  void   *msg = NULL;
+  void   *ahandle = NULL;
   int32_t code = 0;
 
   taosBlockSIGPIPE();
@@ -70,19 +70,20 @@ static void *tWorkerThreadFp(SWorker *worker) {
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    if (taosReadQitemFromQset(pool->qset, &qtype, (void **)&msg, &ahandle) == 0) {
+    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &ahandle, &fp) == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
     }
 
-    code = (*pool->startFp)(ahandle, msg, qtype);
-    if (pool->endFp) (*pool->endFp)(ahandle, msg, qtype, code);
+    if (fp) {
+      (*fp)(msg, ahandle);
+    }
   }
 
   return NULL;
 }
 
-taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle) {
+taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessOneItem fp) {
   pthread_mutex_lock(&pool->mutex);
   taos_queue queue = taosOpenQueue();
   if (queue == NULL) {
@@ -90,6 +91,7 @@ taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle) {
     return NULL;
   }
 
+  taosSetQueueFp(queue, fp, NULL);
   taosAddIntoQset(pool->qset, queue, ahandle);
 
   // spawn a thread to process queue
@@ -122,14 +124,14 @@ void tWorkerFreeQueue(SWorkerPool *pool, void *queue) {
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }
 
-int32_t tWriteWorkerInit(SWriteWorkerPool *pool) {
+int32_t tMWorkerInit(SMWorkerPool *pool) {
   pool->nextId = 0;
-  pool->workers = calloc(sizeof(SWriteWorker), pool->max);
+  pool->workers = calloc(sizeof(SMWorker), pool->max);
   if (pool->workers == NULL) return -1;
 
   pthread_mutex_init(&pool->mutex, NULL);
   for (int32_t i = 0; i < pool->max; ++i) {
-    SWriteWorker *worker = pool->workers + i;
+    SMWorker *worker = pool->workers + i;
     worker->id = i;
     worker->qall = NULL;
     worker->qset = NULL;
@@ -140,16 +142,16 @@ int32_t tWriteWorkerInit(SWriteWorkerPool *pool) {
   return 0;
 }
 
-void tWriteWorkerCleanup(SWriteWorkerPool *pool) {
+void tMWorkerCleanup(SMWorkerPool *pool) {
   for (int32_t i = 0; i < pool->max; ++i) {
-    SWriteWorker *worker = pool->workers + i;
+    SMWorker *worker = pool->workers + i;
     if (taosCheckPthreadValid(worker->thread)) {
       if (worker->qset) taosQsetThreadResume(worker->qset);
     }
   }
 
   for (int32_t i = 0; i < pool->max; ++i) {
-    SWriteWorker *worker = pool->workers + i;
+    SMWorker *worker = pool->workers + i;
     if (taosCheckPthreadValid(worker->thread)) {
       pthread_join(worker->thread, NULL);
       taosFreeQall(worker->qall);
@@ -163,11 +165,12 @@ void tWriteWorkerCleanup(SWriteWorkerPool *pool) {
   uInfo("worker:%s is closed", pool->name);
 }
 
-static void *tWriteWorkerThreadFp(SWriteWorker *worker) {
-  SWriteWorkerPool *pool = worker->pool;
+static void *tWriteWorkerThreadFp(SMWorker *worker) {
+  SMWorkerPool   *pool = worker->pool;
+  FProcessAllItem fp = NULL;
 
-  void *  msg = NULL;
-  void *  ahandle = NULL;
+  void   *msg = NULL;
+  void   *ahandle = NULL;
   int32_t numOfMsgs = 0;
   int32_t qtype = 0;
 
@@ -176,40 +179,31 @@ static void *tWriteWorkerThreadFp(SWriteWorker *worker) {
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &ahandle);
+    numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &ahandle, &fp);
     if (numOfMsgs == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, worker->qset);
       break;
     }
 
-    bool fsync = false;
-    for (int32_t i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(worker->qall, &qtype, (void **)&msg);
-      fsync = fsync | (*pool->startFp)(ahandle, msg, qtype);
-    }
-
-    (*pool->syncFp)(ahandle, fsync);
-
-    // browse all items, and process them one by one
-    taosResetQitems(worker->qall);
-    for (int32_t i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(worker->qall, &qtype, (void **)&msg);
-      (*pool->endFp)(ahandle, msg, qtype);
+    if (fp) {
+      (*fp)(worker->qall, numOfMsgs, ahandle);
     }
   }
 
   return NULL;
 }
 
-taos_queue tWriteWorkerAllocQueue(SWriteWorkerPool *pool, void *ahandle) {
+taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessAllItem fp) {
   pthread_mutex_lock(&pool->mutex);
-  SWriteWorker *worker = pool->workers + pool->nextId;
+  SMWorker *worker = pool->workers + pool->nextId;
 
   taos_queue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&pool->mutex);
     return NULL;
   }
+
+  taosSetQueueFp(queue, NULL, fp);
 
   if (worker->qset == NULL) {
     worker->qset = taosOpenQset();
@@ -254,7 +248,7 @@ taos_queue tWriteWorkerAllocQueue(SWriteWorkerPool *pool, void *ahandle) {
   return queue;
 }
 
-void tWriteWorkerFreeQueue(SWriteWorkerPool *pool, taos_queue queue) {
+void tMWorkerFreeQueue(SMWorkerPool *pool, taos_queue queue) {
   taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }

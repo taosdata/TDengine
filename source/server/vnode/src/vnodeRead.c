@@ -71,9 +71,9 @@ static int32_t vnodeWriteToRQueue(SVnode *pVnode, void *pCont, int32_t contLen, 
   atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
   if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_FETCH) {
-    return taosWriteQitem(pVnode->pFetchQ, qtype, pRead);
+    return taosWriteQitem(pVnode->pFetchQ, pRead);
   } else {
-    return taosWriteQitem(pVnode->pQueryQ, qtype, pRead);
+    return taosWriteQitem(pVnode->pQueryQ, pRead);
   }
 }
 
@@ -136,18 +136,6 @@ static void vnodeInitReadMsgFp() {
   tsVread.msgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessConsumeMsg;
 }
 
-static int32_t vnodeProcessReadStart(SVnode *pVnode, SReadMsg *pRead, int32_t qtype) {
-  int32_t msgType = pRead->msgType;
-  if (tsVread.msgFp[msgType] == NULL) {
-    vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
-    return TSDB_CODE_VND_MSG_NOT_PROCESSED;
-  } else {
-    vTrace("msg:%p, app:%p type:%s will be processed", pRead, pRead->rpcAhandle, taosMsg[msgType]);
-  }
-
-  return (*tsVread.msgFp[msgType])(pVnode, pRead);
-}
-
 static void vnodeSendReadRsp(SReadMsg *pRead, int32_t code) {
   SRpcMsg rpcRsp = {
       .handle = pRead->rpcHandle,
@@ -159,8 +147,18 @@ static void vnodeSendReadRsp(SReadMsg *pRead, int32_t code) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void vnodeProcessReadEnd(SVnode *pVnode, SReadMsg *pRead, int32_t qtype, int32_t code) {
-  if (qtype == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
+static void vnodeProcessReadReq(SReadMsg *pRead, SVnode *pVnode) {
+  int32_t msgType = pRead->msgType;
+  int32_t code = 0;
+  if (tsVread.msgFp[msgType] == NULL) {
+    vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
+    code = TSDB_CODE_VND_MSG_NOT_PROCESSED;
+  } else {
+    vTrace("msg:%p, app:%p type:%s will be processed", pRead, pRead->rpcAhandle, taosMsg[msgType]);
+    code =  (*tsVread.msgFp[msgType])(pVnode, pRead);
+  }
+
+  if (/*qtype == TAOS_QTYPE_RPC && */ code != TSDB_CODE_QRY_NOT_READY) {
     vnodeSendReadRsp(pRead, code);
   } else {
     if (code == TSDB_CODE_QRY_HAS_RSP) {
@@ -181,16 +179,12 @@ int32_t vnodeInitRead() {
 
   SWorkerPool *pPool = &tsVread.query;
   pPool->name = "vquery";
-  pPool->startFp = (ProcessStartFp)vnodeProcessReadStart;
-  pPool->endFp = (ProcessEndFp)vnodeProcessReadEnd;
   pPool->min = (int32_t)threadsForQuery;
   pPool->max = pPool->min;
   if (tWorkerInit(pPool) != 0) return -1;
 
   pPool = &tsVread.fetch;
   pPool->name = "vfetch";
-  pPool->startFp = (ProcessStartFp)vnodeProcessReadStart;
-  pPool->endFp = (ProcessEndFp)vnodeProcessReadEnd;
   pPool->min = MIN(maxFetchThreads, tsNumOfCores);
   pPool->max = pPool->min;
   if (tWorkerInit(pPool) != 0) return -1;
@@ -205,9 +199,13 @@ void vnodeCleanupRead() {
   vInfo("vread is closed");
 }
 
-taos_queue vnodeAllocQueryQueue(SVnode *pVnode) { return tWorkerAllocQueue(&tsVread.query, pVnode); }
+taos_queue vnodeAllocQueryQueue(SVnode *pVnode) {
+  return tWorkerAllocQueue(&tsVread.query, pVnode, (FProcessOneItem)vnodeProcessReadReq);
+}
 
-taos_queue vnodeAllocFetchQueue(SVnode *pVnode) { return tWorkerAllocQueue(&tsVread.fetch, pVnode); }
+taos_queue vnodeAllocFetchQueue(SVnode *pVnode) {
+  return tWorkerAllocQueue(&tsVread.fetch, pVnode, (FProcessOneItem)vnodeProcessReadReq);
+}
 
 void vnodeFreeQueryQueue(taos_queue pQueue) { tWorkerFreeQueue(&tsVread.query, pQueue); }
 

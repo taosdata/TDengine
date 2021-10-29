@@ -32,15 +32,13 @@ typedef struct {
 } SVnWriteMsg;
 
 static struct {
-  SWriteWorkerPool pool;
-  int64_t          queuedBytes;
-  int32_t          queuedMsgs;
+  SMWorkerPool pool;
+  int64_t      queuedBytes;
+  int32_t      queuedMsgs;
 } tsVwrite = {0};
 
 void vnodeStartWrite(SVnode *pVnode) {}
-void vnodeStoprite(SVnode *pVnode) {}
-
-void vnodeWaitWriteCompleted(SVnode *pVnode) {
+void vnodeStopWrite(SVnode *pVnode) {
   while (pVnode->queuedWMsg > 0) {
     vTrace("vgId:%d, queued wmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
     taosMsleep(10);
@@ -86,7 +84,7 @@ static int32_t vnodeWriteToWQueue(SVnode *pVnode, SWalHead *pHead, int32_t qtype
   atomic_add_fetch_32(&tsVwrite.queuedMsgs, 1);
   atomic_add_fetch_32(&pVnode->refCount, 1);
   atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
-  taosWriteQitem(pVnode->pWriteQ, pWrite->qtype, pWrite);
+  taosWriteQitem(pVnode->pWriteQ, pWrite);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -101,11 +99,7 @@ static void vnodeFreeFromWQueue(SVnode *pVnode, SVnWriteMsg *pWrite) {
   vnodeRelease(pVnode);
 }
 
-int32_t vnodeProcessWalMsg(SVnode *pVnode, SWalHead *pHead) {
-  return vnodeWriteToWQueue(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
-}
-
-void vnodeProcessWriteMsg(SRpcMsg *pRpcMsg) {
+void vnodeProcessWriteReq(SRpcMsg *pRpcMsg) {
   int32_t code;
 
   SMsgHead *pMsg = pRpcMsg->pCont;
@@ -132,109 +126,104 @@ void vnodeProcessWriteMsg(SRpcMsg *pRpcMsg) {
   rpcFreeCont(pRpcMsg->pCont);
 }
 
-static bool vnodeProcessWriteStart(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t qtype) {
-  SWalHead *pHead = &pWrite->walHead;
-  SVnRsp * pRet = &pWrite->rspRet;
-  int32_t   msgType = pHead->msgType;
-
-  vTrace("vgId:%d, msg:%s will be processed, hver:%" PRIu64, pVnode->vgId, taosMsg[pHead->msgType], pHead->version);
-
-  // write into WAL
-#if 0  
-  pWrite->code = walWrite(pVnode->wal, pHead);
-  if (pWrite->code < 0) return false;
-
-
-  pVnode->version = pHead->version;
-#endif  
-  // write data locally
-  switch (msgType) {
-    case TSDB_MSG_TYPE_SUBMIT:
-      pRet->len = sizeof(SSubmitRsp);
-      pRet->rsp = rpcMallocCont(pRet->len);
-      pWrite->code = vnodeProcessSubmitReq(pVnode, (void*)pHead->cont, pRet->rsp);
-      break;
-    case TSDB_MSG_TYPE_MD_CREATE_TABLE:
-      pWrite->code = vnodeProcessCreateTableReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_MD_DROP_TABLE:
-      pWrite->code = vnodeProcessDropTableReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_MD_ALTER_TABLE:
-      pWrite->code = vnodeProcessAlterTableReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_MD_DROP_STABLE:
-      pWrite->code = vnodeProcessDropStableReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_UPDATE_TAG_VAL:
-      pWrite->code = vnodeProcessUpdateTagValReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    //mq related
-    case TSDB_MSG_TYPE_MQ_CONNECT:
-      pWrite->code = vnodeProcessMqConnectReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_MQ_DISCONNECT:
-      pWrite->code = vnodeProcessMqDisconnectReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_MQ_ACK:
-      pWrite->code = vnodeProcessMqAckReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    case TSDB_MSG_TYPE_MQ_RESET:
-      pWrite->code = vnodeProcessMqResetReq(pVnode, (void*)pHead->cont, NULL);
-      break;
-    //mq related end
-    default:
-      pWrite->code = TSDB_CODE_VND_MSG_NOT_PROCESSED;
-      break;
-  }
-
-  if (pWrite->code < 0) return false;
-
-  // update fsync
-  return (pWrite->code == 0 && msgType != TSDB_MSG_TYPE_SUBMIT);
+static void vnodeProcessWrite(SVnWriteMsg *pWrite, SVnode *pVnode) {
 }
+  // SWalHead *pHead = &pWrite->walHead;
+  // SVnRsp * pRet = &pWrite->rspRet;
+  // int32_t   msgType = pHead->msgType;
 
-static void vnodeFsync(SVnode *pVnode, bool fsync) { 
-#if 0
-  walFsync(pVnode->wal, fsync); 
-#endif
-}
+  // vTrace("vgId:%d, msg:%s will be processed, hver:%" PRIu64, pVnode->vgId, taosMsg[pHead->msgType], pHead->version);
 
-static void vnodeProcessWriteEnd(SVnode *pVnode, SVnWriteMsg *pWrite, int32_t qtype, int32_t code) {
-  if (qtype == TAOS_QTYPE_RPC) {
-    SRpcMsg rpcRsp = {
-        .handle = pWrite->rpcMsg.handle,
-        .pCont = pWrite->rspRet.rsp,
-        .contLen = pWrite->rspRet.len,
-        .code = pWrite->code,
-    };
-    rpcSendResponse(&rpcRsp);
-  } else {
-    if (pWrite->rspRet.rsp) {
-      rpcFreeCont(pWrite->rspRet.rsp);
-    }
-  }
-  vnodeFreeFromWQueue(pVnode, pWrite);
-}
+  // // write data locally
+  // switch (msgType) {
+  //   case TSDB_MSG_TYPE_SUBMIT:
+  //     pRet->len = sizeof(SSubmitRsp);
+  //     pRet->rsp = rpcMallocCont(pRet->len);
+  //     pWrite->code = vnodeProcessSubmitReq(pVnode, (void*)pHead->cont, pRet->rsp);
+  //     break;
+  //   case TSDB_MSG_TYPE_MD_CREATE_TABLE:
+  //     pWrite->code = vnodeProcessCreateTableReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_MD_DROP_TABLE:
+  //     pWrite->code = vnodeProcessDropTableReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_MD_ALTER_TABLE:
+  //     pWrite->code = vnodeProcessAlterTableReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_MD_DROP_STABLE:
+  //     pWrite->code = vnodeProcessDropStableReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_UPDATE_TAG_VAL:
+  //     pWrite->code = vnodeProcessUpdateTagValReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   //mq related
+  //   case TSDB_MSG_TYPE_MQ_CONNECT:
+  //     pWrite->code = vnodeProcessMqConnectReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_MQ_DISCONNECT:
+  //     pWrite->code = vnodeProcessMqDisconnectReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_MQ_ACK:
+  //     pWrite->code = vnodeProcessMqAckReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   case TSDB_MSG_TYPE_MQ_RESET:
+  //     pWrite->code = vnodeProcessMqResetReq(pVnode, (void*)pHead->cont, NULL);
+  //     break;
+  //   //mq related end
+  //   default:
+  //     pWrite->code = TSDB_CODE_VND_MSG_NOT_PROCESSED;
+  //     break;
+  // }
+
+  // if (pWrite->code < 0) return false;
+
+  // // update fsync
+  // return (pWrite->code == 0 && msgType != TSDB_MSG_TYPE_SUBMIT);
+
+
+  // // walFsync(pVnode->wal, fsync); 
+
+
+// static void vnodeProcessWriteEnd(SVnWriteMsg *pWrite, SVnode *pVnode) {
+//   if (qtype == TAOS_QTYPE_RPC) {
+//     SRpcMsg rpcRsp = {
+//         .handle = pWrite->rpcMsg.handle,
+//         .pCont = pWrite->rspRet.rsp,
+//         .contLen = pWrite->rspRet.len,
+//         .code = pWrite->code,
+//     };
+//     rpcSendResponse(&rpcRsp);
+//   } else {
+//     if (pWrite->rspRet.rsp) {
+//       rpcFreeCont(pWrite->rspRet.rsp);
+//     }
+//   }
+//   vnodeFreeFromWQueue(pVnode, pWrite);
+// }
 
 int32_t vnodeInitWrite() {
-  SWriteWorkerPool *pPool = &tsVwrite.pool;
-  pPool->name = "vwrite";
+  SMWorkerPool *pPool = &tsVwrite.pool;
+  pPool->name = "vnode-write";
   pPool->max = tsNumOfCores;
-  pPool->startFp = (ProcessWriteStartFp)vnodeProcessWriteStart;
-  pPool->syncFp = (ProcessWriteSyncFp)vnodeFsync;
-  pPool->endFp = (ProcessWriteEndFp)vnodeProcessWriteEnd;
-  if (tWriteWorkerInit(pPool) != 0) return -1;
+  if (tMWorkerInit(pPool) != 0) return -1;
 
   vInfo("vwrite is initialized, max worker %d", pPool->max);
   return TSDB_CODE_SUCCESS;
 }
 
 void vnodeCleanupWrite() {
-  tWriteWorkerCleanup(&tsVwrite.pool);
+  tMWorkerCleanup(&tsVwrite.pool);
   vInfo("vwrite is closed");
 }
 
-taos_queue vnodeAllocWriteQueue(SVnode *pVnode) { return tWriteWorkerAllocQueue(&tsVwrite.pool, pVnode); }
+taos_queue vnodeAllocWriteQueue(SVnode *pVnode) {
+  return tMWorkerAllocQueue(&tsVwrite.pool, pVnode, NULL);
+}
 
-void vnodeFreeWriteQueue(taos_queue pQueue) { tWriteWorkerFreeQueue(&tsVwrite.pool, pQueue); }
+void vnodeFreeWriteQueue(taos_queue pQueue) { tMWorkerFreeQueue(&tsVwrite.pool, pQueue); }
+
+taos_queue vnodeAllocApplyQueue(SVnode *pVnode) {
+  return tMWorkerAllocQueue(&tsVwrite.pool, pVnode, NULL);
+}
+
+void vnodeFreeApplyQueue(taos_queue pQueue) { tMWorkerFreeQueue(&tsVwrite.pool, pQueue); }

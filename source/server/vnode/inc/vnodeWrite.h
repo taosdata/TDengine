@@ -23,11 +23,12 @@ extern "C" {
 
 int32_t    vnodeInitWrite();
 void       vnodeCleanupWrite();
+
 taos_queue vnodeAllocWriteQueue(SVnode *pVnode);
 void       vnodeFreeWriteQueue(taos_queue pQueue);
-
-void    vnodeProcessWriteMsg(SRpcMsg *pRpcMsg);
-int32_t vnodeProcessWalMsg(SVnode *pVnode, SWalHead *pHead);
+taos_queue vnodeAllocApplyQueue(SVnode *pVnode);
+void       vnodeFreeApplyQueue(taos_queue pQueue);
+void       vnodeProcessWriteReq(SRpcMsg *pRpcMsg);
 
 void vnodeStartWrite(SVnode *pVnode);
 void vnodeStopWrite(SVnode *pVnode);
