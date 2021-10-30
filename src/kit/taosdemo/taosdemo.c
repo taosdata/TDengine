@@ -9943,7 +9943,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                     errorPrint2("Failed to alloc %d bytes, reason:%s\n",
                         BUFFER_SIZE, strerror(errno));
                 }
-                generateSmlTail(pThreadInfo->lines[j], smlHeadList[i], stbInfo, pThreadInfo, timestamp);
+                generateSmlTail(pThreadInfo->lines[j], smlHeadList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
                 timestamp += timeStampStep;
             }
             tableSeq ++;
@@ -9964,23 +9964,27 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                     + generatedRecPerTbl * timeStampStep;
 
                 flagSleep = true;
-                if (generatedRecPerTbl >= insertRows)
+                if (generatedRecPerTbl >= insertRows){
                     break;
+                }
 
                 int64_t remainRows = insertRows - generatedRecPerTbl;
-                if ((remainRows > 0) && (batchPerTbl > remainRows))
+                if ((remainRows > 0) && (batchPerTbl > remainRows)){
                     batchPerTbl = remainRows;
+                }
 
-                if (pThreadInfo->ntables * batchPerTbl < g_args.reqPerReq)
+                if (pThreadInfo->ntables * batchPerTbl < g_args.reqPerReq){
                     break;
+                }
             }
 
             verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%"PRId64" insertRows=%"PRId64"\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     generatedRecPerTbl, insertRows);
 
-            if ((g_args.reqPerReq - recOfBatch) < batchPerTbl)
+            if ((g_args.reqPerReq - recOfBatch) < batchPerTbl){
                 break;
+            }
         }
 
         verbosePrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRIu64"\n",
