@@ -1,5 +1,5 @@
 name: tdengine
-base: core18
+base: core20
 version: '2.3.0.0'
 icon: snap/gui/t-dengine.svg
 summary: an open-source big data platform designed and optimized for IoT. 
@@ -39,14 +39,17 @@ parts:
       - taoswrapper.sh
 
   tdengine:
+    plugin: cmake
     source: .
     source-type: local
-    plugin: cmake
     build-packages:
       - gcc
       - g++
       - make
       - cmake
+    cmake-parameters:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_HTTP=true
     override-build: |
       snapcraftctl build
       if [ ! -d $SNAPCRAFT_STAGE/usr ]; then
