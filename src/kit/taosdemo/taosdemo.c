@@ -9656,57 +9656,57 @@ static void generateSmlHead(char* smlHead, SSuperTable* stbInfo, threadInfo* pTh
                 case TSDB_DATA_TYPE_BOOL:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%s", j, rand_bool_str());
+                                 "t%d=%s", j, rand_bool_str());
                     break;
                 case TSDB_DATA_TYPE_TINYINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%si8", j, rand_tinyint_str());
+                                 "t%d=%s", j, rand_tinyint_str());
                     break;
                 case TSDB_DATA_TYPE_UTINYINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%su8", j, rand_utinyint_str());
+                                 "t%d=%s", j, rand_utinyint_str());
                     break;
                 case TSDB_DATA_TYPE_SMALLINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%si16", j, rand_smallint_str());
+                                 "t%d=%s", j, rand_smallint_str());
                     break;
                 case TSDB_DATA_TYPE_USMALLINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%su16", j, rand_usmallint_str());
+                                 "t%d=%s", j, rand_usmallint_str());
                     break;
                 case TSDB_DATA_TYPE_INT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%si32", j, rand_int_str());
+                                 "t%d=%s", j, rand_int_str());
                     break;
                 case TSDB_DATA_TYPE_UINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%su32", j, rand_uint_str());
+                                 "t%d=%s", j, rand_uint_str());
                     break;
                 case TSDB_DATA_TYPE_BIGINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%si64", j, rand_bigint_str());
+                                 "t%d=%s", j, rand_bigint_str());
                     break;
                 case TSDB_DATA_TYPE_UBIGINT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%su64", j, rand_ubigint_str());
+                                 "t%d=%s", j, rand_ubigint_str());
                     break;
                 case TSDB_DATA_TYPE_FLOAT:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%sf32", j, rand_float_str());
+                                 "t%d=%s", j, rand_float_str());
                     break;
                 case TSDB_DATA_TYPE_DOUBLE:
                     dataLen +=
                         snprintf(smlHead + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "T%d=%sf64", j, rand_double_str());
+                                 "t%d=%s", j, rand_double_str());
                     break;
                 case TSDB_DATA_TYPE_BINARY:
                 case TSDB_DATA_TYPE_NCHAR:
@@ -9723,15 +9723,9 @@ static void generateSmlHead(char* smlHead, SSuperTable* stbInfo, threadInfo* pTh
                         exit(EXIT_FAILURE);
                     }
                     rand_string(buf, stbInfo->tags[j].dataLen);
-                    if (stbInfo->tags[j].data_type == TSDB_DATA_TYPE_BINARY) {
-                        dataLen += snprintf(smlHead + dataLen,
+                    dataLen += snprintf(smlHead + dataLen,
                                             HEAD_BUFF_LEN - dataLen,
-                                            "T%d=\"%s\"", j, buf);
-                    } else {
-                        dataLen += snprintf(smlHead + dataLen,
-                                            HEAD_BUFF_LEN - dataLen,
-                                            "T%d=L\"%s\"", j, buf);
-                    }
+                                            "t%d=%s", j, buf);
                     tmfree(buf);
                     break;
 
@@ -10068,7 +10062,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 free_of_interlace:
     tmfree(pThreadInfo->lines);
     for (int index = 0; index < pThreadInfo->ntables; index++) {
-        tmfree(*(smlHeadList + index*(sizeof(char*))));
+        tmfree(smlHeadList[index]);
     }
     tmfree(smlHeadList);
     printStatPerThread(pThreadInfo);
@@ -10559,7 +10553,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
             pThreadInfo->totalAffectedRows += affectedRows;
             pThreadInfo->totalInsertRows += g_args.reqPerReq;
             currentPercent =
-                    pThreadInfo->totalAffectedRows * g_Dbs.threadCount / insertRows;
+                    pThreadInfo->totalAffectedRows * 100 / (insertRows * pThreadInfo->ntables);
             if (currentPercent > percentComplete) {
                     printf("[%d]:%d%%\n", pThreadInfo->threadID,
                            currentPercent);
@@ -10585,7 +10579,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     }
     tmfree(pThreadInfo->lines);
     for (int index = 0; index < pThreadInfo->ntables; index++) {
-        free(*((char**)smlHeadList + index * sizeof(char *)));
+        free(smlHeadList[index]);
     }
     tmfree(smlHeadList);
     return NULL;
@@ -10993,7 +10987,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
 
     int64_t ntables = 0;
-    uint64_t tableFrom;
+    uint64_t tableFrom = 0;
     
     if (stbInfo) {
         if (stbInfo->iface != SML_IFACE) {
