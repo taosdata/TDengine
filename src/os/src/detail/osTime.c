@@ -380,7 +380,7 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
   assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
          toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
-  double tempResult = time;
+  double tempResult = (double)time;
   switch(fromPrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
       switch (toPrecision) {
