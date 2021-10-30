@@ -118,9 +118,10 @@ public class HttpClientPoolUtil {
             HttpContext context = HttpClientContext.create();
             CloseableHttpResponse httpResponse = httpClient.execute(method, context);
             httpEntity = httpResponse.getEntity();
-            if (httpEntity != null) {
-                responseBody = EntityUtils.toString(httpEntity, StandardCharsets.UTF_8);
+            if (httpEntity == null) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_HTTP_ENTITY_IS_NULL, "httpEntity is null, sql: " + data);
             }
+            responseBody = EntityUtils.toString(httpEntity, StandardCharsets.UTF_8);
         } catch (ClientProtocolException e) {
             e.printStackTrace();
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESTFul_Client_Protocol_Exception, e.getMessage());
