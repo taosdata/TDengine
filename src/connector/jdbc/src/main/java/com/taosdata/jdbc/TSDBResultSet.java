@@ -19,6 +19,7 @@ import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -256,7 +257,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
+        if (this.getBatchFetch())
+            return this.blockData.getString(columnIndex).getBytes();
+
         Object value = this.rowData.getObject(columnIndex);
+        this.lastWasNull = value == null;
         if (value == null)
             return null;
 
@@ -331,25 +336,26 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             return new BigDecimal(this.blockData.getLong(columnIndex - 1));
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
-        BigDecimal res = null;
-        if (!lastWasNull) {
-            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
-            switch (nativeType) {
-                case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
-                case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
-                case TSDBConstants.TSDB_DATA_TYPE_INT:
-                case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                    res = new BigDecimal(Long.parseLong(this.rowData.getObject(columnIndex).toString()));
-                    break;
-                case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-                case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                    res = BigDecimal.valueOf(Double.parseDouble(this.rowData.getObject(columnIndex).toString()));
-                    break;
-                case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-                    return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());
-                default:
-                    res = new BigDecimal(this.rowData.getObject(columnIndex).toString());
-            }
+        if (lastWasNull)
+            return null;
+
+        BigDecimal res;
+        int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+        switch (nativeType) {
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                res = new BigDecimal(Long.parseLong(this.rowData.getObject(columnIndex).toString()));
+                break;
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                res = BigDecimal.valueOf(Double.parseDouble(this.rowData.getObject(columnIndex).toString()));
+                break;
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());
+            default:
+                res = new BigDecimal(this.rowData.getObject(columnIndex).toString());
         }
         return res;
     }
@@ -465,12 +471,6 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
     public boolean isClosed() throws SQLException {
         return isClosed;
-//        if (isClosed)
-//            return true;
-//        if (jniConnector != null) {
-//            isClosed = jniConnector.isResultsetClosed();
-//        }
-//        return isClosed;
     }
 
     public String getNString(int columnIndex) throws SQLException {
