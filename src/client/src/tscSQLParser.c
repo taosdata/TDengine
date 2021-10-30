@@ -4523,10 +4523,8 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 // check for match expression
 static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg1 = "regular expression string should be less than %d characters";
-  const char* msg2 = "illegal column type for match/nmatch";
   const char* msg3 = "invalid regular expression";
 
-  tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH) {
@@ -4534,11 +4532,6 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
       char tmp[64] = {0};
       sprintf(tmp, msg1, tsMaxRegexStringLen);
       return invalidOperationMsg(msgBuf, tmp);
-    }
-
-    SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((!isTablenameToken(&pLeft->columnName)) &&(pSchema[index].type != TSDB_DATA_TYPE_BINARY)) {
-      return invalidOperationMsg(msgBuf, msg2);
     }
 
     if (!(pRight->type == SQL_NODE_VALUE && pRight->value.nType == TSDB_DATA_TYPE_BINARY)) {
@@ -5790,7 +5783,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   bool udf = false;
 
   if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
-    int32_t usize = taosArrayGetSize(pQueryInfo->pUdfInfo);
+    int32_t usize = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
     
     for (int32_t i = 0; i < usize; ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -6805,16 +6798,21 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
     tVariantListItem* p1 = (s > 1) ? taosArrayGet(pKeep, 1) : p0;
     tVariantListItem* p2 = (s > 2) ? taosArrayGet(pKeep, 2) : p1;
 
-    if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
+    int32_t daysToKeep0 = (int32_t)p0->pVar.i64;
+    int32_t daysToKeep1 = (int32_t)(int32_t)p1->pVar.i64;
+    int32_t daysToKeep2 = (int32_t)p2->pVar.i64;
+    if (daysToKeep0 <= 0 || daysToKeep1 <= 0 || daysToKeep2 <= 0 ||
+        daysToKeep0 > TSDB_MAX_KEEP || daysToKeep1 > TSDB_MAX_KEEP || daysToKeep2 > TSDB_MAX_KEEP) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
-    if (!(((int32_t)p0->pVar.i64 <= (int32_t)p1->pVar.i64) && ((int32_t)p1->pVar.i64 <= (int32_t)p2->pVar.i64))) {
+
+    if (!((daysToKeep0 <= daysToKeep1) && (daysToKeep1 <= daysToKeep2))) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
-    pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
-    pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
+    pMsg->daysToKeep0 = htonl(daysToKeep0);
+    pMsg->daysToKeep1 = htonl(daysToKeep1);
+    pMsg->daysToKeep2 = htonl(daysToKeep2);
 
   }
 
@@ -8650,7 +8648,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           
           for (int32_t j = 0; j < usize; ++j) {
             SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
-            int32_t len = strlen(pUdfInfo->name);
+            int32_t len = (int32_t)strlen(pUdfInfo->name);
             if (len == t->n && strncasecmp(info.name, pUdfInfo->name, t->n) == 0) {
               exist = 1;
               break;

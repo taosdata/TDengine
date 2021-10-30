@@ -6,35 +6,6 @@
 #include "com_alibaba_datax_plugin_writer_JniConnection.h"
 #include "jniCommon.h"
 
-jclass    g_arrayListClass;
-jmethodID g_arrayListConstructFp;
-jmethodID g_arrayListAddFp;
-
-jclass    g_metadataClass;
-jmethodID g_metadataConstructFp;
-jfieldID  g_metadataColtypeField;
-jfieldID  g_metadataColnameField;
-jfieldID  g_metadataColsizeField;
-jfieldID  g_metadataColindexField;
-
-jclass    g_rowdataClass;
-jmethodID g_rowdataConstructor;
-jmethodID g_rowdataClearFp;
-jmethodID g_rowdataSetBooleanFp;
-jmethodID g_rowdataSetByteFp;
-jmethodID g_rowdataSetShortFp;
-jmethodID g_rowdataSetIntFp;
-jmethodID g_rowdataSetLongFp;
-jmethodID g_rowdataSetFloatFp;
-jmethodID g_rowdataSetDoubleFp;
-jmethodID g_rowdataSetStringFp;
-jmethodID g_rowdataSetTimestampFp;
-jmethodID g_rowdataSetByteArrayFp;
-
-jmethodID g_blockdataSetByteArrayFp;
-jmethodID g_blockdataSetNumOfRowsFp;
-jmethodID g_blockdataSetNumOfColsFp;
-
 JNIEXPORT void JNICALL Java_com_alibaba_datax_plugin_writer_JniConnection_initImp(JNIEnv *env, jobject jobj,
                                                                                   jstring jconfigDir) {
   if (jconfigDir != NULL) {

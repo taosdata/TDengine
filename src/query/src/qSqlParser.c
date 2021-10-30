@@ -133,7 +133,7 @@ SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken) {
   return pList;
 }
 
-tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
+tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType) {
   tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
   if (pToken != NULL) {
@@ -168,6 +168,7 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
       char unit = 0;
       int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
       if (ret != TSDB_CODE_SUCCESS) {
+        snprintf(pInfo->msg, tListLen(pInfo->msg), "%s", pToken->z);
         terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }
     }
