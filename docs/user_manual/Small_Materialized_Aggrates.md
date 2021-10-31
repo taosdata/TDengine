@@ -32,7 +32,7 @@ create table st (ts timestamp, a int, b int NOSMA, c double) tags (tg1 binary(10
 In addition to the default block-wise SMA, users can create their own SMAs ondemand. Below is an example to create a SMA.
 ```SQL
 # create a SMA every 10 minutes with SMA of sum, max and min
-create sma_indx sma_5min on st (sum(*), max(*), min(*), twa(*)) interval(10m);
+create sma_indx sma_10min on st (sum(*), max(*), min(*), twa(*)) interval(10m);
 ```
 Users can also drop a time-range-wise SMA like below:
 ```SQL
