@@ -98,11 +98,11 @@ static int l_query(lua_State *L){
   //  printf("receive command:%s\r\n",s);
   result = taos_query(taos, s);
   int32_t code = taos_errno(result);
-  if( code != 0){
+  if(code != 0){
     printf("failed, reason:%s\n", taos_errstr(result));
     lua_pushinteger(L, -1);
     lua_setfield(L, table_index, "code");    
-    lua_pushstring(L, taos_errstr(taos));
+    lua_pushstring(L, taos_errstr(result));
     lua_setfield(L, table_index, "error");    
    
     return 1;
