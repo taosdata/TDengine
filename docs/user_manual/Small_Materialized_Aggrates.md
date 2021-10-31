@@ -39,4 +39,4 @@ Users can also drop a time-range-wise SMA like below:
 # drop the sma index
 drop sma_index sma_5min on st;
 ```
-**NOTE: Creating a SMA index is a heavy operation which may take a long time and block the write operation. So create the time-range-wise SMA when creating the table or when there are not too much data.**
+**NOTE: Creating an SMA index is a heavy operation which may take a long time and block the write operation. So create the time-range-wise SMA when creating the table or when there are not too much data.**
