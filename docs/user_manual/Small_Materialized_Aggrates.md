@@ -10,13 +10,12 @@ There are two kinds of SMA in TDengine:
 ```plantuml
     @startmindmap mind_map_test
     * SMA
-    ** Block SMA
-    ** Time-Range SMA
+    ** Block-wise SMA
+    ** Time-range-wise SMA
     @endmindmap
-``` 
--->
-![SMA in TDengine 3.0](http://www.plantuml.com/plantuml/png/Km02X-AInAAItCoybDp40WKG7Gzan9Ua5fTmWUIr589z7I4iBGMddFpaR6I1aCpSLDsWnBpqLBYeGsfU2jGu0000)
+```  -->
 
+![SMA in TDengine 3.0](http://www.plantuml.com/plantuml/png/Kr1GK70eBaaiAidDp4l9JInG0D7nG4PyIMfn2HTGMa5B8TZN4SBIKd3AoK_ErYtFB4v55Wt9p4tLBKhCIqz5bN981HeACHW0)
 ## Block-wise SMA
 Block-wise SMA is created by default when the data are committed. Since time-series data are saved as block data in files, a corresponding SMA is create when the data block is written. The default block-wise SMA includes:
 1. sum(*)
