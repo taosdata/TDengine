@@ -3521,15 +3521,18 @@ static int postProceSql(char *host, uint16_t port,
         verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                 __func__, __LINE__, received, resp_len, response_buf);
 
-        if (((NULL != strstr(response_buf, resEncodingChunk))
-                    && (NULL != strstr(response_buf, resHttp)))
-                || ((NULL != strstr(response_buf, resHttpOk))
-                    && (NULL != strstr(response_buf, "\"status\":")))) {
-            debugPrint(
-                    "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
-                    __func__, __LINE__, received, resp_len, response_buf);
-            break;
-        } 
+        response_buf[RESP_BUF_LEN - 1] = '\0';
+        if (strlen(response_buf)) {
+            if (((NULL == strstr(response_buf, resEncodingChunk))
+                        && (NULL != strstr(response_buf, resHttp)))
+                    || ((NULL != strstr(response_buf, resHttpOk))
+                        && (NULL != strstr(response_buf, "\"status\":")))) {
+                debugPrint(
+                        "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                        __func__, __LINE__, received, resp_len, response_buf);
+                break;
+            }
+        }
     } while(received < resp_len);
 
     if (received == resp_len) {
@@ -3537,14 +3540,13 @@ static int postProceSql(char *host, uint16_t port,
         ERROR_EXIT("storing complete response from socket");
     }
 
-    response_buf[RESP_BUF_LEN - 1] = '\0';
-
     if (strlen(pThreadInfo->filePath) > 0) {
         appendResultBufToFile(response_buf, pThreadInfo);
     }
 
     free(request_buf);
 
+    response_buf[RESP_BUF_LEN - 1] = '\0';
     if (NULL == strstr(response_buf, resHttpOk)) {
         errorPrint("%s() LN%d, Response:\n%s\n",
                 __func__, __LINE__, response_buf);
