@@ -1579,11 +1579,11 @@ SELECT function_list FROM stb_name
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
-针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数、以及随着时间变化的电流走势拟合直线。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
+针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
 ```mysql
-SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), PERCENTILE(current, 50) FROM meters
-  WHERE ts>=NOW-1d
+SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
+  WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)
   FILL(PREV);
 ```
