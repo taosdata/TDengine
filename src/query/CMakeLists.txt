@@ -12,7 +12,7 @@ TARGET_LINK_LIBRARIES(query tsdb tutil)
 
 
 IF (TD_LINUX)
-  IF (BUILD_LUA)
+  IF (TD_BUILD_LUA)
     TARGET_LINK_LIBRARIES(query m rt lua)
   ELSE ()
     TARGET_LINK_LIBRARIES(query m rt)
@@ -21,7 +21,7 @@ IF (TD_LINUX)
 ENDIF ()
 
 IF (TD_DARWIN)
-  IF (BUILD_LUA)
+  IF (TD_BUILD_LUA)
     TARGET_LINK_LIBRARIES(query m lua)
     ELSE ()
     TARGET_LINK_LIBRARIES(query m)
