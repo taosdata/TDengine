@@ -8013,7 +8013,7 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   taosCloseDll(pUdfInfo->handle);
   tfree(pUdfInfo);
 }
-
+#ifdef LUA_EMBEDDED
 static char* getUdfFuncName(char* funcname, char* name, int type) {
   switch (type) {
     case TSDB_UDF_FUNC_NORMAL:
@@ -8038,8 +8038,9 @@ static char* getUdfFuncName(char* funcname, char* name, int type) {
 
   return funcname;
 }
-
+#endif
 int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
+#ifdef LUA_EMBEDDED
   if (pUdfInfo == NULL || pUdfInfo->handle) {
     return TSDB_CODE_SUCCESS;
   }
@@ -8123,7 +8124,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
       return (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init);
     }
   }
-
+#endif //LUA_EMBEDDED
   return TSDB_CODE_SUCCESS;
 }
 

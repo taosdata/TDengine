@@ -88,7 +88,9 @@ static SStep tsDnodeSteps[] = {
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+#ifdef LUA_EMBEDDED
   {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
+#endif
   {"dnode-grant",     grantInit,           grantCleanUp},
 };
 
