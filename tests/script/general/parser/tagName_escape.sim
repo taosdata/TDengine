@@ -204,3 +204,4 @@ if $data24 != NULL then
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
