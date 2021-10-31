@@ -3501,9 +3501,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 
     char resEncodingChunk[] = "Encoding: chunked";
     char resHttp[] = "HTTP/1.1 ";
-    int resHttpLen = strlen(resHttp);
     char resHttpOk[] = "HTTP/1.1 200 OK";
-    int resHttpOkLen = strlen(resHttpOk);
 
     do {
 #ifdef WINDOWS
@@ -3527,8 +3525,8 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
                     __func__, __LINE__, received, resp_len, response_buf);
 
             if (((NULL == strstr(response_buf, resEncodingChunk))
-                        && (0 == strncmp(response_buf, resHttp, resHttpLen)))
-                    || ((0 == strncmp(response_buf, resHttpOk, resHttpOkLen))
+                        && (NULL != strstr(response_buf, resHttp)))
+                    || ((NULL != strstr(response_buf, resHttpOk))
                         && (NULL != strstr(response_buf, "\"status\":")))) {
                 debugPrint(
                         "%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
