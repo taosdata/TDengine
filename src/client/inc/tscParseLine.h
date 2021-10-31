@@ -64,7 +64,7 @@ typedef struct {
   SMLTimeStampType tsType;
   SHashObj* smlDataToSchema;
 
-  int64_t affectedRows;
+  int32_t affectedRows;
 } SSmlLinesInfo;
 
 void addEscapeCharToString(char *str, int32_t len);

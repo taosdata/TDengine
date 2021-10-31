@@ -90,7 +90,6 @@ dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 %type cpxName {SStrToken}
 cpxName(A) ::= .             {A.n = 0;  }
 cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
-
 cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
@@ -520,7 +519,7 @@ selcollist(A) ::= sclp(P) distinct(Z) expr(X) as(Y).     {
 }
 
 selcollist(A) ::= sclp(P) STAR. {
-   tSqlExpr *pNode = tSqlExprCreateIdValue(NULL, TK_ALL);
+   tSqlExpr *pNode = tSqlExprCreateIdValue(pInfo, NULL, TK_ALL);
    A = tSqlExprListAppend(P, pNode, 0, 0);
 }
 
@@ -701,23 +700,23 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 
 expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToken.n = (Z.z - X.z + 1);}
 
-expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(&X, TK_ID);}
-expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
-expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ALL);}
+expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
+expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
+expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ALL);}
 
-expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
-expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
-expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
-expr(A) ::= FLOAT(X).            { A = tSqlExprCreateIdValue(&X, TK_FLOAT);}
-expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(&X, TK_FLOAT);}
-expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(&X, TK_FLOAT);}
-expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(&X, TK_STRING);}
-expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(&X, TK_NOW); }
-expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
-expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
-expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
-expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
-expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
+expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
+expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
+expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
+expr(A) ::= FLOAT(X).            { A = tSqlExprCreateIdValue(pInfo, &X, TK_FLOAT);}
+expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(pInfo, &X, TK_FLOAT);}
+expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(pInfo, &X, TK_FLOAT);}
+expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(pInfo, &X, TK_STRING);}
+expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(pInfo, &X, TK_NOW); }
+expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
+expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
+expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
+expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(pInfo, &X, TK_BOOL);}
+expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(pInfo, &X, TK_NULL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
 expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
