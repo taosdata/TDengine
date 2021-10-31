@@ -19,13 +19,13 @@ public class HttpClientPoolUtilTest {
 
     String user = "root";
     String password = "taosdata";
-    String host = "192.168.56.105";
+    String host = "127.0.0.1";
     String dbname = "log";
 
     @Test
     public void test() {
         // given
-        List<Thread> threads = IntStream.range(0, 2000).mapToObj(i -> new Thread(() -> {
+        List<Thread> threads = IntStream.range(0, 4000).mapToObj(i -> new Thread(() -> {
             useDB();
 //            try {
 //                TimeUnit.SECONDS.sleep(10);
