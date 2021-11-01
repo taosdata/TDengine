@@ -13,21 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_MNODE_H_
-#define _TD_DNODE_MNODE_H_
+#define _DEFAULT_SOURCE
+#include "dnodeMnode.h"
+#include "dnodeConfig.h"
+#include "dnodeTransport.h"
+#include "mnode.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "dnodeInt.h"
+int32_t dnodeInitMnode() {
+  SMnodePara para;
+  para.fp.GetDnodeEp = dnodeGetEp;
+  para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
+  para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
+  para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
+  para.dnodeId = dnodeGetDnodeId();
+  para.clusterId = dnodeGetClusterId();
 
-int32_t dnodeInitMnode();
-void    dnodeCleanupMnode();
-
-void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
-
-#ifdef __cplusplus
+  return mnodeInit(para);
 }
-#endif
 
-#endif /*_TD_DNODE_MNODE_H_*/
+void dnodeCleanupMnode() { mnodeCleanup(); }

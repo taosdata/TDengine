@@ -17,14 +17,14 @@
 #include "dnodeCheck.h"
 #include "dnodeConfig.h"
 #include "dnodeDnode.h"
+#include "dnodeMnode.h"
 #include "dnodeTransport.h"
-#include "mnode.h"
+#include "dnodeVnodes.h"
 #include "sync.h"
 #include "tcache.h"
 #include "tconfig.h"
 #include "tnote.h"
 #include "tstep.h"
-#include "vnode.h"
 #include "wal.h"
 
 static struct {
@@ -37,7 +37,7 @@ EDnStat dnodeGetRunStat() { return tsInt.runStatus; }
 
 void dnodeSetRunStat(EDnStat stat) { tsInt.runStatus = stat; }
 
-void dnodeReportStartup(char *name, char *desc) {
+static void dnodeReportStartup(char *name, char *desc) {
   SStartupStep *startup = &tsInt.startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
@@ -52,24 +52,6 @@ static void dnodeReportStartupFinished(char *name, char *desc) {
 }
 
 void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsInt.startup, sizeof(SStartupStep)); }
-
-static int32_t dnodeInitVnode() {
-  return vnodeInit();
-}
-
-static int32_t dnodeInitMnode() {
-  SMnodePara para;
-  para.fp.GetDnodeEp = dnodeGetEp;
-  para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
-  para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
-  para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
-  para.dnodeId = dnodeGetDnodeId();
-  para.clusterId = dnodeGetClusterId();
-
-  return mnodeInit(para);
-}
-
-static int32_t dnodeInitTfs() {}
 
 static int32_t dnodeInitMain() {
   tsInt.runStatus = DN_RUN_STAT_STOPPED;
@@ -168,14 +150,14 @@ int32_t dnodeInit() {
   taosStepAdd(steps, "dnode-dir", dnodeInitDir, dnodeCleanupDir);
   taosStepAdd(steps, "dnode-check", dnodeInitCheck, dnodeCleanupCheck);
   taosStepAdd(steps, "dnode-rpc", rpcInit, rpcCleanup);
-  taosStepAdd(steps, "dnode-tfs", dnodeInitTfs, NULL);
+  taosStepAdd(steps, "dnode-tfs", NULL, NULL);
   taosStepAdd(steps, "dnode-wal", walInit, walCleanUp);
   taosStepAdd(steps, "dnode-sync", syncInit, syncCleanUp);
-  taosStepAdd(steps, "dnode-eps", dnodeInitConfig, dnodeCleanupConfig);
-  taosStepAdd(steps, "dnode-vnode", dnodeInitVnode, vnodeCleanup);
-  taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, mnodeCleanup);
+  taosStepAdd(steps, "dnode-config", dnodeInitConfig, dnodeCleanupConfig);
+  taosStepAdd(steps, "dnode-vnodes", dnodeInitVnodes, dnodeCleanupVnodes);
+  taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, dnodeCleanupMnode);
   taosStepAdd(steps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
-  taosStepAdd(steps, "dnode-msg", dnodeInitDnode, dnodeCleanupDnode);
+  taosStepAdd(steps, "dnode-dnode", dnodeInitDnode, dnodeCleanupDnode);
 
   tsInt.steps = steps;
   taosStepExec(tsInt.steps);
@@ -194,11 +176,3 @@ void dnodeCleanup() {
     tsInt.steps = NULL;
   }
 }
-
-// tsVnode.msgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = vnodeProcessMgmtMsg;
-//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = vnodeProcessMgmtMsg;
-//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE] = vnodeProcessMgmtMsg;
-//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = vnodeProcessMgmtMsg;
-//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = vnodeProcessMgmtMsg;
-//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = vnodeProcessMgmtMsg;
-  

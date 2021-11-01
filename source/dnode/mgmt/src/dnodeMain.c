@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "os.h"
-#include "ulog.h"
+
+#define _DEFAULT_SOURCE
 #include "dnodeInt.h"
 
 static bool stop = false;
@@ -34,8 +34,6 @@ int main(int argc, char const *argv[]) {
     dInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
     exit(EXIT_FAILURE);
   }
-
-  dInfo("Started TDengine service successfully.");
 
   while (!stop) {
     taosMsleep(100);
