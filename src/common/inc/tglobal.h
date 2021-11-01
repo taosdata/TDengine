@@ -231,6 +231,7 @@ extern int8_t tsDeadLockKillQuery;
 
 // schemaless
 extern char tsDefaultJSONStrType[];
+extern char tsSmlChildTableName[];
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];
