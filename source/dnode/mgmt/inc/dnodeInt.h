@@ -24,7 +24,6 @@ extern "C" {
 #include "tglobal.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "ttimer.h"
 
 extern int32_t dDebugFlag;
 

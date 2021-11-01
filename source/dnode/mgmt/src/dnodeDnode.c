@@ -25,7 +25,7 @@ static struct {
   pthread_t *threadId;
   bool       stop;
   uint32_t   rebootTime;
-} tsMsg;
+} tsDnode;
 
 static void dnodeSendStatusMsg() {
   int32_t     contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
@@ -39,7 +39,7 @@ static void dnodeSendStatusMsg() {
   pStatus->dnodeId = htonl(dnodeGetDnodeId());
   tstrncpy(pStatus->dnodeEp, tsLocalEp, TSDB_EP_LEN);
   pStatus->clusterId = htobe64(dnodeGetClusterId());
-  pStatus->lastReboot = htonl(tsMsg.rebootTime);
+  pStatus->lastReboot = htonl(tsDnode.rebootTime);
   pStatus->numOfCores = htonl(tsNumOfCores);
   pStatus->diskAvailable = tsAvailDataDirGB;
 
@@ -93,17 +93,17 @@ void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
 
 static void *dnodeThreadRoutine(void *param) {
   int32_t ms = tsStatusInterval * 1000;
-  while (!tsMsg.stop) {
+  while (!tsDnode.stop) {
     taosMsleep(ms);
     dnodeSendStatusMsg();
   }
 }
 
-int32_t dnodeInitMsg() {
-  tsMsg.stop = false;
-  tsMsg.rebootTime = taosGetTimestampSec();
-  tsMsg.threadId = taosCreateThread(dnodeThreadRoutine, NULL);
-  if (tsMsg.threadId == NULL) {
+int32_t dnodeInitDnode() {
+  tsDnode.stop = false;
+  tsDnode.rebootTime = taosGetTimestampSec();
+  tsDnode.threadId = taosCreateThread(dnodeThreadRoutine, NULL);
+  if (tsDnode.threadId == NULL) {
     return -1;
   }
 
@@ -111,11 +111,11 @@ int32_t dnodeInitMsg() {
   return 0;
 }
 
-void dnodeCleanupMsg() {
-  if (tsMsg.threadId != NULL) {
-    tsMsg.stop = true;
-    taosDestoryThread(tsMsg.threadId);
-    tsMsg.threadId = NULL;
+void dnodeCleanupDnode() {
+  if (tsDnode.threadId != NULL) {
+    tsDnode.stop = true;
+    taosDestoryThread(tsDnode.threadId);
+    tsDnode.threadId = NULL;
   }
 
   dInfo("dnode msg is cleanuped");

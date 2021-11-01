@@ -21,8 +21,8 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-int32_t dnodeInitMsg();
-void    dnodeCleanupMsg();
+int32_t dnodeInitDnode();
+void    dnodeCleanupDnode();
 void    dnodeProcessStatusRsp(SRpcMsg *pMsg);
 void    dnodeProcessStartupReq(SRpcMsg *pMsg);
 void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);

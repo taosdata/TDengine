@@ -30,7 +30,7 @@ static struct {
   pthread_mutex_t mutex;
 } tsConfig;
 
-vstaticoid dnodeGetEpSetForPeer(SRpcEpSet *epSet) {
+void dnodeGetEpSetForPeer(SRpcEpSet *epSet) {
   pthread_mutex_lock(&tsConfig.mutex);
   *epSet = tsConfig.mnodeEpSetForPeer;
   pthread_mutex_unlock(&tsConfig.mutex);
