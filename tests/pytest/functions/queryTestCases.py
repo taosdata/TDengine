@@ -1581,7 +1581,7 @@ class TDTestCase:
         # self.td5798()
 
         # develop branch
-        self.td4889()
+        # self.td4889() In the scenario that with vnode/wal/wal* but without meta/data in vnode, the status is reset to 0 right now.
         self.td5798()
 
     def stop(self):
