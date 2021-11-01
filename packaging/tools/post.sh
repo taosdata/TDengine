@@ -280,9 +280,6 @@ function install_blm3_config() {
             ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
     fi
 
-    # restore the backup standard input, and turn off 6
-    exec 0<&6 6<&-
-
     [ -f ${cfg_dir}/blm.toml ] &&
         ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.org
 
