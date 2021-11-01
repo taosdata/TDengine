@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeEps.h"
+#include "dnodeConfig.h"
 #include "cJSON.h"
 #include "thash.h"
 

@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeMsg.h"
-#include "dnodeEps.h"
+#include "dnodeDnode.h"
+#include "dnodeConfig.h"
 #include "mnode.h"
 #include "tthread.h"
 #include "ttime.h"

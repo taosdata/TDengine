@@ -13,30 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_EPS_H_
-#define _TD_DNODE_EPS_H_
+#ifndef _TD_DNODE_DNODE_H_
+#define _TD_DNODE_DNODE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "dnodeInt.h"
 
-int32_t dnodeInitEps();
-void    dnodeCleanupEps();
-
-void    dnodeUpdateCfg(SDnodeCfg *data);
-void    dnodeUpdateDnodeEps(SDnodeEps *data);
-void    dnodeUpdateMnodeEps(SRpcEpSet *pEpSet);
-int32_t dnodeGetDnodeId();
-int64_t dnodeGetClusterId();
-void    dnodeGetEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
-
-void dnodeGetEpSetForPeer(SRpcEpSet *epSet);
-void dnodeGetEpSetForShell(SRpcEpSet *epSet);
-void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
+int32_t dnodeInitMsg();
+void    dnodeCleanupMsg();
+void    dnodeProcessStatusRsp(SRpcMsg *pMsg);
+void    dnodeProcessStartupReq(SRpcMsg *pMsg);
+void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_EPS_H_*/
+#endif /*_TD_DNODE_DNODE_H_*/

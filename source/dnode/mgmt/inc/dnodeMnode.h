@@ -13,23 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_STATUS_H_
-#define _TD_DNODE_STATUS_H_
+#ifndef _TD_DNODE_MNODE_H_
+#define _TD_DNODE_MNODE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "dnodeInt.h"
 
-int32_t dnodeInitMsg();
-void    dnodeCleanupMsg();
-void    dnodeProcessStatusRsp(SRpcMsg *pMsg);
-void    dnodeProcessStartupReq(SRpcMsg *pMsg);
-void    dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
-void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
+void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_STATUS_H_*/
+#endif /*_TD_DNODE_MNODE_H_*/

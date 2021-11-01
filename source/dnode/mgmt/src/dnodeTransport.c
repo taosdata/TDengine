@@ -20,9 +20,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeTrans.h"
-#include "dnodeEps.h"
-#include "dnodeMsg.h"
+#include "dnodeTransport.h"
+#include "dnodeConfig.h"
+#include "dnodeDnode.h"
+#include "dnodeMnode.h"
+#include "dnodeVnodes.h"
 #include "mnode.h"
 #include "vnode.h"
 
