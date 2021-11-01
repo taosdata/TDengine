@@ -22,6 +22,10 @@
 #define TQ_META_NAME "tq.meta"
 #define TQ_IDX_NAME  "tq.idx"
 
+
+static int32_t       tqHandlePutCommitted(TqMetaStore*, int64_t key, void* value);
+static TqMetaHandle* tqHandleGetUncommitted(TqMetaStore*, int64_t key);
+
 typedef struct TqMetaPageBuf {
   int16_t offset;
   char buffer[TQ_PAGE_SIZE];
@@ -138,7 +142,7 @@ int32_t tqStorePersist(TqMetaStore* pMeta) {
   return 0;
 }
 
-int32_t tqHandlePutInUse(TqMetaStore* pMeta, int64_t key, void* value) {
+static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
@@ -154,7 +158,7 @@ int32_t tqHandlePutInUse(TqMetaStore* pMeta, int64_t key, void* value) {
   return 0;
 }
 
-TqMetaHandle* tqHandleGetInUse(TqMetaStore* pMeta, int64_t key) {
+TqMetaHandle* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
@@ -171,7 +175,7 @@ TqMetaHandle* tqHandleGetInUse(TqMetaStore* pMeta, int64_t key) {
   return NULL;
 }
 
-int32_t tqHandlePutInTxn(TqMetaStore* pMeta, int64_t key, void* value) {
+int32_t tqHandlePut(TqMetaStore* pMeta, int64_t key, void* value) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
@@ -187,7 +191,7 @@ int32_t tqHandlePutInTxn(TqMetaStore* pMeta, int64_t key, void* value) {
   return 0;
 }
 
-TqMetaHandle* tqHandleGetInTxn(TqMetaStore* pMeta, int64_t key) {
+static TqMetaHandle* tqHandleGetUncommitted(TqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {

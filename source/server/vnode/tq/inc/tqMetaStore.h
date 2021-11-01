@@ -61,19 +61,15 @@ int32_t       tqStoreClose(TqMetaStore*);
 //int32_t       TqStoreCommitAll(TqMetaStore*);
 int32_t       tqStorePersist(TqMetaStore*);
 
-TqMetaHandle* tqHandleGetInUse(TqMetaStore*, int64_t key);
-int32_t       tqHandlePutInUse(TqMetaStore*, int64_t key, void* value);
-TqMetaHandle* tqHandleGetInTxn(TqMetaStore*, int64_t key);
-int32_t       tqHandlePutInTxn(TqMetaStore*, int64_t key, void* value);
-//will replace old handle
-//int32_t       tqHandlePut(TqMetaStore*, TqMetaHandle* handle);
-//delete in-use-handle, and put it in use
+TqMetaHandle* tqHandleGet(TqMetaStore*, int64_t key);
+int32_t       tqHandlePut(TqMetaStore*, int64_t key, void* value);
+//do commit
 int32_t       tqHandleCommit(TqMetaStore*, int64_t key);
-//delete in-txn-handle
+//delete uncommitted
 int32_t       tqHandleAbort(TqMetaStore*, int64_t key);
-//delete in-use-handle
+//delete committed
 int32_t       tqHandleDel(TqMetaStore*, int64_t key);
-//delete in-use-handle and in-txn-handle
+//delete both committed and uncommitted
 int32_t       tqHandleClear(TqMetaStore*, int64_t key);
 
 #ifdef __cplusplus
