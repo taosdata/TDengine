@@ -134,6 +134,13 @@ do { \
 #define TSDB_BINARY_OP_REMAINDER  4004
 #define TSDB_BINARY_OP_CONCAT     4005
 
+#define TSDB_UNARY_OP_CEIL        4500
+#define TSDB_UNARY_OP_FLOOR       4501
+#define TSDB_UNARY_OP_ABS         4502
+#define TSDB_UNARY_OP_ROUND       4503
+
+#define TSDB_UNARY_OP_LEN         4600
+
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
@@ -366,21 +373,6 @@ do { \
 #define TSDB_MAX_DISKS_PER_TIER 16
 #define TSDB_MAX_DISKS           (TSDB_MAX_TIERS * TSDB_MAX_DISKS_PER_TIER)
 
-#define TSDB_DATA_TYPE_NULL       0     // 1 bytes
-#define TSDB_DATA_TYPE_BOOL       1     // 1 bytes
-#define TSDB_DATA_TYPE_TINYINT    2     // 1 byte
-#define TSDB_DATA_TYPE_SMALLINT   3     // 2 bytes
-#define TSDB_DATA_TYPE_INT        4     // 4 bytes
-#define TSDB_DATA_TYPE_BIGINT     5     // 8 bytes
-#define TSDB_DATA_TYPE_FLOAT      6     // 4 bytes
-#define TSDB_DATA_TYPE_DOUBLE     7     // 8 bytes
-#define TSDB_DATA_TYPE_BINARY     8     // string
-#define TSDB_DATA_TYPE_TIMESTAMP  9     // 8 bytes
-#define TSDB_DATA_TYPE_NCHAR      10    // unicode string
-#define TSDB_DATA_TYPE_UTINYINT   11    // 1 byte
-#define TSDB_DATA_TYPE_USMALLINT  12    // 2 bytes
-#define TSDB_DATA_TYPE_UINT       13    // 4 bytes
-#define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };

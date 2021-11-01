@@ -3197,7 +3197,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
-//  arithmeticTreeTraverse(sas->pExprInfo->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
+//  evaluateExprNodeTree(sas->pExprInfo->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \

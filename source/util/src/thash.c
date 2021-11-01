@@ -16,6 +16,7 @@
 #include "os.h"
 #include "thash.h"
 #include "ulog.h"
+#include "taos.h"
 #include "tdef.h"
 
 #define EXT_SIZE 1024 

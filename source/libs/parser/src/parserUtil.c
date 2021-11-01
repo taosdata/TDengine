@@ -1175,14 +1175,6 @@ int32_t queryInfoCopy(SQueryStmtInfo* pQueryInfo, const SQueryStmtInfo* pSrc) {
     goto _error;
   }
 
-//  if (pQueryInfo->arithmeticOnAgg) {
-//    pQueryInfo->exprList1 = taosArrayInit(4, POINTER_BYTES);
-//    if (copyAllExprInfo(pQueryInfo->exprList1, pSrc->exprList1, true) != 0) {
-//      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//      goto _error;
-//    }
-//  }
-
   columnListCopyAll(pQueryInfo->colList, pSrc->colList);
   copyFieldInfo(&pQueryInfo->fieldsInfo, &pSrc->fieldsInfo, pQueryInfo->exprList);
 
@@ -1615,9 +1607,9 @@ uint32_t convertRelationalOperator(SToken *pToken) {
       return TSDB_RELATION_OR;
     case TK_EQ:
       return TSDB_RELATION_EQUAL;
+
     case TK_PLUS:
       return TSDB_BINARY_OP_ADD;
-
     case TK_MINUS:
       return TSDB_BINARY_OP_SUBTRACT;
     case TK_STAR:

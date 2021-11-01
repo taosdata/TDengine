@@ -25,7 +25,6 @@
 #include "thash.h"
 #include "tskiplist.h"
 #include "texpr.h"
-//#include "tarithoperator.h"
 #include "tvariant.h"
 
 //static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
@@ -40,71 +39,6 @@
 //               : 0;
 //  }
 //}
-
-static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
-  switch(type) {
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_UTINYINT:{
-      int8_t* p = (int8_t*) dest;
-      int8_t* pSrc = (int8_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_USMALLINT:{
-      int16_t* p = (int16_t*) dest;
-      int16_t* pSrc = (int16_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_UINT: {
-      int32_t* p = (int32_t*) dest;
-      int32_t* pSrc = (int32_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UBIGINT: {
-      int64_t* p = (int64_t*) dest;
-      int64_t* pSrc = (int64_t*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      float* p = (float*) dest;
-      float* pSrc = (float*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double* p = (double*) dest;
-      double* pSrc = (double*) src;
-
-      for(int32_t i = 0; i < numOfRows; ++i) {
-        p[i] = pSrc[numOfRows - i - 1];
-      }
-      return;
-    }
-    default: assert(0);
-  }
-}
 
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *));
 
@@ -182,114 +116,7 @@ bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp 
   return param->nodeFilterFn(pItem, pExpr->_node.info);
 }
 
-void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
-                                char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
-  if (pExprs == NULL) {
-    return;
-  }
-#if 0
-  tExprNode *pLeft = pExprs->_node.pLeft;
-  tExprNode *pRight = pExprs->_node.pRight;
 
-  /* the left output has result from the left child syntax tree */
-  char *pLeftOutput = (char*)malloc(sizeof(int64_t) * numOfRows);
-  if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE) {
-    arithmeticTreeTraverse(pLeft, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
-  }
-
-  // the right output has result from the right child syntax tree
-  char *pRightOutput = malloc(sizeof(int64_t) * numOfRows);
-  char *pdata = malloc(sizeof(int64_t) * numOfRows);
-
-  if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
-    arithmeticTreeTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
-  }
-
-  if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE) {
-    if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
-      /*
-       * exprLeft + exprRight
-       * the type of returned value of one expression is always double float precious
-       */
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
-
-    } else if (pRight->nodeType == TEXPR_COL_NODE) {  // exprLeft + columnRight
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-
-      // set input buffer
-      char *pInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pInputData, pRight->pSchema->type, numOfRows);
-        OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pdata, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
-      } else {
-        OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
-      }
-
-    } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // exprLeft + 12
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(pLeftOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
-    }
-  } else if (pLeft->nodeType == TEXPR_COL_NODE) {
-    // column data specified on left-hand-side
-    char *pLeftInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
-    if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {  // columnLeft + expr2
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-
-      if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
-        OperatorFn(pdata, numOfRows, pLeft->pSchema->type, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
-      } else {
-        OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
-      }
-
-    } else if (pRight->nodeType == TEXPR_COL_NODE) {  // columnLeft + columnRight
-      // column data specified on right-hand-side
-      char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-
-      // both columns are descending order, do not reverse the source data
-      OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, order);
-    } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // columnLeft + 12
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-
-      if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
-        OperatorFn(pdata, numOfRows, pLeft->pSchema->type, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
-      } else {
-        OperatorFn(pLeftInputData, numOfRows, pLeft->pSchema->type, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
-      }
-    }
-  } else {
-    // column data specified on left-hand-side
-    if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {  // 12 + expr2
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, pRightOutput, numOfRows, TSDB_DATA_TYPE_DOUBLE, pOutput, TSDB_ORDER_ASC);
-
-    } else if (pRight->nodeType == TEXPR_COL_NODE) {  // 12 + columnRight
-      // column data specified on right-hand-side
-      char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-
-      if (order == TSDB_ORDER_DESC) {
-        reverseCopy(pdata, pRightInputData, pRight->pSchema->type, numOfRows);
-        OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, pdata, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
-      } else {
-        OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, pRightInputData, numOfRows, pRight->pSchema->type, pOutput, TSDB_ORDER_ASC);
-      }
-
-    } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // 12 + 12
-      _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExprs->_node.optr);
-      OperatorFn(&pLeft->pVal->i, 1, pLeft->pVal->nType, &pRight->pVal->i, 1, pRight->pVal->nType, pOutput, TSDB_ORDER_ASC);
-    }
-  }
-
-  tfree(pdata);
-  tfree(pLeftOutput);
-  tfree(pRightOutput);
-#endif
-
-}
 
 static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
   tbufWriteUint8(bw, expr->nodeType);

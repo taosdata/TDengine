@@ -13,20 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_QARITHMETICOPERATOR_H_
-#define _TD_COMMON_QARITHMETICOPERATOR_H_
+#ifndef _TD_COMMON_UNARY_SCALAR_OPERATOR_H_
+#define _TD_COMMON_UNARY_SCALAR_OPERATOR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void (*_arithmetic_operator_fn_t)(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight,
-                                          int32_t rightType, void *output, int32_t order);
+#include "tscalarfunction.h"
 
-_arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr);
+typedef void (*_unary_scalar_fn_t)(SScalarFuncParam *pLeft, SScalarFuncParam* pOutput);
+_unary_scalar_fn_t getUnaryScalarOperatorFn(int32_t binOperator);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_QARITHMETICOPERATOR_H_*/
+#endif  /*_TD_COMMON_BIN_SCALAR_OPERATOR_H_*/

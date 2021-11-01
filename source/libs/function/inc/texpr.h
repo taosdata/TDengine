@@ -65,9 +65,6 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond);
 
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 
-void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
-                            char *(*cb)(void *, const char*, int32_t));
-
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len);
 
 #ifdef __cplusplus
