@@ -31,27 +31,27 @@ static struct {
   EDnStat      runStatus;
   SStartupStep startup;
   SSteps      *steps;
-} tsDnode;
+} tsInt;
 
-EDnStat dnodeGetRunStat() { return tsDnode.runStatus; }
+EDnStat dnodeGetRunStat() { return tsInt.runStatus; }
 
-void dnodeSetRunStat(EDnStat stat) { tsDnode.runStatus = stat; }
+void dnodeSetRunStat(EDnStat stat) { tsInt.runStatus = stat; }
 
 void dnodeReportStartup(char *name, char *desc) {
-  SStartupStep *startup = &tsDnode.startup;
+  SStartupStep *startup = &tsInt.startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
   startup->finished = 0;
 }
 
 static void dnodeReportStartupFinished(char *name, char *desc) {
-  SStartupStep *startup = &tsDnode.startup;
+  SStartupStep *startup = &tsInt.startup;
   tstrncpy(startup->name, name, strlen(startup->name));
   tstrncpy(startup->desc, desc, strlen(startup->desc));
   startup->finished = 1;
 }
 
-void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsDnode.startup, sizeof(SStartupStep)); }
+void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsInt.startup, sizeof(SStartupStep)); }
 
 static int32_t dnodeInitVnode() {
   return vnodeInit();
@@ -72,7 +72,7 @@ static int32_t dnodeInitMnode() {
 static int32_t dnodeInitTfs() {}
 
 static int32_t dnodeInitMain() {
-  tsDnode.runStatus = DN_RUN_STAT_STOPPED;
+  tsInt.runStatus = DN_RUN_STAT_STOPPED;
   tscEmbedded = 1;
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();
@@ -175,10 +175,10 @@ int32_t dnodeInit() {
   taosStepAdd(steps, "dnode-vnode", dnodeInitVnode, vnodeCleanup);
   taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, mnodeCleanup);
   taosStepAdd(steps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
-  taosStepAdd(steps, "dnode-msg", dnodeInitMsg, dnodeCleanupMsg);
+  taosStepAdd(steps, "dnode-msg", dnodeInitDnode, dnodeCleanupDnode);
 
-  tsDnode.steps = steps;
-  taosStepExec(tsDnode.steps);
+  tsInt.steps = steps;
+  taosStepExec(tsInt.steps);
 
   dnodeSetRunStat(DN_RUN_STAT_RUNNING);
   dnodeReportStartupFinished("TDengine", "initialized successfully");
@@ -190,8 +190,8 @@ int32_t dnodeInit() {
 void dnodeCleanup() {
   if (dnodeGetRunStat() != DN_RUN_STAT_STOPPED) {
     dnodeSetRunStat(DN_RUN_STAT_STOPPED);
-    taosStepCleanup(tsDnode.steps);
-    tsDnode.steps = NULL;
+    taosStepCleanup(tsInt.steps);
+    tsInt.steps = NULL;
   }
 }
 
