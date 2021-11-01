@@ -4,9 +4,9 @@ target_include_directories(
     wal
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/wal"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    PRIVATE "${CMAKE_SOURCE_DIR}/include/os"
 )
 
 target_link_libraries(
-    os
+    wal
+    PUBLIC os
 )

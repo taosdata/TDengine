@@ -10,3 +10,5 @@ target_link_libraries(
     planner
     PRIVATE os util common catalog parser transport function
 )
+
+ADD_SUBDIRECTORY(test)

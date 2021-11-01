@@ -46,21 +46,18 @@ typedef struct SJoinCond {
 static SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo);
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode);
 
-  int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
+int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
   return 0;
 }
 
-int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode* pQueryNode) {
+int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode) {
   SArray* upstream = createQueryPlanImpl((struct SQueryStmtInfo*) pQueryInfo);
   assert(taosArrayGetSize(upstream) == 1);
 
-  /*SQueryPlanNode* p = */taosArrayGetP(upstream, 0);
+  *pQueryNode = taosArrayGetP(upstream, 0);
+
   taosArrayDestroy(upstream);
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t qQueryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
-  return 0;
 }
 
 int32_t qQueryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql) {
@@ -108,10 +105,10 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   }
 
   pNode->numOfOutput = numOfOutput;
-  pNode->pExpr = calloc(numOfOutput, sizeof(SExprInfo));
+  pNode->pExpr = taosArrayInit(numOfOutput, POINTER_BYTES);
+
   for(int32_t i = 0; i < numOfOutput; ++i) {
-    SExprInfo* pExprInfo = taosArrayGet(pNode->pExpr, i);
-    assignExprInfo(pExprInfo, pExpr[i]);
+    taosArrayPush(pNode->pExpr, &pExpr[i]);
   }
 
   pNode->pPrevNodes = taosArrayInit(4, POINTER_BYTES);
@@ -167,7 +164,7 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     int32_t     num = (int32_t) taosArrayGetSize(pExprs);
     SQueryPlanNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info, NULL);
 
-    if (pQueryInfo->distinct) {
+    if (pQueryInfo->info.distinct) {
       pNode = createQueryNode(QNODE_DISTINCT, "Distinct", &pNode, 1, pExprs->pData, num, info, NULL);
     }
 
@@ -184,22 +181,21 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     // table source column projection, generate the projection expr
     int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
     SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
-    SSchema*    pSchema = pTableMetaInfo->pTableMeta->schema;
 
     STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
-    SSchema resultSchema = *pSchema;
-    resultSchema.colId = getNewResColId();
 
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumn* pCol = taosArrayGetP(tableCols, i);
       SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
+
+      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, i);
+      SSchema resultSchema = *pSchema;
 
       SExprInfo* p = createExprInfo(pTableMetaInfo1, FUNCTION_PRJ, &index, NULL, &resultSchema, 0);
       pExpr[i] = p;
     }
 
     pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExpr, numOfCols, info, NULL);
-//    dropAllExprInfo(pExpr);
     tfree(pExpr);
   }
 
@@ -254,7 +250,7 @@ static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryIn
 static SQueryPlanNode* doCreateQueryPlanForOneTable(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
                                                 SArray* tableCols) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameExtractFullName(&pTableMetaInfo->name, name);
+  tstrncpy(name, pTableMetaInfo->name.tname, TSDB_TABLE_FNAME_LEN);
 
   SQueryTableInfo info = {.tableName = strdup(name), .uid = pTableMetaInfo->pTableMeta->uid,};
 
@@ -357,12 +353,6 @@ static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
   tfree(pQueryNode);
 }
 
-bool hasAliasName(SExprInfo* pExpr) {
-  assert(pExpr != NULL);
-  return true;
-//  return strncmp(pExpr->base.token, pExpr->base., tListLen(pExpr->base.aliasName)) != 0;
-}
-
 static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level, int32_t totalLen) {
   if (level > 0) {
     sprintf(buf + totalLen, "%*c", level, ' ');
@@ -412,13 +402,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
-//        if (hasAliasName(&pQueryNode->pExpr[i])) {
-          len1 = sprintf(buf + len,"[%s #%s]", pExpr->token, pExpr->resSchema.name);
-//        } else {
-//          len1 = sprintf(buf + len,"[%s]", pExpr->token);
-//        }
-
-        len += len1;
+        len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
         if (i < pQueryNode->numOfOutput - 1) {
           len1 = sprintf(buf + len, ", ");
           len += len1;
@@ -435,13 +419,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
-        if (hasAliasName(pExprInfo)) {
-          len1 = sprintf(buf + len,"[%s #%s]", pExpr->token, pExpr->resSchema.name);
-        } else {
-          len1 = sprintf(buf + len,"[%s]", pExpr->token);
-        }
-
-        len += len1;
+        len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
         if (i < pQueryNode->numOfOutput - 1) {
           len1 = sprintf(buf + len,", ");
           len += len1;
@@ -452,9 +430,11 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
       len += len1;
 
       SInterval* pInterval = pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "interval:%" PRId64 "(%s), sliding:%" PRId64 "(%s), offset:%" PRId64 "\n",
+
+      // todo dynamic return the time precision
+      len1 = sprintf(buf + len, "interval:%" PRId64 "(%s), sliding:%" PRId64 "(%s), offset:%" PRId64 "(%s)\n",
                      pInterval->interval, TSDB_TIME_PRECISION_MILLI_STR, pInterval->sliding, TSDB_TIME_PRECISION_MILLI_STR,
-                     pInterval->offset);
+                     pInterval->offset, TSDB_TIME_PRECISION_MILLI_STR);
       len += len1;
 
       break;
@@ -465,12 +445,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
-
-        if (hasAliasName(pExprInfo)) {
-          len1 = sprintf(buf + len,"[%s #%s]", pExpr->token, pExpr->resSchema.name);
-        } else {
-          len1 = sprintf(buf + len,"[%s]", pExpr->token);
-        }
+        len1 = sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
 
         len += len1;
         if (i < pQueryNode->numOfOutput - 1) {
@@ -568,14 +543,15 @@ int32_t queryPlanToStringImpl(char* buf, SQueryPlanNode* pQueryNode, int32_t lev
   return len;
 }
 
-char* queryPlanToString(SQueryPlanNode* pQueryNode) {
+int32_t qQueryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
   assert(pQueryNode);
 
-  char* buf = calloc(1, 4096);
+  *str = calloc(1, 4096);
 
-  int32_t len = sprintf(buf, "===== logic plan =====\n");
-  queryPlanToStringImpl(buf, pQueryNode, 0, len);
-  return buf;
+  int32_t len = sprintf(*str, "===== logic plan =====\n");
+  queryPlanToStringImpl(*str, pQueryNode, 0, len);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SQueryPlanNode* queryPlanFromString() {

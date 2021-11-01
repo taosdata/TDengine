@@ -12,13 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "catalogInt.h"
-
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
-  return (struct SCatalog*) 0x1;
-}
-
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
-  return 0;
-}

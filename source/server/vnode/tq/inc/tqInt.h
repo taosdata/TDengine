@@ -18,7 +18,6 @@
 
 #include "tq.h"
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif

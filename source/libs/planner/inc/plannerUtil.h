@@ -13,12 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catalogInt.h"
+#ifndef TDENGINE_PLANNERUTIL_H
+#define TDENGINE_PLANNERUTIL_H
 
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
-  return (struct SCatalog*) 0x1;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
-  return 0;
-}
+#include "parser.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#endif  // TDENGINE_PLANNERUTIL_H
