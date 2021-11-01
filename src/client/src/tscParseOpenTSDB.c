@@ -305,6 +305,12 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
   *pKVs = tcalloc(capacity, sizeof(TAOS_SML_KV));
   pkv = *pKVs;
 
+  size_t childTableNameLen = strlen(tsSmlChildTableName);
+  char childTbName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  if (childTableNameLen != 0) {
+    memcpy(childTbName, tsSmlChildTableName, childTableNameLen);
+    addEscapeCharToString(childTbName, (int32_t)(childTableNameLen));
+  }
   while (*cur != '\0') {
     ret = parseTelnetTagKey(pkv, &cur, pHash, info);
     if (ret) {
@@ -316,7 +322,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("OTD:0x%"PRIx64" Unable to parse value", info->id);
       return ret;
     }
-    if ((strcasecmp(pkv->key, "`ID`") == 0)) {
+    if (childTableNameLen != 0 && strcasecmp(pkv->key, childTbName) == 0) {
       *childTableName = tcalloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1, 1);
       memcpy(*childTableName, pkv->value, pkv->length);
       (*childTableName)[pkv->length] = '\0';
