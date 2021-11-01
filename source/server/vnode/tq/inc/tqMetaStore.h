@@ -43,35 +43,33 @@ typedef struct TqMetaList {
 
 typedef struct TqMetaStore {
   TqMetaList* inUse[TQ_INUSE_SIZE];
+  //a table head, key is empty
   TqMetaList* unpersistHead;
-  //deserializer
-  //serializer
-  //deleter
+  int fileFd; //TODO:temporaral use
+  int idxFd;  //TODO:temporaral use
+  void* (*serializer)(void*);
+  void* (*deserializer)(void*);
+  void  (*deleter)(void*);
 } TqMetaStore;
 
-typedef struct TqMetaPageBuf {
-  int16_t offset;
-  char buffer[TQ_PAGE_SIZE];
-} TqMetaPageBuf;
+TqMetaStore*  tqStoreOpen(const char* path, void* serializer(void* ), void* deserializer(void*), void deleter(void*));
+int32_t       tqStoreClose(TqMetaStore*);
+int32_t       tqStoreDelete(TqMetaStore*);
+//int32_t       TqStoreCommitAll(TqMetaStore*);
+int32_t       tqStorePersist(TqMetaStore*);
 
-TqMetaStore*  TqStoreOpen(const char* path, void* serializer(void* ), void* deserializer(void*));
-int32_t       TqStoreClose(TqMetaStore*);
-int32_t       TqStoreDelete(TqMetaStore*);
-int32_t       TqStoreCommitAll(TqMetaStore*);
-int32_t       TqStorePersist(TqMetaStore*);
-
-TqMetaHandle* TqHandleGetInUse(TqMetaStore*, int64_t key);
-int32_t       TqHandlePutInUse(TqMetaStore*, TqMetaHandle* handle);
-TqMetaHandle* TqHandleGetInTxn(TqMetaStore*, int64_t key);
-int32_t       TqHandlePutInTxn(TqMetaStore*, TqMetaHandle* handle);
+TqMetaHandle* tqHandleGetInUse(TqMetaStore*, int64_t key);
+int32_t       tqHandlePutInUse(TqMetaStore*, TqMetaHandle* handle);
+TqMetaHandle* tqHandleGetInTxn(TqMetaStore*, int64_t key);
+int32_t       tqHandlePutInTxn(TqMetaStore*, TqMetaHandle* handle);
 //delete in-use-handle, make in-txn-handle in use
-int32_t       TqHandleCommit(TqMetaStore*, int64_t key);
+int32_t       tqHandleCommit(TqMetaStore*, int64_t key);
 //delete in-txn-handle
-int32_t       TqHandleAbort(TqMetaStore*, int64_t key);
+int32_t       tqHandleAbort(TqMetaStore*, int64_t key);
 //delete in-use-handle
-int32_t       TqHandleDel(TqMetaStore*, int64_t key);
+int32_t       tqHandleDel(TqMetaStore*, int64_t key);
 //delete in-use-handle and in-txn-handle
-int32_t       TqHandleClear(TqMetaStore*, int64_t key);
+int32_t       tqHandleClear(TqMetaStore*, int64_t key);
 
 #ifdef __cplusplus
 }
