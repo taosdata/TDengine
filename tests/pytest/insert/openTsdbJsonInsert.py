@@ -1478,7 +1478,6 @@ class TDTestCase:
             s_stb_s_tb_d_ts_m_tag_list, s_stb_s_tb_d_ts_a_tag_list, s_stb_d_tb_d_ts_list, \
             s_stb_d_tb_d_ts_m_tag_list, s_stb_d_tb_d_ts_a_tag_list
 
-
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
