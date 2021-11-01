@@ -1246,6 +1246,15 @@ static void insertBatchClean(STscStmt* pStmt) {
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
+  taosHashClear(pStmt->mtb.pTableHash);
+  tscDestroyDataBlock(pStmt->mtb.lastBlock, false);
+  pStmt->mtb.lastBlock = NULL;
+  STableDataBlocks** p = taosHashIterate(pStmt->mtb.pTableBlockHashList, NULL);
+  while(p) {
+    tscDestroyDataBlock(*p, false);
+    p = taosHashIterate(pStmt->mtb.pTableBlockHashList, p);
+  }
+  taosHashClear(pStmt->mtb.pTableBlockHashList);
   taosHashClear(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
@@ -1762,7 +1771,6 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   STMT_RET(code);
 }
 
-
 int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
   STscStmt* pStmt = (STscStmt*)stmt;
   STMT_CHECK
@@ -1770,15 +1778,12 @@ int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
 
-
-
 int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
   STscStmt* pStmt = (STscStmt*)stmt;
   STMT_CHECK
   pStmt->mtb.subSet = false;
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
-
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -1846,7 +1851,6 @@ int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
   }
 }
 
-
 int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
@@ -1909,8 +1913,6 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
 
   STMT_RET(insertStmtBindParamBatch(pStmt, bind, colIdx));
 }
-
-
 
 int taos_stmt_add_batch(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -2052,7 +2054,6 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
   }
 }
 
-
 char *taos_stmt_errstr(TAOS_STMT *stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
@@ -2062,8 +2063,6 @@ char *taos_stmt_errstr(TAOS_STMT *stmt) {
 
   return taos_errstr(pStmt->pSql);
 }
-
-
 
 const char *taos_data_type(int type) {
   switch (type) {
@@ -2081,4 +2080,3 @@ const char *taos_data_type(int type) {
     default: return "UNKNOWN";
   }
 }
-
