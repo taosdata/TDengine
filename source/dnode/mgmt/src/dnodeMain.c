@@ -31,17 +31,17 @@ int main(int argc, char const *argv[]) {
 
   int32_t code = dnodeInit();
   if (code != 0) {
-    uInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
+    dInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
     exit(EXIT_FAILURE);
   }
 
-  uInfo("Started TDengine service successfully.");
+  dInfo("Started TDengine service successfully.");
 
   while (!stop) {
     taosMsleep(100);
   }
 
-  uInfo("TDengine is shut down!");
+  dInfo("TDengine is shut down!");
   dnodeCleanup();
 
   return 0;
