@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeMnode.h"
-#include "dnodeConfig.h"
+#include "dnodeDnode.h"
 #include "dnodeTransport.h"
 #include "mnode.h"
 
@@ -32,3 +32,31 @@ int32_t dnodeInitMnode() {
 }
 
 void dnodeCleanupMnode() { mnodeCleanup(); }
+
+static int32_t dnodeStartMnode(SRpcMsg *pMsg) {
+  SCreateMnodeMsg *pCfg = pMsg->pCont;
+  pCfg->dnodeId = htonl(pCfg->dnodeId);
+  pCfg->mnodeNum = htonl(pCfg->mnodeNum);
+  for (int32_t i = 0; i < pCfg->mnodeNum; ++i) {
+    pCfg->mnodeEps[i].dnodeId = htonl(pCfg->mnodeEps[i].dnodeId);
+    pCfg->mnodeEps[i].dnodePort = htons(pCfg->mnodeEps[i].dnodePort);
+  }
+
+  if (pCfg->dnodeId != dnodeGetDnodeId()) {
+    dDebug("dnode:%d, in create meps msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
+    return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
+  }
+
+  if (mnodeGetStatus() == MN_STATUS_READY) return 0;
+
+  return mnodeDeploy();
+}
+
+void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg) {
+  int32_t code = dnodeStartMnode(pMsg);
+
+  SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code};
+
+  rpcSendResponse(&rspMsg);
+  rpcFreeCont(pMsg->pCont);
+}
