@@ -49,12 +49,12 @@ static int tqAckOneTopic(TqBufferHandle *bhandle, TmqOneAck *pAck, TqQueryMsg** 
   return 0;
 }
 
-static int tqAck(TqGroupHandle* ghandle, TmqAcks* pAcks) {
+static int tqAck(TqGroupHandle* gHandle, TmqAcks* pAcks) {
   int32_t ackNum = pAcks->ackNum;
   TmqOneAck *acks = pAcks->acks;
   //double ptr for acks and list
   int i = 0;
-  TqListHandle* node = ghandle->head;
+  TqListHandle* node = gHandle->head;
   int ackCnt = 0;
   TqQueryMsg *pQuery = NULL;
   while(i < ackNum && node->next) {
@@ -99,8 +99,8 @@ int tqDropTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
   return 0;
 }
 
-static int tqFetch(TqGroupHandle* ghandle, void** msg) {
-  TqListHandle* head = ghandle->head;
+static int tqFetch(TqGroupHandle* gHandle, void** msg) {
+  TqListHandle* head = gHandle->head;
   TqListHandle* node = head;
   int totSize = 0;
   //TODO: make it a macro
@@ -148,7 +148,7 @@ TqGroupHandle* tqGetGroupHandle(STQ* pTq, int64_t cId) {
   return NULL;
 }
 
-int tqLaunchQuery(TqGroupHandle* ghandle) {
+int tqLaunchQuery(TqGroupHandle* gHandle) {
   return 0;
 }
 
@@ -156,7 +156,7 @@ int tqSendLaunchQuery(TqGroupHandle* gHandle) {
   return 0;
 }
 
-/*int tqMoveOffsetToNext(TqGroupHandle* ghandle) {*/
+/*int tqMoveOffsetToNext(TqGroupHandle* gHandle) {*/
   /*return 0;*/
 /*}*/
 
@@ -177,13 +177,13 @@ int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
     return -1;
   }
   int64_t clientId = pMsg->head.clientId;
-  TqGroupHandle *ghandle = tqGetGroupHandle(pTq, clientId);
-  if(ghandle == NULL) {
+  TqGroupHandle *gHandle = tqGetGroupHandle(pTq, clientId);
+  if(gHandle == NULL) {
     //client not connect
     return -1;
   }
   if(pMsg->acks.ackNum != 0) {
-    if(tqAck(ghandle, &pMsg->acks) != 0) {
+    if(tqAck(gHandle, &pMsg->acks) != 0) {
       //ack not success
       return -1;
     }
@@ -191,13 +191,13 @@ int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
 
   TmqConsumeRsp *pRsp = (TmqConsumeRsp*) pMsg;
 
-  if(tqFetch(ghandle, (void**)&pRsp->msgs) <= 0) {
+  if(tqFetch(gHandle, (void**)&pRsp->msgs) <= 0) {
     //fetch error
     return -1;
   }
 
   //judge and launch new query
-  if(tqLaunchQuery(ghandle)) {
+  if(tqLaunchQuery(gHandle)) {
     //launch query error
     return -1;
   }
@@ -206,7 +206,7 @@ int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
 
 int tqSerializeGroupHandle(TqGroupHandle *gHandle, void** ppBytes) {
   //calculate size
-  int sz = tqGetGHandleSSize(gHandle);
+  int sz = tqGetgHandleSSize(gHandle);
   void* ptr = realloc(*ppBytes, sz);
   if(ptr == NULL) {
     free(ppBytes);
@@ -313,7 +313,7 @@ const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem *bufItem) {
 }
 
 //TODO: make this a macro
-int tqGetGHandleSSize(const TqGroupHandle *gHandle) {
+int tqGetgHandleSSize(const TqGroupHandle *gHandle) {
   return sizeof(int64_t) * 2
     + sizeof(int32_t)
     + gHandle->topicNum * tqBufHandleSSize();

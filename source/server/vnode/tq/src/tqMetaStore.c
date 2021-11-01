@@ -15,17 +15,28 @@
 #include "tqMetaStore.h"
 //TODO:replace by a abstract file layer
 #include <fcntl.h>
+#include <string.h>
 #include <unistd.h>
+
+#define TQ_PAGE_SIZE 4096
+#define TQ_META_NAME "tq.meta"
+#define TQ_IDX_NAME  "tq.idx"
 
 typedef struct TqMetaPageBuf {
   int16_t offset;
   char buffer[TQ_PAGE_SIZE];
 } TqMetaPageBuf;
 
-TqMetaStore* tqStoreOpen(const char* path, void* serializer(void*),
-    void* deserializer(void*), void deleter(void*)) {
+TqMetaStore* tqStoreOpen(const char* path,
+    int serializer(TqGroupHandle*, void**),
+    const void* deserializer(const void*, TqGroupHandle*),
+    void deleter(void*)) {
   //concat data file name and index file name
-  int fileFd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0755);
+  size_t pathLen = strlen(path);
+  char name[pathLen+10];
+  strcpy(name, path);
+  strcat(name, "/" TQ_META_NAME);
+  int fileFd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0755);
   if(fileFd < 0) return NULL;
   TqMetaStore* pMeta = malloc(sizeof(TqMetaStore)); 
   if(pMeta == NULL) {
@@ -35,7 +46,9 @@ TqMetaStore* tqStoreOpen(const char* path, void* serializer(void*),
   memset(pMeta, 0, sizeof(TqMetaStore));
   pMeta->fileFd = fileFd;
   
-  int idxFd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0755);
+  strcpy(name, path);
+  strcat(name, "/" TQ_IDX_NAME);
+  int idxFd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0755);
   if(idxFd < 0) {
     //close file
     //free memory
@@ -56,8 +69,29 @@ TqMetaStore* tqStoreOpen(const char* path, void* serializer(void*),
 
 int32_t tqStoreClose(TqMetaStore* pMeta) {
   //commit data and idx
-  //close file
+  tqStorePersist(pMeta);
+  ASSERT(pMeta->unpersistHead && pMeta->unpersistHead->next==NULL);
+  close(pMeta->fileFd);
+  close(pMeta->idxFd);
   //free memory
+  for(int i = 0; i < TQ_BUCKET_SIZE; i++) {
+    TqMetaList* node = pMeta->bucket[i];
+    pMeta->bucket[i] = NULL;
+    while(node) {
+      ASSERT(node->unpersistNext == NULL);
+      ASSERT(node->unpersistPrev == NULL);
+      if(node->handle.valueInTxn) {
+        pMeta->deleter(node->handle.valueInTxn);
+      }
+      if(node->handle.valueInUse) {
+        pMeta->deleter(node->handle.valueInUse);
+      }
+      TqMetaList* next = node->next;
+      free(node);
+      node = next;
+    }
+  }
+  free(pMeta);
   return 0;
 }
 
@@ -69,44 +103,202 @@ int32_t tqStoreDelete(TqMetaStore* pMeta) {
 }
 
 int32_t tqStorePersist(TqMetaStore* pMeta) {
-  TqMetaList *node = pMeta->unpersistHead;
-  while(node->unpersistNext) {
+  int64_t idxBuf[3];
+  TqMetaList *pHead = pMeta->unpersistHead;
+  TqMetaList *pNode = pHead->unpersistNext;
+  while(pHead != pNode) {
+    ASSERT(pNode->handle.valueInUse != NULL);
     //serialize
+    void* pBytes = NULL;
+    int sz = pMeta->serializer(pNode->handle.valueInUse, &pBytes);
+    ASSERT(pBytes != NULL);
+    //get current offset
     //append data
-    //write offset and idx
+    int nBytes = write(pMeta->fileFd, pBytes, sz);
+    //TODO: handle error in tfile
+    ASSERT(nBytes == sz);
+
+    //write idx
+    //TODO: endian check and convert
+    idxBuf[0] = pNode->handle.key;
+    idxBuf[1] = pNode->handle.offset;
+    idxBuf[2] = (int64_t)sz;
+    nBytes = write(pMeta->idxFd, idxBuf, sizeof(idxBuf));
+    //TODO: handle error in tfile
+    ASSERT(nBytes == sizeof(idxBuf));
+
     //remove from unpersist list
+    pHead->unpersistNext = pNode->unpersistNext;
+    pHead->unpersistNext->unpersistPrev = pHead;
+
+    pNode->unpersistPrev = pNode->unpersistNext = NULL;
+    pNode = pHead->unpersistNext;
+  }
+  //TODO:fsync and return upper layer
+  return 0;
+}
+
+int32_t tqHandlePutInUse(TqMetaStore* pMeta, int64_t key, void* value) {
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      //TODO: think about thread safety
+      pMeta->deleter(pNode->handle.valueInUse);
+      //change pointer ownership
+      pNode->handle.valueInUse = value;
+    } else {
+      pNode = pNode->next;
+    }
   }
   return 0;
 }
 
-int32_t tqHandlePutInUse(TqMetaStore* pMeta, TqMetaHandle* handle) {
-  return 0;
-}
-
 TqMetaHandle* tqHandleGetInUse(TqMetaStore* pMeta, int64_t key) {
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      if(pNode->handle.valueInUse != NULL) {
+        return &pNode->handle;
+      } else {
+        return NULL;
+      }
+    } else {
+      pNode = pNode->next;
+    }
+  }
   return NULL;
 }
 
-int32_t tqHandlePutInTxn(TqMetaStore* pMeta, TqMetaHandle* handle) {
+int32_t tqHandlePutInTxn(TqMetaStore* pMeta, int64_t key, void* value) {
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      //TODO: think about thread safety
+      pMeta->deleter(pNode->handle.valueInTxn);
+      //change pointer ownership
+      pNode->handle.valueInTxn = value;
+    } else {
+      pNode = pNode->next;
+    }
+  }
   return 0;
 }
 
 TqMetaHandle* tqHandleGetInTxn(TqMetaStore* pMeta, int64_t key) {
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      if(pNode->handle.valueInTxn != NULL) {
+        return &pNode->handle;
+      } else {
+        return NULL;
+      }
+    } else {
+      pNode = pNode->next;
+    }
+  }
   return NULL;
 }
 
 int32_t tqHandleCommit(TqMetaStore* pMeta, int64_t key) {
-  return 0;
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      if(pNode->handle.valueInUse != NULL) {
+        pMeta->deleter(pNode->handle.valueInUse);
+      }
+      pNode->handle.valueInUse = pNode->handle.valueInTxn;
+      if(pNode->unpersistNext == NULL) {
+        pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
+        pNode->unpersistPrev = pMeta->unpersistHead;
+        pMeta->unpersistHead->unpersistNext->unpersistPrev = pNode;
+        pMeta->unpersistHead->unpersistNext = pNode;
+      }
+      return 0;
+    } else {
+      pNode = pNode->next;
+    }
+  }
+  return -1;
 }
 
 int32_t tqHandleAbort(TqMetaStore* pMeta, int64_t key) {
-  return 0;
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      if(pNode->handle.valueInTxn != NULL) {
+        pMeta->deleter(pNode->handle.valueInTxn);
+        pNode->handle.valueInTxn = NULL;
+        return 0;
+      }
+      return -1;
+    } else {
+      pNode = pNode->next;
+    }
+  }
+  return -2;
 }
 
 int32_t tqHandleDel(TqMetaStore* pMeta, int64_t key) {
-  return 0;
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      if(pNode->handle.valueInUse != NULL) {
+        pMeta->deleter(pNode->handle.valueInUse);
+        pNode->handle.valueInUse = NULL;
+        //if not in unpersist, put into unpersist
+        if(pNode->unpersistNext == NULL) {
+          pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
+          pNode->unpersistPrev = pMeta->unpersistHead;
+          pMeta->unpersistHead->unpersistNext->unpersistPrev = pNode;
+          pMeta->unpersistHead->unpersistNext = pNode;
+        }
+        return 0;
+      }
+      return -1;
+    } else {
+      pNode = pNode->next;
+    }
+  }
+  return -2;
 }
 
 int32_t tqHandleClear(TqMetaStore* pMeta, int64_t key) {
-  return 0;
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  bool exist = false;
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      if(pNode->handle.valueInUse != NULL) {
+        exist = true;
+        pMeta->deleter(pNode->handle.valueInUse);
+        pNode->handle.valueInUse = NULL;
+      }
+      if(pNode->handle.valueInTxn != NULL) {
+        exist = true;
+        pMeta->deleter(pNode->handle.valueInTxn);
+        pNode->handle.valueInTxn = NULL;
+      }
+      if(exist) {
+        if(pNode->unpersistNext == NULL) {
+          pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
+          pNode->unpersistPrev = pMeta->unpersistHead;
+          pMeta->unpersistHead->unpersistNext->unpersistPrev = pNode;
+          pMeta->unpersistHead->unpersistNext = pNode;
+        }
+        return 0;
+      }
+      return -1;
+    } else {
+      pNode = pNode->next;
+    }
+  }
+  return -2;
 }

@@ -17,9 +17,9 @@
 #define _TQ_META_STORE_H_
 
 #include "os.h"
+#include "tq.h"
 
-#define TQ_INUSE_SIZE 0xFF
-#define TQ_PAGE_SIZE 4096
+#define TQ_BUCKET_SIZE 0xFF
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,34 +35,39 @@ typedef struct TqMetaHandle {
 typedef struct TqMetaList {
   TqMetaHandle handle;
   struct TqMetaList* next;
-  struct TqMetaList* inTxnPrev;
-  struct TqMetaList* inTxnNext;
+  //struct TqMetaList* inTxnPrev;
+  //struct TqMetaList* inTxnNext;
   struct TqMetaList* unpersistPrev;
   struct TqMetaList* unpersistNext;
 } TqMetaList;
 
 typedef struct TqMetaStore {
-  TqMetaList* inUse[TQ_INUSE_SIZE];
+  TqMetaList* bucket[TQ_BUCKET_SIZE];
   //a table head, key is empty
   TqMetaList* unpersistHead;
-  int fileFd; //TODO:temporaral use
-  int idxFd;  //TODO:temporaral use
-  void* (*serializer)(void*);
-  void* (*deserializer)(void*);
+  int fileFd; //TODO:temporaral use, to be replaced by unified tfile
+  int idxFd;  //TODO:temporaral use, to be replaced by unified tfile
+  int (*serializer)(TqGroupHandle*, void**);
+  const void* (*deserializer)(const void*, TqGroupHandle*);
   void  (*deleter)(void*);
 } TqMetaStore;
 
-TqMetaStore*  tqStoreOpen(const char* path, void* serializer(void* ), void* deserializer(void*), void deleter(void*));
+TqMetaStore*  tqStoreOpen(const char* path,
+    int serializer(TqGroupHandle*, void**),
+    const void* deserializer(const void*, TqGroupHandle*),
+    void deleter(void*));
 int32_t       tqStoreClose(TqMetaStore*);
-int32_t       tqStoreDelete(TqMetaStore*);
+//int32_t       tqStoreDelete(TqMetaStore*);
 //int32_t       TqStoreCommitAll(TqMetaStore*);
 int32_t       tqStorePersist(TqMetaStore*);
 
 TqMetaHandle* tqHandleGetInUse(TqMetaStore*, int64_t key);
-int32_t       tqHandlePutInUse(TqMetaStore*, TqMetaHandle* handle);
+int32_t       tqHandlePutInUse(TqMetaStore*, int64_t key, void* value);
 TqMetaHandle* tqHandleGetInTxn(TqMetaStore*, int64_t key);
-int32_t       tqHandlePutInTxn(TqMetaStore*, TqMetaHandle* handle);
-//delete in-use-handle, make in-txn-handle in use
+int32_t       tqHandlePutInTxn(TqMetaStore*, int64_t key, void* value);
+//will replace old handle
+//int32_t       tqHandlePut(TqMetaStore*, TqMetaHandle* handle);
+//delete in-use-handle, and put it in use
 int32_t       tqHandleCommit(TqMetaStore*, int64_t key);
 //delete in-txn-handle
 int32_t       tqHandleAbort(TqMetaStore*, int64_t key);
