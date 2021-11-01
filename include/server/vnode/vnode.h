@@ -16,93 +16,111 @@
 #ifndef _TD_VNODE_H_
 #define _TD_VNODE_H_
 
+#include "os.h"
+#include "taosmsg.h"
+#include "trpc.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  /**
-   * Send messages to other dnodes, such as create vnode message.
-   *
-   * @param epSet, the endpoint list of dnodes.
-   * @param rpcMsg, message to be sent.
-   */
-  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
-
-  /**
-   * Send messages to mnode, such as config message.
-   *
-   * @param rpcMsg, message to be sent.
-   */
-  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
-
-  /**
-   * Get the corresponding endpoint information from dnodeId.
-   *
-   * @param dnodeId, the id ot dnode.
-   * @param ep, the endpoint of dnode.
-   * @param fqdn, the fqdn of dnode.
-   * @param port, the port of dnode.
-   */
-  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-
-  /**
-   * Report the startup progress.
-   */
-  void (*ReportStartup)(char *name, char *desc);
-
-} SVnodeFp;
+typedef struct SVnode SVnode;
 
 typedef struct {
-  SVnodeFp fp;
-} SVnodePara;
+  char       dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int32_t    cacheBlockSize;  // MB
+  int32_t    totalBlocks;
+  int32_t    daysPerFile;
+  int32_t    daysToKeep0;
+  int32_t    daysToKeep1;
+  int32_t    daysToKeep2;
+  int32_t    minRowsPerFileBlock;
+  int32_t    maxRowsPerFileBlock;
+  int8_t     precision;  // time resolution
+  int8_t     compression;
+  int8_t     cacheLastRow;
+  int8_t     update;
+  int8_t     quorum;
+  int8_t     replica;
+  int8_t     walLevel;
+  int32_t    fsyncPeriod;  // millisecond
+  SVnodeDesc replicas[TSDB_MAX_REPLICA];
+} SVnodeCfg;
+
+typedef struct {
+  int64_t totalStorage;
+  int64_t compStorage;
+  int64_t pointsWritten;
+  int64_t tablesNum;
+} SVnodeStatisic;
+
+typedef struct {
+  int8_t syncRole;
+} SVnodeStatus;
+
+typedef struct {
+  int32_t accessState;
+} SVnodeAccess;
+
+typedef struct SVnodeMsg {
+  int32_t msgType;
+  int32_t code;
+  SRpcMsg rpcMsg;  // original message from rpc
+  int32_t contLen;
+  char    pCont[];
+} SVnodeMsg;
 
 /**
  * Start initialize vnode module.
  *
- * @param para, initialization parameters.
  * @return Error code.
  */
-int32_t vnodeInit(SVnodePara para);
+int32_t vnodeInit();
 
 /**
  * Cleanup vnode module.
  */
 void vnodeCleanup();
 
-typedef struct {
-  int32_t unused;
-} SVnodeStat;
-
 /**
  * Get the statistical information of vnode.
  *
- * @param stat, statistical information.
+ * @param pVnode,
+ * @param pStat, statistical information.
  * @return Error Code.
  */
-int32_t vnodeGetStatistics(SVnodeStat *stat);
+int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat);
 
 /**
  * Get the status of all vnodes.
  *
- * @param status, status msg.
+ * @param pVnode,
+ * @param status, status information.
+ * @return Error Code.
  */
-void vnodeGetStatus(struct SStatusMsg *status);
+int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus);
 
 /**
- * Set access permissions for all vnodes.
+ * Operation functions of vnode
  *
- * @param access, access permissions of vnodes.
- * @param numOfVnodes, the size of vnodes.
+ * @return Error Code.
  */
-void vnodeSetAccess(struct SVgroupAccess *access, int32_t numOfVnodes);
+SVnode *vnodeOpen(int32_t vgId, const char *path);
+void    vnodeClose(SVnode *pVnode);
+int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
+SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
+int32_t vnodeDrop(SVnode *pVnode);
+int32_t vnodeCompact(SVnode *pVnode);
+int32_t vnodeSync(SVnode *pVnode);
 
 /**
  * Interface for processing messages.
  *
- * @param msg, message to be processed.
+ * @param pVnode,
+ * @param pMsg, message to be processed.
+ *
  */
-void vnodeProcessMsg(SRpcMsg *msg);
+int32_t vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

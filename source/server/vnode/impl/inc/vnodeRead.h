@@ -21,19 +21,7 @@ extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t    vnodeInitRead();
-void       vnodeCleanupRead();
-taos_queue vnodeAllocQueryQueue(SVnode *pVnode);
-taos_queue vnodeAllocFetchQueue(SVnode *pVnode);
-void       vnodeFreeQueryQueue(taos_queue pQueue);
-void       vnodeFreeFetchQueue(taos_queue pQueue);
-
-void vnodeProcessReadMsg(SRpcMsg *pRpcMsg);
-int32_t vnodeReputPutToRQueue(SVnode *pVnode, void **qhandle, void *ahandle);
-
-void vnodeStartRead(SVnode *pVnode);
-void vnodeStopRead(SVnode *pVnode);
-void vnodeWaitReadCompleted(SVnode *pVnode);
+void vnodeProcessReadMsg(SVnode *pVnode, SVnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

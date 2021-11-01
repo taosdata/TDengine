@@ -16,6 +16,8 @@
 #ifndef _TD_VNODE_COMMIT_H_
 #define _TD_VNODE_COMMIT_H_
 
+#include "vnodeInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

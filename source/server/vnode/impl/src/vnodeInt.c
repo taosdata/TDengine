@@ -14,78 +14,20 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "tstep.h"
-#include "vnodeMain.h"
-#include "vnodeMgmt.h"
-#include "vnodeRead.h"
-#include "vnodeWrite.h"
+#include "vnodeInt.h"
 
-static struct {
-  SSteps  *steps;
-  SVnodeFp fp;
-  void (*msgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-} tsVint;
+int32_t vnodeInit() { return 0; }
+void    vnodeCleanup() {}
 
-void vnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port) {
-  return (*tsVint.fp.GetDnodeEp)(dnodeId, ep, fqdn, port);
-}
+int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat) { return 0; }
+int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus) { return 0; }
 
-void vnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
-  (*tsVint.fp.SendMsgToDnode)(epSet, rpcMsg);
-}
+SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }
+void    vnodeClose(SVnode *pVnode) {}
+int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
+SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg) { return NULL; }
+int32_t vnodeDrop(SVnode *pVnode) { return 0; }
+int32_t vnodeCompact(SVnode *pVnode) { return 0; }
+int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
-void vnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsVint.fp.SendMsgToMnode)(rpcMsg); }
-
-void vnodeReportStartup(char *name, char *desc) { (*tsVint.fp.ReportStartup)(name, desc); }
-
-void vnodeProcessMsg(SRpcMsg *pMsg) {
-  if (tsVint.msgFp[pMsg->msgType]) {
-    (*tsVint.msgFp[pMsg->msgType])(pMsg);
-  } else {
-    assert(0);
-  }
-}
-
-static void vnodeInitMsgFp() {
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = vnodeProcessMgmtMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = vnodeProcessMgmtMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE] = vnodeProcessMgmtMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = vnodeProcessMgmtMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = vnodeProcessMgmtMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = vnodeProcessMgmtMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MD_DROP_STABLE] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_SUBMIT] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = vnodeProcessWriteReq;
-  // mq related
-  tsVint.msgFp[TSDB_MSG_TYPE_MQ_CONNECT] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MQ_DISCONNECT] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MQ_ACK] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MQ_RESET] = vnodeProcessWriteReq;
-  tsVint.msgFp[TSDB_MSG_TYPE_MQ_QUERY] = vnodeProcessReadMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_MQ_CONSUME] = vnodeProcessReadMsg;
-  // mq related end
-  tsVint.msgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessReadMsg;
-  tsVint.msgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessReadMsg;
-}
-
-int32_t vnodeInit(SVnodePara para) {
-  vnodeInitMsgFp();
-  tsVint.fp = para.fp;
-
-  struct SSteps *steps = taosStepInit(8, NULL);
-  if (steps == NULL) return -1;
-
-  taosStepAdd(steps, "vnode-main", vnodeInitMain, vnodeCleanupMain);
-  taosStepAdd(steps, "vnode-read", vnodeInitRead, vnodeCleanupRead);
-  taosStepAdd(steps, "vnode-mgmt", vnodeInitMgmt, vnodeCleanupMgmt);
-  taosStepAdd(steps, "vnode-write", vnodeInitWrite, vnodeCleanupWrite);
-
-  tsVint.steps = steps;
-  return taosStepExec(tsVint.steps);
-}
-
-void vnodeCleanup() { taosStepCleanup(tsVint.steps); }
+int32_t vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg) { return 0; }

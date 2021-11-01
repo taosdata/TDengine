@@ -58,8 +58,8 @@ void tWorkerCleanup(SWorkerPool *pool) {
 }
 
 static void *tWorkerThreadFp(SWorker *worker) {
-  SWorkerPool    *pool = worker->pool;
-  FProcessOneItem fp = NULL;
+  SWorkerPool *pool = worker->pool;
+  FProcessItem fp = NULL;
 
   void   *msg = NULL;
   void   *ahandle = NULL;
@@ -83,7 +83,7 @@ static void *tWorkerThreadFp(SWorker *worker) {
   return NULL;
 }
 
-taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessOneItem fp) {
+taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp) {
   pthread_mutex_lock(&pool->mutex);
   taos_queue queue = taosOpenQueue();
   if (queue == NULL) {
@@ -166,8 +166,8 @@ void tMWorkerCleanup(SMWorkerPool *pool) {
 }
 
 static void *tWriteWorkerThreadFp(SMWorker *worker) {
-  SMWorkerPool   *pool = worker->pool;
-  FProcessAllItem fp = NULL;
+  SMWorkerPool *pool = worker->pool;
+  FProcessItems fp = NULL;
 
   void   *msg = NULL;
   void   *ahandle = NULL;
@@ -193,7 +193,7 @@ static void *tWriteWorkerThreadFp(SMWorker *worker) {
   return NULL;
 }
 
-taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessAllItem fp) {
+taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp) {
   pthread_mutex_lock(&pool->mutex);
   SMWorker *worker = pool->workers + pool->nextId;
 

@@ -54,13 +54,7 @@ static void dnodeReportStartupFinished(char *name, char *desc) {
 void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsDnode.startup, sizeof(SStartupStep)); }
 
 static int32_t dnodeInitVnode() {
-  SVnodePara para;
-  para.fp.GetDnodeEp = dnodeGetEp;
-  para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
-  para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
-  para.fp.ReportStartup = dnodeReportStartup;
-
-  return vnodeInit(para);
+  return vnodeInit();
 }
 
 static int32_t dnodeInitMnode() {
@@ -200,3 +194,11 @@ void dnodeCleanup() {
     tsDnode.steps = NULL;
   }
 }
+
+// tsVnode.msgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = vnodeProcessMgmtMsg;
+//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = vnodeProcessMgmtMsg;
+//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE] = vnodeProcessMgmtMsg;
+//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = vnodeProcessMgmtMsg;
+//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = vnodeProcessMgmtMsg;
+//   tsVnode.msgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = vnodeProcessMgmtMsg;
+  

@@ -31,8 +31,8 @@ typedef struct STaosQueue {
   struct STaosQueue *next;     // for queue set
   struct STaosQset  *qset;     // for queue set
   void              *ahandle;  // for queue set
-  FProcessOneItem    fpOneItem;
-  FProcessAllItem    fpAllItem;
+  FProcessItem       itemFp;
+  FProcessItems      itemsFp;
   pthread_mutex_t    mutex;
 } STaosQueue;
 
@@ -65,11 +65,11 @@ taos_queue taosOpenQueue() {
   return queue;
 }
 
-void taosSetQueueFp(taos_queue param, FProcessOneItem fpOneItem, FProcessAllItem fpAllItem) {
+void taosSetQueueFp(taos_queue param, FProcessItem itemFp, FProcessItems itemsFp) {
   if (param == NULL) return;
   STaosQueue *queue = (STaosQueue *)param;
-  queue->fpOneItem = fpOneItem;
-  queue->fpAllItem = fpAllItem;
+  queue->itemFp = itemFp;
+  queue->itemsFp = itemsFp;
 }
 
 void taosCloseQueue(taos_queue param) {
@@ -341,7 +341,7 @@ void taosRemoveFromQset(taos_qset p1, taos_queue p2) {
 
 int taosGetQueueNumber(taos_qset param) { return ((STaosQset *)param)->numOfQueues; }
 
-int taosReadQitemFromQset(taos_qset param, void **pitem, void **ahandle, FProcessOneItem *fpOneItem) {
+int taosReadQitemFromQset(taos_qset param, void **pitem, void **ahandle, FProcessItem *itemFp) {
   STaosQset  *qset = (STaosQset *)param;
   STaosQnode *pNode = NULL;
   int         code = 0;
@@ -363,7 +363,7 @@ int taosReadQitemFromQset(taos_qset param, void **pitem, void **ahandle, FProces
       pNode = queue->head;
       *pitem = pNode->item;
       if (ahandle) *ahandle = queue->ahandle;
-      if (fpOneItem) *fpOneItem = queue->fpOneItem;
+      if (itemFp) *itemFp = queue->itemFp;
       queue->head = pNode->next;
       if (queue->head == NULL) queue->tail = NULL;
       queue->numOfItems--;
@@ -381,7 +381,7 @@ int taosReadQitemFromQset(taos_qset param, void **pitem, void **ahandle, FProces
   return code;
 }
 
-int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **ahandle, FProcessAllItem *fpAllItem) {
+int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **ahandle, FProcessItems *itemsFp) {
   STaosQset  *qset = (STaosQset *)param;
   STaosQueue *queue;
   STaosQall  *qall = (STaosQall *)p2;
@@ -407,7 +407,7 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **ahandle, FPr
       qall->itemSize = queue->itemSize;
       code = qall->numOfItems;
       if (ahandle) *ahandle = queue->ahandle;
-      if (fpAllItem) *fpAllItem = queue->fpAllItem;
+      if (itemsFp) *itemsFp = queue->itemsFp;
 
       queue->head = NULL;
       queue->tail = NULL;

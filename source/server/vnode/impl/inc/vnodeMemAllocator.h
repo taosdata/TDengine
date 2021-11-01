@@ -16,7 +16,7 @@
 #ifndef _TD_VNODE_MEM_ALLOCATOR_H_
 #define _TD_VNODE_MEM_ALLOCATOR_H_
 
-#include "os.h"
+#include "vnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {

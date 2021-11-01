@@ -56,12 +56,12 @@ typedef struct SMWorkerPool {
 
 int32_t    tWorkerInit(SWorkerPool *pool);
 void       tWorkerCleanup(SWorkerPool *pool);
-taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessOneItem fp);
+taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp);
 void       tWorkerFreeQueue(SWorkerPool *pool, taos_queue queue);
 
 int32_t    tMWorkerInit(SMWorkerPool *pool);
 void       tMWorkerCleanup(SMWorkerPool *pool);
-taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessAllItem fp);
+taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp);
 void       tMWorkerFreeQueue(SMWorkerPool *pool, taos_queue queue);
 
 #ifdef __cplusplus

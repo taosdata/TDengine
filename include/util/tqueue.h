@@ -40,12 +40,12 @@ shall be used to set up the protection.
 typedef void *taos_queue;
 typedef void *taos_qset;
 typedef void *taos_qall;
-typedef void *(*FProcessOneItem)(void *pItem, void *ahandle);
-typedef void *(*FProcessAllItem)(taos_qall qall, int numOfItems, void *ahandle);
+typedef void *(*FProcessItem)(void *pItem, void *ahandle);
+typedef void *(*FProcessItems)(taos_qall qall, int numOfItems, void *ahandle);
 
 taos_queue taosOpenQueue();
 void       taosCloseQueue(taos_queue);
-void       taosSetQueueFp(taos_queue, FProcessOneItem, FProcessAllItem fp);
+void       taosSetQueueFp(taos_queue, FProcessItem, FProcessItems);
 void      *taosAllocateQitem(int size);
 void       taosFreeQitem(void *pItem);
 int        taosWriteQitem(taos_queue, void *pItem);
@@ -64,8 +64,8 @@ int        taosAddIntoQset(taos_qset, taos_queue, void *ahandle);
 void       taosRemoveFromQset(taos_qset, taos_queue);
 int        taosGetQueueNumber(taos_qset);
 
-int        taosReadQitemFromQset(taos_qset, void **pItem, void **ahandle, FProcessOneItem *);
-int        taosReadAllQitemsFromQset(taos_qset, taos_qall, void **ahandle, FProcessAllItem *);
+int        taosReadQitemFromQset(taos_qset, void **pItem, void **ahandle, FProcessItem *);
+int        taosReadAllQitemsFromQset(taos_qset, taos_qall, void **ahandle, FProcessItems *);
 
 int        taosGetQueueItemsNumber(taos_queue param);
 int        taosGetQsetItemsNumber(taos_qset param);

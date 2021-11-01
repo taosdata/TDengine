@@ -201,87 +201,87 @@ static void mnodeInitMsgFp() {
 //   tsMworker.peerRspFp[TSDB_MSG_TYPE_MD_DROP_VNODE_RSP] = mnodeProcessDropVnodeRsp;
 
 //   // read msg
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_HEARTBEAT] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_HEARTBEAT] = mnodeProcessHeartBeatMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CONNECT] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_CONNECT] = mnodeProcessConnectMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_USE_DB] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_USE_DB] = mnodeProcessUseMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_HEARTBEAT] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_HEARTBEAT] = mnodeProcessHeartBeatMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CONNECT] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CONNECT] = mnodeProcessConnectMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_USE_DB] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_USE_DB] = mnodeProcessUseMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_TABLE_META] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_TABLE_META] = mnodeProcessTableMetaMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_TABLES_META] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = mnodeProcessMultiTableMetaMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP] = mnodeProcessSuperTableVgroupMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_TABLE_META] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_TABLE_META] = mnodeProcessTableMetaMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_TABLES_META] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_TABLES_META] = mnodeProcessMultiTableMetaMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_STABLE_VGROUP] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_STABLE_VGROUP] = mnodeProcessSuperTableVgroupMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_SHOW] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_SHOW] = mnodeProcessShowMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_RETRIEVE] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE] = mnodeProcessRetrieveMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = mnodeDispatchToReadQueue;
-//   tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = mnodeProcessRetrieveFuncReq;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_SHOW] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_SHOW] = mnodeProcessShowMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = mnodeProcessRetrieveMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_RETRIEVE_FUNC] = mnodeDispatchToReadQueue;
+//   tsMworker.readMsgFp[TSDB_MSG_TYPE_RETRIEVE_FUNC] = mnodeProcessRetrieveFuncReq;
 
-//   // tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = mnodeDispatchToWriteQueue;
-//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = acctProcessCreateAcctMsg;
-//   // tsMworker.msgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT] = mnodeDispatchToWriteQueue;
-//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT] = acctProcessDropAcctMsg;
-//   // tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_ACCT] = mnodeDispatchToWriteQueue;
-//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT] = acctProcessAlterAcctMsg;
+//   // tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_ACCT] = mnodeDispatchToWriteQueue;
+//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CREATE_ACCT] = acctProcessCreateAcctMsg;
+//   // tsMworker.msgFp[TSDB_MSG_TYPE_ALTER_ACCT] = mnodeDispatchToWriteQueue;
+//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_ALTER_ACCT] = acctProcessDropAcctMsg;
+//   // tsMworker.msgFp[TSDB_MSG_TYPE_DROP_ACCT] = mnodeDispatchToWriteQueue;
+//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_DROP_ACCT] = acctProcessAlterAcctMsg;
 
 //   // write msg
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = mnodeProcessCreateUserMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_ALTER_USER] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_ALTER_USER] = mnodeProcessAlterUserMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_USER] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_DROP_USER] = mnodeProcessDropUserMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_USER] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CREATE_USER] = mnodeProcessCreateUserMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_ALTER_USER] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_ALTER_USER] = mnodeProcessAlterUserMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_DROP_USER] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_DROP_USER] = mnodeProcessDropUserMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE] = mnodeProcessCreateDnodeMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_DNODE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE] = mnodeProcessDropDnodeMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE] = mnodeProcessCfgDnodeMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_DNODE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CREATE_DNODE] = mnodeProcessCreateDnodeMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_DROP_DNODE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_DROP_DNODE] = mnodeProcessDropDnodeMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CONFIG_DNODE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CONFIG_DNODE] = mnodeProcessCfgDnodeMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_DB] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB] = mnodeProcessCreateDbMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_ALTER_DB] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB] = mnodeProcessAlterDbMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_DB] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_DROP_DB] = mnodeProcessDropDbMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_SYNC_DB] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_SYNC_DB] = mnodeProcessSyncDbMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_COMPACT_VNODE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_COMPACT_VNODE] = mnodeProcessCompactMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_DB] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CREATE_DB] = mnodeProcessCreateDbMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_ALTER_DB] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_ALTER_DB] = mnodeProcessAlterDbMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_DROP_DB] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_DROP_DB] = mnodeProcessDropDbMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_SYNC_DB] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_SYNC_DB] = mnodeProcessSyncDbMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_COMPACT_VNODE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_COMPACT_VNODE] = mnodeProcessCompactMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_FUNCTION] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_CREATE_FUNCTION] = mnodeProcessCreateFuncMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_FUNCTION] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_DROP_FUNCTION] = mnodeProcessDropFuncMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_FUNCTION] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CREATE_FUNCTION] = mnodeProcessCreateFuncMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_DROP_FUNCTION] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_DROP_FUNCTION] = mnodeProcessDropFuncMsg;
 
-//   // tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_TP] = mnodeDispatchToWriteQueue;
-//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_CREATE_TP] = tpProcessCreateTpMsg;
-//   // tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_TP] = mnodeDispatchToWriteQueue;
-//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_DROP_TP] = tpProcessAlterTpMsg;
-//   // tsMworker.msgFp[TSDB_MSG_TYPE_CM_ALTER_TP] = mnodeDispatchToWriteQueue;
-//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CM_ALTER_TP] = tpProcessDropTpMsg;
+//   // tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_TP] = mnodeDispatchToWriteQueue;
+//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_CREATE_TP] = tpProcessCreateTpMsg;
+//   // tsMworker.msgFp[TSDB_MSG_TYPE_DROP_TP] = mnodeDispatchToWriteQueue;
+//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_DROP_TP] = tpProcessAlterTpMsg;
+//   // tsMworker.msgFp[TSDB_MSG_TYPE_ALTER_TP] = mnodeDispatchToWriteQueue;
+//   // tsMworker.readMsgFp[TSDB_MSG_TYPE_ALTER_TP] = tpProcessDropTpMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE] = mnodeProcessCreateTableMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_DROP_TABLE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_DROP_TABLE] = mnodeProcessDropTableMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE] = mnodeProcessAlterTableMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_CREATE_TABLE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CREATE_TABLE] = mnodeProcessCreateTableMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_DROP_TABLE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_DROP_TABLE] = mnodeProcessDropTableMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_ALTER_TABLE] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_ALTER_TABLE] = mnodeProcessAlterTableMsg;
 
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_ALTER_STREAM] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_ALTER_STREAM] = NULL;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_KILL_QUERY] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_KILL_QUERY] = mnodeProcessKillQueryMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_KILL_STREAM] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_KILL_STREAM] = mnodeProcessKillStreamMsg;
-//   tsMworker.msgFp[TSDB_MSG_TYPE_CM_KILL_CONN] = mnodeDispatchToWriteQueue;
-//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN] = mnodeProcessKillConnectionMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_ALTER_STREAM] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_ALTER_STREAM] = NULL;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_KILL_QUERY] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_KILL_QUERY] = mnodeProcessKillQueryMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_KILL_STREAM] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_KILL_STREAM] = mnodeProcessKillStreamMsg;
+//   tsMworker.msgFp[TSDB_MSG_TYPE_KILL_CONN] = mnodeDispatchToWriteQueue;
+//   tsMworker.writeMsgFp[TSDB_MSG_TYPE_KILL_CONN] = mnodeProcessKillConnectionMsg;
 }
 
 static void mnodeProcessWriteReq(SMnMsg *pMsg, void *unused) {
@@ -427,7 +427,7 @@ int32_t mnodeInitWorker() {
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.writeQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessWriteReq);
+    tsMworker.writeQ = tWorkerAllocQueue(pPool, NULL, (FProcessItem)mnodeProcessWriteReq);
   }
 
   pPool = &tsMworker.read;
@@ -439,7 +439,7 @@ int32_t mnodeInitWorker() {
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.readQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessReadReq);
+    tsMworker.readQ = tWorkerAllocQueue(pPool, NULL, (FProcessItem)mnodeProcessReadReq);
   }
 
   pPool = &tsMworker.peerReq;
@@ -449,7 +449,7 @@ int32_t mnodeInitWorker() {
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.peerReqQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessPeerReq);
+    tsMworker.peerReqQ = tWorkerAllocQueue(pPool, NULL, (FProcessItem)mnodeProcessPeerReq);
   }
 
   pPool = &tsMworker.peerRsp;
@@ -459,7 +459,7 @@ int32_t mnodeInitWorker() {
   if (tWorkerInit(pPool) != 0) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    tsMworker.peerRspQ = tWorkerAllocQueue(pPool, NULL, (FProcessOneItem)mnodeProcessPeerRsp);
+    tsMworker.peerRspQ = tWorkerAllocQueue(pPool, NULL, (FProcessItem)mnodeProcessPeerRsp);
   }
 
   mInfo("mnode worker is initialized");

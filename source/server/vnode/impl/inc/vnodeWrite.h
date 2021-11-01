@@ -21,18 +21,7 @@ extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t    vnodeInitWrite();
-void       vnodeCleanupWrite();
-
-taos_queue vnodeAllocWriteQueue(SVnode *pVnode);
-void       vnodeFreeWriteQueue(taos_queue pQueue);
-taos_queue vnodeAllocApplyQueue(SVnode *pVnode);
-void       vnodeFreeApplyQueue(taos_queue pQueue);
-void       vnodeProcessWriteReq(SRpcMsg *pRpcMsg);
-
-void vnodeStartWrite(SVnode *pVnode);
-void vnodeStopWrite(SVnode *pVnode);
-void vnodeWaitWriteCompleted(SVnode *pVnode);
+void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
 
 #ifdef __cplusplus
 }

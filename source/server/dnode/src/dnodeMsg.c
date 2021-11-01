@@ -52,9 +52,9 @@ static void dnodeSendStatusMsg() {
   tstrncpy(pStatus->clusterCfg.locale, tsLocale, TSDB_LOCALE_LEN);
   tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);
 
-  vnodeGetStatus(pStatus);
-  contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
-  pStatus->openVnodes = htons(pStatus->openVnodes);
+  // vnodeGetStatus(NULL, pStatus);
+  // contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
+  // pStatus->openVnodes = htons(pStatus->openVnodes);
 
   SRpcMsg rpcMsg = {.ahandle = NULL, .pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_DM_STATUS};
 
@@ -79,7 +79,7 @@ void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     return;
   }
 
-  vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
+  // vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
 
   SDnodeEps *eps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SVgroupAccess));
   eps->dnodeNum = htonl(eps->dnodeNum);
