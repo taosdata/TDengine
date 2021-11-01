@@ -120,7 +120,7 @@ public class TSDBJNIConnectorTest {
             String[] lines = new String[]{
                     "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
                     "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000"};
-            connector.insertLines(lines, SchemalessProtocolType.SCHEMALESS, SchemalessTimestampType.SML_TIMESTAMP_NANO_SECONDS);
+            connector.insertLines(lines, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
 
             // close connection
             connector.closeConnection();
