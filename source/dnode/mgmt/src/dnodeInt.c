@@ -14,8 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeCheck.h"
-#include "dnodeConfig.h"
 #include "dnodeDnode.h"
 #include "dnodeMnode.h"
 #include "dnodeTransport.h"
@@ -52,46 +50,6 @@ static void dnodeReportStartupFinished(char *name, char *desc) {
 }
 
 void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsInt.startup, sizeof(SStartupStep)); }
-
-static int32_t dnodeInitMain() {
-  tsInt.runStatus = DN_RUN_STAT_STOPPED;
-  tscEmbedded = 1;
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
-  taosInitGlobalCfg();
-  taosReadGlobalLogCfg();
-  taosSetCoreDump(tsEnableCoreFile);
-
-  if (!taosMkDir(tsLogDir)) {
-    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
-    return -1;
-  }
-
-  char temp[TSDB_FILENAME_LEN];
-  sprintf(temp, "%s/taosdlog", tsLogDir);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
-    printf("failed to init log file\n");
-  }
-
-  if (!taosReadGlobalCfg()) {
-    taosPrintGlobalCfg();
-    dError("TDengine read global config failed");
-    return -1;
-  }
-
-  dInfo("start to initialize TDengine");
-
-  taosInitNotes();
-
-  return taosCheckGlobalCfg();
-}
-
-static void dnodeCleanupMain() {
-  taos_cleanup();
-  taosCloseLog();
-  taosStopCacheRefreshWorker();
-}
 
 static int32_t dnodeCheckRunning(char *dir) {
   char filepath[256] = {0};
@@ -140,24 +98,65 @@ static int32_t dnodeInitDir() {
   return 0;
 }
 
-static void dnodeCleanupDir() {}
+static int32_t dnodeInitMain() {
+  tsInt.runStatus = DN_RUN_STAT_STOPPED;
+  tscEmbedded = 1;
+  taosIgnSIGPIPE();
+  taosBlockSIGPIPE();
+  taosResolveCRC();
+  taosInitGlobalCfg();
+  taosReadGlobalLogCfg();
+  taosSetCoreDump(tsEnableCoreFile);
+
+  if (!taosMkDir(tsLogDir)) {
+    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+    return -1;
+  }
+
+  char temp[TSDB_FILENAME_LEN];
+  sprintf(temp, "%s/taosdlog", tsLogDir);
+  if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
+    printf("failed to init log file\n");
+  }
+
+  if (!taosReadGlobalCfg()) {
+    taosPrintGlobalCfg();
+    dError("TDengine read global config failed");
+    return -1;
+  }
+
+  dInfo("start to initialize TDengine");
+
+  taosInitNotes();
+
+  if (taosCheckGlobalCfg() != 0) {
+    return -1;
+  }
+
+  dnodeInitDir();
+
+  return -1;
+}
+
+static void dnodeCleanupMain() {
+  taos_cleanup();
+  taosCloseLog();
+  taosStopCacheRefreshWorker();
+}
 
 int32_t dnodeInit() {
   SSteps *steps = taosStepInit(24, dnodeReportStartup);
   if (steps == NULL) return -1;
 
   taosStepAdd(steps, "dnode-main", dnodeInitMain, dnodeCleanupMain);
-  taosStepAdd(steps, "dnode-dir", dnodeInitDir, dnodeCleanupDir);
-  taosStepAdd(steps, "dnode-check", dnodeInitCheck, dnodeCleanupCheck);
   taosStepAdd(steps, "dnode-rpc", rpcInit, rpcCleanup);
   taosStepAdd(steps, "dnode-tfs", NULL, NULL);
   taosStepAdd(steps, "dnode-wal", walInit, walCleanUp);
   taosStepAdd(steps, "dnode-sync", syncInit, syncCleanUp);
-  taosStepAdd(steps, "dnode-config", dnodeInitConfig, dnodeCleanupConfig);
+  taosStepAdd(steps, "dnode-dnode", dnodeInitDnode, dnodeCleanupDnode);
   taosStepAdd(steps, "dnode-vnodes", dnodeInitVnodes, dnodeCleanupVnodes);
   taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, dnodeCleanupMnode);
   taosStepAdd(steps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
-  taosStepAdd(steps, "dnode-dnode", dnodeInitDnode, dnodeCleanupDnode);
 
   tsInt.steps = steps;
   taosStepExec(tsInt.steps);
