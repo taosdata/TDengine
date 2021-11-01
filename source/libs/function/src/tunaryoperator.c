@@ -165,3 +165,7 @@ _unary_scalar_fn_t getUnaryScalarOperatorFn(int32_t operator) {
       assert(0);
   }
 }
+
+bool isStringOperatorFn(int32_t op) {
+  return op == TSDB_UNARY_OP_LEN;
+}

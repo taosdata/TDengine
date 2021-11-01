@@ -74,6 +74,10 @@ static void setScalarFuncParam(SScalarFuncParam* param, int32_t type, int32_t by
   param->data = pInput;
 }
 
+bool isStringOp(int32_t op) {
+  return op == TSDB_BINARY_OP_CONCAT;
+}
+
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput, void* param,
                           char* (*getSourceDataBlock)(void*, const char*, int32_t)) {
   if (pExprs == NULL) {
@@ -87,16 +91,14 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
   SScalarFuncParam leftOutput = {0};
   SScalarFuncParam rightOutput = {0};
 
-  leftOutput.data = malloc(sizeof(int64_t) * numOfRows);
-
   if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE || pLeft->nodeType == TEXPR_UNARYEXPR_NODE) {
+    leftOutput.data = malloc(sizeof(int64_t) * numOfRows);
     evaluateExprNodeTree(pLeft, numOfRows, &leftOutput, param, getSourceDataBlock);
   }
 
   // the right output has result from the right child syntax tree
-  rightOutput.data = malloc(sizeof(int64_t) * numOfRows);
-
-  if (pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
+  if (pRight->nodeType == TEXPR_BINARYEXPR_NODE || pRight->nodeType == TEXPR_UNARYEXPR_NODE) {
+    rightOutput.data = malloc(sizeof(int64_t) * numOfRows);
     evaluateExprNodeTree(pRight, numOfRows, &rightOutput, param, getSourceDataBlock);
   }
 
@@ -114,8 +116,6 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     } else if (pLeft->nodeType == TEXPR_VALUE_NODE) {
       SVariant* pVar = pRight->pVal;
       setScalarFuncParam(&left, pVar->nType, pVar->nLen, &pVar->i, 1);
-    } else {
-      assert(0);
     }
 
     if (pRight->nodeType == TEXPR_BINARYEXPR_NODE || pRight->nodeType == TEXPR_UNARYEXPR_NODE) {
@@ -127,14 +127,16 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     } else if (pRight->nodeType == TEXPR_VALUE_NODE) {  // exprLeft + 12
       SVariant* pVar = pRight->pVal;
       setScalarFuncParam(&right, pVar->nType, pVar->nLen, &pVar->i, 1);
-    } else {
-      assert(0);
     }
 
-    OperatorFn(&left, &right, pOutput->data, TSDB_ORDER_ASC);
+    void* outputBuf = pOutput->data;
+    if (isStringOp(pExprs->_node.optr)) {
+      outputBuf = realloc(pOutput->data, (left.bytes + right.bytes) * left.num);
+      OperatorFn(&left, &right, outputBuf, TSDB_ORDER_ASC);
+    }
 
     // Set the result info
-    setScalarFuncParam(pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double), pOutput->data, numOfRows);
+    setScalarFuncParam(pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double), outputBuf, numOfRows);
   } else if (pExprs->nodeType == TEXPR_UNARYEXPR_NODE) {
     _unary_scalar_fn_t OperatorFn = getUnaryScalarOperatorFn(pExprs->_node.optr);
     SScalarFuncParam   left = {0};
@@ -148,8 +150,13 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     } else if (pLeft->nodeType == TEXPR_VALUE_NODE) {
       SVariant* pVar = pLeft->pVal;
       setScalarFuncParam(&left, pVar->nType, pVar->nLen, &pVar->i, 1);
-    } else {
-      assert(0);
+    }
+
+    // reserve enough memory buffer
+    if (isBinaryStringOp(pExprs->_node.optr)) {
+      void* outputBuf = realloc(pOutput->data, left.bytes * left.num);
+      assert(outputBuf != NULL);
+      pOutput->data = outputBuf;
     }
 
     OperatorFn(&left, pOutput);

@@ -482,3 +482,7 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return NULL;
   }
 }
+
+bool isBinaryStringOp(int32_t op) {
+  return op == TSDB_BINARY_OP_CONCAT;
+}
