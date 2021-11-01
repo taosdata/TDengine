@@ -23,6 +23,8 @@
 #include "dnodeTransport.h"
 #include "dnodeConfig.h"
 #include "dnodeDnode.h"
+#include "dnodeMnode.h"
+#include "dnodeVnodes.h"
 #include "mnode.h"
 #include "vnode.h"
 
