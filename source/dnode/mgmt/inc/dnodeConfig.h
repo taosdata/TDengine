@@ -21,8 +21,8 @@ extern "C" {
 #endif
 #include "dnodeInt.h"
 
-int32_t dnodeInitEps();
-void    dnodeCleanupEps();
+int32_t dnodeInitConfig();
+void    dnodeCleanupConfig();
 
 void    dnodeUpdateCfg(SDnodeCfg *data);
 void    dnodeUpdateDnodeEps(SDnodeEps *data);
@@ -32,7 +32,6 @@ int64_t dnodeGetClusterId();
 void    dnodeGetEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
 
 void dnodeGetEpSetForPeer(SRpcEpSet *epSet);
-void dnodeGetEpSetForShell(SRpcEpSet *epSet);
 void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus

@@ -171,7 +171,7 @@ int32_t dnodeInit() {
   taosStepAdd(steps, "dnode-tfs", dnodeInitTfs, NULL);
   taosStepAdd(steps, "dnode-wal", walInit, walCleanUp);
   taosStepAdd(steps, "dnode-sync", syncInit, syncCleanUp);
-  taosStepAdd(steps, "dnode-eps", dnodeInitEps, dnodeCleanupEps);
+  taosStepAdd(steps, "dnode-eps", dnodeInitConfig, dnodeCleanupConfig);
   taosStepAdd(steps, "dnode-vnode", dnodeInitVnode, vnodeCleanup);
   taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, mnodeCleanup);
   taosStepAdd(steps, "dnode-trans", dnodeInitTrans, dnodeCleanupTrans);
