@@ -25,7 +25,6 @@ extern "C" {
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
-#include "dnode.h"
 
 extern int32_t dDebugFlag;
 
@@ -37,6 +36,9 @@ extern int32_t dDebugFlag;
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DN_RUN_STAT_INIT, DN_RUN_STAT_RUNNING, DN_RUN_STAT_STOPPED } EDnStat;
+
+int32_t dnodeInit();
+void    dnodeCleanup();
 
 EDnStat dnodeGetRunStat();
 void    dnodeSetRunStat();

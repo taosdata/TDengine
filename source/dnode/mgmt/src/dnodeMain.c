@@ -14,7 +14,7 @@
  */
 #include "os.h"
 #include "ulog.h"
-#include "dnode.h"
+#include "dnodeInt.h"
 
 static bool stop = false;
 static void sigintHandler(int32_t signum, void *info, void *ctx) { stop = true; }
