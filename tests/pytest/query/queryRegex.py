@@ -105,6 +105,7 @@ class TDTestCase:
         tdSql.query('select * from stb_1 where c2 nmatch "^涛"')
         tdSql.checkRows(3)
 
+
         tdSql.query('select * from stb_1 where c2 match "号$"')
         tdSql.checkRows(2)
 
