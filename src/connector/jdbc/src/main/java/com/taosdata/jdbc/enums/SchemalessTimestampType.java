@@ -1,0 +1,13 @@
+package com.taosdata.jdbc.enums;
+
+public enum SchemalessTimestampType {
+
+    SML_TIMESTAMP_NOT_CONFIGURED,
+    SML_TIMESTAMP_HOURS,
+    SML_TIMESTAMP_MINUTES,
+    SML_TIMESTAMP_SECONDS,
+    SML_TIMESTAMP_MILLI_SECONDS,
+    SML_TIMESTAMP_MICRO_SECONDS,
+    SML_TIMESTAMP_NANO_SECONDS,
+    ;
+}
