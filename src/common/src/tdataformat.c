@@ -489,7 +489,9 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
       dcol++;
     }
   }
-  pCols->numOfRows++;
+  if (rowOffset == 0) {
+    ++pCols->numOfRows;
+  }
 }
 
 static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, int rowOffset) {
@@ -526,7 +528,9 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
       ++dcol;
     }
   }
-  pCols->numOfRows++;
+  if (rowOffset == 0) {
+    ++pCols->numOfRows;
+  }
 }
 
 void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, int rowOffset) {
