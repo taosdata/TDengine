@@ -73,7 +73,7 @@ typedef struct {
 
 #define performancePrint(fmt, ...) \
     do { if (g_args.performance_print) \
-        fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
+        fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define warnPrint(fmt, ...) \
     do { fprintf(stderr, "\033[33m"); \
@@ -1069,8 +1069,8 @@ static void dumpCreateMTableClause(
 
     for (; counter < numOfCols; counter++) {
         if (counter != count_temp) {
-            if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
-                    strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
+            if (0 == strcasecmp(tableDes->cols[counter].type, "binary")
+                    || 0 == strcasecmp(tableDes->cols[counter].type, "nchar")) {
                 //pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].note);
                 if (tableDes->cols[counter].var_value) {
                     pstr += sprintf(pstr, ", \'%s\'",
@@ -1082,8 +1082,8 @@ static void dumpCreateMTableClause(
                 pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].value);
             }
         } else {
-            if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
-                    strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
+            if (0 == strcasecmp(tableDes->cols[counter].type, "binary")
+                    || 0 == strcasecmp(tableDes->cols[counter].type, "nchar")) {
                 //pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].note);
                 if (tableDes->cols[counter].var_value) {
                     pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].var_value);
@@ -1288,8 +1288,10 @@ static int getTableDes(
             case TSDB_DATA_TYPE_NCHAR:
                 {
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
-                    char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' '
-                    convertNCharToReadable((char *)row[TSDB_SHOW_TABLES_NAME_INDEX], length[0], tbuf, COL_NOTE_LEN);
+                    char tbuf[COMMAND_SIZE-2];    // need reserve 2 bytes for ' '
+                    convertNCharToReadable(
+                            (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
+                            length[0], tbuf, COMMAND_SIZE-2);
                     sprintf(tableDes->cols[i].value, "%s", tbuf);
                     break;
                 }
@@ -1340,8 +1342,8 @@ static int dumpCreateTableClause(TableDef *tableDes, int numOfCols,
                     tableDes->cols[counter].field, tableDes->cols[counter].type);
         }
 
-        if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
-                strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
+        if (0 == strcasecmp(tableDes->cols[counter].type, "binary")
+                || 0 == strcasecmp(tableDes->cols[counter].type, "nchar")) {
             pstr += sprintf(pstr, "(%d)", tableDes->cols[counter].length);
         }
     }
@@ -1357,8 +1359,8 @@ static int dumpCreateTableClause(TableDef *tableDes, int numOfCols,
                     tableDes->cols[counter].field, tableDes->cols[counter].type);
         }
 
-        if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
-                strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
+        if (0 == strcasecmp(tableDes->cols[counter].type, "binary")
+                || 0 == strcasecmp(tableDes->cols[counter].type, "nchar")) {
             pstr += sprintf(pstr, "(%d)", tableDes->cols[counter].length);
         }
     }
@@ -2041,11 +2043,9 @@ static int64_t writeResultToAvro(
     return count;
 }
 
-static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
+static int dumpInOneAvroFile(char* fcharset,
         char* encode, char *avroFilepath)
 {
-    int ret = 0;
-
     debugPrint("avroFilepath: %s\n", avroFilepath);
 
     avro_file_reader_t reader;
@@ -2085,6 +2085,21 @@ static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
     const char *namespace = avro_schema_namespace((const avro_schema_t)schema);
     debugPrint("Namespace: %s\n", namespace);
 
+    TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
+            namespace, g_args.port);
+    if (taos == NULL) {
+        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        return -1;
+    }
+
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    if (NULL == stmt) {
+        taos_close(taos);
+        errorPrint("%s() LN%d, stmt init failed! reason: %s\n",
+                __func__, __LINE__, taos_errstr(NULL));
+        return -1;
+    }
+
     RecordSchema *recordSchema = parse_json_to_recordschema(json_root);
     if (NULL == recordSchema) {
         errorPrint("Failed to parse json to recordschema. reason: %s\n",
@@ -2099,9 +2114,9 @@ static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
     TableDef *tableDes = (TableDef *)calloc(1, sizeof(TableDef)
             + sizeof(ColDes) * TSDB_MAX_COLUMNS);
 
-    int colCount = getTableDes(taos, (char *)namespace, recordSchema->name, tableDes, false);
+    int allColCount = getTableDes(taos, (char *)namespace, recordSchema->name, tableDes, false);
 
-    if (colCount < 0) {
+    if (allColCount < 0) {
         errorPrint("%s() LN%d, failed to get table[%s] schema\n",
                 __func__,
                 __LINE__,
@@ -2119,8 +2134,11 @@ static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
     char *pstr = stmtBuffer;
     pstr += sprintf(pstr, "INSERT INTO ? VALUES(?");
 
-    for (int col = 0; col < colCount; col++) {
+    int onlyCol = 1; // at least timestamp
+    for (int col = 1; col < allColCount; col++) {
+        if (strcmp(tableDes->cols[col].note, "TAG") == 0) continue;
         pstr += sprintf(pstr, ",?");
+        onlyCol ++;
     }
     pstr += sprintf(pstr, ")");
 
@@ -2154,25 +2172,19 @@ static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
     avro_generic_value_new(value_class, &value);
 
     char *bindArray =
-            malloc(sizeof(TAOS_BIND) * colCount);
+            malloc(sizeof(TAOS_BIND) * onlyCol);
     assert(bindArray);
 
+    int success = 0;
+    int failed = 0;
     while(!avro_file_reader_read_value(reader, &value)) {
-        memset(bindArray, 0, sizeof(TAOS_BIND) * colCount);
+        memset(bindArray, 0, sizeof(TAOS_BIND) * onlyCol);
         TAOS_BIND *bind;
 
         for (int i = 0; i < recordSchema->num_fields; i++) {
             bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * i));
 
             avro_value_t field_value;
-            int32_t n32;
-            float f;
-            int64_t n64;
-            int b;
-            const char *buf = NULL;
-            size_t size;
-            const void *bytesbuf = NULL;
-            size_t bytessize;
 
             FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct) * i);
 
@@ -2185,42 +2197,138 @@ static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
 
                 bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
                 bind->buffer_length = sizeof(int64_t);
-                bind->buffer = ts; //bind_ts;
+                bind->buffer = ts;
                 bind->length = &bind->buffer_length;
                 bind->is_null = NULL;
             } else if (0 == avro_value_get_by_name(
                         &value, field->name, &field_value, NULL)) {
-                if (0 == strcmp(field->type, "int")) {
-                    avro_value_get_int(&field_value, &n32);
-                    debugPrint("%d | ", n32);
-                } else if (0 == strcmp(field->type, "float")) {
-                    avro_value_get_float(&field_value, &f);
-                    debugPrint("%f | ", f);
-                } else if (0 == strcmp(field->type, "long")) {
-                    avro_value_get_long(&field_value, &n64);
-                    debugPrint("%"PRId64" | ", n64);
-                } else if (0 == strcmp(field->type, "string")) {
-                    avro_value_get_string(&field_value, &buf, &size);
-                    debugPrint("%s | ", buf);
-                } else if (0 == strcmp(field->type, "bytes")) {
-                    avro_value_get_bytes(&field_value, &bytesbuf, &bytessize);
+                if (0 == strcasecmp(tableDes->cols[i].type, "int")) {
+                    int32_t *n32 = malloc(sizeof(int32_t));
+                    assert(n32);
+
+                    avro_value_get_int(&field_value, n32);
+                    debugPrint("%d | ", *n32);
+                    bind->buffer_type = TSDB_DATA_TYPE_INT;
+                    bind->buffer_length = sizeof(int32_t);
+                    bind->buffer = n32;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "tinyint")) {
+                    int32_t *n8 = malloc(sizeof(int32_t));
+                    assert(n8);
+
+                    avro_value_get_int(&field_value, n8);
+                    debugPrint("%d | ", *n8);
+                    bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
+                    bind->buffer_length = sizeof(int8_t);
+                    bind->buffer = (int8_t *)n8;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "smallint")) {
+                    int32_t *n16 = malloc(sizeof(int32_t));
+                    assert(n16);
+
+                    avro_value_get_int(&field_value, n16);
+                    debugPrint("%d | ", *n16);
+                    bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
+                    bind->buffer_length = sizeof(int16_t);
+                    bind->buffer = (int32_t*)n16;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "bigint")) {
+                    int64_t *n64 = malloc(sizeof(int64_t));
+                    assert(n64);
+
+                    avro_value_get_long(&field_value, n64);
+                    debugPrint("%"PRId64" | ", *n64);
+                    bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
+                    bind->buffer_length = sizeof(int64_t);
+                    bind->buffer = n64;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "timestamp")) {
+                    int64_t *n64 = malloc(sizeof(int64_t));
+                    assert(n64);
+
+                    avro_value_get_long(&field_value, n64);
+                    debugPrint("%"PRId64" | ", *n64);
+                    bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+                    bind->buffer_length = sizeof(int64_t);
+                    bind->buffer = n64;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "float")) {
+                    float *f = malloc(sizeof(float));
+                    assert(f);
+
+                    avro_value_get_float(&field_value, f);
+                    debugPrint("%f | ", *f);
+                    bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
+                    bind->buffer_length = sizeof(float);
+                    bind->buffer = f;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "double")) {
+                    double *dbl = malloc(sizeof(double));
+                    assert(dbl);
+
+                    avro_value_get_double(&field_value, dbl);
+                    debugPrint("%f | ", *dbl);
+                    bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
+                    bind->buffer_length = sizeof(double);
+                    bind->buffer = dbl;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "binary")) {
+                    size_t size;
+                    char *buf = malloc(tableDes->cols[i].length);
+                    assert(buf);
+
+                    avro_value_get_string(&field_value, (const char **)&buf, &size);
+                    debugPrint("%s | ", (char *)buf);
+                    bind->buffer_type = TSDB_DATA_TYPE_BINARY;
+                    bind->buffer_length = tableDes->cols[i].length;
+                    bind->buffer = buf;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "nchar")) {
+                    size_t bytessize;
+                    void *bytesbuf = malloc(tableDes->cols[i].length);
+                    assert(bytesbuf);
+
+                    avro_value_get_bytes(&field_value, (const void **)&bytesbuf, &bytessize);
                     debugPrint("%s | ", (char*)bytesbuf);
-                } else if (0 == strcmp(field->type, "boolean")) {
-                    avro_value_get_boolean(&field_value, &b);
-                    debugPrint("%s | ", b?"true":"false");
+                    bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
+                    bind->buffer_length = tableDes->cols[i].length;
+                    bind->buffer = bytesbuf;
+                } else if (0 == strcasecmp(tableDes->cols[i].type, "bool")) {
+                    int32_t *bl = malloc(sizeof(int32_t));
+                    assert(bl);
+
+                    avro_value_get_boolean(&field_value, bl);
+                    debugPrint("%s | ", (*bl)?"true":"false");
+                    bind->buffer_type = TSDB_DATA_TYPE_BOOL;
+                    bind->buffer_length = sizeof(int8_t);
+                    bind->buffer = (int8_t*)bl;
                 }
+
+                bind->length = &bind->buffer_length;
+                bind->is_null = NULL;
             }
+
         }
         debugPrint("%s", "\n");
 
-        if ((0 == taos_stmt_bind_param(stmt, (TAOS_BIND*)bindArray))
-            && (0 == taos_stmt_add_batch(stmt))
-            && (0 == taos_stmt_execute(stmt))) {
+        if (0 != taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
+            errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            failed --;
             continue;
-        } else {
-            ret = -1;
-            break;
         }
+        if (0 != taos_stmt_add_batch(stmt)) {
+            errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            failed --;
+            continue;
+        }
+
+        for (int j = 0; j < recordSchema->num_fields; j++) {
+            bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * j));
+            tfree(bind->buffer);
+        }
+
+        continue;
+        success ++;
+    }
+
+    if (0 != taos_stmt_execute(stmt)) {
+        errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
+                __func__, __LINE__, taos_stmt_errstr(stmt));
+        failed = success;
     }
 
     avro_value_decref(&value);
@@ -2238,7 +2346,12 @@ static int dumpInOneAvroFile(TAOS* taos, TAOS_STMT *stmt, char* fcharset,
 
     tfree(jsonbuf);
 
-    return ret;
+    taos_stmt_close(stmt);
+    taos_close(taos);
+
+    if (failed < 0)
+        return failed;
+    return success;
 }
 
 static void* dumpInAvroWorkThreadFp(void *arg)
@@ -2248,26 +2361,18 @@ static void* dumpInAvroWorkThreadFp(void *arg)
     verbosePrint("[%d] process %"PRId64" files from %"PRId64"\n",
                     pThread->threadIndex, pThread->count, pThread->from);
 
-    TAOS_STMT *stmt = taos_stmt_init(pThread->taos);
-    if (NULL == stmt) {
-        errorPrint("%s() LN%d, stmt init failed! reason: %s\n",
-                __func__, __LINE__, taos_errstr(NULL));
-        return NULL;
-    }
     for (int64_t i = 0; i < pThread->count; i++) {
         char avroFile[MAX_PATH_LEN];
         sprintf(avroFile, "%s/%s", g_args.inpath,
                 g_tsDumpInAvroFiles[pThread->from + i]);
 
-        if (0 == dumpInOneAvroFile(pThread->taos, stmt, g_tsCharset,
+        if (0 == dumpInOneAvroFile(g_tsCharset,
                     g_args.encode,
                     avroFile)) {
             okPrint("[%d] Success dump in file: %s\n",
                     pThread->threadIndex, avroFile);
         }
     }
-
-    taos_stmt_close(stmt);
 
     return NULL;
 }
@@ -2318,15 +2423,6 @@ static int64_t dumpInAvroWorkThreads()
                 "Thread[%d] takes care avro files total %"PRId64" files from %"PRId64"\n",
                 t, pThread->count, pThread->from);
 
-        pThread->taos = taos_connect(g_args.host, g_args.user, g_args.password,
-            NULL, g_args.port);
-        if (pThread->taos == NULL) {
-            errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
-            free(infos);
-            free(pids);
-            return -1;
-        }
-
         if (pthread_create(pids + t, NULL,
                     dumpInAvroWorkThreadFp, (void*)pThread) != 0) {
             errorPrint("%s() LN%d, thread[%d] failed to start\n",
@@ -2339,9 +2435,6 @@ static int64_t dumpInAvroWorkThreads()
         pthread_join(pids[t], NULL);
     }
 
-    for (int t = 0; t < threads; ++t) {
-        taos_close(infos[t].taos);
-    }
     free(infos);
     free(pids);
 
@@ -3034,7 +3127,7 @@ static void* dumpInSqlWorkThreadFp(void *arg)
 {
     threadInfo *pThread = (threadInfo*)arg;
     setThreadName("dumpInSqlWorkThrd");
-    verbosePrint("[%d] process %"PRId64" files from %"PRId64"\n",
+    fprintf(stderr, "[%d] Start to process %"PRId64" files from %"PRId64"\n",
                     pThread->threadIndex, pThread->count, pThread->from);
 
     for (int64_t i = 0; i < pThread->count; i++) {
