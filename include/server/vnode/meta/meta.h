@@ -36,9 +36,8 @@ int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *);
 
 // Options
-SMetaOptions *metaOptionsCreate();
-void          metaOptionsDestroy(SMetaOptions *);
-void          metaOptionsSetCache(SMetaOptions *, size_t capacity);
+void metaOptionsInit(SMetaOptions *);
+void metaOptionsClear(SMetaOptions *);
 
 // STableOpts
 #define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}

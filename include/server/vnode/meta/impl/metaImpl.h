@@ -25,6 +25,10 @@ extern "C" {
 #endif
 typedef uint64_t tb_uid_t;
 
+struct SMetaOptions {
+  size_t lruCacheSize; // LRU cache size
+};
+
 typedef enum { META_INIT_TABLE = 0, META_SUPER_TABLE = 1, META_CHILD_TABLE = 2, META_NORMAL_TABLE = 3 } EMetaTableT;
 typedef struct SSuperTableOpts {
   tb_uid_t  uid;
