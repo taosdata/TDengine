@@ -163,6 +163,7 @@ static void  monSaveVgroupsInfo();
 static void  monSaveSlowQueryInfo();
 static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
+static void  monSaveHttpReqInfo();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
 static void monInitHttpStatusHashTable();
@@ -310,6 +311,7 @@ static void *monThreadFunc(void *param) {
         monSaveSlowQueryInfo();
         monSaveDisksInfo();
         monSaveGrantsInfo();
+        monSaveHttpReqInfo();
         monSaveSystemInfo();
       }
     }
@@ -1200,6 +1202,32 @@ static void monSaveGrantsInfo() {
     monDebug("successfully to save grants info, sql:%s", tsMonitor.sql);
   }
 
+}
+
+static void monSaveHttpReqInfo() {
+  int64_t ts = taosGetTimestampUs();
+  char *  sql = tsMonitor.sql;
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dnode_%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
+
+  SDnodeStatisInfo info = dnodeGetStatisInfo();
+  for (int32_t i = 0; i < tListLen(monHttpStatusTable); ++i) {
+    int32_t status = info.httpStatusCodeErrs[i];
+    pos += snprintf(sql, SQL_LENGTH, ", %d", status);
+  }
+  pos += snprintf(sql, SQL_LENGTH, ")");
+
+  monError("sql:%s", sql);
+
+  void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to save restful_%d info, reason:%s, sql:%s", dnodeGetDnodeId(), tstrerror(code), tsMonitor.sql);
+  } else {
+    monIncSubmitReqCnt();
+    monDebug("successfully to save restful_%d info, sql:%s", dnodeGetDnodeId(), tsMonitor.sql);
+  }
 }
 
 static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {

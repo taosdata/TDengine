@@ -23,10 +23,12 @@ extern "C" {
 #include "trpc.h"
 #include "taosmsg.h"
 
+#define MAX_HTTP_STATUS_CODE_NUM 63
 typedef struct {
   int32_t queryReqNum;
   int32_t submitReqNum;
   int32_t httpReqNum;
+  int32_t httpStatusCodeErrs[MAX_HTTP_STATUS_CODE_NUM];
 } SDnodeStatisInfo;
 
 SDnodeStatisInfo dnodeGetStatisInfo();

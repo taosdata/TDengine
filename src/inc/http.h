@@ -24,6 +24,8 @@ extern "C" {
 
 int32_t httpGetReqCount();
 int32_t httpClearReqCount();
+int32_t httpGetStatusCodeCount(int index);
+int32_t httpClearStatusCodeCount(int index);
 int32_t httpInitSystem();
 int32_t httpStartSystem();
 void httpStopSystem();
