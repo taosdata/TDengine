@@ -12,3 +12,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "meta.h"
+
+int metaCreateTable(SMeta *pMeta, const STableOptions *pTbOptions) {
+  // TODO
+  return 0;
+}
+
+int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
+  // TODO
+  return 0;
+}

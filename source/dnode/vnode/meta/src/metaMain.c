@@ -16,9 +16,9 @@
 #include "tcoding.h"
 
 #include "meta.h"
+#include "metaDB.h"
 #include "metaDef.h"
 #include "metaOptions.h"
-#include "metaDB.h"
 
 static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions);
 static void   metaFree(SMeta *pMeta);
@@ -57,6 +57,8 @@ SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
     return NULL;
   }
 
+  tableUidGeneratorInit(&(pMeta->uidGenerator), IVLD_TB_UID);
+
   return pMeta;
 }
 
@@ -68,33 +70,7 @@ void metaClose(SMeta *pMeta) {
   }
 }
 
-#if 0
-int metaCreateTable(SMeta *pMeta, const STableOptions *pTableOpts) {
-  size_t vallen;
-  char * pUid;
-
-  // Check if table already exists
-  pUid = tkvGet(pMeta->tbnameDb, NULL, pTableOpts->name, strlen(pTableOpts->name), &vallen);
-  if (pUid) {
-    free(pUid);
-    // Table already exists, return error code
-    return -1;
-  }
-
-  switch (pTableOpts->type) {
-    case META_SUPER_TABLE:
-      return metaCreateSuperTable(pMeta, pTableOpts->name, &(pTableOpts->superOpts));
-    case META_CHILD_TABLE:
-      return metaCreateChildTable(pMeta, pTableOpts->name, &(pTableOpts->childOpts));
-    case META_NORMAL_TABLE:
-      return metaCreateNormalTable(pMeta, pTableOpts->name, &(pTableOpts->normalOpts));
-    default:
-      ASSERT(0);
-  }
-
-  return 0;
-}
-#endif
+void metaRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
 static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions) {
@@ -125,6 +101,32 @@ static void metaFree(SMeta *pMeta) {
 
 // OLD -------------------------------------------------------------------
 #if 0
+int metaCreateTable(SMeta *pMeta, const STableOptions *pTableOpts) {
+  size_t vallen;
+  char * pUid;
+
+  // Check if table already exists
+  pUid = tkvGet(pMeta->tbnameDb, NULL, pTableOpts->name, strlen(pTableOpts->name), &vallen);
+  if (pUid) {
+    free(pUid);
+    // Table already exists, return error code
+    return -1;
+  }
+
+  switch (pTableOpts->type) {
+    case META_SUPER_TABLE:
+      return metaCreateSuperTable(pMeta, pTableOpts->name, &(pTableOpts->superOpts));
+    case META_CHILD_TABLE:
+      return metaCreateChildTable(pMeta, pTableOpts->name, &(pTableOpts->childOpts));
+    case META_NORMAL_TABLE:
+      return metaCreateNormalTable(pMeta, pTableOpts->name, &(pTableOpts->normalOpts));
+    default:
+      ASSERT(0);
+  }
+
+  return 0;
+}
+
 static int metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTableOpts *pSuperTableOpts) {
   size_t vallen;
   size_t keylen;
