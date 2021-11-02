@@ -24,6 +24,7 @@
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"
+#include "vnode.h"
 #include "monitor.h"
 #include "taoserror.h"
 
@@ -296,8 +297,8 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", io_read float, io_write float"
              ", req_http int, req_http_rate float"
              ", req_select int, req_select_rate float"
-             ", req_insert int, req_insert_rate float"
-             ", req_insert_batch int, req_insert_batch_rate float"
+             ", req_insert int, req_insert_success int, req_insert_rate float"
+             ", req_insert_batch int, req_insert_batch_sucesss int, req_insert_batch_rate float"
              ", errors int"
              ", vnodes_num int"
              ", masters int"
@@ -416,7 +417,7 @@ static int32_t monBuildBandSql(char *sql) {
 }
 
 static int32_t monBuildReqSql(char *sql) {
-  SStatisInfo info = dnodeGetStatisInfo();
+  SDnodeStatisInfo info = dnodeGetStatisInfo();
   return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
@@ -700,15 +701,24 @@ static int32_t monBuildNetworkIOSql(char *sql) {
 }
 
 static int32_t monBuildDnodeReqSql(char *sql) {
-  SStatisInfo info = dnodeGetStatisInfo();
+  SDnodeStatisInfo dInfo = dnodeGetStatisInfo();
+  SVnodeStatisInfo vInfo = vnodeGetStatisInfo();
+
   float interval = tsMonitorInterval * 1.0;
-  float httpReqRate = info.httpReqNum / interval;
-  float queryReqRate = info.queryReqNum / interval;
-  float submitReqRate = info.submitReqNum / interval;
+  float httpReqRate = dInfo.httpReqNum / interval;
+  float queryReqRate = dInfo.queryReqNum / interval;
+  float submitReqRate = dInfo.submitReqNum / interval;
   dnodeClearStatisInfo();
-  return sprintf(sql, ", %d, %f, %d, %f, %d, %f", info.httpReqNum, httpReqRate,
-                                                   info.queryReqNum - monFetchQueryReqCnt(), queryReqRate,
-                                                   info.submitReqNum - monFetchSubmitReqCnt(), submitReqRate);
+
+  float submitRowRate = vInfo.submitRowNum / interval;
+  vnodeClearStatisInfo();
+
+  int32_t monQueryReqCnt = monFetchQueryReqCnt();
+  int32_t monSubmitReqCnt = monFetchSubmitReqCnt();
+  return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", dInfo.httpReqNum, httpReqRate,
+                                                                  dInfo.queryReqNum - monQueryReqCnt, queryReqRate,
+                                                                  vInfo.submitRowNum - monSubmitReqCnt, vInfo.submitRowSucNum - monSubmitReqCnt, submitRowRate,
+                                                                  dInfo.submitReqNum - monSubmitReqCnt, vInfo.submitReqSucNum - monSubmitReqCnt, submitReqRate);
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {

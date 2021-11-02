@@ -172,8 +172,8 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   } else {
     atomic_fetch_add_32(&tsSubmitReqSucNum, 1);
   }
-  atomic_fetch_add_32(&tsSubmitRowNum, pRsp->numOfRows);
-  atomic_fetch_add_32(&tsSubmitRowSucNum, pRsp->affectedRows);
+  atomic_fetch_add_32(&tsSubmitRowNum, ntohl(pRsp->numOfRows));
+  atomic_fetch_add_32(&tsSubmitRowSucNum, ntohl(pRsp->affectedRows));
 
   return code;
 }
@@ -436,10 +436,13 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
     taosMsleep(900);
 }
 
-void vnodeGetStatisInfo(SStatisInfo *info) {
-  info->submitReqSucNum = atomic_load_32(&tsSubmitReqSucNum);
-  info->submitRowNum = atomic_load_32(&tsSubmitRowNum);
-  info->submitRowSucNum = atomic_load_32(&tsSubmitRowSucNum);
+SVnodeStatisInfo vnodeGetStatisInfo() {
+  SVnodeStatisInfo info = {0};
+  info.submitReqSucNum = atomic_load_32(&tsSubmitReqSucNum);
+  info.submitRowNum = atomic_load_32(&tsSubmitRowNum);
+  info.submitRowSucNum = atomic_load_32(&tsSubmitRowSucNum);
+
+  return info;
 }
 
 void vnodeClearStatisInfo() {

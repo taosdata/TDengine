@@ -237,8 +237,8 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
   }
 }
 
-SStatisInfo dnodeGetStatisInfo() {
-  SStatisInfo info = {0};
+SDnodeStatisInfo dnodeGetStatisInfo() {
+  SDnodeStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
 #ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();

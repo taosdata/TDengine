@@ -164,7 +164,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
   }
 
   {
-    SStatisInfo info = dnodeGetStatisInfo();
+    SDnodeStatisInfo info = dnodeGetStatisInfo();
     {
       char* keyReqHttp = "req_http";
       char* keyReqSelect = "req_select";
