@@ -148,9 +148,17 @@ typedef struct {
   char      sql[SQL_LENGTH + 1];
 } SMonConn;
 
+typedef struct {
+  float io_read;
+  float io_write;
+  float io_read_disk;
+  float io_write_disk;
+} SMonStat;
+
 static void *monHttpStatusHashTable;
 
 static SMonConn tsMonitor = {0};
+static SMonStat tsMonStat = {0};
 static int32_t  monQueryReqNum = 0, monSubmitReqNum = 0;
 static bool     monHasMnodeMaster = false;
 
@@ -163,6 +171,7 @@ static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void  monSaveHttpReqInfo();
 static void  monClearStatisInfo();
+static void  monGetSysStats();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
 static void monInitHttpStatusHashTable();
@@ -300,6 +309,7 @@ static void *monThreadFunc(void *param) {
 
     if (tsMonitor.state == MON_STATE_INITED) {
       if (accessTimes % tsMonitorInterval == 0 || accessTimes == 1) {
+        monGetSysStats();
         //monSaveDnodesInfo has to be the first, as it calculates
         //stats using monSubmitReqNum before any insertion from monitor
         monSaveDnodesInfo();
@@ -398,6 +408,7 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", disk_engine float, disk_used float, disk_total float"
              ", net_in float, net_out float"
              ", io_read float, io_write float"
+             ", io_read_disk float, io_write_disk float"
              ", req_http int, req_http_rate float"
              ", req_select int, req_select_rate float"
              ", req_insert int, req_insert_success int, req_insert_rate float"
@@ -486,6 +497,15 @@ void monCleanupSystem() {
   monInfo("monitor module is cleaned up");
 }
 
+static void monGetSysStats() {
+  memset(&tsMonStat, 0, sizeof(SMonStat));
+  bool suc = taosGetProcIO(&tsMonStat.io_read, &tsMonStat.io_write,
+                           &tsMonStat.io_read_disk, &tsMonStat.io_write_disk);
+  if (!suc) {
+    monDebug("failed to get io info");
+  }
+}
+
 // unit is MB
 static int32_t monBuildMemorySql(char *sql) {
   float sysMemoryUsedMB = 0;
@@ -541,10 +561,8 @@ static int32_t monBuildReqSql(char *sql) {
 
 static int32_t monBuildIoSql(char *sql) {
   float readKB = 0, writeKB = 0;
-  bool  suc = taosGetProcIO(&readKB, &writeKB);
-  if (!suc) {
-    monDebug("failed to get io info");
-  }
+  readKB = tsMonStat.io_read;
+  writeKB = tsMonStat.io_write;
 
   return sprintf(sql, ", %f, %f", readKB, writeKB);
 }
