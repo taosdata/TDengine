@@ -73,7 +73,7 @@ typedef struct cJSON
     char *string;
 
     //Keep the original string of number
-    char numberstring[13];
+    char numberstring[64];
 } cJSON;
 
 typedef struct cJSON_Hooks

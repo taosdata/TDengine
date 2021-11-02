@@ -120,6 +120,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON,             "Invalid JSON format")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_TYPE,        "Invalid JSON data type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_JSON_CONFIG,      "Invalid JSON configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")
@@ -275,6 +277,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECONFIGURE,        "Need to reconfigure t
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    "Invalid information to create table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_CACHE_LAST_ROW,        "TSDB no cache last row data")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INCOMPLETE_DFILESET,      "Incomplete DFileSet")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_SAME_JSON_VALUE,     "TSDB invalid same json value")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_JSON_TAG_KEY,          "TSDB no tag json key")
 
@@ -295,8 +300,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_SUPPORT_ERROR,       "only support is [not] null")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_TYPE_ERROR,      "json tag key type not match")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_KEY_NOT_STR_ERROR,   "json tag key must be string in match/nmatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_INVALID_EXP,         "invalid regular expression")
 
 // grant

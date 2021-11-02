@@ -215,6 +215,7 @@
 #define TK_INSERT                         197
 #define TK_INTO                           198
 #define TK_VALUES                         199
+#define TK_FILE                           200
 
 #define TK_SPACE                          300
 #define TK_COMMENT                        301
@@ -222,7 +223,6 @@
 #define TK_HEX                            303   // hex number  0x123
 #define TK_OCT                            304   // oct number
 #define TK_BIN                            305   // bin format data 0b111
-#define TK_FILE                           306
 
 #endif
 

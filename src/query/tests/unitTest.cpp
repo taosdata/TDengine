@@ -23,7 +23,7 @@ int32_t testValidateName(char* name) {
   token.type = 0;
 
   tGetToken(name, &token.type);
-  return tscValidateName(&token);
+  return tscValidateName(&token, false, NULL);
 }
 }
 

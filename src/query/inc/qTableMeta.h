@@ -57,6 +57,7 @@ typedef struct SGroupbyExpr {
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
+  uint8_t update;
   int16_t numOfColumns;
   int32_t rowSize;
 } STableComInfo;
@@ -152,7 +153,8 @@ typedef struct SQueryInfo {
   struct SQueryInfo *pDownstream;
   int32_t            havingFieldNum;
   bool               stableQuery;
-  bool               groupbyColumn;
+  bool               groupbyColumn;  
+  bool               groupbyTag;
   bool               simpleAgg;
   bool               arithmeticOnAgg;
   bool               projectionQuery;

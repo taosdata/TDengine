@@ -16,14 +16,14 @@
 // TAOS standard API example. The same syntax as MySQL, but only a subset
 // to compile: gcc -o demo demo.c -ltaos
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
 #include <taos.h>  // TAOS header file
 
 static void queryDB(TAOS *taos, char *command) {
-  int i;
+  int       i;
   TAOS_RES *pSql = NULL;
   int32_t   code = -1;
 
@@ -32,12 +32,12 @@ static void queryDB(TAOS *taos, char *command) {
       taos_free_result(pSql);
       pSql = NULL;
     }
-    
+
     pSql = taos_query(taos, command);
     code = taos_errno(pSql);
     if (0 == code) {
       break;
-    }    
+    }
   }
 
   if (code != 0) {
@@ -53,7 +53,7 @@ static void queryDB(TAOS *taos, char *command) {
 void Test(TAOS *taos, char *qstr, int i);
 
 int main(int argc, char *argv[]) {
-  char      qstr[1024];
+  char qstr[1024];
 
   // connect to server
   if (argc < 2) {
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 
   TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
+    printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
     exit(1);
   }
   for (int i = 0; i < 100; i++) {
@@ -72,28 +72,30 @@ int main(int argc, char *argv[]) {
   taos_close(taos);
   taos_cleanup();
 }
-void Test(TAOS *taos, char *qstr, int index)  {
+void Test(TAOS *taos, char *qstr, int index) {
   printf("==================test at %d\n================================", index);
   queryDB(taos, "drop database if exists demo");
   queryDB(taos, "create database demo");
   TAOS_RES *result;
   queryDB(taos, "use demo");
 
-  queryDB(taos, "create table m1 (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10))");
+  queryDB(taos,
+          "create table m1 (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10))");
   printf("success to create table\n");
 
   int i = 0;
   for (i = 0; i < 10; ++i) {
-    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", (uint64_t)(1546300800000 + i * 1000), i, i, i, i*10000000, i*1.0, i*2.0, "hello");
+    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')",
+            (uint64_t)(1546300800000 + i * 1000), i, i, i, i * 10000000, i * 1.0, i * 2.0, "hello");
     printf("qstr: %s\n", qstr);
-    
+
     // note: how do you wanna do if taos_query returns non-NULL
     // if (taos_query(taos, qstr)) {
     //   printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     // }
     TAOS_RES *result1 = taos_query(taos, qstr);
     if (result1 == NULL || taos_errno(result1) != 0) {
-      printf("failed to insert row, reason:%s\n", taos_errstr(result1));    
+      printf("failed to insert row, reason:%s\n", taos_errstr(result1));
       taos_free_result(result1);
       exit(1);
     } else {
@@ -107,7 +109,7 @@ void Test(TAOS *taos, char *qstr, int index)  {
   sprintf(qstr, "SELECT * FROM m1");
   result = taos_query(taos, qstr);
   if (result == NULL || taos_errno(result) != 0) {
-    printf("failed to select, reason:%s\n", taos_errstr(result));    
+    printf("failed to select, reason:%s\n", taos_errstr(result));
     taos_free_result(result);
     exit(1);
   }
@@ -130,4 +132,3 @@ void Test(TAOS *taos, char *qstr, int index)  {
   taos_free_result(result);
   printf("====demo end====\n\n");
 }
-

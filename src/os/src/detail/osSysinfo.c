@@ -213,6 +213,8 @@ static void taosGetSystemTimezone() {
   int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
   tz += daylight;
 
+  tsDaylight = daylight;
+
   /*
    * format example:
    *

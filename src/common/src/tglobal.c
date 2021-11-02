@@ -91,7 +91,7 @@ int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
-int32_t tsMaxNumOfOrderedResults = 100000;
+int32_t tsMaxNumOfOrderedResults = 1000000;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
@@ -155,7 +155,9 @@ int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 
 // tsdb config 
 // For backward compatibility
-bool tsdbForceKeepFile = false;
+bool    tsdbForceKeepFile = false;
+bool    tsdbForceCompactFile = false; // compact TSDB fileset forcibly
+int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance
 int8_t  tsEnableBalance = 1;
@@ -265,6 +267,8 @@ int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
+
+int8_t tsClientMerge = 0;
 
 #ifdef TD_TSZ
 //
@@ -681,16 +685,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_MS;
   taosInitConfigOption(cfg);
 
-  cfg.option = "rpcForceTcp";
-  cfg.ptr = &tsRpcForceTcp;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "rpcMaxTime";
   cfg.ptr = &tsRpcMaxTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -699,6 +693,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 7200;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "rpcForceTcp";
+  cfg.ptr = &tsRpcForceTcp;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "statusInterval";
@@ -1056,8 +1060,8 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsMaxNumOfOrderedResults;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MAX_SQL_LEN;
-  cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
+  cfg.minValue = 100000;
+  cfg.maxValue = 100000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1256,10 +1260,10 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "topicBianryLen";
+  cfg.option = "topicBinaryLen";
   cfg.ptr = &tsTopicBianryLen;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 16;
   cfg.maxValue = 16000;
   cfg.ptrLength = 0;
@@ -1640,6 +1644,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "clientMerge";
+  cfg.ptr = &tsClientMerge;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   // default JSON string type option "binary"/"nchar"
   cfg.option = "defaultJSONStrType";
   cfg.ptr = tsDefaultJSONStrType;
@@ -1649,6 +1663,17 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsDefaultJSONStrType);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // flush vnode wal file if walSize > walFlushSize and walSize > cache*0.5*blocks
+  cfg.option = "walFlushSize";
+  cfg.ptr = &tsdbWalFlushSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = TSDB_MIN_WAL_FLUSH_SIZE;
+  cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
 
 #ifdef TD_TSZ
@@ -1671,8 +1696,6 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = MAX_FLOAT;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-
-  
   taosInitConfigOption(cfg);
 
   cfg.option = "dPrecision";
@@ -1704,9 +1727,9 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
+  assert(tsGlobalConfigNum < TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+  assert(tsGlobalConfigNum < TSDB_CFG_MAX_NUM);
 #endif
 
 }

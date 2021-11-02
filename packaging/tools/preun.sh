@@ -27,11 +27,11 @@ initd_mod=0
 service_mod=2
 if pidof systemd &> /dev/null; then
     service_mod=0
-elif $(which service &> /dev/null); then    
+elif $(which service &> /dev/null); then
     service_mod=1
-    service_config_dir="/etc/init.d" 
+    service_config_dir="/etc/init.d"
     if $(which chkconfig &> /dev/null); then
-         initd_mod=1 
+         initd_mod=1
     elif $(which insserv &> /dev/null); then
         initd_mod=2
     elif $(which update-rc.d &> /dev/null); then
@@ -39,9 +39,16 @@ elif $(which service &> /dev/null); then
     else
         service_mod=2
     fi
-else 
+else
     service_mod=2
 fi
+
+function kill_blm3() {
+  pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo} kill -9 $pid   || :
+  fi
+}
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
@@ -59,13 +66,13 @@ function clean_service_on_systemd() {
     fi
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
 
-    ${csudo} rm -f ${taosd_service_config}	
+    ${csudo} rm -f ${taosd_service_config}
 }
 
 function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-    
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
+
     if pidof taosd &> /dev/null; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo} service taosd stop || :
@@ -78,9 +85,9 @@ function clean_service_on_sysvinit() {
     elif ((${initd_mod}==3)); then
         ${csudo} update-rc.d -f taosd remove || :
     fi
-    
+
     ${csudo} rm -f ${service_config_dir}/taosd || :
-   
+
     if $(which init &> /dev/null); then
         ${csudo} init q || :
     fi
@@ -93,6 +100,7 @@ function clean_service() {
         clean_service_on_sysvinit
     else
         # must manual stop taosd
+        kill_blm3
         kill_taosd
     fi
 }
@@ -103,6 +111,7 @@ clean_service
 # Remove all links
 ${csudo} rm -f ${bin_link_dir}/taos       || :
 ${csudo} rm -f ${bin_link_dir}/taosd      || :
+${csudo} rm -f ${bin_link_dir}/blm3       || :
 ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
 ${csudo} rm -f ${bin_link_dir}/taosdump   || :
 ${csudo} rm -f ${bin_link_dir}/set_core   || :
@@ -116,6 +125,7 @@ ${csudo} rm -f ${log_link_dir}            || :
 ${csudo} rm -f ${data_link_dir}           || :
 
 if ((${service_mod}==2)); then
+    kill_blm3
     kill_taosd
 fi
 

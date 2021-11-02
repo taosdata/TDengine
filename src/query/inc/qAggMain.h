@@ -68,18 +68,23 @@ extern "C" {
 #define TSDB_FUNC_IRATE        30
 #define TSDB_FUNC_TID_TAG      31
 #define TSDB_FUNC_DERIVATIVE   32
-#define TSDB_FUNC_BLKINFO      33
 
-#define TSDB_FUNC_CEIL         34
-#define TSDB_FUNC_FLOOR        35
-#define TSDB_FUNC_ROUND        36
+#define TSDB_FUNC_CEIL         33
+#define TSDB_FUNC_FLOOR        34
+#define TSDB_FUNC_ROUND        35
 
-#define TSDB_FUNC_HISTOGRAM    37
-#define TSDB_FUNC_HLL          38
-#define TSDB_FUNC_MODE         39
-#define TSDB_FUNC_SAMPLE       40
-#define TSDB_FUNC_MAVG         41
-#define TSDB_FUNC_CSUM         42
+#define TSDB_FUNC_CSUM         36
+#define TSDB_FUNC_MAVG         37
+#define TSDB_FUNC_SAMPLE       38
+
+#define TSDB_FUNC_BLKINFO      39
+
+///////////////////////////////////////////
+// the following functions is not implemented.
+// after implementation, move them before TSDB_FUNC_BLKINFO. also make TSDB_FUNC_BLKINFO the maxium function index
+// #define TSDB_FUNC_HISTOGRAM    40
+// #define TSDB_FUNC_HLL          41
+// #define TSDB_FUNC_MODE         42
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -106,6 +111,10 @@ extern "C" {
 
 #define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 #define TOP_BOTTOM_QUERY_LIMIT   100
+
+// apercentile(arg1,agr2,arg3) param arg3 value is below:
+#define ALGO_DEFAULT 0
+#define ALGO_TDIGEST 1
 
 enum {
   MASTER_SCAN   = 0x0u,
@@ -172,7 +181,6 @@ typedef struct SQLFunctionCtx {
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int16_t      inputBytes;
-  int16_t      colId;     // used for user-specified constant value
   
   int16_t      outputType;
   int16_t      outputBytes;   // size of results, determined by function and input column data type
@@ -193,6 +201,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
+  int16_t      colId;         // used for user-specified constant value
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
@@ -224,6 +233,7 @@ int32_t isValidFunction(const char* name, int32_t len);
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)
 #define IS_OUTER_FORWARD(x)       (((x)&TSDB_FUNCSTATE_OF) != 0)
+#define IS_SCALAR_FUNCTION(x)     (((x)&TSDB_FUNCSTATE_SCALAR) != 0)
 
 // determine the real data need to calculated the result
 enum {

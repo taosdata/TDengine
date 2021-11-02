@@ -828,6 +828,8 @@ if $data59 != 4 then
   return -1
 endi
 
+sql_error select sample(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
+
 sql select top(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then
   return -1

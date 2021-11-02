@@ -61,7 +61,24 @@ class TDTestCase:
         tdSql.checkData(1, 0, 1210)
 
         tdSql.error("select avg(col1 * 2)from test group by loc")
-                
+        
+        # add testcases for TD-10515---> test arithmetic function with blank table 
+        tdSql.execute("create table test3 using test tags('heilongjiang')")
+        sql_list = [
+            "select 0.1 + 0.1 from test3",
+            "select 0.1 - 0.1 from test3",
+            "select 0.1 * 0.1 from test3",
+            "select 0.1 / 0.1 from test3",
+            "select 4 * avg(col1) from test3",
+            "select 4 * sum(col1) from test3",
+            "select 4 * avg(col1) * sum(col2) from test3",
+            "select max(col1) / 4 from test3",
+            "select min(col1) - 4 from test3",
+            "select min(col1) + max(col1) * avg(col1) / sum(col1) + 4 from test3"
+        ]
+        for sql in sql_list:
+            tdSql.query(sql)
+            tdSql.checkRows(0)
 
     def stop(self):
         tdSql.close()

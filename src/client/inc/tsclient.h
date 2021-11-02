@@ -47,6 +47,8 @@ typedef enum {
 struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
+typedef void (*_freeSqlSupporter)(void **);
+
 
 typedef struct SNewVgroupInfo {
   int32_t    vgId;
@@ -138,6 +140,13 @@ typedef enum {
   ROW_COMPARE_NO_NEED = 0,
   ROW_COMPARE_NEED = 1,
 } ERowCompareStat;
+
+typedef struct {
+  void *vgroupMap;  
+  void *tableMetaMap;
+  void *vgroupListBuf; 
+  int64_t ref;
+} SClusterInfo;
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);
 
@@ -303,6 +312,7 @@ typedef struct {
   char *         data;
   TAOS_ROW       tsrow;
   TAOS_ROW       urow;
+  bool           dataConverted;
   int32_t*       length;  // length for each field for current row
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
@@ -324,6 +334,7 @@ typedef struct STscObj {
   char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
+  char               clusterId[TSDB_CLUSTER_ID_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
   uint32_t           connId;
@@ -332,9 +343,11 @@ typedef struct STscObj {
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
   SRpcObj           *pRpcObj;
+  SClusterInfo       *pClusterInfo;
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
+      
   SReqOrigin         from;
 } STscObj;
 
@@ -353,6 +366,7 @@ typedef struct SSqlObj {
   __async_cb_func_t  fp;
   __async_cb_func_t  fetchFp;
   void            *param;
+  _freeSqlSupporter  freeParam;
   int64_t          stime;
   uint32_t         queryId;
   void *           pStream;
@@ -370,6 +384,7 @@ typedef struct SSqlObj {
 
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
+  struct SSqlObj  *rootObj;
 
   int64_t          metaRid;
   int64_t          svgroupRid;
@@ -417,6 +432,9 @@ int  tscAcquireRpc(const char *key, const char *user, const char *secret,void **
 void tscReleaseRpc(void *param);
 void tscInitMsgsFp();
 
+void *tscAcquireClusterInfo(const char *clusterId);
+void tscReleaseClusterInfo(const char *clusterId);
+
 int tsParseSql(SSqlObj *pSql, bool initial);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
@@ -434,7 +452,7 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo *pQueryInfo);
 void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
-void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo, bool converted);
 void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock, bool convertNchar);
 
 void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);

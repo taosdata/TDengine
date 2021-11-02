@@ -183,7 +183,7 @@ pkg_name=${install_dir}-${osType}-${cpuType}
 # fi
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType}
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
 else

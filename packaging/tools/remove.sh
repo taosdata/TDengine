@@ -38,11 +38,11 @@ initd_mod=0
 service_mod=2
 if pidof systemd &> /dev/null; then
     service_mod=0
-elif $(which service &> /dev/null); then    
+elif $(which service &> /dev/null); then
     service_mod=1
-    service_config_dir="/etc/init.d" 
+    service_config_dir="/etc/init.d"
     if $(which chkconfig &> /dev/null); then
-         initd_mod=1 
+         initd_mod=1
     elif $(which insserv &> /dev/null); then
         initd_mod=2
     elif $(which update-rc.d &> /dev/null); then
@@ -50,9 +50,16 @@ elif $(which service &> /dev/null); then
     else
         service_mod=2
     fi
-else 
+else
     service_mod=2
 fi
+
+function kill_blm3() {
+  pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo} kill -9 $pid   || :
+  fi
+}
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
@@ -71,6 +78,7 @@ function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/taos        || :
     ${csudo} rm -f ${bin_link_dir}/taosd       || :
+    ${csudo} rm -f ${bin_link_dir}/blm3        || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo    || :
     ${csudo} rm -f ${bin_link_dir}/taosdump    || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos      || :
@@ -93,7 +101,7 @@ function clean_header() {
 
 function clean_config() {
     # Remove link
-    ${csudo} rm -f ${cfg_link_dir}/*            || :    
+    ${csudo} rm -f ${cfg_link_dir}/*            || :
 }
 
 function clean_log() {
@@ -109,7 +117,7 @@ function clean_service_on_systemd() {
     fi
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${taosd_service_config}
-    
+
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
         echo "TDengine tarbitrator is running, stopping it..."
@@ -117,60 +125,60 @@ function clean_service_on_systemd() {
     fi
     ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${tarbitratord_service_config}
-  
+
     if [ "$verMode" == "cluster" ]; then
-		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
-   	 	if [ -d ${install_nginxd_dir} ]; then
-   	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	      echo "Nginx for TDengine is running, stopping it..."
-   	      ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
-   	    fi
-   	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
-   	    ${csudo} rm -f ${nginx_service_config}
-   	  fi
-    fi 
+        nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
+        if [ -d ${install_nginxd_dir} ]; then
+            if systemctl is-active --quiet ${nginx_service_name}; then
+                echo "Nginx for TDengine is running, stopping it..."
+                ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
+            fi
+            ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+            ${csudo} rm -f ${nginx_service_config}
+        fi
+    fi
 }
 
 function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-    
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
+
     if pidof taosd &> /dev/null; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo} service taosd stop || :
     fi
-    
+
     if pidof tarbitrator &> /dev/null; then
         echo "TDengine tarbitrator is running, stopping it..."
         ${csudo} service tarbitratord stop || :
     fi
-    
-    if ((${initd_mod}==1)); then    
-      if [ -e ${service_config_dir}/taosd ]; then 
+
+    if ((${initd_mod}==1)); then
+      if [ -e ${service_config_dir}/taosd ]; then
         ${csudo} chkconfig --del taosd || :
       fi
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} chkconfig --del tarbitratord || :
       fi
-    elif ((${initd_mod}==2)); then   
-      if [ -e ${service_config_dir}/taosd ]; then 
+    elif ((${initd_mod}==2)); then
+      if [ -e ${service_config_dir}/taosd ]; then
         ${csudo} insserv -r taosd || :
       fi
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} insserv -r tarbitratord || :
       fi
-    elif ((${initd_mod}==3)); then  
-      if [ -e ${service_config_dir}/taosd ]; then 
+    elif ((${initd_mod}==3)); then
+      if [ -e ${service_config_dir}/taosd ]; then
         ${csudo} update-rc.d -f taosd remove || :
       fi
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} update-rc.d -f tarbitratord remove || :
       fi
     fi
-    
+
     ${csudo} rm -f ${service_config_dir}/taosd || :
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
-   
+
     if $(which init &> /dev/null); then
         ${csudo} init q || :
     fi
@@ -183,6 +191,7 @@ function clean_service() {
         clean_service_on_sysvinit
     else
         # must manual stop taosd
+        kill_blm3
         kill_taosd
         kill_tarbitrator
     fi
@@ -201,7 +210,7 @@ clean_log
 # Remove link configuration file
 clean_config
 # Remove data link directory
-${csudo} rm -rf ${data_link_dir}    || : 
+${csudo} rm -rf ${data_link_dir}    || :
 
 ${csudo} rm -rf ${install_main_dir}
 ${csudo} rm -rf ${install_nginxd_dir}
@@ -213,14 +222,14 @@ fi
 
 if echo $osinfo | grep -qwi "ubuntu" ; then
 #  echo "this is ubuntu system"
-   ${csudo} dpkg --force-all  -P tdengine || :
+   ${csudo} dpkg --force-all  -P tdengine > /dev/null 2>&1 || :
 elif echo $osinfo | grep -qwi "debian" ; then
 #  echo "this is debian system"
-   ${csudo} dpkg --force-all  -P tdengine || :
+   ${csudo} dpkg --force-all  -P tdengine > /dev/null 2>&1 || :
 elif  echo $osinfo | grep -qwi "centos" ; then
 #  echo "this is centos system"
-  ${csudo} rpm -e --noscripts tdengine || :
+  ${csudo} rpm -e --noscripts tdengine > /dev/null 2>&1 || :
 fi
 
 echo -e "${GREEN}TDengine is removed successfully!${NC}"
-echo 
+echo

@@ -16,3 +16,6 @@
 [submodule "deps/TSZ"]
 	path = deps/TSZ
 	url = https://github.com/taosdata/TSZ.git
+[submodule "src/plugins/blm3"]
+	path = src/plugins/blm3
+	url = https://github.com/taosdata/blm3

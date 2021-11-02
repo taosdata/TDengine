@@ -149,7 +149,7 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
         double value = rowCursor.getDouble(columnIndex, colType);
-        return new BigDecimal(value);
+        return BigDecimal.valueOf(value);
     }
 
     @Override

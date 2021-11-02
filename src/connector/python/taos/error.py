@@ -80,17 +80,32 @@ class ResultError(DatabaseError):
 
     pass
 
+class SchemalessError(DatabaseError):
+    """taos_schemaless_insert errors."""
+
+    def __init__(self, msg=None, errno=0xffff, affected_rows=0):
+        DatabaseError.__init__(self, msg, errno)
+        self.affected_rows = affected_rows
+
+    def __str__(self):
+        return self._full_msg + "(affected rows: %d)" % self.affected_rows
+
+    # @property
+    # def affected_rows(self):
+    #     return self.affected_rows
+
+
+class StatementError(DatabaseError):
+    """Exception raised in STMT API."""
+
+    pass
+
+class ResultError(DatabaseError):
+    """Result related APIs."""
+
+    pass
+
 class LinesError(DatabaseError):
     """taos_insert_lines errors."""
-
-    pass
-
-class TelnetLinesError(DatabaseError):
-    """taos_insert_telnet_lines errors."""
-
-    pass
-
-class JsonPayloadError(DatabaseError):
-    """taos_insert_json_payload errors."""
 
     pass

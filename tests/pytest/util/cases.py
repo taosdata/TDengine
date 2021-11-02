@@ -34,7 +34,7 @@ class TDCases:
         self.clusterCases = []
 
     def __dynamicLoadModule(self, fileName):
-        moduleName = fileName.replace(".py", "").replace("/", ".")
+        moduleName = fileName.replace(".py", "").replace(os.sep, ".")
         return importlib.import_module(moduleName, package='..')
 
     def logSql(self, logSql):
@@ -80,7 +80,7 @@ class TDCases:
                 runNum += 1
                 continue
 
-    def runAllWindows(self, conn):
+    def runAllWindows(self, conn, fileName):
         # TODO: load all Windows cases here
         runNum = 0
         for tmp in self.windowsCases:
@@ -101,12 +101,17 @@ class TDCases:
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
-                case.init(conn)
-                case.run()
+                case.init(conn, self._logSql)
+                try:
+                    case.run()
+                except Exception as e:
+                    tdLog.notice(repr(e))
+                    tdLog.exit("%s failed" % (fileName))
                 case.stop()
                 runNum += 1
                 continue
         tdLog.notice("total %d Windows case(s) executed" % (runNum))
+        
 
     def runAllCluster(self):
         # TODO: load all cluster case module here
