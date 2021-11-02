@@ -30,6 +30,7 @@ typedef struct {
 } SStatisInfo;
 
 SStatisInfo dnodeGetStatisInfo();
+void        dnodeClearStatisInfo();
 
 bool    dnodeIsFirstDeploy();
 bool    dnodeIsMasterEp(char *ep);

@@ -120,4 +120,5 @@ void httpCleanUpSystem() {
   tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
-int32_t httpGetReqCount() { return atomic_exchange_32(&tsHttpServer.requestNum, 0); }
+int32_t httpGetReqCount() { return atomic_load_32(&tsHttpServer.requestNum); }
+int32_t httpClearReqCount() { return atomic_exchange_32(&tsHttpServer.requestNum, 0); }

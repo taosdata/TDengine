@@ -415,8 +415,7 @@ static int32_t monBuildBandSql(char *sql) {
 }
 
 static int32_t monBuildReqSql(char *sql) {
-  //SStatisInfo info = dnodeGetStatisInfo();
-  SStatisInfo info = {0};
+  SStatisInfo info = dnodeGetStatisInfo();
   return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
@@ -708,6 +707,7 @@ static int32_t monBuildDnodeReqRateSql(char *sql) {
   return sprintf(sql, ", %d, %f, %d, %f, %d, %f", info.httpReqNum, httpReqRate,
                                                    info.queryReqNum - monFetchQueryReqCnt(), queryReqRate,
                                                    info.submitReqNum - monFetchSubmitReqCnt(), submitReqRate);
+  dnodeClearStatisInfo();
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {

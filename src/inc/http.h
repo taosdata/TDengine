@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 
 int32_t httpGetReqCount();
+int32_t httpClearReqCount();
 int32_t httpInitSystem();
 int32_t httpStartSystem();
 void httpStopSystem();
