@@ -200,6 +200,8 @@ static void *monThreadFunc(void *param) {
 
     if (tsMonitor.state == MON_STATE_INITED) {
       if (accessTimes % tsMonitorInterval == 0 || accessTimes == 1) {
+        //monSaveDnodesInfo has to be the first, as it calculates
+        //stats using monSubmitReqNum before any insertion from monitor
         monSaveDnodesInfo();
         if (monHasMnodeMaster) {
           //only mnode master will write cluster info
