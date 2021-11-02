@@ -1185,8 +1185,12 @@ static void monSaveGrantsInfo() {
         char *timeseries = (char *)row[i];
         if (timeseries[0] == 'u') {
           pos += snprintf(sql + pos, SQL_LENGTH, ", NULL, NULL)");
+        } else {
+          int32_t timeseries_used = strtol(timeseries, NULL, 10);
+          timeseries = strchr(timeseries, '/');
+          int32_t timeseries_total = strtol(timeseries + 1, NULL, 10);
+          pos += snprintf(sql + pos, SQL_LENGTH, ", %d, %d)", timeseries_used, timeseries_total);
         }
-        //pos += snprintf(sql + pos, SQL_LENGTH, ", %d, %d)", (char *)row[i]);
       }
     }
   }
