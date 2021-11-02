@@ -273,6 +273,7 @@ python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/nestedQuery/nestedQuery.py
+python3 ./test.py -f query/nestedQuery/nestedQuery_datacheck.py
 python3 ./test.py -f query/queryCnameDisplay.py
 # python3 ./test.py -f query/operator_cost.py
 # python3 ./test.py -f query/long_where_query.py
@@ -313,7 +314,7 @@ python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
-#python3 client/twoClients.py
+python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 # subscribe
@@ -399,13 +400,12 @@ python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
-#python3 ./test.py -f insert/schemalessInsert.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 
 python3 ./test.py -f query/query.py
-python3 ./test.py -f query/queryDiffColsOr.py
+python3 ./test.py -f query/queryDiffColsTagsAndOr.py
 
 
 python3 ./test.py -f client/nettest.py
@@ -416,6 +416,10 @@ python3 ./test.py -f insert/verifyMemToDiskCrash.py
 
 python3 ./test.py -f query/queryRegex.py
 python3 ./test.py -f tools/taosdemoTestdatatype.py
+python3 ./test.py -f insert/schemalessInsert.py
+python3 ./test.py -f insert/openTsdbTelnetLinesInsert.py
+python3 ./test.py -f insert/openTsdbJsonInsert.py
+
 #======================p4-end===============
 
 
