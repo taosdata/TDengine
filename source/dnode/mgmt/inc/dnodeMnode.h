@@ -23,6 +23,7 @@ extern "C" {
 
 int32_t dnodeInitMnode();
 void    dnodeCleanupMnode();
+void    dnodeProcessMnodeMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
 
 void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg);
 

@@ -58,10 +58,6 @@ typedef struct {
   int8_t syncRole;
 } SVnodeStatus;
 
-typedef struct {
-  int32_t accessState;
-} SVnodeAccess;
-
 typedef struct SVnodeMsg {
   int32_t msgType;
   int32_t code;

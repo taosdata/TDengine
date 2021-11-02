@@ -23,23 +23,14 @@ extern "C" {
 
 int32_t dnodeInitDnode();
 void    dnodeCleanupDnode();
-void    dnodeProcessStatusRsp(SRpcMsg *pMsg);
-void    dnodeProcessStartupReq(SRpcMsg *pMsg);
-void    dnodeProcessConfigDnodeReq(SRpcMsg *pMsg);
+void    dnodeProcessDnodeMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
 
-int32_t dnodeInitConfig();
-void    dnodeCleanupConfig();
-
-void    dnodeUpdateCfg(SDnodeCfg *data);
-void    dnodeUpdateDnodeEps(SDnodeEps *data);
-void    dnodeUpdateMnodeEps(SRpcEpSet *pEpSet);
 int32_t dnodeGetDnodeId();
 int64_t dnodeGetClusterId();
-void    dnodeGetEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
-
-void dnodeGetEpSetForPeer(SRpcEpSet *epSet);
-void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
-
+void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
+void    dnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet);
+void    dnodeGetMnodeEpSetForShell(SRpcEpSet *epSet);
+void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus
 }

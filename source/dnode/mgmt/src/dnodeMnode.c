@@ -21,7 +21,7 @@
 
 int32_t dnodeInitMnode() {
   SMnodePara para;
-  para.fp.GetDnodeEp = dnodeGetEp;
+  para.fp.GetDnodeEp = dnodeGetDnodeEp;
   para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
   para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
   para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
@@ -59,4 +59,11 @@ void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg) {
 
   rpcSendResponse(&rspMsg);
   rpcFreeCont(pMsg->pCont);
+}
+
+void dnodeProcessMnodeMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  mnodeProcessMsg(pMsg);
+  //   tsDnode.msgFp[TSDB_MSG_TYPE_CREATE_MNODE_IN] = dnodeProcessCreateMnodeReq;
+
+  //   tsTrans.msgFp[TSDB_MSG_TYPE_DROP_MNODE_IN] = dnodeProcessDropMnodeReq;
 }
