@@ -45,72 +45,70 @@
 #define MAX_TIMESERIES_LEN  30
 #define CHECK_INTERVAL      1000
 
-#define MON_MAX_HTTP_CODE 63
-
-static const char *monHttpStatusCodeTable[MON_MAX_HTTP_CODE][2] = {
-  {"HTTP_CODE_CONTINUE",                "100"},
-  {"HTTP_CODE_SWITCHING_PROTOCOL",      "101"},
-  {"HTTP_CODE_PROCESSING",              "102"},
-  {"HTTP_CODE_EARLY_HINTS",             "103"},
-  {"HTTP_CODE_OK",                      "200"},
-  {"HTTP_CODE_CREATED",                 "201"},
-  {"HTTP_CODE_ACCEPTED",                "202"},
-  {"HTTP_CODE_NON_AUTHORITATIVE_INFO",  "203"},
-  {"HTTP_CODE_NO_CONTENT",              "204"},
-  {"HTTP_CODE_RESET_CONTENT",           "205"},
-  {"HTTP_CODE_PARTIAL_CONTENT",         "206"},
-  {"HTTP_CODE_MULTI_STATUS",            "207"},
-  {"HTTP_CODE_ALREADY_REPORTED",        "208"},
-  {"HTTP_CODE_IM_USED",                 "226"},
-  {"HTTP_CODE_MULTIPLE_CHOICE",         "300"},
-  {"HTTP_CODE_MOVED_PERMANENTLY",       "301"},
-  {"HTTP_CODE_FOUND",                   "302"},
-  {"HTTP_CODE_SEE_OTHER",               "303"},
-  {"HTTP_CODE_NOT_MODIFIED",            "304"},
-  {"HTTP_CODE_USE_PROXY",               "305"},
-  {"HTTP_CODE_UNUSED",                  "306"},
-  {"HTTP_CODE_TEMPORARY_REDIRECT",      "307"},
-  {"HTTP_CODE_PERMANENT_REDIRECT",      "308"},
-  {"HTTP_CODE_BAD_REQUEST",             "400"},
-  {"HTTP_CODE_UNAUTHORIZED",            "401"},
-  {"HTTP_CODE_PAYMENT_REQUIRED",        "402"},
-  {"HTTP_CODE_FORBIDDEN",               "403"},
-  {"HTTP_CODE_NOT_FOUND",               "404"},
-  {"HTTP_CODE_METHOD_NOT_ALLOWED",      "405"},
-  {"HTTP_CODE_NOT_ACCEPTABLE",          "406"},
-  {"HTTP_CODE_PROXY_AUTH_REQUIRED",     "407"},
-  {"HTTP_CODE_REQUEST_TIMEOUT",         "408"},
-  {"HTTP_CODE_CONFLICT",                "409"},
-  {"HTTP_CODE_GONE",                    "410"},
-  {"HTTP_CODE_LENGTH_REQUIRED",         "411"},
-  {"HTTP_CODE_PRECONDITION_FAILED",     "412"},
-  {"HTTP_CODE_PAYLOAD_TOO_LARGE",       "413"},
-  {"HTTP_CODE_URI_TOO_LARGE",           "414"},
-  {"HTTP_CODE_UNSUPPORTED_MEDIA_TYPE",  "415"},
-  {"HTTP_CODE_RANGE_NOT_SATISFIABLE",   "416"},
-  {"HTTP_CODE_EXPECTATION_FAILED",      "417"},
-  {"HTTP_CODE_IM_A_TEAPOT",             "418"},
-  {"HTTP_CODE_MISDIRECTED_REQUEST",     "421"},
-  {"HTTP_CODE_UNPROCESSABLE_ENTITY",    "422"},
-  {"HTTP_CODE_LOCKED",                  "423"},
-  {"HTTP_CODE_FAILED_DEPENDENCY",       "424"},
-  {"HTTP_CODE_TOO_EARLY",               "425"},
-  {"HTTP_CODE_UPGRADE_REQUIRED",        "426"},
-  {"HTTP_CODE_PRECONDITION_REQUIRED",   "428"},
-  {"HTTP_CODE_TOO_MANY_REQUESTS",       "429"},
-  {"HTTP_CODE_REQ_HDR_FIELDS_TOO_LARGE","431"},
-  {"HTTP_CODE_UNAVAIL_4_LEGAL_REASONS", "451"},
-  {"HTTP_CODE_INTERNAL_SERVER_ERROR",   "500"},
-  {"HTTP_CODE_NOT_IMPLEMENTED",         "501"},
-  {"HTTP_CODE_BAD_GATEWAY",             "502"},
-  {"HTTP_CODE_SERVICE_UNAVAILABLE",     "503"},
-  {"HTTP_CODE_GATEWAY_TIMEOUT",         "504"},
-  {"HTTP_CODE_HTTP_VER_NOT_SUPPORTED",  "505"},
-  {"HTTP_CODE_VARIANT_ALSO_NEGOTIATES", "506"},
-  {"HTTP_CODE_INSUFFICIENT_STORAGE",    "507"},
-  {"HTTP_CODE_LOOP_DETECTED",           "508"},
-  {"HTTP_CODE_NOT_EXTENDED",            "510"},
-  {"HTTP_CODE_NETWORK_AUTH_REQUIRED",   "511"},
+static SMonHttpStatus monHttpStatusTable[] = {
+  {"HTTP_CODE_CONTINUE",                100},
+  {"HTTP_CODE_SWITCHING_PROTOCOL",      101},
+  {"HTTP_CODE_PROCESSING",              102},
+  {"HTTP_CODE_EARLY_HINTS",             103},
+  {"HTTP_CODE_OK",                      200},
+  {"HTTP_CODE_CREATED",                 201},
+  {"HTTP_CODE_ACCEPTED",                202},
+  {"HTTP_CODE_NON_AUTHORITATIVE_INFO",  203},
+  {"HTTP_CODE_NO_CONTENT",              204},
+  {"HTTP_CODE_RESET_CONTENT",           205},
+  {"HTTP_CODE_PARTIAL_CONTENT",         206},
+  {"HTTP_CODE_MULTI_STATUS",            207},
+  {"HTTP_CODE_ALREADY_REPORTED",        208},
+  {"HTTP_CODE_IM_USED",                 226},
+  {"HTTP_CODE_MULTIPLE_CHOICE",         300},
+  {"HTTP_CODE_MOVED_PERMANENTLY",       301},
+  {"HTTP_CODE_FOUND",                   302},
+  {"HTTP_CODE_SEE_OTHER",               303},
+  {"HTTP_CODE_NOT_MODIFIED",            304},
+  {"HTTP_CODE_USE_PROXY",               305},
+  {"HTTP_CODE_UNUSED",                  306},
+  {"HTTP_CODE_TEMPORARY_REDIRECT",      307},
+  {"HTTP_CODE_PERMANENT_REDIRECT",      308},
+  {"HTTP_CODE_BAD_REQUEST",             400},
+  {"HTTP_CODE_UNAUTHORIZED",            401},
+  {"HTTP_CODE_PAYMENT_REQUIRED",        402},
+  {"HTTP_CODE_FORBIDDEN",               403},
+  {"HTTP_CODE_NOT_FOUND",               404},
+  {"HTTP_CODE_METHOD_NOT_ALLOWED",      405},
+  {"HTTP_CODE_NOT_ACCEPTABLE",          406},
+  {"HTTP_CODE_PROXY_AUTH_REQUIRED",     407},
+  {"HTTP_CODE_REQUEST_TIMEOUT",         408},
+  {"HTTP_CODE_CONFLICT",                409},
+  {"HTTP_CODE_GONE",                    410},
+  {"HTTP_CODE_LENGTH_REQUIRED",         411},
+  {"HTTP_CODE_PRECONDITION_FAILED",     412},
+  {"HTTP_CODE_PAYLOAD_TOO_LARGE",       413},
+  {"HTTP_CODE_URI_TOO_LARGE",           414},
+  {"HTTP_CODE_UNSUPPORTED_MEDIA_TYPE",  415},
+  {"HTTP_CODE_RANGE_NOT_SATISFIABLE",   416},
+  {"HTTP_CODE_EXPECTATION_FAILED",      417},
+  {"HTTP_CODE_IM_A_TEAPOT",             418},
+  {"HTTP_CODE_MISDIRECTED_REQUEST",     421},
+  {"HTTP_CODE_UNPROCESSABLE_ENTITY",    422},
+  {"HTTP_CODE_LOCKED",                  423},
+  {"HTTP_CODE_FAILED_DEPENDENCY",       424},
+  {"HTTP_CODE_TOO_EARLY",               425},
+  {"HTTP_CODE_UPGRADE_REQUIRED",        426},
+  {"HTTP_CODE_PRECONDITION_REQUIRED",   428},
+  {"HTTP_CODE_TOO_MANY_REQUESTS",       429},
+  {"HTTP_CODE_REQ_HDR_FIELDS_TOO_LARGE",431},
+  {"HTTP_CODE_UNAVAIL_4_LEGAL_REASONS", 451},
+  {"HTTP_CODE_INTERNAL_SERVER_ERROR",   500},
+  {"HTTP_CODE_NOT_IMPLEMENTED",         501},
+  {"HTTP_CODE_BAD_GATEWAY",             502},
+  {"HTTP_CODE_SERVICE_UNAVAILABLE",     503},
+  {"HTTP_CODE_GATEWAY_TIMEOUT",         504},
+  {"HTTP_CODE_HTTP_VER_NOT_SUPPORTED",  505},
+  {"HTTP_CODE_VARIANT_ALSO_NEGOTIATES", 506},
+  {"HTTP_CODE_INSUFFICIENT_STORAGE",    507},
+  {"HTTP_CODE_LOOP_DETECTED",           508},
+  {"HTTP_CODE_NOT_EXTENDED",            510},
+  {"HTTP_CODE_NETWORK_AUTH_REQUIRED",   511}
 };
 
 typedef enum {
@@ -152,6 +150,8 @@ typedef struct {
   char      sql[SQL_LENGTH + 1];
 } SMonConn;
 
+static void *monHttpStatusHashTable;
+
 static SMonConn tsMonitor = {0};
 static int32_t  monQueryReqNum = 0, monSubmitReqNum = 0;
 static bool     monHasMnodeMaster = false;
@@ -165,6 +165,9 @@ static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
+static void monInitHttpStatusHashTable();
+static void monCleanupHttpStatusHashTable();
+
 extern int32_t (*monStartSystemFp)();
 extern void    (*monStopSystemFp)();
 extern void    (*monExecuteSQLFp)(char *sql);
@@ -180,6 +183,7 @@ int32_t monInitSystem() {
       tsMonitor.ep[i] = '_';
     }
   }
+  monInitHttpStatusHashTable();
 
   pthread_attr_t thAttr;
   pthread_attr_init(&thAttr);
@@ -206,6 +210,31 @@ int32_t monStartSystem() {
   monExecuteSQLFp = monExecuteSQL;
   monInfo("monitor module start");
   return 0;
+}
+
+static void monInitHttpStatusHashTable() {
+  int32_t numOfEntries = tListLen(monHttpStatusTable);
+  monHttpStatusHashTable = taosHashInit(numOfEntries, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
+  for (int32_t i = 0; i < numOfEntries; ++i) {
+    monHttpStatusTable[i].index = i;
+    SMonHttpStatus* pEntry = &monHttpStatusTable[i];
+    taosHashPut(monHttpStatusHashTable, &monHttpStatusTable[i].code, sizeof(int32_t),
+                                        &pEntry, POINTER_BYTES);
+  }
+}
+
+static void monCleanupHttpStatusHashTable() {
+  void* m = monHttpStatusHashTable;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&monHttpStatusHashTable, m, 0) == m) {
+    taosHashCleanup(m);
+  }
+}
+
+SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code) {
+  if (monHttpStatusHashTable == NULL) {
+    return NULL;
+  }
+  return (SMonHttpStatus*)taosHashGet(monHttpStatusHashTable, &code, sizeof(int32_t));
 }
 
 static void *monThreadFunc(void *param) {
@@ -419,10 +448,10 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
                        "create table if not exists %s.restful_info(ts timestamp"
                        ", total_req float",
                        tsMonitorDbName);
-    for (int i = 0; i < MON_MAX_HTTP_CODE; ++i) {
-      pos += snprintf(sql + pos, SQL_LENGTH, ", `%s(%s)` int",
-                                monHttpStatusCodeTable[i][0],
-                                monHttpStatusCodeTable[i][1]);
+    for (int i = 0; i < tListLen(monHttpStatusTable); ++i) {
+      pos += snprintf(sql + pos, SQL_LENGTH, ", `%s(%d)` int",
+                                monHttpStatusTable[i].name,
+                                monHttpStatusTable[i].code);
     }
     snprintf(sql + pos, SQL_LENGTH,
              ") tags (dnode_id int, dnode_ep binary(%d))",
@@ -453,6 +482,7 @@ void monCleanupSystem() {
     taos_close(tsMonitor.conn);
     tsMonitor.conn = NULL;
   }
+  monCleanupHttpStatusHashTable();
   monInfo("monitor module is cleaned up");
 }
 

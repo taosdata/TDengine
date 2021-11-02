@@ -27,6 +27,11 @@ extern "C" {
   monSaveDnodeLog(level, __VA_ARGS__); \
 }
 
+typedef struct {
+  const char * name;
+  int32_t code;
+  int32_t index;
+} SMonHttpStatus;
 
 typedef struct {
   char *  acctId;
@@ -67,6 +72,8 @@ void    monIncQueryReqCnt();
 void    monIncSubmitReqCnt();
 int32_t monFetchQueryReqCnt();
 int32_t monFetchSubmitReqCnt();
+SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code);
+
 #ifdef __cplusplus
 }
 #endif
