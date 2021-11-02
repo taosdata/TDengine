@@ -41,7 +41,6 @@
 #define VGROUP_STATUS_LEN   512
 #define DNODE_INFO_LEN      128
 #define QUERY_ID_LEN        24
-#define MAX_EXPIRE_TIME_LEN 20
 #define MAX_TIMESERIES_LEN  30
 #define CHECK_INTERVAL      1000
 
@@ -173,6 +172,7 @@ static void monCleanupHttpStatusHashTable();
 extern int32_t (*monStartSystemFp)();
 extern void    (*monStopSystemFp)();
 extern void    (*monExecuteSQLFp)(char *sql);
+extern char *  strptime(const char *buf, const char *fmt, struct tm *tm); //make the compilation pass
 
 int32_t monInitSystem() {
   if (tsMonitor.ep[0] == 0) {
@@ -444,13 +444,11 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
   } else if (cmd == MON_CMD_CREATE_TB_GRANTS) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.grants_info(ts timestamp"
-             ", expire_time binary(%d), timeseries binary(%d))",
-             tsMonitorDbName, MAX_EXPIRE_TIME_LEN, MAX_TIMESERIES_LEN);
+             ", expire_time int, timeseries binary(%d))",
+             tsMonitorDbName, MAX_TIMESERIES_LEN);
   } else if (cmd == MON_CMD_CREATE_MT_RESTFUL) {
     int pos = snprintf(sql, SQL_LENGTH,
-                       "create table if not exists %s.restful_info(ts timestamp"
-                       ", total_req float",
-                       tsMonitorDbName);
+                       "create table if not exists %s.restful_info(ts timestamp", tsMonitorDbName);
     for (int i = 0; i < tListLen(monHttpStatusTable); ++i) {
       pos += snprintf(sql + pos, SQL_LENGTH, ", `%s(%d)` int",
                                 monHttpStatusTable[i].name,
@@ -1180,7 +1178,10 @@ static void monSaveGrantsInfo() {
   while ((row = taos_fetch_row(result))) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "expire time") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+        struct tm expTime = {0};
+        strptime((char *)row[i], "%Y-%m-%d %H:%M:%S", &expTime);
+        int32_t expTimeSec = mktime(&expTime);
+        pos += snprintf(sql + pos, SQL_LENGTH, ", %d", expTimeSec - taosGetTimestampSec());
       } else if (strcmp(fields[i].name, "timeseries") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\")", (char *)row[i]);
       }
