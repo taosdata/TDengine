@@ -2043,6 +2043,19 @@ static int64_t writeResultToAvro(
     return count;
 }
 
+void freeBindArray(char *bindArray, int onlyCol)
+{
+    TAOS_BIND *bind;
+
+    for (int j = 0; j < onlyCol; j++) {
+        bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * j));
+        if ((TSDB_DATA_TYPE_BINARY != bind->buffer_type)
+                && (TSDB_DATA_TYPE_NCHAR != bind->buffer_type)) {
+            tfree(bind->buffer);
+        }
+    }
+}
+
 static int dumpInOneAvroFile(char* fcharset,
         char* encode, char *avroFilepath)
 {
@@ -2267,9 +2280,8 @@ static int dumpInOneAvroFile(char* fcharset,
                     bind->buffer = dbl;
                 } else if (0 == strcasecmp(tableDes->cols[i].type, "binary")) {
                     size_t size;
-                    char *buf = malloc(tableDes->cols[i].length);
-                    assert(buf);
 
+                    char *buf = NULL;
                     avro_value_get_string(&field_value, (const char **)&buf, &size);
                     debugPrint("%s | ", (char *)buf);
                     bind->buffer_type = TSDB_DATA_TYPE_BINARY;
@@ -2277,8 +2289,7 @@ static int dumpInOneAvroFile(char* fcharset,
                     bind->buffer = buf;
                 } else if (0 == strcasecmp(tableDes->cols[i].type, "nchar")) {
                     size_t bytessize;
-                    void *bytesbuf = malloc(tableDes->cols[i].length);
-                    assert(bytesbuf);
+                    void *bytesbuf = NULL;
 
                     avro_value_get_bytes(&field_value, (const void **)&bytesbuf, &bytessize);
                     debugPrint("%s | ", (char*)bytesbuf);
@@ -2306,23 +2317,22 @@ static int dumpInOneAvroFile(char* fcharset,
         if (0 != taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
             errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
+            freeBindArray(bindArray, onlyCol);
             failed --;
             continue;
         }
         if (0 != taos_stmt_add_batch(stmt)) {
             errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
+            freeBindArray(bindArray, onlyCol);
             failed --;
             continue;
         }
 
-        for (int j = 0; j < recordSchema->num_fields; j++) {
-            bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * j));
-            tfree(bind->buffer);
-        }
+        freeBindArray(bindArray, onlyCol);
 
-        continue;
         success ++;
+        continue;
     }
 
     if (0 != taos_stmt_execute(stmt)) {
