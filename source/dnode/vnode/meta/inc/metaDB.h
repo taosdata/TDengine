@@ -16,11 +16,15 @@
 #ifndef _TD_META_DB_H_
 #define _TD_META_DB_H_
 
+#include "rocksdb/c.h"
+
 #include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef rocksdb_t meta_db_t;
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);

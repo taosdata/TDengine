@@ -16,8 +16,9 @@
 #ifndef _TD_META_DEF_H_
 #define _TD_META_DEF_H_
 
-#include "rocksdb/c.h"
-
+#include "metaCache.h"
+#include "metaDB.h"
+#include "metaIdx.h"
 #include "metaTbUid.h"
 
 #ifdef __cplusplus
@@ -25,12 +26,12 @@ extern "C" {
 #endif
 
 struct SMeta {
-  char *           path;     // path of current meta
-  SMetaOptions     options;  // meta option
-  rocksdb_t *      pDB;
-  rocksdb_t *      pIdx;
-  rocksdb_cache_t *pCache;
-  STbUidGenerator  uidGnrt;  // meta table UID generator
+  char*           path;     // path of current meta
+  SMetaOptions    options;  // meta option
+  meta_db_t*      pDB;      // raw data db
+  meta_index_t*   pIdx;     // tag index
+  meta_cache_t*   pCache;   // LRU cache
+  STbUidGenerator uidGnrt;  // meta table UID generator
 };
 
 #ifdef __cplusplus
