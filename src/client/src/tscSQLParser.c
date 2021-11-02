@@ -1881,7 +1881,7 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
   ids.num = 1;
   ids.ids[0] = *pIndex;
 
-  if (pIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX || pIndex->columnIndex == TSDB_UD_COLUMN_INDEX ||
+  if (pIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX || pIndex->columnIndex <= TSDB_UD_COLUMN_INDEX ||
       pIndex->columnIndex >= tscGetNumOfColumns(pTableMeta)) {
     ids.num = 0;
   }

@@ -8150,8 +8150,8 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       // it is a user-defined constant value column
       assert(pExprs[i].base.functionId == TSDB_FUNC_PRJ);
 
-      type = pExprs[i].base.param[1].nType;
-      bytes = pExprs[i].base.param[1].nLen;
+      type = pExprs[i].base.param[0].nType;
+      bytes = pExprs[i].base.param[0].nLen;
       if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
         bytes += VARSTR_HEADER_SIZE;
       }
