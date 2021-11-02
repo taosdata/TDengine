@@ -63,6 +63,8 @@ typedef enum {
   MON_CMD_CREATE_MT_LOGS,
   MON_CMD_CREATE_TB_DNODE_LOG,
   MON_CMD_CREATE_TB_GRANTS,
+  MON_CMD_CREATE_MT_RESTFUL,
+  MON_CMD_CREATE_TB_RESTFUL,
   MON_CMD_MAX
 } EMonCmd;
 
@@ -344,7 +346,28 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              "create table if not exists %s.grants_info(ts timestamp"
              ", expire_time binary(%d), timeseries binary(%d))",
              tsMonitorDbName, MAX_EXPIRE_TIME_LEN, MAX_TIMESERIES_LEN);
-  }
+  } else if (cmd == MON_CMD_CREATE_MT_RESTFUL) {
+    snprintf(sql, SQL_LENGTH,
+             "create table if not exists %s.restful_info(ts timestamp"
+             ", uptime float"
+             ", cpu_engine float, cpu_system float, cpu_cores int"
+             ", mem_engine float, mem_system float, mem_total float"
+             ", disk_engine float, disk_used float, disk_total float"
+             ", net_in float, net_out float"
+             ", io_read float, io_write float"
+             ", req_http int, req_http_rate float"
+             ", req_select int, req_select_rate float"
+             ", req_insert int, req_insert_success int, req_insert_rate float"
+             ", req_insert_batch int, req_insert_batch_sucesss int, req_insert_batch_rate float"
+             ", errors int"
+             ", vnodes_num int"
+             ", masters int"
+             ", has_mnode bool"
+             ") tags (dnode_id int, dnode_ep binary(%d))",
+             tsMonitorDbName, TSDB_EP_LEN);
+  } else if (cmd == MON_CMD_CREATE_TB_RESTFUL) {
+    snprintf(sql, SQL_LENGTH, "create table if not exists %s.restful_%d using %s.restful_info tags(%d, '%s')", tsMonitorDbName,
+             dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);
 
   sql[SQL_LENGTH] = 0;
 }
