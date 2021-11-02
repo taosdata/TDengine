@@ -41,7 +41,6 @@
 #define VGROUP_STATUS_LEN   512
 #define DNODE_INFO_LEN      128
 #define QUERY_ID_LEN        24
-#define MAX_TIMESERIES_LEN  30
 #define CHECK_INTERVAL      1000
 
 static SMonHttpStatus monHttpStatusTable[] = {
@@ -444,8 +443,8 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
   } else if (cmd == MON_CMD_CREATE_TB_GRANTS) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.grants_info(ts timestamp"
-             ", expire_time int, timeseries binary(%d))",
-             tsMonitorDbName, MAX_TIMESERIES_LEN);
+             ", expire_time int, timeseries_used int, timeseries_total int)",
+             tsMonitorDbName);
   } else if (cmd == MON_CMD_CREATE_MT_RESTFUL) {
     int pos = snprintf(sql, SQL_LENGTH,
                        "create table if not exists %s.restful_info(ts timestamp", tsMonitorDbName);
@@ -1183,7 +1182,11 @@ static void monSaveGrantsInfo() {
         int32_t expTimeSec = mktime(&expTime);
         pos += snprintf(sql + pos, SQL_LENGTH, ", %d", expTimeSec - taosGetTimestampSec());
       } else if (strcmp(fields[i].name, "timeseries") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\")", (char *)row[i]);
+        char *timeseries = (char *)row[i];
+        if (timeseries[0] == 'u') {
+          pos += snprintf(sql + pos, SQL_LENGTH, ", NULL, NULL)");
+        }
+        //pos += snprintf(sql + pos, SQL_LENGTH, ", %d, %d)", (char *)row[i]);
       }
     }
   }
