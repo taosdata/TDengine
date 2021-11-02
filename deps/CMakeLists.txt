@@ -34,10 +34,10 @@ IF (TD_LINUX)
     BUILD_IN_SOURCE 1
     PATCH_COMMAND
         COMMAND   git clean -f -d
-	COMMAND   sed -i.bak -e "/TARGETS avroappend/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-	COMMAND   sed -i.bak -e "/TARGETS avrocat/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-	COMMAND   sed -i.bak -e "/TARGETS avromod/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-	COMMAND   sed -i.bak -e "/TARGETS avropipe/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
+        COMMAND   sed -i.bak -e "/TARGETS avroappend/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
+        COMMAND   sed -i.bak -e "/TARGETS avrocat/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
+        COMMAND   sed -i.bak -e "/TARGETS avromod/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
+        COMMAND   sed -i.bak -e "/TARGETS avropipe/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
     CONFIGURE_COMMAND   cmake -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/build
     )
 ENDIF ()
