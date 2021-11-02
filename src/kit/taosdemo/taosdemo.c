@@ -9848,6 +9848,8 @@ static void generateSmlTail(char* line, char* smlHead, SSuperTable* stbInfo,
 static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     debugPrint("[%d] %s() LN%d: ### interlace schemaless write\n",
             pThreadInfo->threadID, __func__, __LINE__);
+    int32_t* code = (int32_t*) malloc(sizeof(int32_t));
+    assert(code);
     int64_t insertRows;
     uint64_t maxSqlLen;
     int64_t timeStampStep;
@@ -9886,12 +9888,23 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     }
 
     char **smlHeadList = calloc(pThreadInfo->ntables, sizeof(char *));
-    assert(smlHeadList);
+    if (NULL == smlHeadList) {
+        *code = -1;
+        errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                pThreadInfo->ntables * (uint64_t)sizeof(char *),
+                strerror(errno));
+        return code;
+    }
+    
     for (int t = 0; t < pThreadInfo->ntables; t++) {
-        char* smlHead = (char *)calloc(HEAD_BUFF_LEN, 1);
+        char* smlHead = (char *)calloc(1, HEAD_BUFF_LEN);
         if (NULL == smlHead) {
-            errorPrint2("calloc failed! size:%d\n", HEAD_BUFF_LEN);
-            exit(EXIT_FAILURE);
+            *code = -1;
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
+                pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
+                strerror(errno));
+            goto free_smlheadlist_interlace_sml;
         }
         generateSmlHead(smlHead, stbInfo, pThreadInfo, t);
         smlHeadList[t] = smlHead;
@@ -9919,10 +9932,12 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 
     pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
-        errorPrint2("Failed to alloc %"PRIu64" bytes, reason:%s\n",
+        *code = -1;
+        errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                pThreadInfo->threadID, __func__, __LINE__,
                 g_args.reqPerReq * (uint64_t)sizeof(char *),
                 strerror(errno));
-        return NULL;
+        goto free_smlheadlist_interlace_sml;
     }
 
     while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
@@ -9938,10 +9953,13 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         for (uint64_t i = 0; i < batchPerTblTimes; i++) {
             int64_t timestamp = startTime;
             for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
-                pThreadInfo->lines[j] = calloc(BUFFER_SIZE, 1);
+                pThreadInfo->lines[j] = calloc(1, BUFFER_SIZE);
                 if (NULL == pThreadInfo->lines[j]) {
-                    errorPrint2("Failed to alloc %d bytes, reason:%s\n",
-                        BUFFER_SIZE, strerror(errno));
+                    *code = -1;
+                    errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
+                        pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
+                        strerror(errno));
+                    goto free_lines_interlace_sml;
                 }
                 generateSmlTail(pThreadInfo->lines[j], smlHeadList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
                 timestamp += timeStampStep;
@@ -9996,6 +10014,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         startTs = taosGetTimestampUs();
 
         if (recOfBatch == 0) {
+            *code = -1;
             errorPrint2("[%d] %s() LN%d Failed to insert records of batch %d\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     batchPerTbl);
@@ -10005,7 +10024,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
             }
             errorPrint("\tPlease check if the buffer length(%"PRId64") or batch(%d) is set with proper value!\n",
                     maxSqlLen, batchPerTbl);
-            goto free_of_interlace;
+            goto free_lines_interlace_sml;
         }
         int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
 
@@ -10023,10 +10042,11 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         pThreadInfo->totalDelay += delay;
 
         if (recOfBatch != affectedRows) {
+            *code = -1;
             errorPrint2("[%d] %s() LN%d execInsert insert %d, affected rows: %"PRId64"\n%s\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     recOfBatch, affectedRows, pThreadInfo->buffer);
-            goto free_of_interlace;
+            goto free_lines_interlace_sml;
         }
 
         pThreadInfo->totalAffectedRows += affectedRows;
@@ -10063,14 +10083,19 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     if (percentComplete < 100)
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
 
-free_of_interlace:
+    printStatPerThread(pThreadInfo);
+free_lines_interlace_sml:
+    for (int index = 0; index < g_args.reqPerReq; index++) {
+        tmfree(pThreadInfo->lines[index]);
+    }
     tmfree(pThreadInfo->lines);
+free_smlheadlist_interlace_sml:
     for (int index = 0; index < pThreadInfo->ntables; index++) {
         tmfree(smlHeadList[index]);
     }
     tmfree(smlHeadList);
-    printStatPerThread(pThreadInfo);
-    return NULL;
+    
+    return code;
 }
 
 // sync write interlace data
@@ -10497,8 +10522,8 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     for (int t = 0; t < pThreadInfo->ntables; t++) {
         char* smlHead = (char *)calloc(HEAD_BUFF_LEN, 1);
         if (NULL == smlHead) {
-            errorPrint2("calloc failed! size:%d\n", HEAD_BUFF_LEN);
-            exit(EXIT_FAILURE);
+            errorPrint2("%s() LN%d: calloc failed! size:%d\n", __func__, __LINE__, HEAD_BUFF_LEN);
+            goto free_progressive_sml;
         }
         generateSmlHead(smlHead, stbInfo, pThreadInfo, t);
         smlHeadList[t] = smlHead;
@@ -10581,6 +10606,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
             }
         }
     }
+free_progressive_sml: 
     tmfree(pThreadInfo->lines);
     for (int index = 0; index < pThreadInfo->ntables; index++) {
         free(smlHeadList[index]);
