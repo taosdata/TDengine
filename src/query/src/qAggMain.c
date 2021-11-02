@@ -2706,8 +2706,7 @@ static void date_col_output_function(SQLFunctionCtx *pCtx) {
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  // the number of output rows should not affect the final number of rows, so set it to be 0
-  if (pCtx->numOfParams == 2) {
+  if (pCtx->colId <= TSDB_UD_COLUMN_INDEX) {    // user-specified constant value
     return;
   }
 

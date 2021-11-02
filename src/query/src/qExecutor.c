@@ -1278,7 +1278,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
         assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);
         for(int32_t j = 0; j < pBlock->info.rows; ++j) {
           char* dst = p->pData + j * p->info.bytes;
-          tVariantDump(&pOperator->pExpr[i].base.param[1], dst, p->info.type, true);
+          tVariantDump(&pOperator->pExpr[i].base.param[0], dst, p->info.type, true);
         }
       }
     }
@@ -2042,6 +2042,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
 
     pCtx->ptsOutputBuf = NULL;
 
+    pCtx->colId = pIndex->colId;
     pCtx->outputBytes  = pSqlExpr->resBytes;
     pCtx->outputType   = pSqlExpr->resType;
 
@@ -4062,7 +4063,7 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
 
     // Keep the cursor info of current table
     pTableQueryInfo->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
-    if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
+    if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR || pTag->nType == TSDB_DATA_TYPE_JSON) {
       qDebug("QInfo:0x%"PRIx64" find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
     } else {
       qDebug("QInfo:0x%"PRIx64" find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
@@ -4070,7 +4071,7 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
 
   } else {
     tsBufSetCursor(pRuntimeEnv->pTsBuf, &pTableQueryInfo->cur);
-    if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
+    if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR || pTag->nType == TSDB_DATA_TYPE_JSON) {
       qDebug("QInfo:0x%"PRIx64" find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
     } else {
       qDebug("QInfo:0x%"PRIx64" find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);

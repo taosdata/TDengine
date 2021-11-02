@@ -2254,9 +2254,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     SExprInfo* pExpr = tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_UDC,
                                                 getNewResColId(pCmd));
 
-    // NOTE: the first parameter is reserved for the tag column id during join query process.
-    pExpr->base.numOfParams = 2;
-    tVariantAssign(&pExpr->base.param[1], &pItem->pNode->value);
+    tVariantAssign(&pExpr->base.param[pExpr->base.numOfParams++], &pItem->pNode->value);
   }else if (tokenId == TK_ID || tokenId == TK_ARROW) {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 

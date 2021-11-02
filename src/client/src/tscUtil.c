@@ -664,22 +664,22 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bool convertNchar) {
   // generated the user-defined column result
   if (pInfo->pExpr->pExpr == NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
-    if (pInfo->pExpr->base.param[1].nType == TSDB_DATA_TYPE_NULL) {
+    if (pInfo->pExpr->base.param[0].nType == TSDB_DATA_TYPE_NULL) {
       setNullN(pRes->urow[i], pInfo->field.type, pInfo->field.bytes, (int32_t) pRes->numOfRows);
     } else {
       if (pInfo->field.type == TSDB_DATA_TYPE_NCHAR || pInfo->field.type == TSDB_DATA_TYPE_BINARY) {
-        assert(pInfo->pExpr->base.param[1].nLen <= pInfo->field.bytes);
+        assert(pInfo->pExpr->base.param[0].nLen <= pInfo->field.bytes);
 
         for (int32_t k = 0; k < pRes->numOfRows; ++k) {
           char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
 
-          memcpy(varDataVal(p), pInfo->pExpr->base.param[1].pz, pInfo->pExpr->base.param[1].nLen);
-          varDataSetLen(p, pInfo->pExpr->base.param[1].nLen);
+          memcpy(varDataVal(p), pInfo->pExpr->base.param[0].pz, pInfo->pExpr->base.param[0].nLen);
+          varDataSetLen(p, pInfo->pExpr->base.param[0].nLen);
         }
       } else {
         for (int32_t k = 0; k < pRes->numOfRows; ++k) {
           char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
-          memcpy(p, &pInfo->pExpr->base.param[1].i64, pInfo->field.bytes);
+          memcpy(p, &pInfo->pExpr->base.param[0].i64, pInfo->field.bytes);
         }
       }
     }
