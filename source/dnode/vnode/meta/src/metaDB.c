@@ -17,35 +17,57 @@
 #include "metaDef.h"
 
 int metaOpenDB(SMeta *pMeta) {
-  /* TODO */
-  pMeta->metaDB.pDB = tkvOpen(NULL, "db");
+  char *             err = NULL;
+  rocksdb_options_t *pOpts;
+
+  pOpts = rocksdb_options_create();
+  if (pOpts == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+
+  // Create LRU cache
+  if (pMeta->options.lruCacheSize) {
+    pMeta->metaDB.pCache = rocksdb_cache_create_lru(pMeta->options.lruCacheSize);
+    if (pMeta->metaDB.pCache == NULL) {
+      // TODO: handle error
+      return -1;
+    }
+
+    rocksdb_options_set_row_cache(pOpts, pMeta->metaDB.pCache);
+  }
+
+  // Open raw data DB
+  pMeta->metaDB.pDB = rocksdb_open(pOpts, "db", &err);
   if (pMeta->metaDB.pDB == NULL) {
-    //   TODO
+    // TODO: handle error
     return -1;
   }
 
-  pMeta->metaDB.pIdx = tkvOpen(NULL, "index");
+  // Open index DB
+  pMeta->metaDB.pIdx = rocksdb_open(pOpts, "index", &err);
   if (pMeta->metaDB.pIdx == NULL) {
-    /* TODO */
+    // TODO: handle error
+    rocksdb_close(pMeta->metaDB.pDB);
     return -1;
-  }
-
-  { /* TODO: for cache*/
   }
 
   return 0;
 }
 
 void metaCloseDB(SMeta *pMeta) { /* TODO */
-  {
-    // TODO: clear cache
-  }
-
+  // Close index DB
   if (pMeta->metaDB.pIdx) {
-    tkvClose(pMeta->metaDB.pIdx);
+    rocksdb_close(pMeta->metaDB.pIdx);
   }
 
+  // Close raw data DB
   if (pMeta->metaDB.pDB) {
-    tkvClose(pMeta->metaDB.pIdx);
+    rocksdb_close(pMeta->metaDB.pDB);
+  }
+
+  // Destroy cache
+  if (pMeta->metaDB.pCache) {
+    rocksdb_cache_destroy(pMeta->metaDB.pCache);
   }
 }

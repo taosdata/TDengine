@@ -17,16 +17,18 @@
 #define _TD_META_DB_H_
 
 #include "meta.h"
-#include "tkv.h"
+// #include "tkv.h"
+
+#include "rocksdb/c.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SMetaDB {
-  STkvDb *   pDB;
-  STkvDb *   pIdx;
-  STkvCache *pCache;
+  rocksdb_t *      pDB;
+  rocksdb_t *      pIdx;
+  rocksdb_cache_t *pCache;
 } SMetaDB;
 
 int  metaOpenDB(SMeta *pMeta);
