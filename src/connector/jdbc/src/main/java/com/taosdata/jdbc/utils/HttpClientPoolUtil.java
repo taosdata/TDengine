@@ -5,6 +5,7 @@ import com.taosdata.jdbc.TSDBErrorNumbers;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
 import org.apache.http.HttpEntity;
+import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
@@ -30,11 +31,11 @@ import java.sql.SQLException;
 public class HttpClientPoolUtil {
 
     private static final String DEFAULT_CONTENT_TYPE = "application/json";
-    private static final int DEFAULT_MAX_TOTAL = 200;
-    private static final int DEFAULT_MAX_PER_ROUTE = 20;
-    private static final int DEFAULT_TIME_OUT = 15000;
-    private static final int DEFAULT_HTTP_KEEP_TIME = 15000;
     private static final int DEFAULT_MAX_RETRY_COUNT = 5;
+
+    private static final int DEFAULT_MAX_TOTAL = 50;
+    private static final int DEFAULT_MAX_PER_ROUTE = 5;
+    private static final int DEFAULT_HTTP_KEEP_TIME = -1;
 
     private static final ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
         HeaderElementIterator it = new BasicHeaderElementIterator(response.headerIterator(HTTP.CONN_KEEP_ALIVE));
@@ -52,29 +53,19 @@ public class HttpClientPoolUtil {
         return DEFAULT_HTTP_KEEP_TIME * 1000;
     };
 
-    private static final HttpRequestRetryHandler retryHandler = (exception, executionCount, httpContext) -> {
-        if (executionCount >= DEFAULT_MAX_RETRY_COUNT)
-            // do not retry if over max retry count
-            return false;
-        if (exception instanceof InterruptedIOException)
-            // timeout
-            return false;
-        if (exception instanceof UnknownHostException)
-            // unknown host
-            return false;
-        if (exception instanceof SSLException)
-            // SSL handshake exception
-            return false;
-        return true;
-    };
-
     private static CloseableHttpClient httpClient;
 
     static {
+
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
         connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);
-        httpClient = HttpClients.custom().setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY).setConnectionManager(connectionManager).setRetryHandler(retryHandler).build();
+
+        httpClient = HttpClients.custom()
+                .setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY)
+                .setConnectionManager(connectionManager)
+                .setRetryHandler((exception, executionCount, httpContext) -> executionCount < DEFAULT_MAX_RETRY_COUNT)
+                .build();
     }
 
     /*** execute GET request ***/
@@ -118,9 +109,10 @@ public class HttpClientPoolUtil {
             HttpContext context = HttpClientContext.create();
             CloseableHttpResponse httpResponse = httpClient.execute(method, context);
             httpEntity = httpResponse.getEntity();
-            if (httpEntity != null) {
-                responseBody = EntityUtils.toString(httpEntity, StandardCharsets.UTF_8);
+            if (httpEntity == null) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_HTTP_ENTITY_IS_NULL, "httpEntity is null, sql: " + data);
             }
+            responseBody = EntityUtils.toString(httpEntity, StandardCharsets.UTF_8);
         } catch (ClientProtocolException e) {
             e.printStackTrace();
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESTFul_Client_Protocol_Exception, e.getMessage());
@@ -139,9 +131,6 @@ public class HttpClientPoolUtil {
     private static HttpRequestBase getRequest(String uri, String methodName) {
         HttpRequestBase method;
         RequestConfig requestConfig = RequestConfig.custom()
-                .setSocketTimeout(DEFAULT_TIME_OUT * 1000)
-                .setConnectTimeout(DEFAULT_TIME_OUT * 1000)
-                .setConnectionRequestTimeout(DEFAULT_TIME_OUT * 1000)
                 .setExpectContinueEnabled(false)
                 .build();
         if (HttpPut.METHOD_NAME.equalsIgnoreCase(methodName)) {
