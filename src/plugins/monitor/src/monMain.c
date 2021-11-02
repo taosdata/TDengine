@@ -826,6 +826,17 @@ static int32_t monBuildDnodeUptimeSql(char *sql) {
   return sprintf(sql, ", %" PRId64, dnodeUptime);
 }
 
+static int32_t monBuildDnodeIoSql(char *sql) {
+  float rcharKB = 0, wcharKB = 0;
+  float rbyteKB = 0, wbyteKB = 0;
+  rcharKB = tsMonStat.io_read;
+  wcharKB = tsMonStat.io_write;
+  rbyteKB = tsMonStat.io_read_disk;
+  wbyteKB = tsMonStat.io_write_disk;
+
+  return sprintf(sql, ", %f, %f, %f, %f", rcharKB, wcharKB, rbyteKB, wbyteKB);
+}
+
 static int32_t monBuildNetworkIOSql(char *sql) {
   float netInKb = 0, netOutKb = 0;
   bool  suc = taosGetNetworkIO(&netInKb, &netOutKb);
@@ -982,7 +993,7 @@ static void monSaveDnodesInfo() {
   pos += monBuildMemorySql(sql + pos);
   pos += monBuildDnodeDiskSql(sql + pos);
   pos += monBuildNetworkIOSql(sql + pos);
-  pos += monBuildIoSql(sql + pos);
+  pos += monBuildDnodeIoSql(sql + pos);
   pos += monBuildDnodeReqSql(sql + pos);
   pos += monBuildDnodeErrorsSql(sql + pos);
   pos += monBuildDnodeVnodesSql(sql + pos);
