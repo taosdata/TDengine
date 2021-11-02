@@ -1257,7 +1257,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
     int16_t          index = pColIndex->colIndex;
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, index);
 
-    assert(pColInfo->info.colId == pColIndex->colId);
+    assert(pColInfo->info.colId <= TSDB_RES_COL_ID || (pColInfo->info.colId >= 0 && pColInfo->info.colId == pColIndex->colId));
     double v1 = 0, v2 = 0, v = 0;
 
     if (functionId == TSDB_FUNC_INTERP) {
@@ -5924,7 +5924,9 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
   SQLFunctionCtx* pCtx = NULL;
 
   for (int32_t i = 1; i < pOperatorInfo->numOfOutput; ++i) {
-    assert(pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_INTERP || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TS_DUMMY);
+    assert(pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_INTERP 
+        || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TS_DUMMY
+        || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TAG_DUMMY);
 
     if (pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_INTERP) {
       pCtx = &pEveryInfo->binfo.pCtx[i];
@@ -5971,6 +5973,10 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
   }
 
   if (tsCols == NULL && pCtx->startTs > pEveryInfo->tableEndKey && ascQuery) {
+    if (pQueryAttr->range.ekey == INT64_MIN) {
+      goto group_finished_exit;
+    }
+    
     if (pQueryAttr->fillType == TSDB_FILL_NONE || pQueryAttr->fillType == TSDB_FILL_LINEAR || pQueryAttr->fillType == TSDB_FILL_NEXT) {
       goto group_finished_exit;
     }
@@ -5978,7 +5984,7 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     if (pQueryAttr->fillType == TSDB_FILL_PREV) {
       TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
       if (lastTs != INT64_MIN) {
-        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, lastTs, -1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pEveryInfo->binfo.pRes->pDataBlock, lastTs, -1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
       } else {
         goto group_finished_exit;
       }
@@ -6125,8 +6131,6 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
       return pInfo->pRes;
     }
     
-    assert(pEveryInfo->groupDone);
-
     if (pRes->info.rows > 0) {    
       qDebug("2");
       copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
