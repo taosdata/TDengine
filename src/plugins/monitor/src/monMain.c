@@ -34,13 +34,15 @@
 #define monDebug(...) { if (monDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 #define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 
-#define SQL_LENGTH        1030
-#define LOG_LEN_STR       512
-#define IP_LEN_STR        TSDB_EP_LEN
-#define VGROUP_STATUS_LEN 512
-#define DNODE_INFO_LEN    128
-#define QUERY_ID_LEN      24
-#define CHECK_INTERVAL    1000
+#define SQL_LENGTH          1030
+#define LOG_LEN_STR         512
+#define IP_LEN_STR          TSDB_EP_LEN
+#define VGROUP_STATUS_LEN   512
+#define DNODE_INFO_LEN      128
+#define QUERY_ID_LEN        24
+#define MAX_EXPIRE_TIME_LEN 20
+#define MAX_TIMESERIES_LEN  30
+#define CHECK_INTERVAL      1000
 
 typedef enum {
   MON_CMD_CREATE_DB,
@@ -59,6 +61,7 @@ typedef enum {
   MON_CMD_CREATE_MT_VGROUPS,
   MON_CMD_CREATE_MT_LOGS,
   MON_CMD_CREATE_TB_DNODE_LOG,
+  MON_CMD_CREATE_TB_GRANTS,
   MON_CMD_MAX
 } EMonCmd;
 
@@ -88,6 +91,7 @@ static void  monSaveDnodesInfo();
 static void  monSaveVgroupsInfo();
 static void  monSaveSlowQueryInfo();
 static void  monSaveDisksInfo();
+static void  monSaveGrantsInfo();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
 extern int32_t (*monStartSystemFp)();
@@ -204,6 +208,7 @@ static void *monThreadFunc(void *param) {
         monSaveVgroupsInfo();
         monSaveSlowQueryInfo();
         monSaveDisksInfo();
+        monSaveGrantsInfo();
       }
     }
   }
@@ -330,6 +335,11 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
   } else if (cmd == MON_CMD_CREATE_TB_DNODE_LOG) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dnode_%d_log using %s.logs tags(%d, '%s')", tsMonitorDbName,
              dnodeGetDnodeId(), tsMonitorDbName, dnodeGetDnodeId(), tsLocalEp);
+  } else if (cmd == MON_CMD_CREATE_TB_GRANTS) {
+    snprintf(sql, SQL_LENGTH,
+             "create table if not exists %s.grants_info(ts timestamp"
+             ", expire_time binary(%d), timeseries binary(%d))",
+             tsMonitorDbName, MAX_EXPIRE_TIME_LEN, MAX_TIMESERIES_LEN);
   }
 
   sql[SQL_LENGTH] = 0;
@@ -1025,6 +1035,43 @@ static void monSaveDisksInfo() {
     monIncSubmitReqCnt();
     monDebug("successfully to save disks_%d info, sql:%s", dnodeGetDnodeId(), tsMonitor.sql);
   }
+}
+
+static void monSaveGrantsInfo() {
+  int64_t ts = taosGetTimestampUs();
+  char *  sql = tsMonitor.sql;
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.grants_info values(%" PRId64, tsMonitorDbName, ts);
+
+  TAOS_RES *result = taos_query(tsMonitor.conn, "show grants");
+
+  TAOS_ROW    row;
+  int32_t     num_fields = taos_num_fields(result);
+  TAOS_FIELD *fields = taos_fetch_fields(result);
+
+  while ((row = taos_fetch_row(result))) {
+    for (int i = 0; i < num_fields; ++i) {
+      if (strcmp(fields[i].name, "expire time") == 0) {
+        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+      } else if (strcmp(fields[i].name, "timeseries") == 0) {
+        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\")", (char *)row[i]);
+      }
+    }
+  }
+
+  monError("sql:%s", sql);
+  taos_free_result(result);
+
+  void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to save grants info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
+  } else {
+    monIncSubmitReqCnt();
+    monDebug("successfully to save grants info, sql:%s", tsMonitor.sql);
+  }
+
 }
 
 static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
