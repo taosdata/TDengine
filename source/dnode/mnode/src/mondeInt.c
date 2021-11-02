@@ -250,3 +250,6 @@ void mnodeCleanup() {
     mInfo("mnode is cleaned up");
   }
 }
+
+int32_t mnodeStart() { return 0; }
+void    mnodeStop() {}

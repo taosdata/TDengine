@@ -66,41 +66,12 @@ typedef struct SVnodeMsg {
   char    pCont[];
 } SVnodeMsg;
 
-/**
- * Start initialize vnode module.
- *
- * @return Error code.
- */
 int32_t vnodeInit();
+void    vnodeCleanup();
 
-/**
- * Cleanup vnode module.
- */
-void vnodeCleanup();
-
-/**
- * Get the statistical information of vnode.
- *
- * @param pVnode,
- * @param pStat, statistical information.
- * @return Error Code.
- */
 int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat);
-
-/**
- * Get the status of all vnodes.
- *
- * @param pVnode,
- * @param status, status information.
- * @return Error Code.
- */
 int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus);
 
-/**
- * Operation functions of vnode
- *
- * @return Error Code.
- */
 SVnode *vnodeOpen(int32_t vgId, const char *path);
 void    vnodeClose(SVnode *pVnode);
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
@@ -109,14 +80,7 @@ int32_t vnodeDrop(SVnode *pVnode);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 
-/**
- * Interface for processing messages.
- *
- * @param pVnode,
- * @param pMsg, message to be processed.
- *
- */
-int32_t vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg);
+void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

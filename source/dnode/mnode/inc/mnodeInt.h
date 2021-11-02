@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
+
 tmr_h     mnodeGetTimer();
 int32_t   mnodeGetDnodeId();
 int64_t   mnodeGetClusterId();

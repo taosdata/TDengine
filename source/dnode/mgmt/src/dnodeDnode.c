@@ -35,7 +35,6 @@ static struct {
   int8_t          threadStop;
   pthread_t      *threadId;
   pthread_mutex_t mutex;
-  MsgFp           msgFp[TSDB_MSG_TYPE_MAX];
 } tsDnode = {0};
 
 int32_t dnodeGetDnodeId() {
@@ -127,7 +126,7 @@ static void dnodeUpdateMnodeEpSet(SEpSet *pEpSet) {
   pthread_mutex_unlock(&tsDnode.mutex);
 }
 
-static void dnodePrintEps() {
+static void dnodePrintDnodes() {
   dDebug("print dnode endpoint list, num:%d", tsDnode.dnodeEps->dnodeNum);
   for (int32_t i = 0; i < tsDnode.dnodeEps->dnodeNum; i++) {
     SDnodeEp *ep = &tsDnode.dnodeEps->dnodeEps[i];
@@ -135,7 +134,7 @@ static void dnodePrintEps() {
   }
 }
 
-static void dnodeResetEps(SDnodeEps *pEps) {
+static void dnodeResetDnodes(SDnodeEps *pEps) {
   assert(pEps != NULL);
   int32_t size = sizeof(SDnodeEps) + pEps->dnodeNum * sizeof(SDnodeEp);
 
@@ -171,7 +170,7 @@ static void dnodeResetEps(SDnodeEps *pEps) {
     taosHashPut(tsDnode.dnodeHash, &ep->dnodeId, sizeof(int32_t), ep, sizeof(SDnodeEp));
   }
 
-  dnodePrintEps();
+  dnodePrintDnodes();
 }
 
 static bool dnodeIsEpChanged(int32_t dnodeId, char *epStr) {
@@ -189,7 +188,7 @@ static bool dnodeIsEpChanged(int32_t dnodeId, char *epStr) {
   return changed;
 }
 
-static int32_t dnodeReadEps() {
+static int32_t dnodeReadDnodes() {
   int32_t len = 0;
   int32_t maxLen = 30000;
   char   *content = calloc(1, maxLen + 1);
@@ -199,59 +198,59 @@ static int32_t dnodeReadEps() {
   fp = fopen(tsDnode.file, "r");
   if (!fp) {
     dDebug("file %s not exist", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
 
   len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s since content is null", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read %s since invalid json format", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
 
   cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
   if (!dnodeId || dnodeId->type != cJSON_String) {
     dError("failed to read %s since dnodeId not found", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
   tsDnode.dnodeId = atoi(dnodeId->valuestring);
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
     dError("failed to read %s since clusterId not found", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
   tsDnode.clusterId = atoll(clusterId->valuestring);
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
   if (!dropped || dropped->type != cJSON_String) {
     dError("failed to read %s since dropped not found", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
   tsDnode.dropped = atoi(dropped->valuestring);
 
   cJSON *dnodeInfos = cJSON_GetObjectItem(root, "dnodeInfos");
   if (!dnodeInfos || dnodeInfos->type != cJSON_Array) {
     dError("failed to read %s since dnodeInfos not found", tsDnode.file);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
 
   int32_t dnodeInfosSize = cJSON_GetArraySize(dnodeInfos);
   if (dnodeInfosSize <= 0) {
     dError("failed to read %s since dnodeInfos size:%d invalid", tsDnode.file, dnodeInfosSize);
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
 
   tsDnode.dnodeEps = calloc(1, dnodeInfosSize * sizeof(SDnodeEp) + sizeof(SDnodeEps));
   if (tsDnode.dnodeEps == NULL) {
     dError("failed to calloc dnodeEpList since %s", strerror(errno));
-    goto PRASE_EPS_OVER;
+    goto PRASE_DNODE_OVER;
   }
   tsDnode.dnodeEps->dnodeNum = dnodeInfosSize;
 
@@ -264,36 +263,36 @@ static int32_t dnodeReadEps() {
     cJSON *dnodeId = cJSON_GetObjectItem(dnodeInfo, "dnodeId");
     if (!dnodeId || dnodeId->type != cJSON_String) {
       dError("failed to read %s, dnodeId not found", tsDnode.file);
-      goto PRASE_EPS_OVER;
+      goto PRASE_DNODE_OVER;
     }
     pEp->dnodeId = atoi(dnodeId->valuestring);
 
     cJSON *isMnode = cJSON_GetObjectItem(dnodeInfo, "isMnode");
     if (!isMnode || isMnode->type != cJSON_String) {
       dError("failed to read %s, isMnode not found", tsDnode.file);
-      goto PRASE_EPS_OVER;
+      goto PRASE_DNODE_OVER;
     }
     pEp->isMnode = atoi(isMnode->valuestring);
 
     cJSON *dnodeFqdn = cJSON_GetObjectItem(dnodeInfo, "dnodeFqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
       dError("failed to read %s, dnodeFqdn not found", tsDnode.file);
-      goto PRASE_EPS_OVER;
+      goto PRASE_DNODE_OVER;
     }
     tstrncpy(pEp->dnodeFqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
 
     cJSON *dnodePort = cJSON_GetObjectItem(dnodeInfo, "dnodePort");
     if (!dnodePort || dnodePort->type != cJSON_String) {
       dError("failed to read %s, dnodePort not found", tsDnode.file);
-      goto PRASE_EPS_OVER;
+      goto PRASE_DNODE_OVER;
     }
     pEp->dnodePort = atoi(dnodePort->valuestring);
   }
 
   dInfo("succcessed to read file %s", tsDnode.file);
-  dnodePrintEps();
+  dnodePrintDnodes();
 
-PRASE_EPS_OVER:
+PRASE_DNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
@@ -303,13 +302,13 @@ PRASE_EPS_OVER:
     return -1;
   }
 
-  dnodeResetEps(tsDnode.dnodeEps);
+  dnodeResetDnodes(tsDnode.dnodeEps);
 
   terrno = 0;
   return 0;
 }
 
-static int32_t dnodeWriteEps() {
+static int32_t dnodeWriteDnodes() {
   FILE *fp = fopen(tsDnode.file, "w");
   if (!fp) {
     dError("failed to write %s since %s", tsDnode.file, strerror(errno));
@@ -391,7 +390,7 @@ static void dnodeUpdateCfg(SDnodeCfg *pCfg) {
   tsDnode.dropped = pCfg->dropped;
   dInfo("dnodeId is set to %d, clusterId is set to %" PRId64, pCfg->dnodeId, pCfg->clusterId);
 
-  dnodeWriteEps();
+  dnodeWriteDnodes();
   pthread_mutex_unlock(&tsDnode.mutex);
 }
 
@@ -401,13 +400,13 @@ static void dnodeUpdateDnodeEps(SDnodeEps *pEps) {
   pthread_mutex_lock(&tsDnode.mutex);
 
   if (pEps->dnodeNum != tsDnode.dnodeEps->dnodeNum) {
-    dnodeResetEps(pEps);
-    dnodeWriteEps();
+    dnodeResetDnodes(pEps);
+    dnodeWriteDnodes();
   } else {
     int32_t size = pEps->dnodeNum * sizeof(SDnodeEp) + sizeof(SDnodeEps);
     if (memcmp(tsDnode.dnodeEps, pEps, size) != 0) {
-      dnodeResetEps(pEps);
-      dnodeWriteEps();
+      dnodeResetDnodes(pEps);
+      dnodeWriteDnodes();
     }
   }
 
@@ -493,9 +492,9 @@ int32_t dnodeInitDnode() {
     return TSDB_CODE_DND_OUT_OF_MEMORY;
   }
 
-  int32_t code = dnodeReadEps();
+  int32_t code = dnodeReadDnodes();
   if (code != 0) {
-    dError("failed to read dnode endpoint file since %s", tstrerror(code));
+    dError("failed to read file:%s since %s", tsDnode.file, tstrerror(code));
     return code;
   }
 

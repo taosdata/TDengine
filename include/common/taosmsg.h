@@ -832,10 +832,8 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t  dnodeId;
-  int32_t  mnodeNum;
-  SDnodeEp mnodeEps[];
-} SCreateMnodeMsg;
+  int32_t   dnodeId;
+} SCreateMnodeMsg, SDropMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
