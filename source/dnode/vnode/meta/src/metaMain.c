@@ -22,9 +22,6 @@
 
 static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions);
 static void   metaFree(SMeta *pMeta);
-static int    metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTableOpts *pSuperTableOpts);
-static int    metaCreateChildTable(SMeta *pMeta, const char *tbname, const SChildTableOpts *pChildTableOpts);
-static int    metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormalTableOpts *pNormalTableOpts);
 
 SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
   SMeta *pMeta = NULL;
@@ -101,6 +98,10 @@ static void metaFree(SMeta *pMeta) {
 
 // OLD -------------------------------------------------------------------
 #if 0
+static int    metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTableOpts *pSuperTableOpts);
+static int    metaCreateChildTable(SMeta *pMeta, const char *tbname, const SChildTableOpts *pChildTableOpts);
+static int    metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormalTableOpts *pNormalTableOpts);
+
 int metaCreateTable(SMeta *pMeta, const STableOptions *pTableOpts) {
   size_t vallen;
   char * pUid;
