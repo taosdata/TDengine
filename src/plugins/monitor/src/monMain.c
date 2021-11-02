@@ -1206,14 +1206,15 @@ static void monSaveGrantsInfo() {
 static void monSaveHttpReqInfo() {
   int64_t ts = taosGetTimestampUs();
   char *  sql = tsMonitor.sql;
-  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dnode_%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
+  int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.restful_%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
 
   SDnodeStatisInfo info = dnodeGetStatisInfo();
+  pos += snprintf(sql + pos, SQL_LENGTH, ", %d", info.httpReqNum);
   for (int32_t i = 0; i < tListLen(monHttpStatusTable); ++i) {
     int32_t status = info.httpStatusCodeErrs[i];
-    pos += snprintf(sql, SQL_LENGTH, ", %d", status);
+    pos += snprintf(sql + pos, SQL_LENGTH, ", %d", status);
   }
-  pos += snprintf(sql, SQL_LENGTH, ")");
+  pos += snprintf(sql + pos, SQL_LENGTH, ")");
 
   monError("sql:%s", sql);
 
