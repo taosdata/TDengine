@@ -17,6 +17,7 @@
 #include "metaDef.h"
 
 int metaOpenDB(SMeta *pMeta) {
+#if 0
   char *             err = NULL;
   rocksdb_options_t *dbOptions;
   rocksdb_options_t *idxOptions;
@@ -69,10 +70,12 @@ int metaOpenDB(SMeta *pMeta) {
 
   rocksdb_options_destroy(idxOptions);
 
+#endif
   return 0;
 }
 
 void metaCloseDB(SMeta *pMeta) { /* TODO */
+#if 0
   // Close index DB
   if (pMeta->metaDB.pIdx) {
     rocksdb_close(pMeta->metaDB.pIdx);
@@ -87,4 +90,5 @@ void metaCloseDB(SMeta *pMeta) { /* TODO */
   if (pMeta->metaDB.pCache) {
     rocksdb_cache_destroy(pMeta->metaDB.pCache);
   }
+#endif
 }

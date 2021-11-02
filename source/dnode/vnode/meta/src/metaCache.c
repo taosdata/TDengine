@@ -13,20 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_DB_H_
-#define _TD_META_DB_H_
-
 #include "meta.h"
+#include "metaDef.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int  metaOpenDB(SMeta *pMeta);
-void metaCloseDB(SMeta *pMeta);
-
-#ifdef __cplusplus
+int metaOpenCache(SMeta *pMeta) {
+  // TODO
+  return 0;
 }
-#endif
 
-#endif /*_TD_META_DB_H_*/
+void metaCloseCache(SMeta *pMeta) {
+  // TODO
+}

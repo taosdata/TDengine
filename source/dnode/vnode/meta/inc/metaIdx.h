@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_DB_H_
-#define _TD_META_DB_H_
+#ifndef _TD_META_IDX_H_
+#define _TD_META_IDX_H_
 
 #include "meta.h"
 
@@ -22,11 +22,11 @@
 extern "C" {
 #endif
 
-int  metaOpenDB(SMeta *pMeta);
-void metaCloseDB(SMeta *pMeta);
+int  metaOpenIdx(SMeta *pMeta);
+void metaCloseIdx(SMeta *pMeta);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_META_DB_H_*/
+#endif /*_TD_META_IDX_H_*/
