@@ -13,74 +13,62 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
-#include "metaDef.h"
 #include "tcoding.h"
 
-static int metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTableOpts *pSuperTableOpts);
-static int metaCreateChildTable(SMeta *pMeta, const char *tbname, const SChildTableOpts *pChildTableOpts);
-static int metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormalTableOpts *pNormalTableOpts);
+#include "meta.h"
+#include "metaDef.h"
+#include "metaOptions.h"
+#include "metaDB.h"
 
-SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOpts) {
+static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions);
+static void   metaFree(SMeta *pMeta);
+static int    metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTableOpts *pSuperTableOpts);
+static int    metaCreateChildTable(SMeta *pMeta, const char *tbname, const SChildTableOpts *pChildTableOpts);
+static int    metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormalTableOpts *pNormalTableOpts);
+
+SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
   SMeta *pMeta = NULL;
 
-  pMeta = (SMeta *)calloc(1, sizeof(*pMeta));
-  if (pMeta == NULL) {
+  // Set default options
+  if (pMetaOptions == NULL) {
+    pMetaOptions = &defaultMetaOptions;
+  }
+
+  // Validate the options
+  if (metaValidateOptions(pMetaOptions) < 0) {
+    // TODO: deal with error
     return NULL;
   }
 
-  // TODO: check if file exists and handle the error
-  taosMkDir("meta");
+  // Allocate handle
+  pMeta = metaNew(path, pMetaOptions);
+  if (pMeta == NULL) {
+    // TODO: handle error
+    return NULL;
+  }
 
-  // Open tableDb
-  STkvOpts *tableDbOpts = tkvOptsCreate();
-  tkvOptsSetCreateIfMissing(tableDbOpts, 1);
-  pMeta->tableDb = tkvOpen(tableDbOpts, "meta/table_db");
-  tkvOptsDestroy(tableDbOpts);
+  // Create META path
+  taosMkDir(path);
 
-  // Open tbnameDb
-  STkvOpts *tbnameDbOpts = tkvOptsCreate();
-  tkvOptsSetCreateIfMissing(tbnameDbOpts, 1);
-  pMeta->tbnameDb = tkvOpen(tbnameDbOpts, "meta/tbname_db");
-  tkvOptsDestroy(tbnameDbOpts);
+  // Open the DBs needed
+  if (metaOpenDB(pMeta) < 0) {
+    // TODO: handle error
+    metaFree(pMeta);
+    return NULL;
+  }
 
-  // Open schemaDb
-  STkvOpts *schemaDbOpts = tkvOptsCreate();
-  tkvOptsSetCreateIfMissing(schemaDbOpts, 1);
-  pMeta->schemaDb = tkvOpen(schemaDbOpts, "meta/schema_db");
-  tkvOptsDestroy(schemaDbOpts);
-
-  // Open tagDb
-  STkvOpts *tagDbOpts = tkvOptsCreate();
-  tkvOptsSetCreateIfMissing(tagDbOpts, 1);
-  pMeta->tagDb = tkvOpen(tagDbOpts, "meta/tag_db");
-  tkvOptsDestroy(tagDbOpts);
-
-  // Open tagIdx
-  STkvOpts *tagIdxDbOpts = tkvOptsCreate();
-  tkvOptsSetCreateIfMissing(tagIdxDbOpts, 1);
-  pMeta->tagIdx = tkvOpen(tagIdxDbOpts, "meta/tag_idx_db");
-  tkvOptsDestroy(tagIdxDbOpts);
-
-  // TODO: need to figure out how to persist the START UID
-  tableUidGeneratorInit(&(pMeta->uidGenerator), IVLD_TB_UID);
   return pMeta;
 }
 
 void metaClose(SMeta *pMeta) {
   if (pMeta) {
     tableUidGeneratorClear(&pMeta->uidGenerator);
-
-    tkvClose(pMeta->tagIdx);
-    tkvClose(pMeta->tagDb);
-    tkvClose(pMeta->schemaDb);
-    tkvClose(pMeta->tbnameDb);
-    tkvClose(pMeta->tableDb);
-
+    metaCloseDB(pMeta);
     free(pMeta);
   }
 }
 
+#if 0
 int metaCreateTable(SMeta *pMeta, const STableOptions *pTableOpts) {
   size_t vallen;
   char * pUid;
@@ -106,8 +94,37 @@ int metaCreateTable(SMeta *pMeta, const STableOptions *pTableOpts) {
 
   return 0;
 }
+#endif
 
 /* ------------------------ STATIC METHODS ------------------------ */
+static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions) {
+  SMeta *pMeta;
+  size_t psize = strlen(path);
+
+  pMeta = (SMeta *)calloc(1, sizeof(*pMeta));
+  if (pMeta == NULL) {
+    return NULL;
+  }
+
+  pMeta->path = strdup(path);
+  if (pMeta->path == NULL) {
+    return NULL;
+  }
+
+  metaOptionsCopy(&(pMeta->options), pMetaOptions);
+
+  return pMeta;
+};
+
+static void metaFree(SMeta *pMeta) {
+  if (pMeta) {
+    tfree(pMeta->path);
+    free(pMeta);
+  }
+}
+
+// OLD -------------------------------------------------------------------
+#if 0
 static int metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTableOpts *pSuperTableOpts) {
   size_t vallen;
   size_t keylen;
@@ -258,3 +275,5 @@ void metaTableOptsClear(STableOptions *pTableOpts) {
 }
 
 void metaDestroy(const char *path) { taosRemoveDir(path); }
+
+#endif

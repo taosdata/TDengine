@@ -15,12 +15,12 @@
 
 #include "metaUid.h"
 
-tb_uid_t generateUid(STableUidGenerator *pGen) {
+tb_uid_t generateUid(STbUidGenerator *pGen) {
   // Generate a new table UID
   return ++(pGen->nextUid);
 }
 
-void tableUidGeneratorInit(STableUidGenerator *pGen, tb_uid_t suid) {
+void tableUidGeneratorInit(STbUidGenerator *pGen, tb_uid_t suid) {
   // Init a generator
   pGen->nextUid = suid;
 }

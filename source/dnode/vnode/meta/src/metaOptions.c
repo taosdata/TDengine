@@ -26,5 +26,11 @@ void metaOptionsClear(SMetaOptions *pMetaOptions) {
   // TODO
 }
 
+int metaValidateOptions(const SMetaOptions *pMetaOptions) {
+  // TODO
+  return 0;
+}
+
+void metaOptionsCopy(SMetaOptions *pDest, const SMetaOptions *pSrc) { memcpy(pDest, pSrc, sizeof(*pSrc)); }
+
 /* ------------------------ STATIC METHODS ------------------------ */
-static void metaOptionsCopy(SMetaOptions *pDest, const SMetaOptions *pSrc) { memcpy(pDest, pSrc, sizeof(*pSrc)); }
