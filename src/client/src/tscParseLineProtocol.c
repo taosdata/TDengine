@@ -631,11 +631,12 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
       if (code != 0) {
         tscError("SML:0x%"PRIx64" reconcile point schema failed. can not create %s", info->id, pointSchema->sTableName);
         return code;
-      } else {
-        pointSchema->precision = dbSchema.precision;
-        destroySmlSTableSchema(&dbSchema);
       }
-    } else if (code == TSDB_CODE_SUCCESS) {
+    }
+
+    if (code == TSDB_CODE_SUCCESS) {
+      pointSchema->precision = dbSchema.precision;
+
       size_t pointTagSize = taosArrayGetSize(pointSchema->tags);
       size_t pointFieldSize = taosArrayGetSize(pointSchema->fields);
 
