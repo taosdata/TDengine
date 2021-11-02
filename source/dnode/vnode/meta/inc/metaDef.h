@@ -17,7 +17,7 @@
 #define _TD_META_DEF_H_
 
 #include "metaDB.h"
-#include "metaUid.h"
+#include "metaTbUid.h"
 
 #ifdef __cplusplus
 extern "C" {

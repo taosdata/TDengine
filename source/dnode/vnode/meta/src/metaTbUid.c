@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaUid.h"
+#include "metaTbUid.h"
 
 tb_uid_t generateUid(STbUidGenerator *pGen) {
   // Generate a new table UID
