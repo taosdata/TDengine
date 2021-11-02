@@ -704,10 +704,10 @@ static int32_t monBuildDnodeReqRateSql(char *sql) {
   float httpReqRate = info.httpReqNum / interval;
   float queryReqRate = info.queryReqNum / interval;
   float submitReqRate = info.submitReqNum / interval;
+  dnodeClearStatisInfo();
   return sprintf(sql, ", %d, %f, %d, %f, %d, %f", info.httpReqNum, httpReqRate,
                                                    info.queryReqNum - monFetchQueryReqCnt(), queryReqRate,
                                                    info.submitReqNum - monFetchSubmitReqCnt(), submitReqRate);
-  dnodeClearStatisInfo();
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {
