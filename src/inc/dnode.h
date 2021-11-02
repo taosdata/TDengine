@@ -26,6 +26,9 @@ extern "C" {
 typedef struct {
   int32_t queryReqNum;
   int32_t submitReqNum;
+  int32_t submitReqSucNum;
+  int32_t submitRowNum;
+  int32_t submitRowSucNum;
   int32_t httpReqNum;
 } SStatisInfo;
 

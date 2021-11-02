@@ -27,6 +27,10 @@
 #define MAX_QUEUED_MSG_NUM 100000
 #define MAX_QUEUED_MSG_SIZE 1024*1024*1024  //1GB
 
+static int32_t tsSubmitReqSucNum = 0;
+static int32_t tsSubmitRowNum = 0;
+static int32_t tsSubmitRowSucNum = 0;
+
 extern void *  tsDnodeTmr;
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, SRspRet *);
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
@@ -163,7 +167,13 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
     pRsp = pRet->rsp;
   }
 
-  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) {
+    code = terrno;
+  } else {
+    atomic_fetch_add_32(&tsSubmitReqSucNum, 1);
+  }
+  atomic_fetch_add_32(&tsSubmitRowNum, pRsp->numOfRows);
+  atomic_fetch_add_32(&tsSubmitRowSucNum, pRsp->affectedRows);
 
   return code;
 }
@@ -424,4 +434,16 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
 
   if (extraSleep)
     taosMsleep(900);
+}
+
+void vnodeGetStatisInfo(SStatisInfo *info) {
+  info->submitReqSucNum = atomic_load_32(&tsSubmitReqSucNum);
+  info->submitRowNum = atomic_load_32(&tsSubmitRowNum);
+  info->submitRowSucNum = atomic_load_32(&tsSubmitRowSucNum);
+}
+
+void vnodeClearStatisInfo() {
+  atomic_exchange_32(&tsSubmitReqSucNum, 0);
+  atomic_exchange_32(&tsSubmitRowNum, 0);
+  atomic_exchange_32(&tsSubmitRowSucNum, 0);
 }
