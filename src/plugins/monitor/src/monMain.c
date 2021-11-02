@@ -602,10 +602,12 @@ static int32_t monBuildMasterUptimeSql(char *sql) {
 
   while ((row = taos_fetch_row(result))) {
     for (int i = 0; i < num_fields; ++i) {
-      if (strcmp(fields[i].name, "role_time") == 0) {
-        int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-        //master uptime in seconds
-        masterUptime = (now - *(int64_t *)row[i]) / 1000;
+      if (strcmp(fields[i].name, "role") == 0 && strcmp((char *)row[i], "master") == 0) {
+        if (strcmp(fields[i + 1].name, "role_time") == 0) {
+          int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+          //master uptime in seconds
+          masterUptime = (now - *(int64_t *)row[i + 1]) / 1000;
+        }
       }
     }
   }
@@ -916,7 +918,7 @@ static int32_t monBuildDiskTierSql(char *sql) {
   for (int i = 0; i < numTiers; ++i) {
     pos += sprintf(sql + pos, ", %f, %f", (float)(tierMetas[i].used / unit), (float)(tierMetas[i].size / unit));
   }
-  pos += sprintf(sql + pos, ")"); 
+  pos += sprintf(sql + pos, ")");
 
   free(tierMetas);
 
