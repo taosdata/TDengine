@@ -20,82 +20,6 @@
 extern "C" {
 #endif
 
-typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
-
-typedef struct {
-  /**
-   * Send messages to other dnodes, such as create vnode message.
-   *
-   * @param epSet, the endpoint list of the dnodes.
-   * @param rpcMsg, message to be sent.
-   */
-  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
-
-  /**
-   * Send messages to mnode, such as config message.
-   *
-   * @param rpcMsg, message to be sent.
-   */
-  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
-
-  /**
-   * Send redirect message to dnode or shell.
-   *
-   * @param rpcMsg, message to be sent.
-   * @param forShell, used to identify whether to send to shell or dnode.
-   */
-  void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
-
-  /**
-   * Get the corresponding endpoint information from dnodeId.
-   *
-   * @param dnode, the instance of dDnode module.
-   * @param dnodeId, the id ot dnode.
-   * @param ep, the endpoint of dnode.
-   * @param fqdn, the fqdn of dnode.
-   * @param port, the port of dnode.
-   */
-  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-} SMnodeFp;
-
-typedef struct {
-  SMnodeFp fp;
-  int64_t  clusterId;
-  int32_t  dnodeId;
-} SMnodePara;
-
-/**
- * Initialize and start mnode module.
- *
- * @param para, initialization parameters.
- * @return Error code.
- */
-int32_t mnodeInit(SMnodePara para);
-
-/**
- * Stop and cleanup mnode module.
- */
-void mnodeCleanup();
-
-/**
- * Deploy mnode instances in dnode.
- *
- * @return Error Code.
- */
-int32_t mnodeDeploy();
-
-/**
- * Delete the mnode instance deployed in dnode.
- */
-void mnodeUnDeploy();
-
-/**
- * Whether the mnode is in service.
- *
- * @return Server status.
- */
-EMnStatus mnodeGetStatus();
-
 typedef struct {
   int64_t numOfDnode;
   int64_t numOfMnode;
@@ -109,32 +33,29 @@ typedef struct {
   int64_t compStorage;
 } SMnodeStat;
 
-/**
- * Get the statistical information of Mnode.
- *
- * @param stat, statistical information.
- * @return Error Code.
- */
-int32_t mnodeGetStatistics(SMnodeStat *stat);
+typedef struct {
+  void (*SendMsgToDnode)(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
+  void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
+  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+} SMnodeFp;
 
-/**
- * Get the auth information of Mnode.
- *
- * @param user, username.
- * @param spi,  security parameter index.
- * @param encrypt, encrypt algorithm.
- * @param secret, key for authentication.
- * @param ckey, ciphering key.
- * @return Error Code.
- */
+typedef struct {
+  SMnodeFp fp;
+  int64_t  clusterId;
+  int32_t  dnodeId;
+} SMnodePara;
+
+int32_t mnodeInit(SMnodePara para);
+void    mnodeCleanup();
+int32_t mnodeDeploy();
+void    mnodeUnDeploy();
+int32_t mnodeStart();
+void    mnodeStop();
+
+int32_t mnodeGetStatistics(SMnodeStat *stat);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-/**
- * Interface for processing messages.
- *
- * @param rpcMsg, message to be processed.
- * @return Error code.
- */
 void mnodeProcessMsg(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus

@@ -35,14 +35,14 @@ extern int32_t dDebugFlag;
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DN_RUN_STAT_INIT, DN_RUN_STAT_RUNNING, DN_RUN_STAT_STOPPED } EDnStat;
-typedef void (*MsgFp)(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
+typedef void (*MsgFp)(SRpcMsg *pMsg, SEpSet *pEpSet);
 
 int32_t dnodeInit();
 void    dnodeCleanup();
 
 EDnStat dnodeGetRunStat();
 void    dnodeSetRunStat();
-void    dnodeGetStartup(SStartupStep *);
+void    dnodeGetStartup(SStartupMsg *);
 
 #ifdef __cplusplus
 }

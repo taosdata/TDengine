@@ -23,13 +23,13 @@ extern "C" {
 
 int32_t dnodeInitDnode();
 void    dnodeCleanupDnode();
-void    dnodeProcessDnodeMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
+void    dnodeProcessDnodeMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 
 int32_t dnodeGetDnodeId();
 int64_t dnodeGetClusterId();
 void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
-void    dnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet);
-void    dnodeGetMnodeEpSetForShell(SRpcEpSet *epSet);
+void    dnodeGetMnodeEpSetForPeer(SEpSet *epSet);
+void    dnodeGetMnodeEpSetForShell(SEpSet *epSet);
 void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus

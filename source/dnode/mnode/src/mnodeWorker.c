@@ -297,10 +297,10 @@ static void mnodeProcessWriteReq(SMnMsg *pMsg, void *unused) {
 
   if (!mnodeIsMaster()) {
     SMnRsp *rpcRsp = &pMsg->rpcRsp;
-    SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
+    SEpSet *epSet = rpcMallocCont(sizeof(SEpSet));
     mnodeGetMnodeEpSetForShell(epSet, true);
     rpcRsp->rsp = epSet;
-    rpcRsp->len = sizeof(SRpcEpSet);
+    rpcRsp->len = sizeof(SEpSet);
 
     mDebug("msg:%p, app:%p type:%s in write queue, is redirected, numOfEps:%d inUse:%d", pMsg, ahandle,
            taosMsg[msgType], epSet->numOfEps, epSet->inUse);
@@ -334,14 +334,14 @@ static void mnodeProcessReadReq(SMnMsg *pMsg, void *unused) {
 
   if (!mnodeIsMaster()) {
     SMnRsp *rpcRsp = &pMsg->rpcRsp;
-    SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
+    SEpSet *epSet = rpcMallocCont(sizeof(SEpSet));
     if (!epSet) {
       code = TSDB_CODE_MND_OUT_OF_MEMORY;
       goto PROCESS_READ_REQ_END;
     }
     mnodeGetMnodeEpSetForShell(epSet, true);
     rpcRsp->rsp = epSet;
-    rpcRsp->len = sizeof(SRpcEpSet);
+    rpcRsp->len = sizeof(SEpSet);
 
     mDebug("msg:%p, app:%p type:%s in mread queue is redirected, numOfEps:%d inUse:%d", pMsg, ahandle, taosMsg[msgType],
            epSet->numOfEps, epSet->inUse);
@@ -375,10 +375,10 @@ static void mnodeProcessPeerReq(SMnMsg *pMsg, void *unused) {
 
   if (!mnodeIsMaster()) {
     SMnRsp *rpcRsp = &pMsg->rpcRsp;
-    SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
+    SEpSet *epSet = rpcMallocCont(sizeof(SEpSet));
     mnodeGetMnodeEpSetForPeer(epSet, true);
     rpcRsp->rsp = epSet;
-    rpcRsp->len = sizeof(SRpcEpSet);
+    rpcRsp->len = sizeof(SEpSet);
 
     mDebug("msg:%p, ahandle:%p type:%s in mpeer queue is redirected, numOfEps:%d inUse:%d", pMsg, ahandle,
            taosMsg[msgType], epSet->numOfEps, epSet->inUse);

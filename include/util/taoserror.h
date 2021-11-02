@@ -216,11 +216,13 @@ int32_t* taosGetErrno();
 // dnode
 #define TSDB_CODE_DND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0400)  //"Message not processed")
 #define TSDB_CODE_DND_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0401)  //"Dnode out of memory")
-#define TSDB_CODE_DND_NO_WRITE_ACCESS           TAOS_DEF_ERROR_CODE(0, 0x0402)  //"No permission for disk files in dnode")
-#define TSDB_CODE_DND_INVALID_MSG_LEN           TAOS_DEF_ERROR_CODE(0, 0x0403)  //"Invalid message length")
-#define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0404)  //"Action in progress")
-#define TSDB_CODE_DND_TOO_MANY_VNODES           TAOS_DEF_ERROR_CODE(0, 0x0405)  //"Too many vnode directories")
-#define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0406)  //"Dnode is exiting"
+#define TSDB_CODE_DND_DNODE_ID_NOT_MATCHED      TAOS_DEF_ERROR_CODE(0, 0x0402)  //"Dnode Id not matched")
+#define TSDB_CODE_DND_MNODE_ALREADY_DROPPED     TAOS_DEF_ERROR_CODE(0, 0x0403)  //"Mnode already deployed")
+#define TSDB_CODE_DND_NO_WRITE_ACCESS           TAOS_DEF_ERROR_CODE(0, 0x0404)  //"No permission for disk files in dnode")
+#define TSDB_CODE_DND_INVALID_MSG_LEN           TAOS_DEF_ERROR_CODE(0, 0x0405)  //"Invalid message length")
+#define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0406)  //"Action in progress")
+#define TSDB_CODE_DND_TOO_MANY_VNODES           TAOS_DEF_ERROR_CODE(0, 0x0407)  //"Too many vnode directories")
+#define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0408)  //"Dnode is exiting"
 
 // vnode
 #define TSDB_CODE_VND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0500)  //"Action in progress")

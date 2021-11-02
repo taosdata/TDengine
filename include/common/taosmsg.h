@@ -832,10 +832,8 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t  dnodeId;
-  int32_t  mnodeNum;
-  SDnodeEp mnodeEps[];
-} SCreateMnodeMsg;
+  int32_t   dnodeId;
+} SCreateMnodeMsg, SDropMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
@@ -901,16 +899,7 @@ typedef struct {
 
 typedef struct {
   char queryId[TSDB_KILL_MSG_LEN + 1];
-} SKillQueryMsg, SKillStreamMsg, SKillConnMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
-  uint64_t stime;  // stream starting time
-  int32_t  status;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-} SAlterStreamMsg;
+} SKillQueryMsg, SKillConnMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -925,8 +914,7 @@ typedef struct {
   int8_t  reserved1[7];
   char    name[TSDB_STEP_NAME_LEN];
   char    desc[TSDB_STEP_DESC_LEN];
-  char    reserved2[64];
-} SStartupStep;
+} SStartupMsg;
 
 // mq related
 typedef struct {
