@@ -21,7 +21,7 @@ static int metaCreateSuperTable(SMeta *pMeta, const char *tbname, const SSuperTa
 static int metaCreateChildTable(SMeta *pMeta, const char *tbname, const SChildTableOpts *pChildTableOpts);
 static int metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormalTableOpts *pNormalTableOpts);
 
-SMeta *metaOpen(SMetaOpts *pMetaOpts) {
+SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOpts) {
   SMeta *pMeta = NULL;
 
   pMeta = (SMeta *)calloc(1, sizeof(*pMeta));
@@ -81,7 +81,7 @@ void metaClose(SMeta *pMeta) {
   }
 }
 
-int metaCreateTable(SMeta *pMeta, const STableOpts *pTableOpts) {
+int metaCreateTable(SMeta *pMeta, const STableOptions *pTableOpts) {
   size_t vallen;
   char * pUid;
 
@@ -213,13 +213,13 @@ static int metaCreateNormalTable(SMeta *pMeta, const char *tbname, const SNormal
   return 0;
 }
 
-void metaNormalTableOptsInit(STableOpts *pTableOpts, const char *name, const STSchema *pSchema) {
+void metaNormalTableOptsInit(STableOptions *pTableOpts, const char *name, const STSchema *pSchema) {
   pTableOpts->type = META_NORMAL_TABLE;
   pTableOpts->name = strdup(name);
   pTableOpts->normalOpts.pSchema = tdDupSchema(pSchema);
 }
 
-void metaSuperTableOptsInit(STableOpts *pTableOpts, const char *name, tb_uid_t uid, const STSchema *pSchema,
+void metaSuperTableOptsInit(STableOptions *pTableOpts, const char *name, tb_uid_t uid, const STSchema *pSchema,
                             const STSchema *pTagSchema) {
   pTableOpts->type = META_SUPER_TABLE;
   pTableOpts->name = strdup(name);
@@ -228,14 +228,14 @@ void metaSuperTableOptsInit(STableOpts *pTableOpts, const char *name, tb_uid_t u
   pTableOpts->superOpts.pTagSchema = tdDupSchema(pTagSchema);
 }
 
-void metaChildTableOptsInit(STableOpts *pTableOpts, const char *name, tb_uid_t suid, const SKVRow tags) {
+void metaChildTableOptsInit(STableOptions *pTableOpts, const char *name, tb_uid_t suid, const SKVRow tags) {
   pTableOpts->type = META_CHILD_TABLE;
   pTableOpts->name = strdup(name);
   pTableOpts->childOpts.suid = suid;
   pTableOpts->childOpts.tags = tdKVRowDup(tags);
 }
 
-void metaTableOptsClear(STableOpts *pTableOpts) {
+void metaTableOptsClear(STableOptions *pTableOpts) {
   switch (pTableOpts->type) {
     case META_NORMAL_TABLE:
       tfree(pTableOpts->name);
