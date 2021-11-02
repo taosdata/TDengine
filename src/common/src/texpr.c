@@ -265,7 +265,7 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, char *pOu
   output.type = TSDB_DATA_TYPE_DOUBLE;
   output.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
 
-  scalarFn(pInputs, numChildren, &output, order);
+  scalarFn(pExpr->_func.functionId, pInputs, numChildren, &output, order);
 
   for (int i = 0; i < numChildren; ++i) {
     tfree(pChildrenOutput[i]);
@@ -744,7 +744,7 @@ tExprNode* exprdup(tExprNode* pNode) {
 }
 
 
-void vectorPow(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+void vectorPow(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(numInputs == 2);
   assert(pInputs[1].numOfRows == 1  && pInputs[0].numOfRows >= 1);
   int numOfRows = pInputs[0].numOfRows;
@@ -766,7 +766,7 @@ void vectorPow(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* p
   }
 }
 
-void vectorLog(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+void vectorLog(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(numInputs == 2);
   assert(pInputs[1].numOfRows == 1  && pInputs[0].numOfRows >= 1);
   int numOfRows = pInputs[0].numOfRows;
@@ -789,25 +789,22 @@ void vectorLog(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* p
 }
 
 
-_expr_scalar_function_t getExprScalarFunction(uint16_t scalarFunc) {
-  switch (scalarFunc) {
-    case TSDB_FUNC_SCALAR_POW:
-      return vectorPow;
-    case TSDB_FUNC_SCALAR_LOG:
-      return vectorLog;
-    default:
-      assert(0);
-      return NULL;
-  }
+_expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
+  assert(TSDB_FUNC_IS_SCALAR(funcId));
+  int16_t scalaIdx = TSDB_FUNC_SCALAR_INDEX(funcId);
+  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_MAX_NUM);
+  return aScalarFunctions[scalaIdx].scalarFunc;
 }
 
 tScalarFunctionInfo aScalarFunctions[] = {
     {
         TSDB_FUNC_SCALAR_POW,
-        "pow"
+        "pow",
+        vectorPow
     },
     {
         TSDB_FUNC_SCALAR_LOG,
-        "log"
+        "log",
+        vectorLog
     },
 };
