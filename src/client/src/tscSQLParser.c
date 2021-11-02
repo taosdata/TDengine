@@ -1874,7 +1874,7 @@ static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem) {
+static int32_t handleSQLExprItem(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem) {
   const char* msg1 = "invalid column name, illegal column type, or columns in arithmetic expression from two tables";
 
   SColumnList columnList = {0};
@@ -2074,7 +2074,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_EXPR) {
-      int32_t code = handleArithmeticExpr(pCmd, pQueryInfo, i, pItem);
+      int32_t code = handleSQLExprItem(pCmd, pQueryInfo, i, pItem);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -2103,7 +2103,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
       }
 
       if (willProcessFunctionWithExpr(pItem)) {
-        int32_t code = handleArithmeticExpr(pCmd, pQueryInfo, i, pItem);
+        int32_t code = handleSQLExprItem(pCmd, pQueryInfo, i, pItem);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -4331,7 +4331,7 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* 
   return checkAndSetJoinCondInfo(pCmd, pQueryInfo, pExpr);
 }
 
-static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
+static int32_t validateSQLExprSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
                                          SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t *uid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t functionId = isValidFunction(pExpr->Expr.operand.z, pExpr->Expr.operand.n);
@@ -4468,7 +4468,7 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     *uid = uidLeft;
 
   } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
-    int32_t ret = validateArithmeticSQLFunc(pCmd, pExpr, pQueryInfo, pList, type, uid);
+    int32_t ret = validateSQLExprSQLFunc(pCmd, pExpr, pQueryInfo, pList, type, uid);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }

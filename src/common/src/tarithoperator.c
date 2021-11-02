@@ -414,51 +414,45 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
 
 void vectorPow(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(numInputs == 2);
-  assert(pInputs[1].numOfRows == 1  || pInputs[0].numOfRows == 1 || pInputs[0].numOfRows == pInputs[1].numOfRows );
-  int numOfRows = (pInputs[0].numOfRows > pInputs[1].numOfRows) ? pInputs[0].numOfRows : pInputs[1].numOfRows;
-  if (pInputs[1].numOfRows == 1) {
-    double base = 0;
-    GET_TYPED_DATA(base, double, pInputs[1].type, pInputs[1].data);
+  assert(pInputs[1].numOfRows == 1  && pInputs[0].numOfRows >= 1);
+  int numOfRows = pInputs[0].numOfRows;
 
-    for (int i = 0; i < numOfRows; ++i) {
-      char* pInputData = pInputs[0].data + i * pInputs[0].bytes;
-      char* pOutputData = pOutput->data + i * pOutput->bytes;
-      if (isNull(pInputData, pInputs[0].type)) {
-        setNull(pOutputData, pOutput->type, pOutput->bytes);
-      } else {
-        double v1 = 0;
-        GET_TYPED_DATA(v1, double, pInputs[0].type, pInputData);
-        double result = pow(v1, base);
-        SET_TYPED_DATA(pOutputData, pOutput->type, result);
-      }
+  double base = 0;
+  GET_TYPED_DATA(base, double, pInputs[1].type, pInputs[1].data);
+
+  for (int i = 0; i < numOfRows; ++i) {
+    char* pInputData = pInputs[0].data + i * pInputs[0].bytes;
+    char* pOutputData = pOutput->data + i * pOutput->bytes;
+    if (isNull(pInputData, pInputs[0].type)) {
+      setNull(pOutputData, pOutput->type, pOutput->bytes);
+    } else {
+      double v1 = 0;
+      GET_TYPED_DATA(v1, double, pInputs[0].type, pInputData);
+      double result = pow(v1, base);
+      SET_TYPED_DATA(pOutputData, pOutput->type, result);
     }
-  } else {
-    assert(0);
   }
 }
 
 void vectorLog(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(numInputs == 2);
-  assert(pInputs[1].numOfRows == 1  || pInputs[0].numOfRows == 1 || pInputs[0].numOfRows == pInputs[1].numOfRows );
-  int numOfRows = (pInputs[0].numOfRows > pInputs[1].numOfRows) ? pInputs[0].numOfRows : pInputs[1].numOfRows;
-  if (pInputs[1].numOfRows == 1) {
-    double base = 0;
-    GET_TYPED_DATA(base, double, pInputs[1].type, pInputs[1].data);
+  assert(pInputs[1].numOfRows == 1  && pInputs[0].numOfRows >= 1);
+  int numOfRows = pInputs[0].numOfRows;
 
-    for (int i = 0; i < numOfRows; ++i) {
-      char* pInputData = pInputs[0].data + i * pInputs[0].bytes;
-      char* pOutputData = pOutput->data + i * pOutput->bytes;
-      if (isNull(pInputData, pInputs[0].type)) {
-        setNull(pOutputData, pOutput->type, pOutput->bytes);
-      } else {
-        double v1 = 0;
-        GET_TYPED_DATA(v1, double, pInputs[0].type, pInputData);
-        double result = log(v1) / log(base);
-        SET_TYPED_DATA(pOutputData, pOutput->type, result);
-      }
+  double base = 0;
+  GET_TYPED_DATA(base, double, pInputs[1].type, pInputs[1].data);
+
+  for (int i = 0; i < numOfRows; ++i) {
+    char* pInputData = pInputs[0].data + i * pInputs[0].bytes;
+    char* pOutputData = pOutput->data + i * pOutput->bytes;
+    if (isNull(pInputData, pInputs[0].type)) {
+      setNull(pOutputData, pOutput->type, pOutput->bytes);
+    } else {
+      double v1 = 0;
+      GET_TYPED_DATA(v1, double, pInputs[0].type, pInputData);
+      double result = log(v1) / log(base);
+      SET_TYPED_DATA(pOutputData, pOutput->type, result);
     }
-  } else {
-    assert(0);
   }
 }
 
