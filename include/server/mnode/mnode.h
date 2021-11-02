@@ -29,7 +29,7 @@ typedef struct {
    * @param epSet, the endpoint list of the dnodes.
    * @param rpcMsg, message to be sent.
    */
-  void (*SendMsgToDnode)(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+  void (*SendMsgToDnode)(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 
   /**
    * Send messages to mnode, such as config message.

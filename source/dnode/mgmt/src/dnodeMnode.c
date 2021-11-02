@@ -61,9 +61,28 @@ void dnodeProcessCreateMnodeReq(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-void dnodeProcessMnodeMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  mnodeProcessMsg(pMsg);
-  //   tsDnode.msgFp[TSDB_MSG_TYPE_CREATE_MNODE_IN] = dnodeProcessCreateMnodeReq;
+void dnodeProcessDropMnodeReq(SRpcMsg *pMsg) {
+  int32_t code = dnodeStartMnode(pMsg);
 
-  //   tsTrans.msgFp[TSDB_MSG_TYPE_DROP_MNODE_IN] = dnodeProcessDropMnodeReq;
+  SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code};
+
+  rpcSendResponse(&rspMsg);
+  rpcFreeCont(pMsg->pCont);
+}
+
+void dnodeProcessMnodeMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
+  switch (pMsg->msgType) {
+    case TSDB_MSG_TYPE_CREATE_MNODE_IN:
+      dnodeProcessCreateMnodeReq(pMsg);
+      break;
+    case TSDB_MSG_TYPE_DROP_MNODE_IN:
+      dnodeProcessDropMnodeReq(pMsg);
+      break;
+    default:
+      mnodeProcessMsg(pMsg);
+  }
+}
+
+int32_t dnodeGetUserAuthFromMnode(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  return mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
 }

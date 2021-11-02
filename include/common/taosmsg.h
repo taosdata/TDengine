@@ -901,16 +901,7 @@ typedef struct {
 
 typedef struct {
   char queryId[TSDB_KILL_MSG_LEN + 1];
-} SKillQueryMsg, SKillStreamMsg, SKillConnMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
-  uint64_t stime;  // stream starting time
-  int32_t  status;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-} SAlterStreamMsg;
+} SKillQueryMsg, SKillConnMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];

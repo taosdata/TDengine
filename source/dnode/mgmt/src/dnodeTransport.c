@@ -24,7 +24,6 @@
 #include "dnodeDnode.h"
 #include "dnodeMnode.h"
 #include "dnodeVnodes.h"
-#include "mnode.h"
 
 static struct {
   void *peerRpc;
@@ -119,7 +118,7 @@ static void dnodeInitMsgFp() {
   tsTrans.msgFp[TSDB_MSG_TYPE_STATUS_RSP] = dnodeProcessDnodeMsg;
 }
 
-static void dnodeProcessPeerReq(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+static void dnodeProcessPeerReq(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg rspMsg = {.handle = pMsg->handle};
   int32_t msgType = pMsg->msgType;
 
@@ -183,7 +182,7 @@ static void dnodeCleanupPeerServer() {
   }
 }
 
-static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
   int32_t msgType = pMsg->msgType;
 
   if (dnodeGetRunStat() == DN_RUN_STAT_STOPPED) {
@@ -237,7 +236,7 @@ static void dnodeCleanupClient() {
   }
 }
 
-static void dnodeProcessShellReq(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+static void dnodeProcessShellReq(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg rspMsg = {.handle = pMsg->handle};
   int32_t msgType = pMsg->msgType;
 
@@ -274,13 +273,13 @@ static void dnodeProcessShellReq(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 }
 
 static void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
-  SRpcEpSet epSet = {0};
+  SEpSet epSet = {0};
   dnodeGetMnodeEpSetForPeer(&epSet);
   rpcSendRecv(tsTrans.clientRpc, &epSet, rpcMsg, rpcRsp);
 }
 
 static int32_t dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  int32_t code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
+  int32_t code = dnodeGetUserAuthFromMnode(user, spi, encrypt, secret, ckey);
   if (code != TSDB_CODE_APP_NOT_READY) return code;
 
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
@@ -362,10 +361,10 @@ void dnodeCleanupTrans() {
   dnodeCleanupClient();
 }
 
-void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) { rpcSendRequest(tsTrans.clientRpc, epSet, rpcMsg, NULL); }
+void dnodeSendMsgToDnode(SEpSet *epSet, SRpcMsg *rpcMsg) { rpcSendRequest(tsTrans.clientRpc, epSet, rpcMsg, NULL); }
 
 void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
-  SRpcEpSet epSet = {0};
+  SEpSet epSet = {0};
   dnodeGetMnodeEpSetForPeer(&epSet);
   dnodeSendMsgToDnode(&epSet, rpcMsg);
 }

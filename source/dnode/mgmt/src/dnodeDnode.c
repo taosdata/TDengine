@@ -27,8 +27,8 @@ static struct {
   int64_t         clusterId;
   SDnodeEps      *dnodeEps;
   SHashObj       *dnodeHash;
-  SRpcEpSet       mnodeEpSetForShell;
-  SRpcEpSet       mnodeEpSetForPeer;
+  SEpSet          mnodeEpSetForShell;
+  SEpSet          mnodeEpSetForPeer;
   char            file[PATH_MAX + 20];
   uint32_t        rebootTime;
   int8_t          dropped;
@@ -67,13 +67,13 @@ void dnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port) {
   pthread_mutex_unlock(&tsDnode.mutex);
 }
 
-void dnodeGetMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
+void dnodeGetMnodeEpSetForPeer(SEpSet *pEpSet) {
   pthread_mutex_lock(&tsDnode.mutex);
   *pEpSet = tsDnode.mnodeEpSetForPeer;
   pthread_mutex_unlock(&tsDnode.mutex);
 }
 
-void dnodeGetMnodeEpSetForShell(SRpcEpSet *pEpSet) {
+void dnodeGetMnodeEpSetForShell(SEpSet *pEpSet) {
   pthread_mutex_lock(&tsDnode.mutex);
   *pEpSet = tsDnode.mnodeEpSetForShell;
   pthread_mutex_unlock(&tsDnode.mutex);
@@ -82,7 +82,7 @@ void dnodeGetMnodeEpSetForShell(SRpcEpSet *pEpSet) {
 void dnodeSendRedirectMsg(SRpcMsg *pMsg, bool forShell) {
   int32_t msgType = pMsg->msgType;
 
-  SRpcEpSet epSet = {0};
+  SEpSet epSet = {0};
   if (forShell) {
     dnodeGetMnodeEpSetForShell(&epSet);
   } else {
@@ -107,7 +107,7 @@ void dnodeSendRedirectMsg(SRpcMsg *pMsg, bool forShell) {
   rpcSendRedirectRsp(pMsg->handle, &epSet);
 }
 
-static void dnodeUpdateMnodeEpSet(SRpcEpSet *pEpSet) {
+static void dnodeUpdateMnodeEpSet(SEpSet *pEpSet) {
   if (pEpSet == NULL || pEpSet->numOfEps <= 0) {
     dError("mnode is changed, but content is invalid, discard it");
     return;
@@ -528,7 +528,7 @@ void dnodeCleanupDnode() {
   dInfo("dnode-dnode is cleaned up");
 }
 
-void dnodeProcessDnodeMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+void dnodeProcessDnodeMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   int32_t msgType = pMsg->msgType;
 
   if (msgType == TSDB_MSG_TYPE_STATUS_RSP && pEpSet) {
