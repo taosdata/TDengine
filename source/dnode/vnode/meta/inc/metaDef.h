@@ -24,9 +24,9 @@ extern "C" {
 #endif
 
 struct SMeta {
-  char*           path;          // path of current meta
-  SMetaOptions    options;       // meta option
-  SMetaDB         metaDB;        // meta DB for real storage engine
+  char*           path;     // path of current meta
+  SMetaOptions    options;  // meta option
+  SMetaDB         metaDB;   // meta DB for real storage engine
   STbUidGenerator uidGnrt;  // meta table UID generator
 };
 
