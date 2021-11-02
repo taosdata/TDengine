@@ -18,13 +18,8 @@
 
 int metaOpenDB(SMeta *pMeta) {
   char *             err = NULL;
-  rocksdb_options_t *pOpts;
-
-  pOpts = rocksdb_options_create();
-  if (pOpts == NULL) {
-    // TODO: handle error
-    return -1;
-  }
+  rocksdb_options_t *dbOptions;
+  rocksdb_options_t *idxOptions;
 
   // Create LRU cache
   if (pMeta->options.lruCacheSize) {
@@ -33,24 +28,46 @@ int metaOpenDB(SMeta *pMeta) {
       // TODO: handle error
       return -1;
     }
-
-    rocksdb_options_set_row_cache(pOpts, pMeta->metaDB.pCache);
   }
 
-  // Open raw data DB
-  pMeta->metaDB.pDB = rocksdb_open(pOpts, "db", &err);
+  // Open raw data DB ---------------------------
+  dbOptions = rocksdb_options_create();
+  if (dbOptions == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+
+  if (pMeta->metaDB.pCache) {
+    rocksdb_options_set_row_cache(dbOptions, pMeta->metaDB.pCache);
+  }
+
+  pMeta->metaDB.pDB = rocksdb_open(dbOptions, "db", &err);
   if (pMeta->metaDB.pDB == NULL) {
     // TODO: handle error
     return -1;
   }
 
-  // Open index DB
-  pMeta->metaDB.pIdx = rocksdb_open(pOpts, "index", &err);
+  rocksdb_options_destroy(dbOptions);
+
+  // Open index DB ---------------------------
+  idxOptions = rocksdb_options_create();
+  if (idxOptions == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+
+  if (pMeta->metaDB.pCache) {
+    rocksdb_options_set_row_cache(dbOptions, pMeta->metaDB.pCache);
+  }
+
+  pMeta->metaDB.pIdx = rocksdb_open(idxOptions, "index", &err);
   if (pMeta->metaDB.pIdx == NULL) {
     // TODO: handle error
     rocksdb_close(pMeta->metaDB.pDB);
     return -1;
   }
+
+  rocksdb_options_destroy(idxOptions);
 
   return 0;
 }
