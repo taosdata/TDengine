@@ -26,12 +26,12 @@ static int tqProtoCheck(TmqMsgHead *pMsg) {
   return pMsg->protoVer == 0;
 }
 
-static int tqAckOneTopic(TqBufferHandle *bhandle, TmqOneAck *pAck, TqQueryMsg** ppQuery) {
+static int tqAckOneTopic(TqBufferHandle *bHandle, TmqOneAck *pAck, TqQueryMsg** ppQuery) {
   //clean old item and move forward
   int32_t consumeOffset = pAck->consumeOffset;
   int idx = consumeOffset % TQ_BUFFER_SIZE;
-  ASSERT(bhandle->buffer[idx].content && bhandle->buffer[idx].executor);
-  tfree(bhandle->buffer[idx].content);
+  ASSERT(bHandle->buffer[idx].content && bHandle->buffer[idx].executor);
+  tfree(bHandle->buffer[idx].content);
   if( 1 /* TODO: need to launch new query */) {
     TqQueryMsg* pNewQuery = malloc(sizeof(TqQueryMsg));
     if(pNewQuery == NULL) {
@@ -39,10 +39,10 @@ static int tqAckOneTopic(TqBufferHandle *bhandle, TmqOneAck *pAck, TqQueryMsg** 
       return -1;
     }
     //TODO: lock executor
-    pNewQuery->exec->executor = bhandle->buffer[idx].executor;
+    pNewQuery->exec->executor = bHandle->buffer[idx].executor;
     //TODO: read from wal and assign to src
     pNewQuery->exec->src = 0;
-    pNewQuery->exec->dest = &bhandle->buffer[idx];
+    pNewQuery->exec->dest = &bHandle->buffer[idx];
     pNewQuery->next = *ppQuery;
     *ppQuery = pNewQuery;
   }

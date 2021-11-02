@@ -20,6 +20,17 @@
 #include "tq.h"
 
 #define TQ_BUCKET_SIZE 0xFF
+#define TQ_PAGE_SIZE 4096
+//key + offset + size
+#define TQ_IDX_ENTRY_SIZE 24
+
+inline static int TqMaxEntryOnePage() { //170
+  return TQ_PAGE_SIZE / TQ_IDX_ENTRY_SIZE;
+}
+
+inline static int TqEmptyTail() { //16
+  return TQ_PAGE_SIZE - TqMaxEntryOnePage();
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,8 +39,9 @@ extern "C" {
 typedef struct TqMetaHandle {
   int64_t key;
   int64_t offset;
-  void *valueInUse;
-  void *valueInTxn;
+  int64_t serializedSize;
+  void*   valueInUse;
+  void*   valueInTxn;
 } TqMetaHandle;
 
 typedef struct TqMetaList {
@@ -43,7 +55,7 @@ typedef struct TqMetaList {
 
 typedef struct TqMetaStore {
   TqMetaList* bucket[TQ_BUCKET_SIZE];
-  //a table head, key is empty
+  //a table head
   TqMetaList* unpersistHead;
   int fileFd; //TODO:temporaral use, to be replaced by unified tfile
   int idxFd;  //TODO:temporaral use, to be replaced by unified tfile
