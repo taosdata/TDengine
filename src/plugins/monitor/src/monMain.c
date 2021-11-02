@@ -297,6 +297,7 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", req_http int, req_http_rate float"
              ", req_select int, req_select_rate float"
              ", req_insert int, req_insert_rate float"
+             ", req_insert_batch int, req_insert_batch_rate float"
              ", errors int"
              ", vnodes_num int"
              ", masters int"
@@ -698,7 +699,7 @@ static int32_t monBuildNetworkIOSql(char *sql) {
   return sprintf(sql, ", %f, %f", netInKb, netOutKb);
 }
 
-static int32_t monBuildDnodeReqRateSql(char *sql) {
+static int32_t monBuildDnodeReqSql(char *sql) {
   SStatisInfo info = dnodeGetStatisInfo();
   float interval = tsMonitorInterval * 1.0;
   float httpReqRate = info.httpReqNum / interval;
@@ -837,7 +838,7 @@ static void monSaveDnodesInfo() {
   pos += monBuildDnodeDiskSql(sql + pos);
   pos += monBuildNetworkIOSql(sql + pos);
   pos += monBuildIoSql(sql + pos);
-  pos += monBuildDnodeReqRateSql(sql + pos);
+  pos += monBuildDnodeReqSql(sql + pos);
   pos += monBuildDnodeErrorsSql(sql + pos);
   pos += monBuildDnodeVnodesSql(sql + pos);
   pos += monBuildDnodeMnodeSql(sql + pos);
