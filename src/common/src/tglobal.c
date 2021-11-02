@@ -155,7 +155,9 @@ int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 
 // tsdb config 
 // For backward compatibility
-bool tsdbForceKeepFile = false;
+bool    tsdbForceKeepFile = false;
+bool    tsdbForceCompactFile = false; // compact TSDB fileset forcibly
+int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance
 int8_t  tsEnableBalance = 1;
@@ -265,6 +267,8 @@ int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
+
+int8_t tsClientMerge = 0;
 
 #ifdef TD_TSZ
 //
@@ -1640,6 +1644,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "clientMerge";
+  cfg.ptr = &tsClientMerge;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   // default JSON string type option "binary"/"nchar"
   cfg.option = "defaultJSONStrType";
   cfg.ptr = tsDefaultJSONStrType;
@@ -1649,6 +1663,17 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsDefaultJSONStrType);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // flush vnode wal file if walSize > walFlushSize and walSize > cache*0.5*blocks
+  cfg.option = "walFlushSize";
+  cfg.ptr = &tsdbWalFlushSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = TSDB_MIN_WAL_FLUSH_SIZE;
+  cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
 
 #ifdef TD_TSZ
@@ -1702,9 +1727,9 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
+  assert(tsGlobalConfigNum < TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+  assert(tsGlobalConfigNum < TSDB_CFG_MAX_NUM);
 #endif
 
 }

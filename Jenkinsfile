@@ -1,9 +1,7 @@
 import hudson.model.Result
 import hudson.model.*;
 import jenkins.model.CauseOfInterruption
-properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/taosdata/TDengine.git'
 }
 
 def skipbuild=0
@@ -99,7 +97,7 @@ def pre_test(){
     sh '''
     cd ${WK}
     git pull >/dev/null 
-    git submodule update --init --recursive
+    
     export TZ=Asia/Harbin
     date
     git clean -dfx
@@ -109,7 +107,7 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python/
+    pip3 install ${WKC}/src/connector/python/ || echo "not install"
     '''
     return 1
 }
@@ -149,6 +147,7 @@ def pre_test_win(){
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git submodule update --init --recursive
     cd C:\\workspace\\TDinternal
     git reset --hard HEAD~10
     '''
@@ -180,9 +179,9 @@ def pre_test_win(){
     git clean -dfx
     mkdir debug
     cd debug
-    call "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\vcvarsall.bat" amd64
+    call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    nmake || exit 8
+    set CL=/MP nmake nmake || exit 8
     nmake install || exit 8
     xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
@@ -193,6 +192,7 @@ def pre_test_win(){
 }
 pipeline {
   agent none
+  options { skipDefaultCheckout() } 
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
@@ -200,6 +200,7 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
+          options { skipDefaultCheckout() } 
           when {
               changeRequest()
           }
@@ -208,59 +209,58 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          cd ${WORKSPACE}.tes
-          git fetch
-          '''
-          script {
-            if (env.CHANGE_TARGET == 'master') {
-              sh '''
-              git checkout master
-              '''
-              }
-            else if(env.CHANGE_TARGET == '2.0'){
-              sh '''
-              git checkout 2.0
-              '''
-            } 
-            else{
-              sh '''
-              git checkout develop
-              '''
-            } 
-          }
-          sh'''
-          git fetch origin +refs/pull/${CHANGE_ID}/merge
-          git checkout -qf FETCH_HEAD
-          '''     
+          //   sh'''
+          // rm -rf ${WORKSPACE}.tes
+          // cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          // cd ${WORKSPACE}.tes
+          // git fetch
+          // '''
+          // script {
+          //   if (env.CHANGE_TARGET == 'master') {
+          //     sh '''
+          //     git checkout master
+          //     '''
+          //     }
+          //   else if(env.CHANGE_TARGET == '2.0'){
+          //     sh '''
+          //     git checkout 2.0
+          //     '''
+          //   } 
+          //   else{
+          //     sh '''
+          //     git checkout develop
+          //     '''
+          //   } 
+          // }
+          // sh'''
+          // git fetch origin +refs/pull/${CHANGE_ID}/merge
+          // git checkout -qf FETCH_HEAD
+          // '''     
 
-          script{  
-            skipbuild='2'     
-            skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
-            println skipbuild
-          }
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          '''
+          // script{  
+          //   skipbuild='2'     
+          //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
+          //   println skipbuild
+          // }
+          // sh'''
+          // rm -rf ${WORKSPACE}.tes
+          // '''
+          // }       
           }
       }
       stage('Parallel test stage') {
         //only build pr
+        options { skipDefaultCheckout() } 
         when {
           allOf{
               changeRequest()
-               expression{
-                return skipbuild.trim() == '2'
-              }
+              not{ expression { env.CHANGE_BRANCH =~ /docs\// }}
             }
           }
       parallel {
         stage('python_1_s1') {
           agent{label " slave1 || slave11 "}
           steps {
-            
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
               sh '''
@@ -322,21 +322,9 @@ pipeline {
               '''
 
               sh '''
-              cd ${WKC}/src/connector/node-rest/
-              npm install
-              npm run build 
-              npm run build:test
-              npm run test
-
-              '''
-
-              sh '''
-                cd ${WKC}/tests/examples/C#/taosdemo
-                mcs -out:taosdemo *.cs > /dev/null 2>&1
-                echo '' |./taosdemo -c /etc/taos
-                cd ${WKC}/tests/connectorTest/C#Test/nanosupport
-                mcs -out:nano *.cs > /dev/null 2>&1
-                echo '' |./nano
+              cd ${WKC}/tests/examples/C#/taosdemo
+              mcs -out:taosdemo *.cs > /dev/null 2>&1
+              echo '' |./taosdemo -c /etc/taos
               '''
               sh '''
                 cd ${WKC}/tests/gotest
@@ -413,7 +401,7 @@ pipeline {
         stage('test_b4_s7') {
           agent{label " slave7 || slave17 "}
           steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+            timeout(time: 105, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -421,11 +409,12 @@ pipeline {
               ./test-all.sh b4fq
               cd ${WKC}/tests
               ./test-all.sh p4
-              cd ${WKC}/tests
-              ./test-all.sh full jdbc
-              cd ${WKC}/tests
-              ./test-all.sh full unit
-              date'''
+              '''
+              // cd ${WKC}/tests
+              // ./test-all.sh full jdbc
+              // cd ${WKC}/tests
+              // ./test-all.sh full unit
+              
             }
           }
         }
@@ -468,7 +457,37 @@ pipeline {
             }
           }
         } 
-        
+        stage('arm64centos7') {
+          agent{label " arm64centos7 "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm64centos8') {
+          agent{label " arm64centos8 "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm32bionic') {
+          agent{label " arm32bionic "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm64bionic') {
+          agent{label " arm64bionic "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('arm64focal') {
+          agent{label " arm64focal "}
+          steps {     
+              pre_test()    
+            }
+        }
+
         stage('build'){
           agent{label " wintest "}
           steps {
@@ -489,7 +508,7 @@ pipeline {
                 timeout(time: 20, unit: 'MINUTES'){
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat Wintest
+                .\\test-all.bat wintest
                 '''
                 }
             }     

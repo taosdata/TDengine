@@ -392,7 +392,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         //true if the connection is valid, false otherwise
         if (isClosed())
             return false;
-        if (timeout < 0)    //SQLException - if the value supplied for timeout is less then 0
+        if (timeout < 0)    //SQLException - if the value supplied for timeout is less than 0
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 
         ExecutorService executor = Executors.newCachedThreadPool();
