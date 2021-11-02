@@ -120,7 +120,7 @@ typedef struct SDnodeObj {
   int64_t  createdTime;
   int64_t  updateTime;
   int64_t  lastAccess;
-  int64_t  lastReboot;  // time stamp for last reboot
+  int64_t  rebootTime;  // time stamp for last reboot
   char     fqdn[TSDB_FQDN_LEN];
   char     ep[TSDB_EP_LEN];
   uint16_t port;
