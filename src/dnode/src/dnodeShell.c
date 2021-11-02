@@ -242,9 +242,6 @@ SDnodeStatisInfo dnodeGetStatisInfo() {
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
 #ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();
-    for (int i = 0; i < MAX_HTTP_STATUS_CODE_NUM; ++i) {
-      info.httpStatusCodeErrs[i] = httpGetStatusCodeCount(i);
-    }
 #endif
     info.queryReqNum  = atomic_load_32(&tsQueryReqNum);
     info.submitReqNum = atomic_load_32(&tsSubmitReqNum);
@@ -257,11 +254,24 @@ void dnodeClearStatisInfo() {
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
 #ifdef HTTP_EMBEDDED
     httpClearReqCount();
-    for (int i = 0; i < MAX_HTTP_STATUS_CODE_NUM; ++i) {
-      httpClearStatusCodeCount(i);
-    }
 #endif
     atomic_exchange_32(&tsQueryReqNum, 0);
     atomic_exchange_32(&tsSubmitReqNum, 0);
   }
+}
+
+int32_t dnodeGetHttpStatusInfo(int32_t index) {
+  int32_t httpStatus = 0;
+#ifdef HTTP_EMBEDDED
+    httpStatus = httpGetStatusCodeCount(index);
+#endif
+  return httpStatus;
+}
+
+void dnodeClearHttpStatusInfo() {
+#ifdef HTTP_EMBEDDED
+  for (int i = 0; i < MAX_HTTP_STATUS_CODE_NUM; ++i) {
+    httpClearStatusCodeCount(i);
+  }
+#endif
 }

@@ -28,11 +28,12 @@ typedef struct {
   int32_t queryReqNum;
   int32_t submitReqNum;
   int32_t httpReqNum;
-  int32_t httpStatusCodeErrs[MAX_HTTP_STATUS_CODE_NUM];
 } SDnodeStatisInfo;
 
 SDnodeStatisInfo dnodeGetStatisInfo();
-void        dnodeClearStatisInfo();
+void             dnodeClearStatisInfo();
+int32_t          dnodeGetHttpStatusInfo(int32_t index);
+void             dnodeClearHttpStatusInfo();
 
 bool    dnodeIsFirstDeploy();
 bool    dnodeIsMasterEp(char *ep);

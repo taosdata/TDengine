@@ -1208,13 +1208,12 @@ static void monSaveHttpReqInfo() {
   char *  sql = tsMonitor.sql;
   int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.restful_%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
 
-  SDnodeStatisInfo info = dnodeGetStatisInfo();
-  pos += snprintf(sql + pos, SQL_LENGTH, ", %d", info.httpReqNum);
   for (int32_t i = 0; i < tListLen(monHttpStatusTable); ++i) {
-    int32_t status = info.httpStatusCodeErrs[i];
+    int32_t status = dnodeGetHttpStatusInfo(i);
     pos += snprintf(sql + pos, SQL_LENGTH, ", %d", status);
   }
   pos += snprintf(sql + pos, SQL_LENGTH, ")");
+  dnodeClearHttpStatusInfo();
 
   monError("sql:%s", sql);
 
