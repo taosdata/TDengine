@@ -30,11 +30,13 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ## 数据链路设置
 ### 复制 TDengine 插件到 grafana 插件目录
-```
-1. sudo cp -r /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
-2. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
-3. echo -e "[plugins]\nallow_loading_unsigned_plugins = taosdata-tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
-4. sudo systemctl restart grafana-server.service
+
+```bash
+1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.1/tdengine-datasource-3.1.1.zip
+2. sudo unzip tdengine-datasource-3.1.1.zip -d /var/lib/grafana/plugins/
+3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
+4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
+5. sudo systemctl restart grafana-server.service
 ```
 
 ### 配置 collectd
@@ -62,13 +64,13 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 
 #### 导入 collectd 仪表盘
 
-点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 文件。如果按照 Grafana 的机器上没有安装 TDengine，可以从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件再导入。之后可以看到如下界面的仪表盘：
+从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 Import，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
 
 ![IT-DevOps-Solutions-collectd-dashboard.png](../../images/IT-DevOps-Solutions-collectd-dashboard.png)
 
 #### 导入 StatsD 仪表盘
 
-点击左侧加号图标并选择 Import，按照界面提示选择 /usr/local/taos/connector/grafanaplugin/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 文件。如果安装 Grafana 的机器上没有安装 TDengine，可以从 https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 下载 dashboard json 文件再导入。之后可以看到如下界面的仪表盘：
+从 https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 Import，按照界面提示导入JSON文件。之后可以看到如下界面的仪表盘：
 ![IT-DevOps-Solutions-statsd-dashboard.png](../../images/IT-DevOps-Solutions-statsd-dashboard.png)
 
 ## 总结
