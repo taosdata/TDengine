@@ -623,7 +623,7 @@ static void doFinalizeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx
     } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
       aAggs[functionId].xFinalize(&pCtx[j]);
     } else {
-      aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFinalize(&pCtx[j]);
+      assert(0);
     }
   }
 }

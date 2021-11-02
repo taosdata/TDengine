@@ -1046,7 +1046,7 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
         aAggs[functionId].xFunction(&pCtx[k]);
       } else {
-        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFunction(&pCtx[k]);
+        assert(0);
       }
     }
 
@@ -1314,7 +1314,7 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
         aAggs[functionId].xFunction(&pCtx[k]);
       } else {
-        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFunction(&pCtx[k]);
+        assert(0);
       }
     }
   }
@@ -1337,7 +1337,7 @@ static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
     } else if (!TSDB_FUNC_IS_SCALAR(pCtx[k].functionId)) {
       aAggs[pCtx[k].functionId].xFunction(&pCtx[k]);
     } else {
-      aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[k].functionId)].xFunction(&pCtx[k]);
+      assert(0);
     }
   }
 }
@@ -3815,7 +3815,7 @@ void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
     } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
       aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
     } else {
-      aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[j].functionId)].init(&pCtx[j], pCtx[j].resultInfo);
+      assert(0);
     }
   }
 }
@@ -3877,7 +3877,7 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
         } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
           aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
         } else {
-          aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[j].functionId)].xFinalize(&pCtx[j]);
+          assert(0);
         }
       }
 
@@ -3896,7 +3896,7 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
       } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
         aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
       } else {
-        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(pCtx[j].functionId)].xFinalize(&pCtx[j]);
+        assert(0);
       }
     }
   }
@@ -3993,10 +3993,10 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     if (!pResInfo->initialized) {
       if (functionId < 0 ) {
         doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[i], 0, TSDB_UDF_FUNC_INIT);
-      } else if (TSDB_FUNC_IS_SCALAR(functionId)) {
-        aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].init(&pCtx[i], pResInfo);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(functionId)) {
         aAggs[functionId].init(&pCtx[i], pResInfo);
+      } else {
+        assert(0);
       }
     }
   }
@@ -5914,10 +5914,10 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
           if (functionId < 0 ) {
             SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
             doInvokeUdf(pUdfInfo, &pInfo->pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-          } else if (TSDB_FUNC_IS_SCALAR(functionId)) {
-            aScalarFunctions[TSDB_FUNC_SCALAR_INDEX(functionId)].xFinalize(&pInfo->pCtx[j]);
-          } else {
+          } else if (!TSDB_FUNC_IS_SCALAR(functionId)) {
             aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
+          } else {
+            assert(0);
           }
         }
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfOutput);

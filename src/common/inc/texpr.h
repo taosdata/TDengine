@@ -49,6 +49,27 @@ struct SSchema;
 #define TSDB_FUNC_SCALAR_POW          (TSDB_FUNC_FLAG_SCALAR | 0x0000)
 #define TSDB_FUNC_SCALAR_LOG          (TSDB_FUNC_FLAG_SCALAR | 0x0001)
 #define TSDB_FUNC_SCALAR_MAX_NUM      2
+#define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
+typedef struct {
+  int16_t type;
+  int16_t bytes;
+  int16_t numOfRows;
+  char* data;
+} tExprOperandInfo;
+
+
+typedef void (*_expr_scalar_function_t)(tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order);
+
+_expr_scalar_function_t getExprScalarFunction(uint16_t scalar);
+
+typedef struct tScalarFunctionInfo{
+  int16_t functionId; // scalar function id & ~TSDB_FUNC_FLAG_SCALAR == index
+  char    name[TSDB_FUNC_SCALAR_NAME_MAX_LEN];
+
+} tScalarFunctionInfo;
+
+/* global scalar sql functions array */
+extern struct tScalarFunctionInfo aScalarFunctions[TSDB_FUNC_SCALAR_MAX_NUM];
 typedef bool (*__result_filter_fn_t)(const void *, void *);
 typedef void (*__do_filter_suppl_fn_t)(void *, void *);
 

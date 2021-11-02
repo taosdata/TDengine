@@ -224,15 +224,6 @@ typedef struct SAggFunctionInfo {
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
-typedef struct SScalarFunctionInfo {
-  int16_t functionId; // scalar function id & ~TSDB_FUNC_FLAG_SCALAR == index
-  char    name[TSDB_FUNCTIONS_NAME_MAX_LENGTH];
-
-  bool (*init)(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultCellInfo);
-  void (*xFunction)(SQLFunctionCtx *pCtx);
-  void (*xFinalize)(SQLFunctionCtx *pCtx);
-} SScalarFunctionInfo;
-
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
@@ -266,9 +257,6 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
 
 /* global sql function array */
 extern struct SAggFunctionInfo aAggs[];
-
-/* global scalar sql functions array */
-extern struct SScalarFunctionInfo aScalarFunctions[TSDB_FUNC_SCALAR_MAX_NUM];
 
 extern int32_t functionCompatList[]; // compatible check array list
 

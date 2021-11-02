@@ -1749,7 +1749,7 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
   int32_t tableIndex = columnList->ids[0].tableIndex;
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 
-  // all columns in arithmetic expression must belong to the same table
+  // all columns in scalar expression must belong to the same table
   for (int32_t f = 1; f < columnList->num; ++f) {
     if (columnList->ids[f].tableIndex != tableIndex) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
@@ -1776,7 +1776,7 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  // check for if there is a tag in the arithmetic express
+  // check for if there is a tag in the scalar expression
   size_t numOfNode = taosArrayGetSize(colList);
   for(int32_t k = 0; k < numOfNode; ++k) {
     SColIndex* pIndex = taosArrayGet(colList, k);
@@ -1827,6 +1827,7 @@ static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_
   char aliasName[TSDB_COL_NAME_LEN] = {0};
   getColumnName(pItem, aliasName, rawName, TSDB_COL_NAME_LEN);
 
+  // the expr associated with the result field will become exprList1 in SQueryInfo, then pExpr2 in SQueryAttr
   insertResultField(pQueryInfo, exprIndex, columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, aliasName, NULL);
 
   int32_t slot = tscNumOfFields(pQueryInfo) - 1;
@@ -4387,6 +4388,7 @@ static int32_t validateSQLExprSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
       }
     }
 
+    // add the aggregate function to SQueryInfo exprList, which is pExpr1/global aggregate pExpr3 in SQueryAttr
     if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false, NULL) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
