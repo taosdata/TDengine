@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-#include "texpr.h"
-#include "hash.h"
+#include "thash.h"
 #include "tname.h"
+#include "function.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
@@ -105,7 +105,7 @@ typedef struct SFilterColRange {
 
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
-typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SDataStatis *, int16_t);
+typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SColumnDataAgg *, int16_t);
 
 typedef struct SFilterRangeCompare {
   int64_t s;
@@ -324,13 +324,13 @@ typedef struct SFilterInfo {
 
 
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
-extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols);
+extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDataBlock);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
-extern bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows);
+extern bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows);
 
 #ifdef __cplusplus
 }

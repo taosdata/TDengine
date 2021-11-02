@@ -132,9 +132,9 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     void* outputBuf = pOutput->data;
     if (isStringOp(pExprs->_node.optr)) {
       outputBuf = realloc(pOutput->data, (left.bytes + right.bytes) * left.num);
-      OperatorFn(&left, &right, outputBuf, TSDB_ORDER_ASC);
     }
 
+    OperatorFn(&left, &right, outputBuf, TSDB_ORDER_ASC);
     // Set the result info
     setScalarFuncParam(pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double), outputBuf, numOfRows);
   } else if (pExprs->nodeType == TEXPR_UNARYEXPR_NODE) {
@@ -174,3 +174,44 @@ SScalarFunctionInfo scalarFunc[1] = {
     },
 
 };
+
+void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
+  sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
+  sas->pExprInfo = pExprInfo;
+  if (sas->colList != NULL) {
+    return;
+  }
+
+  sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
+  for(int32_t i = 0; i < sas->numOfCols; ++i) {
+    SColumnInfoData* pColData = taosArrayGet(pSDataBlock->pDataBlock, i);
+    sas->colList[i] = pColData->info;
+  }
+
+  sas->data = calloc(sas->numOfCols, POINTER_BYTES);
+
+  // set the input column data
+  for (int32_t f = 0; f < pSDataBlock->info.numOfCols; ++f) {
+    SColumnInfoData *pColumnInfoData = taosArrayGet(pSDataBlock->pDataBlock, f);
+    sas->data[f] = pColumnInfoData->pData;
+  }
+}
+
+SScalarFunctionSupport* createScalarFuncSupport(int32_t num) {
+  SScalarFunctionSupport* pSupp = calloc(num, sizeof(SScalarFunctionSupport));
+  return pSupp;
+}
+
+void destroyScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t num) {
+  if (pSupport == NULL) {
+    return;
+  }
+
+  for(int32_t i = 0; i < num; ++i) {
+    SScalarFunctionSupport* pSupp = &pSupport[i];
+    tfree(pSupp->data);
+    tfree(pSupp->colList);
+  }
+
+  tfree(pSupport);
+}

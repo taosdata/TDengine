@@ -41,7 +41,7 @@ typedef struct SQueryPlanNode {
   SSchema            *pSchema;      // the schema of the input SSDatablock
   int32_t             numOfCols;    // number of input columns
   SArray             *pExpr;        // the query functions or sql aggregations
-  int32_t             numOfOutput;  // number of result columns, which is also the number of pExprs
+  int32_t             numOfExpr;  // number of result columns, which is also the number of pExprs
   void               *pExtInfo;     // additional information
   // previous operator to generated result for current node to process
   // in case of join, multiple prev nodes exist.
@@ -50,6 +50,7 @@ typedef struct SQueryPlanNode {
 } SQueryPlanNode;
 
 typedef struct SQueryDistPlanNode {
+  SQueryNodeBasicInfo info;
 
 } SQueryDistPlanNode;
 

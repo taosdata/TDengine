@@ -140,7 +140,8 @@ do { \
 #define TSDB_UNARY_OP_ROUND       4503
 
 #define TSDB_UNARY_OP_LEN         4600
-
+#define TSDB_UNARY_OP_LTRIM       4601
+#define TSDB_UNARY_OP_RTRIM       4601
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))

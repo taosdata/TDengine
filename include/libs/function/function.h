@@ -78,13 +78,28 @@ extern "C" {
 #define FUNCTION_MODE         36
 #define FUNCTION_SAMPLE       37
 
+// determine the real data need to calculated the result
+enum {
+  BLK_DATA_NO_NEEDED     = 0x0,
+  BLK_DATA_STATIS_NEEDED = 0x1,
+  BLK_DATA_ALL_NEEDED    = 0x3,
+  BLK_DATA_DISCARD       = 0x4,   // discard current data block since it is not qualified for filter
+};
+
+enum {
+  MASTER_SCAN   = 0x0u,
+  REVERSE_SCAN  = 0x1u,
+  REPEAT_SCAN   = 0x2u,  //repeat scan belongs to the master scan
+  MERGE_STAGE   = 0x20u,
+};
+
 typedef struct SPoint1 {
   int64_t   key;
   union{double  val; char* ptr;};
 } SPoint1;
 
 struct SQLFunctionCtx;
-struct SResultRowCellInfo;
+struct SResultRowEntryInfo;
 
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
 typedef struct SExtTagsInfo {
@@ -92,6 +107,8 @@ typedef struct SExtTagsInfo {
   int16_t                 numOfTagCols;
   struct SQLFunctionCtx **pTagCtxList;
 } SExtTagsInfo;
+
+#define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 // sql function runtime context
 typedef struct SQLFunctionCtx {
@@ -117,9 +134,9 @@ typedef struct SQLFunctionCtx {
   void        *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SVariant     tag;
 
-  bool         isSmaSet;
-  SColumnDataAgg sma;
-  struct  SResultRowCellInfo *resultInfo;
+  bool        isAggSet;
+  SColumnDataAgg              agg;
+  struct  SResultRowEntryInfo *resultInfo;
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
@@ -161,7 +178,7 @@ typedef struct SAggFunctionInfo {
   int8_t   sFunctionId;  // Transfer function for super table query
   uint16_t status;
 
-  bool (*init)(SQLFunctionCtx *pCtx, struct SResultRowCellInfo* pResultCellInfo);  // setup the execute environment
+  bool (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
   void (*exec)(SQLFunctionCtx *pCtx);
 
   // finalizer must be called after all exec has been executed to generated final result.
@@ -176,7 +193,7 @@ typedef struct SScalarFunctionInfo {
   int8_t   type;              // scalar function or aggregation function
   uint8_t  functionId;        // index of scalar function
 
-  bool    (*init)(SQLFunctionCtx *pCtx, struct SResultRowCellInfo* pResultCellInfo);  // setup the execute environment
+  bool    (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
   void    (*exec)(SQLFunctionCtx *pCtx);
 } SScalarFunctionInfo;
 
@@ -221,9 +238,47 @@ bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* funct
 
 const char* qGetFunctionName(int32_t functionId);
 
+tExprNode* exprTreeFromBinary(const void* data, size_t size);
+
 void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc);
 
 tExprNode* exprdup(tExprNode* pTree);
+
+void resetResultRowEntryResult(SQLFunctionCtx* pCtx, int32_t num);
+void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
+int32_t getNumOfResult(SQLFunctionCtx* pCtx, int32_t num);
+bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
+bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
+
+struct SScalarFunctionSupport* createScalarFuncSupport(int32_t num);
+void destroyScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t num);
+struct SScalarFunctionSupport* getScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t index);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// fill api
+struct SFillInfo;
+struct SFillColInfo;
+
+typedef struct SPoint {
+  int64_t key;
+  void *  val;
+} SPoint;
+
+void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
+void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
+void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const int64_t* fillVal);
+bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
+
+struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+                              int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
+                              struct SFillColInfo* pFillCol, void* handle);
+
+void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
+int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
+int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
+
+int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
 #ifdef __cplusplus
 }

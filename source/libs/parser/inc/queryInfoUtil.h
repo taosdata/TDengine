@@ -39,7 +39,6 @@ int32_t    copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy);
 
 void       addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
-int32_t    getExprFunctionId(SExprInfo *pExprInfo);
 void       cleanupFieldInfo(SFieldInfo* pFieldInfo);
 
 STableComInfo getTableInfo(const STableMeta* pTableMeta);

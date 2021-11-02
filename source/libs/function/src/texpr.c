@@ -21,9 +21,7 @@
 #include "tarray.h"
 #include "tbuffer.h"
 #include "tcompare.h"
-#include "tname.h"
 #include "thash.h"
-#include "tskiplist.h"
 #include "texpr.h"
 #include "tvariant.h"
 

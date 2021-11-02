@@ -104,7 +104,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
     pNode->tableInfo.tableName = strdup(pTableInfo->tableName);
   }
 
-  pNode->numOfOutput = numOfOutput;
+  pNode->numOfExpr = numOfOutput;
   pNode->pExpr = taosArrayInit(numOfOutput, POINTER_BYTES);
 
   for(int32_t i = 0; i < numOfOutput; ++i) {
@@ -234,8 +234,8 @@ static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryIn
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillEssInfo* pInfo = calloc(1, sizeof(SFillEssInfo));
     pInfo->fillType = pQueryInfo->fillType;
-    pInfo->val = calloc(pNode->numOfOutput, sizeof(int64_t));
-    memcpy(pInfo->val, pQueryInfo->fillVal, pNode->numOfOutput);
+    pInfo->val = calloc(pNode->numOfExpr, sizeof(int64_t));
+    memcpy(pInfo->val, pQueryInfo->fillVal, pNode->numOfExpr);
 
     pNode = createQueryNode(QNODE_FILL, "Fill", &pNode, 1, NULL, 0, info, pInfo);
   }
@@ -375,14 +375,14 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
       len1 = sprintf(buf + len, "cols: ");
       len += len1;
 
-      for(int32_t i = 0; i < pQueryNode->numOfOutput; ++i) {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* p = &pExprInfo->base;
         len1 = sprintf(buf + len, "[%s #%d]", p->resSchema.name, p->resSchema.colId);
         len += len1;
 
-        if (i < pQueryNode->numOfOutput - 1) {
+        if (i < pQueryNode->numOfExpr - 1) {
           len1 = sprintf(buf + len, ", ");
           len += len1;
         }
@@ -398,12 +398,12 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
     }
 
     case QNODE_AGGREGATE: {
-      for(int32_t i = 0; i < pQueryNode->numOfOutput; ++i) {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
         len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
-        if (i < pQueryNode->numOfOutput - 1) {
+        if (i < pQueryNode->numOfExpr - 1) {
           len1 = sprintf(buf + len, ", ");
           len += len1;
         }
@@ -415,12 +415,12 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
     }
 
     case QNODE_TIMEWINDOW: {
-      for(int32_t i = 0; i < pQueryNode->numOfOutput; ++i) {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
         len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
-        if (i < pQueryNode->numOfOutput - 1) {
+        if (i < pQueryNode->numOfExpr - 1) {
           len1 = sprintf(buf + len,", ");
           len += len1;
         }
@@ -441,14 +441,14 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
     }
 
     case QNODE_GROUPBY: {  // todo hide the invisible column
-      for(int32_t i = 0; i < pQueryNode->numOfOutput; ++i) {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
 
         SSqlExpr* pExpr = &pExprInfo->base;
         len1 = sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
 
         len += len1;
-        if (i < pQueryNode->numOfOutput - 1) {
+        if (i < pQueryNode->numOfExpr - 1) {
           len1 = sprintf(buf + len,", ");
           len += len1;
         }
@@ -473,11 +473,11 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
         len += len1;
 
         // todo get the correct fill data type
-        for(int32_t i = 0; i < pQueryNode->numOfOutput; ++i) {
+        for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
           len1 = sprintf(buf + len,"%"PRId64, pEssInfo->val[i]);
           len += len1;
 
-          if (i < pQueryNode->numOfOutput - 1) {
+          if (i < pQueryNode->numOfExpr - 1) {
             len1 = sprintf(buf + len,", ");
             len += len1;
           }
@@ -501,14 +501,14 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
       len1 = sprintf(buf + len,"cols: ");
       len += len1;
 
-      for(int32_t i = 0; i < pQueryNode->numOfOutput; ++i) {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
         SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
         SSchema* resSchema = &pExprInfo->base.resSchema;
 
         len1 = sprintf(buf + len,"[%s #%d]", resSchema->name, resSchema->colId);
         len += len1;
 
-        if (i < pQueryNode->numOfOutput - 1) {
+        if (i < pQueryNode->numOfExpr - 1) {
           len1 = sprintf(buf + len,", ");
           len += len1;
         }

@@ -28,15 +28,21 @@ typedef struct SScalarFuncParam {
   int32_t bytes;
 } SScalarFuncParam;
 
-extern struct SScalarFunctionInfo scalarFunc[1];
+typedef struct SScalarFunctionSupport {
+  struct SExprInfo   *pExprInfo;
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+  void        *exprList;   // client side used
+  int32_t      offset;
+  char**       data;
+} SScalarFunctionSupport;
 
-#define FUNCTION_CEIL         38
-#define FUNCTION_FLOOR        39
-#define FUNCTION_ROUND        40
-#define FUNCTION_CONCAT       41
+extern struct SScalarFunctionInfo scalarFunc[1];
 
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput,
                           void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
+
+
 
 #ifdef __cplusplus
 }

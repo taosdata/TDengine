@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <function.h>
 #include "os.h"
 
 #include "taosdef.h"
@@ -27,7 +28,6 @@
 
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)
 #define DO_INTERPOLATION(_v1, _v2, _k1, _k2, _k) ((_v1) + ((_v2) - (_v1)) * (((double)(_k)) - ((double)(_k1))) / (((double)(_k2)) - ((double)(_k1))))
-#define GET_FORWARD_DIRECTION_FACTOR(_ord) (((_ord) == TSDB_ORDER_ASC)? 1:-1)
 
 static void setTagsValue(SFillInfo* pFillInfo, void** data, int32_t genRows) {
   for(int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
@@ -340,9 +340,9 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
   return pFillInfo->numOfRows - pFillInfo->index;
 }
 
-SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                             int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                            SFillColInfo* pCol, void* handle) {
+                            struct SFillColInfo* pCol, void* handle) {
   if (fillType == TSDB_FILL_NONE) {
     return NULL;
   }
@@ -521,4 +521,34 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, void** output, int32_t cap
 //         pFillInfo->numOfTotal, pFillInfo->handle);
 
   return numOfRes;
+}
+
+int64_t getFillInfoStart(struct SFillInfo *pFillInfo) {
+  return pFillInfo->start;
+}
+
+struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const int64_t* fillVal) {
+  int32_t offset = 0;
+
+  struct SFillColInfo* pFillCol = calloc(numOfOutput, sizeof(SFillColInfo));
+  if (pFillCol == NULL) {
+    return NULL;
+  }
+
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SExprInfo* pExprInfo   = &pExpr[i];
+
+    pFillCol[i].col.bytes  = pExprInfo->base.resSchema.bytes;
+    pFillCol[i].col.type   = (int8_t)pExprInfo->base.resSchema.type;
+    pFillCol[i].col.offset = offset;
+    pFillCol[i].col.colId  = pExprInfo->base.resSchema.colId;
+    pFillCol[i].tagIndex   = -2;
+    pFillCol[i].flag       = pExprInfo->base.colInfo.flag;    // always be the normal column for table query
+    pFillCol[i].functionId = pExprInfo->pExpr->_node.functionId;
+    pFillCol[i].fillVal.i  = fillVal[i];
+
+    offset += pExprInfo->base.resSchema.bytes;
+  }
+
+  return pFillCol;
 }

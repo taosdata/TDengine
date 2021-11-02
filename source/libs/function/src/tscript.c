@@ -14,12 +14,12 @@
  */
 
 #include "os.h"
-#include "qScript.h"
-#include "ttype.h"
+#include "tscript.h"
+#include "ttypes.h"
 #include "tstrbuild.h"
-#include "queryLog.h"
+//#include "queryLog.h"
 #include "ttokendef.h"
-
+#if 0
 static ScriptEnvPool *pool = NULL;  
 
 static ScriptEnv* getScriptEnvFromPool();
@@ -444,3 +444,4 @@ bool isValidScript(char *script, int32_t len) {
   return ret;
 }
 
+#endif

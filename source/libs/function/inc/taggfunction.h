@@ -30,12 +30,12 @@ extern "C" {
 
 extern SAggFunctionInfo aggFunc[34];
 
-typedef struct SResultRowCellInfo {
+typedef struct SResultRowEntryInfo {
   int8_t   hasResult;       // result generated, not NULL value
   bool     initialized;     // output buffer has been initialized
   bool     complete;        // query has completed
   uint32_t numOfRes;        // num of output result in current buffer
-} SResultRowCellInfo;
+} SResultRowEntryInfo;
 
 #define FUNCSTATE_SO           0x0u
 #define FUNCSTATE_MO           0x1u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -52,32 +52,12 @@ typedef struct SResultRowCellInfo {
 #define DATA_SET_FLAG ','  // to denote the output area has data, not null value
 #define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
 
-#define QUERY_ASC_FORWARD_STEP   1
-#define QUERY_DESC_FORWARD_STEP -1
-
-#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 #define TOP_BOTTOM_QUERY_LIMIT   100
-
-enum {
-  MASTER_SCAN   = 0x0u,
-  REVERSE_SCAN  = 0x1u,
-  REPEAT_SCAN   = 0x2u,  //repeat scan belongs to the master scan
-  MERGE_STAGE   = 0x20u,
-};
 
 #define QUERY_IS_STABLE_QUERY(type)      (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
 #define QUERY_IS_JOIN_QUERY(type)        (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_QUERY))
 #define QUERY_IS_PROJECTION_QUERY(type)  (((type)&TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0)
 #define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
-
-typedef struct SArithmeticSupport {
-  struct SExprInfo   *pExprInfo;
-  int32_t      numOfCols;
-  SColumnInfo *colList;
-  void        *exprList;   // client side used
-  int32_t      offset;
-  char**       data;
-} SArithmeticSupport;
 
 typedef struct SInterpInfoDetail {
   TSKEY  ts;  // interp specified timestamp
@@ -85,20 +65,10 @@ typedef struct SInterpInfoDetail {
   int8_t primaryCol;
 } SInterpInfoDetail;
 
-#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowCellInfo)))
-
-#define GET_RES_INFO(ctx) ((ctx)->resultInfo)
+#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowEntryInfo)))
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
-
-// determine the real data need to calculated the result
-enum {
-  BLK_DATA_NO_NEEDED     = 0x0,
-  BLK_DATA_STATIS_NEEDED = 0x1,
-  BLK_DATA_ALL_NEEDED    = 0x3,
-  BLK_DATA_DISCARD       = 0x4,   // discard current data block since it is not qualified for filter
-};
 
 typedef struct STwaInfo {
   int8_t      hasResult;  // flag to denote has value
@@ -115,12 +85,7 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
  * the numOfRes should be kept, since it may be used later
  * and allow the ResultInfo to be re initialized
  */
-#define RESET_RESULT_INFO(_r)  \
-  do {                         \
-    (_r)->initialized = false; \
-  } while (0)
-
-static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bufLen) {
+static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
   pResInfo->complete  = false;

@@ -32,21 +32,7 @@ typedef struct SColumn {
   SColumnInfo  info;
 } SColumn;
 
-// the structure for sql function in select clause
-typedef struct SSqlExpr {
-  char      token[TSDB_COL_NAME_LEN];      // original token
-  SSchema   resSchema;
-  SColIndex colInfo;
-  uint64_t  uid;            // table uid, todo refactor use the pointer
-  int32_t   interBytes;     // inter result buffer size
-  int16_t   numOfParams;    // argument value of each function
-  SVariant  param[3];       // parameters are not more than 3
-} SSqlExpr;
 
-typedef struct SExprInfo {
-  SSqlExpr           base;
-  struct tExprNode  *pExpr;
-} SExprInfo;
 
 //typedef struct SInterval {
 //  int32_t  tz;            // query client timezone
@@ -63,13 +49,6 @@ typedef struct SExprInfo {
 //  int32_t  primaryColId;    // primary timestamp column
 //} SSessionWindow;
 
-typedef struct SGroupbyExpr {
-  int16_t  tableIndex;
-  SArray*  columnInfo;  // SArray<SColIndex>, group by columns information
-  int16_t  orderIndex;  // order by column index
-  int16_t  orderType;   // order by type: asc/desc
-} SGroupbyExpr;
-
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
@@ -81,16 +60,6 @@ typedef struct SFieldInfo {
   SField     *final;
   SArray     *internalField; // SArray<SInternalField>
 } SFieldInfo;
-
-typedef struct SLimit {
-  int64_t   limit;
-  int64_t   offset;
-} SLimit;
-
-typedef struct SOrder {
-  uint32_t  order;
-  int32_t   orderColId;
-} SOrder;
 
 typedef struct SCond {
   uint64_t uid;
