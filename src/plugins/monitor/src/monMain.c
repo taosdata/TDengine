@@ -164,6 +164,7 @@ static void  monSaveSlowQueryInfo();
 static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void  monSaveHttpReqInfo();
+static void  monClearStatisInfo();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
 static void monInitHttpStatusHashTable();
@@ -313,6 +314,7 @@ static void *monThreadFunc(void *param) {
         monSaveGrantsInfo();
         monSaveHttpReqInfo();
         monSaveSystemInfo();
+        monClearStatisInfo();
       }
     }
   }
@@ -829,10 +831,7 @@ static int32_t monBuildDnodeReqSql(char *sql) {
   float httpReqRate = dInfo.httpReqNum / interval;
   float queryReqRate = (dInfo.queryReqNum - monQueryReqCnt)/ interval;
   float submitReqRate = (dInfo.submitReqNum - monSubmitReqCnt) / interval;
-  dnodeClearStatisInfo();
-
   float submitRowRate = (vInfo.submitRowNum - monSubmitReqCnt) / interval;
-  vnodeClearStatisInfo();
 
   return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", dInfo.httpReqNum, httpReqRate,
                                                                   dInfo.queryReqNum - monQueryReqCnt, queryReqRate,
@@ -1228,6 +1227,11 @@ static void monSaveHttpReqInfo() {
     monIncSubmitReqCnt();
     monDebug("successfully to save restful_%d info, sql:%s", dnodeGetDnodeId(), tsMonitor.sql);
   }
+}
+
+static void  monClearStatisInfo() {
+  dnodeClearStatisInfo();
+  vnodeClearStatisInfo();
 }
 
 static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
