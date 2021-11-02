@@ -57,14 +57,14 @@ SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
     return NULL;
   }
 
-  tableUidGeneratorInit(&(pMeta->uidGenerator), IVLD_TB_UID);
+  tableUidGeneratorInit(&(pMeta->uidGnrt), IVLD_TB_UID);
 
   return pMeta;
 }
 
 void metaClose(SMeta *pMeta) {
   if (pMeta) {
-    tableUidGeneratorClear(&pMeta->uidGenerator);
+    tableUidGeneratorClear(&pMeta->uidGnrt);
     metaCloseDB(pMeta);
     free(pMeta);
   }
