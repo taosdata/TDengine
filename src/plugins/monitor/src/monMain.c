@@ -518,10 +518,8 @@ static int32_t monBuildDnodesTotalSql(char *sql) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], "ready", charLen) == 0)  {
           totalDnodesAlive++;
-          printf("Gavin0- row:%s, charLen:%d\n", (char *)row[i], charLen);
         }
       }
-      printf("Gavin- name:%s, type:%u\n", fields[i].name, fields[i].type);
     }
   }
 
