@@ -66,7 +66,7 @@ void metaClose(SMeta *pMeta) {
   if (pMeta) {
     tableUidGeneratorClear(&pMeta->uidGnrt);
     metaCloseDB(pMeta);
-    free(pMeta);
+    metaFree(pMeta);
   }
 }
 
