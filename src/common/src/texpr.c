@@ -147,6 +147,7 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     for (int i = 0; i < (*pExpr)->_func.numChildren; ++i) {
       doExprTreeDestroy((*pExpr)->_func.pChildren + i, fp);
     }
+    free((*pExpr)->_func.pChildren);
   }
 
   free(*pExpr);
@@ -732,6 +733,7 @@ tExprNode* exprdup(tExprNode* pNode) {
   } else if (pNode->nodeType == TSQL_NODE_FUNC) {
     pCloned->_func.functionId = pNode->_func.functionId;
     pCloned->_func.numChildren = pNode->_func.numChildren;
+    pCloned->_func.pChildren = calloc(pNode->_func.numChildren, sizeof(tExprNode*));
     for (int i = 0; i < pNode->_func.numChildren; ++i) {
       pCloned->_func.pChildren[i] = exprdup(pNode->_func.pChildren[i]);
     }
