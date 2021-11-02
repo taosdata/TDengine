@@ -314,7 +314,6 @@ static void *monThreadFunc(void *param) {
         monSaveGrantsInfo();
         monSaveHttpReqInfo();
         monSaveSystemInfo();
-        monClearStatisInfo();
       }
     }
   }
@@ -832,6 +831,7 @@ static int32_t monBuildDnodeReqSql(char *sql) {
   float queryReqRate = (dInfo.queryReqNum - monQueryReqCnt)/ interval;
   float submitReqRate = (dInfo.submitReqNum - monSubmitReqCnt) / interval;
   float submitRowRate = (vInfo.submitRowNum - monSubmitReqCnt) / interval;
+  monClearStatisInfo();
 
   return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", dInfo.httpReqNum, httpReqRate,
                                                                   dInfo.queryReqNum - monQueryReqCnt, queryReqRate,
@@ -1230,7 +1230,7 @@ static void monSaveHttpReqInfo() {
   }
 }
 
-static void  monClearStatisInfo() {
+static void monClearStatisInfo() {
   dnodeClearStatisInfo();
   vnodeClearStatisInfo();
 }
