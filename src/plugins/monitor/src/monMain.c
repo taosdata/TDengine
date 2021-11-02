@@ -704,17 +704,18 @@ static int32_t monBuildDnodeReqSql(char *sql) {
   SDnodeStatisInfo dInfo = dnodeGetStatisInfo();
   SVnodeStatisInfo vInfo = vnodeGetStatisInfo();
 
-  float interval = tsMonitorInterval * 1.0;
-  float httpReqRate = dInfo.httpReqNum / interval;
-  float queryReqRate = dInfo.queryReqNum / interval;
-  float submitReqRate = dInfo.submitReqNum / interval;
-  dnodeClearStatisInfo();
-
-  float submitRowRate = vInfo.submitRowNum / interval;
-  vnodeClearStatisInfo();
-
   int32_t monQueryReqCnt = monFetchQueryReqCnt();
   int32_t monSubmitReqCnt = monFetchSubmitReqCnt();
+
+  float interval = tsMonitorInterval * 1.0;
+  float httpReqRate = dInfo.httpReqNum / interval;
+  float queryReqRate = (dInfo.queryReqNum - monQueryReqCnt)/ interval;
+  float submitReqRate = (dInfo.submitReqNum - monSubmitReqCnt) / interval;
+  dnodeClearStatisInfo();
+
+  float submitRowRate = (vInfo.submitRowNum - monSubmitReqCnt) / interval;
+  vnodeClearStatisInfo();
+
   return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", dInfo.httpReqNum, httpReqRate,
                                                                   dInfo.queryReqNum - monQueryReqCnt, queryReqRate,
                                                                   vInfo.submitRowNum - monSubmitReqCnt, vInfo.submitRowSucNum - monSubmitReqCnt, submitRowRate,
