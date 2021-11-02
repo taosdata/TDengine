@@ -487,6 +487,30 @@ pipeline {
               pre_test()    
             }
         }
+        stage('centos7') {
+          agent{label " centos7 "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('ubuntu:trusty') {
+          agent{label " trusty "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('ubuntu:xenial') {
+          agent{label " xenial "}
+          steps {     
+              pre_test()    
+            }
+        }
+        stage('ubuntu:bionic') {
+          agent{label " bionic "}
+          steps {     
+              pre_test()    
+            }
+        }
 
         stage('build'){
           agent{label " wintest "}
