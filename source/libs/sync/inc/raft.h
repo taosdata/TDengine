@@ -17,15 +17,46 @@
 #define _TD_LIBS_SYNC_RAFT_H
 
 #include "sync.h"
+#include "sync_type.h"
 #include "raft_message.h"
 
-typedef struct SSyncRaft {
+typedef struct SSyncRaftProgress SSyncRaftProgress;
+
+typedef struct RaftLeaderState {
+  int nProgress;
+  SSyncRaftProgress* progress;
+} RaftLeaderState;
+
+typedef struct SSyncRaftIOMethods {
+  SyncTime (*time)(SSyncRaft*);
+
+} SSyncRaftIOMethods;
+
+struct SSyncRaft {
   // owner sync node
   SSyncNode* pNode;
 
   SSyncInfo info;
 
-} SSyncRaft;
+  // election timeout tick(random in [3:6] tick)
+  uint16_t electionTick;
+
+  // heartbeat timeout tick(default: 1 tick)
+  uint16_t heartbeatTick;
+
+  int installSnapShotTimeoutMS;
+
+  //
+  int heartbeatTimeoutMS;
+
+  bool preVote;
+
+  SSyncRaftIOMethods io;
+
+  RaftLeaderState leaderState;
+
+  SSyncRaftUnstableLog *log;
+};
 
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
 int32_t syncRaftStep(SSyncRaft* pRaft, const RaftMessage* pMsg);

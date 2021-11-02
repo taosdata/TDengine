@@ -61,13 +61,13 @@ typedef struct {
 typedef struct SSyncFSM {
   void* pData;
 
-  // apply committed log, bufs will be free by raft module
+  // apply committed log, bufs will be free by sync module
   int32_t (*applyLog)(struct SSyncFSM* fsm, SyncIndex index, const SSyncBuffer* buf, void* pData);
 
   // cluster commit callback
   int32_t (*onClusterChanged)(struct SSyncFSM* fsm, const SSyncCluster* cluster, void* pData);
 
-  // fsm return snapshot in ppBuf, bufs will be free by raft module
+  // fsm return snapshot in ppBuf, bufs will be free by sync module
   // TODO: getSnapshot SHOULD be async?
   int32_t (*getSnapshot)(struct SSyncFSM* fsm, SSyncBuffer** ppBuf, int32_t* objId, bool* isLast);
 
@@ -89,18 +89,24 @@ typedef struct SSyncLogStore {
   // write log with given index
   int32_t (*logWrite)(struct SSyncLogStore* logStore, SyncIndex index, SSyncBuffer* pBuf);
 
-  // read log from given index with limit, return the actual num in nBuf
+  /** 
+   * read log from given index(included) with limit, return the actual num in nBuf,
+   * pBuf will be free in sync module
+   **/
   int32_t (*logRead)(struct SSyncLogStore* logStore, SyncIndex index, int limit,
                       SSyncBuffer* pBuf, int* nBuf);
 
   // mark log with given index has been commtted
   int32_t (*logCommit)(struct SSyncLogStore* logStore, SyncIndex index);
 
-  // prune log before given index
+  // prune log before given index(not included)
   int32_t (*logPrune)(struct SSyncLogStore* logStore, SyncIndex index);
 
-  // rollback log after given index
+  // rollback log after given index(included)
   int32_t (*logRollback)(struct SSyncLogStore* logStore, SyncIndex index);
+
+  // return last index of log
+  SyncIndex (*logLastIndex)(struct SSyncLogStore* logStore);
 } SSyncLogStore;
 
 typedef struct SSyncServerState {

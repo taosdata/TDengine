@@ -19,6 +19,7 @@
 #include "thash.h"
 #include "os.h"
 #include "sync.h"
+#include "sync_type.h"
 #include "raft.h"
 #include "tlog.h"
 

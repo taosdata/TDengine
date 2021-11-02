@@ -16,11 +16,9 @@
 #include "raft.h"
 #include "syncInt.h"
 
-#ifndef MIN
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-#endif
-
 #define RAFT_READ_LOG_MAX_NUM 100
+
+static void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term);
 
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SSyncNode* pNode = pRaft->pNode;
@@ -44,10 +42,10 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
   assert(initIndex <= serverState.commitIndex);
 
-  // restore fsm state from snapshot index + 1, until commitIndex
+  // restore fsm state from snapshot index + 1 until commitIndex
   ++initIndex;
-  while (initIndex < serverState.commitIndex) {
-    limit = MIN(RAFT_READ_LOG_MAX_NUM, serverState.commitIndex - initIndex);
+  while (initIndex <= serverState.commitIndex) {
+    limit = MIN(RAFT_READ_LOG_MAX_NUM, serverState.commitIndex - initIndex + 1);
 
     if (logStore->logRead(logStore, initIndex, limit, buffer, &nBuf) != 0) {
       return -1;
@@ -62,7 +60,11 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
   assert(initIndex == serverState.commitIndex);
 
-  syncInfo("restore vgid %d state: snapshot index:", pInfo->vgId);
+  pRaft->heartbeatTick = 1;
+
+  syncRaftBecomeFollower(pRaft, 1);
+
+  syncInfo("restore vgid %d state: snapshot index success", pInfo->vgId);
   return 0;
 }
 
@@ -73,4 +75,9 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const RaftMessage* pMsg) {
 
 int32_t syncRaftTick(SSyncRaft* pRaft) {
   return 0;
+}
+
+static void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term) {
+  pRaft->electionTick = taosRand() % 3 + 3;
+  return;
 }
