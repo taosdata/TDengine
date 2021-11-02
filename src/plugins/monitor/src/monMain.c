@@ -308,7 +308,7 @@ static void *monThreadFunc(void *param) {
     }
 
     if (tsMonitor.state == MON_STATE_INITED) {
-      if (accessTimes % tsMonitorInterval == 0 || accessTimes == 1) {
+      if (accessTimes % tsMonitorInterval == 0) {
         monGetSysStats();
         //monSaveDnodesInfo has to be the first, as it calculates
         //stats using monSubmitReqNum before any insertion from monitor
@@ -834,7 +834,8 @@ static int32_t monBuildDnodeIoSql(char *sql) {
   rbyteKB = tsMonStat.io_read_disk;
   wbyteKB = tsMonStat.io_write_disk;
 
-  return sprintf(sql, ", %f, %f, %f, %f", rcharKB, wcharKB, rbyteKB, wbyteKB);
+  return sprintf(sql, ", %f, %f, %f, %f", rcharKB/tsMonitorInterval, wcharKB/tsMonitorInterval,
+                                          rbyteKB/tsMonitorInterval, wbyteKB/tsMonitorInterval);
 }
 
 static int32_t monBuildNetworkIOSql(char *sql) {
@@ -844,7 +845,8 @@ static int32_t monBuildNetworkIOSql(char *sql) {
     monDebug("failed to get network I/O info");
   }
 
-  return sprintf(sql, ", %f, %f", netInKb, netOutKb);
+  return sprintf(sql, ", %f, %f", netInKb/tsMonitorInterval,
+                                  netOutKb/tsMonitorInterval);
 }
 
 static int32_t monBuildDnodeReqSql(char *sql) {
@@ -969,7 +971,7 @@ static void monSaveClusterInfo() {
   pos += monBuildVnodesTotalSql(sql + pos);
   pos += monBuildConnsTotalSql(sql + pos);
 
-  monError("sql:%s", sql);
+  monDebug("save cluster, sql:%s", sql);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
   int32_t code = taos_errno(res);
@@ -999,7 +1001,7 @@ static void monSaveDnodesInfo() {
   pos += monBuildDnodeVnodesSql(sql + pos);
   pos += monBuildDnodeMnodeSql(sql + pos);
 
-  monError("sql:%s", sql);
+  monDebug("save dnodes, sql:%s", sql);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
   int32_t code = taos_errno(res);
@@ -1084,7 +1086,7 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\", \"%s\")", v_dnode_ids, v_dnode_status);
       }
     }
-    monError("sql:%s", sql);
+    monDebug("save vgroups, sql:%s", sql);
     TAOS_RES *res = taos_query(tsMonitor.conn, sql);
     int32_t code = taos_errno(res);
     taos_free_result(res);
@@ -1155,7 +1157,7 @@ static void monSaveSlowQueryInfo() {
     }
   }
 
-  monError("sql:%s", sql);
+  monDebug("save slow query, sql:%s", sql);
   taos_free_result(result);
   if (!has_slowquery) {
     return;
@@ -1180,7 +1182,7 @@ static void monSaveDisksInfo() {
 
   monBuildDiskTierSql(sql + pos);
 
-  monError("sql:%s", sql);
+  monDebug("save disk, sql:%s", sql);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
   int32_t code = taos_errno(res);
@@ -1236,7 +1238,7 @@ static void monSaveGrantsInfo() {
     }
   }
 
-  monError("sql:%s", sql);
+  monDebug("save grants, sql:%s", sql);
   taos_free_result(result);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
@@ -1264,7 +1266,7 @@ static void monSaveHttpReqInfo() {
   pos += snprintf(sql + pos, SQL_LENGTH, ")");
   dnodeClearHttpStatusInfo();
 
-  monError("sql:%s", sql);
+  monDebug("save http req, sql:%s", sql);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
   int32_t code = taos_errno(res);
@@ -1368,7 +1370,7 @@ void monSaveDnodeLog(int32_t level, const char *const format, ...) {
   len += sprintf(sql + len, "')");
   sql[len++] = 0;
 
-  monError("save log, sql: %s", sql);
+  monDebug("save dnode log, sql: %s", sql);
   taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "log");
 }
 
