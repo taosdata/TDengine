@@ -4265,6 +4265,7 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQuer
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
+    if (pExpr->tokenId == TK_ARROW) {pExpr = pExpr->pLeft;}
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&pExpr->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
