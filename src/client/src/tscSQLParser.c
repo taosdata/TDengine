@@ -107,7 +107,7 @@ static int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryIn
 static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
+static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
                                    SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid);
 static int32_t validateEp(char* ep);
 static int32_t validateDNodeConfig(SMiscInfo* pOptions);
@@ -1881,7 +1881,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
   int32_t     arithmeticType = NON_ARITHMEIC_EXPR;
 
   uint64_t uid;
-  if (validateSQLExprTerm(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType, &uid) != TSDB_CODE_SUCCESS) {
+  if (validateSQLExprItem(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType, &uid) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -4358,7 +4358,7 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
         (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION))  {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    code = validateSQLExprTerm(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
+    code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4423,7 +4423,7 @@ static int32_t validateArithmeticSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
+static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
                                              SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -4435,11 +4435,11 @@ static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
     uint64_t uidLeft = 0;
     uint64_t uidRight = 0;
-    int32_t  ret = validateSQLExprTerm(pCmd, pExpr->pLeft, pQueryInfo, pList, type, &uidLeft);
+    int32_t  ret = validateSQLExprItem(pCmd, pExpr->pLeft, pQueryInfo, pList, type, &uidLeft);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
-    ret = validateSQLExprTerm(pCmd, pExpr->pRight, pQueryInfo, pList, type, &uidRight);
+    ret = validateSQLExprItem(pCmd, pExpr->pRight, pQueryInfo, pList, type, &uidRight);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
