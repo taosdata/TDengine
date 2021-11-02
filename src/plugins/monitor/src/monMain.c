@@ -1171,6 +1171,11 @@ static void monSaveGrantsInfo() {
   int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.grants_info values(%" PRId64, tsMonitorDbName, ts);
 
   TAOS_RES *result = taos_query(tsMonitor.conn, "show grants");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(result);
+    return;
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -1179,10 +1184,15 @@ static void monSaveGrantsInfo() {
   while ((row = taos_fetch_row(result))) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "expire time") == 0) {
-        struct tm expTime = {0};
-        strptime((char *)row[i], "%Y-%m-%d %H:%M:%S", &expTime);
-        int32_t expTimeSec = mktime(&expTime);
-        pos += snprintf(sql + pos, SQL_LENGTH, ", %d", expTimeSec - taosGetTimestampSec());
+        char *expStr = (char *)row[i];
+        if (expStr[0] == 'u') {
+          pos += snprintf(sql + pos, SQL_LENGTH, ", NULL");
+        } else {
+          struct tm expTime = {0};
+          strptime((char *)row[i], "%Y-%m-%d %H:%M:%S", &expTime);
+          int32_t expTimeSec = mktime(&expTime);
+          pos += snprintf(sql + pos, SQL_LENGTH, ", %d", expTimeSec - taosGetTimestampSec());
+        }
       } else if (strcmp(fields[i].name, "timeseries") == 0) {
         char *timeseries = (char *)row[i];
         if (timeseries[0] == 'u') {
@@ -1201,7 +1211,7 @@ static void monSaveGrantsInfo() {
   taos_free_result(result);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-  int32_t code = taos_errno(res);
+  code = taos_errno(res);
   taos_free_result(res);
 
   if (code != 0) {
