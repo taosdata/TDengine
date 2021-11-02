@@ -6,6 +6,7 @@
 #include "tscalarfunction.h"
 
 static SHashObj* functionHashTable = NULL;
+static SHashObj* udfHashTable = NULL;
 
 static void doInitFunctionHashTable() {
   int numOfEntries = tListLen(aggFunc);
@@ -23,6 +24,8 @@ static void doInitFunctionHashTable() {
     SScalarFunctionInfo* ptr = &scalarFunc[i];
     taosHashPut(functionHashTable, scalarFunc[i].name, len, (void*)&ptr, POINTER_BYTES);
   }
+
+  udfHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, true);
 }
 
 static pthread_once_t functionHashTableInit = PTHREAD_ONCE_INIT;
@@ -44,6 +47,27 @@ bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* funct
 
 const char* qGetFunctionName(int32_t functionId) {
 
+}
+
+SAggFunctionInfo* qGetFunctionInfo(const char* name, int32_t len) {
+  pthread_once(&functionHashTableInit, doInitFunctionHashTable);
+
+  SAggFunctionInfo** pInfo = taosHashGet(functionHashTable, name, len);
+  if (pInfo != NULL) {
+    return (*pInfo);
+  } else {
+    return NULL;
+  }
+}
+
+void qAddUdfInfo(uint64_t id, SUdfInfo* pUdfInfo) {
+  int32_t len = (uint32_t)strlen(pUdfInfo->name);
+  taosHashPut(udfHashTable, pUdfInfo->name, len, (void*)&pUdfInfo, POINTER_BYTES);
+}
+
+void qRemoveUdfInfo(uint64_t id, SUdfInfo* pUdfInfo) {
+  int32_t len = (uint32_t)strlen(pUdfInfo->name);
+  taosHashRemove(udfHashTable, pUdfInfo->name, len);
 }
 
 bool isTagsQuery(SArray* pFunctionIdList) {

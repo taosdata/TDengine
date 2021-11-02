@@ -40,7 +40,7 @@
 #define GET_TRUE_DATA_TYPE()                          \
   int32_t type = 0;                                   \
   if (pCtx->currentStage == MERGE_STAGE) {            \
-    type = pCtx->outputType;                          \
+    type = pCtx->resDataInfo.type;                          \
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY); \
   } else {                                            \
     type = pCtx->inputType;                           \
@@ -61,10 +61,10 @@
     for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
       SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[_i];      \
       if (__ctx->functionId == FUNCTION_TS_DUMMY) {                \
-        __ctx->tag.i = (ts);                                     \
+        __ctx->tag.i = (ts);                                       \
         __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;                  \
       }                                                            \
-      aggFunc[FUNCTION_TAG].exec(__ctx);                             \
+      aggFunc[FUNCTION_TAG].addInput(__ctx);                       \
     }                                                              \
   } while (0)
 
@@ -72,7 +72,7 @@
   do {                                                             \
     for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
       SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[_i];      \
-      aggFunc[FUNCTION_TAG].exec(__ctx);                             \
+      aggFunc[FUNCTION_TAG].addInput(__ctx);                       \
     }                                                              \
   } while (0);
 
@@ -478,8 +478,8 @@ static bool function_setup(SQLFunctionCtx *pCtx, SResultRowEntryInfo* pResultInf
     return false;
   }
   
-  memset(pCtx->pOutput, 0, (size_t)pCtx->outputBytes);
-  initResultRowEntry(pResultInfo, pCtx->interBufBytes);
+  memset(pCtx->pOutput, 0, (size_t)pCtx->resDataInfo.bytes);
+  initResultRowEntry(pResultInfo, pCtx->resDataInfo.intermediateBytes);
   return true;
 }
 
@@ -493,7 +493,7 @@ static bool function_setup(SQLFunctionCtx *pCtx, SResultRowEntryInfo* pResultInf
 static void function_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->hasResult != DATA_SET_FLAG) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   }
   
   doFinalizer(pCtx);
@@ -914,7 +914,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
     if (GET_INT64_VAL(GET_ROWCELL_INTERBUF(pResInfo)) <= 0) {
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
     }
 
@@ -924,7 +924,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
     SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
     
     if (pAvgInfo->num == 0) {  // all data are NULL or empty table
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
     }
     
@@ -1000,7 +1000,7 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
               __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
             }
             
-            aggFunc[FUNCTION_TAG].exec(__ctx);
+            aggFunc[FUNCTION_TAG].addInput(__ctx);
           }
         }
       } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
@@ -1248,7 +1248,7 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
           
           for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
             SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[j];
-            aggFunc[FUNCTION_TAG].exec(__ctx);
+            aggFunc[FUNCTION_TAG].addInput(__ctx);
           }
           
           notNullElems++;
@@ -1304,7 +1304,7 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
 }
 
 static void min_func_merge(SQLFunctionCtx *pCtx) {
-  int32_t notNullElems = minmax_merge_impl(pCtx, pCtx->outputBytes, pCtx->pOutput, 1);
+  int32_t notNullElems = minmax_merge_impl(pCtx, pCtx->resDataInfo.bytes, pCtx->pOutput, 1);
   
   SET_VAL(pCtx, notNullElems, 1);
   
@@ -1315,7 +1315,7 @@ static void min_func_merge(SQLFunctionCtx *pCtx) {
 }
 
 static void max_func_merge(SQLFunctionCtx *pCtx) {
-  int32_t numOfElem = minmax_merge_impl(pCtx, pCtx->outputBytes, pCtx->pOutput, 0);
+  int32_t numOfElem = minmax_merge_impl(pCtx, pCtx->resDataInfo.bytes, pCtx->pOutput, 0);
   
   SET_VAL(pCtx, numOfElem, 1);
   
@@ -1423,7 +1423,7 @@ static void stddev_finalizer(SQLFunctionCtx *pCtx) {
   SStddevInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   
   if (pStd->num <= 0) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   } else {
     double *retValue = (double *)pCtx->pOutput;
     SET_DOUBLE_VAL(retValue, sqrt(pStd->res / pStd->num));
@@ -1557,7 +1557,7 @@ static void stddev_dst_finalizer(SQLFunctionCtx *pCtx) {
   SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   if (pStd->num <= 0) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   } else {
     double *retValue = (double *)pCtx->pOutput;
     SET_DOUBLE_VAL(retValue, sqrt(pStd->res / pStd->num));
@@ -1665,16 +1665,16 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
   assert(pCtx->stableQuery);
 
   char *          pData = GET_INPUT_DATA_LIST(pCtx);
-  SFirstLastInfo *pInput = (SFirstLastInfo*) (pData + pCtx->outputBytes);
+  SFirstLastInfo *pInput = (SFirstLastInfo*) (pData + pCtx->resDataInfo.bytes);
   if (pInput->hasResult != DATA_SET_FLAG) {
     return;
   }
   
   // The param[1] is used to keep the initial value of max ts value
-  if (pCtx->param[1].nType != pCtx->outputType || pCtx->param[1].i > pInput->ts) {
-    memcpy(pCtx->pOutput, pData, pCtx->outputBytes);
+  if (pCtx->param[1].nType != pCtx->resDataInfo.type || pCtx->param[1].i > pInput->ts) {
+    memcpy(pCtx->pOutput, pData, pCtx->resDataInfo.bytes);
     pCtx->param[1].i = pInput->ts;
-    pCtx->param[1].nType = pCtx->outputType;
+    pCtx->param[1].nType = pCtx->resDataInfo.type;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
@@ -1799,7 +1799,7 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
 static void last_dist_func_merge(SQLFunctionCtx *pCtx) {
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   
-  SFirstLastInfo *pInput = (SFirstLastInfo*) (pData + pCtx->outputBytes);
+  SFirstLastInfo *pInput = (SFirstLastInfo*) (pData + pCtx->resDataInfo.bytes);
   if (pInput->hasResult != DATA_SET_FLAG) {
     return;
   }
@@ -1808,10 +1808,10 @@ static void last_dist_func_merge(SQLFunctionCtx *pCtx) {
    * param[1] used to keep the corresponding timestamp to decide if current result is
    * the true last result
    */
-  if (pCtx->param[1].nType != pCtx->outputType || pCtx->param[1].i < pInput->ts) {
-    memcpy(pCtx->pOutput, pData, pCtx->outputBytes);
+  if (pCtx->param[1].nType != pCtx->resDataInfo.type || pCtx->param[1].i < pInput->ts) {
+    memcpy(pCtx->pOutput, pData, pCtx->resDataInfo.bytes);
     pCtx->param[1].i = pInput->ts;
-    pCtx->param[1].nType = pCtx->outputType;
+    pCtx->param[1].nType = pCtx->resDataInfo.type;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
@@ -1853,7 +1853,7 @@ static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->hasResult != DATA_SET_FLAG) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
     return;
   }
   
@@ -1880,7 +1880,7 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
       }
       
       taosVariantDump(&ctx->tag, dst->pTags + size, ctx->tag.nType, true);
-      size += pTagInfo->pTagCtxList[i]->outputBytes;
+      size += pTagInfo->pTagCtxList[i]->resDataInfo.bytes;
     }
   }
 }
@@ -2101,9 +2101,9 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   for (int32_t i = 0; i < len; ++i, output += step) {
     int16_t offset = 0;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-      memcpy(pData[j], tvp[i]->pTags + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
-      offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
-      pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+      memcpy(pData[j], tvp[i]->pTags + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->resDataInfo.bytes);
+      offset += pCtx->tagInfo.pTagCtxList[j]->resDataInfo.bytes;
+      pData[j] += pCtx->tagInfo.pTagCtxList[j]->resDataInfo.bytes;
     }
   }
   
@@ -2262,7 +2262,7 @@ static void top_func_merge(SQLFunctionCtx *pCtx) {
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
-    int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->outputType;
+    int16_t type = (pCtx->resDataInfo.type == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->resDataInfo.type;
     do_top_function_add(pOutput, (int32_t)pCtx->param[0].i, &pInput->res[i]->v.i, pInput->res[i]->timestamp,
                         type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
@@ -2319,7 +2319,7 @@ static void bottom_func_merge(SQLFunctionCtx *pCtx) {
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
-    int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT) ? TSDB_DATA_TYPE_DOUBLE : pCtx->outputType;
+    int16_t type = (pCtx->resDataInfo.type == TSDB_DATA_TYPE_FLOAT) ? TSDB_DATA_TYPE_DOUBLE : pCtx->resDataInfo.type;
     do_bottom_function_add(pOutput, (int32_t)pCtx->param[0].i, &pInput->res[i]->v.i, pInput->res[i]->timestamp, type,
                            &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
@@ -2469,7 +2469,7 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   tMemBucket * pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
     assert(ppInfo->numOfElems == 0);
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   } else {
     SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
   }
@@ -2588,7 +2588,7 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
       memcpy(pCtx->pOutput, res, sizeof(double));
       free(res);
     } else {
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
     }
   } else {
@@ -2599,7 +2599,7 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
       memcpy(pCtx->pOutput, res, sizeof(double));
       free(res);
     } else {  // no need to free
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
     }
   }
@@ -2730,7 +2730,7 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pInfo->num == 0) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
     return;
   }
   
@@ -2794,16 +2794,16 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
 static void tag_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
   
-  assert(pCtx->inputBytes == pCtx->outputBytes);
+  assert(pCtx->inputBytes == pCtx->resDataInfo.bytes);
 
-  taosVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+  taosVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->resDataInfo.type, true);
   char* data = pCtx->pOutput;
-  pCtx->pOutput += pCtx->outputBytes;
+  pCtx->pOutput += pCtx->resDataInfo.bytes;
 
   // directly copy from the first one
   for (int32_t i = 1; i < pCtx->size; ++i) {
-    memmove(pCtx->pOutput, data, pCtx->outputBytes);
-    pCtx->pOutput += pCtx->outputBytes;
+    memmove(pCtx->pOutput, data, pCtx->resDataInfo.bytes);
+    pCtx->pOutput += pCtx->resDataInfo.bytes;
   }
 }
 
@@ -2821,7 +2821,7 @@ static void tag_function(SQLFunctionCtx *pCtx) {
   if (pCtx->currentStage == MERGE_STAGE) {
     copy_function(pCtx);
   } else {
-    taosVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+    taosVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->resDataInfo.type, true);
   }
 }
 
@@ -3396,7 +3396,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
     if (pResInfo->hasResult != DATA_SET_FLAG) {
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
     }
     
@@ -3406,7 +3406,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
     
     SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
     if (pInfo->hasResult != DATA_SET_FLAG) {
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+      setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
       return;
     }
     
@@ -3763,7 +3763,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
     *(TSKEY *)pCtx->pOutput = pCtx->startTs;
   } else if (type == TSDB_FILL_NULL) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    setNull(pCtx->pOutput, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
   } else if (type == TSDB_FILL_SET_VALUE) {
     taosVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
   } else {
@@ -3772,13 +3772,13 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
           SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->start.val);
         } else {
-          assignVal(pCtx->pOutput, pCtx->start.ptr, pCtx->outputBytes, pCtx->inputType);
+          assignVal(pCtx->pOutput, pCtx->start.ptr, pCtx->resDataInfo.bytes, pCtx->inputType);
         }
       } else if (type == TSDB_FILL_NEXT) {
         if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
           SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->end.val);
         } else {
-          assignVal(pCtx->pOutput, pCtx->end.ptr, pCtx->outputBytes, pCtx->inputType);
+          assignVal(pCtx->pOutput, pCtx->end.ptr, pCtx->resDataInfo.bytes, pCtx->inputType);
         }
       } else if (type == TSDB_FILL_LINEAR) {
         SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
@@ -3790,7 +3790,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
           if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -3817,7 +3817,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
             skey = ekey;
           }
         }
-        assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
+        assignVal(pCtx->pOutput, pCtx->pInput, pCtx->resDataInfo.bytes, pCtx->inputType);
       } else if (type == TSDB_FILL_NEXT) {
         TSKEY ekey = skey;
         char* val = NULL;
@@ -3837,7 +3837,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
           val = (char*)pCtx->pInput;
         }
         
-        assignVal(pCtx->pOutput, val, pCtx->outputBytes, pCtx->inputType);
+        assignVal(pCtx->pOutput, val, pCtx->resDataInfo.bytes, pCtx->inputType);
       } else if (type == TSDB_FILL_LINEAR) {
         if (pCtx->size <= 1) {
           return;
@@ -3863,7 +3863,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
           if (isNull(start, srcType) || isNull(end, srcType)) {
             setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
           } else {
-            taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, srcType);
+            taosGetLinearInterpolationVal(&point, pCtx->resDataInfo.type, &point1, &point2, srcType);
           }
         } else {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -4382,7 +4382,7 @@ int32_t functionCompatList[] = {
 SAggFunctionInfo aggFunc[34] = {{
                               // 0, count function does not invoke the finalize function
                               "count",
-                              FUNCTION_AGG,
+                              FUNCTION_TYPE_AGG,
                               FUNCTION_COUNT,
                               FUNCTION_COUNT,
                               BASIC_FUNC_SO,
@@ -4395,7 +4395,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 1
                               "sum",
-                              FUNCTION_AGG,
+                              FUNCTION_TYPE_AGG,
                               FUNCTION_SUM,
                               FUNCTION_SUM,
                               BASIC_FUNC_SO,
@@ -4408,7 +4408,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 2
                               "avg",
-                              FUNCTION_AGG,
+                              FUNCTION_TYPE_AGG,
                               FUNCTION_AVG,
                               FUNCTION_AVG,
                               BASIC_FUNC_SO,
@@ -4421,7 +4421,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 3
                               "min",
-                              FUNCTION_AGG,
+                              FUNCTION_TYPE_AGG,
                               FUNCTION_MIN,
                               FUNCTION_MIN,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
@@ -4434,8 +4434,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 4
                               "max",
-                                    FUNCTION_AGG,
-                                    FUNCTION_MAX,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_MAX,
                               FUNCTION_MAX,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
                               max_func_setup,
@@ -4447,8 +4447,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 5
                               "stddev",
-                                    FUNCTION_AGG,
-                                    FUNCTION_STDDEV,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_STDDEV,
                               FUNCTION_STDDEV_DST,
                               FUNCSTATE_SO | FUNCSTATE_STREAM,
                               function_setup,
@@ -4460,8 +4460,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 6
                               "percentile",
-                                    FUNCTION_AGG,
-                                    FUNCTION_PERCT,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_PERCT,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_SO | FUNCSTATE_STREAM,
                               percentile_function_setup,
@@ -4473,8 +4473,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 7
                               "apercentile",
-                                    FUNCTION_AGG,
-                                    FUNCTION_APERCT,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_APERCT,
                               FUNCTION_APERCT,
                               FUNCSTATE_SO | FUNCSTATE_STREAM | FUNCSTATE_STABLE,
                               apercentile_function_setup,
@@ -4486,8 +4486,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 8
                               "first",
-                                    FUNCTION_AGG,
-                                    FUNCTION_FIRST,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_FIRST,
                               FUNCTION_FIRST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
                               function_setup,
@@ -4499,8 +4499,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 9
                               "last",
-                                    FUNCTION_AGG,
-                                    FUNCTION_LAST,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_LAST,
                               FUNCTION_LAST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
                               function_setup,
@@ -4512,8 +4512,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 10
                               "last_row",
-                                    FUNCTION_AGG,
-                                    FUNCTION_LAST_ROW,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_LAST_ROW,
                               FUNCTION_LAST_ROW,
                               FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
                               first_last_function_setup,
@@ -4525,8 +4525,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 11
                               "top",
-                                    FUNCTION_AGG,
-                                    FUNCTION_TOP,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_TOP,
                               FUNCTION_TOP,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
                               top_bottom_function_setup,
@@ -4538,8 +4538,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 12
                               "bottom",
-                                    FUNCTION_AGG,
-                                    FUNCTION_BOTTOM,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_BOTTOM,
                               FUNCTION_BOTTOM,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
                               top_bottom_function_setup,
@@ -4551,8 +4551,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 13
                               "spread",
-                                    FUNCTION_AGG,
-                                    FUNCTION_SPREAD,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_SPREAD,
                               FUNCTION_SPREAD,
                               BASIC_FUNC_SO,
                               spread_function_setup,
@@ -4564,8 +4564,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 14
                               "twa",
-                                    FUNCTION_AGG,
-                                    FUNCTION_TWA,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_TWA,
                               FUNCTION_TWA,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
                               twa_function_setup,
@@ -4577,8 +4577,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 15
                               "leastsquares",
-                                    FUNCTION_AGG,
-                                    FUNCTION_LEASTSQR,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_LEASTSQR,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_SO | FUNCSTATE_STREAM,
                               leastsquares_function_setup,
@@ -4590,8 +4590,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 16
                               "ts",
-                                    FUNCTION_AGG,
-                                    FUNCTION_TS,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_TS,
                               FUNCTION_TS,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
                               function_setup,
@@ -4603,7 +4603,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 17
                               "ts",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_TS_DUMMY,
                               FUNCTION_TS_DUMMY,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
@@ -4616,7 +4616,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 18
                               "tag_dummy",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_TAG_DUMMY,
                               FUNCTION_TAG_DUMMY,
                               BASIC_FUNC_SO,
@@ -4629,7 +4629,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 19
                               "ts",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_TS_COMP,
                               FUNCTION_TS_COMP,
                               FUNCSTATE_MO | FUNCSTATE_NEED_TS,
@@ -4642,7 +4642,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 20
                               "tag",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_TAG,
                               FUNCTION_TAG,
                               BASIC_FUNC_SO,
@@ -4655,7 +4655,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {//TODO this is a scala function
                               // 21, column project sql function
                               "colprj",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_PRJ,
                               FUNCTION_PRJ,
                               BASIC_FUNC_MO | FUNCSTATE_NEED_TS,
@@ -4668,7 +4668,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 22, multi-output, tag function has only one result
                               "tagprj",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_TAGPRJ,
                               FUNCTION_TAGPRJ,
                               BASIC_FUNC_MO,
@@ -4681,7 +4681,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 23
                               "arithmetic",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_ARITHM,
                               FUNCTION_ARITHM,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS,
@@ -4694,7 +4694,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 24
                               "diff",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_DIFF,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
@@ -4708,8 +4708,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 25
                               "first_dist",
-                                    FUNCTION_AGG,
-                                    FUNCTION_FIRST_DST,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_FIRST_DST,
                               FUNCTION_FIRST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
                               first_last_function_setup,
@@ -4721,7 +4721,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 26
                               "last_dist",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_LAST_DST,
                               FUNCTION_LAST_DST,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
@@ -4734,7 +4734,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 27
                               "stddev",   // return table id and the corresponding tags for join match and subscribe
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_STDDEV_DST,
                               FUNCTION_AVG,
                               FUNCSTATE_SO | FUNCSTATE_STABLE,
@@ -4747,7 +4747,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 28
                               "interp",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_INTERP,
                               FUNCTION_INTERP,
                               FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS ,
@@ -4760,7 +4760,7 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 29
                               "rate",
-                                    FUNCTION_AGG,
+                                    FUNCTION_TYPE_AGG,
                                     FUNCTION_RATE,
                               FUNCTION_RATE,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
@@ -4773,8 +4773,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 30
                               "irate",
-                                    FUNCTION_AGG,
-                                    FUNCTION_IRATE,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_IRATE,
                               FUNCTION_IRATE,
                               BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
                               rate_function_setup,
@@ -4786,8 +4786,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                               // 31
                               "tbid",   // return table id and the corresponding tags for join match and subscribe
-                                    FUNCTION_AGG,
-                                    FUNCTION_TID_TAG,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_TID_TAG,
                               FUNCTION_TID_TAG,
                               FUNCSTATE_MO | FUNCSTATE_STABLE,
                               function_setup,
@@ -4798,8 +4798,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           },
                           {   //32
                               "derivative",   // return table id and the corresponding tags for join match and subscribe
-                                    FUNCTION_AGG,
-                                    FUNCTION_DERIVATIVE,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_DERIVATIVE,
                               FUNCTION_INVALID_ID,
                               FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
                               deriv_function_setup,
@@ -4811,8 +4811,8 @@ SAggFunctionInfo aggFunc[34] = {{
                           {
                                 // 33
                               "_block_dist",   // return table id and the corresponding tags for join match and subscribe
-                                    FUNCTION_AGG,
-                                    FUNCTION_BLKINFO,
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_BLKINFO,
                               FUNCTION_BLKINFO,
                               FUNCSTATE_SO | FUNCSTATE_STABLE,
                               function_setup,

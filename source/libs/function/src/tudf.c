@@ -1,6 +1,5 @@
 #include "tudf.h"
 
-#if 0
 static char* getUdfFuncName(char* funcname, char* name, int type) {
   switch (type) {
     case TSDB_UDF_FUNC_NORMAL:
@@ -26,6 +25,7 @@ static char* getUdfFuncName(char* funcname, char* name, int type) {
   return funcname;
 }
 
+#if 0
 int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
   if (pUdfInfo == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -47,7 +47,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
 
     pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadScriptNormal;
 
-    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+    if (pUdfInfo->funcType == FUNCTION_TYPE_AGG) {
       pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] =  taosLoadScriptFinalize;
       pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE]    =  taosLoadScriptMerge;
     }
@@ -55,7 +55,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
 
   } else {
     char path[PATH_MAX] = {0};
-    taosGetTmpfilePath("script", path);
+    taosGetTmpfilePath("script", path, tsTempDir);
 
     FILE* file = fopen(path, "w+");
 
@@ -72,7 +72,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
       return TSDB_CODE_QRY_SYS_ERROR;
     }
 
-    char funcname[TSDB_FUNCTIONS_NAME_MAX_LENGTH + 10] = {0};
+    char funcname[FUNCTIONS_NAME_MAX_LENGTH + 10] = {0};
     pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_NORMAL));
     if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
       return TSDB_CODE_QRY_SYS_ERROR;
@@ -80,7 +80,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
 
     pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_INIT));
 
-    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+    if (pUdfInfo->funcType == FUNCTION_TYPE_AGG) {
       pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
       pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
     }
@@ -119,6 +119,77 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   tfree(pUdfInfo->content);
   taosCloseDll(pUdfInfo->handle);
   tfree(pUdfInfo);
+}
+
+void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type) {
+  int32_t output = 0;
+
+  if (pUdfInfo == NULL || pUdfInfo->funcs[type] == NULL) {
+    //qError("empty udf function, type:%d", type);
+    return;
+  }
+
+//  //qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[type]);
+
+  switch (type) {
+    case TSDB_UDF_FUNC_NORMAL:
+      if (pUdfInfo->isScript) {
+        (*(scriptNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
+                     (char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->startTs, pCtx->pOutput,
+                    (char *)pCtx->ptsOutputBuf, &output, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes);
+      } else {
+        SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+
+        void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
+
+        (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList,
+          pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes, &pUdfInfo->init);
+      }
+
+      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+        pCtx->resultInfo->numOfRes = output;
+      } else {
+        pCtx->resultInfo->numOfRes += output;
+      }
+
+      if (pCtx->resultInfo->numOfRes > 0) {
+        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
+      }
+
+      break;
+
+    case TSDB_UDF_FUNC_MERGE:
+      if (pUdfInfo->isScript) {
+        (*(scriptMergeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE])(pUdfInfo->pScriptCtx, pCtx->pInput, pCtx->size, pCtx->pOutput, &output);
+      } else {
+        (*(udfMergeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE])(pCtx->pInput, pCtx->size, pCtx->pOutput, &output, &pUdfInfo->init);
+      }
+
+      // set the output value exist
+      pCtx->resultInfo->numOfRes = output;
+      if (output > 0) {
+        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
+      }
+
+      break;
+
+    case TSDB_UDF_FUNC_FINALIZE: {
+      SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+      void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
+      if (pUdfInfo->isScript) {
+        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, &output);
+      } else {
+        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
+      }
+      // set the output value exist
+      pCtx->resultInfo->numOfRes = output;
+      if (output > 0) {
+        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
+      }
+
+      break;
+      }
+  }
 }
 
 #endif

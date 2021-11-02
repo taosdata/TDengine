@@ -26,8 +26,8 @@ extern "C" {
 
 #define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 
-#define FUNCTION_SCALAR       1
-#define FUNCTION_AGG          2
+#define FUNCTION_TYPE_SCALAR       1
+#define FUNCTION_TYPE_AGG          2
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 16
@@ -108,7 +108,22 @@ typedef struct SExtTagsInfo {
   struct SQLFunctionCtx **pTagCtxList;
 } SExtTagsInfo;
 
+typedef struct SResultDataInfo {
+  int16_t type;
+  int16_t bytes;
+  int32_t intermediateBytes;
+} SResultDataInfo;
+
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
+
+typedef struct SFunctionFpSet {
+  bool (*init)(struct SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
+  void (*addInput)(struct SQLFunctionCtx *pCtx);
+
+  // finalizer must be called after all exec has been executed to generated final result.
+  void (*finalize)(struct SQLFunctionCtx *pCtx);
+  void (*combine)(struct SQLFunctionCtx *pCtx);
+} SFunctionFpSet;
 
 // sql function runtime context
 typedef struct SQLFunctionCtx {
@@ -118,9 +133,7 @@ typedef struct SQLFunctionCtx {
   int16_t      inputType;
   int16_t      inputBytes;
 
-  int16_t      outputType;
-  int16_t      outputBytes;   // size of results, determined by function and input column data type
-  int32_t      interBufBytes; // internal buffer size
+  SResultDataInfo resDataInfo;
   bool         hasNull;       // null value exist in current block
   bool         requireNull;   // require null in some function
   bool         stableQuery;
@@ -135,11 +148,13 @@ typedef struct SQLFunctionCtx {
   SVariant     tag;
 
   bool        isAggSet;
-  SColumnDataAgg              agg;
+  SColumnDataAgg agg;
   struct  SResultRowEntryInfo *resultInfo;
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
+
+  SFunctionFpSet* fpSet;
 } SQLFunctionCtx;
 
 enum {
@@ -179,11 +194,11 @@ typedef struct SAggFunctionInfo {
   uint16_t status;
 
   bool (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void (*exec)(SQLFunctionCtx *pCtx);
+  void (*addInput)(SQLFunctionCtx *pCtx);
 
   // finalizer must be called after all exec has been executed to generated final result.
-  void (*xFinalize)(SQLFunctionCtx *pCtx);
-  void (*mergeFunc)(SQLFunctionCtx *pCtx);
+  void (*finalize)(SQLFunctionCtx *pCtx);
+  void (*combine)(SQLFunctionCtx *pCtx);
 
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
@@ -194,14 +209,8 @@ typedef struct SScalarFunctionInfo {
   uint8_t  functionId;        // index of scalar function
 
   bool    (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void    (*exec)(SQLFunctionCtx *pCtx);
+  void    (*addInput)(SQLFunctionCtx *pCtx);
 } SScalarFunctionInfo;
-
-typedef struct SResultDataInfo {
-  int16_t type;
-  int16_t bytes;
-  int32_t intermediateBytes;
-} SResultDataInfo;
 
 typedef struct SMultiFunctionsDesc {
   bool stableQuery;
@@ -279,6 +288,13 @@ int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int3
 int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// udf api
+struct SUdfInfo;
+
+void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
+void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 
 #ifdef __cplusplus
 }

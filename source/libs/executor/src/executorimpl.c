@@ -24,7 +24,6 @@
 #include "function.h"
 #include "tcompare.h"
 #include "tcompression.h"
-#include "tlosertree.h"
 #include "ttypes.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
@@ -355,39 +354,6 @@ void* destroyOutputBuf(SSDataBlock* pBlock) {
   tfree(pBlock);
   return NULL;
 }
-
-//int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
-//  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-//  bool    hasMainFunction = hasMainOutput(pQueryAttr);
-//
-//  int32_t maxOutput = 0;
-//  for (int32_t j = 0; j < numOfOutput; ++j) {
-//    int32_t id = pCtx[j].functionId;
-//
-//    /*
-//     * ts, tag, tagprj function can not decide the output number of current query
-//     * the number of output result is decided by main output
-//     */
-//    if (hasMainFunction && (id == FUNCTION_TS || id == FUNCTION_TAG || id == FUNCTION_TAGPRJ)) {
-//      continue;
-//    }
-//
-//    SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[j]);
-//    if (pResInfo != NULL && maxOutput < pResInfo->numOfRes) {
-//      maxOutput = pResInfo->numOfRes;
-//    }
-//  }
-//
-//  assert(maxOutput >= 0);
-//  return maxOutput;
-//}
-//
-//static void clearNumOfRes(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
-//  for (int32_t j = 0; j < numOfOutput; ++j) {
-//    SResultRowEntryInfo *pResInfo = GET_RES_INFO(&pCtx[j]);
-//    pResInfo->numOfRes = 0;
-//  }
-//}
 
 static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
   return true;
@@ -848,8 +814,6 @@ static void doUpdateResultRowIndex(SResultRowInfo*pResultRowInfo, TSKEY lastKey,
       pResultRowInfo->curPos = i + 1;  // current not closed result object
     }
   }
-
-  //pResultRowInfo->prevSKey = pResultRowInfo->pResult[pResultRowInfo->curIndex]->win.skey;
 }
 
 static void updateResultRowInfoActiveIndex(SResultRowInfo* pResultRowInfo, SQueryAttr* pQueryAttr, TSKEY lastKey) {
@@ -903,80 +867,6 @@ static int32_t getNumOfRowsInTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, SDataBloc
   return num;
 }
 
-void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type) {
-#if 0
-  int32_t output = 0;
-
-  if (pUdfInfo == NULL || pUdfInfo->funcs[type] == NULL) {
-    //qError("empty udf function, type:%d", type);
-    return;
-  }
-
-//  //qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[type]);
-
-  switch (type) {
-    case TSDB_UDF_FUNC_NORMAL:
-      if (pUdfInfo->isScript) {
-        (*(scriptNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
-                     (char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->startTs, pCtx->pOutput,
-                    (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
-      } else {
-        SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-
-        void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
-
-        (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList,
-          pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
-      }
-
-      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-        pCtx->resultInfo->numOfRes = output;
-      } else {
-        pCtx->resultInfo->numOfRes += output;
-      }
-
-      if (pCtx->resultInfo->numOfRes > 0) {
-        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
-      }
-
-      break;
-
-    case TSDB_UDF_FUNC_MERGE:
-      if (pUdfInfo->isScript) {
-        (*(scriptMergeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE])(pUdfInfo->pScriptCtx, pCtx->pInput, pCtx->size, pCtx->pOutput, &output);
-      } else {
-        (*(udfMergeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE])(pCtx->pInput, pCtx->size, pCtx->pOutput, &output, &pUdfInfo->init);
-      }
-
-      // set the output value exist
-      pCtx->resultInfo->numOfRes = output;
-      if (output > 0) {
-        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
-      }
-
-      break;
-
-    case TSDB_UDF_FUNC_FINALIZE: {
-      SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-      void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
-      if (pUdfInfo->isScript) {
-        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, &output);
-      } else {
-        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
-      }
-      // set the output value exist
-      pCtx->resultInfo->numOfRes = output;
-      if (output > 0) {
-        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
-      }
-
-      break;
-      }
-  }
-#endif
-
-}
-
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
                              int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -1004,14 +894,8 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       pCtx[k].isAggSet = false;
     }
 
-    int32_t functionId = pCtx[k].functionId;
     if (functionNeedToExecute(pRuntimeEnv, &pCtx[k])) {
-//      if (functionId < 0) { // load the script and exec, pRuntimeEnv->pUdfInfo
-//        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
-//        doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-//      } else {
-//        aAggs[functionId].xFunction(&pCtx[k]);
-//      }
+      pCtx[k].fpSet->addInput(&pCtx[k]);
     }
 
     // restore it
@@ -1020,9 +904,8 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
   }
 }
 
-
-static int32_t getNextQualifiedWindow(SQueryAttr* pQueryAttr, STimeWindow *pNext, SDataBlockInfo *pDataBlockInfo,
-    TSKEY *primaryKeys, __block_search_fn_t searchFn, int32_t prevPosition) {
+static int32_t getNextQualifiedWindow(SQueryAttr* pQueryAttr, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                      TSKEY* primaryKeys, __block_search_fn_t searchFn, int32_t prevPosition) {
   getNextTimeWindow(pQueryAttr, pNext);
 
   // next time window is not in current block
@@ -1244,14 +1127,7 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
   for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
     if (functionNeedToExecute(pRuntimeEnv, &pCtx[k])) {
       pCtx[k].startTs = startTs;// this can be set during create the struct
-
-      int32_t functionId = pCtx[k].functionId;
-//      if (functionId < 0) {
-//        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
-//        doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-//      } else {
-//        aAggs[functionId].xFunction(&pCtx[k]);
-//      }
+      pCtx[k].fpSet->addInput(&pCtx[k]);
     }
   }
 }
@@ -1940,7 +1816,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
     int32_t functionId = pCtx[i].functionId;
 
     if (functionId == FUNCTION_TAG_DUMMY || functionId == FUNCTION_TS_DUMMY) {
-      tagLen += pCtx[i].outputBytes;
+      tagLen += pCtx[i].resDataInfo.bytes;
       pTagCtx[num++] = &pCtx[i];
     } else if (1/*(aAggs[functionId].status & FUNCSTATE_SELECTIVITY) != 0*/) {
       p = &pCtx[i];
@@ -1996,13 +1872,13 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
 
     pCtx->ptsOutputBuf = NULL;
 
-    pCtx->outputBytes  = pSqlExpr->resSchema.bytes;
-    pCtx->outputType   = pSqlExpr->resSchema.type;
+    pCtx->resDataInfo.bytes  = pSqlExpr->resSchema.bytes;
+    pCtx->resDataInfo.type   = pSqlExpr->resSchema.type;
 
     pCtx->order        = pQueryAttr->order.order;
 //    pCtx->functionId   = pSqlExpr->functionId;
     pCtx->stableQuery  = pQueryAttr->stableQuery;
-    pCtx->interBufBytes = pSqlExpr->interBytes;
+    pCtx->resDataInfo.intermediateBytes = pSqlExpr->interBytes;
     pCtx->start.key    = INT64_MIN;
     pCtx->end.key      = INT64_MIN;
 
@@ -3577,11 +3453,7 @@ void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
       continue;
     }
 
-//    if (pCtx[j].functionId < 0) { // todo udf initialization
-//      continue;
-//    } else {
-//      aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
-//    }
+    pCtx[j].fpSet->init(&pCtx[j], pCtx[j].resultInfo);
   }
 }
 
@@ -3737,12 +3609,12 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
 
     struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
     if (isRowEntryCompleted(pResInfo) && isRowEntryInitialized(pResInfo)) {
-      offset += pCtx[i].outputBytes;
+      offset += pCtx[i].resDataInfo.bytes;
       continue;
     }
 
     pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, bufPage, pResult->offset, offset);
-    offset += pCtx[i].outputBytes;
+    offset += pCtx[i].resDataInfo.bytes;
 
     int32_t functionId = pCtx[i].functionId;
     if (functionId < 0) {
@@ -3807,7 +3679,7 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
   int16_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResult->offset, offset);
-    offset += pCtx[i].outputBytes;
+    offset += pCtx[i].resDataInfo.bytes;
 
     int32_t functionId = pCtx[i].functionId;
     if (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_DIFF || functionId == FUNCTION_DERIVATIVE) {
@@ -6881,7 +6753,6 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
   }
 
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
-
   int32_t maxNumOfTables = (int32_t)pRuntimeEnv->resultInfo.capacity;
 
   STagScanInfo *pInfo = pOperator->info;
