@@ -39,11 +39,16 @@ struct SSyncNode {
 typedef struct SSyncManager {
   pthread_mutex_t   mutex;
 
+  // sync server rpc
+  void* serverRpc;
+  // rpc server hash table base on FQDN:port key
+  SHashObj* rpcServerTable;
+
+  // sync client rpc
+  void* clientRpc;
+
   // worker threads
   SSyncWorker worker[TAOS_SYNC_MAX_WORKER];
-
-  // sync net worker
-  SSyncWorker netWorker;
 
   // vgroup hash table
   SHashObj* vgroupTable;
