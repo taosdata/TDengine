@@ -200,7 +200,6 @@ static void *monThreadFunc(void *param) {
 
     if (tsMonitor.state == MON_STATE_INITED) {
       if (accessTimes % tsMonitorInterval == 0 || accessTimes == 1) {
-        monSaveSystemInfo();
         monSaveDnodesInfo();
         if (monHasMnodeMaster) {
           //only mnode master will write cluster info
@@ -210,6 +209,7 @@ static void *monThreadFunc(void *param) {
         monSaveSlowQueryInfo();
         monSaveDisksInfo();
         monSaveGrantsInfo();
+        monSaveSystemInfo();
       }
     }
   }

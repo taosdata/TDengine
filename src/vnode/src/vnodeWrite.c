@@ -170,10 +170,13 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) {
     code = terrno;
   } else {
-    atomic_fetch_add_32(&tsSubmitReqSucNum, 1);
+    if (pRsp != NULL) atomic_fetch_add_32(&tsSubmitReqSucNum, 1);
   }
-  atomic_fetch_add_32(&tsSubmitRowNum, ntohl(pRsp->numOfRows));
-  atomic_fetch_add_32(&tsSubmitRowSucNum, ntohl(pRsp->affectedRows));
+
+  if (pRsp) {
+    atomic_fetch_add_32(&tsSubmitRowNum, ntohl(pRsp->numOfRows));
+    atomic_fetch_add_32(&tsSubmitRowSucNum, ntohl(pRsp->affectedRows));
+  }
 
   return code;
 }
