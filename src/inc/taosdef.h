@@ -98,6 +98,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
+#define TS_ESCAPE_CHAR '`'
+#define TS_ESCAPE_CHAR_SIZE 2
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -278,6 +280,10 @@ do { \
 #define TSDB_MAX_TOTAL_BLOCKS           10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
+#define TSDB_MIN_WAL_FLUSH_SIZE         128 // MB
+#define TSDB_MAX_WAL_FLUSH_SIZE         10000000 // MB
+#define TSDB_DEFAULT_WAL_FLUSH_SIZE     1024 // MB
+
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
@@ -289,7 +295,7 @@ do { \
 #define TSDB_DEFAULT_DAYS_PER_FILE      10
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
-#define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
+#define TSDB_MAX_KEEP                   36500   // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               3650     // ten years
 
 #define TSDB_DEFAULT_MIN_ROW_FBLOCK     100
@@ -451,6 +457,11 @@ typedef enum {
   TD_ROW_OVERWRITE_UPDATE = 1,
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
+
+typedef enum {
+  TSDB_STATIS_OK = 0,    // statis part exist and load successfully
+  TSDB_STATIS_NONE = 1,  // statis part not exist
+} ETsdbStatisStatus;
 
 extern char *qtypeStr[];
 

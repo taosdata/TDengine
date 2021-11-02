@@ -23,6 +23,7 @@
 #include "twal.h"
 #include "tfs.h"
 #include "tsync.h"
+#include "tgrant.h"
 #include "dnodeStep.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
@@ -89,6 +90,7 @@ static SStep tsDnodeSteps[] = {
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
   {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
+  {"dnode-grant",     grantInit,           grantCleanUp},
 };
 
 static SStep tsDnodeCompactSteps[] = {

@@ -19,7 +19,7 @@ if [[ ! -e ${startSeqFile} ]]; then
 else
   startSeq=$(cat ${startSeqFile})
 fi
-   
+
 nextSeq=`expr $startSeq + 1`
 echo "${nextSeq}" > ${startSeqFile}
 
@@ -48,3 +48,4 @@ if [ ${coreFlag} = "unlimited" ];then
   fi
 fi
 
+/usr/bin/blm3 &

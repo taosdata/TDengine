@@ -239,6 +239,9 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
             } else {
               setNull(output, pCol->col.type, pCol->col.bytes);
             }
+            if (!FILL_IS_ASC_FILL(pFillInfo)) {
+              memcpy(*prev + pCol->col.offset, output, pCol->col.bytes);
+            }
           } else {
             assignVal(output, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
           }

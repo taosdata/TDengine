@@ -174,6 +174,9 @@ endi
 sql_error select top(c1, 1) - bottom(c1, 1) from $tb
 sql_error select top(c1, 99) - bottom(c1, 99) from $tb
 sql_error select top(c1,1) - 88 from $tb
+sql_error select sample(c1, 1) - bottom(c1, 1) from $tb
+sql_error select sample(c1, 99) - bottom(c1, 99) from $tb
+sql_error select sample(c1,1) - 88 from $tb
 
 # all data types [d.6] ================================================================
 sql select c2-c1*1.1, c3/c2, c4*c3, c5%c4, (c6+c4)%22, c2-c2 from $tb
@@ -475,10 +478,15 @@ endi
 sql_error select first(c1, c2) - last(c1, c2) from $stb
 sql_error select top(c1, 5) - bottom(c1, 5) from $stb
 sql_error select first(*) - 99 from $stb
+sql_error select sample(c1, 5) - bottom(c1, 5) from $stb
+
 
 # multi row result aggregation [d.4]
 sql_error select top(c1, 1) - bottom(c1, 1) from $stb
 sql_error select top(c1, 99) - bottom(c1, 99) from $stb
+
+sql_error select sample(c1, 1) - top(c1, 1) from $stb
+sql_error select sample(c1, 99) - top(c1, 99) from $stb
 
 # query on super table [d.5]=============================================================
 # all cases in this part are query on super table

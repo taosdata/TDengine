@@ -250,6 +250,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
           break;
         case '\'':
         case '"':
+        case '`':
           if (quote) {
             *p++ = '\\';
           }
@@ -271,7 +272,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
 
     if (quote == c) {
       quote = 0;
-    } else if (quote == 0 && (c == '\'' || c == '"')) {
+    } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
       quote = c;
     }
 
@@ -308,8 +309,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   char *    fname = NULL;
   bool      printMode = false;
 
-  if ((sptr = strstr(command, ">>")) != NULL) {
-    cptr = strstr(command, ";");
+  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
+    cptr = tstrstr(command, ";", true);
     if (cptr != NULL) {
       *cptr = '\0';
     }
@@ -322,8 +323,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     fname = full_path.we_wordv[0];
   }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
-    cptr = strstr(command, ";");
+  if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
+    cptr = tstrstr(command, ";", true);
     if (cptr != NULL) {
       *cptr = '\0';
     }
@@ -1043,56 +1044,4 @@ void source_file(TAOS *con, char *fptr) {
 
 void shellGetGrantInfo(void *con) {
   return;
-#if 0
-  char sql[] = "show grants";
-
-  TAOS_RES* tres = taos_query(con, sql);
-
-  int code = taos_errno(tres);
-  if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_COM_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, version is %s\n\n", taos_get_server_info(con));
-    } else {
-      fprintf(stderr, "Failed to check Server Edition, Reason:%d:%s\n\n", taos_errno(con), taos_errstr(con));
-    }
-    return;
-  }
-
-  int num_fields = taos_field_count(tres);
-  if (num_fields == 0) {
-    fprintf(stderr, "\nInvalid grant information.\n");
-    exit(0);
-  } else {
-    if (tres == NULL) {
-      fprintf(stderr, "\nGrant information is null.\n");
-      exit(0);
-    }
-
-    TAOS_FIELD *fields = taos_fetch_fields(tres);
-    TAOS_ROW row = taos_fetch_row(tres);
-    if (row == NULL) {
-      fprintf(stderr, "\nFailed to get grant information from server. Abort.\n");
-      exit(0);
-    }
-
-    char serverVersion[32] = {0};
-    char expiretime[32] = {0};
-    char expired[32] = {0};
-
-    memcpy(serverVersion, row[0], fields[0].bytes);
-    memcpy(expiretime, row[1], fields[1].bytes);
-    memcpy(expired, row[2], fields[2].bytes);
-
-    if (strcmp(expiretime, "unlimited") == 0) {
-      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will never expire.\n", serverVersion, taos_get_server_info(con));
-    } else {
-      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will expire at %s.\n", serverVersion, taos_get_server_info(con), expiretime);
-    }
-
-    result = NULL;
-    taos_free_result(tres);
-  }
-
-  fprintf(stdout, "\n");
-  #endif
 }

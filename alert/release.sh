@@ -52,7 +52,7 @@ echo "cpuType=${cpuType}"
 echo "osType=${osType}"
 echo "version=${version}"
 
-GOOS=${osType} GOARCH=${cpuType} go build -ldflags '-X main.version='${version}
+GOOS=${osType} GOARCH=${cpuType} go mod tidy && go build -ldflags '-X main.version='${version}
 
 mkdir -p TDengine-alert/driver
 

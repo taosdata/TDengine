@@ -10,6 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from copy import deepcopy
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql

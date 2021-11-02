@@ -4,7 +4,7 @@
 
 `taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
-![tdengine-connector](page://images/tdengine-jdbc-connector.png)
+![tdengine-connector](../../images/tdengine-jdbc-connector.png)
 
 上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
 
@@ -334,7 +334,6 @@ JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（�
 从 2.1.2.0 版本开始，TDengine 的 **JDBC-JNI** 实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。（注意：**JDBC-RESTful** 实现并不提供参数绑定这种使用方式。）
 
 ```java
-Statement stmt = conn.createStatement();
 Random r = new Random();
 
 // INSERT 语句中，VALUES 部分允许指定具体的数据列；如果采取自动建表，则 TAGS 部分需要设定全部 TAGS 列的参数值：

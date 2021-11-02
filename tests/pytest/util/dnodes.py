@@ -15,6 +15,8 @@ import sys
 import os
 import os.path
 import platform
+import pathlib
+import shutil
 import subprocess
 from time import sleep
 from util.log import *
@@ -62,32 +64,45 @@ class TDSimClient:
         cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
-
+    def os_string(self,path):
+        os_path = path.replace("/",os.sep)
+        return os_path
     def deploy(self):
-        self.logDir = "%s/sim/psim/log" % (self.path)
-        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
-        self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
+        self.logDir = self.os_string("%s/sim/psim/log" % (self.path))
+        self.cfgDir = self.os_string("%s/sim/psim/cfg" % (self.path))
+        self.cfgPath = self.os_string("%s/sim/psim/cfg/taos.cfg" % (self.path))
 
-        cmd = "rm -rf " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-    
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-
-        cmd = "rm -rf " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-
-        cmd = "touch " + self.cfgPath
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-
+        # cmd = "rm -rf " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        if os.path.exists(self.logDir): 
+            try:
+                shutil.rmtree(self.logDir)
+            except:
+                tdLog.exit("del %s failed"%self.logDir)
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.logDir)
+        # cmd = "rm -rf " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        if os.path.exists(self.cfgDir): 
+            try:
+                shutil.rmtree(self.cfgDir)
+            except:
+                tdLog.exit("del %s failed"%self.cfgDir)
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.cfgDir)
+        # cmd = "touch " + self.cfgPath
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        try:
+            pathlib.Path(self.cfgPath).touch()
+        except:
+             tdLog.exit("create %s failed"%self.cfgPath)
         if self.testCluster:
             self.cfg("masterIp", "192.168.0.1")
             self.cfg("secondIp", "192.168.0.2")
@@ -260,6 +275,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
+        blm3BinPath = buildPath + "/build/bin/blm3"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -275,8 +291,14 @@ class TDDnode:
 
             print(cmd)
 
+        blm3Cmd = "nohup %s > /dev/null 2>&1 & " % (
+                blm3BinPath)
+        if os.system(blm3Cmd) != 0:
+            tdLog.exit(blm3Cmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
+
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
         if self.valgrind == 0:
@@ -318,6 +340,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
+        blm3BinPath = buildPath + "/build/bin/blm3"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -333,12 +356,29 @@ class TDDnode:
 
             print(cmd)
 
+        blm3Cmd = "%s > /dev/null 2>&1 & " % (blm3BinPath)
+        if os.system(blm3Cmd) != 0:
+            tdLog.exit(blm3Cmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
+        blm3ToBeKilled = "blm3"
+
+        blm3PsCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % blm3ToBeKilled
+        blm3ProcessID = subprocess.check_output(
+                    blm3PsCmd, shell=True).decode("utf-8")
+
+        while(blm3ProcessID):
+            blm3KillCmd = "kill -INT %s > /dev/null 2>&1" % blm3ProcessID
+            os.system(blm3KillCmd)
+            time.sleep(1)
+            blm3ProcessID = subprocess.check_output(
+                    blm3PsCmd, shell=True).decode("utf-8")
+
         if self.valgrind == 0:
             toBeKilled = "taosd"
         else:

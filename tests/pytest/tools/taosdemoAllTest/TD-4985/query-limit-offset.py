@@ -83,6 +83,7 @@ class TDTestCase:
                             % (self.ts + i, i, -10000+i, i))
         tdSql.query("select * from stb0 where c2 like 'test99%' ")
         tdSql.checkRows(1000)
+
         tdSql.query("select * from stb0 where  tbname like 'stb00_9999'  limit 10" )
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(1, 1, 1)

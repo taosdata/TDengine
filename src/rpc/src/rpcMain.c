@@ -399,7 +399,8 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   pContext->oldInUse = pEpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
-  if (contLen > tsRpcMaxUdpSize || tsRpcForceTcp ) pContext->connType = RPC_CONN_TCPC;
+
+  if (contLen > tsRpcMaxUdpSize || tsRpcForceTcp) pContext->connType = RPC_CONN_TCPC;
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
@@ -1005,7 +1006,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
 
       // client shall send the request within tsRpcTime again for UDP, double it 
       if (pConn->connType != RPC_CONN_TCPS)
-        pConn->pIdleTimer = taosTmrStart(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl);
+        pConn->pIdleTimer = taosTmrStart(rpcProcessIdleTimer, tsRpcTimer*20, pConn, pRpc->tmrCtrl);
     } else {
       terrno = rpcProcessRspHead(pConn, pHead);
       *ppContext = pConn->pContext;

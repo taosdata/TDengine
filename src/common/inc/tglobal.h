@@ -108,8 +108,10 @@ extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
 
-//tsdb 
-extern bool tsdbForceKeepFile;
+//tsdb
+extern bool    tsdbForceKeepFile;
+extern bool    tsdbForceCompactFile;
+extern int32_t tsdbWalFlushSize;
 
 // balance
 extern int8_t  tsEnableBalance;
@@ -215,8 +217,10 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
+extern int8_t tsClientMerge;
+
 #ifdef TD_TSZ
-// lossy 
+// lossy
 extern char lossyColumns[];
 extern double fPrecision;
 extern double dPrecision;
@@ -224,8 +228,12 @@ extern uint32_t maxRange;
 extern uint32_t curRange;
 extern char Compressor[];
 #endif
-// long query 
+// long query
 extern int8_t tsDeadLockKillQuery;
+
+// schemaless
+extern char tsDefaultJSONStrType[];
+
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

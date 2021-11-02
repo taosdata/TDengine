@@ -7,6 +7,7 @@
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 简体中文 | [English](./README.md) 
+很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/) 
 
 # TDengine 简介
 

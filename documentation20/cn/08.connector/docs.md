@@ -2,7 +2,7 @@
 
 TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
 
-![image-connecotr](page://images/connector.png)
+![image-connecotr](../images/connector.png)
 
 目前TDengine的连接器可支持的平台广泛，包括：X64/X86/ARM64/ARM32/MIPS/Alpha等硬件平台，以及Linux/Win64/Win32等开发环境。对照矩阵如下：
 
@@ -64,8 +64,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 编辑taos.cfg文件(默认路径/etc/taos/taos.cfg)，将firstEP修改为TDengine服务器的End Point，例如：h1.taos.com:6030
 
-**提示： **
-
+**提示：**
 1. **如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
 2. **为防止与服务器端连接时出现“unable to resolve FQDN”错误，建议确认客户端的hosts文件已经配置正确的FQDN值。**
 
@@ -406,21 +405,78 @@ typedef struct TAOS_MULTI_BIND {
 <a class="anchor" id="schemaless"></a>
 ### Schemaless 方式写入接口
 
-除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。  
 
-- `int taos_insert_lines(TAOS* taos, char* lines[], int numLines)`
-
-  （2.2.0.0 版本新增）  
-  以 Schemaless 格式写入多行数据。其中：
-    * taos：调用 taos_connect 返回的数据库连接。
-    * lines：由 char 字符串指针组成的数组，指向本次想要写入数据库的多行数据。
-    * numLines：lines 数据的总行数。 
-
-  返回值为 0 表示写入成功，非零值表示出错。具体错误代码请参见 [taoserror.h](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h) 文件。
-
-  说明：
-    1. 此接口是一个同步阻塞式接口，使用时机与 `taos_query()` 一致。
-    2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
+- `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
+  
+  **功能说明**  
+    该接口将行协议的文本数据写入到TDengine中。
+    
+  **参数说明**  
+    taos:  数据库连接，通过taos_connect 函数建立的数据库连接。  
+    lines：文本数据。满足解析格式要求的无模式文本字符串。  
+    numLines:文本数据的行数，不能为 0 。  
+    protocol: 行协议类型，用于标识文本数据格式。  
+    precision：文本数据中的时间戳精度字符串。  
+    
+  **返回值**  
+    TAOS_RES 结构体，应用可以通过使用 taos_errstr 获得错误信息，也可以使用 taos_errno 获得错误码。  
+    在某些情况下，返回的 TAOS_RES 为 NULL，此时仍然可以调用 taos_errno 来安全地获得错误码信息。  
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。  
+      
+  **说明**  
+    协议类型是枚举类型，包含以下三种格式：  
+    TSDB_SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)  
+    TSDB_SML_TELNET_PROTOCOL: OpenTSDB文本行协议  
+    TSDB_SML_JSON_PROTOCOL: OpenTSDB Json协议格式  
+    
+    时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：  
+    TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,  
+    TSDB_SML_TIMESTAMP_HOURS,  
+    TSDB_SML_TIMESTAMP_MINUTES,  
+    TSDB_SML_TIMESTAMP_SECONDS,  
+    TSDB_SML_TIMESTAMP_MILLI_SECONDS,  
+    TSDB_SML_TIMESTAMP_MICRO_SECONDS,  
+    TSDB_SML_TIMESTAMP_NANO_SECONDS  
+    
+    需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。  
+    对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+    
+  **支持版本**  
+    该功能接口从2.3.0.0版本开始支持。
+  
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <taos.h>
+ 
+int main() {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+    
+  // connect to server
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+   
+  // prepare the line string
+  char* lines1[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+  };
+ 
+  // schema-less insert
+  TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  if (taos_errno(res) != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  }
+ 
+  taos_free_result(res);
+ 
+  // close the connection
+  taos_close(taos);
+  return (code);
+}
+```
 
 ### 连续查询接口
 
@@ -517,6 +573,14 @@ cd C:\TDengine\connector\python
 python -m pip install .
 ```
 
+**PyPI**
+
+从2.1.1版本开始，用户可以从[PyPI](https://pypi.org/project/taospy/)安装：
+
+```sh
+pip install taospy
+```
+
 * 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
 对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
 
@@ -551,6 +615,22 @@ python3 PythonChecker.py -host <fqdn>
 验证通过将打印出成功信息。
 
 ### Python连接器的使用
+
+#### PEP-249 兼容API
+
+您可以像其他数据库一样，使用类似 [PEP-249](https://www.python.org/dev/peps/pep-0249/) 数据库API规范风格的API：
+
+```python
+import taos
+
+conn = taos.connect()
+cursor = conn.cursor()
+
+cursor.execute("show databases")
+results = cursor.fetchall()
+for row in results:
+    print(row)
+```
 
 #### 代码示例
 
@@ -606,6 +686,44 @@ c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
 ```
+
+* 从v2.1.0版本开始, 我们提供另外一种API：`connection.query`
+
+    ```python
+    import taos
+
+    conn = taos.connect()
+    conn.execute("create database if not exists pytest")
+
+    result = conn.query("show databases")
+    num_of_fields = result.field_count
+    for field in result.fields:
+        print(field)
+    for row in result:
+        print(row)
+    conn.execute("drop database pytest")
+    ```
+
+    `query` 方法会返回一个 `TaosResult` 类对象，并提供了以下有用的属性或方法:
+
+    属性:
+
+    - `fields`: `TaosFields` 集合类，提供返回数据的列信息。
+    - `field_count`: 返回数据的列数.
+    - `affected_rows`: 插入数据的行数.
+    - `row_count`: 查询数据结果数.
+    - `precision`: 当前数据库的时间精度.
+
+    方法:
+
+    - `fetch_all()`: 类似于 `cursor.fetchall()` 返回同样的集合数据
+    - `fetch_all_into_dict()`: v2.1.1 新添加的API，将上面的数据转换成字典类型返回
+    - `blocks_iter()` `rows_iter()`: 根据底层API提供的两种不同迭代器。
+    - `fetch_rows_a`: 异步API
+    - `errno`: 错误码
+    - `errstr`: 错误信息
+    - `close`: 关闭结果对象，一般不需要直接调用
+
 
 * 创建订阅
 
