@@ -1246,15 +1246,12 @@ static void insertBatchClean(STscStmt* pStmt) {
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
-  taosHashClear(pStmt->mtb.pTableHash);
-  tscDestroyDataBlock(pStmt->mtb.lastBlock, false);
-  pStmt->mtb.lastBlock = NULL;
-  STableDataBlocks** p = taosHashIterate(pStmt->mtb.pTableBlockHashList, NULL);
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
   while(p) {
-    tscDestroyDataBlock(*p, false);
-    p = taosHashIterate(pStmt->mtb.pTableBlockHashList, p);
+    tfree((*p)->pData);
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
   }
-  taosHashClear(pStmt->mtb.pTableBlockHashList);
+
   taosHashClear(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
@@ -1644,6 +1641,13 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     if (t1 == NULL) {
       tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pSql->self, pStmt->mtb.currentUid);
       STMT_RET(TSDB_CODE_TSC_APP_ERROR);
+    }
+
+    if ((*t1)->pData == NULL) {
+      code = tscCreateDataBlockData(*t1, TSDB_PAYLOAD_SIZE, (*t1)->pTableMeta->tableInfo.rowSize, sizeof(SSubmitBlk));
+      if (code != TSDB_CODE_SUCCESS) {
+        STMT_RET(code);
+      }
     }
 
     SSubmitBlk* pBlk = (SSubmitBlk*) (*t1)->pData;
