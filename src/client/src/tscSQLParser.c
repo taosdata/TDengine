@@ -2031,13 +2031,7 @@ static bool willProcessFunctionWithExpr(const tSqlExprItem* pItem) {
 
   if (TSDB_FUNC_IS_SCALAR(functionId)) {
     return true;
-  } else if (functionId == TSDB_FUNC_SUM ||
-             functionId == TSDB_FUNC_AVG ||
-             functionId == TSDB_FUNC_MAX ||
-             functionId == TSDB_FUNC_MIN) {
-    return true;
   }
-
   return false;
 }
 
@@ -4448,6 +4442,24 @@ static int32_t validateSQLExprTerm(SSqlCmd* pCmd, tSqlExpr* pExpr,
     ret = validateSQLExprTerm(pCmd, pExpr->pRight, pQueryInfo, pList, type, &uidRight);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
+    }
+    
+    {
+      tSqlExpr* leftChild = pExpr->pLeft;
+      tSqlExpr* rightChild = pExpr->pRight;
+      // return invalid operation when one child aggregate and the other child scalar or column
+      if (leftChild->type == SQL_NODE_SQLFUNCTION && !TSDB_FUNC_IS_SCALAR(leftChild->functionId)) {
+        if ((rightChild->type == SQL_NODE_SQLFUNCTION && TSDB_FUNC_IS_SCALAR(rightChild->functionId)) ||
+            rightChild->type == SQL_NODE_TABLE_COLUMN) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+      if (rightChild->type == SQL_NODE_SQLFUNCTION && !TSDB_FUNC_IS_SCALAR(rightChild->functionId)) {
+        if ((leftChild->type == SQL_NODE_SQLFUNCTION && TSDB_FUNC_IS_SCALAR(leftChild->functionId)) ||
+            leftChild->type == SQL_NODE_TABLE_COLUMN) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
     }
 
     if (uidLeft != uidRight && uidLeft != 0 && uidRight != 0) {
