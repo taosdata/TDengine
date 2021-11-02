@@ -925,8 +925,7 @@ typedef struct {
   int8_t  reserved1[7];
   char    name[TSDB_STEP_NAME_LEN];
   char    desc[TSDB_STEP_DESC_LEN];
-  char    reserved2[64];
-} SStartupStep;
+} SStartupMsg;
 
 // mq related
 typedef struct {

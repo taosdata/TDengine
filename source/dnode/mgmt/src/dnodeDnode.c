@@ -448,21 +448,26 @@ static void dnodeProcessConfigDnodeReq(SRpcMsg *pMsg) {
 static void dnodeProcessStartupReq(SRpcMsg *pMsg) {
   dInfo("startup msg is received, cont:%s", (char *)pMsg->pCont);
 
-  SStartupStep *pStep = rpcMallocCont(sizeof(SStartupStep));
-  dnodeGetStartup(pStep);
+  SStartupMsg *pStartup = rpcMallocCont(sizeof(SStartupMsg));
+  dnodeGetStartup(pStartup);
 
-  dInfo("startup msg is sent, step:%s desc:%s finished:%d", pStep->name, pStep->desc, pStep->finished);
+  dInfo("startup msg is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
 
-  SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = pStep, .contLen = sizeof(SStartupStep)};
+  SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = pStartup, .contLen = sizeof(SStartupMsg)};
   rpcSendResponse(&rpcRsp);
   rpcFreeCont(pMsg->pCont);
 }
 
 static void *dnodeThreadRoutine(void *param) {
   int32_t ms = tsStatusInterval * 1000;
+
   while (!tsDnode.threadStop) {
+    if (dnodeGetRunStat() != DN_RUN_STAT_RUNNING) {
+      continue;
+    } else {
+      dnodeSendStatusMsg();
+    }
     taosMsleep(ms);
-    dnodeSendStatusMsg();
   }
 }
 

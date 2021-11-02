@@ -42,7 +42,7 @@ void    dnodeCleanup();
 
 EDnStat dnodeGetRunStat();
 void    dnodeSetRunStat();
-void    dnodeGetStartup(SStartupStep *);
+void    dnodeGetStartup(SStartupMsg *);
 
 #ifdef __cplusplus
 }
