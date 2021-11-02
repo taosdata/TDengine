@@ -10058,7 +10058,11 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         for (uint64_t i = 0; i < batchPerTblTimes; i++) {
             int64_t timestamp = startTime;
             for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
-                generateSmlMutablePart(pThreadInfo->lines[j], smlList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
+                *code = generateSmlMutablePart(pThreadInfo->lines[j], smlList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
+                if (*code) {
+                    goto free_lines_interlace_sml;
+                }
+                
                 timestamp += timeStampStep;
             }
             tableSeq ++;
@@ -10597,9 +10601,7 @@ free_of_stmt_progressive:
 
 static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### sml progressive write\n", __func__, __LINE__);
-    int32_t* code = (int32_t*) malloc(sizeof(int32_t));
-    assert(code);
-    *code = 0;
+    int32_t code = 0;
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
     int64_t timeStampStep = stbInfo->timeStampStep;
     int64_t insertRows = stbInfo->insertRows;
@@ -10615,18 +10617,16 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
     char** smlList = (char **)calloc(pThreadInfo->ntables, sizeof(char *));
     if (NULL == smlList) {
-        *code = -1;
         errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 pThreadInfo->ntables * (uint64_t)sizeof(char *),
                 strerror(errno));
-        return code;
+        return NULL;
     }
 
     for (int t = 0; t < pThreadInfo->ntables; t++) {
         char* sml = (char *)calloc(1, HEAD_BUFF_LEN);
         if (NULL == sml) {
-            *code = -1;
             errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
                 strerror(errno));
@@ -10634,7 +10634,10 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         }
         if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
             stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
-            *code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
+            code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
+            if (code) {
+                goto free_smlheadlist_progressive_sml;
+            }
         } else {
 
         }
@@ -10648,7 +10651,6 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     }
     pThreadInfo->lines = (char **)calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
-        *code = -1;
         errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 g_args.reqPerReq * (uint64_t)sizeof(char *),
@@ -10659,7 +10661,6 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     for (int i = 0; i < g_args.reqPerReq; i++) {
         pThreadInfo->lines[i] = (char *)calloc(1, BUFFER_SIZE);
         if (NULL == pThreadInfo->lines[i]) {
-            *code = -1;
             errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
                 strerror(errno));
@@ -10673,7 +10674,10 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
         for (uint64_t j = 0; j < insertRows;) {
             for (int k = 0; k < g_args.reqPerReq; k++) {
-                generateSmlMutablePart(pThreadInfo->lines[k], smlList[i], stbInfo, pThreadInfo, timestamp);
+                code = generateSmlMutablePart(pThreadInfo->lines[k], smlList[i], stbInfo, pThreadInfo, timestamp);
+                if (code) {
+                    goto free_lines_progressive_sml;
+                }
                 timestamp += timeStampStep;
                 j++;
                 if (j == insertRows) {
@@ -10734,7 +10738,7 @@ free_smlheadlist_progressive_sml:
         tmfree(smlList[index]);
     }
     tmfree(smlList);
-    return code;
+    return NULL;
 }
 
 // sync insertion progressive data
@@ -10960,7 +10964,6 @@ static void* syncWrite(void *sarg) {
           return syncWriteProgressive(pThreadInfo);
       }
     }
-
     return NULL;
 }
 
@@ -11091,12 +11094,16 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             timePrec = TSDB_TIME_PRECISION_NANO;
             stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
         } else {
-            errorPrint2("Not support precision: %s\n", precision);
+            errorPrint2("Unsupport precision: %s\n", precision);
             exit(EXIT_FAILURE);
         }
     }
 
     if (stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
+        if (stbInfo->columnCount != 1) {
+            errorPrint2("Schemaless telnet protocol can only have 1 column instead of %d\n", stbInfo->columnCount);
+            exit(EXIT_FAILURE);
+        }
         stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
     }
 
@@ -11424,12 +11431,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     int64_t start = taosGetTimestampUs();
 
     for (int i = 0; i < threads; i++) {
-        void* result;
-        pthread_join(pids[i], &result);
-        if (*(int32_t*)result){
-            errorPrint2("%s() LN%d: Thread%d failed\n", __func__, __LINE__, i);
-        }
-        tmfree(result);
+        pthread_join(pids[i], NULL);
     }
 
     uint64_t totalDelay = 0;
