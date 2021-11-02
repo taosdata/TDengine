@@ -35,7 +35,7 @@
 #define monDebug(...) { if (monDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 #define monTrace(...) { if (monDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monDebugFlag, __VA_ARGS__); }}
 
-#define SQL_LENGTH          1030
+#define SQL_LENGTH          4096
 #define LOG_LEN_STR         512
 #define IP_LEN_STR          TSDB_EP_LEN
 #define VGROUP_STATUS_LEN   512
@@ -415,16 +415,16 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", expire_time binary(%d), timeseries binary(%d))",
              tsMonitorDbName, MAX_EXPIRE_TIME_LEN, MAX_TIMESERIES_LEN);
   } else if (cmd == MON_CMD_CREATE_MT_RESTFUL) {
-    snprintf(sql, SQL_LENGTH,
-             "create table if not exists %s.restful_info(ts timestamp"
-             ", total_req float",
-             tsMonitorDbName);
+    int pos = snprintf(sql, SQL_LENGTH,
+                       "create table if not exists %s.restful_info(ts timestamp"
+                       ", total_req float",
+                       tsMonitorDbName);
     for (int i = 0; i < MON_MAX_HTTP_CODE; ++i) {
-      snprintf(sql, SQL_LENGTH, ", %s(%s) int",
+      pos += snprintf(sql + pos, SQL_LENGTH, ", `%s(%s)` int",
                                 monHttpStatusCodeTable[i][0],
                                 monHttpStatusCodeTable[i][1]);
     }
-    snprintf(sql, SQL_LENGTH,
+    snprintf(sql + pos, SQL_LENGTH,
              ") tags (dnode_id int, dnode_ep binary(%d))",
              TSDB_EP_LEN);
   } else if (cmd == MON_CMD_CREATE_TB_RESTFUL) {
