@@ -44,25 +44,41 @@ SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
     return NULL;
   }
 
-  // Create META path
+  // Create META path (TODO)
   taosMkDir(path);
 
-  // Open the DBs needed
-  if (metaOpenDB(pMeta) < 0) {
+  // Open meta cache
+  if (metaOpenCache(pMeta) < 0) {
     // TODO: handle error
-    metaFree(pMeta);
     return NULL;
   }
 
-  tableUidGeneratorInit(&(pMeta->uidGnrt), IVLD_TB_UID);
+  // Open meta db
+  if (metaOpenDB(pMeta) < 0) {
+    // TODO: handle error
+    return NULL;
+  }
+
+  // Open meta index
+  if (metaOpenIdx(pMeta) < 0) {
+    // TODO: handle error
+    return NULL;
+  }
+
+  // Open meta table uid generator
+  if (metaOpenUidGnrt(pMeta) < 0) {
+    return NULL;
+  }
 
   return pMeta;
 }
 
 void metaClose(SMeta *pMeta) {
   if (pMeta) {
-    tableUidGeneratorClear(&pMeta->uidGnrt);
+    metaCloseUidGnrt(pMeta);
+    metaCloseIdx(pMeta);
     metaCloseDB(pMeta);
+    metaCloseCache(pMeta);
     metaFree(pMeta);
   }
 }
@@ -81,6 +97,7 @@ static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions) {
 
   pMeta->path = strdup(path);
   if (pMeta->path == NULL) {
+    metaFree(pMeta);
     return NULL;
   }
 

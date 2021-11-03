@@ -13,14 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaTbUid.h"
+#include "meta.h"
+#include "metaDef.h"
 
-tb_uid_t generateUid(STbUidGenerator *pGen) {
-  // Generate a new table UID
-  return ++(pGen->nextUid);
+int metaOpenUidGnrt(SMeta *pMeta) {
+  // Init a generator
+  pMeta->uidGnrt.nextUid = IVLD_TB_UID;
+  return 0;
 }
 
-void tableUidGeneratorInit(STbUidGenerator *pGen, tb_uid_t suid) {
-  // Init a generator
-  pGen->nextUid = suid;
+void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */ }
+
+tb_uid_t metaGenerateUid(SMeta *pMeta) {
+  // Generate a new table UID
+  return ++(pMeta->uidGnrt.nextUid);
 }
