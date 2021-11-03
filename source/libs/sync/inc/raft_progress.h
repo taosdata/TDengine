@@ -148,6 +148,7 @@ void syncRaftProgressBecomeReplicate(SSyncRaft* pRaft, int i);
 
 void syncRaftProgressBecomeSnapshot(SSyncRaft* pRaft, int i, SyncIndex snapshotIndex);
 
+/* inflights APIs */
 int syncRaftInflightReset(SSyncRaftInflights* inflights);
 bool syncRaftInflightFull(SSyncRaftInflights* inflights);
 void syncRaftInflightAdd(SSyncRaftInflights* inflights, SyncIndex inflightIndex);

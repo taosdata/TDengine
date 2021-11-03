@@ -157,7 +157,7 @@ void syncStop(const SSyncNode* pNode) {
 }
 
 int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
-  RaftMessage msg;
+  SSyncMessage msg;
 
   pthread_mutex_lock(&syncNode->mutex);
   int32_t ret = syncRaftStep(&syncNode->raft, syncInitPropMsg(&msg, pBuf, pData, isWeak));

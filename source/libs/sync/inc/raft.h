@@ -20,6 +20,8 @@
 #include "sync_type.h"
 #include "raft_message.h"
 
+#define SYNC_NON_NODE_ID -1
+
 typedef struct SSyncRaftProgress SSyncRaftProgress;
 
 typedef struct RaftLeaderState {
@@ -28,9 +30,12 @@ typedef struct RaftLeaderState {
 } RaftLeaderState;
 
 typedef struct SSyncRaftIOMethods {
-  SyncTime (*time)(SSyncRaft*);
+
 
 } SSyncRaftIOMethods;
+
+typedef int   (*SyncRaftStepFp)(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+typedef void  (*SyncRaftTickFp)(SSyncRaft* pRaft);
 
 struct SSyncRaft {
   // owner sync node
@@ -38,28 +43,71 @@ struct SSyncRaft {
 
   SSyncInfo info;
 
+  SSyncTerm term;
+  SyncNodeId voteFor;
+
+  SyncNodeId selfId;
+
+  /**
+   * the leader id
+  **/
+  SyncNodeId leaderId;
+
+	/**
+   * leadTransferee is id of the leader transfer target when its value is not zero.
+	 * Follow the procedure defined in raft thesis 3.10.
+   **/
+  SyncNodeId leadTransferee;
+
+	/** 
+   * New configuration is ignored if there exists unapplied configuration.
+   **/
+	bool pendingConf;
+
+  ESyncRole state;
+
+	/** 
+   * number of ticks since it reached last electionTimeout when it is leader
+	 * or candidate.
+	 * number of ticks since it reached last electionTimeout or received a
+	 * valid message from current leader when it is a follower.
+  **/
+  uint16_t electionElapsed;
+
+	/**
+   *  number of ticks since it reached last heartbeatTimeout.
+	 * only leader keeps heartbeatElapsed.
+   **/
+  uint16_t heartbeatElapsed;
+
   // election timeout tick(random in [3:6] tick)
-  uint16_t electionTick;
+  uint16_t electionTimeoutTick;
 
   // heartbeat timeout tick(default: 1 tick)
-  uint16_t heartbeatTick;
-
-  int installSnapShotTimeoutMS;
-
-  //
-  int heartbeatTimeoutMS;
+  uint16_t heartbeatTimeoutTick;
 
   bool preVote;
+  bool checkQuorum;
 
   SSyncRaftIOMethods io;
 
   RaftLeaderState leaderState;
 
   SSyncRaftUnstableLog *log;
+
+  SyncRaftStepFp stepFp;
+
+  SyncRaftTickFp tickFp;
 };
 
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
-int32_t syncRaftStep(SSyncRaft* pRaft, const RaftMessage* pMsg);
+int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int32_t syncRaftTick(SSyncRaft* pRaft);
+
+
+void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term, SyncNodeId leaderId);
+void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
+bool syncRaftIsPromotable(SSyncRaft* pRaft);
+bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
 
 #endif /* _TD_LIBS_SYNC_RAFT_H */

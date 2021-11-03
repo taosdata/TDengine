@@ -133,9 +133,9 @@ typedef struct SStateManager {
 
   int32_t (*readServerState)(struct SStateManager* stateMng, SSyncServerState* state);
 
-  // void (*saveCluster)(struct SStateManager* stateMng, const SSyncClusterConfig* cluster);
+  void (*saveCluster)(struct SStateManager* stateMng, const SSyncClusterConfig* cluster);
 
-  // const SSyncClusterConfig* (*readCluster)(struct SStateManager* stateMng);
+  const SSyncClusterConfig* (*readCluster)(struct SStateManager* stateMng);
 } SStateManager;
 
 typedef struct {

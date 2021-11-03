@@ -18,7 +18,20 @@
 
 #define RAFT_READ_LOG_MAX_NUM 100
 
-static void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term);
+static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+
+static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+
+static void tickElection(SSyncRaft* pRaft);
+static void tickHeartbeat(SSyncRaft* pRaft);
+
+static void abortLeaderTransfer(SSyncRaft* pRaft);
+
+static void resetRaft(SSyncRaft* pRaft, SSyncTerm term);
 
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SSyncNode* pNode = pRaft->pNode;
@@ -30,6 +43,8 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SSyncBuffer buffer[RAFT_READ_LOG_MAX_NUM];
   int nBuf, limit, i;
   
+  memset(pRaft, 0, sizeof(SSyncRaft));
+
   memcpy(&pRaft->info, pInfo, sizeof(SSyncInfo));
   stateManager = &(pRaft->info.stateManager);
   logStore = &(pRaft->info.logStore);
@@ -60,15 +75,30 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
   assert(initIndex == serverState.commitIndex);
 
-  pRaft->heartbeatTick = 1;
+  pRaft->heartbeatTimeoutTick = 1;
 
-  syncRaftBecomeFollower(pRaft, 1);
+  syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
 
   syncInfo("restore vgid %d state: snapshot index success", pInfo->vgId);
   return 0;
 }
 
-int32_t syncRaftStep(SSyncRaft* pRaft, const RaftMessage* pMsg) {
+int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  syncDebug("from ");
+  if (preHandleMessage(pRaft, pMsg)) {
+    syncFreeMessage(pMsg);
+    return 0;
+  }
+
+  RaftMessageType msgType = pMsg->msgType;
+  if (msgType == RAFT_MSG_INTERNAL_ELECTION) {
+
+  } else if (msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_PRE_VOTE) {
+
+  } else {
+    pRaft->stepFp(pRaft, pMsg);
+  }
+
   syncFreeMessage(pMsg);
   return 0;
 }
@@ -77,7 +107,131 @@ int32_t syncRaftTick(SSyncRaft* pRaft) {
   return 0;
 }
 
-static void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term) {
-  pRaft->electionTick = taosRand() % 3 + 3;
-  return;
+void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term, SyncNodeId leaderId) {
+  pRaft->stepFp = stepFollower;
+  resetRaft(pRaft, term);
+  pRaft->tickFp = tickElection;
+  pRaft->leaderId = leaderId;
+  pRaft->state = TAOS_SYNC_ROLE_FOLLOWER;
+}
+
+void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
+  // electionTimeoutTick in [3,6] tick
+  pRaft->electionTimeoutTick = taosRand() % 4 + 3;
+}
+
+bool syncRaftIsPromotable(SSyncRaft* pRaft) {
+  return pRaft->info.syncCfg.selfIndex >= 0 && 
+         pRaft->info.syncCfg.selfIndex < pRaft->info.syncCfg.replica &&
+         pRaft->selfId != SYNC_NON_NODE_ID;
+}
+
+bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
+  return pRaft->electionElapsed >= pRaft->electionTimeoutTick;
+}
+
+/**
+ * pre-handle message, return true is no need to continue
+ * Handle the message term, which may result in our stepping down to a follower.
+ **/
+static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  // local message?
+  if (pMsg->term == 0) {
+    return false;
+  }
+
+  if (pMsg->term > pRaft->term) {
+    return preHandleNewTermMessage(pRaft, pMsg);
+  }
+
+  return preHandleOldTermMessage(pRaft, pMsg);;
+}
+
+static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  SyncNodeId leaderId = pMsg->from;
+  RaftMessageType msgType = pMsg->msgType;
+
+  if (msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_PRE_VOTE) {
+    leaderId = SYNC_NON_NODE_ID;
+  }
+
+  if (msgType == RAFT_MSG_PRE_VOTE) {
+    // Never change our term in response to a PreVote
+  } else if (msgType == RAFT_MSG_PRE_VOTE_RESP && !pMsg->preVoteResp.reject) {
+		/**
+     * We send pre-vote requests with a term in our future. If the
+		 * pre-vote is granted, we will increment our term when we get a
+		 * quorum. If it is not, the term comes from the node that
+		 * rejected our vote so we should become a follower at the new
+		 * term.
+     **/
+  } else {
+    syncRaftBecomeFollower(pRaft, pMsg->term, leaderId);
+  }
+
+  return false;
+}
+
+static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+
+  // if receive old term message, no need to continue
+  return true;
+}
+
+static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  return 0;
+}
+
+static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  return 0;
+}
+
+static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  return 0;
+}
+
+/**
+ *  tickElection is run by followers and candidates per tick.
+ **/
+static void tickElection(SSyncRaft* pRaft) {
+  pRaft->electionElapsed += 1;
+
+  if (!syncRaftIsPromotable(pRaft)) {
+    return;
+  }
+
+  if (!syncRaftIsPastElectionTimeout(pRaft)) {
+    return;
+  }
+
+  // election timeout
+  pRaft->electionElapsed = 0;
+  SSyncMessage msg;
+  syncRaftStep(pRaft, syncInitElectionMsg(&msg, pRaft->selfId));
+}
+
+static void tickHeartbeat(SSyncRaft* pRaft) {
+
+}
+
+static void abortLeaderTransfer(SSyncRaft* pRaft) {
+  pRaft->leadTransferee = SYNC_NON_NODE_ID;
+}
+
+static void resetRaft(SSyncRaft* pRaft, SSyncTerm term) {
+  if (pRaft->term != term) {
+    pRaft->term = term;
+    pRaft->voteFor = SYNC_NON_NODE_ID;
+  }
+
+  pRaft->leaderId = SYNC_NON_NODE_ID;
+
+  pRaft->electionElapsed = 0;
+  pRaft->heartbeatElapsed = 0;
+
+  syncRaftRandomizedElectionTimeout(pRaft);
+
+  abortLeaderTransfer(pRaft);
+
+  pRaft->pendingConf = false;
 }

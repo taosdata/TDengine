@@ -28,15 +28,14 @@ typedef enum RaftMessageType {
   // client propose a cmd
   RAFT_MSG_INTERNAL_PROP = 1,
 
-  RAFT_MSG_APPEND,
-  RAFT_MSG_APPEND_RESP,
+  // node election timeout
+  RAFT_MSG_INTERNAL_ELECTION = 2,
 
-  RAFT_MSG_VOTE,
-  RAFT_MSG_VOTE_RESP,
+  RAFT_MSG_VOTE = 3,
+  RAFT_MSG_VOTE_RESP = 4,
 
-  RAFT_MSG_PRE_VOTE,
-  RAFT_MSG_PRE_VOTE_RESP,
-
+  RAFT_MSG_PRE_VOTE = 5,
+  RAFT_MSG_PRE_VOTE_RESP = 6,
 } RaftMessageType;
 
 typedef struct RaftMsgInternal_Prop {
@@ -45,7 +44,15 @@ typedef struct RaftMsgInternal_Prop {
   void* pData;
 } RaftMsgInternal_Prop;
 
-typedef struct RaftMessage {
+typedef struct RaftMsgInternal_Election {
+
+} RaftMsgInternal_Election;
+
+typedef struct RaftMsg_PreVoteResp {
+  bool reject;
+} RaftMsg_PreVoteResp;
+
+typedef struct SSyncMessage {
   RaftMessageType msgType;
   SSyncTerm term;
   SyncNodeId from;
@@ -53,12 +60,17 @@ typedef struct RaftMessage {
 
   union {
     RaftMsgInternal_Prop propose;
-  };
-} RaftMessage;
 
-static FORCE_INLINE RaftMessage* syncInitPropMsg(RaftMessage* pMsg, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
-  *pMsg = (RaftMessage) {
+    RaftMsgInternal_Election election;
+
+    RaftMsg_PreVoteResp preVoteResp;
+  };
+} SSyncMessage;
+
+static FORCE_INLINE SSyncMessage* syncInitPropMsg(SSyncMessage* pMsg, const SSyncBuffer* pBuf, void* pData, bool isWeak) {
+  *pMsg = (SSyncMessage) {
     .msgType = RAFT_MSG_INTERNAL_PROP,
+    .term = 0,
     .propose = (RaftMsgInternal_Prop) {
       .isWeak = isWeak,
       .pBuf = pBuf,
@@ -69,10 +81,24 @@ static FORCE_INLINE RaftMessage* syncInitPropMsg(RaftMessage* pMsg, const SSyncB
   return pMsg;
 }
 
-static FORCE_INLINE bool syncIsInternalMsg(const RaftMessage* pMsg) {
-  return pMsg->msgType == RAFT_MSG_INTERNAL_PROP;
+static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNodeId from) {
+  *pMsg = (SSyncMessage) {
+    .msgType = RAFT_MSG_INTERNAL_ELECTION,
+    .term = 0,
+    .from = from,
+    .election = (RaftMsgInternal_Election) {
+
+    },
+  };
+
+  return pMsg;
 }
 
-void syncFreeMessage(const RaftMessage* pMsg);
+static FORCE_INLINE bool syncIsInternalMsg(const SSyncMessage* pMsg) {
+  return pMsg->msgType == RAFT_MSG_INTERNAL_PROP ||
+         pMsg->msgType == RAFT_MSG_INTERNAL_ELECTION;
+}
+
+void syncFreeMessage(const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */

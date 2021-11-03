@@ -177,14 +177,6 @@ void syncRaftProgressBecomeSnapshot(SSyncRaft* pRaft, int i, SyncIndex snapshotI
   progress->pendingSnapshotIndex = snapshotIndex;
 }
 
-static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state) {
-  progress->paused = false;
-  progress->pendingSnapshotIndex = 0;
-  progress->state = state;
-  syncRaftInflightReset(&(progress->inflights));
-}
-
-
 int syncRaftInflightReset(SSyncRaftInflights* inflights) {  
   inflights->count = 0;
   inflights->start = 0;
@@ -240,7 +232,12 @@ void syncRaftInflightFreeFirstOne(SSyncRaftInflights* inflights) {
   syncRaftInflightFreeTo(inflights, inflights->buffer[inflights->start]);
 }
 
-
+static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state) {
+  progress->paused = false;
+  progress->pendingSnapshotIndex = 0;
+  progress->state = state;
+  syncRaftInflightReset(&(progress->inflights));
+}
 
 
 
