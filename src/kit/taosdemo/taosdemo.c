@@ -9937,13 +9937,11 @@ static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInf
 static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     debugPrint("[%d] %s() LN%d: ### interlace schemaless write\n",
             pThreadInfo->threadID, __func__, __LINE__);
-    int32_t* code = (int32_t*) malloc(sizeof(int32_t));
-    assert(code);
-    *code = 0;
     int64_t insertRows;
     uint64_t maxSqlLen;
     int64_t timeStampStep;
     uint64_t insert_interval;
+    int32_t code = 0;
 
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
 
@@ -9979,25 +9977,23 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 
     char **smlList = calloc(pThreadInfo->ntables, sizeof(char *));
     if (NULL == smlList) {
-        *code = -1;
         errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 pThreadInfo->ntables * (uint64_t)sizeof(char *),
                 strerror(errno));
-        return code;
+        return NULL;
     }
     
     for (int t = 0; t < pThreadInfo->ntables; t++) {
         char* sml = (char *)calloc(1, HEAD_BUFF_LEN);
         if (NULL == sml) {
-            *code = -1;
             errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
                 strerror(errno));
             goto free_smlheadlist_interlace_sml;
         }
-        *code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
-        if (*code) {
+        code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
+        if (code) {
             goto free_smlheadlist_interlace_sml;
         }
         smlList[t] = sml;
@@ -10025,7 +10021,6 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 
     pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
     if (NULL == pThreadInfo->lines) {
-        *code = -1;
         errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 g_args.reqPerReq * (uint64_t)sizeof(char *),
@@ -10036,7 +10031,6 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     for (int i = 0; i < g_args.reqPerReq; i++) {
         pThreadInfo->lines[i] = calloc(1, BUFFER_SIZE);
         if (NULL == pThreadInfo->lines[i]) {
-            *code = -1;
             errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
                 strerror(errno));
@@ -10058,8 +10052,8 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         for (uint64_t i = 0; i < batchPerTblTimes; i++) {
             int64_t timestamp = startTime;
             for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
-                *code = generateSmlMutablePart(pThreadInfo->lines[j], smlList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
-                if (*code) {
+                code = generateSmlMutablePart(pThreadInfo->lines[j], smlList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
+                if (code) {
                     goto free_lines_interlace_sml;
                 }
                 
@@ -10115,7 +10109,6 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         startTs = taosGetTimestampUs();
 
         if (recOfBatch == 0) {
-            *code = -1;
             errorPrint2("[%d] %s() LN%d Failed to insert records of batch %d\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     batchPerTbl);
@@ -10143,7 +10136,6 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         pThreadInfo->totalDelay += delay;
 
         if (recOfBatch != affectedRows) {
-            *code = -1;
             errorPrint2("[%d] %s() LN%d execInsert insert %d, affected rows: %"PRId64"\n%s\n",
                     pThreadInfo->threadID, __func__, __LINE__,
                     recOfBatch, affectedRows, pThreadInfo->buffer);
@@ -10193,7 +10185,7 @@ free_smlheadlist_interlace_sml:
     }
     tmfree(smlList);
     
-    return code;
+    return NULL;
 }
 
 // sync write interlace data
@@ -11127,9 +11119,11 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             __func__, __LINE__, startTime);
 
     // read sample data from file first
-    int ret;
-    if (stbInfo && stbInfo->iface != SML_IFACE) {
-        ret = prepareSampleForStb(stbInfo);
+    int ret = 0;
+    if (stbInfo) {
+        if (stbInfo->iface != SML_IFACE) {
+            ret = prepareSampleForStb(stbInfo);
+        }
     } else {
         ret = prepareSampleForNtb();
     }
