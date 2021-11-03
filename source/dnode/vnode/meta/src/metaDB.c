@@ -42,6 +42,7 @@ int metaOpenDB(SMeta *pMeta) {
   pMeta->pDB = (meta_db_t *)calloc(1, sizeof(*(pMeta->pDB)));
   if (pMeta->pDB == NULL) {
     // TODO: handle error
+    rocksdb_options_destroy(options);
     return -1;
   }
 
