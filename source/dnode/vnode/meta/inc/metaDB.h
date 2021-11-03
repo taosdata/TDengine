@@ -24,7 +24,13 @@
 extern "C" {
 #endif
 
-typedef rocksdb_t meta_db_t;
+typedef struct {
+  rocksdb_t *tbDb;      // uid -> tb obj
+  rocksdb_t *nameDb;    // name -> uid
+  rocksdb_t *tagDb;     // uid -> tag
+  rocksdb_t *schemaDb;  // uid+version -> schema
+  rocksdb_t *mapDb;     // suid -> uid_list
+} meta_db_t;
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);
