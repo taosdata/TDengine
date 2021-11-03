@@ -2902,6 +2902,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
         }
       } else if (functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
+        if (pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         int64_t numRowsSelected = GET_INT64_VAL(val);
