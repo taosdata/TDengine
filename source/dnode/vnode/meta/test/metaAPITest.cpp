@@ -1,10 +1,10 @@
+#if 0
 #include <gtest/gtest.h>
 #include <string.h>
 #include <iostream>
 
 #include "meta.h"
 
-#if 0
 static STSchema *metaGetSimpleSchema() {
   STSchema *      pSchema = NULL;
   STSchemaBuilder sb = {0};

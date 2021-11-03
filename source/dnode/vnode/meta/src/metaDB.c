@@ -27,6 +27,7 @@ int metaOpenDB(SMeta *pMeta) {
   if (pMeta->pCache) {
     rocksdb_options_set_row_cache(options, pMeta->pCache);
   }
+  rocksdb_options_set_create_if_missing(options, 1);
 
   pMeta->pDB = rocksdb_open(options, dbDir, &err);
   if (pMeta->pDB == NULL) {

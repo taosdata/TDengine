@@ -27,6 +27,7 @@ int metaOpenIdx(SMeta *pMeta) {
   if (pMeta->pCache) {
     rocksdb_options_set_row_cache(options, pMeta->pCache);
   }
+  rocksdb_options_set_create_if_missing(options, 1);
 
   pMeta->pIdx = rocksdb_open(options, idxDir, &err);
   if (pMeta->pIdx == NULL) {

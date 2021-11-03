@@ -15,7 +15,7 @@
 
 #include "meta.h"
 
-int metaCreateTable(SMeta *pMeta, const STableOptions *pTbOptions) {
+int metaCreateTable(SMeta *pMeta, const STbOptions *pTbOptions) {
   // TODO
   return 0;
 }
