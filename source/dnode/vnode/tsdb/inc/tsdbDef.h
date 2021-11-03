@@ -13,22 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_WRITE_BATCH_H_
-#define _TD_TSDB_WRITE_BATCH_H_
+#ifndef _TD_TSDB_DEF_H_
+#define _TD_TSDB_DEF_H_
+
+#include "tsdb.h"
+#include "tsdbOptions.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STsdbWriteBatch STsdbWriteBatch;
-
-/* ------------------------- ------------------------- */
-struct STsdbWriteBatch {
-  // TODO
+struct STsdb {
+  char *       path;
+  STsdbOptions options;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TSDB_WRITE_BATCH_H_*/
+#endif /*_TD_TSDB_DEF_H_*/
