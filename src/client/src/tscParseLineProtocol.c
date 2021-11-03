@@ -1907,8 +1907,6 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     }
     //Escape special character
     if (*cur == '\\') {
-      //TODO: escape will work after column & tag
-      //support spcial characters
       escapeSpecialCharacter(2, &cur);
     }
     key[len] = *cur;
@@ -1985,6 +1983,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     //Escape special character
     if (*cur == '\\') {
       escapeSpecialCharacter(isTag ? 2 : 3, &cur);
+      len++;
     }
     cur++;
     len++;
