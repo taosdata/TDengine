@@ -36,7 +36,7 @@ local cur_dir
 cd $1
 cur_dir=$(pwd)
 
-for dirlist in $(ls ${cur_dir}); do
+for dirlist in "${cur_dir}"/*; do
   if test -d ${dirlist}; then
     cd ${dirlist}
     cp_rpm_package ${cur_dir}/${dirlist}
