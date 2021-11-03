@@ -529,6 +529,7 @@ typedef struct SThreadInfo_S {
     SSuperTable* stbInfo;
     char      *buffer;    // sql cmd buffer
 
+    char*     jsonStr;
     // for async insert
     tsem_t    lock_sem;
     int64_t   counter;
@@ -7145,8 +7146,13 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             affectedRows = k;
             break;
         case SML_IFACE:
-            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, stbInfo->lineProtocol,
-                stbInfo->tsPrecision);
+            if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->jsonStr, 0, TSDB_SML_JSON_PROTOCOL,
+                    stbInfo->tsPrecision);
+            } else {
+                res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines, k, stbInfo->lineProtocol,
+                    stbInfo->tsPrecision);
+            }
             code = taos_errno(res);
             affectedRows = taos_affected_rows(res);
             if (code != TSDB_CODE_SUCCESS) {
@@ -11091,9 +11097,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    if (stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
+    if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
         if (stbInfo->columnCount != 1) {
-            errorPrint2("Schemaless telnet protocol can only have 1 column instead of %d\n", stbInfo->columnCount);
+            errorPrint2("Schemaless telnet/json protocol can only have 1 column instead of %d\n", stbInfo->columnCount);
             exit(EXIT_FAILURE);
         }
         stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
