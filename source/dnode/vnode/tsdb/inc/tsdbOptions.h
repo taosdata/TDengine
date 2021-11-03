@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+extern const STsdbOptions defautlTsdbOptions;
+
+int tsdbValidateOptions(const STsdbOptions *);
+
 #ifdef __cplusplus
 }
 #endif

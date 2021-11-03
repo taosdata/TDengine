@@ -14,3 +14,19 @@
  */
 
 #include "tsdbDef.h"
+
+STsdb *tsdbOpen(const char *path, const STsdbOptions *pTsdbOptions) {
+  STsdb *pTsdb = NULL;
+  /* TODO */
+  return pTsdb;
+}
+
+void tsdbClose(STsdb *pTsdb) {
+  if (pTsdb) {
+    /* TODO */
+  }
+}
+
+void tsdbRemove(const char *path) { taosRemoveDir(path); }
+
+/* ------------------------ STATIC METHODS ------------------------ */

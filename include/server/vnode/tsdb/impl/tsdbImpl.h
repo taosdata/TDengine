@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 struct STsdbOptions {
+  size_t lruCacheSize;
   /* TODO */
 };
 

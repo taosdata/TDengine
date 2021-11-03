@@ -12,3 +12,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "tsdbDef.h"
+
+const STsdbOptions defautlTsdbOptions = {.lruCacheSize = 0};
+
+int tsdbOptionsInit(STsdbOptions *pTsdbOptions) {
+  // TODO
+  return 0;
+}
+
+void tsdbOptionsClear(STsdbOptions *pTsdbOptions) {
+  // TODO
+}
+
+int tsdbValidateOptions(const STsdbOptions *pTsdbOptions) {
+  // TODO
+  return 0;
+}
