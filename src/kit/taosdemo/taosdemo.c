@@ -10134,29 +10134,93 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         batchPerTblTimes = 1;
     }
 
-    char **smlList = calloc(pThreadInfo->ntables, sizeof(char *));
-    if (NULL == smlList) {
-        errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__,
-                pThreadInfo->ntables * (uint64_t)sizeof(char *),
-                strerror(errno));
-        return NULL;
+    char **smlList;
+    cJSON** tagsList;
+    cJSON* jsonArray;
+    if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
+            stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
+        smlList = calloc(pThreadInfo->ntables, sizeof(char *));
+        if (NULL == smlList) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    pThreadInfo->ntables * (uint64_t)sizeof(char *),
+                    strerror(errno));
+            return NULL;
+        }
+        
+        for (int t = 0; t < pThreadInfo->ntables; t++) {
+            char* sml = (char *)calloc(1, HEAD_BUFF_LEN);
+            if (NULL == sml) {
+                errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
+                    strerror(errno));
+                goto free_smlheadlist_interlace_sml;
+            }
+            code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
+            if (code) {
+                goto free_smlheadlist_interlace_sml;
+            }
+            smlList[t] = sml;
+        }
+
+        pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
+        if (NULL == pThreadInfo->lines) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    g_args.reqPerReq * (uint64_t)sizeof(char *),
+                    strerror(errno));
+            goto free_smlheadlist_interlace_sml;
+        }
+
+        for (int i = 0; i < g_args.reqPerReq; i++) {
+            pThreadInfo->lines[i] = calloc(1, BUFFER_SIZE);
+            if (NULL == pThreadInfo->lines[i]) {
+                errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
+                    strerror(errno));
+                goto free_lines_interlace_sml;
+            }
+        }
+    } else {
+        tagsList = (cJSON**)calloc(pThreadInfo->ntables, sizeof(cJSON *));
+        if (NULL == tagsList) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    pThreadInfo->ntables * (uint64_t)sizeof(cJSON *),strerror(errno));
+            return NULL;
+        }
+        for (int t = 0; t < pThreadInfo->ntables; t++) {
+            cJSON* tags = cJSON_CreateObject();
+            if (tags == NULL) {
+                errorPrint2("[%d] %s() LN%d: Failed to Json Object, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, strerror(errno));
+                goto free_json_interlace_sml;
+            }
+            code = generateSmlJsonTags(tags, stbInfo, pThreadInfo, t);
+            if (code) {
+                goto free_json_interlace_sml;
+            }
+            tagsList[t] = tags;
+        }
+
+        pThreadInfo->lines = (char **)calloc(1, sizeof(char *));
+        if (NULL == pThreadInfo->lines) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, (uint64_t)sizeof(char *),
+                    strerror(errno));
+            goto free_json_interlace_sml;
+        }
+
+        pThreadInfo->lines[0] = (char *) calloc(1, BUFFER_SIZE);
+        if (NULL == pThreadInfo->lines[0]) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
+                    strerror(errno));
+            tmfree(pThreadInfo->lines);
+            goto free_json_interlace_sml;
+        }
     }
     
-    for (int t = 0; t < pThreadInfo->ntables; t++) {
-        char* sml = (char *)calloc(1, HEAD_BUFF_LEN);
-        if (NULL == sml) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
-                strerror(errno));
-            goto free_smlheadlist_interlace_sml;
-        }
-        code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
-        if (code) {
-            goto free_smlheadlist_interlace_sml;
-        }
-        smlList[t] = sml;
-    }
 
     pThreadInfo->totalInsertRows = 0;
     pThreadInfo->totalAffectedRows = 0;
@@ -10178,32 +10242,15 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     int percentComplete = 0;
     int64_t totalRows = insertRows * pThreadInfo->ntables;
 
-    pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
-    if (NULL == pThreadInfo->lines) {
-        errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__,
-                g_args.reqPerReq * (uint64_t)sizeof(char *),
-                strerror(errno));
-        goto free_smlheadlist_interlace_sml;
-    }
-
-    for (int i = 0; i < g_args.reqPerReq; i++) {
-        pThreadInfo->lines[i] = calloc(1, BUFFER_SIZE);
-        if (NULL == pThreadInfo->lines[i]) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
-                strerror(errno));
-            goto free_lines_interlace_sml;
-        }
-    }
     
-
     while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
         if ((flagSleep) && (insert_interval)) {
             st = taosGetTimestampMs();
             flagSleep = false;
         }
-
+        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+            jsonArray = cJSON_CreateArray();
+        }
         // generate data
 
         uint32_t recOfBatch = 0;
@@ -10211,7 +10258,15 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         for (uint64_t i = 0; i < batchPerTblTimes; i++) {
             int64_t timestamp = startTime;
             for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
-                code = generateSmlMutablePart(pThreadInfo->lines[j], smlList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
+                if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+                    code = generateSmlJsonCols(jsonArray,
+                        tagsList[tableSeq - pThreadInfo->start_table_from],
+                        stbInfo, pThreadInfo, timestamp);
+                } else {
+                    code = generateSmlMutablePart(pThreadInfo->lines[j],
+                        smlList[tableSeq - pThreadInfo->start_table_from],
+                        stbInfo, pThreadInfo, timestamp);
+                }
                 if (code) {
                     goto free_lines_interlace_sml;
                 }
@@ -10264,6 +10319,10 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                 pThreadInfo->totalInsertRows);
         verbosePrint("[%d] %s() LN%d, buffer=%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->buffer);
+
+        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+                *pThreadInfo->lines = cJSON_Print(jsonArray);
+        }
 
         startTs = taosGetTimestampUs();
 
@@ -10333,17 +10392,24 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
 
     printStatPerThread(pThreadInfo);
+    if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+        tmfree(pThreadInfo->lines[0]);
+        tmfree(pThreadInfo->lines);
+free_json_interlace_sml:
+        // cJSON_Delete(jsonArray);
+        tmfree(tagsList);
+    } else {
 free_lines_interlace_sml:
-    for (int index = 0; index < g_args.reqPerReq; index++) {
-        tmfree(pThreadInfo->lines[index]);
-    }
-    tmfree(pThreadInfo->lines);
+        for (int index = 0; index < g_args.reqPerReq; index++) {
+            tmfree(pThreadInfo->lines[index]);
+        }
+        tmfree(pThreadInfo->lines);
 free_smlheadlist_interlace_sml:
-    for (int index = 0; index < pThreadInfo->ntables; index++) {
-        tmfree(smlList[index]);
+        for (int index = 0; index < pThreadInfo->ntables; index++) {
+            tmfree(smlList[index]);
+        }
+        tmfree(smlList);
     }
-    tmfree(smlList);
-    
     return NULL;
 }
 
@@ -10766,8 +10832,8 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
     pThreadInfo->samplePos = 0;
 
-    char** smlList = NULL;
-    cJSON** tagsList = NULL;
+    char** smlList;
+    cJSON** tagsList;
     cJSON* jsonArray;
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
             stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
@@ -10862,6 +10928,9 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         int64_t timestamp = pThreadInfo->start_time;
         
         if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+            if (jsonArray) {
+                cJSON_free(jsonArray);
+            }
             jsonArray = cJSON_CreateArray();
         }
         for (uint64_t j = 0; j < insertRows;) {
@@ -10931,7 +11000,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
         tmfree(pThreadInfo->lines);
 free_json_progressive_sml:
-        cJSON_Delete(jsonArray);
+        // cJSON_Delete(jsonArray);
         tmfree(tagsList);
     } else {
 free_lines_progressive_sml:
