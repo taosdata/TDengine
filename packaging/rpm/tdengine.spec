@@ -57,6 +57,9 @@ cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
 if [ -f %{_compiledir}/test/cfg/blm.toml ]; then
     cp %{_compiledir}/test/cfg/blm.toml         %{buildroot}%{homepath}/cfg
 fi
+if [ -f %{_compiledir}/test/cfg/blm3.service ]; then
+    cp %{_compiledir}/test/cfg/blm3.service %{buildroot}%{homepath}/cfg
+fi
 cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
@@ -145,14 +148,19 @@ if pidof taosd &> /dev/null; then
     echo "Stop taosd service success!"
     sleep 1
 fi
-# if taos.cfg already softlink, remove it
+# if taos.cfg already exist, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
 fi
 
-# if blm.toml already softlink, remove it
+# if blm.toml already exist, remove it
 if [ -f %{cfg_install_dir}/blm.toml ]; then
     ${csudo} rm -f %{homepath}/cfg/blm.toml || :
+fi
+
+# if blm3.service already softlink, remove it
+if [ -f %{cfg_install_dir}/blm3.service ]; then
+    ${csudo} rm -f %{homepath}/cfg/blm3.service || :
 fi
 
 # there can not libtaos.so*, otherwise ln -s  error

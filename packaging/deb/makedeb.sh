@@ -47,6 +47,9 @@ cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_pat
 if [ -f "${compile_dir}/test/cfg/blm.toml" ]; then
     cp ${compile_dir}/test/cfg/blm.toml                 ${pkg_dir}${install_home_path}/cfg
 fi
+if [ -f "${compile_dir}/test/cfg/blm3.service" ]; then
+    cp ${compile_dir}/test/cfg/blm3.service          ${pkg_dir}${install_home_path}/cfg ||:
+fi
 
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script

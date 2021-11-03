@@ -40,7 +40,11 @@ ELSE ()
     PATCH_COMMAND
         COMMAND     git clean -f -d
     BUILD_COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -ldflags "-s -w -X github.com/taosdata/blm3/version.CommitID=${blm3_commit_sha1}"
-    INSTALL_COMMAND cmake -E copy blm3 ${CMAKE_BINARY_DIR}/build/bin COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/ COMMAND cmake -E copy ./example/config/blm.toml ${CMAKE_BINARY_DIR}/test/cfg/
+    INSTALL_COMMAND
+        COMMAND cmake -E copy blm3 ${CMAKE_BINARY_DIR}/build/bin
+        COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+        COMMAND cmake -E copy ./example/config/blm.toml ${CMAKE_BINARY_DIR}/test/cfg/
+        COMMAND cmake -E copy ./blm3.service ${CMAKE_BINARY_DIR}/test/cfg/
   )
 ENDIF ()
 

@@ -58,6 +58,12 @@ function kill_taosd() {
 }
 
 function clean_service_on_systemd() {
+    blm3_service_config="${service_config_dir}/blm3.service"
+    if systemctl is-active --quiet blm3; then
+        echo "blm3 is running, stopping it..."
+        ${csudo} systemctl stop blm3 &> /dev/null || echo &> /dev/null
+    fi
+
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
 
     if systemctl is-active --quiet ${taos_service_name}; then
@@ -67,6 +73,9 @@ function clean_service_on_systemd() {
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
 
     ${csudo} rm -f ${taosd_service_config}
+
+    [ -f ${blm3_service_config} ] && ${csudo} rm -f ${blm3_service_config}
+
 }
 
 function clean_service_on_sysvinit() {

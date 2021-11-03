@@ -32,5 +32,9 @@ if [ -f "${install_main_dir}/blm.toml" ]; then
     ${csudo} rm -f ${install_main_dir}/cfg/blm.toml     || :
 fi
 
+if [ -f "${install_main_dir}/blm3.service" ]; then
+    ${csudo} rm -f ${install_main_dir}/cfg/blm3.service || :
+fi
+
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo} rm -f ${install_main_dir}/driver/libtaos*   || :
