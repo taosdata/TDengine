@@ -31,6 +31,10 @@ struct SMetaOptions {
 };
 
 /* ------------------------ STbOptions ------------------------ */
+#define META_NORMAL_TABLE ((uint8_t)1)
+#define META_SUPER_TABLE ((uint8_t)2)
+#define META_CHILD_TABLE ((uint8_t)3)
+
 typedef struct {
 } SSMAOptions;
 

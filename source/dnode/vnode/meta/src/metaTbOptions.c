@@ -19,3 +19,8 @@ int metaValidateTbOptions(SMeta *pMeta, const STbOptions *pTbOptions) {
   // TODO
   return 0;
 }
+
+size_t metaEncodeTbObjFromTbOptions(const STbOptions *pTbOptions, void *pBuf, size_t bsize) {
+  // TODO
+  return 0;
+}

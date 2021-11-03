@@ -91,7 +91,53 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, const STbOptions *pTbOptions) {
-  // TODO
+  tb_uid_t uid;
+  char *   err = NULL;
+  size_t   size;
+  char     pBuf[1024];  // TODO
+
+  rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
+
+  // Generate a uid for child and normal table
+  if (pTbOptions->type == META_SUPER_TABLE) {
+    uid = pTbOptions->stbOptions.uid;
+  } else {
+    uid = metaGenerateUid(pMeta);
+  }
+
+  // Save tbname -> uid to tbnameDB
+  rocksdb_put(pMeta->pDB->nameDb, wopt, pTbOptions->name, strlen(pTbOptions->name), (char *)(&uid), sizeof(uid), &err);
+
+  // Save uid -> tb_obj to tbDB
+  size = metaEncodeTbObjFromTbOptions(pTbOptions, pBuf, 1024);
+  rocksdb_put(pMeta->pDB->tbDb, wopt, (char *)(&uid), sizeof(uid), pBuf, size, &err);
+
+  switch (pTbOptions->type) {
+    case META_NORMAL_TABLE:
+      // save schemaDB
+      rocksdb_put(pMeta->pDB->schemaDb, wopt, NULL /* TODO */, NULL /* TODO */, NULL /* TODO */, NULL /* TODO */, &err);
+      break;
+    case META_SUPER_TABLE:
+      // save schemaDB
+      rocksdb_put(pMeta->pDB->schemaDb, wopt, NULL /* TODO */, NULL /* TODO */, NULL /* TODO */, NULL /* TODO */, &err);
+
+      // save mapDB (really need?)
+      rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&uid), sizeof(uid), "", 0, &err);
+      break;
+    case META_CHILD_TABLE:
+      // save tagDB
+      rocksdb_put(pMeta->pDB->tagDb, wopt, NULL /* TODO */, 0 /* TODO */, NULL /* TODO */, 0 /* TODO */, &err);
+
+      // save mapDB
+      rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&(pTbOptions->ctbOptions.suid)), sizeof(tb_uid_t), NULL /* TODO */,
+                  0 /* TODO */, &err);
+      break;
+    default:
+      ASSERT(0);
+  }
+
+  rocksdb_writeoptions_destroy(wopt);
+
   return 0;
 }
 

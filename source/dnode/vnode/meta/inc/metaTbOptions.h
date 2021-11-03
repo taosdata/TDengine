@@ -22,7 +22,8 @@
 extern "C" {
 #endif
 
-int metaValidateTbOptions(SMeta *pMeta, const STbOptions *);
+int    metaValidateTbOptions(SMeta *pMeta, const STbOptions *);
+size_t metaEncodeTbObjFromTbOptions(const STbOptions *, void *pBuf, size_t bsize);
 
 #ifdef __cplusplus
 }
