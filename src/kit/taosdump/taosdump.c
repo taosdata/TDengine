@@ -32,9 +32,7 @@
 static char    **g_tsDumpInSqlFiles   = NULL;
 static char      g_tsCharset[63] = {0};
 
-#define AVRO_SUPPORT    1
-
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
 #include <avro.h>
 #include <jansson.h>
 
@@ -42,7 +40,7 @@ static char    **g_tsDumpInAvroFiles   = NULL;
 
 static void print_json_aux(json_t *element, int indent);
 
-#endif /* AVRO_SUPPORT == 1 */
+#endif /* AVRO_SUPPORT */
 
 #define TSDB_SUPPORT_NANOSECOND 1
 
@@ -238,7 +236,7 @@ typedef struct {
     int32_t   totalDatabasesOfDumpOut;
 } resultStatistics;
 
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
 
 enum enAvro_Codec {
     AVRO_CODEC_START = 0,
@@ -327,7 +325,7 @@ static struct argp_option options[] = {
     // dump format options
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
-#if AVRO_SUPPORT  == 1
+#ifdef AVRO_SUPPORT
     {"avro", 'v', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 3},
     {"avro-codec", 'd', "snappy", 0,  "Choose an avro codec among null, deflate, snappy, and lzma.", 4},
 #endif
@@ -364,7 +362,7 @@ typedef struct arguments {
     // dump format option
     bool     schemaonly;
     bool     with_property;
-#if AVRO_SUPPORT  == 1
+#ifdef AVRO_SUPPORT
     bool     avro;
     int      avro_codec;
 #endif
@@ -422,7 +420,7 @@ struct arguments g_args = {
     // dump format option
     false,      // schemaonly
     true,       // with_property
-#if AVRO_SUPPORT  == 1
+#ifdef AVRO_SUPPORT
     false,      // avro
     AVRO_CODEC_SNAPPY,  // avro_codec
 #endif
@@ -586,7 +584,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             break;
 
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
         case 'v':
             g_args.avro = true;
             break;
@@ -1548,7 +1546,7 @@ static void createDumpinList(char *ext, int64_t count)
             assert(g_tsDumpInSqlFiles[i]);
         }
     }
-#if AVRO_SUPPORT  == 1
+#ifdef AVRO_SUPPORT
     else {
         g_tsDumpInAvroFiles = (char **)calloc(count, sizeof(char *));
         assert(g_tsDumpInAvroFiles);
@@ -1582,7 +1580,7 @@ static void createDumpinList(char *ext, int64_t count)
                         }
                         strncpy(g_tsDumpInSqlFiles[count++], pDirent->d_name, MAX_FILE_NAME_LEN);
                     }
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
                     else {
                         strncpy(g_tsDumpInAvroFiles[count++], pDirent->d_name, MAX_FILE_NAME_LEN);
                     }
@@ -1596,7 +1594,7 @@ static void createDumpinList(char *ext, int64_t count)
     debugPrint("%"PRId64" .%s files filled to list!\n", count, ext);
 }
 
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
 
 static int convertTbDesToJson(
         char *dbName, char *tbName, TableDef *tableDes, int colCount,
@@ -2453,7 +2451,7 @@ static int64_t dumpInAvroWorkThreads()
     return ret;
 }
 
-#endif /* AVRO_SUPPORT == 1 */
+#endif /* AVRO_SUPPORT */
 
 static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbName)
 {
@@ -2670,7 +2668,7 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
         return -1;
     }
 
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
     if (g_args.avro) {
         char avroFilename[MAX_PATH_LEN] = {0};
 
@@ -2736,7 +2734,7 @@ static int64_t dumpNormalTable(
     }
 
     char *jsonSchema = NULL;
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
     if (g_args.avro) {
         if (0 != convertTbDesToJson(
                     dbName, tbName, tableDes, colCount, &jsonSchema)) {
@@ -3283,7 +3281,7 @@ static int64_t dumpIn() {
 
     ret = dumpInSqlWorkThreads();
 
-#if AVRO_SUPPORT  == 1
+#ifdef AVRO_SUPPORT
     if (0 == ret) {
         ret = dumpInAvroWorkThreads();
     }
@@ -3861,7 +3859,7 @@ int main(int argc, char *argv[]) {
     printf("databasesSeq: %s\n", g_args.databasesSeq);
     printf("schemaonly: %s\n", g_args.schemaonly?"true":"false");
     printf("with_property: %s\n", g_args.with_property?"true":"false");
-#if AVRO_SUPPORT  == 1
+#ifdef AVRO_SUPPORT
     printf("avro format: %s\n", g_args.avro?"true":"false");
     printf("avro codec: %s\n", g_avro_codec[g_args.avro_codec]);
 #endif
@@ -3918,7 +3916,7 @@ int main(int argc, char *argv[]) {
     fprintf(g_fpOfResult, "databasesSeq: %s\n", g_args.databasesSeq);
     fprintf(g_fpOfResult, "schemaonly: %s\n", g_args.schemaonly?"true":"false");
     fprintf(g_fpOfResult, "with_property: %s\n", g_args.with_property?"true":"false");
-#if AVRO_SUPPORT == 1
+#ifdef AVRO_SUPPORT
     fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
     fprintf(g_fpOfResult, "avro codec: %s\n", g_avro_codec[g_args.avro_codec]);
 #endif
