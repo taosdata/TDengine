@@ -17,10 +17,32 @@
 #include "metaDef.h"
 
 int metaOpenDB(SMeta *pMeta) {
-  /* TODO */
+  char               dbDir[128];
+  char *             err = NULL;
+  rocksdb_options_t *options = rocksdb_options_create();
+
+  // TODO
+  sprintf(dbDir, "%s/db", pMeta->path);
+
+  if (pMeta->pCache) {
+    rocksdb_options_set_row_cache(options, pMeta->pCache);
+  }
+
+  pMeta->pDB = rocksdb_open(options, dbDir, &err);
+  if (pMeta->pDB == NULL) {
+    // TODO: handle error
+    rocksdb_options_destroy(options);
+    return -1;
+  }
+
+  rocksdb_options_destroy(options);
 
   return 0;
 }
 
-void metaCloseDB(SMeta *pMeta) { /* TODO */
+void metaCloseDB(SMeta *pMeta) {
+  if (pMeta->pDB) {
+    rocksdb_close(pMeta->pDB);
+    pMeta->pDB = NULL;
+  }
 }
