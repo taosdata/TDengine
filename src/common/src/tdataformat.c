@@ -462,9 +462,8 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
                                      int rowOffset) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < dataRowKey(row));
 
-  int  rcol = 0;
-  int  dcol = 0;
-  
+  int rcol = 0;
+  int dcol = 0;
   while (dcol < pCols->numOfCols) {
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
@@ -503,9 +502,10 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
 static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull, int rowOffset) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < kvRowKey(row));
 
-  int  rcol = 0;
-  int  dcol = 0;
-  int  nRowCols = kvRowNCols(row);
+  int rcol = 0;
+  int dcol = 0;
+
+  int nRowCols = kvRowNCols(row);
 
   while (dcol < pCols->numOfCols) {
     SDataCol *pDataCol = &(pCols->cols[dcol]);
