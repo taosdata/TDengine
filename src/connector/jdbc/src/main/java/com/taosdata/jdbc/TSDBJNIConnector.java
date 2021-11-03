@@ -17,6 +17,8 @@
 package com.taosdata.jdbc;
 
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.jdbc.enums.SchemalessProtocolType;
+import com.taosdata.jdbc.enums.SchemalessTimestampType;
 import com.taosdata.jdbc.utils.TaosInfo;
 
 import java.nio.ByteBuffer;
@@ -359,14 +361,14 @@ public class TSDBJNIConnector {
 
     private native int closeStmt(long stmt, long con);
 
-    public void insertLines(String[] lines) throws SQLException {
-        int code = insertLinesImp(lines, this.taos);
+    public void insertLines(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
+        int code = insertLinesImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
         if (code != TSDBConstants.JNI_SUCCESS) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
         }
     }
 
-    private native int insertLinesImp(String[] lines, long conn);
+    private native int insertLinesImp(String[] lines, long conn, int type, int precision);
 
 
 }

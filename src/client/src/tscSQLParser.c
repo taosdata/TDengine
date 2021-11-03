@@ -2454,6 +2454,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg12 = "parameter is out of range [1, 100]";
   const char* msg13 = "parameter list required";
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
+  const char* msg15 = "parameter is out of range [1, 1000]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2901,11 +2902,15 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
         }
       } else if (functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
+        if (pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
-        int64_t numRowsSelected = GET_INT32_VAL(val);
+        int64_t numRowsSelected = GET_INT64_VAL(val);
         if (numRowsSelected <= 0 || numRowsSelected > 1000) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg15);
         }
 
         // todo REFACTOR
@@ -5022,6 +5027,7 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
   const char* msg1 = "super table join requires tags column";
   const char* msg2 = "timestamp join condition missing";
   const char* msg3 = "condition missing for join query";
+  const char* msg4 = "only ts column join allowed";
 
   if (!QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     if (pQueryInfo->numOfTables == 1) {
@@ -5039,6 +5045,8 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
     if (pCondExpr->pJoinExpr == NULL) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
+  } else if ((!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) && pCondExpr->pJoinExpr) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   if (!pCondExpr->tsJoin) {
@@ -5593,9 +5601,13 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "fill only available for interval query";
   const char* msg6 = "not supported function now";
+  const char* msg7 = "join query not supported fill operation";
 
   if ((!isTimeWindowQuery(pQueryInfo)) && (!tscIsPointInterpQuery(pQueryInfo))) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+  }
+  if(QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   /*
@@ -5949,6 +5961,10 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
       if (!validOrder) {
         return invalidOperationMsg(pMsgBuf, msg7);
+      }
+
+      if (udf) {
+        return invalidOperationMsg(pMsgBuf, msg11);
       }
 
       if (udf) {
@@ -6372,6 +6388,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
+    //handle Escape character backstick
+    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+      memmove(name.z, name.z + 1, name.n);
+      name.z[name.n - TS_ESCAPE_CHAR_SIZE] = '\0';
+      name.n -= TS_ESCAPE_CHAR_SIZE;
+    }
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
@@ -9210,6 +9232,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->simpleAgg = isSimpleAggregateRv(pQueryInfo);
     pQueryInfo->onlyTagQuery = onlyTagPrjFunction(pQueryInfo);
     pQueryInfo->groupbyColumn = tscGroupbyColumn(pQueryInfo);
+    pQueryInfo->groupbyTag = tscGroupbyTag(pQueryInfo);
     pQueryInfo->arithmeticOnAgg   = tsIsArithmeticQueryOnAggResult(pQueryInfo);
     pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
 
