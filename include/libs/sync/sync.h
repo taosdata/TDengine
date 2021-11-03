@@ -26,12 +26,13 @@ extern "C" {
 typedef int32_t  SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
-typedef uint64_t SSyncTerm;
+typedef uint64_t SyncTerm;
 
 typedef enum {
   TAOS_SYNC_ROLE_FOLLOWER = 0,
   TAOS_SYNC_ROLE_CANDIDATE = 1,
   TAOS_SYNC_ROLE_LEADER = 2,
+  TAOS_SYNC_ROLE_PRE_CANDIDATE = 3,
 } ESyncRole;
 
 typedef struct {
@@ -111,7 +112,7 @@ typedef struct SSyncLogStore {
 
 typedef struct SSyncServerState {
   SyncNodeId voteFor;
-  SSyncTerm  term;
+  SyncTerm  term;
   SyncIndex  commitIndex;
 } SSyncServerState;
 

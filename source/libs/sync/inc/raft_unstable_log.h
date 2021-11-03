@@ -67,13 +67,13 @@ int raftLogNumEntries(const RaftLog* pLog);
 /**
  * return last term of in memory log, return 0 if log is empty
  **/
-SSyncTerm raftLogLastTerm(RaftLog* pLog);
+SyncTerm raftLogLastTerm(RaftLog* pLog);
 
 /**
  * return term of log with the given index, return 0 if the term of index cannot be found
  * , errCode will save the error code.
  **/
-SSyncTerm raftLogTermOf(RaftLog* pLog, SyncIndex index, RaftCode* errCode);
+SyncTerm raftLogTermOf(RaftLog* pLog, SyncIndex index, RaftCode* errCode);
 
 /** 
  * Get the last index of the most recent snapshot. Return 0 if there are no *
@@ -83,7 +83,7 @@ SyncIndex raftLogSnapshotIndex(RaftLog* pLog);
 
 /* Append a new entry to the log. */
 int raftLogAppend(RaftLog* pLog,
-                  SSyncTerm term,
+                  SyncTerm term,
                   const SSyncBuffer *buf);
 
 /**

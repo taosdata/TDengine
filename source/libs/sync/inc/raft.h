@@ -43,10 +43,11 @@ struct SSyncRaft {
 
   SSyncInfo info;
 
-  SSyncTerm term;
+  SyncTerm term;
   SyncNodeId voteFor;
 
   SyncNodeId selfId;
+  SyncGroupId selfGroupId;
 
   /**
    * the leader id
@@ -100,14 +101,25 @@ struct SSyncRaft {
   SyncRaftTickFp tickFp;
 };
 
+typedef enum {
+  SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
+  SYNC_RAFT_CAMPAIGN_ELECTION = 1,
+} SyncRaftCampaignType;
+
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
 int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int32_t syncRaftTick(SSyncRaft* pRaft);
 
 
-void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term, SyncNodeId leaderId);
+void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId);
+void syncRaftBecomePreCandidate(SSyncRaft* pRaft);
+void syncRaftBecomeCandidate(SSyncRaft* pRaft);
+void syncRaftBecomeLeader(SSyncRaft* pRaft);
+
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
 bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
+int  syncRaftQuorum(SSyncRaft* pRaft);
+int  syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, RaftMessageType msgType, bool accept);
 
 #endif /* _TD_LIBS_SYNC_RAFT_H */

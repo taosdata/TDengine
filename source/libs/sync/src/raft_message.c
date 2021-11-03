@@ -16,7 +16,7 @@
 #include "raft_message.h"
 
 void syncFreeMessage(const SSyncMessage* pMsg) {
-  if (!syncIsInternalMsg(pMsg)) {
+  if (!syncIsInternalMsg(pMsg->msgType)) {
     free((SSyncMessage*)pMsg);
   }
 }

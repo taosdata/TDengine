@@ -31,7 +31,7 @@ static void tickHeartbeat(SSyncRaft* pRaft);
 
 static void abortLeaderTransfer(SSyncRaft* pRaft);
 
-static void resetRaft(SSyncRaft* pRaft, SSyncTerm term);
+static void resetRaft(SSyncRaft* pRaft, SyncTerm term);
 
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SSyncNode* pNode = pRaft->pNode;
@@ -84,7 +84,9 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 }
 
 int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  syncDebug("from ");
+  syncDebug("from %d, to %d, type:%d, term:%" PRId64 ", state:%d",
+    pMsg->from, pMsg->to, pMsg->msgType, pMsg->term, pRaft->state);
+
   if (preHandleMessage(pRaft, pMsg)) {
     syncFreeMessage(pMsg);
     return 0;
@@ -92,7 +94,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   RaftMessageType msgType = pMsg->msgType;
   if (msgType == RAFT_MSG_INTERNAL_ELECTION) {
-
+    syncRaftHandleElectionMessage(pRaft, pMsg);
   } else if (msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_PRE_VOTE) {
 
   } else {
@@ -107,12 +109,46 @@ int32_t syncRaftTick(SSyncRaft* pRaft) {
   return 0;
 }
 
-void syncRaftBecomeFollower(SSyncRaft* pRaft, SSyncTerm term, SyncNodeId leaderId) {
+void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId) {
   pRaft->stepFp = stepFollower;
   resetRaft(pRaft, term);
   pRaft->tickFp = tickElection;
   pRaft->leaderId = leaderId;
   pRaft->state = TAOS_SYNC_ROLE_FOLLOWER;
+}
+
+void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
+	/**
+   * Becoming a pre-candidate changes our step functions and state,
+	 * but doesn't change anything else. In particular it does not increase
+	 * r.Term or change r.Vote.
+   **/
+  pRaft->stepFp = stepCandidate;
+  pRaft->tickFp = tickElection;
+  pRaft->state  = TAOS_SYNC_ROLE_PRE_CANDIDATE;
+  syncInfo("[%d:%d] became pre-candidate at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+}
+
+void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
+  pRaft->stepFp = stepCandidate;
+  // become candidate make term+1
+  resetRaft(pRaft, pRaft->term + 1);
+  pRaft->tickFp = tickElection;
+  pRaft->voteFor = pRaft->selfId;
+  pRaft->state  = TAOS_SYNC_ROLE_CANDIDATE;
+  syncInfo("[%d:%d] became candidate at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+}
+
+void syncRaftBecomeLeader(SSyncRaft* pRaft) {
+  assert(pRaft->state != TAOS_SYNC_ROLE_FOLLOWER);
+
+  pRaft->stepFp = stepLeader;
+  resetRaft(pRaft, pRaft->term);
+  pRaft->leaderId = pRaft->leaderId;
+  pRaft->state  = TAOS_SYNC_ROLE_LEADER;
+  // TODO: check if there is pending config log
+
+  syncInfo("[%d:%d] became leader at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
@@ -128,6 +164,20 @@ bool syncRaftIsPromotable(SSyncRaft* pRaft) {
 
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
   return pRaft->electionElapsed >= pRaft->electionTimeoutTick;
+}
+
+int syncRaftQuorum(SSyncRaft* pRaft) {
+  return pRaft->leaderState.nProgress / 2 + 1;
+}
+
+int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, RaftMessageType msgType, bool accept) {
+  if (accept) {
+
+  } else {
+
+  }
+
+
 }
 
 /**
@@ -166,6 +216,8 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 		 * term.
      **/
   } else {
+    syncInfo("%d [term:%" PRId64 "] received a %d message with higher term from %d [term:%" PRId64 "]",
+      pRaft->selfId, pRaft->term, msgType, pMsg->from, pMsg->term);
     syncRaftBecomeFollower(pRaft, pMsg->term, leaderId);
   }
 
@@ -218,7 +270,7 @@ static void abortLeaderTransfer(SSyncRaft* pRaft) {
   pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
 
-static void resetRaft(SSyncRaft* pRaft, SSyncTerm term) {
+static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
   if (pRaft->term != term) {
     pRaft->term = term;
     pRaft->voteFor = SYNC_NON_NODE_ID;

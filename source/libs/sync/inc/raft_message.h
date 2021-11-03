@@ -17,6 +17,7 @@
 #define _TD_LIBS_SYNC_RAFT_MESSAGE_H
 
 #include "sync.h"
+#include "sync_type.h"
 
 /** 
  * below define message type which handled by Raft node thread
@@ -54,7 +55,7 @@ typedef struct RaftMsg_PreVoteResp {
 
 typedef struct SSyncMessage {
   RaftMessageType msgType;
-  SSyncTerm term;
+  SyncTerm term;
   SyncNodeId from;
   SyncNodeId to;
 
@@ -94,11 +95,19 @@ static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNo
   return pMsg;
 }
 
-static FORCE_INLINE bool syncIsInternalMsg(const SSyncMessage* pMsg) {
-  return pMsg->msgType == RAFT_MSG_INTERNAL_PROP ||
-         pMsg->msgType == RAFT_MSG_INTERNAL_ELECTION;
+static FORCE_INLINE bool syncIsInternalMsg(RaftMessageType msgType) {
+  return msgType == RAFT_MSG_INTERNAL_PROP ||
+         msgType == RAFT_MSG_INTERNAL_ELECTION;
+}
+
+static FORCE_INLINE RaftMessageType SyncRaftVoteRespMsgType(RaftMessageType msgType) {
+  if (msgType == RAFT_MSG_VOTE) return RAFT_MSG_PRE_VOTE_RESP;
+  return RAFT_MSG_PRE_VOTE_RESP;
 }
 
 void syncFreeMessage(const SSyncMessage* pMsg);
+
+// message handlers
+void syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */
