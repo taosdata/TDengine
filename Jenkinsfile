@@ -499,7 +499,7 @@ pipeline {
         stage('test_b6_s9') {
           agent{label " slave9 || slave19 "}
           steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+            timeout(time: 105, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
