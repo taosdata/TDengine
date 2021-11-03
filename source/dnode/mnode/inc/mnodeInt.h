@@ -22,12 +22,14 @@
 extern "C" {
 #endif
 
+typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
+
 tmr_h     mnodeGetTimer();
 int32_t   mnodeGetDnodeId();
 int64_t   mnodeGetClusterId();
 EMnStatus mnodeGetStatus();
 
-void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg);
+void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
 void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
