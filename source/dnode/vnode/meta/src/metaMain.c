@@ -22,6 +22,8 @@
 
 static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions);
 static void   metaFree(SMeta *pMeta);
+static int    metaOpenImpl(SMeta *pMeta);
+static void   metaCloseImpl(SMeta *pMeta);
 
 SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
   SMeta *pMeta = NULL;
@@ -47,26 +49,9 @@ SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
   // Create META path (TODO)
   taosMkDir(path);
 
-  // Open meta cache
-  if (metaOpenCache(pMeta) < 0) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  // Open meta db
-  if (metaOpenDB(pMeta) < 0) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  // Open meta index
-  if (metaOpenIdx(pMeta) < 0) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  // Open meta table uid generator
-  if (metaOpenUidGnrt(pMeta) < 0) {
+  // Open meta
+  if (metaOpenImpl(pMeta) < 0) {
+    metaFree(pMeta);
     return NULL;
   }
 
@@ -75,10 +60,7 @@ SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
 
 void metaClose(SMeta *pMeta) {
   if (pMeta) {
-    metaCloseUidGnrt(pMeta);
-    metaCloseIdx(pMeta);
-    metaCloseDB(pMeta);
-    metaCloseCache(pMeta);
+    metaCloseImpl(pMeta);
     metaFree(pMeta);
   }
 }
@@ -111,6 +93,45 @@ static void metaFree(SMeta *pMeta) {
     tfree(pMeta->path);
     free(pMeta);
   }
+}
+
+static int metaOpenImpl(SMeta *pMeta) {
+  // Open meta cache
+  if (metaOpenCache(pMeta) < 0) {
+    // TODO: handle error
+    metaCloseImpl(pMeta);
+    return -1;
+  }
+
+  // Open meta db
+  if (metaOpenDB(pMeta) < 0) {
+    // TODO: handle error
+    metaCloseImpl(pMeta);
+    return -1;
+  }
+
+  // Open meta index
+  if (metaOpenIdx(pMeta) < 0) {
+    // TODO: handle error
+    metaCloseImpl(pMeta);
+    return -1;
+  }
+
+  // Open meta table uid generator
+  if (metaOpenUidGnrt(pMeta) < 0) {
+    // TODO: handle error
+    metaCloseImpl(pMeta);
+    return -1;
+  }
+
+  return 0;
+}
+
+static void metaCloseImpl(SMeta *pMeta) {
+  metaCloseUidGnrt(pMeta);
+  metaCloseIdx(pMeta);
+  metaCloseDB(pMeta);
+  metaCloseCache(pMeta);
 }
 
 // OLD -------------------------------------------------------------------
