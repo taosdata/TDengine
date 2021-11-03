@@ -3711,6 +3711,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg6 = "tags not allowed for table query";
   const char* msg7 = "not support group by expression";
   const char* msg8 = "normal column can only locate at the end of group by clause";
+  const char* msg9 = "json tag format error, like json->'key'";
+  const char* msg10 = "-> operation only apply for json tag";
 
   // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
@@ -3750,15 +3752,29 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     tVariant* pVar = &pItem->pVar;
 
     SStrToken token = {pVar->nLen, pVar->nType, pVar->pz};
-
+    char* jsonName = NULL;
+    char* jsonKey = NULL;
+    int ret = getArrowKV(pVar->pz, pVar->nLen, &jsonName, &jsonKey);
+    if(jsonName && jsonKey) tscDebug("group by json k:%s, v:%s", jsonName, jsonKey);
+    if (ret == 2){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+    }
+    if(ret == 0){
+      token.z = jsonName;
+      token.n = strlen(jsonName);
+    }
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&token, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+      tfree(jsonName);
+      tfree(jsonKey);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
     if (tableIndex == COLUMN_INDEX_INITIAL_VAL) {
       tableIndex = index.tableIndex;
     } else if (tableIndex != index.tableIndex) {
+      tfree(jsonName);
+      tfree(jsonKey);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -3770,12 +3786,18 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     } else {
       pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
     }
-
+    if(ret == 0 && pSchema->type != TSDB_DATA_TYPE_JSON){
+      tfree(jsonName);
+      tfree(jsonKey);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+    }
     int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
     bool groupTag = (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || index.columnIndex >= numOfCols);
 
     if (groupTag) {
       if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        tfree(jsonName);
+        tfree(jsonKey);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
@@ -3785,7 +3807,11 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       }
 
       SColIndex colIndex = { .colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId, };
-      strncpy(colIndex.name, pSchema->name, tListLen(colIndex.name));
+      if(ret == 0){
+        tstrncpy(colIndex.name, jsonKey, tListLen(colIndex.name));
+      }else{
+        tstrncpy(colIndex.name, pSchema->name, tListLen(colIndex.name));
+      }
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
       
       index.columnIndex = relIndex;
@@ -3793,6 +3819,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
       if (pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
+        tfree(jsonName);
+        tfree(jsonKey);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
@@ -3805,6 +3833,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
       numOfGroupCols++;
     }
+    tfree(jsonName);
+    tfree(jsonKey);
   }
 
   // 1. only one normal column allowed in the group by clause
@@ -7414,6 +7444,13 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
 
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
       SExprInfo*   pExpr = tscExprInsert(pQueryInfo, pos, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
+      // if json->key is more than TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN, truncature it， maybe case error, can encode name by md5.
+      if(s->type == TSDB_DATA_TYPE_JSON){
+        tstrncpy(s->name, pColIndex->name, TSDB_COL_NAME_LEN);
+        tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), pColIndex->name,
+                                 strlen(pColIndex->name), TSDB_DATA_TYPE_BINARY);
+        pExpr->base.numOfParams++;
+      }
 
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
       tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));

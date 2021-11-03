@@ -185,6 +185,21 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+// src = json->'id'  => name=json key=id
+int getArrowKV(char* src, int32_t len, char** name, char** key){
+  char* loc = strstr(src, "->");
+  if(loc == NULL){return 1;}
+  if(loc-src + 4 >= len) {return 2;}
+  if(*(loc+2) != *(src + len - 1)) {return 2;}
+  if(*(loc+2) != '\'' && *(loc+2) != '"') {return 2;}
+
+  *name = calloc(1, loc-src+1);
+  *key = calloc(1, len - (loc-src+4) + 1);
+  tstrncpy(*name, src, loc-src+1);
+  tstrncpy(*key, loc+2, len - (loc-src+4) + 1);
+  return 0;
+}
+
 char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
   if (!ignoreInEsc) {
     return strstr(src, dst);

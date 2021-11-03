@@ -3449,7 +3449,7 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
 
       // todo use tag column index to optimize performance
       GET_JSON_KEY(pLocalExprInfo)
-      doSetTagValueInParam(pTable, param, paramLen,pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->base.resType,
+      doSetTagValueInParam(pTable, param, paramLen, pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->base.resType,
                            pLocalExprInfo->base.resBytes);
 
       if (IS_NUMERIC_TYPE(pLocalExprInfo->base.resType)

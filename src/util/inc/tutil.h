@@ -38,6 +38,7 @@ char *  strntolower_s(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
 char *  strbetween(char *string, char *begin, char *end);
 char *  paGetToken(char *src, char **token, int32_t *tokenLen);
+int     getArrowKV(char* src, int32_t len, char** name, char** key);
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
