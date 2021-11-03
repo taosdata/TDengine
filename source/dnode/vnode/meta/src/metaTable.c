@@ -17,7 +17,7 @@
 
 int metaCreateTable(SMeta *pMeta, const STbOptions *pTbOptions) {
   // Validate the tbOptions
-  if (metaValidateTbOptions(pTbOptions) < 0) {
+  if (metaValidateTbOptions(pMeta, pTbOptions) < 0) {
     // TODO: handle error
     return -1;
   }

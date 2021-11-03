@@ -22,6 +22,7 @@
 #include "metaIdx.h"
 #include "metaOptions.h"
 #include "metaTbUid.h"
+#include "metaTbOptions.h"
 
 #ifdef __cplusplus
 extern "C" {
