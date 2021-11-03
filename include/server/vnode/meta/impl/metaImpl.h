@@ -25,37 +25,44 @@ extern "C" {
 #endif
 typedef uint64_t tb_uid_t;
 
+/* ------------------------ SMetaOptions ------------------------ */
 struct SMetaOptions {
-  size_t lruCacheSize; // LRU cache size
+  size_t lruCacheSize;  // LRU cache size
 };
 
-#if 0
-typedef enum { META_INIT_TABLE = 0, META_SUPER_TABLE = 1, META_CHILD_TABLE = 2, META_NORMAL_TABLE = 3 } EMetaTableT;
-typedef struct SSuperTableOpts {
+/* ------------------------ STbOptions ------------------------ */
+typedef struct {
+} SSMAOptions;
+
+// super table options
+typedef struct {
   tb_uid_t  uid;
-  STSchema *pSchema;     // (ts timestamp, a int)
-  STSchema *pTagSchema;  // (tag1 binary(10), tag2 int)
-} SSuperTableOpts;
+  STSchema* pSchema;
+  STSchema* pTagSchema;
+} SSTbOptions;
 
-typedef struct SChildTableOpts {
-  tb_uid_t suid;  // super table uid
-  SKVRow   tags;  // tag value of the child table
-} SChildTableOpts;
+// child table options
+typedef struct {
+  tb_uid_t suid;
+  SKVRow   tags;
+} SCTbOptions;
 
-typedef struct SNormalTableOpts {
-  STSchema *pSchema;
-} SNormalTableOpts;
+// normal table options
+typedef struct {
+  SSchema* pSchame;
+} SNTbOptions;
 
-struct STableOptions {
-  int8_t type;
-  char * name;
+struct STbOptions {
+  uint8_t     type;
+  char*       name;
+  uint64_t    ttl;   // time to live
+  SSMAOptions bsma;  // Block-wise sma
   union {
-    SSuperTableOpts  superOpts;
-    SChildTableOpts  childOpts;
-    SNormalTableOpts normalOpts;
+    SSTbOptions stbOptions;
+    SNTbOptions ntbOptions;
+    SCTbOptions ctbOptions;
   };
 };
-#endif
 
 #ifdef __cplusplus
 }

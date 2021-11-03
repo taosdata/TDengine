@@ -16,9 +16,11 @@
 #ifndef _TD_META_DEF_H_
 #define _TD_META_DEF_H_
 
+#include "meta.h"
 #include "metaCache.h"
 #include "metaDB.h"
 #include "metaIdx.h"
+#include "metaOptions.h"
 #include "metaTbUid.h"
 
 #ifdef __cplusplus

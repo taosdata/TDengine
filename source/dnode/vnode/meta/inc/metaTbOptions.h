@@ -16,9 +16,13 @@
 #ifndef _TD_META_TABLE_OPTIONS_H_
 #define _TD_META_TABLE_OPTIONS_H_
 
+#include "meta.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+int metaValidateTbOptions(SMeta *pMeta, const STbOptions *);
 
 #ifdef __cplusplus
 }

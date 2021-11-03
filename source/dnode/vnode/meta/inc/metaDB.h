@@ -28,6 +28,8 @@ typedef rocksdb_t meta_db_t;
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);
+int  metaSaveTableToDB(SMeta *pMeta, const STbOptions *pTbOptions);
+int  metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid);
 
 #ifdef __cplusplus
 }

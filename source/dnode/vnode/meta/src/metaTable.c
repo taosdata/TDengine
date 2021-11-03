@@ -13,14 +13,40 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
+#include "metaDef.h"
 
 int metaCreateTable(SMeta *pMeta, const STbOptions *pTbOptions) {
-  // TODO
+  // Validate the tbOptions
+  if (metaValidateTbOptions(pTbOptions) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  // TODO: add atomicity
+
+  if (metaSaveTableToDB(pMeta, pTbOptions) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  if (metaSaveTableToIdx(pMeta, pTbOptions) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
   return 0;
 }
 
 int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
-  // TODO
+  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
+    // TODO
+    return -1;
+  }
+
   return 0;
 }

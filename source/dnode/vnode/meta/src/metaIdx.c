@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
 #include "metaDef.h"
 
 int metaOpenIdx(SMeta *pMeta) {
@@ -46,4 +45,9 @@ void metaCloseIdx(SMeta *pMeta) { /* TODO */
     rocksdb_close(pMeta->pIdx);
     pMeta->pIdx = NULL;
   }
+}
+
+int metaSaveTableToIdx(SMeta *pMeta, const STbOptions *pTbOptions) {
+  // TODO
+  return 0;
 }

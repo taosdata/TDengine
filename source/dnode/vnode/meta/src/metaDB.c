@@ -47,3 +47,13 @@ void metaCloseDB(SMeta *pMeta) {
     pMeta->pDB = NULL;
   }
 }
+
+int metaSaveTableToDB(SMeta *pMeta, const STbOptions *pTbOptions) {
+  // TODO
+  return 0;
+}
+
+int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
+  /* TODO */
+  return 0;
+}
