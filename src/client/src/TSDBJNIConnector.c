@@ -988,7 +988,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
   return JNI_SUCCESS;
 }
 
-JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JNIEnv *env, jobject jobj,
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JNIEnv *env, jobject jobj,
                                                                                jobjectArray lines, jlong conn,
                                                                                jint protocol, jint precision) {
   TAOS *taos = (TAOS *)conn;
@@ -1019,9 +1019,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
   tfree(c_lines);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(result));
-
+    taos_free_result((void *)result);
     return JNI_TDENGINE_ERROR;
   }
+  taos_free_result((void *)result);
 
-  return (jlong)result;
+  return JNI_SUCCESS;
 }

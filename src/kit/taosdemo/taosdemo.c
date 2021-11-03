@@ -3567,8 +3567,10 @@ static int postProceSql(char *host, uint16_t port,
             break;
         received += bytes;
 
-        response_buf[RESP_BUF_LEN - 1] = '\0';
+        verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
+                __func__, __LINE__, received, resp_len, response_buf);
 
+        response_buf[RESP_BUF_LEN - 1] = '\0';
         if (strlen(response_buf)) {
             verbosePrint("%s() LN%d: received:%d resp_len:%d, response_buf:\n%s\n",
                     __func__, __LINE__, received, resp_len, response_buf);
@@ -6611,7 +6613,6 @@ static int getRowDataFromSample(
             stbInfo->sampleDataBuf
             + stbInfo->lenOfOneRow * (*sampleUsePos));
     }
-
     dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
 
     (*sampleUsePos)++;
@@ -11211,7 +11212,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               pThreadInfo->start_time = pThreadInfo->start_time + rand_int() % 10000 - rand_tinyint();
               }
               */
-
         if (g_args.iface == REST_IFACE || ((stbInfo) && (stbInfo->iface == REST_IFACE))) {
 #ifdef WINDOWS
             WSADATA wsaData;
@@ -11236,7 +11236,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             }
             pThreadInfo->sockfd = sockfd;
         }
-
 
         tsem_init(&(pThreadInfo->lock_sem), 0, 0);
         if (ASYNC_MODE == g_Dbs.asyncMode) {

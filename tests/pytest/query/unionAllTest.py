@@ -103,7 +103,6 @@ class TDTestCase:
                     select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc''')
         tdSql.checkRows(6)
 
-
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
