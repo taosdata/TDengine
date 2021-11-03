@@ -25,7 +25,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1633333333000
+        self.ts = 1633333333000.
         self.num = 10
 
     def run(self):
