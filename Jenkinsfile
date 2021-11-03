@@ -6,7 +6,7 @@ node {
 
 
 def skipbuild=0
-
+def win_stop=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
