@@ -13,17 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
-#include "tkv.h"
-#include "tsdbMemTable.h"
+#ifndef _TD_TSDB_IMPL_H_
+#define _TD_TSDB_IMPL_H_
 
-/* -------------- -------------- */
-struct STsdb {
-  STkvDb *tsdb;    // original time-series data
-  STkvDb *lrowdb;  // last row cache
-  STkvDb *lastdb;  // last cache
-  STkvDb *fivemindb;
+#include "os.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct STsdbOptions {
+  /* TODO */
 };
 
-int tsdbInsert(STsdb *tsdb, SSubmitReq *pReq, SSubmitRsp *pRsp) { return 0; }
-int tsdbCommit(STsdb *pTsdb) { return 0; }
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TSDB_IMPL_H_*/
