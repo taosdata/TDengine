@@ -48,12 +48,14 @@ typedef struct SMultiTbStmt {
   bool      nameSet;
   bool      tagSet;
   bool      subSet;
+  bool      tagColSet;
   uint64_t  currentUid;
   char     *sqlstr;
   uint32_t  tbNum;
   SStrToken tbname;
   SStrToken stbname;
   SStrToken values;
+  SStrToken tagCols;
   SArray   *tags;
   STableDataBlocks *lastBlock;
   SHashObj *pTableHash;
@@ -1343,9 +1345,40 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
     pStmt->mtb.stbname = sToken;
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
-    if (sToken.n <= 0 || sToken.type != TK_TAGS) {
-      tscError("keyword TAGS expected, sql:%s", pCmd->insertParam.sql);
-      return tscSQLSyntaxErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    if (sToken.n <= 0 || ((sToken.type != TK_TAGS) && (sToken.type != TK_LP))) {
+      tscError("invalid token, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "invalid token", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+
+    // ... (tag_col_list) TAGS(tag_val_list) ...
+    int32_t tagColsCnt = 0;
+    if (sToken.type == TK_LP) {
+      pStmt->mtb.tagColSet = true;
+      pStmt->mtb.tagCols = sToken;
+      int32_t tagColsStart = index;
+      while (1) {
+        sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+        if (sToken.type == TK_ILLEGAL) {
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
+        }
+        if (sToken.type == TK_ID) {
+          ++tagColsCnt;
+        }
+        if (sToken.type == TK_RP) {
+          break;
+        }
+      }
+      if (tagColsCnt == 0) {
+        tscError("tag column list expected, sql:%s", pCmd->insertParam.sql);
+        return tscSQLSyntaxErrMsg(pCmd->payload, "tag column list expected", pCmd->insertParam.sql);
+      }
+      pStmt->mtb.tagCols.n = index - tagColsStart + 1;
+
+      sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+      if (sToken.n <= 0 || sToken.type != TK_TAGS) {
+        tscError("keyword TAGS expected, sql:%s", pCmd->insertParam.sql);
+        return tscSQLSyntaxErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+      }
     }
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
@@ -1385,6 +1418,11 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
       return tscSQLSyntaxErrMsg(pCmd->payload, "no tags", pCmd->insertParam.sql);
     }
 
+    if (tagColsCnt > 0 && taosArrayGetSize(pStmt->mtb.tags) != tagColsCnt) {
+      tscError("not match tags, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "not match tags", pCmd->insertParam.sql);
+    }
+
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || (sToken.type != TK_VALUES && sToken.type != TK_LP)) {
       tscError("sql error, sql:%s", pCmd->insertParam.sql);
@@ -1407,7 +1445,13 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
   int32_t j = 0;
 
   while (1) {
-    len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s tags(", name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z);
+    if (pStmt->mtb.tagColSet) {
+      len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s %.*s tags(",
+          name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z, pStmt->mtb.tagCols.n, pStmt->mtb.tagCols.z);
+    } else {
+      len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s tags(", name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z);
+    }
+
     if (len >= (size -1)) {
       size *= 2;
       free(str);
@@ -1708,7 +1752,6 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     
     STMT_RET(TSDB_CODE_SUCCESS);
   }
-
   if (pStmt->mtb.tagSet) {
     pStmt->mtb.tbname = tscReplaceStrToken(&pSql->sqlstr, &pStmt->mtb.tbname, name);
   } else {
