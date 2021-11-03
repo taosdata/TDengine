@@ -79,6 +79,15 @@ typedef struct tVariantListItem {
   uint8_t            sortOrder;
 } tVariantListItem;
 
+typedef struct CommonItem {
+  union {
+    tVariant           pVar;
+    struct tSqlExpr    *jsonExp;
+  };
+  bool               isJsonExp;
+  uint8_t            sortOrder;
+} CommonItem;
+
 typedef struct SIntervalVal {
   int32_t            token;
   SStrToken          interval;

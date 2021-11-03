@@ -522,6 +522,24 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order)
   return pList;
 }
 
+SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder){
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(CommonItem));
+  }
+
+  CommonItem item;
+  item.sortOrder = sortOrder;
+  item.isJsonExp = isJsonExp;
+  if(isJsonExp){
+    item.jsonExp = jsonExp;
+  }else{
+    item.pVar = *pVar;
+  }
+
+  taosArrayPush(pList, &item);
+  return pList;
+}
+
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder) {
   if (pList == NULL) {
     pList = taosArrayInit(4, sizeof(tVariantListItem));
@@ -822,6 +840,15 @@ static void freeVariant(void *pItem) {
   tVariantDestroy(&p->pVar);
 }
 
+static void freeCommonItem(void *pItem) {
+  CommonItem* p = (CommonItem *) pItem;
+  if (p->isJsonExp){
+    tSqlExprDestroy(p->jsonExp);
+  }else{
+    tVariantDestroy(&p->pVar);
+  }
+}
+
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
   taosArrayDestroy(pInfo->pTagNames);
@@ -841,10 +868,10 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   tSqlExprDestroy(pSqlNode->pWhere);
   pSqlNode->pWhere = NULL;
   
-  taosArrayDestroyEx(pSqlNode->pSortOrder, freeVariant);
+  taosArrayDestroyEx(pSqlNode->pSortOrder, freeCommonItem);
   pSqlNode->pSortOrder = NULL;
 
-  taosArrayDestroyEx(pSqlNode->pGroupby, freeVariant);
+  taosArrayDestroyEx(pSqlNode->pGroupby, freeCommonItem);
   pSqlNode->pGroupby = NULL;
 
   pSqlNode->from = destroyRelationInfo(pSqlNode->from);

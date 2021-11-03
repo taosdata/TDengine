@@ -621,25 +621,30 @@ sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0
 %type sortlist {SArray*}
 %destructor sortlist {taosArrayDestroy($$);}
 
-%type sortitem {tVariant}
-%destructor sortitem {tVariantDestroy(&$$);}
-
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
 
 sortlist(A) ::= sortlist(X) COMMA item(Y) sortorder(Z). {
-    A = tVariantListAppend(X, &Y, Z);
+  A = commonItemAppend(X, &Y, NULL, false, Z);
+}
+
+sortlist(A) ::= sortlist(X) COMMA arrow(Y) sortorder(Z). {
+  A = commonItemAppend(X, NULL, Y, true, Z);
 }
 
 sortlist(A) ::= item(Y) sortorder(Z). {
-  A = tVariantListAppend(NULL, &Y, Z);
+  A = commonItemAppend(NULL, &Y, NULL, false, Z);
+}
+
+sortlist(A) ::= arrow(Y) sortorder(Z). {
+  A = commonItemAppend(NULL, NULL, Y, true, Z);
 }
 
 %type item {tVariant}
-item(A) ::= ids(X) cpxName(Y).   {
+item(A) ::= ID(X).  { toTSDBType(X.type); tVariantCreate(&A, &X); }
+item(A) ::= ID(X) DOT ID(Y).   {
   toTSDBType(X.type);
   X.n += Y.n;
-
   tVariantCreate(&A, &X);
 }
 
@@ -658,11 +663,19 @@ groupby_opt(A) ::= .                       { A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}
 
 grouplist(A) ::= grouplist(X) COMMA item(Y).    {
-  A = tVariantListAppend(X, &Y, -1);
+  A = commonItemAppend(X, &Y, NULL, false, -1);
+}
+
+grouplist(A) ::= grouplist(X) COMMA arrow(Y).    {
+  A = commonItemAppend(X, NULL, Y, true, -1);
 }
 
 grouplist(A) ::= item(X).                       {
-  A = tVariantListAppend(NULL, &X, -1);
+  A = commonItemAppend(NULL, &X, NULL, false, -1);
+}
+
+grouplist(A) ::= arrow(X).                       {
+  A = commonItemAppend(NULL, NULL, X, true, -1);
 }
 
 //having clause, ignore the input condition in having
@@ -757,10 +770,15 @@ expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
 expr(A) ::= expr(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
 
 // question expression
-expr(A) ::= expr(X) QUESTION expr(Y).    {A = tSqlExprCreate(X, Y, TK_QUESTION);  }
+expr(A) ::= ID(X) QUESTION STRING(Y).    { tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(S, M, TK_QUESTION);  }
 
 // arrow expression
-expr(A) ::= expr(X) ARROW expr(Y).    {A = tSqlExprCreate(X, Y, TK_ARROW);  }
+%type arrow {tSqlExpr*}
+%destructor arrow {tSqlExprDestroy($$);}
+arrow(A) ::= ID(X) ARROW STRING(Y).    {tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(S, M, TK_ARROW);  }
+arrow(A) ::= ID(X) DOT ID(Y) ARROW STRING(Z).    {X.n += (1+Y.n); tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Z, TK_STRING); A = tSqlExprCreate(S, M, TK_ARROW);  }
+
+expr(A) ::= arrow(X). {A = X;}
 
 //in expression
 expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }
