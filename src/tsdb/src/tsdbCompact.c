@@ -67,8 +67,9 @@ int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
 void *tsdbCompactImpl(STsdbRepo *pRepo) {
   // Check if there are files in TSDB FS to compact
   if (REPO_FS(pRepo)->cstatus->pmf == NULL) {
-    tsdbInfo("vgId:%d no file to compact in FS", REPO_ID(pRepo));
     pRepo->compactState = TSDB_NO_COMPACT;
+    tsem_post(&(pRepo->readyToCommit));
+    tsdbInfo("vgId:%d compact over, no file to compact in FS", REPO_ID(pRepo));
     return NULL;
   }
 

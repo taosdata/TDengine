@@ -74,7 +74,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 'dev_01')
         tdSql.checkData(1, 2, 1)
 
-        ## test case for https://jira.taosdata.com:18080/browse/TD-2488
+        ## TD-2488
         tdSql.execute("create table m1(ts timestamp, k int) tags(a int)")
         tdSql.execute("create table t1 using m1 tags(1)")
         tdSql.execute("create table t2 using m1 tags(2)")
@@ -93,7 +93,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
-        ## test case for https://jira.taosdata.com:18080/browse/TD-1930
+        ## TD-1930
         tdSql.execute("create table tb(ts timestamp, c1 int, c2 binary(10), c3 nchar(10), c4 float, c5 bool)")
         for i in range(10):
             tdSql.execute(
@@ -126,7 +126,7 @@ class TDTestCase:
         tdSql.query("select * from tb where c5 = 'true' ")
         tdSql.checkRows(5)
 
-        # For jira: https://jira.taosdata.com:18080/browse/TD-2850
+        # TD-2850
         tdSql.execute("create database 'Test' ")
         tdSql.execute("use 'Test' ")
         tdSql.execute("create table 'TB'(ts timestamp, 'Col1' int) tags('Tag1' int)")
@@ -136,7 +136,7 @@ class TDTestCase:
         tdSql.query("select * from tb0")
         tdSql.checkRows(1)
 
-        # For jira:https://jira.taosdata.com:18080/browse/TD-6314
+        # TD-6314
         tdSql.execute("use db")
         tdSql.execute("create stable stb_001(ts timestamp,v int) tags(c0 int)")
         tdSql.execute("insert into stb1 using stb_001 tags(1) values(now,1)")
@@ -145,7 +145,7 @@ class TDTestCase:
 
         
 
-        #For jira: https://jira.taosdata.com:18080/browse/TD-6387
+        #TD-6387
         tdLog.info("case for bug_6387")
         self.bug_6387()
 
