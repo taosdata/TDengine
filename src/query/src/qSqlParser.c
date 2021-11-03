@@ -529,12 +529,12 @@ SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool 
 
   CommonItem item;
   item.sortOrder = sortOrder;
-  item.isJsonExp = isJsonExp;
-  if(isJsonExp){
-    item.jsonExp = jsonExp;
-  }else{
+  //item.isJsonExp = isJsonExp;
+  //if(isJsonExp){
+    //item.jsonExp = jsonExp;
+  //}else{
     item.pVar = *pVar;
-  }
+  //}
 
   taosArrayPush(pList, &item);
   return pList;
@@ -842,11 +842,11 @@ static void freeVariant(void *pItem) {
 
 static void freeCommonItem(void *pItem) {
   CommonItem* p = (CommonItem *) pItem;
-  if (p->isJsonExp){
-    tSqlExprDestroy(p->jsonExp);
-  }else{
+  //if (p->isJsonExp){
+    //tSqlExprDestroy(p->jsonExp);
+  //}else{
     tVariantDestroy(&p->pVar);
-  }
+  //}
 }
 
 void freeCreateTableInfo(void* p) {

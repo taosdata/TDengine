@@ -80,11 +80,11 @@ typedef struct tVariantListItem {
 } tVariantListItem;
 
 typedef struct CommonItem {
-  union {
+  //union {
     tVariant           pVar;
-    struct tSqlExpr    *jsonExp;
-  };
-  bool               isJsonExp;
+    //struct tSqlExpr    *jsonExp;
+  //};
+  //bool               isJsonExp;
   uint8_t            sortOrder;
 } CommonItem;
 

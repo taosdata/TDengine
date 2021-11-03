@@ -3748,16 +3748,16 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   for (int32_t i = 0; i < num; ++i) {
     CommonItem * pItem = taosArrayGet(pList, i);
     SStrToken token = {0};
-    if(pItem->isJsonExp){
-      assert(pItem->jsonExp->tokenId == TK_ARROW);
-      token.n = pItem->jsonExp->pLeft->value.nLen;
-      token.z = pItem->jsonExp->pLeft->value.pz;
-      token.type = pItem->jsonExp->pLeft->value.nType;
-    }else{
+//    if(pItem->isJsonExp){
+//      assert(pItem->jsonExp->tokenId == TK_ARROW);
+//      token.n = pItem->jsonExp->pLeft->value.nLen;
+//      token.z = pItem->jsonExp->pLeft->value.pz;
+//      token.type = pItem->jsonExp->pLeft->value.nType;
+//    }else{
       token.n = pItem->pVar.nLen;
       token.z = pItem->pVar.pz;
       token.type = pItem->pVar.nType;
-    }
+//    }
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&token, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
@@ -3793,11 +3793,11 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       }
 
       SColIndex colIndex = { .colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId, };
-      if(pItem->isJsonExp) {
-        tstrncpy(colIndex.name, pItem->jsonExp->pRight->value.pz, tListLen(colIndex.name));
-      }else{
+//      if(pItem->isJsonExp) {
+//        tstrncpy(colIndex.name, pItem->jsonExp->pRight->value.pz, tListLen(colIndex.name));
+//      }else{
         tstrncpy(colIndex.name, pSchema->name, tListLen(colIndex.name));
-      }
+//      }
 
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
 
