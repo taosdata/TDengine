@@ -5,9 +5,7 @@ import com.taosdata.jdbc.TSDBErrorNumbers;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
 import org.apache.http.HttpEntity;
-import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
 import org.apache.http.client.protocol.HttpClientContext;
@@ -21,10 +19,7 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 
-import javax.net.ssl.SSLException;
 import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 
@@ -53,10 +48,9 @@ public class HttpClientPoolUtil {
         return DEFAULT_HTTP_KEEP_TIME * 1000;
     };
 
-    private static CloseableHttpClient httpClient;
+    private static final CloseableHttpClient httpClient;
 
     static {
-
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
         connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);

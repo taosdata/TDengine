@@ -2,7 +2,6 @@ package com.taosdata.jdbc.utils;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBError;
 import org.junit.Test;
 
@@ -11,7 +10,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -27,11 +25,6 @@ public class HttpClientPoolUtilTest {
         // given
         List<Thread> threads = IntStream.range(0, 4000).mapToObj(i -> new Thread(() -> {
             useDB();
-//            try {
-//                TimeUnit.SECONDS.sleep(10);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
         })).collect(Collectors.toList());
 
         threads.forEach(Thread::start);
@@ -43,7 +36,6 @@ public class HttpClientPoolUtilTest {
                 e.printStackTrace();
             }
         }
-
     }
 
     private void useDB() {
