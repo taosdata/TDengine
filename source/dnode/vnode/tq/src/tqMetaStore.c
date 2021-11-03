@@ -14,6 +14,7 @@
  */
 #include "tqMetaStore.h"
 //TODO:replace by an abstract file layer
+#include "osDir.h"
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
@@ -22,8 +23,8 @@
 #define TQ_IDX_NAME  "tq.idx"
 
 
-static int32_t       tqHandlePutCommitted(TqMetaStore*, int64_t key, void* value);
-static TqMetaHandle* tqHandleGetUncommitted(TqMetaStore*, int64_t key);
+static int32_t tqHandlePutCommitted(TqMetaStore*, int64_t key, void* value);
+static void*   tqHandleGetUncommitted(TqMetaStore*, int64_t key);
 
 typedef struct TqMetaPageBuf {
   int16_t offset;
@@ -31,23 +32,28 @@ typedef struct TqMetaPageBuf {
 } TqMetaPageBuf;
 
 TqMetaStore* tqStoreOpen(const char* path,
-    int serializer(TqGroupHandle*, void**),
-    const void* deserializer(const void*, TqGroupHandle*),
-    void deleter(void*)) {
+    int serializer(const void* pObj, void** ppBytes),
+    const void* deserializer(const void* pBytes, void** ppObj),
+    void deleter(void* pObj)) {
   TqMetaStore* pMeta = malloc(sizeof(TqMetaStore)); 
   if(pMeta == NULL) {
     //close
     return NULL;
   }
+  memset(pMeta, 0, sizeof(TqMetaStore));
 
   //concat data file name and index file name
   size_t pathLen = strlen(path);
   char name[pathLen+10];
 
   strcpy(name, path);
+  if(!taosDirExist(name) && !taosMkDir(name)) {
+    ASSERT(false);
+  }
   strcat(name, "/" TQ_IDX_NAME);
-  int idxFd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0755);
+  int idxFd = open(name, O_RDWR | O_CREAT, 0755);
   if(idxFd < 0) {
+    ASSERT(false);
     //close file
     //free memory
     return NULL;
@@ -56,17 +62,24 @@ TqMetaStore* tqStoreOpen(const char* path,
   pMeta->idxFd = idxFd;
   pMeta->unpersistHead = malloc(sizeof(TqMetaList));
   if(pMeta->unpersistHead == NULL) {
+    ASSERT(false);
     //close file
     //free memory
     return NULL;
   }
+  memset(pMeta->unpersistHead, 0, sizeof(TqMetaList));
+  pMeta->unpersistHead->unpersistNext
+    = pMeta->unpersistHead->unpersistPrev
+    = pMeta->unpersistHead;
 
   strcpy(name, path);
   strcat(name, "/" TQ_META_NAME);
-  int fileFd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0755);
-  if(fileFd < 0) return NULL;
+  int fileFd = open(name, O_RDWR | O_CREAT, 0755);
+  if(fileFd < 0){
+    ASSERT(false);
+    return NULL;
+  }
 
-  memset(pMeta, 0, sizeof(TqMetaStore));
   pMeta->fileFd = fileFd;
   
   pMeta->serializer = serializer;
@@ -74,23 +87,47 @@ TqMetaStore* tqStoreOpen(const char* path,
   pMeta->deleter = deleter;
 
   //read idx file and load into memory
-  char readBuf[TQ_PAGE_SIZE];
-  int readSize;
-  while((readSize = read(idxFd, readBuf, TQ_PAGE_SIZE)) != -1) {
+  char idxBuf[TQ_PAGE_SIZE];
+  char* dataBuf = malloc(TQ_PAGE_SIZE);
+  if(dataBuf == NULL) {
+    //TODO:memory insufficient
+  }
+  int dataBufSize = TQ_PAGE_SIZE;
+  int idxRead, dataReadSize;
+  while((idxRead = read(idxFd, idxBuf, TQ_PAGE_SIZE))) {
+    if(idxRead == -1) {
+      //TODO: handle error
+      ASSERT(false);
+    }
     //loop read every entry
-    for(int i = 0; i < readSize; i += TQ_IDX_ENTRY_SIZE) {
-      TqMetaList *pNode = malloc(sizeof(TqMetaHandle));
-      memset(pNode, 0, sizeof(TqMetaList));
+    for(int i = 0; i < idxRead; i += TQ_IDX_ENTRY_SIZE) {
+      TqMetaList *pNode = malloc(sizeof(TqMetaList));
       if(pNode == NULL) {
         //TODO: free memory and return error
       }
-      memcpy(&pNode->handle, &readBuf[i], TQ_IDX_ENTRY_SIZE);
+      memset(pNode, 0, sizeof(TqMetaList));
+      memcpy(&pNode->handle, &idxBuf[i], TQ_IDX_ENTRY_SIZE);
+      lseek(fileFd, pNode->handle.offset, SEEK_CUR);
+      if(dataBufSize < pNode->handle.serializedSize) {
+        void *ptr = realloc(dataBuf, pNode->handle.serializedSize);
+        if(ptr == NULL) {
+          //TODO: memory insufficient
+        }
+        dataBuf = ptr;
+        dataBufSize = pNode->handle.serializedSize;
+      }
+      if(read(fileFd, dataBuf, pNode->handle.serializedSize) != pNode->handle.serializedSize) {
+        //TODO: read error
+      }
+      pMeta->deserializer(dataBuf, &pNode->handle.valueInUse);
+
+      //put into list
       int bucketKey = pNode->handle.key & TQ_BUCKET_SIZE;
       pNode->next = pMeta->bucket[bucketKey];
       pMeta->bucket[bucketKey] = pNode;
     }
   }
-
+  free(dataBuf);
   return pMeta;
 }
 
@@ -102,22 +139,23 @@ int32_t tqStoreClose(TqMetaStore* pMeta) {
   close(pMeta->idxFd);
   //free memory
   for(int i = 0; i < TQ_BUCKET_SIZE; i++) {
-    TqMetaList* node = pMeta->bucket[i];
+    TqMetaList* pNode = pMeta->bucket[i];
     pMeta->bucket[i] = NULL;
-    while(node) {
-      ASSERT(node->unpersistNext == NULL);
-      ASSERT(node->unpersistPrev == NULL);
-      if(node->handle.valueInTxn) {
-        pMeta->deleter(node->handle.valueInTxn);
+    while(pNode) {
+      ASSERT(pNode->unpersistNext == NULL);
+      ASSERT(pNode->unpersistPrev == NULL);
+      if(pNode->handle.valueInTxn) {
+        pMeta->deleter(pNode->handle.valueInTxn);
       }
-      if(node->handle.valueInUse) {
-        pMeta->deleter(node->handle.valueInUse);
+      if(pNode->handle.valueInUse) {
+        pMeta->deleter(pNode->handle.valueInUse);
       }
-      TqMetaList* next = node->next;
-      free(node);
-      node = next;
+      TqMetaList* next = pNode->next;
+      free(pNode);
+      pNode = next;
     }
   }
+  free(pMeta->unpersistHead);
   free(pMeta);
   return 0;
 }
@@ -158,36 +196,40 @@ int32_t tqStorePersist(TqMetaStore* pMeta) {
           pBucketNode->next = pNode->next;
           if(pNode->handle.valueInUse) {
             pMeta->deleter(pNode->handle.valueInUse);
+            pNode->handle.valueInUse = NULL;
           }
           free(pNode);
         }
       }
-    }
-    //serialize
-    void* pBytes = NULL;
-    int sz = pMeta->serializer(pNode->handle.valueInUse, &pBytes);
-    ASSERT(pBytes != NULL);
-    //get current offset
-    //append data
-    int64_t offset = lseek(pMeta->fileFd, 0, SEEK_CUR);
-    int nBytes = write(pMeta->fileFd, pBytes, sz);
-    //TODO: handle error in tfile
-    ASSERT(nBytes == sz);
-
-    pNode->handle.offset = offset;
-    pNode->handle.serializedSize = sz;
-
-    //write idx
-    //TODO: endian check and convert
-    *(bufPtr++) = pNode->handle.key;
-    *(bufPtr++) = pNode->handle.offset;
-    *(bufPtr++) = (int64_t)sz;
-    if((char*)(bufPtr + 3) > writeBuf + TQ_PAGE_SIZE) {
-      nBytes = write(pMeta->idxFd, writeBuf, sizeof(writeBuf));
+    } else {
+      //TODO: do not allocate each time
+      //serialize
+      void* pBytes = NULL;
+      int sz = pMeta->serializer(pNode->handle.valueInUse, &pBytes);
+      ASSERT(pBytes != NULL);
+      //get current offset
+      //append data
+      int64_t offset = lseek(pMeta->fileFd, 0, SEEK_CUR);
+      int nBytes = write(pMeta->fileFd, pBytes, sz);
+      free(pBytes);
       //TODO: handle error in tfile
-      ASSERT(nBytes == sizeof(writeBuf));
-      memset(writeBuf, 0, TQ_PAGE_SIZE);
-      bufPtr = (int64_t*)writeBuf;
+      ASSERT(nBytes == sz);
+
+      pNode->handle.offset = offset;
+      pNode->handle.serializedSize = sz;
+
+      //write idx
+      //TODO: endian check and convert
+      *(bufPtr++) = pNode->handle.key;
+      *(bufPtr++) = pNode->handle.offset;
+      *(bufPtr++) = (int64_t)sz;
+      if((char*)(bufPtr + 3) > writeBuf + TQ_PAGE_SIZE) {
+        nBytes = write(pMeta->idxFd, writeBuf, sizeof(writeBuf));
+        //TODO: handle error in tfile
+        ASSERT(nBytes == sizeof(writeBuf));
+        memset(writeBuf, 0, TQ_PAGE_SIZE);
+        bufPtr = (int64_t*)writeBuf;
+      }
     }
 
     //remove from unpersist list
@@ -216,7 +258,9 @@ static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value
   while(pNode) {
     if(pNode->handle.key == key) {
       //TODO: think about thread safety
-      pMeta->deleter(pNode->handle.valueInUse);
+      if(pNode->handle.valueInUse) {
+        pMeta->deleter(pNode->handle.valueInUse);
+      }
       //change pointer ownership
       pNode->handle.valueInUse = value;
       return 0;
@@ -240,13 +284,13 @@ static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value
   return 0;
 }
 
-TqMetaHandle* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
+void* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInUse != NULL) {
-        return &pNode->handle;
+        return pNode->handle.valueInUse;
       } else {
         return NULL;
       }
@@ -263,7 +307,9 @@ int32_t tqHandlePut(TqMetaStore* pMeta, int64_t key, void* value) {
   while(pNode) {
     if(pNode->handle.key == key) {
       //TODO: think about thread safety
-      pMeta->deleter(pNode->handle.valueInTxn);
+      if(pNode->handle.valueInTxn) {
+        pMeta->deleter(pNode->handle.valueInTxn);
+      }
       //change pointer ownership
       pNode->handle.valueInTxn = value;
       return 0;
@@ -279,16 +325,18 @@ int32_t tqHandlePut(TqMetaStore* pMeta, int64_t key, void* value) {
   memset(pNewNode, 0, sizeof(TqMetaList));
   pNewNode->handle.key = key;
   pNewNode->handle.valueInTxn = value;
+  pNewNode->next = pMeta->bucket[bucketKey];
+  pMeta->bucket[bucketKey] = pNewNode;
   return 0;
 }
 
-static TqMetaHandle* tqHandleGetUncommitted(TqMetaStore* pMeta, int64_t key) {
+static void* tqHandleGetUncommitted(TqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInTxn != NULL) {
-        return &pNode->handle;
+        return pNode->handle.valueInTxn;
       } else {
         return NULL;
       }
@@ -304,10 +352,11 @@ int32_t tqHandleCommit(TqMetaStore* pMeta, int64_t key) {
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
-      if(pNode->handle.valueInUse != NULL) {
+      if(pNode->handle.valueInUse) {
         pMeta->deleter(pNode->handle.valueInUse);
       }
       pNode->handle.valueInUse = pNode->handle.valueInTxn;
+      pNode->handle.valueInTxn = NULL;
       if(pNode->unpersistNext == NULL) {
         pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
         pNode->unpersistPrev = pMeta->unpersistHead;
