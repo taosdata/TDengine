@@ -5959,9 +5959,6 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
     if (pBlock == NULL) {
       break;
     }
-    if (pBlock->info.rows == 0) {
-      continue;
-    }
 
     setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
 
