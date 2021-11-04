@@ -31,29 +31,25 @@ typedef struct {
   int64_t totalPoints;
   int64_t totalStorage;
   int64_t compStorage;
-} SMnodeStat;
+} SMnodeLoad;
 
 typedef struct {
+  int32_t dnodeId;
+  int64_t clusterId;
   void (*SendMsgToDnode)(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
   void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
   void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
-  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-} SMnodeFp;
-
-typedef struct {
-  SMnodeFp fp;
-  int64_t  clusterId;
-  int32_t  dnodeId;
 } SMnodePara;
 
 int32_t mnodeInit(SMnodePara para);
 void    mnodeCleanup();
+
 int32_t mnodeDeploy();
 void    mnodeUnDeploy();
 int32_t mnodeStart();
 void    mnodeStop();
 
-int32_t mnodeGetStatistics(SMnodeStat *stat);
+int32_t mnodeGetLoad(SMnodeLoad *pLoad);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 void mnodeProcessMsg(SRpcMsg *rpcMsg);

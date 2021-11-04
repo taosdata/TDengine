@@ -172,21 +172,21 @@ static void mnodeAddVersionInfo(SBufferWriter* bw) {
 }
 
 static void mnodeAddRuntimeInfo(SBufferWriter* bw) {
-  SMnodeStat stat = {0};
-  if (mnodeGetStatistics(&stat) != 0) {
+  SMnodeLoad load = {0};
+  if (mnodeGetLoad(&load) != 0) {
     return;
   }
 
-  mnodeAddIntField(bw, "numOfDnode", stat.numOfDnode);
-  mnodeAddIntField(bw, "numOfMnode", stat.numOfMnode);
-  mnodeAddIntField(bw, "numOfVgroup", stat.numOfVgroup);
-  mnodeAddIntField(bw, "numOfDatabase", stat.numOfDatabase);
-  mnodeAddIntField(bw, "numOfSuperTable", stat.numOfSuperTable);
-  mnodeAddIntField(bw, "numOfChildTable", stat.numOfChildTable);
-  mnodeAddIntField(bw, "numOfColumn", stat.numOfColumn);
-  mnodeAddIntField(bw, "numOfPoint", stat.totalPoints);
-  mnodeAddIntField(bw, "totalStorage", stat.totalStorage);
-  mnodeAddIntField(bw, "compStorage", stat.compStorage);
+  mnodeAddIntField(bw, "numOfDnode", load.numOfDnode);
+  mnodeAddIntField(bw, "numOfMnode", load.numOfMnode);
+  mnodeAddIntField(bw, "numOfVgroup", load.numOfVgroup);
+  mnodeAddIntField(bw, "numOfDatabase", load.numOfDatabase);
+  mnodeAddIntField(bw, "numOfSuperTable", load.numOfSuperTable);
+  mnodeAddIntField(bw, "numOfChildTable", load.numOfChildTable);
+  mnodeAddIntField(bw, "numOfColumn", load.numOfColumn);
+  mnodeAddIntField(bw, "numOfPoint", load.totalPoints);
+  mnodeAddIntField(bw, "totalStorage", load.totalStorage);
+  mnodeAddIntField(bw, "compStorage", load.compStorage);
 }
 
 static void mnodeSendTelemetryReport() {

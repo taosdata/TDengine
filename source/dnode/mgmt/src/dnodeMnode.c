@@ -223,10 +223,9 @@ int32_t dnodeInitMnode() {
   snprintf(tsMnode.file, sizeof(tsMnode.file), "%s/mnode.json", tsDnodeDir);
 
   SMnodePara para;
-  para.fp.GetDnodeEp = dnodeGetDnodeEp;
-  para.fp.SendMsgToDnode = dnodeSendMsgToDnode;
-  para.fp.SendMsgToMnode = dnodeSendMsgToMnode;
-  para.fp.SendRedirectMsg = dnodeSendRedirectMsg;
+  para.SendMsgToDnode = dnodeSendMsgToDnode;
+  para.SendMsgToMnode = dnodeSendMsgToMnode;
+  para.SendRedirectMsg = dnodeSendRedirectMsg;
   para.dnodeId = dnodeGetDnodeId();
   para.clusterId = dnodeGetClusterId();
 
