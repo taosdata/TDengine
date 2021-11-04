@@ -49,6 +49,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
+        # line_protocol——telnet and json
         os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-1s1tnt1r-sml.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
@@ -116,30 +117,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)        
         tdSql.query("select count (tbname) from stb4")
         tdSql.checkData(0, 0, 8)  
-        # os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-offset-sml.json -y" % binPath)
-        # tdSql.execute("use db")             
-        # tdSql.query("select count(*) from stb0")
-        # tdSql.checkData(0, 0, 50) 
-        # tdSql.query("select count(*) from stb1")
-        # tdSql.checkData(0, 0, 240) 
-        # tdSql.query("select count(*) from stb2")
-        # tdSql.checkData(0, 0, 220) 
-        # tdSql.query("select count(*) from stb3")
-        # tdSql.checkData(0, 0, 180)
-        # tdSql.query("select count(*) from stb4")
-        # tdSql.checkData(0, 0, 160)xxxxxxxxx
-        # os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-newtable-sml.json -y" % binPath)
-        # tdSql.execute("use db")             
-        # tdSql.query("select count(*) from stb0")
-        # tdSql.checkData(0, 0, 150) 
-        # tdSql.query("select count(*) from stb1")
-        # tdSql.checkData(0, 0, 360) 
-        # tdSql.query("select count(*) from stb2")
-        # tdSql.checkData(0, 0, 360) 
-        # tdSql.query("select count(*) from stb3")
-        # tdSql.checkData(0, 0, 340)
-        # tdSql.query("select count(*) from stb4")
-        # tdSql.checkData(0, 0, 400)
         os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-renewdb-sml.json -y" % binPath)
         tdSql.execute("use db")             
         tdSql.query("select count(*) from stb0")
@@ -208,18 +185,17 @@ class TDTestCase:
         tdSql.checkData(0, 0, "2019-10-01 00:00:00")
         tdSql.query("select last(ts) from blf.p_0_topics_6 ")        
         tdSql.checkData(0, 0, "2020-09-29 23:59:00")
-        # os.system("%staosdemo -f tools/taosdemoAllTest/sml/insertMaxNumPerReq-sml.json -y " % binPath)
-        # tdSql.execute("use db")
-        # tdSql.query("select count(*) from stb0")
-        # tdSql.checkData(0, 0, 5000000)
-        # tdSql.query("select count(*) from stb1")
-        # tdSql.checkData(0, 0, 5000000)
+        os.system("%staosdemo -f tools/taosdemoAllTest/sml/insertMaxNumPerReq-sml.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 5000000)
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 5000000)
 
 
         # insert: timestamp and step 
         os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-timestep-sml.json -y " % binPath)
         tdSql.execute("use db")
-        tdSql.query("show stables")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10)
         tdSql.query("select count (tbname) from stb1")
@@ -265,42 +241,6 @@ class TDTestCase:
         tdSql.query("select count (*) from stb0")
         tdSql.checkData(0, 0, 15000)        
 
-
-        # # insert: auto_create
-
-        # tdSql.execute('drop database if exists db')
-        # tdSql.execute('create database db')
-        # tdSql.execute('use db')
-        # os.system("%staosdemo -y -f tools/taosdemoAllTest/sml/insert-drop-exist-auto-N00-sml.json " % binPath) # drop = no, child_table_exists, auto_create_table varies
-        # tdSql.execute('use db')
-        # tdSql.query('show tables like \'NN123%\'')  #child_table_exists = no, auto_create_table varies = 123
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'NNN%\'')    #child_table_exists = no, auto_create_table varies = no
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'NNY%\'')    #child_table_exists = no, auto_create_table varies = yes
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'NYN%\'')    #child_table_exists = yes, auto_create_table varies = no
-        # tdSql.checkRows(0)
-        # tdSql.query('show tables like \'NY123%\'')  #child_table_exists = yes, auto_create_table varies = 123
-        # tdSql.checkRows(0)
-        # tdSql.query('show tables like \'NYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
-        # tdSql.checkRows(0)
-
-        # tdSql.execute('drop database if exists db')
-        # os.system("%staosdemo -y -f tools/taosdemoAllTest/sml/insert-drop-exist-auto-Y00-sml.json " % binPath) # drop = yes, child_table_exists, auto_create_table varies
-        # tdSql.execute('use db')
-        # tdSql.query('show tables like \'YN123%\'')  #child_table_exists = no, auto_create_table varies = 123
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'YNN%\'')    #child_table_exists = no, auto_create_table varies = no
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'YNY%\'')    #child_table_exists = no, auto_create_table varies = yes
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'YYN%\'')    #child_table_exists = yes, auto_create_table varies = no
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'YY123%\'')  #child_table_exists = yes, auto_create_table varies = 123
-        # tdSql.checkRows(20)
-        # tdSql.query('show tables like \'YYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
-        # tdSql.checkRows(20)
 
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
