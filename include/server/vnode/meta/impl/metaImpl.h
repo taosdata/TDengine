@@ -59,7 +59,7 @@ typedef struct {
 struct STbOptions {
   uint8_t     type;
   char*       name;
-  uint64_t    ttl;   // time to live
+  uint32_t    ttl;   // time to live in (SECONDS)
   SSMAOptions bsma;  // Block-wise sma
   union {
     SSTbOptions stbOptions;

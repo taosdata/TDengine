@@ -14,6 +14,7 @@
  */
 
 #include "metaDef.h"
+#include "tcoding.h"
 
 int metaValidateTbOptions(SMeta *pMeta, const STbOptions *pTbOptions) {
   // TODO
@@ -21,6 +22,28 @@ int metaValidateTbOptions(SMeta *pMeta, const STbOptions *pTbOptions) {
 }
 
 size_t metaEncodeTbObjFromTbOptions(const STbOptions *pTbOptions, void *pBuf, size_t bsize) {
-  // TODO
-  return 0;
+  void **ppBuf = &pBuf;
+  int    tlen = 0;
+
+  tlen += taosEncodeFixedU8(ppBuf, pTbOptions->type);
+  tlen += taosEncodeString(ppBuf, pTbOptions->name);
+  tlen += taosEncodeFixedU32(ppBuf, pTbOptions->ttl);
+
+  switch (pTbOptions->type) {
+    case META_SUPER_TABLE:
+      tlen += taosEncodeFixedU64(ppBuf, pTbOptions->stbOptions.uid);
+      tlen += tdEncodeSchema(ppBuf, pTbOptions->stbOptions.pTagSchema);
+      // TODO: encode schema version array
+      break;
+    case META_CHILD_TABLE:
+      tlen += taosEncodeFixedU64(ppBuf, pTbOptions->ctbOptions.suid);
+      break;
+    case META_NORMAL_TABLE:
+      // TODO: encode schema version array
+      break;
+    default:
+      break;
+  }
+
+  return tlen;
 }
