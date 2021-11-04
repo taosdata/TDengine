@@ -5,11 +5,22 @@
 
 ## Install
 
-You can use pip to install from github or pypi:
+You can use `pip` to install the connector from PyPI:
 
-```sh
-pip install git+https://github.com/taosdata/taos-connector-python.git
+```bash
 pip install taospy
+```
+
+Or with git url:
+
+```bash
+pip install git+https://github.com/taosdata/taos-connector-python.git
+```
+
+If you have installed TDengine server or client with prebuilt packages, then you can install the connector from path:
+
+```bash
+pip install /usr/local/taos/connector/python
 ```
 
 ## Source Code
