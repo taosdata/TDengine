@@ -391,7 +391,8 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       }
 
     };
-    case TSDB_DATA_TYPE_NCHAR: { // todo handle the var string compare
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON: { // todo handle the var string compare
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 

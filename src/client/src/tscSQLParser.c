@@ -5922,15 +5922,25 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     return invalidOperationMsg(pMsgBuf, msg10); 
   }
 
-  // handle the first part of order by
-  tVariant* pVar = &((CommonItem*)taosArrayGet(pSortOrder, 0))->pVar;
+  SStrToken    columnName = {0};
+  CommonItem* pItem = taosArrayGet(pSortOrder, 0);
+  if (pItem->isJsonExp){
+    assert(pItem->jsonExp->tokenId == TK_ARROW);
+    columnName = pItem->jsonExp->pLeft->columnName;
+  }else{
+    // handle the first part of order by
+    tVariant* pVar = &pItem->pVar;
 
-  // e.g., order by 1 asc, return directly with out further check.
-  if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
-    return TSDB_CODE_SUCCESS;
+    // e.g., order by 1 asc, return directly with out further check.
+    if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    columnName.n = pVar->nLen;
+    columnName.type = pVar->nType;
+    columnName.z = pVar->pz;
   }
 
-  SStrToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
   bool udf = false;
 
@@ -6048,7 +6058,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         }
       }
     } else {
-      CommonItem *pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
+      pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       if (orderByTags) {
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
@@ -6066,9 +6076,18 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         }
       }
 
+      SStrToken cname = {0};
       pItem = taosArrayGet(pSqlNode->pSortOrder, 1);
-      tVariant* pVar2 = &pItem->pVar;
-      SStrToken cname = {pVar2->nLen, pVar2->nType, pVar2->pz};
+      if (pItem->isJsonExp){
+        assert(pItem->jsonExp->tokenId == TK_ARROW);
+        cname = pItem->jsonExp->pLeft->columnName;
+      }else{
+        tVariant* pVar = &pItem->pVar;
+
+        cname.n = pVar->nLen;
+        cname.type = pVar->nType;
+        cname.z = pVar->pz;
+      }
       if (getColumnIndexByName(&cname, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(pMsgBuf, msg1);
       }
@@ -6076,8 +6095,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
         return invalidOperationMsg(pMsgBuf, msg6);
       } else {
-        CommonItem* p1 = taosArrayGet(pSortOrder, 1);
-        pQueryInfo->order.order = p1->sortOrder;
+        pQueryInfo->order.order = pItem->sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
       }
     }
@@ -6133,7 +6151,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         }
       }
 
-      CommonItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
+      pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       pQueryInfo->order.order = pItem->sortOrder;
 
       pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
@@ -6144,7 +6162,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg11);
     }
 
-    CommonItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
+    pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
     pQueryInfo->order.order = pItem->sortOrder;
     pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   } else {
@@ -6160,7 +6178,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg11);
     }
 
-    CommonItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
+    pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
     pQueryInfo->order.order = pItem->sortOrder;
     pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   }
