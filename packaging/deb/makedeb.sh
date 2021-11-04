@@ -126,7 +126,7 @@ debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
 
 if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
-    sed -i.bak "s/Depends: no/Depends: libjansson4, libsnappy1v5/g" ${pkg_dir}/DEBIAN/control
+    sed -i.bak "s/#Depends: no/Depends: libjansson4, libsnappy1v5/g" ${pkg_dir}/DEBIAN/control
 fi
 
 #get taos version, then set deb name
