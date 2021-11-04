@@ -37,7 +37,7 @@ typedef struct SScalarFunctionSupport {
   char**       data;
 } SScalarFunctionSupport;
 
-extern struct SScalarFunctionInfo scalarFunc[1];
+extern struct SScalarFunctionInfo scalarFunc[5];
 
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput,
                           void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));

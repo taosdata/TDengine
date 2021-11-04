@@ -26,29 +26,6 @@ extern "C" {
 #include "tvariant.h"
 #include "function.h"
 
-typedef struct SColumn {
-  uint64_t     tableUid;
-  int32_t      columnIndex;
-  SColumnInfo  info;
-} SColumn;
-
-
-
-//typedef struct SInterval {
-//  int32_t  tz;            // query client timezone
-//  char     intervalUnit;
-//  char     slidingUnit;
-//  char     offsetUnit;
-//  int64_t  interval;
-//  int64_t  sliding;
-//  int64_t  offset;
-//} SInterval;
-//
-//typedef struct SSessionWindow {
-//  int64_t  gap;             // gap between two session window(in microseconds)
-//  int32_t  primaryColId;    // primary timestamp column
-//} SSessionWindow;
-
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
@@ -89,12 +66,6 @@ typedef struct STagCond {
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
   SVgroupsInfo  *vgroupList;
-
-  /*
-   * 1. keep the vgroup index during the multi-vnode super table projection query
-   * 2. keep the vgroup index for multi-vnode insertion
-   */
-  int32_t       vgroupIndex;
   SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns

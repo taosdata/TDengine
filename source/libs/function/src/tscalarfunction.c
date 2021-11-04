@@ -2,6 +2,156 @@
 #include "tbinoperator.h"
 #include "tunaryoperator.h"
 
+
+static void assignBasicParaInfo(struct SScalarFuncParam* dst, const struct SScalarFuncParam* src) {
+  dst->type = src->type;
+  dst->bytes = src->bytes;
+  dst->num = src->num;
+}
+
+static void tceil(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+  assignBasicParaInfo(pOutput, pLeft);
+
+  switch (pLeft->bytes) {
+    case TSDB_DATA_TYPE_FLOAT: {
+      float* p = (float*) pLeft->data;
+      float* out = (float*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = ceilf(p[i]);
+      }
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double* p = (double*) pLeft->data;
+      double* out = (double*)pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = ceil(p[i]);
+      }
+    }
+
+    default:
+      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+  }
+}
+
+static void tfloor(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+  assignBasicParaInfo(pOutput, pLeft);
+
+  switch (pLeft->bytes) {
+    case TSDB_DATA_TYPE_FLOAT: {
+      float* p = (float*) pLeft->data;
+      float* out = (float*) pOutput->data;
+
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = floorf(p[i]);
+      }
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double* p = (double*) pLeft->data;
+      double* out = (double*) pOutput->data;
+
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = floor(p[i]);
+      }
+    }
+
+    default:
+      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+  }
+}
+
+static void _tabs(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+  assignBasicParaInfo(pOutput, pLeft);
+
+  switch (pLeft->bytes) {
+    case TSDB_DATA_TYPE_FLOAT: {
+      float* p = (float*) pLeft->data;
+      float* out = (float*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = (p[i] > 0)? p[i]:-p[i];
+      }
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double* p = (double*) pLeft->data;
+      double* out = (double*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = (p[i] > 0)? p[i]:-p[i];
+      }
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t* p = (int8_t*) pLeft->data;
+      int8_t* out = (int8_t*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = (p[i] > 0)? p[i]:-p[i];
+      }
+    }
+
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t* p = (int16_t*) pLeft->data;
+      int16_t* out = (int16_t*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = (p[i] > 0)? p[i]:-p[i];
+      }
+    }
+
+    case TSDB_DATA_TYPE_INT: {
+      int32_t* p = (int32_t*) pLeft->data;
+      int32_t* out = (int32_t*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = (p[i] > 0)? p[i]:-p[i];
+      }
+    }
+
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t* p = (int64_t*) pLeft->data;
+      int64_t* out = (int64_t*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = (p[i] > 0)? p[i]:-p[i];
+      }
+    }
+
+    default:
+      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+  }
+}
+
+static void tround(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+  assignBasicParaInfo(pOutput, pLeft);
+
+  switch (pLeft->bytes) {
+    case TSDB_DATA_TYPE_FLOAT: {
+      float* p = (float*) pLeft->data;
+      float* out = (float*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = roundf(p[i]);
+      }
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double* p = (double*) pLeft->data;
+      double* out = (double*) pOutput->data;
+      for (int32_t i = 0; i < pLeft->num; ++i) {
+        out[i] = round(p[i]);
+      }
+    }
+
+    default:
+      memcpy(pOutput->data, pLeft->data, pLeft->num* pLeft->bytes);
+  }
+}
+
+static void tlength(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+  int64_t* out = (int64_t*) pOutput->data;
+  char* s = pLeft->data;
+
+  for(int32_t i = 0; i < pLeft->num; ++i) {
+    out[i] = varDataLen(POINTER_SHIFT(s, i * pLeft->bytes));
+  }
+}
+
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
   switch(type) {
     case TSDB_DATA_TYPE_TINYINT:
@@ -168,11 +318,12 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
   return 0;
 }
 
-SScalarFunctionInfo scalarFunc[1] = {
-    {
-
-    },
-
+SScalarFunctionInfo scalarFunc[5] = {
+    {"ceil",   FUNCTION_TYPE_SCALAR, FUNCTION_CEIL,   tceil},
+    {"floor",  FUNCTION_TYPE_SCALAR, FUNCTION_FLOOR,  tfloor},
+    {"abs",    FUNCTION_TYPE_SCALAR, FUNCTION_ABS,    _tabs},
+    {"round",  FUNCTION_TYPE_SCALAR, FUNCTION_ROUND,  tround},
+    {"length", FUNCTION_TYPE_SCALAR, FUNCTION_LENGTH, tlength},
 };
 
 void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {

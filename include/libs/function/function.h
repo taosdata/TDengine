@@ -161,6 +161,7 @@ enum {
   TEXPR_NODE_DUMMY     = 0x0,
   TEXPR_BINARYEXPR_NODE= 0x1,
   TEXPR_UNARYEXPR_NODE = 0x2,
+  TEXPR_FUNCTION_NODE  = 0x3,
   TEXPR_COL_NODE       = 0x4,
   TEXPR_VALUE_NODE     = 0x8,
 };
@@ -169,10 +170,7 @@ typedef struct tExprNode {
   uint8_t nodeType;
   union {
     struct {
-      union {
-        int32_t         optr;   // binary operator
-        int32_t         functionId;// unary operator
-      };
+      int32_t           optr;   // binary operator
       void             *info;   // support filter operation on this expression only available for leaf node
       struct tExprNode *pLeft;  // left child pointer
       struct tExprNode *pRight; // right child pointer
@@ -180,18 +178,32 @@ typedef struct tExprNode {
 
     SSchema            *pSchema;// column node
     struct SVariant    *pVal;   // value node
+
+    struct {// function node
+      char             *functionName;
+      int32_t           functionId;
+      int32_t           num;
+
+      // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the
+      // calculation instead.
+      // E.g., Cov(col1, col2), the column information, w.r.t. the col1 and col2, is kept in pChild nodes.
+      //  The concat function, concat(col1, col2), is a binary scalar
+      //  operator and is kept in the attribute of _node.
+      struct tExprNode **pChild;
+    } _function;
   };
 } tExprNode;
 
+//TODO create?
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
 typedef struct SAggFunctionInfo {
-  char     name[FUNCTIONS_NAME_MAX_LENGTH];
-  int8_t   type;         // Scalar function or aggregation function
-  uint8_t  functionId;   // Function Id
-  int8_t   sFunctionId;  // Transfer function for super table query
-  uint16_t status;
+  char      name[FUNCTIONS_NAME_MAX_LENGTH];
+  int8_t    type;         // Scalar function or aggregation function
+  uint32_t  functionId;   // Function Id
+  int8_t    sFunctionId;  // Transfer function for super table query
+  uint16_t  status;
 
   bool (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
   void (*addInput)(SQLFunctionCtx *pCtx);
@@ -203,13 +215,13 @@ typedef struct SAggFunctionInfo {
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
-typedef struct SScalarFunctionInfo {
-  char     name[FUNCTIONS_NAME_MAX_LENGTH];
-  int8_t   type;              // scalar function or aggregation function
-  uint8_t  functionId;        // index of scalar function
+struct SScalarFuncParam;
 
-  bool    (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void    (*addInput)(SQLFunctionCtx *pCtx);
+typedef struct SScalarFunctionInfo {
+  char      name[FUNCTIONS_NAME_MAX_LENGTH];
+  int8_t    type;              // scalar function or aggregation function
+  uint32_t  functionId;        // index of scalar function
+  void     (*process)(const struct SScalarFuncParam *pInput, struct SScalarFuncParam* pOutput);
 } SScalarFunctionInfo;
 
 typedef struct SMultiFunctionsDesc {
@@ -241,7 +253,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
  * @param len
  * @return
  */
-int32_t qIsBuiltinFunction(const char* name, int32_t len);
+int32_t qIsBuiltinFunction(const char* name, int32_t len, bool* scalarFunction);
 
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
 

@@ -1040,13 +1040,14 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
 }
 
 static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
+
 static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order) {
   for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
     pCtx[i].order = order;
     pCtx[i].size  = pBlock->info.rows;
     pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
 
-    setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
+    setBlockStatisInfo(&pCtx[i], pBlock, NULL/*&pOperator->pExpr[i].base.colInfo*/);
   }
 }
 
@@ -2358,8 +2359,8 @@ bool onlyQueryTags(SQueryAttr* pQueryAttr) {
 
     if (functionId != FUNCTION_TAGPRJ &&
         functionId != FUNCTION_TID_TAG &&
-        (!(functionId == FUNCTION_COUNT && pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX)) &&
-        (!(functionId == FUNCTION_PRJ && TSDB_COL_IS_UD_COL(pExprInfo->base.colInfo.flag)))) {
+        (!(functionId == FUNCTION_COUNT && pExprInfo->base.pColumns->colId == TSDB_TBNAME_COLUMN_INDEX)) &&
+        (!(functionId == FUNCTION_PRJ && TSDB_COL_IS_UD_COL(pExprInfo->base.pColumns->flag)))) {
       return false;
     }
   }
@@ -2878,7 +2879,7 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
   int32_t numOfOutput = pTableScanInfo->numOfOutput;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functionId = pCtx[i].functionId;
-    int32_t colId = pTableScanInfo->pExpr[i].base.colInfo.colId;
+    int32_t colId = pTableScanInfo->pExpr[i].base.pColumns->colId;
 
     // group by + first/last should not apply the first/last block filter
     if (functionId < 0) {
@@ -3205,12 +3206,12 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
       SExprInfo* pLocalExprInfo = &pExpr[idx];
 
       // ts_comp column required the tag value for join filter
-      if (!TSDB_COL_IS_TAG(pLocalExprInfo->base.colInfo.flag)) {
+      if (!TSDB_COL_IS_TAG(pLocalExprInfo->base.pColumns->flag)) {
         continue;
       }
 
       // todo use tag column index to optimize performance
-      doSetTagValueInParam(pTable, pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->base.resSchema.type,
+      doSetTagValueInParam(pTable, pLocalExprInfo->base.pColumns->colId, &pCtx[idx].tag, pLocalExprInfo->base.resSchema.type,
                            pLocalExprInfo->base.resSchema.bytes);
 
       if (IS_NUMERIC_TYPE(pLocalExprInfo->base.resSchema.type)
@@ -5071,7 +5072,7 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
       int32_t functionId = getExprFunctionId(&pQuery->pExpr1[j]);
 
       // FUNCTION_TAG_DUMMY function needs to be ignored
-      if (index->colId == pExpr->colInfo.colId &&
+      if (index->colId == pExpr->pColumns->info.colId &&
           ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && functionId == FUNCTION_TAG) ||
            (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && functionId == FUNCTION_PRJ))) {
         index->colIndex = j;
@@ -5290,7 +5291,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       for(int32_t i = 0; i < numOfOutput; ++i) {
         SColumnInfoData col = {{0}};
-        col.info.colId = pExpr[i].base.colInfo.colId;
+        col.info.colId = pExpr[i].base.pColumns->colId;
 //        col.info.bytes = pExpr[i].base.colBytes;
 //        col.info.type  = pExpr[i].base.colType;
         taosArrayPush(pDataBlock->pDataBlock, &col);
@@ -6776,7 +6777,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
     int16_t type  = pExprInfo->base.resSchema.type;
 
     for(int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
-      if (pQueryAttr->tagColList[i].colId == pExprInfo->base.colInfo.colId) {
+      if (pQueryAttr->tagColList[i].colId == pExprInfo->base.pColumns->colId) {
         bytes = pQueryAttr->tagColList[i].bytes;
         type = pQueryAttr->tagColList[i].type;
         break;
@@ -6808,10 +6809,10 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       output += sizeof(pQueryAttr->vgId);
 
       char* data = NULL;
-      if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      if (pExprInfo->base.pColumns->colId == TSDB_TBNAME_COLUMN_INDEX) {
         data = tsdbGetTableName(item->pTable);
       } else {
-        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);
+        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.pColumns->colId, type, bytes);
       }
 
       doSetTagValueToResultBuf(output, data, type, bytes);
@@ -6839,7 +6840,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       int16_t type = 0, bytes = 0;
       for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
         // not assign value in case of user defined constant output column
-        if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.colInfo.flag)) {
+        if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.pColumns->flag)) {
           continue;
         }
 
@@ -6847,10 +6848,10 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         type  = pExprInfo[j].base.resSchema.type;
         bytes = pExprInfo[j].base.resSchema.bytes;
 
-        if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+        if (pExprInfo[j].base.pColumns->colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
         } else {
-          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
+          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.pColumns->colId, type, bytes);
         }
 
         dst  = pColInfo->pData + count * pExprInfo[j].base.resSchema.bytes;
@@ -7310,9 +7311,9 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
     param->pExpr[i] = pExprMsg;
 
-    pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
-    pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
-    pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
+//    pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
+//    pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
+//    pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
 //    pExprMsg->colBytes      = htons(pExprMsg->colBytes);
 //    pExprMsg->colType       = htons(pExprMsg->colType);
 
@@ -7361,9 +7362,9 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     for (int32_t i = 0; i < pQueryMsg->secondStageOutput; ++i) {
       param->pSecExpr[i] = pExprMsg;
 
-      pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
-      pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
-      pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
+//      pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
+//      pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
+//      pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
 //      pExprMsg->resType       = htons(pExprMsg->resType);
 //      pExprMsg->resBytes      = htons(pExprMsg->resBytes);
 //      pExprMsg->colBytes      = htons(pExprMsg->colBytes);
@@ -7677,11 +7678,11 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       SSchema s = {.type=TSDB_DATA_TYPE_BINARY, .bytes=TSDB_MAX_BINARY_LEN};
       type = s.type;
       bytes = s.bytes;
-    } else if (pExprs[i].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX && functionId == FUNCTION_TAGPRJ) {  // parse the normal column
+    } else if (pExprs[i].base.pColumns->info.colId == TSDB_TBNAME_COLUMN_INDEX && functionId == FUNCTION_TAGPRJ) {  // parse the normal column
       SSchema* s = tGetTbnameColumnSchema();
       type = s->type;
       bytes = s->bytes;
-    } else if (pExprs[i].base.colInfo.colId <= TSDB_UD_COLUMN_INDEX && pExprs[i].base.colInfo.colId > TSDB_RES_COL_ID) {
+    } else if (pExprs[i].base.pColumns->info.colId <= TSDB_UD_COLUMN_INDEX && pExprs[i].base.pColumns->info.colId > TSDB_RES_COL_ID) {
       // it is a user-defined constant value column
       assert(functionId == FUNCTION_PRJ);
 
@@ -7692,7 +7693,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       }
     } else {
       int32_t j = getColumnIndexInSource(pTableInfo, &pExprs[i].base, pTagCols);
-      if (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag)) {
+      if (TSDB_COL_IS_TAG(pExprs[i].base.pColumns->flag)) {
         if (j < TSDB_TBNAME_COLUMN_INDEX || j >= pTableInfo->numOfTags) {
           tfree(pExprs);
           return TSDB_CODE_QRY_INVALID_MSG;
@@ -7704,8 +7705,8 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
         }
       }
 
-      if (pExprs[i].base.colInfo.colId != TSDB_TBNAME_COLUMN_INDEX && j >= 0) {
-        SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag))? &pTagCols[j]:&pTableInfo->colList[j];
+      if (pExprs[i].base.pColumns->info.colId != TSDB_TBNAME_COLUMN_INDEX && j >= 0) {
+        SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.pColumns->flag))? &pTagCols[j]:&pTableInfo->colList[j];
         type = pCol->type;
         bytes = pCol->bytes;
       } else {
@@ -7814,7 +7815,7 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
 //      bytes = tDataTypes[type].bytes;
 //    } else {
 //      int32_t index = pExprs[i].base.colInfo.colIndex;
-//      assert(prevExpr[index].base.resSchema.colId == pExprs[i].base.colInfo.colId);
+//      assert(prevExpr[index].base.resSchema.colId == pExprs[i].base.pColumns->colId);
 //
 //      type  = prevExpr[index].base.resSchema.type;
 //      bytes = prevExpr[index].base.resSchema.bytes;
@@ -8083,7 +8084,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
     pQueryAttr->resultRowSize += pExprs[col].base.resSchema.bytes;
 
     // keep the tag length
-    if (TSDB_COL_IS_TAG(pExprs[col].base.colInfo.flag)) {
+    if (TSDB_COL_IS_TAG(pExprs[col].base.pColumns->flag)) {
       pQueryAttr->tagLen += pExprs[col].base.resSchema.bytes;
     }
 

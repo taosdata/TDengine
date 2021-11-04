@@ -68,6 +68,13 @@ typedef struct SColumnInfoData {
 
 //======================================================================================================================
 // the following structure shared by parser and executor
+typedef struct SColumn {
+  uint64_t     uid;
+  char         name[TSDB_COL_NAME_LEN];
+  int8_t       flag;      // column type: normal column, tag, or user-input column (integer/float/string)
+  SColumnInfo  info;
+} SColumn;
+
 typedef struct SLimit {
   int64_t   limit;
   int64_t   offset;
@@ -89,8 +96,9 @@ typedef struct SGroupbyExpr {
 typedef struct SSqlExpr {
   char      token[TSDB_COL_NAME_LEN];      // original token
   SSchema   resSchema;
-  SColIndex colInfo;        // there may be mutiple input columns
-  uint64_t  uid;            // table uid, todo refactor use the pointer
+
+  int32_t   numOfCols;
+  SColumn*  pColumns;       // data columns that are required by query
   int32_t   interBytes;     // inter result buffer size
   int16_t   numOfParams;    // argument value of each function
   SVariant  param[3];       // parameters are not more than 3

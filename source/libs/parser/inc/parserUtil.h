@@ -38,6 +38,7 @@ extern "C" {
 
 TAOS_FIELD createField(const SSchema* pSchema);
 SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
+void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
 
 SInternalField* insertFieldInfo(SFieldInfo* pFieldInfo, int32_t index, SSchema* field);
 int32_t getNumOfFields(SFieldInfo* pFieldInfo);
@@ -51,7 +52,7 @@ STableMetaInfo* addEmptyMetaInfo(SQueryStmtInfo* pQueryInfo);
 
 void columnListCopyAll(SArray* dst, const SArray* src);
 
-SColumn* columnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
+SColumn* columnListInsert(SArray* pColumnList, uint64_t uid, SSchema* pSchema, int32_t flag);
 SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid);
 
 void cleanupTagCond(STagCond* pTagCond);

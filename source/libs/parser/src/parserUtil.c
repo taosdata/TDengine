@@ -513,6 +513,20 @@ SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* nam
   return s;
 }
 
+void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema) {
+  pColumn->uid  = uid;
+  pColumn->flag = flag;
+  pColumn->info.colId = pSchema->colId;
+  pColumn->info.bytes = pSchema->bytes;
+  pColumn->info.type  = pSchema->type;
+
+  if (tableName != NULL) {
+    snprintf(pColumn->name, tListLen(pColumn->name), "%s.%s", tableName, pSchema->name);
+  } else {
+    tstrncpy(pColumn->name, pSchema->name, tListLen(pColumn->name));
+  }
+}
+
 int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
 }
@@ -701,7 +715,7 @@ int32_t columnExists(SArray* pColumnList, int32_t columnId, uint64_t uid) {
   int32_t i = 0;
   while (i < numOfCols) {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if ((pCol->info.colId != columnId) || (pCol->tableUid != uid)) {
+    if ((pCol->info.colId != columnId) || (pCol->uid != uid)) {
       ++i;
       continue;
     } else {
@@ -716,64 +730,60 @@ int32_t columnExists(SArray* pColumnList, int32_t columnId, uint64_t uid) {
   return i;
 }
 
-SColumn* columnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema) {
+static int32_t doFindPosition(const SArray* pColumnList, uint64_t uid, const SSchema* pSchema) {
+  int32_t i = 0;
+
+  size_t numOfCols = taosArrayGetSize(pColumnList);
+  while (i < numOfCols) {
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+    if (pCol->uid < uid) {
+      i++;
+      continue;
+    }
+
+    if (pCol->info.colId < pSchema->colId) {
+      i++;
+      continue;
+    }
+
+    break;
+  }
+
+  return i;
+}
+
+SColumn* columnListInsert(SArray* pColumnList, uint64_t uid, SSchema* pSchema, int32_t flag) {
   // ignore the tbname columnIndex to be inserted into source list
-  if (columnIndex < 0) {
+  assert(pSchema != NULL && pColumnList != NULL);
+
+  int32_t  i = doFindPosition(pColumnList, uid, pSchema);
+  size_t size = taosArrayGetSize(pColumnList);
+  if (size > 0 && i < size) {
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+    if (pCol->uid == uid && pCol->info.colId == pSchema->colId) {
+      return pCol;
+    }
+  }
+
+  SColumn* b = calloc(1, sizeof(SColumn));
+  if (b == NULL) {
     return NULL;
   }
 
-  size_t numOfCols = taosArrayGetSize(pColumnList);
+  b->uid        = uid;
+  b->flag       = flag;
+  b->info.colId = pSchema->colId;
+  b->info.bytes = pSchema->bytes;
+  b->info.type  = pSchema->type;
+  tstrncpy(b->name, pSchema->name, tListLen(b->name));
 
-  int32_t i = 0;
-  while (i < numOfCols) {
-    SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if (pCol->columnIndex < columnIndex) {
-      i++;
-    } else if (pCol->tableUid < uid) {
-      i++;
-    } else {
-      break;
-    }
-  }
-
-  if (i >= numOfCols || numOfCols == 0) {
-    SColumn* b = calloc(1, sizeof(SColumn));
-    if (b == NULL) {
-      return NULL;
-    }
-
-    b->columnIndex = columnIndex;
-    b->tableUid    = uid;
-    b->info.colId  = pSchema->colId;
-    b->info.bytes  = pSchema->bytes;
-    b->info.type   = pSchema->type;
-
-    taosArrayInsert(pColumnList, i, &b);
-  } else {
-    SColumn* pCol = taosArrayGetP(pColumnList, i);
-
-    if (i < numOfCols && (pCol->columnIndex > columnIndex || pCol->tableUid != uid)) {
-      SColumn* b = calloc(1, sizeof(SColumn));
-      if (b == NULL) {
-        return NULL;
-      }
-
-      b->columnIndex = columnIndex;
-      b->tableUid    = uid;
-      b->info.colId = pSchema->colId;
-      b->info.bytes = pSchema->bytes;
-      b->info.type  = pSchema->type;
-
-      taosArrayInsert(pColumnList, i, &b);
-    }
-  }
-
-  return taosArrayGetP(pColumnList, i);
+  taosArrayInsert(pColumnList, i, &b);
+  return b;
 }
 
 SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid) {
   SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_ID};
-  return columnListInsert(pColumnList, PRIMARYKEY_TIMESTAMP_COL_ID, tableUid, &s);
+  return columnListInsert(pColumnList, tableUid, &s, TSDB_COL_NORMAL);
 }
 
 void columnCopy(SColumn* pDest, const SColumn* pSrc);
@@ -817,8 +827,7 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
 void columnCopy(SColumn* pDest, const SColumn* pSrc) {
   destroyFilterInfo(&pDest->info.flist);
 
-  pDest->columnIndex       = pSrc->columnIndex;
-  pDest->tableUid          = pSrc->tableUid;
+  pDest->uid = pSrc->uid;
   pDest->info.flist.numOfFilters = pSrc->info.flist.numOfFilters;
   pDest->info.flist.filterInfo   = tFilterInfoDup(pSrc->info.flist.filterInfo, pSrc->info.flist.numOfFilters);
   pDest->info.type        = pSrc->info.type;
@@ -844,7 +853,7 @@ void columnListCopy(SArray* dst, const SArray* src, uint64_t uid) {
   for (int32_t i = 0; i < num; ++i) {
     SColumn* pCol = taosArrayGetP(src, i);
 
-    if (pCol->tableUid == uid) {
+    if (pCol->uid == uid) {
       SColumn* p = columnClone(pCol);
       taosArrayPush(dst, &p);
     }

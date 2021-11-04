@@ -30,11 +30,12 @@ static void doInitFunctionHashTable() {
 
 static pthread_once_t functionHashTableInit = PTHREAD_ONCE_INIT;
 
-int32_t qIsBuiltinFunction(const char* name, int32_t len) {
+int32_t qIsBuiltinFunction(const char* name, int32_t len, bool* scalarFunction) {
   pthread_once(&functionHashTableInit, doInitFunctionHashTable);
 
   SAggFunctionInfo** pInfo = taosHashGet(functionHashTable, name, len);
   if (pInfo != NULL) {
+    *scalarFunction = ((*pInfo)->type == FUNCTION_TYPE_SCALAR);
     return (*pInfo)->functionId;
   } else {
     return -1;

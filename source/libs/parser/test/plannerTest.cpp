@@ -95,16 +95,16 @@ TEST(testCase, planner_test) {
   ASSERT_EQ(taosArrayGetSize(pExprList), 2);
 
   SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 1);
-  ASSERT_EQ(p1->base.uid, 110);
+  ASSERT_EQ(p1->base.pColumns->uid, 110);
   ASSERT_EQ(p1->base.numOfParams, 1);
   ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_STRCASEEQ(p1->base.resSchema.name, "top(a*b / 99, 20)");
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+  ASSERT_EQ(p1->base.pColumns->flag, TSDB_COL_NORMAL);
   ASSERT_STRCASEEQ(p1->base.token, "top(a*b / 99, 20)");
   ASSERT_EQ(p1->base.interBytes, 16);
 
-  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_UNARYEXPR_NODE);
-  ASSERT_EQ(p1->pExpr->_node.functionId, FUNCTION_TOP);
+  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_FUNCTION_NODE);
+  ASSERT_EQ(p1->pExpr->_function.functionId, FUNCTION_TOP);
   ASSERT_TRUE(p1->pExpr->_node.pRight == NULL);
 
   tExprNode* pParam = p1->pExpr->_node.pLeft;

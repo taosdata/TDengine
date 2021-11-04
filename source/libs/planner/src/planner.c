@@ -186,7 +186,7 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
 
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumn* pCol = taosArrayGetP(tableCols, i);
-      SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
+      SColumnIndex index = {.tableIndex = 0, /*.columnIndex = pCol->columnIndex*/};
 
       SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, i);
       SSchema resultSchema = *pSchema;

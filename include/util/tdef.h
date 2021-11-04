@@ -134,14 +134,14 @@ do { \
 #define TSDB_BINARY_OP_REMAINDER  4004
 #define TSDB_BINARY_OP_CONCAT     4005
 
-#define TSDB_UNARY_OP_CEIL        4500
-#define TSDB_UNARY_OP_FLOOR       4501
-#define TSDB_UNARY_OP_ABS         4502
-#define TSDB_UNARY_OP_ROUND       4503
+#define FUNCTION_CEIL        4500
+#define FUNCTION_FLOOR       4501
+#define FUNCTION_ABS         4502
+#define FUNCTION_ROUND       4503
 
-#define TSDB_UNARY_OP_LEN         4600
-#define TSDB_UNARY_OP_LTRIM       4601
-#define TSDB_UNARY_OP_RTRIM       4601
+#define FUNCTION_LENGTH      4800
+#define FUNCTION_LTRIM       4801
+#define FUNCTION_RTRIM       4802
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
