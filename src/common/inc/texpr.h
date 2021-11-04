@@ -114,6 +114,8 @@ typedef struct tExprNode {
       struct tExprNode** pChildren;
     } _func;
   };
+  int16_t resultType;
+  int16_t resultBytes;
 } tExprNode;
 
 typedef struct SExprTraverseSupp {
