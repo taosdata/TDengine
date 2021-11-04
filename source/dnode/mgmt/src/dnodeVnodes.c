@@ -45,27 +45,66 @@ typedef struct {
 } SVThread;
 
 static struct {
-  SHashObj   *hash;
-  SWorkerPool mgmtPool;
-  taos_queue  pMgmtQ;
-  SSteps     *pSteps;
-  int32_t     openVnodes;
-  int32_t     totalVnodes;
-  char        file[PATH_MAX + 20];
+  SHashObj    *hash;
+  SWorkerPool  mgmtPool;
+  SWorkerPool  queryPool;
+  SWorkerPool  fetchPool;
+  SMWorkerPool syncPool;
+  SMWorkerPool writePool;
+  taos_queue   pMgmtQ;
+  SSteps      *pSteps;
+  int32_t      openVnodes;
+  int32_t      totalVnodes;
+  char         file[PATH_MAX + 20];
 } tsVnodes;
+
+static int32_t dnodeAllocVnodeQueryQueue(SVnodeObj *pVnode);
+static void    dnodeFreeVnodeQueryQueue(SVnodeObj *pVnode);
+static int32_t dnodeAllocVnodeFetchQueue(SVnodeObj *pVnode);
+static void    dnodeFreeVnodeFetchQueue(SVnodeObj *pVnode);
+static int32_t dnodeAllocVnodeWriteQueue(SVnodeObj *pVnode);
+static void    dnodeFreeVnodeWriteQueue(SVnodeObj *pVnode);
+static int32_t dnodeAllocVnodeApplyQueue(SVnodeObj *pVnode);
+static void    dnodeFreeVnodeApplyQueue(SVnodeObj *pVnode);
+static int32_t dnodeAllocVnodeSyncQueue(SVnodeObj *pVnode);
+static void    dnodeFreeVnodeSyncQueue(SVnodeObj *pVnode);
 
 static int32_t dnodeCreateVnodeWrapper(int32_t vgId, SVnode *pImpl) {
   SVnodeObj *pVnode = calloc(1, sizeof(SVnodeObj));
+  if (pVnode == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+
   pVnode->vgId = vgId;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
   pVnode->pImpl = pImpl;
-  pVnode->pWriteQ = NULL;
-  pVnode->pSyncQ = NULL;
-  pVnode->pApplyQ = NULL;
-  pVnode->pQueryQ = NULL;
-  pVnode->pFetchQ = NULL;
+
+  int32_t code = dnodeAllocVnodeQueryQueue(pVnode);
+  if (code != 0) {
+    return code;
+  }
+
+  code = dnodeAllocVnodeFetchQueue(pVnode);
+  if (code != 0) {
+    return code;
+  }
+
+  code = dnodeAllocVnodeWriteQueue(pVnode);
+  if (code != 0) {
+    return code;
+  }
+
+  code = dnodeAllocVnodeApplyQueue(pVnode);
+  if (code != 0) {
+    return code;
+  }
+
+  code = dnodeAllocVnodeSyncQueue(pVnode);
+  if (code != 0) {
+    return code;
+  }
 
   return taosHashPut(tsVnodes.hash, &vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
 }
@@ -74,11 +113,11 @@ static void dnodeDropVnodeWrapper(SVnodeObj *pVnode) {
   taosHashRemove(tsVnodes.hash, &pVnode->vgId, sizeof(int32_t));
 
   //todo wait all queue empty
-  pVnode->pWriteQ = NULL;
-  pVnode->pSyncQ = NULL;
-  pVnode->pApplyQ = NULL;
-  pVnode->pQueryQ = NULL;
-  pVnode->pFetchQ = NULL;
+  dnodeFreeVnodeQueryQueue(pVnode);
+  dnodeFreeVnodeFetchQueue(pVnode);
+  dnodeFreeVnodeWriteQueue(pVnode);
+  dnodeFreeVnodeApplyQueue(pVnode);
+  dnodeFreeVnodeSyncQueue(pVnode);
 }
 
 static int32_t dnodeGetVnodesFromHash(SVnodeObj *pVnodes[], int32_t *numOfVnodes) {
@@ -465,7 +504,7 @@ static int32_t vnodeProcessCompactVnodeReq(SRpcMsg *rpcMsg) {
   return code;
 }
 
-static void dnodeProcessVnodeMgmtReq(SRpcMsg *pMsg, void *unused) {
+static void dnodeProcessVnodeMgmtQueue(void *unused, SRpcMsg *pMsg) {
   int32_t code = 0;
 
   switch (pMsg->msgType) {
@@ -498,7 +537,44 @@ static void dnodeProcessVnodeMgmtReq(SRpcMsg *pMsg, void *unused) {
   taosFreeQitem(pMsg);
 }
 
-static int32_t dnodeWriteToVnodeQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
+static void dnodeProcessVnodeQueryQueue(SVnodeObj *pVnode, SVnodeMsg *pMsg) {
+  vnodeProcessMsg(pVnode->pImpl, pMsg, VN_MSG_TYPE_QUERY);
+}
+
+static void dnodeProcessVnodeFetchQueue(SVnodeObj *pVnode, SVnodeMsg *pMsg) {
+  vnodeProcessMsg(pVnode->pImpl, pMsg, VN_MSG_TYPE_FETCH);
+}
+
+static void dnodeProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
+  SVnodeMsg *pMsg = vnodeInitMsg(numOfMsgs);
+  SRpcMsg   *pRpcMsg = NULL;
+
+  for (int32_t i = 0; i < numOfMsgs; ++i) {
+    taosGetQitem(qall, (void **)&pRpcMsg);
+    vnodeAppendMsg(pMsg, pRpcMsg);
+    taosFreeQitem(pRpcMsg);
+  }
+
+  vnodeProcessMsg(pVnode->pImpl, pMsg, VN_MSG_TYPE_WRITE);
+}
+
+static void dnodeProcessVnodeApplyQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
+  SVnodeMsg *pMsg = NULL;
+  for (int32_t i = 0; i < numOfMsgs; ++i) {
+    taosGetQitem(qall, (void **)&pMsg);
+    vnodeProcessMsg(pVnode->pImpl, pMsg, VN_MSG_TYPE_APPLY);
+  }
+}
+
+static void dnodeProcessVnodeSyncQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
+  SVnodeMsg *pMsg = NULL;
+  for (int32_t i = 0; i < numOfMsgs; ++i) {
+    taosGetQitem(qall, (void **)&pMsg);
+    vnodeProcessMsg(pVnode->pImpl, pMsg, VN_MSG_TYPE_SYNC);
+  }
+}
+
+static int32_t dnodeWriteRpcMsgToVnodeQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
   int32_t code = 0;
 
   if (pQueue == NULL) {
@@ -509,6 +585,28 @@ static int32_t dnodeWriteToVnodeQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
       code = TSDB_CODE_DND_OUT_OF_MEMORY;
     } else {
       *pMsg = *pRpcMsg;
+      code = taosWriteQitem(pQueue, pMsg);
+    }
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = code};
+    rpcSendResponse(&rsp);
+    rpcFreeCont(pRpcMsg->pCont);
+  }
+}
+
+static int32_t dnodeWriteVnodeMsgToVnodeQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
+  int32_t code = 0;
+
+  if (pQueue == NULL) {
+    code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
+  } else {
+    SVnodeMsg *pMsg = vnodeInitMsg(1);
+    if (pMsg == NULL) {
+      code = TSDB_CODE_DND_OUT_OF_MEMORY;
+    } else {
+      vnodeAppendMsg(pMsg, pRpcMsg);
       code = taosWriteQitem(pQueue, pMsg);
     }
   }
@@ -534,12 +632,12 @@ static SVnodeObj *dnodeAcquireVnodeFromMsg(SRpcMsg *pMsg) {
   return pVnode;
 }
 
-void dnodeProcessVnodeMgmtMsg(SRpcMsg *pMsg, SEpSet *pEpSet) { dnodeWriteToVnodeQueue(tsVnodes.pMgmtQ, pMsg); }
+void dnodeProcessVnodeMgmtMsg(SRpcMsg *pMsg, SEpSet *pEpSet) { dnodeWriteRpcMsgToVnodeQueue(tsVnodes.pMgmtQ, pMsg); }
 
 void dnodeProcessVnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dnodeAcquireVnodeFromMsg(pMsg);
   if (pVnode != NULL) {
-    dnodeWriteToVnodeQueue(pVnode->pWriteQ, pMsg);
+    dnodeWriteRpcMsgToVnodeQueue(pVnode->pWriteQ, pMsg);
     dnodeReleaseVnode(pVnode);
   }
 }
@@ -547,7 +645,7 @@ void dnodeProcessVnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dnodeProcessVnodeSyncMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dnodeAcquireVnodeFromMsg(pMsg);
   if (pVnode != NULL) {
-    dnodeWriteToVnodeQueue(pVnode->pSyncQ, pMsg);
+    dnodeWriteVnodeMsgToVnodeQueue(pVnode->pSyncQ, pMsg);
     dnodeReleaseVnode(pVnode);
   }
 }
@@ -555,7 +653,7 @@ void dnodeProcessVnodeSyncMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dnodeProcessVnodeQueryMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dnodeAcquireVnodeFromMsg(pMsg);
   if (pVnode != NULL) {
-    dnodeWriteToVnodeQueue(pVnode->pQueryQ, pMsg);
+    dnodeWriteVnodeMsgToVnodeQueue(pVnode->pQueryQ, pMsg);
     dnodeReleaseVnode(pVnode);
   }
 }
@@ -563,7 +661,7 @@ void dnodeProcessVnodeQueryMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dnodeProcessVnodeFetchMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dnodeAcquireVnodeFromMsg(pMsg);
   if (pVnode != NULL) {
-    dnodeWriteToVnodeQueue(pVnode->pFetchQ, pMsg);
+    dnodeWriteVnodeMsgToVnodeQueue(pVnode->pFetchQ, pMsg);
     dnodeReleaseVnode(pVnode);
   }
 }
@@ -577,7 +675,7 @@ static int32_t dnodeInitVnodeMgmtWorker() {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  tsVnodes.pMgmtQ = tWorkerAllocQueue(pPool, NULL, (FProcessItem)dnodeProcessVnodeMgmtReq);
+  tsVnodes.pMgmtQ = tWorkerAllocQueue(pPool, NULL, (FProcessItem)dnodeProcessVnodeMgmtQueue);
   if (tsVnodes.pMgmtQ == NULL) {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
@@ -591,12 +689,137 @@ static void dnodeCleanupVnodeMgmtWorker() {
   tsVnodes.pMgmtQ = NULL;
 }
 
+static int32_t dnodeAllocVnodeQueryQueue(SVnodeObj *pVnode) {
+  pVnode->pQueryQ = tWorkerAllocQueue(&tsVnodes.queryPool, pVnode, (FProcessItem)dnodeProcessVnodeQueryQueue);
+  if (pVnode->pQueryQ == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void dnodeFreeVnodeQueryQueue(SVnodeObj *pVnode) {
+  tWorkerFreeQueue(&tsVnodes.queryPool, pVnode->pQueryQ);
+  pVnode->pQueryQ = NULL;
+}
+
+static int32_t dnodeAllocVnodeFetchQueue(SVnodeObj *pVnode) {
+  pVnode->pFetchQ = tWorkerAllocQueue(&tsVnodes.fetchPool, pVnode, (FProcessItem)dnodeProcessVnodeFetchQueue);
+  if (pVnode->pFetchQ == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void dnodeFreeVnodeFetchQueue(SVnodeObj *pVnode) {
+  tWorkerFreeQueue(&tsVnodes.fetchPool, pVnode->pFetchQ);
+  pVnode->pFetchQ = NULL;
+}
+
+static int32_t dnodeInitVnodeReadWorker() {
+  int32_t maxFetchThreads = 4;
+  float   threadsForQuery = MAX(tsNumOfCores * tsRatioOfQueryCores, 1);
+
+  SWorkerPool *pPool = &tsVnodes.queryPool;
+  pPool->name = "vnode-query";
+  pPool->min = (int32_t)threadsForQuery;
+  pPool->max = pPool->min;
+  if (tWorkerInit(pPool) != 0) {
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
+  }
+
+  pPool = &tsVnodes.fetchPool;
+  pPool->name = "vnode-fetch";
+  pPool->min = MIN(maxFetchThreads, tsNumOfCores);
+  pPool->max = pPool->min;
+  if (tWorkerInit(pPool) != 0) {
+    TSDB_CODE_VND_OUT_OF_MEMORY;
+  }
+
+  return 0;
+}
+
+static void dnodeCleanupVnodeReadWorker() {
+  tWorkerCleanup(&tsVnodes.fetchPool);
+  tWorkerCleanup(&tsVnodes.queryPool);
+}
+
+static int32_t dnodeAllocVnodeWriteQueue(SVnodeObj *pVnode) {
+  pVnode->pWriteQ = tMWorkerAllocQueue(&tsVnodes.writePool, pVnode, (FProcessItems)dnodeProcessVnodeWriteQueue);
+  if (pVnode->pWriteQ == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void dnodeFreeVnodeWriteQueue(SVnodeObj *pVnode) {
+  tMWorkerFreeQueue(&tsVnodes.writePool, pVnode->pWriteQ);
+  pVnode->pWriteQ = NULL;
+}
+
+static int32_t dnodeAllocVnodeApplyQueue(SVnodeObj *pVnode) {
+  pVnode->pApplyQ = tMWorkerAllocQueue(&tsVnodes.writePool, pVnode, (FProcessItems)dnodeProcessVnodeApplyQueue);
+  if (pVnode->pApplyQ == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void dnodeFreeVnodeApplyQueue(SVnodeObj *pVnode) {
+  tMWorkerFreeQueue(&tsVnodes.writePool, pVnode->pApplyQ);
+  pVnode->pApplyQ = NULL;
+}
+
+static int32_t dnodeInitVnodeWriteWorker() {
+  SMWorkerPool *pPool = &tsVnodes.writePool;
+  pPool->name = "vnode-write";
+  pPool->max = tsNumOfCores;
+  if (tMWorkerInit(pPool) != 0) {
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
+  }
+
+  return 0;
+}
+
+static void dnodeCleanupVnodeWriteWorker() { tMWorkerCleanup(&tsVnodes.writePool); }
+
+static int32_t dnodeAllocVnodeSyncQueue(SVnodeObj *pVnode) {
+  pVnode->pSyncQ = tMWorkerAllocQueue(&tsVnodes.writePool, pVnode, (FProcessItems)dnodeProcessVnodeSyncQueue);
+  if (pVnode->pSyncQ == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void dnodeFreeVnodeSyncQueue(SVnodeObj *pVnode) {
+  tMWorkerFreeQueue(&tsVnodes.writePool, pVnode->pSyncQ);
+  pVnode->pSyncQ = NULL;
+}
+
+static int32_t dnodeInitVnodeSyncWorker() {
+  int32_t maxThreads = tsNumOfCores / 2;
+  if (maxThreads < 1) maxThreads = 1;
+
+  SMWorkerPool *pPool = &tsVnodes.writePool;
+  pPool->name = "vnode-sync";
+  pPool->max = maxThreads;
+  if (tMWorkerInit(pPool) != 0) {
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
+  }
+
+  return 0;
+}
+
+static void dnodeCleanupVnodeSyncWorker() { tMWorkerCleanup(&tsVnodes.syncPool); }
+
 int32_t dnodeInitVnodes() {
   dInfo("dnode-vnodes start to init");
 
   SSteps *pSteps = taosStepInit(3, dnodeReportStartup);
   taosStepAdd(pSteps, "dnode-vnode-env", vnodeInit, vnodeCleanup);
   taosStepAdd(pSteps, "dnode-vnode-mgmt", dnodeInitVnodeMgmtWorker, dnodeCleanupVnodeMgmtWorker);
+  taosStepAdd(pSteps, "dnode-vnode-read", dnodeInitVnodeReadWorker, dnodeCleanupVnodeReadWorker);
+  taosStepAdd(pSteps, "dnode-vnode-write", dnodeInitVnodeWriteWorker, dnodeCleanupVnodeWriteWorker);
+  taosStepAdd(pSteps, "dnode-vnode-sync", dnodeInitVnodeSyncWorker, dnodeCleanupVnodeSyncWorker);
   taosStepAdd(pSteps, "dnode-vnodes", dnodeOpenVnodes, dnodeCleanupVnodes);
 
   tsVnodes.pSteps = pSteps;
@@ -612,24 +835,26 @@ void dnodeCleanupVnodes() {
   }
 }
 
-void dnodeGetVnodes(SVnodeLoads *pLoads) {
-  pLoads->vnodeNum = taosHashGetSize(tsVnodes.hash);
+void dnodeGetVnodeLoads(SVnodeLoads *pLoads) {
+  pLoads->num = taosHashGetSize(tsVnodes.hash);
 
   int32_t v = 0;
   void   *pIter = taosHashIterate(tsVnodes.hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL) continue;
+
     SVnodeObj *pVnode = *ppVnode;
-    if (pVnode) {
-      SVnodeLoad *pLoad = &pLoads->vnodeLoads[v++];
-      vnodeGetLoad(pVnode->pImpl, pLoad);
-      pLoad->vgId = htonl(pLoad->vgId);
-      pLoad->totalStorage = htobe64(pLoad->totalStorage);
-      pLoad->compStorage = htobe64(pLoad->compStorage);
-      pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
-      pLoad->tablesNum = htobe64(pLoad->tablesNum);
-    }
+    if (pVnode == NULL) continue;
+
+    SVnodeLoad *pLoad = &pLoads->data[v++];
+    vnodeGetLoad(pVnode->pImpl, pLoad);
+    pLoad->vgId = htonl(pLoad->vgId);
+    pLoad->totalStorage = htobe64(pLoad->totalStorage);
+    pLoad->compStorage = htobe64(pLoad->compStorage);
+    pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
+    pLoad->tablesNum = htobe64(pLoad->tablesNum);
+
     pIter = taosHashIterate(tsVnodes.hash, pIter);
   }
 }

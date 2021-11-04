@@ -655,8 +655,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t    vnodeNum;
-  SVnodeLoad vnodeLoads[];
+  int32_t    num;
+  SVnodeLoad data[];
 } SVnodeLoads;
 
 typedef struct SStatusMsg {

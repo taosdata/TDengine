@@ -47,12 +47,18 @@ typedef struct {
   SVnodeDesc replicas[TSDB_MAX_REPLICA];
 } SVnodeCfg;
 
+typedef enum {
+  VN_MSG_TYPE_WRITE = 1,
+  VN_MSG_TYPE_APPLY,
+  VN_MSG_TYPE_SYNC,
+  VN_MSG_TYPE_QUERY,
+  VN_MSG_TYPE_FETCH
+} EVMType;
+
 typedef struct SVnodeMsg {
-  int32_t msgType;
-  int32_t code;
-  SRpcMsg rpcMsg;  // original message from rpc
-  int32_t contLen;
-  char    pCont[];
+  int32_t curNum;
+  int32_t allocNum;
+  SRpcMsg rpcMsg[];
 } SVnodeMsg;
 
 int32_t vnodeInit();
@@ -67,7 +73,11 @@ int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 
 void vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
-void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg);
+
+SVnodeMsg *vnodeInitMsg(int32_t msgNum);
+int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
+void       vnodeCleanupMsg(SVnodeMsg *pMsg);
+void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVMType msgType);
 
 #ifdef __cplusplus
 }

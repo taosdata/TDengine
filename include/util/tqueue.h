@@ -40,8 +40,8 @@ shall be used to set up the protection.
 typedef void *taos_queue;
 typedef void *taos_qset;
 typedef void *taos_qall;
-typedef void *(*FProcessItem)(void *pItem, void *ahandle);
-typedef void *(*FProcessItems)(taos_qall qall, int numOfItems, void *ahandle);
+typedef void (*FProcessItem)(void *ahandle, void *pItem);
+typedef void (*FProcessItems)(void *ahandle, taos_qall qall, int numOfItems);
 
 taos_queue taosOpenQueue();
 void       taosCloseQueue(taos_queue);
