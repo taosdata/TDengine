@@ -4336,9 +4336,6 @@ static int32_t validateSQLExprSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
                                          SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t *uid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t functionId = isValidFunction(pExpr->Expr.operand.z, pExpr->Expr.operand.n);
-  if (functionId < 0) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
   if (*type == NON_ARITHMEIC_EXPR) {
     if (TSDB_FUNC_IS_SCALAR(functionId)) {
       *type = NORMAL_ARITHMETIC;
@@ -4352,24 +4349,30 @@ static int32_t validateSQLExprSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
   }
 
   pExpr->functionId = functionId;
-  size_t numChilds = taosArrayGetSize(pExpr->Expr.paramList);
-  for (int i = 0; i < numChilds; ++i) {
-    tSqlExprItem* pParamElem= taosArrayGet(pExpr->Expr.paramList, i);
-    if (!TSDB_FUNC_IS_SCALAR(functionId) &&
-        (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION))  {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-    code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+  if (pExpr->Expr.paramList != NULL) {
+    size_t numChildren = taosArrayGetSize(pExpr->Expr.paramList);
+    for (int32_t i = 0; i < numChildren; ++i) {
+      tSqlExprItem* pParamElem = taosArrayGet(pExpr->Expr.paramList, i);
+      if (!TSDB_FUNC_IS_SCALAR(functionId) &&
+          (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
   if (!TSDB_FUNC_IS_SCALAR(functionId)) {
-    for (int i = 0; i < numChilds; ++i) {
-      tSqlExprItem* pParamElem = taosArrayGet(pExpr->Expr.paramList, i);
-      if (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+    if (pExpr->Expr.paramList != NULL)
+    {
+      size_t numChildren = taosArrayGetSize(pExpr->Expr.paramList);
+      for (int32_t i = 0; i < numChildren; ++i) {
+        tSqlExprItem* pParamElem = taosArrayGet(pExpr->Expr.paramList, i);
+        if (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
     }
 
