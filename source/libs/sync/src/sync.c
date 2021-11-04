@@ -23,8 +23,8 @@ SSyncManager* gSyncManager = NULL;
 #define SYNC_ACTIVITY_TIMER 5
 #define SYNC_SERVER_WORKER 2
 
-static void syncProcessRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
-static void syncProcessReqMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
+static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet);
+static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 
 static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyncCfg);
 static int syncInitRpcClient(SSyncManager* syncManager);
@@ -168,12 +168,12 @@ int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, b
 void syncReconfig(const SSyncNode* pNode, const SSyncCluster* pCfg) {}
 
 // process rpc rsp message from other sync server
-static void syncProcessRsp(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 }
 
 // process rpc message from other sync server
-static void syncProcessReqMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 }
 
