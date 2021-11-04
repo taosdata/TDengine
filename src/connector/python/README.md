@@ -5,14 +5,16 @@
 
 ## Install
 
+You can use pip to install from github or pypi:
+
 ```sh
-git clone --depth 1 https://github.com/taosdata/TDengine.git
-pip install ./TDengine/src/connector/python
+pip install git+https://github.com/taosdata/taos-connector-python.git
+pip install taospy
 ```
 
 ## Source Code
 
-[TDengine](https://github.com/taosdata/TDengine) connector for Python source code is hosted on [GitHub](https://github.com/taosdata/TDengine/tree/develop/src/connector/python).
+[TDengine](https://github.com/taosdata/TDengine) connector for Python source code is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
 ## Examples
 
