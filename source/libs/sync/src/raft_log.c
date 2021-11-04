@@ -27,6 +27,10 @@ SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog) {
   return 0;
 }
 
+bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term) {
+  return true;
+}
+
 int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog) {
   return 0;
 }

@@ -20,10 +20,13 @@
 #include "sync_type.h"
 
 /** 
- * below define message type which handled by Raft node thread
- * internal message, which communicate in threads, start with RAFT_MSG_INTERNAL_*,
- * internal message use pointer only, need not to be decode/encode
- * outter message start with RAFT_MSG_*, need to implement its decode/encode functions
+ * below define message type which handled by Raft.
+ * 
+ * internal message, which communicate between threads, start with RAFT_MSG_INTERNAL_*.
+ * internal message use pointer only and stack memory, need not to be decode/encode and free.
+ * 
+ * outter message start with RAFT_MSG_*, which communicate between cluster peers,
+ * need to implement its decode/encode functions.
  **/
 typedef enum RaftMessageType {
   // client propose a cmd
@@ -36,6 +39,7 @@ typedef enum RaftMessageType {
   RAFT_MSG_VOTE_RESP = 4,
 
   RAFT_MSG_APPEND = 5,
+  RAFT_MSG_APPEND_RESP = 6,
 } RaftMessageType;
 
 typedef struct RaftMsgInternal_Prop {
@@ -55,7 +59,7 @@ typedef struct RaftMsg_Vote {
 } RaftMsg_Vote;
 
 typedef struct RaftMsg_VoteResp {
-  bool reject;
+  bool rejected;
   SyncRaftElectionType cType;
 } RaftMsg_VoteResp;
 
@@ -115,10 +119,31 @@ static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId
     .from = from,
     .to = to,
     .term = term,
+    .msgType = RAFT_MSG_VOTE,
     .vote = (RaftMsg_Vote) {
       .cType = cType,
       .lastIndex = lastIndex,
       .lastTerm = lastTerm,
+    },
+  };
+
+  return pMsg;
+}
+
+static FORCE_INLINE SSyncMessage* syncNewVoteRespMsg(SyncGroupId groupId, SyncNodeId from, SyncNodeId to,
+                                                  SyncRaftElectionType cType, bool rejected) {
+  SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+  *pMsg = (SSyncMessage) {
+    .groupId = groupId,
+    .from = from,
+    .to = to,
+    .msgType = RAFT_MSG_VOTE_RESP,
+    .voteResp = (RaftMsg_VoteResp) {
+      .cType = cType,
+      .rejected = rejected,
     },
   };
 
@@ -142,6 +167,7 @@ void syncFreeMessage(const SSyncMessage* pMsg);
 
 // message handlers
 int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */

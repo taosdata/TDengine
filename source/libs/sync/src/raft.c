@@ -107,7 +107,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   if (msgType == RAFT_MSG_INTERNAL_ELECTION) {
     syncRaftHandleElectionMessage(pRaft, pMsg);
   } else if (msgType == RAFT_MSG_VOTE) {
-
+    syncRaftHandleVoteMessage(pRaft, pMsg);
   } else {
     pRaft->stepFp(pRaft, pMsg);
   }
@@ -245,7 +245,7 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 
   if (syncIsPreVoteMsg(pMsg)) {
     // Never change our term in response to a PreVote
-  } else if (syncIsPreVoteRespMsg(pMsg) && !pMsg->voteResp.reject) {
+  } else if (syncIsPreVoteRespMsg(pMsg) && !pMsg->voteResp.rejected) {
 		/**
      * We send pre-vote requests with a term in our future. If the
 		 * pre-vote is granted, we will increment our term when we get a

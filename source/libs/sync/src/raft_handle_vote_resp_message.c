@@ -35,7 +35,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   granted = syncRaftNumOfGranted(pRaft, pMsg->from, 
                                 pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION,
-                                !pMsg->voteResp.reject, &rejected);
+                                !pMsg->voteResp.rejected, &rejected);
   quorum = syncRaftQuorum(pRaft);
 
   syncInfo("[%d:%d] [quorum:%d] has received %d votes and %d vote rejections",

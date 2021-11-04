@@ -35,6 +35,8 @@ SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog);
 
 SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog);
 
+bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
+
 int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
 
 bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog);

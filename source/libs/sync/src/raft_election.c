@@ -15,6 +15,7 @@
 
 #include "syncInt.h"
 #include "raft.h"
+#include "raft_log.h"
 #include "raft_message.h"
 
 void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
@@ -66,7 +67,7 @@ void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
       continue;
     }
 
-    syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %d] sent %d request to %d at term %" PRId64 "", 
+    syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %" PRId64 "] sent %d request to %d at term %" PRId64 "", 
       pRaft->selfGroupId, pRaft->selfId, lastTerm, 
       lastIndex, voteMsgType, nodeId, pRaft->term);
 

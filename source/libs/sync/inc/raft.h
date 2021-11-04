@@ -38,6 +38,7 @@ typedef struct RaftCandidateState {
 } RaftCandidateState;
 
 typedef struct SSyncRaftIOMethods {
+  // send SSyncMessage to node
   int (*send)(const SSyncMessage* pMsg, const SNodeInfo* pNode);
 } SSyncRaftIOMethods;
 
@@ -104,6 +105,7 @@ struct SSyncRaft {
 
   SSyncRaftIOMethods io;
 
+  // union different state data
   union {
     RaftLeaderState leaderState;
     RaftCandidateState candidateState;
