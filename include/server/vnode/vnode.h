@@ -53,7 +53,7 @@ typedef enum {
   VN_MSG_TYPE_SYNC,
   VN_MSG_TYPE_QUERY,
   VN_MSG_TYPE_FETCH
-} EVMType;
+} EVnMsgType;
 
 typedef struct {
   int32_t curNum;
@@ -83,7 +83,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 SVnodeMsg *vnodeInitMsg(int32_t msgNum);
 int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
 void       vnodeCleanupMsg(SVnodeMsg *pMsg);
-void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVMType msgType);
+void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType);
 
 #ifdef __cplusplus
 }

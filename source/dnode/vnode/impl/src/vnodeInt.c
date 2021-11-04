@@ -56,7 +56,7 @@ void vnodeCleanupMsg(SVnodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVMType msgType) {
+void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType) {
   switch (msgType) {
     case VN_MSG_TYPE_WRITE:
       break;
