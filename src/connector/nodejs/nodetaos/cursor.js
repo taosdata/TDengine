@@ -4,6 +4,8 @@ const CTaosInterface = require('./cinterface')
 const errors = require('./error')
 const TaosQuery = require('./taosquery')
 const { PerformanceObserver, performance } = require('perf_hooks');
+const { errno } = require('ffi-napi');
+const { Console } = require('console');
 module.exports = TDengineCursor;
 
 /**
@@ -211,7 +213,7 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
     }
 
   }
-  
+
   performance.mark('B');
   performance.measure('query', 'A', 'B');
   let response = this._createSetResponse(this._rowcount, time)
@@ -473,4 +475,23 @@ TDengineCursor.prototype.openStream = function openStream(sql, callback, stime =
  */
 TDengineCursor.prototype.closeStream = function closeStream(stream) {
   this._chandle.closeStream(stream);
+}
+/**
+ * schemaless insert 
+ * @param {*} lines 
+ * @param {*} numOfLines 
+ * @param {*} protocal 
+ * @param {*} precision 
+ * @returns int 
+ */
+TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, numOfLines, protocal, precision) {
+  this._result = this._chandle.schemalessInsert(this._connection._conn, lines, numOfLines, protocal, precision);
+  let errorNo  = this._chandle.errno(this._result);
+  if ( errorNo == 0) {
+    console.log("schemalessInsert success");
+  }
+  else {
+    throw new errors.InterfaceError(errorNo+":"+this._chandle.errStr(this._result));
+  }
+  _reset_result.close();
 }
