@@ -53,7 +53,7 @@ typedef struct {
 
 // normal table options
 typedef struct {
-  SSchema* pSchame;
+  STSchema* pSchame;
 } SNTbOptions;
 
 struct STbOptions {
