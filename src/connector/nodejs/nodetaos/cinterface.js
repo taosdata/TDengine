@@ -6,6 +6,7 @@
 const ref = require('ref-napi');
 const os = require('os');
 const ffi = require('ffi-napi');
+const _ = require('lodash');
 const ArrayType = require('ref-array-napi');
 const Struct = require('ref-struct-napi');
 const FieldTypes = require('./constants');
@@ -13,6 +14,9 @@ const errors = require('./error');
 const TaosObjects = require('./taosobjects');
 const { NULL_POINTER } = require('ref-napi');
 const { Console } = require('console');
+
+
+var LineArray = ArrayType(ref.coerceType('char *'));
 
 module.exports = CTaosInterface;
 
@@ -307,7 +311,7 @@ function CTaosInterface(config = null, pass = false) {
 
     //Schemaless insert 
     //TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol，int precision)
-    'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.int, ref.types.int, ref.types.int]]
+    'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, LineArray, ref.types.int, ref.types.int, ref.types.int]]
     // 'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, 'int', 'int', 'int']]
 
   });
@@ -679,43 +683,26 @@ CTaosInterface.prototype.closeStream = function closeStream(stream) {
  * @param {*} connection a valid database connection
  * @param {*} lines string data, which statisfied with line proctocol
  * @param {*} numLines number of rows in param lines.
- * @param {*} protocal Line protocol, enum type (0,1,2,3),indicate different line protocol
+ * @param {*} protocol Line protocol, enum type (0,1,2,3),indicate different line protocol
  * @param {*} precision timestamp precision in lines, enum type (0,1,2,3,4,5,6)
  * @returns TAOS_RES 
  * 
  */
-CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection, lines, numLines, protocal, precision) {
-  try {
-    _lines = ref.allocCString(lines);
-    // console.log(ref.readCString(_lines));
+CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection, lines, protocol, precision) {
+  let _numLines = null;
+  let _lines = null;
+  if (_.isString(lines)) {
+    _numLines = 1;
+    _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
+    ref.set(_lines, 0, ref.allocCString(lines), ref.types.char_ptr);
+  } else if (_.isArray(lines)) {
+    _numLines = lines.length;
+    _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
+    for (let i = 0; i < _numLines; i++) {
+      ref.set(_lines, i * ref.sizeof.pointer, ref.allocCString(lines[i]), ref.types.char_ptr);
+    }
+  } else {
+    throw errors.InterfaceError("unsupported lines input");
   }
-  catch (err) {
-    throw "Attribute Error: lines is expected as a strArr or str";
-  }
-  try {
-    _numLines = ref.alloc(ref.types.int, numLines);
-    console.log(_numLines)
-  }
-  catch (err) {
-    throw TypeError("numLines is expected as an int");
-  }
-  try {
-
-    _protocal = ref.alloc(ref.types.int, protocal);
-    console.log(_protocal);
-  }
-  catch (err) {
-    throw TypeError("protocal is expected as an int");
-  }
-  try {
-    _precision = ref.alloc(ref.types.int, precision);
-    console.log(_precision);
-  }
-  catch (err) {
-    throw TypeError("precision is expected as an int");
-  }
-  return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, _protocal, _precision);
-  var buf =ref.alloc('int');
-  buf.writeInt32LE(protocal);
-  // return this.libtaos.taos_schemaless_insert(connection, _lines, numLines, buf, precision);
+  return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, protocol, precision);
 }

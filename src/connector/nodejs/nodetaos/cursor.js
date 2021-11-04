@@ -480,18 +480,17 @@ TDengineCursor.prototype.closeStream = function closeStream(stream) {
  * schemaless insert 
  * @param {*} lines 
  * @param {*} numOfLines 
- * @param {*} protocal 
+ * @param {*} protocol 
  * @param {*} precision 
  * @returns int 
  */
-TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, numOfLines, protocal, precision) {
-  this._result = this._chandle.schemalessInsert(this._connection._conn, lines, numOfLines, protocal, precision);
+TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, protocol, precision) {
+  this._result = this._chandle.schemalessInsert(this._connection._conn, lines, protocol, precision);
   let errorNo  = this._chandle.errno(this._result);
-  if ( errorNo == 0) {
-    console.log("schemalessInsert success");
+  if ( errorNo !== 0) {
+    errStr = this._chandle.errStr(this._result);
+    this._chandle.freeResult(this._result)
+    throw new errors.InterfaceError((errorNo & 0xffff) +": "+errStr);
   }
-  else {
-    throw new errors.InterfaceError(errorNo+":"+this._chandle.errStr(this._result));
-  }
-  _reset_result.close();
+  this._chandle.freeResult(this._result)
 }
