@@ -215,6 +215,25 @@ class TDTestCase:
         tdSql.checkData(0, 0, 5000000)
 
 
+        # insert:  sample json
+        os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insert-sample-ts-stmt.json -y " % binPath)
+        tdSql.execute("use dbtest123")
+        tdSql.query("select c2 from stb0")
+        tdSql.checkData(0, 0, 2147483647)
+        tdSql.query("select c0 from stb0_0 order by ts")
+        tdSql.checkData(3, 0, 4)
+        tdSql.query("select count(*) from stb0 order by ts")
+        tdSql.checkData(0, 0, 40)
+        tdSql.query("select * from stb0_1 order by ts")
+        tdSql.checkData(0, 0, '2021-10-28 15:34:44.735')
+        tdSql.checkData(3, 0, '2021-10-31 15:34:44.735')
+        tdSql.query("select * from stb1 where t1=-127")
+        tdSql.checkRows(20)
+        tdSql.query("select * from stb1 where t2=127")
+        tdSql.checkRows(10)
+        tdSql.query("select * from stb1 where t2=126")
+        tdSql.checkRows(10)
+
         # insert: timestamp and step 
         os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insert-timestep-stmt.json -y " % binPath)
         tdSql.execute("use db")

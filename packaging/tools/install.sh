@@ -303,7 +303,7 @@ function add_newHostname_to_hosts() {
   iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
   arr=($iphost)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
     if [[ "$s" == "$localIp" ]]; then
       return
@@ -358,7 +358,7 @@ function is_correct_ipaddr() {
   IFS=" "
   arr=($iplist)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
    if [[ "$s" == "$newIp" ]]; then
      return 0
