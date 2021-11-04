@@ -212,7 +212,8 @@ function install_jemalloc() {
         fi
         if [ -f "${binary_dir}/build/include/jemalloc/jemalloc.h" ]; then
             /usr/bin/install -c -d /usr/local/include/jemalloc
-            /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+            /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h\
+                /usr/local/include/jemalloc
         fi
         if [ -f "${binary_dir}/build/lib/libjemalloc.so.2" ]; then
             /usr/bin/install -c -d /usr/local/lib
@@ -225,23 +226,47 @@ function install_jemalloc() {
                 /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
             if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
                 /usr/bin/install -c -d /usr/local/lib/pkgconfig
-                /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+                /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc\
+                    /usr/local/lib/pkgconfig
+            fi
+            if [ -d /etc/ld.so.conf.d ]; then
+                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
+                ${csudo} ldconfig
+            else
+                echo "/etc/ld.so.conf.d not found!"
             fi
         fi
         if [ -f "${binary_dir}/build/share/doc/jemalloc/jemalloc.html" ]; then
             /usr/bin/install -c -d /usr/local/share/doc/jemalloc
-            /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+            /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html\
+                /usr/local/share/doc/jemalloc
         fi
         if [ -f "${binary_dir}/build/share/man/man3/jemalloc.3" ]; then
             /usr/bin/install -c -d /usr/local/share/man/man3
-            /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+            /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3\
+                /usr/local/share/man/man3
         fi
 
-        if [ -d /etc/ld.so.conf.d ]; then
-            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
-            ${csudo} ldconfig
-        else
-            echo "/etc/ld.so.conf.d not found!"
+    fi
+}
+
+function install_avro() {
+    if [ "$osType" != "Darwin" ]; then
+        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ]; then
+            /usr/bin/install -c -d /usr/local/$1
+            /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
+            ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+            ln -sf libavro.so.23 /usr/local/$1/libavro.so
+            /usr/bin/install -c -d /usr/local/$1
+            [ -f ${binary_dir}/build/$1/libavro.a ] &&
+                /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
+
+            if [ -d /etc/ld.so.conf.d ]; then
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf
+                ${csudo} ldconfig
+            else
+                echo "/etc/ld.so.conf.d not found!"
+            fi
         fi
     fi
 }
@@ -292,6 +317,8 @@ function install_lib() {
     fi
 
     install_jemalloc
+    install_avro lib
+    install_avro lib64
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ldconfig
@@ -381,11 +408,6 @@ function install_data() {
 }
 
 function install_connector() {
-    if [ -d "${source_dir}/src/connector/grafanaplugin/dist" ]; then
-        ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin/dist ${install_main_dir}/connector/grafanaplugin
-    else
-        echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-    fi
     if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
         ${csudo} cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector
     else
