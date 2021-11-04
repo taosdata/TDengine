@@ -47,10 +47,19 @@ class TqMetaTest : public ::testing::Test {
     const char* pathName = "/tmp/tq_test";
 };
 
+TEST_F(TqMetaTest, copyPutTest) {
+  Foo foo;
+  foo.a = 3;
+  tqHandleCopyPut(pMeta, 1, &foo, sizeof(Foo));
+
+  Foo* pFoo = (Foo*) tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo == NULL, true);
+}
+
 TEST_F(TqMetaTest, persistTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 2;
-  tqHandlePut(pMeta, 1, pFoo);
+  tqHandleMovePut(pMeta, 1, pFoo);
   Foo* pBar = (Foo*)tqHandleGet(pMeta, 1);
   EXPECT_EQ(pBar == NULL, true);
   tqHandleCommit(pMeta, 1);
@@ -77,7 +86,7 @@ TEST_F(TqMetaTest, persistTest) {
 TEST_F(TqMetaTest, uncommittedTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 3;
-  tqHandlePut(pMeta, 1, pFoo);
+  tqHandleMovePut(pMeta, 1, pFoo);
 
   pFoo = (Foo*) tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo == NULL, true);
@@ -86,7 +95,7 @@ TEST_F(TqMetaTest, uncommittedTest) {
 TEST_F(TqMetaTest, abortTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 3;
-  tqHandlePut(pMeta, 1, pFoo);
+  tqHandleMovePut(pMeta, 1, pFoo);
 
   pFoo = (Foo*) tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo == NULL, true);

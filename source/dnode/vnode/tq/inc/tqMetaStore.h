@@ -60,6 +60,7 @@ typedef struct TqMetaStore {
   TqMetaList* unpersistHead;
   int fileFd; //TODO:temporaral use, to be replaced by unified tfile
   int idxFd;  //TODO:temporaral use, to be replaced by unified tfile
+  char* dirPath;
   int (*serializer)(const void* pObj, void** ppBytes);
   const void* (*deserializer)(const void* pBytes, void** ppObj);
   void  (*deleter)(void*);
@@ -75,7 +76,8 @@ int32_t       tqStoreClose(TqMetaStore*);
 int32_t       tqStorePersist(TqMetaStore*);
 
 void*   tqHandleGet(TqMetaStore*, int64_t key);
-int32_t tqHandlePut(TqMetaStore*, int64_t key, void* value);
+int32_t tqHandleMovePut(TqMetaStore*, int64_t key, void* value);
+int32_t tqHandleCopyPut(TqMetaStore*, int64_t key, void* value, size_t vsize);
 //do commit
 int32_t tqHandleCommit(TqMetaStore*, int64_t key);
 //delete uncommitted

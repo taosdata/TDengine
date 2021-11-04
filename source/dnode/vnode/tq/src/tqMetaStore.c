@@ -44,6 +44,12 @@ TqMetaStore* tqStoreOpen(const char* path,
 
   //concat data file name and index file name
   size_t pathLen = strlen(path);
+  pMeta->dirPath = malloc(pathLen+1);
+  if(pMeta->dirPath != NULL) {
+    //TODO: memory insufficient
+  }
+  strcpy(pMeta->dirPath, path);
+  
   char name[pathLen+10];
 
   strcpy(name, path);
@@ -155,15 +161,35 @@ int32_t tqStoreClose(TqMetaStore* pMeta) {
       pNode = next;
     }
   }
+  free(pMeta->dirPath);
   free(pMeta->unpersistHead);
   free(pMeta);
   return 0;
 }
 
 int32_t tqStoreDelete(TqMetaStore* pMeta) {
-  //close file
-  //delete file
+  close(pMeta->fileFd);
+  close(pMeta->idxFd);
   //free memory
+  for(int i = 0; i < TQ_BUCKET_SIZE; i++) {
+    TqMetaList* pNode = pMeta->bucket[i];
+    pMeta->bucket[i] = NULL;
+    while(pNode) {
+      if(pNode->handle.valueInTxn) {
+        pMeta->deleter(pNode->handle.valueInTxn);
+      }
+      if(pNode->handle.valueInUse) {
+        pMeta->deleter(pNode->handle.valueInUse);
+      }
+      TqMetaList* next = pNode->next;
+      free(pNode);
+      pNode = next;
+    }
+  }
+  free(pMeta->unpersistHead);
+  taosRemoveDir(pMeta->dirPath);
+  free(pMeta->dirPath);
+  free(pMeta);
   return 0;
 }
 
@@ -301,7 +327,7 @@ void* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
   return NULL;
 }
 
-int32_t tqHandlePut(TqMetaStore* pMeta, int64_t key, void* value) {
+int32_t tqHandleMovePut(TqMetaStore* pMeta, int64_t key, void* value) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
@@ -325,6 +351,41 @@ int32_t tqHandlePut(TqMetaStore* pMeta, int64_t key, void* value) {
   memset(pNewNode, 0, sizeof(TqMetaList));
   pNewNode->handle.key = key;
   pNewNode->handle.valueInTxn = value;
+  pNewNode->next = pMeta->bucket[bucketKey];
+  pMeta->bucket[bucketKey] = pNewNode;
+  return 0;
+}
+
+int32_t tqHandleCopyPut(TqMetaStore* pMeta, int64_t key, void* value, size_t vsize) {
+  void *vmem = malloc(vsize);
+  if(vmem == NULL) {
+    //TODO: memory error
+    return -1;
+  }
+  memcpy(vmem, value, vsize);
+  int64_t bucketKey = key & TQ_BUCKET_SIZE;
+  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  while(pNode) {
+    if(pNode->handle.key == key) {
+      //TODO: think about thread safety
+      if(pNode->handle.valueInTxn) {
+        pMeta->deleter(pNode->handle.valueInTxn);
+      }
+      //change pointer ownership
+      pNode->handle.valueInTxn = vmem;
+      return 0;
+    } else {
+      pNode = pNode->next;
+    }
+  }
+  TqMetaList *pNewNode = malloc(sizeof(TqMetaList));
+  if(pNewNode == NULL) {
+    //TODO: memory error
+    return -1;
+  }
+  memset(pNewNode, 0, sizeof(TqMetaList));
+  pNewNode->handle.key = key;
+  pNewNode->handle.valueInTxn = vmem;
   pNewNode->next = pMeta->bucket[bucketKey];
   pMeta->bucket[bucketKey] = pNewNode;
   return 0;
