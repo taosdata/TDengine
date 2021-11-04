@@ -1903,7 +1903,6 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
     assert(right != NULL && right->type == SQL_NODE_VALUE);
     tVariantAssign(&(pExpr->base.param[pExpr->base.numOfParams]), &right->value);
     pExpr->base.numOfParams++;
-    assert(pExpr->base.numOfParams <= 3);
   }
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
@@ -3750,9 +3749,7 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     SStrToken token = {0};
     if(pItem->isJsonExp){
       assert(pItem->jsonExp->tokenId == TK_ARROW);
-      token.n = pItem->jsonExp->pLeft->value.nLen;
-      token.z = pItem->jsonExp->pLeft->value.pz;
-      token.type = pItem->jsonExp->pLeft->value.nType;
+      token = pItem->jsonExp->pLeft->columnName;
     }else{
       token.n = pItem->pVar.nLen;
       token.z = pItem->pVar.pz;
@@ -7210,12 +7207,18 @@ static int32_t doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool tagColumnInGroupby(SGroupbyExpr* pGroupbyExpr, int16_t columnId) {
+static bool tagColumnInGroupby(SGroupbyExpr* pGroupbyExpr, int16_t columnId, int16_t type, char* name) {
   for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, j);
-  
-    if (columnId == pColIndex->colId && TSDB_COL_IS_TAG(pColIndex->flag )) {
-      return true;
+
+    if (type == TSDB_DATA_TYPE_JSON){
+      if (columnId == pColIndex->colId && strncmp(pColIndex->name, name, tListLen(pColIndex->name)) == 0 && TSDB_COL_IS_TAG(pColIndex->flag )) {
+        return true;
+      }
+    }else{
+      if (columnId == pColIndex->colId && TSDB_COL_IS_TAG(pColIndex->flag )) {
+        return true;
+      }
     }
   }
 
@@ -7250,7 +7253,7 @@ static bool allTagPrjInGroupby(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (!tagColumnInGroupby(&pQueryInfo->groupbyExpr, pExpr->base.colInfo.colId)) {
+    if (!tagColumnInGroupby(&pQueryInfo->groupbyExpr, pExpr->base.colInfo.colId, pExpr->base.resType, pExpr->base.param[0].pz)) {
       allInGroupby = false;
       break;
     }
