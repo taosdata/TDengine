@@ -858,9 +858,8 @@ def taos_schemaless_insert(connection, lines, protocol, precision):
 
 def _check_if_supported():
     func = inspect.stack()[1][3]
-    err = _UNSUPPORTED[func]
-    if err is not None:
-        raise InterfaceError("C function %s is not supported in v%s: %s" % (func, taos_get_client_info(), err))
+    if func in _UNSUPPORTED:
+        raise InterfaceError("C function %s is not supported in v%s: %s" % (func, taos_get_client_info(), _UNSUPPORTED[func]))
 
 
 def unsupported_methods():
