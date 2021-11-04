@@ -223,6 +223,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0406)  //"Action in progress")
 #define TSDB_CODE_DND_TOO_MANY_VNODES           TAOS_DEF_ERROR_CODE(0, 0x0407)  //"Too many vnode directories")
 #define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0408)  //"Dnode is exiting"
+#define TSDB_CODE_DND_PARSE_VNODE_FILE_ERROR    TAOS_DEF_ERROR_CODE(0, 0x0409)  //"Parse vnodes.json error")
 
 // vnode
 #define TSDB_CODE_VND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0500)  //"Action in progress")

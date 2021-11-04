@@ -50,6 +50,7 @@ void      *taosAllocateQitem(int size);
 void       taosFreeQitem(void *pItem);
 int        taosWriteQitem(taos_queue, void *pItem);
 int        taosReadQitem(taos_queue, void **pItem);
+bool       taosQueueEmpty(taos_queue);
 
 taos_qall  taosAllocateQall();
 void       taosFreeQall(taos_qall);

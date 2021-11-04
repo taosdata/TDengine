@@ -212,7 +212,7 @@ do { \
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           64
-#define TSDB_MAX_VNODES           2048
+#define TSDB_MAX_VNODES           512
 #define TSDB_MIN_VNODES_PER_DB    2
 #define TSDB_MAX_VNODES_PER_DB    64
 
