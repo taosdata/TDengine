@@ -19,3 +19,6 @@
 [submodule "src/plugins/blm3"]
 	path = src/plugins/blm3
 	url = https://github.com/taosdata/blm3
+[submodule "deps/avro"]
+	path = deps/avro
+	url = https://github.com/apache/avro
