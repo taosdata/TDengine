@@ -3710,6 +3710,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg6 = "tags not allowed for table query";
   const char* msg7 = "not support group by expression";
   const char* msg8 = "normal column can only locate at the end of group by clause";
+  const char* msg9 = "json tag must be use ->'key'";
+  const char* msg10 = "non json column can not use ->'key'";
 
   // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
@@ -3774,6 +3776,13 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       pSchema = tGetTbnameColumnSchema();
     } else {
       pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
+    }
+
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && !pItem->isJsonExp){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+    }
+    if (pSchema->type != TSDB_DATA_TYPE_JSON && pItem->isJsonExp){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
     }
 
     int32_t numOfCols = tscGetNumOfColumns(pTableMeta);

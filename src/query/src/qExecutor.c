@@ -3396,7 +3396,7 @@ static void doSetTagValueInParam(void* pTable, char* param, int32_t paramLen, in
     //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
   } else if(type == TSDB_DATA_TYPE_JSON){
     char jsonVal[TSDB_MAX_JSON_TAGS_LEN] = {0};
-    if(param && paramLen > 0){
+    if(param){
       getJsonTagValueElment(pTable, param, paramLen, jsonVal, bytes);
     }else{
       getJsonTagValueAll(val, jsonVal, TSDB_MAX_JSON_TAGS_LEN);
