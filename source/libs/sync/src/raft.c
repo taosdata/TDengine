@@ -15,6 +15,7 @@
 
 #include "raft.h"
 #include "raft_configuration.h"
+#include "raft_log.h"
 #include "syncInt.h"
 
 #define RAFT_READ_LOG_MAX_NUM 100
@@ -120,14 +121,19 @@ int32_t syncRaftTick(SSyncRaft* pRaft) {
 }
 
 void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId) {
+  convertClear(pRaft);
+
   pRaft->stepFp = stepFollower;
   resetRaft(pRaft, term);
   pRaft->tickFp = tickElection;
   pRaft->leaderId = leaderId;
   pRaft->state = TAOS_SYNC_ROLE_FOLLOWER;
+  syncInfo("[%d:%d] became followe at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
+  convertClear(pRaft);
+  memset(pRaft->candidateState.votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(SyncRaftVoteRespType) * TSDB_MAX_REPLICA);
 	/**
    * Becoming a pre-candidate changes our step functions and state,
 	 * but doesn't change anything else. In particular it does not increase
@@ -137,10 +143,13 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
   pRaft->tickFp = tickElection;
   pRaft->state  = TAOS_SYNC_ROLE_CANDIDATE;
   pRaft->candidateState.inPreVote = true;
-  syncInfo("[%d:%d] became pre-candidate at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+  syncInfo("[%d:%d] became pre-candidate at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
+  convertClear(pRaft);
+  memset(pRaft->candidateState.votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(SyncRaftVoteRespType) * TSDB_MAX_REPLICA);
+
   pRaft->candidateState.inPreVote = false;
   pRaft->stepFp = stepCandidate;
   // become candidate make term+1
@@ -148,7 +157,7 @@ void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
   pRaft->tickFp = tickElection;
   pRaft->voteFor = pRaft->selfId;
   pRaft->state  = TAOS_SYNC_ROLE_CANDIDATE;
-  syncInfo("[%d:%d] became candidate at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+  syncInfo("[%d:%d] became candidate at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftBecomeLeader(SSyncRaft* pRaft) {
@@ -160,7 +169,11 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   pRaft->state  = TAOS_SYNC_ROLE_LEADER;
   // TODO: check if there is pending config log
 
-  syncInfo("[%d:%d] became leader at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+  syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+}
+
+void syncRaftTriggerReplicate(SSyncRaft* pRaft) {
+
 }
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
@@ -180,7 +193,7 @@ int syncRaftQuorum(SSyncRaft* pRaft) {
   return pRaft->cluster.replica / 2 + 1;
 }
 
-int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool accept) {
+int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool accept, int* rejectNum) {
   if (accept) {
     syncInfo("[%d:%d] received (pre-vote %d) from %d at term %" PRId64 "", 
       pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
@@ -188,17 +201,20 @@ int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool acc
     syncInfo("[%d:%d] received rejection from %d at term %" PRId64 "", 
       pRaft->selfGroupId, pRaft->selfId, id, pRaft->term);
   }
-
+  
   int voteIndex = syncRaftConfigurationIndexOfVoter(pRaft, id);
   assert(voteIndex < pRaft->cluster.replica && voteIndex >= 0);
+  assert(pRaft->candidateState.votes[voteIndex] == SYNC_RAFT_VOTE_RESP_UNKNOWN);
 
-  pRaft->candidateState.votes[voteIndex] = accept;
-  int granted = 0;
+  pRaft->candidateState.votes[voteIndex] = accept ? SYNC_RAFT_VOTE_RESP_GRANT : SYNC_RAFT_VOTE_RESP_REJECT;
+  int granted = 0, rejected = 0;
   int i;
   for (i = 0; i < pRaft->cluster.replica; ++i) {
-    if (pRaft->candidateState.votes[i]) granted++;
+    if (pRaft->candidateState.votes[i] == SYNC_RAFT_VOTE_RESP_GRANT) granted++;
+    else if (pRaft->candidateState.votes[i] == SYNC_RAFT_VOTE_RESP_REJECT) rejected++;
   }
 
+  if (rejectNum) *rejectNum = rejected;
   return granted;
 }
 
@@ -262,8 +278,20 @@ static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 }
 
 static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  convertClear(pRaft);
-  memset(pRaft->candidateState.votes, 0, sizeof(bool) * TSDB_MAX_REPLICA);
+  /**
+   * Only handle vote responses corresponding to our candidacy (while in
+	 * StateCandidate, we may get stale MsgPreVoteResp messages in this term from
+	 * our pre-candidate state).
+   **/
+  RaftMessageType msgType = pMsg->msgType;
+
+  if (msgType == RAFT_MSG_INTERNAL_PROP) {
+    return 0;
+  }
+
+  if (msgType == RAFT_MSG_VOTE_RESP) {
+    return 0;
+  }
   return 0;
 }
 

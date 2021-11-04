@@ -34,6 +34,12 @@ typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
   SYNC_RAFT_CAMPAIGN_ELECTION = 1,
   SYNC_RAFT_CAMPAIGN_TRANSFER = 3,
-} SyncRaftCampaignType;
+} SyncRaftElectionType;
+
+typedef enum {
+  SYNC_RAFT_VOTE_RESP_UNKNOWN = 0,
+  SYNC_RAFT_VOTE_RESP_GRANT   = 1,
+  SYNC_RAFT_VOTE_RESP_REJECT  = 2,
+} SyncRaftVoteRespType;
 
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

@@ -31,7 +31,7 @@ typedef struct RaftLeaderState {
 
 typedef struct RaftCandidateState {
   /* votes results */
-  bool votes[TSDB_MAX_REPLICA];
+  SyncRaftVoteRespType votes[TSDB_MAX_REPLICA];
 
   /* true if in pre-vote phase */
   bool inPreVote;
@@ -125,10 +125,15 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft);
 void syncRaftBecomeCandidate(SSyncRaft* pRaft);
 void syncRaftBecomeLeader(SSyncRaft* pRaft);
 
+void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType);
+
+void syncRaftTriggerReplicate(SSyncRaft* pRaft);
+
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
 bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
 int  syncRaftQuorum(SSyncRaft* pRaft);
-int  syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool accept);
+int  syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, 
+                          bool preVote, bool accept, int* rejectNum);
 
 #endif /* _TD_LIBS_SYNC_RAFT_H */

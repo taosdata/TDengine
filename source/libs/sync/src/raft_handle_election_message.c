@@ -15,84 +15,29 @@
 
 #include "syncInt.h"
 #include "raft.h"
+#include "raft_log.h"
 #include "raft_message.h"
 
-static void campaign(SSyncRaft* pRaft, SyncRaftCampaignType cType);
-
-void syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   if (pRaft->state == TAOS_SYNC_ROLE_LEADER) {
     syncDebug("%d ignoring RAFT_MSG_INTERNAL_ELECTION because already leader", pRaft->selfId);
-    return;
+    return 0;
   }
 
-  // if there is pending uncommitted config,cannot campaign
+  // if there is pending uncommitted config,cannot start election
   if (syncRaftLogNumOfPendingConf(pRaft->log) > 0 && syncRaftHasUnappliedLog(pRaft->log)) {
-    syncWarn("[%d:%d] cannot campaign at term %" PRId64 " since there are still pending configuration changes to apply",
+    syncWarn("[%d:%d] cannot syncRaftStartElection at term %" PRId64 " since there are still pending configuration changes to apply",
       pRaft->selfGroupId, pRaft->selfId, pRaft->term);
-    return;
+    return 0;
   }
 
   syncInfo("[%d:%d] is starting a new election at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 
   if (pRaft->preVote) {
-    campaign(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
+    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
   } else {
-    campaign(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
-  }
-}
-
-static void campaign(SSyncRaft* pRaft, SyncRaftCampaignType cType) {
-  SyncTerm term;
-  bool preVote;
-  RaftMessageType voteMsgType;
-
-  if (cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
-    syncRaftBecomePreCandidate(pRaft);
-    preVote = true;
-    // PreVote RPCs are sent for the next term before we've incremented r.Term.
-    term = pRaft->term + 1;
-  } else {
-    syncRaftBecomeCandidate(pRaft);
-    voteMsgType = RAFT_MSG_VOTE;
-    term = pRaft->term;
-    preVote = false;
+    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
   }
 
-  int quorum = syncRaftQuorum(pRaft);
-  int granted = syncRaftNumOfGranted(pRaft, pRaft->selfId, preVote, true);
-  if (quorum <= granted) {
-		/**
-     * We won the election after voting for ourselves (which must mean that
-		 * this is a single-node cluster). Advance to the next state.
-     **/
-    if (cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
-      campaign(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
-    } else {
-      syncRaftBecomeLeader(pRaft);
-    }
-    return;
-  }
-
-  // broadcast vote message to other peers
-  int i;
-  SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
-  SyncTerm lastTerm = syncRaftLogLastTerm(pRaft->log);
-  for (i = 0; i < pRaft->cluster.replica; ++i) {
-    if (i == pRaft->cluster.selfIndex) {
-      continue;
-    }
-
-    SyncNodeId nodeId = pRaft->cluster.nodeInfo[i].nodeId;
-
-    SSyncMessage* pMsg = syncNewVoteMsg(pRaft->selfGroupId, pRaft->selfId, nodeId, term, cType, lastIndex, lastTerm);
-    if (pMsg == NULL) {
-      continue;
-    }
-
-    syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %d] sent %d request to %d at term %" PRId64 "", 
-      pRaft->selfGroupId, pRaft->selfId, lastTerm, 
-      lastIndex, voteMsgType, nodeId, pRaft->term);
-
-    pRaft->io.send(pMsg, &(pRaft->cluster.nodeInfo[i]));
-  }
+  return 0;
 }

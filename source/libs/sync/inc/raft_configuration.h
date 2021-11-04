@@ -19,6 +19,7 @@
 #include "sync.h"
 #include "sync_type.h"
 
+// return -1 if cannot find this id
 int syncRaftConfigurationIndexOfVoter(SSyncRaft *pRaft, SyncNodeId id);
 
 int syncRaftConfigurationVoterCount(SSyncRaft *pRaft);

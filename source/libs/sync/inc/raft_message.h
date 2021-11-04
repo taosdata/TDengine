@@ -35,7 +35,7 @@ typedef enum RaftMessageType {
   RAFT_MSG_VOTE = 3,
   RAFT_MSG_VOTE_RESP = 4,
 
-
+  RAFT_MSG_APPEND = 5,
 } RaftMessageType;
 
 typedef struct RaftMsgInternal_Prop {
@@ -49,14 +49,14 @@ typedef struct RaftMsgInternal_Election {
 } RaftMsgInternal_Election;
 
 typedef struct RaftMsg_Vote {
-  SyncRaftCampaignType cType;
+  SyncRaftElectionType cType;
   SyncIndex lastIndex;
   SyncTerm lastTerm;
 } RaftMsg_Vote;
 
 typedef struct RaftMsg_VoteResp {
   bool reject;
-  SyncRaftCampaignType cType;
+  SyncRaftElectionType cType;
 } RaftMsg_VoteResp;
 
 typedef struct SSyncMessage {
@@ -104,7 +104,7 @@ static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNo
 }
 
 static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId from, SyncNodeId to,
-                                                SyncTerm term, SyncRaftCampaignType cType, 
+                                                SyncTerm term, SyncRaftElectionType cType, 
                                                 SyncIndex lastIndex, SyncTerm lastTerm) {
   SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
   if (pMsg == NULL) {
@@ -134,13 +134,14 @@ static FORCE_INLINE bool syncIsPreVoteRespMsg(SSyncMessage* pMsg) {
   return pMsg->msgType == RAFT_MSG_VOTE_RESP && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
 }
 
-static FORCE_INLINE bool syncIsPreVoteMsg(SSyncMessage* pMsg) {
+static FORCE_INLINE bool syncIsPreVoteMsg(const SSyncMessage* pMsg) {
   return pMsg->msgType == RAFT_MSG_VOTE && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
 }
 
 void syncFreeMessage(const SSyncMessage* pMsg);
 
 // message handlers
-void syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */
