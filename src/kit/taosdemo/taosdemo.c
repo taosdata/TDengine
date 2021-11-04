@@ -9948,7 +9948,8 @@ static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInf
     }
 }
 
-static int32_t generateSmlJsonTags(cJSON* tags, SSuperTable* stbInfo, threadInfo* pThreadInfo, int tbSeq) {
+int32_t generateSmlJsonTags(cJSON* tagsList, SSuperTable* stbInfo, threadInfo* pThreadInfo, int tbSeq) {
+    cJSON* tags = cJSON_CreateObject();
     char *tbName = calloc(1, TSDB_TABLE_NAME_LEN);
     assert(tbName);
     snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "", stbInfo->childTblPrefix, tbSeq + pThreadInfo->start_table_from);
@@ -9963,7 +9964,6 @@ static int32_t generateSmlJsonTags(cJSON* tags, SSuperTable* stbInfo, threadInfo
                 cJSON_AddNumberToObject(tag, "value", rand_bool());
                 cJSON_AddStringToObject(tag, "type", "bool");
                 break;
-            case TSDB_DATA_TYPE_UTINYINT:
             case TSDB_DATA_TYPE_TINYINT:
                 cJSON_AddNumberToObject(tag, "value", rand_tinyint());
                 cJSON_AddStringToObject(tag, "type", "tinyint");
@@ -9972,12 +9972,10 @@ static int32_t generateSmlJsonTags(cJSON* tags, SSuperTable* stbInfo, threadInfo
                 cJSON_AddNumberToObject(tag, "value", rand_smallint());
                 cJSON_AddStringToObject(tag, "type", "smallint");
                 break;
-            case TSDB_DATA_TYPE_UINT:
             case TSDB_DATA_TYPE_INT:
                 cJSON_AddNumberToObject(tag, "value", rand_int());
                 cJSON_AddStringToObject(tag, "type", "int");
                 break;
-            case TSDB_DATA_TYPE_UBIGINT:
             case TSDB_DATA_TYPE_BIGINT:
                 cJSON_AddNumberToObject(tag, "value", rand_bigint());
                 cJSON_AddStringToObject(tag, "type", "bigint");
@@ -10012,12 +10010,16 @@ static int32_t generateSmlJsonTags(cJSON* tags, SSuperTable* stbInfo, threadInfo
                     cJSON_AddStringToObject(tag, "value", buf);
                     cJSON_AddStringToObject(tag, "type", "nchar");    
                 }
+                tmfree(buf);
                 break;
             default:
-                break;
+                errorPrint2("[%d]: %s() LN%d, unsupport data type (%s) for schemaless json protocol\n",
+                pThreadInfo->threadID, __func__, __LINE__, stbInfo->tags[i].dataType);
+                return -1;
         }
-    cJSON_AddItemToObject(tags, tagName, tag);
+        cJSON_AddItemToObject(tags, tagName, tag);
     }
+    cJSON_AddItemToArray(tagsList, tags);
     tmfree(tagName);
     tmfree(tbName);
     return 0;
@@ -10026,7 +10028,6 @@ static int32_t generateSmlJsonTags(cJSON* tags, SSuperTable* stbInfo, threadInfo
 static int32_t generateSmlJsonCols(cJSON* array, cJSON* tag, SSuperTable* stbInfo,
                                 threadInfo* pThreadInfo, int64_t timestamp) {
     cJSON* record = cJSON_CreateObject();
-    cJSON_AddStringToObject(record, "metric", stbInfo->stbName);
     cJSON* ts = cJSON_CreateObject();
     cJSON_AddNumberToObject(ts, "value", timestamp);
     if (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI) {
@@ -10040,14 +10041,12 @@ static int32_t generateSmlJsonCols(cJSON* array, cJSON* tag, SSuperTable* stbInf
             pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->time_precision);
         return -1;
     }
-    cJSON_AddItemToObject(record, "timestamp", ts);
     cJSON* value = cJSON_CreateObject();
     switch (stbInfo->columns[0].data_type) {
         case TSDB_DATA_TYPE_BOOL:
             cJSON_AddNumberToObject(value, "value", rand_bool());
             cJSON_AddStringToObject(value, "type", "bool");
             break;
-        case TSDB_DATA_TYPE_UTINYINT:
         case TSDB_DATA_TYPE_TINYINT:
             cJSON_AddNumberToObject(value, "value", rand_tinyint());
             cJSON_AddStringToObject(value, "type", "tinyint");
@@ -10056,12 +10055,10 @@ static int32_t generateSmlJsonCols(cJSON* array, cJSON* tag, SSuperTable* stbInf
             cJSON_AddNumberToObject(value, "value", rand_smallint());
             cJSON_AddStringToObject(value, "type", "smallint");
             break;
-        case TSDB_DATA_TYPE_UINT:
         case TSDB_DATA_TYPE_INT:
             cJSON_AddNumberToObject(value, "value", rand_int());
             cJSON_AddStringToObject(value, "type", "int");
             break;
-        case TSDB_DATA_TYPE_UBIGINT:
         case TSDB_DATA_TYPE_BIGINT:
             cJSON_AddNumberToObject(value, "value", rand_bigint());
             cJSON_AddStringToObject(value, "type", "bigint");
@@ -10098,11 +10095,14 @@ static int32_t generateSmlJsonCols(cJSON* array, cJSON* tag, SSuperTable* stbInf
             }
             break;
         default:
-            break;
-            
+            errorPrint2("[%d]: %s() LN%d, unsupport data type (%s) for schemaless json protocol\n",
+                pThreadInfo->threadID, __func__, __LINE__, stbInfo->columns[0].dataType);
+                return -1;
     }
+    cJSON_AddItemToObject(record, "timestamp", ts);
     cJSON_AddItemToObject(record, "value", value);
     cJSON_AddItemToObject(record, "tags", tag);
+    cJSON_AddStringToObject(record, "metric", stbInfo->stbName);
     cJSON_AddItemToArray(array, record);
     return 0;
 }
@@ -10149,11 +10149,11 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     }
 
     char **smlList;
-    cJSON** tagsList;
+    cJSON* tagsList;
     cJSON* jsonArray;
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
             stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
-        smlList = calloc(pThreadInfo->ntables, sizeof(char *));
+        smlList = (char **)calloc(pThreadInfo->ntables, sizeof(char *));
         if (NULL == smlList) {
             errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                     pThreadInfo->threadID, __func__, __LINE__,
@@ -10196,25 +10196,13 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
             }
         }
     } else {
-        tagsList = (cJSON**)calloc(pThreadInfo->ntables, sizeof(cJSON *));
-        if (NULL == tagsList) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__,
-                    pThreadInfo->ntables * (uint64_t)sizeof(cJSON *),strerror(errno));
-            return NULL;
-        }
+        jsonArray = cJSON_CreateArray();
+        tagsList = cJSON_CreateArray();
         for (int t = 0; t < pThreadInfo->ntables; t++) {
-            cJSON* tags = cJSON_CreateObject();
-            if (tags == NULL) {
-                errorPrint2("[%d] %s() LN%d: Failed to Json Object, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__, strerror(errno));
-                goto free_json_interlace_sml;
-            }
-            code = generateSmlJsonTags(tags, stbInfo, pThreadInfo, t);
+            code = generateSmlJsonTags(tagsList, stbInfo, pThreadInfo, t);
             if (code) {
                 goto free_json_interlace_sml;
             }
-            tagsList[t] = tags;
         }
 
         pThreadInfo->lines = (char **)calloc(1, sizeof(char *));
@@ -10222,15 +10210,6 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
             errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                     pThreadInfo->threadID, __func__, __LINE__, (uint64_t)sizeof(char *),
                     strerror(errno));
-            goto free_json_interlace_sml;
-        }
-
-        pThreadInfo->lines[0] = (char *) calloc(1, BUFFER_SIZE);
-        if (NULL == pThreadInfo->lines[0]) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
-                    strerror(errno));
-            tmfree(pThreadInfo->lines);
             goto free_json_interlace_sml;
         }
     }
@@ -10262,12 +10241,6 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
             st = taosGetTimestampMs();
             flagSleep = false;
         }
-        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
-            if (jsonArray) {
-                cJSON_Delete(jsonArray);
-            }
-            jsonArray = cJSON_CreateArray();
-        }
         // generate data
 
         uint32_t recOfBatch = 0;
@@ -10276,17 +10249,21 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
             int64_t timestamp = startTime;
             for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
                 if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+                    cJSON* tag = cJSON_Duplicate(cJSON_GetArrayItem(tagsList, tableSeq - pThreadInfo->start_table_from), true);
                     code = generateSmlJsonCols(jsonArray,
-                        tagsList[tableSeq - pThreadInfo->start_table_from],
-                        stbInfo, pThreadInfo, timestamp);
+                        tag, stbInfo, pThreadInfo, timestamp);
+                    if (code) {
+                        goto free_json_interlace_sml;
+                    }
                 } else {
                     code = generateSmlMutablePart(pThreadInfo->lines[j],
                         smlList[tableSeq - pThreadInfo->start_table_from],
                         stbInfo, pThreadInfo, timestamp);
+                    if (code) {
+                        goto free_lines_interlace_sml;
+                    }
                 }
-                if (code) {
-                    goto free_lines_interlace_sml;
-                }
+                
                 
                 timestamp += timeStampStep;
             }
@@ -10338,7 +10315,7 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                 pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->buffer);
 
         if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
-                *pThreadInfo->lines = cJSON_Print(jsonArray);
+                pThreadInfo->lines[0] = cJSON_Print(jsonArray);
         }
 
         startTs = taosGetTimestampUs();
@@ -10359,6 +10336,13 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 
         endTs = taosGetTimestampUs();
         uint64_t delay = endTs - startTs;
+
+        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+            tmfree(pThreadInfo->lines[0]);
+            cJSON_Delete(jsonArray);
+            jsonArray = cJSON_CreateArray();
+        }
+
         performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
                 __func__, __LINE__, delay / 1000.0);
         verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
@@ -10410,11 +10394,14 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
 
     printStatPerThread(pThreadInfo);
     if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
-        tmfree(pThreadInfo->lines[0]);
         tmfree(pThreadInfo->lines);
 free_json_interlace_sml:
-        // cJSON_Delete(jsonArray);
-        tmfree(tagsList);
+        if(jsonArray != NULL) {
+            cJSON_Delete(jsonArray);
+        }
+        if(tagsList != NULL) {
+            cJSON_Delete(tagsList);
+        }
     } else {
 free_lines_interlace_sml:
         for (int index = 0; index < g_args.reqPerReq; index++) {
@@ -10833,7 +10820,7 @@ free_of_stmt_progressive:
     return NULL;
 }
 
-static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
+void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### sml progressive write\n", __func__, __LINE__);
     int32_t code = 0;
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
@@ -10850,7 +10837,7 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     pThreadInfo->samplePos = 0;
 
     char** smlList;
-    cJSON** tagsList;
+    cJSON* tagsList;
     cJSON* jsonArray;
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
             stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
@@ -10896,41 +10883,21 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
             }
         }
     } else {
-        tagsList = (cJSON**)calloc(pThreadInfo->ntables, sizeof(cJSON *));
-        if (NULL == tagsList) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__,
-                    pThreadInfo->ntables * (uint64_t)sizeof(cJSON *),strerror(errno));
-            return NULL;
-        }
+        jsonArray = cJSON_CreateArray();
+        tagsList = cJSON_CreateArray();
         for (int t = 0; t < pThreadInfo->ntables; t++) {
-            cJSON* tags = cJSON_CreateObject();
-            if (tags == NULL) {
-                errorPrint2("[%d] %s() LN%d: Failed to Json Object, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__, strerror(errno));
-                goto free_json_progressive_sml;
-            }
-            code = generateSmlJsonTags(tags, stbInfo, pThreadInfo, t);
+            code = generateSmlJsonTags(tagsList, stbInfo, pThreadInfo, t);
             if (code) {
                 goto free_json_progressive_sml;
             }
-            tagsList[t] = tags;
         }
+        
 
         pThreadInfo->lines = (char **)calloc(1, sizeof(char *));
         if (NULL == pThreadInfo->lines) {
             errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
                     pThreadInfo->threadID, __func__, __LINE__, (uint64_t)sizeof(char *),
                     strerror(errno));
-            goto free_json_progressive_sml;
-        }
-
-        pThreadInfo->lines[0] = (char *) calloc(1, BUFFER_SIZE);
-        if (NULL == pThreadInfo->lines[0]) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
-                    strerror(errno));
-            tmfree(pThreadInfo->lines);
             goto free_json_progressive_sml;
         }
     }
@@ -10943,22 +10910,19 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     
     for (uint64_t i = 0; i < pThreadInfo->ntables; i++) {
         int64_t timestamp = pThreadInfo->start_time;
-        
-        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
-            if (jsonArray != NULL) {
-                cJSON_Delete(jsonArray);
-            }
-            jsonArray = cJSON_CreateArray();
-        }
         for (uint64_t j = 0; j < insertRows;) {
             for (int k = 0; k < g_args.reqPerReq; k++) {
-                if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
-                    code = generateSmlJsonCols(jsonArray, tagsList[i], stbInfo, pThreadInfo, timestamp);
+                if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                    cJSON* tag = cJSON_Duplicate(cJSON_GetArrayItem(tagsList, i), true);
+                    code = generateSmlJsonCols(jsonArray, tag, stbInfo, pThreadInfo, timestamp);
+                    if (code) {
+                        goto free_json_progressive_sml;
+                    }
                 } else {
                     code = generateSmlMutablePart(pThreadInfo->lines[k], smlList[i], stbInfo, pThreadInfo, timestamp);
-                }
-                if (code) {
-                    goto free_lines_progressive_sml;
+                    if (code) {
+                        goto free_lines_progressive_sml;
+                    }
                 }
                 timestamp += timeStampStep;
                 j++;
@@ -10966,13 +10930,18 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
                     break;
                 }
             }
-            if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
-                *pThreadInfo->lines = cJSON_Print(jsonArray);
+            if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                pThreadInfo->lines[0] = cJSON_Print(jsonArray);
             }
             uint64_t startTs = taosGetTimestampUs();
             int32_t affectedRows = execInsert(pThreadInfo, g_args.reqPerReq);
             uint64_t endTs = taosGetTimestampUs();
             uint64_t delay = endTs - startTs;
+            if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+                tmfree(pThreadInfo->lines[0]);
+                cJSON_Delete(jsonArray);
+                jsonArray = cJSON_CreateArray();
+            }
 
             performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
                     __func__, __LINE__, delay/1000.0);
@@ -11015,16 +10984,14 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     }
 
     if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
-        tmfree(pThreadInfo->lines[0]);
         tmfree(pThreadInfo->lines);
 free_json_progressive_sml:
         if(jsonArray != NULL) {
             cJSON_Delete(jsonArray);
         }
-        for (int index = 0; index < pThreadInfo->ntables; index++) {
-            cJSON_Delete(tagsList[index]);
+        if(tagsList != NULL) {
+            cJSON_Delete(tagsList);
         }
-        tmfree(tagsList);
     } else {
 free_lines_progressive_sml:
         for (int index = 0; index < g_args.reqPerReq; index++) {
@@ -11219,7 +11186,7 @@ free_of_progressive:
     return NULL;
 }
 
-static void* syncWrite(void *sarg) {
+void* syncWrite(void *sarg) {
 
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     SSuperTable* stbInfo = pThreadInfo->stbInfo;
