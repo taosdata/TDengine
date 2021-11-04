@@ -266,7 +266,13 @@ class TDTestCase:
         tdSql.query("select 'sss',33,a.jtag->'loc' from db_json_tag_test.jsons2 a,db_json_tag_test.jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
         tdSql.checkData(0, 0, "sss")
         tdSql.checkData(0, 2, "fff")
-        
+    
+        # test group by & order by
+        tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'location' order by jtag->'location' desc")
+        tdSql.checkData(1, 0, 2.5)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(1, 2, "beijing")
+        tdSql.checkData(2, 2, None)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
