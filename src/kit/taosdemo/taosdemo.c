@@ -155,6 +155,7 @@ extern char configDir[];
 #define DEFAULT_SUB_INTERVAL    10000
 #define DEFAULT_QUERY_INTERVAL    10000
 
+#define SML_SQL_SYNTAX          7
 #define STMT_BIND_PARAM_BATCH   1
 
 char* g_sampleDataBuf = NULL;
@@ -3795,6 +3796,9 @@ static int calcRowLen(SSuperTable*  superTbls) {
                 errorPrint2("get error data type : %s\n", dataType);
                 exit(EXIT_FAILURE);
         }
+        if( SML_IFACE == superTbls->iface) {
+            lenOfOneRow += SML_SQL_SYNTAX;
+        }
     }
 
     superTbls->lenOfOneRow = lenOfOneRow + TIMESTAMP_BUFF_LEN; // timestamp
@@ -3840,8 +3844,15 @@ static int calcRowLen(SSuperTable*  superTbls) {
             errorPrint2("get error tag type : %s\n", dataType);
             exit(EXIT_FAILURE);
         }
+        if (SML_IFACE == superTbls->iface) {
+            lenOfTagOfOneRow += SML_SQL_SYNTAX;
+        }
     }
-
+    if (SML_IFACE == superTbls->iface) {
+        lenOfTagOfOneRow += 2 * TSDB_TABLE_NAME_LEN + SML_SQL_SYNTAX;
+        superTbls->lenOfOneRow += lenOfTagOfOneRow;
+    }
+    
     superTbls->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
     return 0;
@@ -9643,13 +9654,14 @@ free_of_interlace_stmt:
 
 static int32_t generateSmlConstPart(char* sml, SSuperTable* stbInfo, threadInfo* pThreadInfo, int tbSeq) {
     int64_t dataLen = 0;
+    uint64_t length = stbInfo->lenOfOneRow;
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL) {
-        dataLen += snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
+        dataLen += snprintf(sml + dataLen, length - dataLen,
                             "%s,id=%s%" PRIu64 "", stbInfo->stbName,
                             stbInfo->childTblPrefix,
                             tbSeq + pThreadInfo->start_table_from);
     } else if (stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
-        dataLen += snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
+        dataLen += snprintf(sml + dataLen, length - dataLen,
                             "id=%s%" PRIu64 "", stbInfo->childTblPrefix,
                             tbSeq + pThreadInfo->start_table_from);
     } else {
@@ -9658,106 +9670,107 @@ static int32_t generateSmlConstPart(char* sml, SSuperTable* stbInfo, threadInfo*
         return -1;
     }
     
-        for (int j = 0; j < stbInfo->tagCount; j++) {
-            tstrncpy(sml + dataLen, (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL)?",":" ", 2);
-            dataLen += 1;
-            switch (stbInfo->tags[j].data_type) {
-                case TSDB_DATA_TYPE_TIMESTAMP:
+    for (int j = 0; j < stbInfo->tagCount; j++) {
+        tstrncpy(sml + dataLen, (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL)?",":" ", 2);
+        dataLen += 1;
+        switch (stbInfo->tags[j].data_type) {
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                errorPrint2(
+                    "[%d]: %s() LN%d, Does not support data type %s as tag\n",
+                    pThreadInfo->threadID,
+                    __func__, __LINE__, stbInfo->tags[j].dataType);
+                return -1;
+            case TSDB_DATA_TYPE_BOOL:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_bool_str());
+                break;
+            case TSDB_DATA_TYPE_TINYINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_tinyint_str());
+                break;
+            case TSDB_DATA_TYPE_UTINYINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_utinyint_str());
+                break;
+            case TSDB_DATA_TYPE_SMALLINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_smallint_str());
+                break;
+            case TSDB_DATA_TYPE_USMALLINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_usmallint_str());
+                break;
+            case TSDB_DATA_TYPE_INT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_int_str());
+                break;
+            case TSDB_DATA_TYPE_UINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_uint_str());
+                break;
+            case TSDB_DATA_TYPE_BIGINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_bigint_str());
+                break;
+            case TSDB_DATA_TYPE_UBIGINT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_ubigint_str());
+                break;
+            case TSDB_DATA_TYPE_FLOAT:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_float_str());
+                break;
+            case TSDB_DATA_TYPE_DOUBLE:
+                dataLen +=
+                    snprintf(sml + dataLen, length - dataLen,
+                                "t%d=%s", j, rand_double_str());
+                break;
+            case TSDB_DATA_TYPE_BINARY:
+            case TSDB_DATA_TYPE_NCHAR:
+                if (stbInfo->tags[j].dataLen > TSDB_MAX_BINARY_LEN) {
                     errorPrint2(
-                        "[%d]: %s() LN%d, Does not support data type %s as tag\n",
-                        pThreadInfo->threadID,
-                        __func__, __LINE__, stbInfo->tags[j].dataType);
+                        "binary or nchar length overflow, maxsize:%u\n",
+                        (uint32_t)TSDB_MAX_BINARY_LEN);
                     return -1;
-                case TSDB_DATA_TYPE_BOOL:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_bool_str());
-                    break;
-                case TSDB_DATA_TYPE_TINYINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_tinyint_str());
-                    break;
-                case TSDB_DATA_TYPE_UTINYINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_utinyint_str());
-                    break;
-                case TSDB_DATA_TYPE_SMALLINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_smallint_str());
-                    break;
-                case TSDB_DATA_TYPE_USMALLINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_usmallint_str());
-                    break;
-                case TSDB_DATA_TYPE_INT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_int_str());
-                    break;
-                case TSDB_DATA_TYPE_UINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_uint_str());
-                    break;
-                case TSDB_DATA_TYPE_BIGINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_bigint_str());
-                    break;
-                case TSDB_DATA_TYPE_UBIGINT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_ubigint_str());
-                    break;
-                case TSDB_DATA_TYPE_FLOAT:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_float_str());
-                    break;
-                case TSDB_DATA_TYPE_DOUBLE:
-                    dataLen +=
-                        snprintf(sml + dataLen, HEAD_BUFF_LEN - dataLen,
-                                 "t%d=%s", j, rand_double_str());
-                    break;
-                case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_NCHAR:
-                    if (stbInfo->tags[j].dataLen > TSDB_MAX_BINARY_LEN) {
-                        errorPrint2(
-                            "binary or nchar length overflow, maxsize:%u\n",
-                            (uint32_t)TSDB_MAX_BINARY_LEN);
-                        return -1;
-                    }
-                    char *buf = (char *)calloc(stbInfo->tags[j].dataLen + 1, 1);
-                    if (NULL == buf) {
-                        errorPrint2("calloc failed! size:%d\n",
-                                    stbInfo->tags[j].dataLen);
-                        return -1;
-                    }
-                    rand_string(buf, stbInfo->tags[j].dataLen);
-                    dataLen += snprintf(sml + dataLen,
-                                            HEAD_BUFF_LEN - dataLen,
-                                            "t%d=%s", j, buf);
-                    tmfree(buf);
-                    break;
+                }
+                char *buf = (char *)calloc(stbInfo->tags[j].dataLen + 1, 1);
+                if (NULL == buf) {
+                    errorPrint2("calloc failed! size:%d\n",
+                                stbInfo->tags[j].dataLen);
+                    return -1;
+                }
+                rand_string(buf, stbInfo->tags[j].dataLen);
+                dataLen += snprintf(sml + dataLen,
+                                        length - dataLen,
+                                        "t%d=%s", j, buf);
+                tmfree(buf);
+                break;
 
-                default:
-                    errorPrint2("[%d]: %s() LN%d, Unknown data type %s\n", pThreadInfo->threadID, __func__,
-                                __LINE__, stbInfo->tags[j].dataType);
-                    return -1;
-            }
+            default:
+                errorPrint2("[%d]: %s() LN%d, Unknown data type %s\n", pThreadInfo->threadID, __func__,
+                            __LINE__, stbInfo->tags[j].dataType);
+                return -1;
         }
+    }
     return 0;
 }
 
 static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInfo,
                                 threadInfo* pThreadInfo, int64_t timestamp) {
     int dataLen = 0;
+    uint64_t buffer = stbInfo->lenOfOneRow;
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL) {
-        dataLen = snprintf(line, BUFFER_SIZE, "%s ", sml);
+        dataLen = snprintf(line, buffer, "%s ", sml);
         for (uint32_t c = 0; c < stbInfo->columnCount; c++) {
             if (c != 0) {
                 tstrncpy(line + dataLen, ",", 2);
@@ -9771,57 +9784,57 @@ static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInf
                     return -1;
                 case TSDB_DATA_TYPE_BOOL:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen, "c%d=%s",
+                                        buffer - dataLen, "c%d=%s",
                                         c, rand_bool_str());
                     break;
                 case TSDB_DATA_TYPE_TINYINT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen, "c%d=%si8",
+                                        buffer - dataLen, "c%d=%si8",
                                         c, rand_tinyint_str());
                     break;
                 case TSDB_DATA_TYPE_UTINYINT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen, "c%d=%su8",
+                                        buffer - dataLen, "c%d=%su8",
                                         c, rand_utinyint_str());
                     break;
                 case TSDB_DATA_TYPE_SMALLINT:
                     dataLen += snprintf(
-                        line + dataLen, BUFFER_SIZE - dataLen,
+                        line + dataLen, buffer - dataLen,
                         "c%d=%si16", c, rand_smallint_str());
                     break;
                 case TSDB_DATA_TYPE_USMALLINT:
                     dataLen += snprintf(
-                        line + dataLen, BUFFER_SIZE - dataLen,
+                        line + dataLen, buffer - dataLen,
                         "c%d=%su16", c, rand_usmallint_str());
                     break;
                 case TSDB_DATA_TYPE_INT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen,
+                                        buffer - dataLen,
                                         "c%d=%si32", c, rand_int_str());
                     break;
                 case TSDB_DATA_TYPE_UINT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen,
+                                        buffer - dataLen,
                                         "c%d=%su32", c, rand_uint_str());
                     break;
                 case TSDB_DATA_TYPE_BIGINT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen,
+                                        buffer - dataLen,
                                         "c%d=%si64", c, rand_bigint_str());
                     break;
                 case TSDB_DATA_TYPE_UBIGINT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen,
+                                        buffer - dataLen,
                                         "c%d=%su64", c, rand_ubigint_str());
                     break;
                 case TSDB_DATA_TYPE_FLOAT:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen,
+                                        buffer - dataLen,
                                         "c%d=%sf32", c, rand_float_str());
                     break;
                 case TSDB_DATA_TYPE_DOUBLE:
                     dataLen += snprintf(line + dataLen,
-                                        BUFFER_SIZE - dataLen,
+                                        buffer - dataLen,
                                         "c%d=%sf64", c, rand_double_str());
                     break;
                 case TSDB_DATA_TYPE_BINARY:
@@ -9843,11 +9856,11 @@ static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInf
                     if (stbInfo->columns[c].data_type ==
                         TSDB_DATA_TYPE_BINARY) {
                         dataLen += snprintf(line + dataLen,
-                                            BUFFER_SIZE - dataLen,
+                                            buffer - dataLen,
                                             "c%d=\"%s\"", c, buf);
                     } else {
                         dataLen += snprintf(line + dataLen,
-                                            BUFFER_SIZE - dataLen,
+                                            buffer - dataLen,
                                             "c%d=L\"%s\"", c, buf);
                     }
                     tmfree(buf);
@@ -9859,42 +9872,42 @@ static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInf
                     return -1;
             }
         }
-        dataLen += snprintf(line + dataLen, BUFFER_SIZE - dataLen," %" PRId64 "", timestamp);
+        dataLen += snprintf(line + dataLen, buffer - dataLen," %" PRId64 "", timestamp);
         return 0;
     } else if (stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
         switch (stbInfo->columns[0].data_type) {
             case TSDB_DATA_TYPE_BOOL:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %s %s", stbInfo->stbName, timestamp, rand_bool_str(), sml);        
+                snprintf(line, buffer, "%s %" PRId64 " %s %s", stbInfo->stbName, timestamp, rand_bool_str(), sml);        
                 break;
             case TSDB_DATA_TYPE_TINYINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %si8 %s", stbInfo->stbName, timestamp, rand_tinyint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %si8 %s", stbInfo->stbName, timestamp, rand_tinyint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_UTINYINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %su8 %s", stbInfo->stbName, timestamp, rand_utinyint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %su8 %s", stbInfo->stbName, timestamp, rand_utinyint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_SMALLINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %si16 %s", stbInfo->stbName, timestamp, rand_smallint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %si16 %s", stbInfo->stbName, timestamp, rand_smallint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_USMALLINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %su16 %s", stbInfo->stbName, timestamp, rand_usmallint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %su16 %s", stbInfo->stbName, timestamp, rand_usmallint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_INT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %si32 %s", stbInfo->stbName, timestamp, rand_int_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %si32 %s", stbInfo->stbName, timestamp, rand_int_str(), sml);
                 break;
             case TSDB_DATA_TYPE_UINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %su32 %s", stbInfo->stbName, timestamp, rand_uint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %su32 %s", stbInfo->stbName, timestamp, rand_uint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_BIGINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %si64 %s", stbInfo->stbName, timestamp, rand_bigint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %si64 %s", stbInfo->stbName, timestamp, rand_bigint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_UBIGINT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %su64 %s", stbInfo->stbName, timestamp, rand_ubigint_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %su64 %s", stbInfo->stbName, timestamp, rand_ubigint_str(), sml);
                 break;
             case TSDB_DATA_TYPE_FLOAT:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %sf32 %s", stbInfo->stbName, timestamp, rand_float_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %sf32 %s", stbInfo->stbName, timestamp, rand_float_str(), sml);
                 break;
             case TSDB_DATA_TYPE_DOUBLE:
-                snprintf(line, BUFFER_SIZE, "%s %" PRId64 " %sf64 %s", stbInfo->stbName, timestamp, rand_double_str(), sml);
+                snprintf(line, buffer, "%s %" PRId64 " %sf64 %s", stbInfo->stbName, timestamp, rand_double_str(), sml);
                 break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
@@ -9914,9 +9927,9 @@ static int32_t generateSmlMutablePart(char* line, char* sml, SSuperTable* stbInf
                     rand_string(buf, stbInfo->columns[0].dataLen);
                     if (stbInfo->columns[0].data_type ==
                         TSDB_DATA_TYPE_BINARY) {
-                        snprintf(line, BUFFER_SIZE, "%s %" PRId64 " \"%s\" %s", stbInfo->stbName, timestamp, buf, sml);
+                        snprintf(line, buffer, "%s %" PRId64 " \"%s\" %s", stbInfo->stbName, timestamp, buf, sml);
                     } else {
-                        snprintf(line, BUFFER_SIZE, "%s %" PRId64 " L\"%s\" %s", stbInfo->stbName, timestamp, buf, sml);
+                        snprintf(line, buffer, "%s %" PRId64 " L\"%s\" %s", stbInfo->stbName, timestamp, buf, sml);
                     }
                     tmfree(buf);
                     break;
@@ -10006,6 +10019,7 @@ static int32_t generateSmlJsonTags(cJSON* tags, SSuperTable* stbInfo, threadInfo
     cJSON_AddItemToObject(tags, tagName, tag);
     }
     tmfree(tagName);
+    tmfree(tbName);
     return 0;
 }
 
@@ -10134,29 +10148,93 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         batchPerTblTimes = 1;
     }
 
-    char **smlList = calloc(pThreadInfo->ntables, sizeof(char *));
-    if (NULL == smlList) {
-        errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__,
-                pThreadInfo->ntables * (uint64_t)sizeof(char *),
-                strerror(errno));
-        return NULL;
+    char **smlList;
+    cJSON** tagsList;
+    cJSON* jsonArray;
+    if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
+            stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
+        smlList = calloc(pThreadInfo->ntables, sizeof(char *));
+        if (NULL == smlList) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    pThreadInfo->ntables * (uint64_t)sizeof(char *),
+                    strerror(errno));
+            return NULL;
+        }
+        
+        for (int t = 0; t < pThreadInfo->ntables; t++) {
+            char* sml = (char *)calloc(1, stbInfo->lenOfOneRow);
+            if (NULL == sml) {
+                errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, stbInfo->lenOfOneRow,
+                    strerror(errno));
+                goto free_smlheadlist_interlace_sml;
+            }
+            code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
+            if (code) {
+                goto free_smlheadlist_interlace_sml;
+            }
+            smlList[t] = sml;
+        }
+
+        pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
+        if (NULL == pThreadInfo->lines) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    g_args.reqPerReq * (uint64_t)sizeof(char *),
+                    strerror(errno));
+            goto free_smlheadlist_interlace_sml;
+        }
+
+        for (int i = 0; i < g_args.reqPerReq; i++) {
+            pThreadInfo->lines[i] = calloc(1, stbInfo->lenOfOneRow);
+            if (NULL == pThreadInfo->lines[i]) {
+                errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, stbInfo->lenOfOneRow,
+                    strerror(errno));
+                goto free_lines_interlace_sml;
+            }
+        }
+    } else {
+        tagsList = (cJSON**)calloc(pThreadInfo->ntables, sizeof(cJSON *));
+        if (NULL == tagsList) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__,
+                    pThreadInfo->ntables * (uint64_t)sizeof(cJSON *),strerror(errno));
+            return NULL;
+        }
+        for (int t = 0; t < pThreadInfo->ntables; t++) {
+            cJSON* tags = cJSON_CreateObject();
+            if (tags == NULL) {
+                errorPrint2("[%d] %s() LN%d: Failed to Json Object, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, strerror(errno));
+                goto free_json_interlace_sml;
+            }
+            code = generateSmlJsonTags(tags, stbInfo, pThreadInfo, t);
+            if (code) {
+                goto free_json_interlace_sml;
+            }
+            tagsList[t] = tags;
+        }
+
+        pThreadInfo->lines = (char **)calloc(1, sizeof(char *));
+        if (NULL == pThreadInfo->lines) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, (uint64_t)sizeof(char *),
+                    strerror(errno));
+            goto free_json_interlace_sml;
+        }
+
+        pThreadInfo->lines[0] = (char *) calloc(1, BUFFER_SIZE);
+        if (NULL == pThreadInfo->lines[0]) {
+            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
+                    strerror(errno));
+            tmfree(pThreadInfo->lines);
+            goto free_json_interlace_sml;
+        }
     }
     
-    for (int t = 0; t < pThreadInfo->ntables; t++) {
-        char* sml = (char *)calloc(1, HEAD_BUFF_LEN);
-        if (NULL == sml) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
-                strerror(errno));
-            goto free_smlheadlist_interlace_sml;
-        }
-        code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
-        if (code) {
-            goto free_smlheadlist_interlace_sml;
-        }
-        smlList[t] = sml;
-    }
 
     pThreadInfo->totalInsertRows = 0;
     pThreadInfo->totalAffectedRows = 0;
@@ -10178,32 +10256,18 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
     int percentComplete = 0;
     int64_t totalRows = insertRows * pThreadInfo->ntables;
 
-    pThreadInfo->lines = calloc(g_args.reqPerReq, sizeof(char *));
-    if (NULL == pThreadInfo->lines) {
-        errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__,
-                g_args.reqPerReq * (uint64_t)sizeof(char *),
-                strerror(errno));
-        goto free_smlheadlist_interlace_sml;
-    }
-
-    for (int i = 0; i < g_args.reqPerReq; i++) {
-        pThreadInfo->lines[i] = calloc(1, BUFFER_SIZE);
-        if (NULL == pThreadInfo->lines[i]) {
-            errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
-                strerror(errno));
-            goto free_lines_interlace_sml;
-        }
-    }
     
-
     while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
         if ((flagSleep) && (insert_interval)) {
             st = taosGetTimestampMs();
             flagSleep = false;
         }
-
+        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+            if (jsonArray) {
+                cJSON_Delete(jsonArray);
+            }
+            jsonArray = cJSON_CreateArray();
+        }
         // generate data
 
         uint32_t recOfBatch = 0;
@@ -10211,7 +10275,15 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         for (uint64_t i = 0; i < batchPerTblTimes; i++) {
             int64_t timestamp = startTime;
             for (int j = recOfBatch; j < recOfBatch + batchPerTbl; j++) {
-                code = generateSmlMutablePart(pThreadInfo->lines[j], smlList[tableSeq - pThreadInfo->start_table_from], stbInfo, pThreadInfo, timestamp);
+                if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+                    code = generateSmlJsonCols(jsonArray,
+                        tagsList[tableSeq - pThreadInfo->start_table_from],
+                        stbInfo, pThreadInfo, timestamp);
+                } else {
+                    code = generateSmlMutablePart(pThreadInfo->lines[j],
+                        smlList[tableSeq - pThreadInfo->start_table_from],
+                        stbInfo, pThreadInfo, timestamp);
+                }
                 if (code) {
                     goto free_lines_interlace_sml;
                 }
@@ -10264,6 +10336,10 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
                 pThreadInfo->totalInsertRows);
         verbosePrint("[%d] %s() LN%d, buffer=%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->buffer);
+
+        if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+                *pThreadInfo->lines = cJSON_Print(jsonArray);
+        }
 
         startTs = taosGetTimestampUs();
 
@@ -10333,17 +10409,24 @@ static void* syncWriteInterlaceSml(threadInfo *pThreadInfo, uint32_t interlaceRo
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
 
     printStatPerThread(pThreadInfo);
+    if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+        tmfree(pThreadInfo->lines[0]);
+        tmfree(pThreadInfo->lines);
+free_json_interlace_sml:
+        // cJSON_Delete(jsonArray);
+        tmfree(tagsList);
+    } else {
 free_lines_interlace_sml:
-    for (int index = 0; index < g_args.reqPerReq; index++) {
-        tmfree(pThreadInfo->lines[index]);
-    }
-    tmfree(pThreadInfo->lines);
+        for (int index = 0; index < g_args.reqPerReq; index++) {
+            tmfree(pThreadInfo->lines[index]);
+        }
+        tmfree(pThreadInfo->lines);
 free_smlheadlist_interlace_sml:
-    for (int index = 0; index < pThreadInfo->ntables; index++) {
-        tmfree(smlList[index]);
+        for (int index = 0; index < pThreadInfo->ntables; index++) {
+            tmfree(smlList[index]);
+        }
+        tmfree(smlList);
     }
-    tmfree(smlList);
-    
     return NULL;
 }
 
@@ -10766,8 +10849,8 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
     pThreadInfo->samplePos = 0;
 
-    char** smlList = NULL;
-    cJSON** tagsList = NULL;
+    char** smlList;
+    cJSON** tagsList;
     cJSON* jsonArray;
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL || 
             stbInfo->lineProtocol == TSDB_SML_TELNET_PROTOCOL) {
@@ -10780,10 +10863,10 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
             return NULL;
         }
         for (int t = 0; t < pThreadInfo->ntables; t++) {
-            char* sml = (char *)calloc(1, HEAD_BUFF_LEN);
+            char* sml = (char *)calloc(1, stbInfo->lenOfOneRow);
             if (NULL == sml) {
-                errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__, HEAD_BUFF_LEN,
+                errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, stbInfo->lenOfOneRow,
                     strerror(errno));
                 goto free_smlheadlist_progressive_sml;
             }
@@ -10804,10 +10887,10 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         }
 
         for (int i = 0; i < g_args.reqPerReq; i++) {
-            pThreadInfo->lines[i] = (char *)calloc(1, BUFFER_SIZE);
+            pThreadInfo->lines[i] = (char *)calloc(1, stbInfo->lenOfOneRow);
             if (NULL == pThreadInfo->lines[i]) {
-                errorPrint2("[%d] %s() LN%d: Failed to alloc %d bytes, reason:%s\n",
-                    pThreadInfo->threadID, __func__, __LINE__, BUFFER_SIZE,
+                errorPrint2("[%d] %s() LN%d: Failed to alloc %"PRIu64" bytes, reason:%s\n",
+                    pThreadInfo->threadID, __func__, __LINE__, stbInfo->lenOfOneRow,
                     strerror(errno));
                 goto free_lines_progressive_sml;
             }
@@ -10862,6 +10945,9 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         int64_t timestamp = pThreadInfo->start_time;
         
         if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL){
+            if (jsonArray != NULL) {
+                cJSON_Delete(jsonArray);
+            }
             jsonArray = cJSON_CreateArray();
         }
         for (uint64_t j = 0; j < insertRows;) {
@@ -10929,9 +11015,15 @@ static void* syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     }
 
     if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
+        tmfree(pThreadInfo->lines[0]);
         tmfree(pThreadInfo->lines);
 free_json_progressive_sml:
-        cJSON_Delete(jsonArray);
+        if(jsonArray != NULL) {
+            cJSON_Delete(jsonArray);
+        }
+        for (int index = 0; index < pThreadInfo->ntables; index++) {
+            cJSON_Delete(tagsList[index]);
+        }
         tmfree(tagsList);
     } else {
 free_lines_progressive_sml:
@@ -11305,13 +11397,17 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             exit(EXIT_FAILURE);
         }
     }
-
-    if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
-        if (stbInfo->columnCount != 1) {
-            errorPrint2("Schemaless telnet/json protocol can only have 1 column instead of %d\n", stbInfo->columnCount);
-            exit(EXIT_FAILURE);
+    if (stbInfo->iface == SML_IFACE) {
+        if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
+            if (stbInfo->columnCount != 1) {
+                errorPrint2("Schemaless telnet/json protocol can only have 1 column instead of %d\n", stbInfo->columnCount);
+                exit(EXIT_FAILURE);
+            }
+            stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
         }
-        stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
+        if (stbInfo->lineProtocol != TSDB_SML_JSON_PROTOCOL){
+            calcRowLen(stbInfo);
+        }
     }
 
     int64_t startTime;
