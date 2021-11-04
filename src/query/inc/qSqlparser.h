@@ -80,11 +80,11 @@ typedef struct tVariantListItem {
 } tVariantListItem;
 
 typedef struct CommonItem {
-  //union {
+  union {
     tVariant           pVar;
-    //struct tSqlExpr    *jsonExp;
-  //};
-  //bool               isJsonExp;
+    struct tSqlExpr    *jsonExp;
+  };
+  bool               isJsonExp;
   uint8_t            sortOrder;
 } CommonItem;
 
@@ -280,6 +280,7 @@ typedef struct tSqlExprItem {
   bool               distinct;
 } tSqlExprItem;
 
+SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder);
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
