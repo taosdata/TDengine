@@ -28,6 +28,96 @@
 #include "texpr.h"
 #include "tarithoperator.h"
 
+
+int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  //TODO: check childs for every function
+  switch (pExpr->_func.functionId) {
+    case TSDB_FUNC_SCALAR_POW:
+    case TSDB_FUNC_SCALAR_LOG: {
+      if (pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      tExprNode *child2 = pExpr->_func.pChildren[1];
+      if ((child2->nodeType == TSQL_NODE_VALUE && !IS_NUMERIC_TYPE(child2->pVal->nType)) ||
+          !IS_NUMERIC_TYPE(child2->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+      break;
+    }
+    case TSDB_FUNC_SCALAR_CONCAT: {
+
+    }
+
+    default:
+      break;
+  }
+  return code;
+}
+
+int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
+  //TODO: modify. keep existing behavior
+  if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
+      pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
+      pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
+    pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+    pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t exprTreeValidateTree(tExprNode *pExpr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pExpr == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pExpr->nodeType == TSQL_NODE_VALUE) {
+    pExpr->resultType = -1;
+    pExpr->resultBytes = -1;
+  } else if (pExpr->nodeType == TSQL_NODE_COL) {
+    pExpr->resultType = pExpr->pSchema->type;
+    if (pExpr->pSchema->colId != TSDB_TBNAME_COLUMN_INDEX) {
+      pExpr->resultBytes = pExpr->pSchema->bytes;
+    } else {
+      pExpr->resultBytes = tGetTbnameColumnSchema()->bytes;
+    }
+  } else if (pExpr->nodeType == TSQL_NODE_EXPR) {
+    code = exprTreeValidateTree(pExpr->_node.pLeft);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    code = exprTreeValidateTree(pExpr->_node.pRight);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    code = exprTreeValidateExprNode(pExpr);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else if (pExpr->nodeType == TSQL_NODE_FUNC) {
+    for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+      code = exprTreeValidateTree(pExpr->_func.pChildren[i]);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+    code = exprTreeValidateFunctionNode(pExpr);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
   if (pLeft->nodeType == TSQL_NODE_COL) {
     // if left node is the primary column,return true
@@ -788,6 +878,9 @@ void vectorLog(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs,
   }
 }
 
+void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+
+}
 
 _expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
   assert(TSDB_FUNC_IS_SCALAR(funcId));
@@ -806,5 +899,10 @@ tScalarFunctionInfo aScalarFunctions[] = {
         TSDB_FUNC_SCALAR_LOG,
         "log",
         vectorLog
+    },
+    {
+        TSDB_FUNC_SCALAR_CONCAT,
+        "concat",
+        vectorConcat
     },
 };

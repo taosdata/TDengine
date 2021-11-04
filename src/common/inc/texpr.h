@@ -44,12 +44,15 @@ struct SSchema;
 #define TSDB_FUNC_FLAG_SCALAR       0x4000
 #define TSDB_FUNC_IS_SCALAR(id)     ((((id) > 0)) && (((id) & TSDB_FUNC_FLAG_SCALAR) != 0))
 #define TSDB_FUNC_SCALAR_INDEX(id)  ((id) & ~TSDB_FUNC_FLAG_SCALAR)
+
 ///////////////////////////////////////////
 // SCALAR FUNCTIONS
 #define TSDB_FUNC_SCALAR_POW          (TSDB_FUNC_FLAG_SCALAR | 0x0000)
 #define TSDB_FUNC_SCALAR_LOG          (TSDB_FUNC_FLAG_SCALAR | 0x0001)
-#define TSDB_FUNC_SCALAR_MAX_NUM      2
+#define TSDB_FUNC_SCALAR_CONCAT       (TSDB_FUNC_FLAG_SCALAR | 0x0002)
+#define TSDB_FUNC_SCALAR_MAX_NUM      3
 #define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
+
 typedef struct {
   int16_t type;
   int16_t bytes;
@@ -125,6 +128,8 @@ typedef struct SExprTraverseSupp {
 } SExprTraverseSupp;
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
+
+int32_t exprTreeValidateTree(tExprNode *pExpr);
 
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 tExprNode* exprTreeFromBinary(const void* data, size_t size);

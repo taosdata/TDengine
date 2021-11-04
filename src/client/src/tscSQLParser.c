@@ -1788,6 +1788,13 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
     }
   }
 
+//  ret = exprTreeValidateTree(pNode);
+//  if (ret != TSDB_CODE_SUCCESS) {
+//    taosArrayDestroy(colList);
+//    tExprTreeDestroy(pNode, NULL);
+//    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+//  }
+
   SBufferWriter bw = tbufInitWriter(NULL, false);
 
   TRY(0) {
@@ -9624,12 +9631,12 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       (*pExpr)->nodeType = TSQL_NODE_FUNC;
       (*pExpr)->_func.functionId = pSqlExpr->functionId;
       SArray* paramList = pSqlExpr->Expr.paramList;
-      size_t paramSize = taosArrayGetSize(paramList);
+      size_t paramSize = paramList ? taosArrayGetSize(paramList) : 0;
       if (paramSize > 0) {
         (*pExpr)->_func.numChildren = paramSize;
         (*pExpr)->_func.pChildren = (tExprNode**)calloc(paramSize, sizeof(tExprNode*));
       }
-      for (int i = 0; i < taosArrayGetSize(paramList); ++i) {
+      for (int32_t i = 0; i < paramSize; ++i) {
         tSqlExprItem* param = taosArrayGet(paramList, i);
         tSqlExpr* paramNode = param->pNode;
         int32_t ret = exprTreeFromSqlExpr(pCmd, (*pExpr)->_func.pChildren+i, paramNode, pQueryInfo, pCols, uid);
