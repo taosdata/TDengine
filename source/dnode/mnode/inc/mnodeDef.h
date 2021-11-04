@@ -208,7 +208,7 @@ typedef struct {
 
 typedef struct SDbObj {
   SdbHead   head;
-  char      name[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char      name[TSDB_FULL_DB_NAME_LEN];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
@@ -236,7 +236,7 @@ typedef struct SVgObj {
   int64_t   updateTime;
   int32_t   lbDnodeId;
   int32_t   lbTime;
-  char      dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char      dbName[TSDB_FULL_DB_NAME_LEN];
   int8_t    inUse;
   int8_t    accessState;
   int8_t    status;
@@ -288,7 +288,7 @@ typedef struct {
   void    *pIter;
   void    *pVgIter;
   void   **ppShow;
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   int16_t  offset[TSDB_MAX_COLUMNS];
   int32_t  bytes[TSDB_MAX_COLUMNS];
   char     payload[];

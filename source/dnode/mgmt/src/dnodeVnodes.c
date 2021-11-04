@@ -333,7 +333,7 @@ static int32_t dnodeParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCf
   SCreateVnodeMsg *pCreate = rpcMsg->pCont;
   *vgId = htonl(pCreate->vgId);
 
-  tstrncpy(pCfg->db, pCreate->db, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN);
+  tstrncpy(pCfg->db, pCreate->db, TSDB_FULL_DB_NAME_LEN);
   pCfg->cacheBlockSize = htonl(pCreate->cacheBlockSize);
   pCfg->totalBlocks = htonl(pCreate->totalBlocks);
   pCfg->daysPerFile = htonl(pCreate->daysPerFile);

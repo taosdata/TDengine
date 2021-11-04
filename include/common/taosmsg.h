@@ -325,7 +325,7 @@ typedef struct {
 
 typedef struct {
   char    tableFname[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char    db[TSDB_FULL_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -570,7 +570,7 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
   int32_t  maxTables;
@@ -701,7 +701,7 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
-  char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_FULL_DB_NAME_LEN];
   uint32_t   vgId;
   int32_t    cacheBlockSize;
   int32_t    totalBlocks;
@@ -804,13 +804,13 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;
 
 typedef struct {
-  char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char db[TSDB_FULL_DB_NAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
 } SCompactMsg;

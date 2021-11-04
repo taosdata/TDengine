@@ -27,7 +27,7 @@ extern "C" {
 typedef struct SVnode SVnode;
 
 typedef struct {
-  char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_FULL_DB_NAME_LEN];
   int32_t    cacheBlockSize;  // MB
   int32_t    totalBlocks;
   int32_t    daysPerFile;
