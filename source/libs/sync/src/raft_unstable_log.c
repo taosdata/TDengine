@@ -16,6 +16,8 @@
 #include "sync.h"
 #include "raft_unstable_log.h"
 
+/*
 SyncIndex syncRaftLogLastIndex(SSyncRaftUnstableLog* pLog) {
   return 0;
 }
+*/

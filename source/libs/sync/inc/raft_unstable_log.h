@@ -41,7 +41,7 @@ struct SSyncRaftUnstableLog {
 /**
  * return index of last in memory log, return 0 if log is empty
  **/
-SyncIndex syncRaftLogLastIndex(SSyncRaftUnstableLog* pLog);
+//SyncIndex syncRaftLogLastIndex(SSyncRaftUnstableLog* pLog);
 
 #if 0
 void raftLogInit(RaftLog* pLog);

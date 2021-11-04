@@ -13,27 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_TYPE_H
-#define _TD_LIBS_SYNC_TYPE_H
+#include "raft_log.h"
 
-typedef int32_t SyncTime;
+SSyncRaftLog* syncRaftLogOpen() {
+  return NULL;
+}
 
-typedef struct SSyncRaft SSyncRaft;
+SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog) {
+  return 0;
+}
 
-typedef struct SSyncRaftLog SSyncRaftLog;
+SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog) {
+  return 0;
+}
 
-#ifndef MIN
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-#endif
+int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog) {
+  return 0;
+}
 
-#ifndef MAX
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#endif
-
-typedef enum {
-  SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
-  SYNC_RAFT_CAMPAIGN_ELECTION = 1,
-  SYNC_RAFT_CAMPAIGN_TRANSFER = 3,
-} SyncRaftCampaignType;
-
-#endif  /* _TD_LIBS_SYNC_TYPE_H */
+bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog) {
+  return pLog->commitIndex > pLog->appliedIndex;
+}

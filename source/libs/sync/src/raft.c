@@ -14,6 +14,7 @@
  */
 
 #include "raft.h"
+#include "raft_configuration.h"
 #include "syncInt.h"
 
 #define RAFT_READ_LOG_MAX_NUM 100
@@ -22,6 +23,7 @@ static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
+static int convertClear(SSyncRaft* pRaft);
 static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
@@ -45,11 +47,18 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   
   memset(pRaft, 0, sizeof(SSyncRaft));
 
-  memcpy(&pRaft->info, pInfo, sizeof(SSyncInfo));
-  stateManager = &(pRaft->info.stateManager);
-  logStore = &(pRaft->info.logStore);
-  fsm = &(pRaft->info.fsm);
+  memcpy(&pRaft->fsm, &pInfo->fsm, sizeof(SSyncFSM));
+  memcpy(&pRaft->logStore, &pInfo->logStore, sizeof(SSyncLogStore));
+  memcpy(&pRaft->stateManager, &pInfo->stateManager, sizeof(SStateManager));
 
+  stateManager = &(pRaft->stateManager);
+  logStore = &(pRaft->logStore);
+  fsm = &(pRaft->fsm);
+
+  // open raft log
+  if ((pRaft->log = syncRaftLogOpen()) == NULL) {
+    return -1;
+  }
   // read server state
   if (stateManager->readServerState(stateManager, &serverState) != 0) {
     syncError("readServerState for vgid %d fail", pInfo->vgId);
@@ -79,7 +88,8 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 
   syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
 
-  syncInfo("restore vgid %d state: snapshot index success", pInfo->vgId);
+  syncInfo("[%d:%d] restore vgid %d state: snapshot index success", 
+    pRaft->selfGroupId, pRaft->selfId, pInfo->vgId);
   return 0;
 }
 
@@ -95,7 +105,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   RaftMessageType msgType = pMsg->msgType;
   if (msgType == RAFT_MSG_INTERNAL_ELECTION) {
     syncRaftHandleElectionMessage(pRaft, pMsg);
-  } else if (msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_PRE_VOTE) {
+  } else if (msgType == RAFT_MSG_VOTE) {
 
   } else {
     pRaft->stepFp(pRaft, pMsg);
@@ -125,11 +135,13 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
    **/
   pRaft->stepFp = stepCandidate;
   pRaft->tickFp = tickElection;
-  pRaft->state  = TAOS_SYNC_ROLE_PRE_CANDIDATE;
+  pRaft->state  = TAOS_SYNC_ROLE_CANDIDATE;
+  pRaft->candidateState.inPreVote = true;
   syncInfo("[%d:%d] became pre-candidate at term %d" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
+  pRaft->candidateState.inPreVote = false;
   pRaft->stepFp = stepCandidate;
   // become candidate make term+1
   resetRaft(pRaft, pRaft->term + 1);
@@ -157,9 +169,7 @@ void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
 }
 
 bool syncRaftIsPromotable(SSyncRaft* pRaft) {
-  return pRaft->info.syncCfg.selfIndex >= 0 && 
-         pRaft->info.syncCfg.selfIndex < pRaft->info.syncCfg.replica &&
-         pRaft->selfId != SYNC_NON_NODE_ID;
+  return pRaft->selfId != SYNC_NON_NODE_ID;
 }
 
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
@@ -167,17 +177,29 @@ bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
 }
 
 int syncRaftQuorum(SSyncRaft* pRaft) {
-  return pRaft->leaderState.nProgress / 2 + 1;
+  return pRaft->cluster.replica / 2 + 1;
 }
 
-int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, RaftMessageType msgType, bool accept) {
+int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool accept) {
   if (accept) {
-
+    syncInfo("[%d:%d] received (pre-vote %d) from %d at term %" PRId64 "", 
+      pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
   } else {
-
+    syncInfo("[%d:%d] received rejection from %d at term %" PRId64 "", 
+      pRaft->selfGroupId, pRaft->selfId, id, pRaft->term);
   }
 
+  int voteIndex = syncRaftConfigurationIndexOfVoter(pRaft, id);
+  assert(voteIndex < pRaft->cluster.replica && voteIndex >= 0);
 
+  pRaft->candidateState.votes[voteIndex] = accept;
+  int granted = 0;
+  int i;
+  for (i = 0; i < pRaft->cluster.replica; ++i) {
+    if (pRaft->candidateState.votes[i]) granted++;
+  }
+
+  return granted;
 }
 
 /**
@@ -201,13 +223,13 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
   SyncNodeId leaderId = pMsg->from;
   RaftMessageType msgType = pMsg->msgType;
 
-  if (msgType == RAFT_MSG_VOTE || msgType == RAFT_MSG_PRE_VOTE) {
+  if (msgType == RAFT_MSG_VOTE) {
     leaderId = SYNC_NON_NODE_ID;
   }
 
-  if (msgType == RAFT_MSG_PRE_VOTE) {
+  if (syncIsPreVoteMsg(pMsg)) {
     // Never change our term in response to a PreVote
-  } else if (msgType == RAFT_MSG_PRE_VOTE_RESP && !pMsg->preVoteResp.reject) {
+  } else if (syncIsPreVoteRespMsg(pMsg) && !pMsg->voteResp.reject) {
 		/**
      * We send pre-vote requests with a term in our future. If the
 		 * pre-vote is granted, we will increment our term when we get a
@@ -216,8 +238,8 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 		 * term.
      **/
   } else {
-    syncInfo("%d [term:%" PRId64 "] received a %d message with higher term from %d [term:%" PRId64 "]",
-      pRaft->selfId, pRaft->term, msgType, pMsg->from, pMsg->term);
+    syncInfo("[%d:%d] [term:%" PRId64 "] received a %d message with higher term from %d [term:%" PRId64 "]",
+      pRaft->selfGroupId, pRaft->selfId, pRaft->term, msgType, pMsg->from, pMsg->term);
     syncRaftBecomeFollower(pRaft, pMsg->term, leaderId);
   }
 
@@ -230,15 +252,23 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
   return true;
 }
 
+static int convertClear(SSyncRaft* pRaft) {
+
+}
+
 static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  convertClear(pRaft);
   return 0;
 }
 
 static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  convertClear(pRaft);
+  memset(pRaft->candidateState.votes, 0, sizeof(bool) * TSDB_MAX_REPLICA);
   return 0;
 }
 
 static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
+  convertClear(pRaft);
   return 0;
 }
 

@@ -29,9 +29,16 @@ typedef struct RaftLeaderState {
   SSyncRaftProgress* progress;
 } RaftLeaderState;
 
+typedef struct RaftCandidateState {
+  /* votes results */
+  bool votes[TSDB_MAX_REPLICA];
+
+  /* true if in pre-vote phase */
+  bool inPreVote;
+} RaftCandidateState;
+
 typedef struct SSyncRaftIOMethods {
-
-
+  int (*send)(const SSyncMessage* pMsg, const SNodeInfo* pNode);
 } SSyncRaftIOMethods;
 
 typedef int   (*SyncRaftStepFp)(SSyncRaft* pRaft, const SSyncMessage* pMsg);
@@ -41,7 +48,10 @@ struct SSyncRaft {
   // owner sync node
   SSyncNode* pNode;
 
-  SSyncInfo info;
+  //SSyncInfo info;
+  SSyncFSM      fsm;
+  SSyncLogStore logStore;
+  SStateManager stateManager;
 
   SyncTerm term;
   SyncNodeId voteFor;
@@ -64,6 +74,8 @@ struct SSyncRaft {
    * New configuration is ignored if there exists unapplied configuration.
    **/
 	bool pendingConf;
+
+  SSyncCluster cluster;
 
   ESyncRole state;
 
@@ -92,24 +104,21 @@ struct SSyncRaft {
 
   SSyncRaftIOMethods io;
 
-  RaftLeaderState leaderState;
-
-  SSyncRaftUnstableLog *log;
+  union {
+    RaftLeaderState leaderState;
+    RaftCandidateState candidateState;
+  };
+  
+  SSyncRaftLog *log;
 
   SyncRaftStepFp stepFp;
 
   SyncRaftTickFp tickFp;
 };
 
-typedef enum {
-  SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
-  SYNC_RAFT_CAMPAIGN_ELECTION = 1,
-} SyncRaftCampaignType;
-
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
 int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int32_t syncRaftTick(SSyncRaft* pRaft);
-
 
 void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId);
 void syncRaftBecomePreCandidate(SSyncRaft* pRaft);
@@ -120,6 +129,6 @@ void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
 bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
 int  syncRaftQuorum(SSyncRaft* pRaft);
-int  syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, RaftMessageType msgType, bool accept);
+int  syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool accept);
 
 #endif /* _TD_LIBS_SYNC_RAFT_H */

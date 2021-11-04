@@ -13,27 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_TYPE_H
-#define _TD_LIBS_SYNC_TYPE_H
+#include "raft_configuration.h"
+#include "raft.h"
 
-typedef int32_t SyncTime;
+int syncRaftConfigurationIndexOfVoter(SSyncRaft *pRaft, SyncNodeId id) {
+  return (int)(id);
+}
 
-typedef struct SSyncRaft SSyncRaft;
-
-typedef struct SSyncRaftLog SSyncRaftLog;
-
-#ifndef MIN
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-#endif
-
-#ifndef MAX
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#endif
-
-typedef enum {
-  SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
-  SYNC_RAFT_CAMPAIGN_ELECTION = 1,
-  SYNC_RAFT_CAMPAIGN_TRANSFER = 3,
-} SyncRaftCampaignType;
-
-#endif  /* _TD_LIBS_SYNC_TYPE_H */
+int syncRaftConfigurationVoterCount(SSyncRaft *pRaft) {
+  return pRaft->cluster.replica;
+}

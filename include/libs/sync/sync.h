@@ -32,7 +32,6 @@ typedef enum {
   TAOS_SYNC_ROLE_FOLLOWER = 0,
   TAOS_SYNC_ROLE_CANDIDATE = 1,
   TAOS_SYNC_ROLE_LEADER = 2,
-  TAOS_SYNC_ROLE_PRE_CANDIDATE = 3,
 } ESyncRole;
 
 typedef struct {

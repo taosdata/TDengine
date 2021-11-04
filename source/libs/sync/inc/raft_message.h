@@ -35,8 +35,7 @@ typedef enum RaftMessageType {
   RAFT_MSG_VOTE = 3,
   RAFT_MSG_VOTE_RESP = 4,
 
-  RAFT_MSG_PRE_VOTE = 5,
-  RAFT_MSG_PRE_VOTE_RESP = 6,
+
 } RaftMessageType;
 
 typedef struct RaftMsgInternal_Prop {
@@ -49,13 +48,21 @@ typedef struct RaftMsgInternal_Election {
 
 } RaftMsgInternal_Election;
 
-typedef struct RaftMsg_PreVoteResp {
+typedef struct RaftMsg_Vote {
+  SyncRaftCampaignType cType;
+  SyncIndex lastIndex;
+  SyncTerm lastTerm;
+} RaftMsg_Vote;
+
+typedef struct RaftMsg_VoteResp {
   bool reject;
-} RaftMsg_PreVoteResp;
+  SyncRaftCampaignType cType;
+} RaftMsg_VoteResp;
 
 typedef struct SSyncMessage {
   RaftMessageType msgType;
   SyncTerm term;
+  SyncGroupId groupId;
   SyncNodeId from;
   SyncNodeId to;
 
@@ -64,7 +71,8 @@ typedef struct SSyncMessage {
 
     RaftMsgInternal_Election election;
 
-    RaftMsg_PreVoteResp preVoteResp;
+    RaftMsg_Vote vote;
+    RaftMsg_VoteResp voteResp;
   };
 } SSyncMessage;
 
@@ -95,14 +103,39 @@ static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNo
   return pMsg;
 }
 
+static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId from, SyncNodeId to,
+                                                SyncTerm term, SyncRaftCampaignType cType, 
+                                                SyncIndex lastIndex, SyncTerm lastTerm) {
+  SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+  *pMsg = (SSyncMessage) {
+    .groupId = groupId,
+    .from = from,
+    .to = to,
+    .term = term,
+    .vote = (RaftMsg_Vote) {
+      .cType = cType,
+      .lastIndex = lastIndex,
+      .lastTerm = lastTerm,
+    },
+  };
+
+  return pMsg;
+}
+
 static FORCE_INLINE bool syncIsInternalMsg(RaftMessageType msgType) {
   return msgType == RAFT_MSG_INTERNAL_PROP ||
          msgType == RAFT_MSG_INTERNAL_ELECTION;
 }
 
-static FORCE_INLINE RaftMessageType SyncRaftVoteRespMsgType(RaftMessageType msgType) {
-  if (msgType == RAFT_MSG_VOTE) return RAFT_MSG_PRE_VOTE_RESP;
-  return RAFT_MSG_PRE_VOTE_RESP;
+static FORCE_INLINE bool syncIsPreVoteRespMsg(SSyncMessage* pMsg) {
+  return pMsg->msgType == RAFT_MSG_VOTE_RESP && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
+}
+
+static FORCE_INLINE bool syncIsPreVoteMsg(SSyncMessage* pMsg) {
+  return pMsg->msgType == RAFT_MSG_VOTE && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
 }
 
 void syncFreeMessage(const SSyncMessage* pMsg);
