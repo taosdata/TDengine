@@ -24,11 +24,11 @@ SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }
 void    vnodeClose(SVnode *pVnode) {}
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg) { return NULL; }
-int32_t vnodeDrop(SVnode *pVnode) { return 0; }
+void    vnodeDrop(SVnode *pVnode) {}
 int32_t vnodeCompact(SVnode *pVnode) { return 0; }
 int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
-void vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {}
+int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
 
 SVnodeMsg *vnodeInitMsg(int32_t msgNum) {
   SVnodeMsg *pMsg = taosAllocateQitem(msgNum * sizeof(SRpcMsg *) + sizeof(SVnodeMsg));

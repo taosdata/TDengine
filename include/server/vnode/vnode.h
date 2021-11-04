@@ -74,11 +74,11 @@ SVnode *vnodeOpen(int32_t vgId, const char *path);
 void    vnodeClose(SVnode *pVnode);
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
-int32_t vnodeDrop(SVnode *pVnode);
+void    vnodeDrop(SVnode *pVnode);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 
-void vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
+int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 SVnodeMsg *vnodeInitMsg(int32_t msgNum);
 int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
