@@ -17,7 +17,7 @@
 #include "vnodeInt.h"
 #include "tqueue.h"
 
-int32_t vnodeInit() { return 0; }
+int32_t vnodeInit(SVnodePara para) { return 0; }
 void    vnodeCleanup() {}
 
 SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }

@@ -55,13 +55,19 @@ typedef enum {
   VN_MSG_TYPE_FETCH
 } EVMType;
 
-typedef struct SVnodeMsg {
+typedef struct {
   int32_t curNum;
   int32_t allocNum;
   SRpcMsg rpcMsg[];
 } SVnodeMsg;
 
-int32_t vnodeInit();
+typedef struct {
+  void (*SendMsgToDnode)(SEpSet *pEpSet, SRpcMsg *pMsg);
+  void (*SendMsgToMnode)(SRpcMsg *pMsg);
+  int32_t (*PutMsgIntoApplyQueue)(int32_t vgId, SVnodeMsg *pMsg);
+} SVnodePara;
+
+int32_t vnodeInit(SVnodePara);
 void    vnodeCleanup();
 
 SVnode *vnodeOpen(int32_t vgId, const char *path);

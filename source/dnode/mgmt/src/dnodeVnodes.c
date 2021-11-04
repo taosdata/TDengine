@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeVnodes.h"
+#include "dnodeTransport.h"
 #include "thash.h"
 #include "tqueue.h"
 #include "tstep.h"
@@ -666,6 +667,17 @@ void dnodeProcessVnodeFetchMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 }
 
+static int32_t dnodePutMsgIntoVnodeApplyQueue(int32_t vgId, SVnodeMsg *pMsg) {
+  SVnodeObj *pVnode = dnodeAcquireVnode(vgId);
+  if (pVnode == NULL) {
+    return terrno;
+  }
+
+  int32_t code = taosWriteQitem(pVnode->pApplyQ, pMsg);
+  dnodeReleaseVnode(pVnode);
+  return code;
+}
+
 static int32_t dnodeInitVnodeMgmtWorker() {
   SWorkerPool *pPool = &tsVnodes.mgmtPool;
   pPool->name = "vnode-mgmt";
@@ -811,11 +823,20 @@ static int32_t dnodeInitVnodeSyncWorker() {
 
 static void dnodeCleanupVnodeSyncWorker() { tMWorkerCleanup(&tsVnodes.syncPool); }
 
+static int32_t dnodeInitVnodeModule() {
+  SVnodePara para;
+  para.SendMsgToDnode = dnodeSendMsgToDnode;
+  para.SendMsgToMnode = dnodeSendMsgToMnode;
+  para.PutMsgIntoApplyQueue = dnodePutMsgIntoVnodeApplyQueue;
+
+  return vnodeInit(para);
+}
+
 int32_t dnodeInitVnodes() {
   dInfo("dnode-vnodes start to init");
 
   SSteps *pSteps = taosStepInit(3, dnodeReportStartup);
-  taosStepAdd(pSteps, "dnode-vnode-env", vnodeInit, vnodeCleanup);
+  taosStepAdd(pSteps, "dnode-vnode-env", dnodeInitVnodeModule, vnodeCleanup);
   taosStepAdd(pSteps, "dnode-vnode-mgmt", dnodeInitVnodeMgmtWorker, dnodeCleanupVnodeMgmtWorker);
   taosStepAdd(pSteps, "dnode-vnode-read", dnodeInitVnodeReadWorker, dnodeCleanupVnodeReadWorker);
   taosStepAdd(pSteps, "dnode-vnode-write", dnodeInitVnodeWriteWorker, dnodeCleanupVnodeWriteWorker);
