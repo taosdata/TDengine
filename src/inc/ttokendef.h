@@ -211,6 +211,7 @@
 #define TK_INSERT                         193
 #define TK_INTO                           194
 #define TK_VALUES                         195
+#define TK_FILE                           196
 
 
 #define TK_SPACE                          300
@@ -219,7 +220,6 @@
 #define TK_HEX                            303   // hex number  0x123
 #define TK_OCT                            304   // oct number
 #define TK_BIN                            305   // bin format data 0b111
-#define TK_FILE                           306
 #define TK_QUESTION                       307   // denoting the placeholder of "?",when invoking statement bind query
 
 #endif
