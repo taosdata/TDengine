@@ -54,7 +54,7 @@ int64_t mnodeGetClusterId() { return tsMint.clusterId; }
 
 EMnStatus mnodeGetStatus() { return tsMint.state; }
 
-void mnodeSendMsgToDnode(struct SRpcEpSet *epSet, struct SRpcMsg *rpcMsg) {
+void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg) {
   (*tsMint.fp.SendMsgToDnode)(epSet, rpcMsg);
 }
 
@@ -250,3 +250,6 @@ void mnodeCleanup() {
     mInfo("mnode is cleaned up");
   }
 }
+
+int32_t mnodeStart() { return 0; }
+void    mnodeStop() {}

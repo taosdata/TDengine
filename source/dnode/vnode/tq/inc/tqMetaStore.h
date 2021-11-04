@@ -17,9 +17,20 @@
 #define _TQ_META_STORE_H_
 
 #include "os.h"
+#include "tq.h"
 
-#define TQ_INUSE_SIZE 0xFF
+#define TQ_BUCKET_SIZE 0xFF
 #define TQ_PAGE_SIZE 4096
+//key + offset + size
+#define TQ_IDX_ENTRY_SIZE 24
+
+inline static int TqMaxEntryOnePage() { //170
+  return TQ_PAGE_SIZE / TQ_IDX_ENTRY_SIZE;
+}
+
+inline static int TqEmptyTail() { //16
+  return TQ_PAGE_SIZE - TqMaxEntryOnePage();
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,47 +39,49 @@ extern "C" {
 typedef struct TqMetaHandle {
   int64_t key;
   int64_t offset;
-  void *valueInUse;
-  void *valueInTxn;
+  int64_t serializedSize;
+  void*   valueInUse;
+  void*   valueInTxn;
 } TqMetaHandle;
 
 typedef struct TqMetaList {
   TqMetaHandle handle;
   struct TqMetaList* next;
-  struct TqMetaList* inTxnPrev;
-  struct TqMetaList* inTxnNext;
+  //struct TqMetaList* inTxnPrev;
+  //struct TqMetaList* inTxnNext;
   struct TqMetaList* unpersistPrev;
   struct TqMetaList* unpersistNext;
 } TqMetaList;
 
 typedef struct TqMetaStore {
-  TqMetaList* inUse[TQ_INUSE_SIZE];
-  //a table head, key is empty
+  TqMetaList* bucket[TQ_BUCKET_SIZE];
+  //a table head
   TqMetaList* unpersistHead;
-  int fileFd; //TODO:temporaral use
-  int idxFd;  //TODO:temporaral use
-  void* (*serializer)(void*);
-  void* (*deserializer)(void*);
+  int fileFd; //TODO:temporaral use, to be replaced by unified tfile
+  int idxFd;  //TODO:temporaral use, to be replaced by unified tfile
+  int (*serializer)(TqGroupHandle*, void**);
+  const void* (*deserializer)(const void*, TqGroupHandle*);
   void  (*deleter)(void*);
 } TqMetaStore;
 
-TqMetaStore*  tqStoreOpen(const char* path, void* serializer(void* ), void* deserializer(void*), void deleter(void*));
+TqMetaStore*  tqStoreOpen(const char* path,
+    int serializer(TqGroupHandle*, void**),
+    const void* deserializer(const void*, TqGroupHandle*),
+    void deleter(void*));
 int32_t       tqStoreClose(TqMetaStore*);
-int32_t       tqStoreDelete(TqMetaStore*);
+//int32_t       tqStoreDelete(TqMetaStore*);
 //int32_t       TqStoreCommitAll(TqMetaStore*);
 int32_t       tqStorePersist(TqMetaStore*);
 
-TqMetaHandle* tqHandleGetInUse(TqMetaStore*, int64_t key);
-int32_t       tqHandlePutInUse(TqMetaStore*, TqMetaHandle* handle);
-TqMetaHandle* tqHandleGetInTxn(TqMetaStore*, int64_t key);
-int32_t       tqHandlePutInTxn(TqMetaStore*, TqMetaHandle* handle);
-//delete in-use-handle, make in-txn-handle in use
+TqMetaHandle* tqHandleGet(TqMetaStore*, int64_t key);
+int32_t       tqHandlePut(TqMetaStore*, int64_t key, void* value);
+//do commit
 int32_t       tqHandleCommit(TqMetaStore*, int64_t key);
-//delete in-txn-handle
+//delete uncommitted
 int32_t       tqHandleAbort(TqMetaStore*, int64_t key);
-//delete in-use-handle
+//delete committed
 int32_t       tqHandleDel(TqMetaStore*, int64_t key);
-//delete in-use-handle and in-txn-handle
+//delete both committed and uncommitted
 int32_t       tqHandleClear(TqMetaStore*, int64_t key);
 
 #ifdef __cplusplus

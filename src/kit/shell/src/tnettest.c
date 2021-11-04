@@ -338,7 +338,7 @@ void *taosNetInitRpc(char *secretEncrypt, char spi) {
   return pRpcConn;
 }
 
-static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t pktLen, char spi, SStartupStep *pStep) {
+static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t pktLen, char spi, SStartupMsg *pStep) {
   SRpcEpSet epSet;
   SRpcMsg   reqMsg;
   SRpcMsg   rspMsg;
@@ -374,7 +374,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   }
 
   int32_t code = 0;
-  if (pStep != NULL && rspMsg.pCont != NULL && rspMsg.contLen > 0 && rspMsg.contLen <= sizeof(SStartupStep)) {
+  if (pStep != NULL && rspMsg.pCont != NULL && rspMsg.contLen > 0 && rspMsg.contLen <= sizeof(SStartupMsg)) {
     memcpy(pStep, rspMsg.pCont, rspMsg.contLen);
     code = 1;
   }
@@ -384,8 +384,8 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   return code;
 }
 
-static int32_t taosNetParseStartup(SStartupStep *pCont) {
-  SStartupStep *pStep = pCont;
+static int32_t taosNetParseStartup(SStartupMsg *pCont) {
+  SStartupMsg *pStep = pCont;
   uInfo("step:%s desc:%s", pStep->name, pStep->desc);
 
   if (pStep->finished) {
@@ -398,7 +398,7 @@ static int32_t taosNetParseStartup(SStartupStep *pCont) {
 static void taosNetTestStartup(char *host, int32_t port) {
   uInfo("check startup, host:%s port:%d\n", host, port);
 
-  SStartupStep *pStep = malloc(sizeof(SStartupStep));
+  SStartupMsg *pStep = malloc(sizeof(SStartupMsg));
   while (1) {
     int32_t code = taosNetCheckRpc(host, port + TSDB_PORT_DNODEDNODE, 20, 0, pStep);
     if (code > 0) {

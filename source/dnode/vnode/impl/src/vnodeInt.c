@@ -30,4 +30,4 @@ int32_t vnodeDrop(SVnode *pVnode) { return 0; }
 int32_t vnodeCompact(SVnode *pVnode) { return 0; }
 int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
-int32_t vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg) { return 0; }
+void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg) {}

@@ -13,11 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_HANDLE_H
-#define TDENGINE_HTTP_HANDLE_H
+#ifndef _TD_TSDB_DEF_H_
+#define _TD_TSDB_DEF_H_
 
-// http request handler
-void httpProcessRequest(HttpContext *pContext);
-bool httpProcessData(HttpContext *pContext);
+#include "tsdb.h"
+#include "tsdbOptions.h"
 
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+struct STsdb {
+  char *       path;
+  STsdbOptions options;
+};
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TSDB_DEF_H_*/

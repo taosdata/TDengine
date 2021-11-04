@@ -12,16 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef TDENGINE_HTTP_SESSION_H
-#define TDENGINE_HTTP_SESSION_H
-
-bool httpInitSessions();
-void httpCleanUpSessions();
-
-// http session method
-void httpCreateSession(HttpContext *pContext, void *taos);
-void httpGetSession(HttpContext *pContext);
-void httpReleaseSession(HttpContext *pContext);
-
-#endif

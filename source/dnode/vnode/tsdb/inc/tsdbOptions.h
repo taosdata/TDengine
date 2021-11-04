@@ -13,23 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_QUEUE_H
-#define TDENGINE_HTTP_QUEUE_H
+#ifndef _TD_TSDB_OPTIONS_H_
+#define _TD_TSDB_OPTIONS_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-
-typedef void (*FHttpResultFp)(void *param, void *result, int32_t code, int32_t rows);
-
-bool httpInitResultQueue();
-void httpCleanupResultQueue();
-void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t code, int32_t rows, FHttpResultFp fp);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_TSDB_OPTIONS_H_*/

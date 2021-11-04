@@ -19,6 +19,7 @@ static int vnodeStartCommit(SVnode *pVnode);
 static int vnodeEndCommit(SVnode *pVnode);
 
 int vnodeAsyncCommit(SVnode *pVnode) {
+  #if 0
   if (vnodeStartCommit(pVnode) < 0) {
     // TODO
   }
@@ -39,6 +40,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
     // TODO
   }
 
+#endif
   return 0;
 }
 

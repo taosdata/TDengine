@@ -20,3 +20,7 @@
 int32_t dnodeInitVnodes() { return vnodeInit(); }
 
 void dnodeCleanupVnodes() { vnodeCleanup(); }
+
+void dnodeProcessVnodesMsg(SRpcMsg *pMsg, SEpSet *pEpSet) { vnodeProcessMsg(NULL, NULL); }
+
+void    dnodeGetVnodes(SVnodeLoads *pVloads) {}

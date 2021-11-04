@@ -26,30 +26,30 @@
 #include "wal.h"
 
 static struct {
-  EDnStat      runStatus;
-  SStartupStep startup;
-  SSteps      *steps;
+  SStartupMsg startup;
+  EDnStat     runStat;
+  SSteps     *steps;
 } tsInt;
 
-EDnStat dnodeGetRunStat() { return tsInt.runStatus; }
+EDnStat dnodeGetRunStat() { return tsInt.runStat; }
 
-void dnodeSetRunStat(EDnStat stat) { tsInt.runStatus = stat; }
+void dnodeSetRunStat(EDnStat stat) { tsInt.runStat = stat; }
 
 static void dnodeReportStartup(char *name, char *desc) {
-  SStartupStep *startup = &tsInt.startup;
-  tstrncpy(startup->name, name, strlen(startup->name));
-  tstrncpy(startup->desc, desc, strlen(startup->desc));
-  startup->finished = 0;
+  SStartupMsg *pStartup = &tsInt.startup;
+  tstrncpy(pStartup->name, name, strlen(pStartup->name));
+  tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
+  pStartup->finished = 0;
 }
 
 static void dnodeReportStartupFinished(char *name, char *desc) {
-  SStartupStep *startup = &tsInt.startup;
-  tstrncpy(startup->name, name, strlen(startup->name));
-  tstrncpy(startup->desc, desc, strlen(startup->desc));
-  startup->finished = 1;
+  SStartupMsg *pStartup = &tsInt.startup;
+  tstrncpy(pStartup->name, name, strlen(pStartup->name));
+  tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
+  pStartup->finished = 1;
 }
 
-void dnodeGetStartup(SStartupStep *pStep) { memcpy(pStep, &tsInt.startup, sizeof(SStartupStep)); }
+void dnodeGetStartup(SStartupMsg *pStartup) { memcpy(pStartup, &tsInt.startup, sizeof(SStartupMsg)); }
 
 static int32_t dnodeCheckRunning(char *dir) {
   char filepath[256] = {0};
@@ -99,7 +99,7 @@ static int32_t dnodeInitDir() {
 }
 
 static int32_t dnodeInitMain() {
-  tsInt.runStatus = DN_RUN_STAT_STOPPED;
+  tsInt.runStat = DN_RUN_STAT_STOPPED;
   tscEmbedded = 1;
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();

@@ -13,17 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MQTT_PLYLOAD_H
-#define TDENGINE_MQTT_PLYLOAD_H
+#ifndef _TD_TSDB_IMPL_H_
+#define _TD_TSDB_IMPL_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-char* mqttConverJsonToSql(char* json, int maxSize);
+struct STsdbOptions {
+  /* TODO */
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_TSDB_IMPL_H_*/
