@@ -15,12 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "vnodeInt.h"
+#include "tqueue.h"
 
-int32_t vnodeInit() { return 0; }
+int32_t vnodeInit(SVnodePara para) { return 0; }
 void    vnodeCleanup() {}
-
-int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat) { return 0; }
-int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus) { return 0; }
 
 SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }
 void    vnodeClose(SVnode *pVnode) {}
@@ -30,4 +28,45 @@ int32_t vnodeDrop(SVnode *pVnode) { return 0; }
 int32_t vnodeCompact(SVnode *pVnode) { return 0; }
 int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
-void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg) {}
+void vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {}
+
+SVnodeMsg *vnodeInitMsg(int32_t msgNum) {
+  SVnodeMsg *pMsg = taosAllocateQitem(msgNum * sizeof(SRpcMsg *) + sizeof(SVnodeMsg));
+  if (pMsg == NULL) {
+    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    return NULL;
+  } else {
+    pMsg->allocNum = msgNum;
+    return pMsg;
+  }
+}
+
+int32_t vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg) {
+  if (pMsg->curNum >= pMsg->allocNum) {
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
+  }
+
+  pMsg->rpcMsg[pMsg->curNum++] = *pRpcMsg;
+}
+
+void vnodeCleanupMsg(SVnodeMsg *pMsg) {
+  for (int32_t i = 0; i < pMsg->curNum; ++i) {
+    rpcFreeCont(pMsg->rpcMsg[i].pCont);
+  }
+  taosFreeQitem(pMsg);
+}
+
+void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVMType msgType) {
+  switch (msgType) {
+    case VN_MSG_TYPE_WRITE:
+      break;
+    case VN_MSG_TYPE_APPLY:
+      break;
+    case VN_MSG_TYPE_SYNC:
+      break;
+    case VN_MSG_TYPE_QUERY:
+      break;
+    case VN_MSG_TYPE_FETCH:
+      break;
+  }
+}
