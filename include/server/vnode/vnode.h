@@ -27,7 +27,7 @@ extern "C" {
 typedef struct SVnode SVnode;
 
 typedef struct {
-  char       dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int32_t    cacheBlockSize;  // MB
   int32_t    totalBlocks;
   int32_t    daysPerFile;
@@ -47,17 +47,6 @@ typedef struct {
   SVnodeDesc replicas[TSDB_MAX_REPLICA];
 } SVnodeCfg;
 
-typedef struct {
-  int64_t totalStorage;
-  int64_t compStorage;
-  int64_t pointsWritten;
-  int64_t tablesNum;
-} SVnodeStatisic;
-
-typedef struct {
-  int8_t syncRole;
-} SVnodeStatus;
-
 typedef struct SVnodeMsg {
   int32_t msgType;
   int32_t code;
@@ -69,9 +58,6 @@ typedef struct SVnodeMsg {
 int32_t vnodeInit();
 void    vnodeCleanup();
 
-int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat);
-int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus);
-
 SVnode *vnodeOpen(int32_t vgId, const char *path);
 void    vnodeClose(SVnode *pVnode);
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
@@ -80,6 +66,7 @@ int32_t vnodeDrop(SVnode *pVnode);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 
+void vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg);
 
 #ifdef __cplusplus

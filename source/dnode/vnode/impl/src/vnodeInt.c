@@ -19,9 +19,6 @@
 int32_t vnodeInit() { return 0; }
 void    vnodeCleanup() {}
 
-int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat) { return 0; }
-int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus) { return 0; }
-
 SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }
 void    vnodeClose(SVnode *pVnode) {}
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
@@ -31,3 +28,4 @@ int32_t vnodeCompact(SVnode *pVnode) { return 0; }
 int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
 void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg) {}
+void vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {}

@@ -23,8 +23,13 @@ extern "C" {
 
 int32_t dnodeInitVnodes();
 void    dnodeCleanupVnodes();
-void    dnodeProcessVnodesMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dnodeGetVnodes(SVnodeLoads *pVloads);
+
+void dnodeProcessVnodeMgmtMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessVnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessVnodeSyncMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessVnodeQueryMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessVnodeFetchMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }
