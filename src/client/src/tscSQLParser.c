@@ -4373,9 +4373,11 @@ static int32_t validateSQLExprSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
           (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-      code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
+      if (TSDB_FUNC_IS_SCALAR(functionId)) {
+        code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, type, uid);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     }
   }
