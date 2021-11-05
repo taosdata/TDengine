@@ -98,15 +98,11 @@ int32_t       tqStoreCompact(TqMetaStore*);
 void*   tqHandleGet(TqMetaStore*, int64_t key);
 int32_t tqHandleMovePut(TqMetaStore*, int64_t key, void* value);
 int32_t tqHandleCopyPut(TqMetaStore*, int64_t key, void* value, size_t vsize);
-//do commit
-int32_t tqHandleCommit(TqMetaStore*, int64_t key);
-//delete uncommitted
-int32_t tqHandleAbort(TqMetaStore*, int64_t key);
 //delete committed kv pair
 //notice that a delete action still needs to be committed
 int32_t tqHandleDel(TqMetaStore*, int64_t key);
-//delete both committed and uncommitted
-int32_t tqHandleClear(TqMetaStore*, int64_t key);
+int32_t tqHandleCommit(TqMetaStore*, int64_t key);
+int32_t tqHandleAbort(TqMetaStore*, int64_t key);
 
 #ifdef __cplusplus
 }

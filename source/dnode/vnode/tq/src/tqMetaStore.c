@@ -400,7 +400,8 @@ void* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
-      if(pNode->handle.valueInUse != NULL && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
+      if(pNode->handle.valueInUse != NULL
+          && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
         return pNode->handle.valueInUse;
       } else {
         return NULL;
@@ -558,38 +559,6 @@ int32_t tqHandleDel(TqMetaStore* pMeta, int64_t key) {
   }
   //no such key
   return -1;
-}
-
-int32_t tqHandleClear(TqMetaStore* pMeta, int64_t key) {
-  int64_t bucketKey = key & TQ_BUCKET_SIZE;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
-  bool exist = false;
-  while(pNode) {
-    if(pNode->handle.key == key) {
-      if(pNode->handle.valueInUse != NULL) {
-        exist = true;
-        if(pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
-          pMeta->deleter(pNode->handle.valueInUse);
-        }
-        pNode->handle.valueInUse = TQ_DELETE_TOKEN;
-      }
-      if(pNode->handle.valueInTxn != NULL) {
-        exist = true;
-        if(pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-          pMeta->deleter(pNode->handle.valueInTxn);
-        }
-        pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
-      }
-      if(exist) {
-        tqLinkUnpersist(pMeta, pNode);
-        return 0;
-      }
-      return -1;
-    } else {
-      pNode = pNode->next;
-    }
-  }
-  return -2;
 }
 
 //TODO: clean deleted idx and data from persistent file
