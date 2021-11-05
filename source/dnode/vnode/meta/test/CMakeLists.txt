@@ -7,7 +7,7 @@ target_sources(metaTest
 )
 target_include_directories(metaTest 
     PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/server/vnode/meta"
+    "${CMAKE_SOURCE_DIR}/include/dnode/vnode/meta"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_link_libraries(metaTest
