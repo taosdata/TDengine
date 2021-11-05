@@ -76,7 +76,7 @@ static void *tWorkerThreadFp(SWorker *worker) {
     }
 
     if (fp) {
-      (*fp)(msg, ahandle);
+      (*fp)(ahandle, msg);
     }
   }
 
@@ -186,7 +186,7 @@ static void *tWriteWorkerThreadFp(SMWorker *worker) {
     }
 
     if (fp) {
-      (*fp)(worker->qall, numOfMsgs, ahandle);
+      (*fp)(ahandle, worker->qall, numOfMsgs);
     }
   }
 

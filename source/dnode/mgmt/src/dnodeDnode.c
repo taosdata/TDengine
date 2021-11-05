@@ -372,8 +372,8 @@ static void dnodeSendStatusMsg() {
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
 
-  dnodeGetVnodes(&pStatus->vnodeLoads);
-  contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.vnodeNum * sizeof(SVnodeLoad);
+  dnodeGetVnodeLoads(&pStatus->vnodeLoads);
+  contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
   SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_STATUS};
   dnodeSendMsgToMnode(&rpcMsg);

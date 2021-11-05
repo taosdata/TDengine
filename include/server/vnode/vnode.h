@@ -27,7 +27,7 @@ extern "C" {
 typedef struct SVnode SVnode;
 
 typedef struct {
-  char       dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_FULL_DB_NAME_LEN];
   int32_t    cacheBlockSize;  // MB
   int32_t    totalBlocks;
   int32_t    daysPerFile;
@@ -47,40 +47,43 @@ typedef struct {
   SVnodeDesc replicas[TSDB_MAX_REPLICA];
 } SVnodeCfg;
 
-typedef struct {
-  int64_t totalStorage;
-  int64_t compStorage;
-  int64_t pointsWritten;
-  int64_t tablesNum;
-} SVnodeStatisic;
+typedef enum {
+  VN_MSG_TYPE_WRITE = 1,
+  VN_MSG_TYPE_APPLY,
+  VN_MSG_TYPE_SYNC,
+  VN_MSG_TYPE_QUERY,
+  VN_MSG_TYPE_FETCH
+} EVnMsgType;
 
 typedef struct {
-  int8_t syncRole;
-} SVnodeStatus;
-
-typedef struct SVnodeMsg {
-  int32_t msgType;
-  int32_t code;
-  SRpcMsg rpcMsg;  // original message from rpc
-  int32_t contLen;
-  char    pCont[];
+  int32_t curNum;
+  int32_t allocNum;
+  SRpcMsg rpcMsg[];
 } SVnodeMsg;
 
-int32_t vnodeInit();
-void    vnodeCleanup();
+typedef struct {
+  void (*SendMsgToDnode)(SEpSet *pEpSet, SRpcMsg *pMsg);
+  void (*SendMsgToMnode)(SRpcMsg *pMsg);
+  int32_t (*PutMsgIntoApplyQueue)(int32_t vgId, SVnodeMsg *pMsg);
+} SVnodePara;
 
-int32_t vnodeGetStatistics(SVnode *pVnode, SVnodeStatisic *pStat);
-int32_t vnodeGetStatus(SVnode *pVnode, SVnodeStatus *pStatus);
+int32_t vnodeInit(SVnodePara);
+void    vnodeCleanup();
 
 SVnode *vnodeOpen(int32_t vgId, const char *path);
 void    vnodeClose(SVnode *pVnode);
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
-int32_t vnodeDrop(SVnode *pVnode);
+void    vnodeDrop(SVnode *pVnode);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 
-void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg);
+int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
+
+SVnodeMsg *vnodeInitMsg(int32_t msgNum);
+int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
+void       vnodeCleanupMsg(SVnodeMsg *pMsg);
+void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType);
 
 #ifdef __cplusplus
 }

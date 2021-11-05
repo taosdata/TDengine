@@ -98,6 +98,20 @@ void taosCloseQueue(taos_queue param) {
   uTrace("queue:%p is closed", queue);
 }
 
+bool taosQueueEmpty(taos_queue param) {
+  if (param == NULL) return true;
+  STaosQueue *queue = (STaosQueue *)param;
+
+  bool empty = false;
+  pthread_mutex_lock(&queue->mutex);
+  if (queue->head == NULL && queue->tail == NULL) {
+    empty = true;
+  }
+  pthread_mutex_destroy(&queue->mutex);
+
+  return empty;
+}
+
 void *taosAllocateQitem(int size) {
   STaosQnode *pNode = (STaosQnode *)calloc(sizeof(STaosQnode) + size, 1);
 
