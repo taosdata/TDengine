@@ -6243,18 +6243,15 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
   pRes->info.rows = 0;
 
   if (!pEveryInfo->groupDone) {
-    qDebug("0");
     updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0);
     doTimeEveryImpl(pOperator, pInfo->pCtx, pEveryInfo->lastBlock, false);
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
       copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
       clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
-      qDebug("1");
       return pInfo->pRes;
     }
     
     if (pRes->info.rows > 0) {    
-      qDebug("2");
       copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
       clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
       return pInfo->pRes;
@@ -6262,7 +6259,6 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
   }
 
   if (pEveryInfo->allDone) {
-    qDebug("3");  
     setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
     return NULL;
   }
@@ -6270,7 +6266,6 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
 
   if (pEveryInfo->existDataBlock) {  // TODO refactor
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
-    qDebug("4");
 
     SSDataBlock* pBlock = pEveryInfo->existDataBlock;
     pEveryInfo->existDataBlock = NULL;
@@ -6288,16 +6283,10 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
 
     doTimeEveryImpl(pOperator, pInfo->pCtx, pBlock, *newgroup);
     if (pEveryInfo->groupDone && pOperator->upstream[0]->notify) {
-      qDebug("5");
-    
       pOperator->upstream[0]->notify(pOperator->upstream[0], OPTION_SWITCH_TABLE);
     }
 
-    qDebug("6");
-
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
-      qDebug("7");
-    
       copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
       clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
       return pRes;
@@ -6315,26 +6304,19 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
     if (pBlock == NULL) {
       if (!pEveryInfo->groupDone) {
         pEveryInfo->allDone = true;
-        qDebug("8");
 
         updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0);
         doTimeEveryImpl(pOperator, pInfo->pCtx, NULL, false);
         if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
-          qDebug("9");
-        
           break;
         }
         
         assert(pEveryInfo->groupDone);
-        qDebug("10");
         
         if (pRes->info.rows > 0) {
-          qDebug("11");
-        
           break;
         }
       }
-      qDebug("12");
 
       *newgroup = prevVal;
       setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
@@ -6343,30 +6325,18 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
 
     // Return result of the previous group in the firstly.
     if (*newgroup) {
-      qDebug("13");
-    
       if (!pEveryInfo->groupDone) {
-        qDebug("14");
-      
         updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0);
         doTimeEveryImpl(pOperator, pInfo->pCtx, NULL, false);
         if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
-          qDebug("15");
-        
           pEveryInfo->existDataBlock = pBlock;
           break;
         }
 
-        qDebug("16");
-
         assert(pEveryInfo->groupDone);
       }
 
-      qDebug("17");
-      
       if (pRes->info.rows > 0) {
-        qDebug("18");
-      
         pEveryInfo->existDataBlock = pBlock;
         break;
       } else { // init output buffer for a new group data
@@ -6375,8 +6345,6 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
         }
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfOutput);
         pEveryInfo->groupDone = false;
-        qDebug("19");
-        
       }
     }
 
@@ -6395,28 +6363,19 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, pBlock->info.rows);
-    qDebug("20");
 
     pEveryInfo->groupDone = false;
 
     doTimeEveryImpl(pOperator, pInfo->pCtx, pBlock, *newgroup);
     if (pEveryInfo->groupDone && pOperator->upstream[0]->notify) {
-      qDebug("21");
-    
       pOperator->upstream[0]->notify(pOperator->upstream[0], OPTION_SWITCH_TABLE);
     }
 
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
-      qDebug("22");
-    
       break;
     }
-    qDebug("23");
-    
   }
 
-  qDebug("24");
-  
   copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
   clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
   return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
@@ -9323,4 +9282,21 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
 
     pQueryAttr->pFilterInfo = doDestroyFilterInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols);
 
-    pQueryAttr->pExpr1 = destroyQueryFuncExpr(p
+    pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+    pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
+    pQueryAttr->pExpr3 = destroyQueryFuncExpr(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
+
+    tfree(pQueryAttr->tagColList);
+    tfree(pQueryAttr->pFilterInfo);
+
+    pQueryAttr->tableCols = freeColumnInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols);
+
+    if (pQueryAttr->pGroupbyExpr != NULL) {
+      taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
+      tfree(pQueryAttr->pGroupbyExpr);
+    }
+
+    filterFreeInfo(pQueryAttr->pFilters);
+  }
+}
+
