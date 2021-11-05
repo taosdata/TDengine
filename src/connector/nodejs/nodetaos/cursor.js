@@ -4,8 +4,6 @@ const CTaosInterface = require('./cinterface')
 const errors = require('./error')
 const TaosQuery = require('./taosquery')
 const { PerformanceObserver, performance } = require('perf_hooks');
-const { errno } = require('ffi-napi');
-const { Console } = require('console');
 module.exports = TDengineCursor;
 
 /**
