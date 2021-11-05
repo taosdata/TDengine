@@ -158,17 +158,12 @@ if pidof taosd &> /dev/null; then
 fi
 # if taos.cfg already exist, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
-    ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
+    ${csudo} rm -f %{cfg_install_dir}/cfg/taos.cfg   || :
 fi
 
 # if blm.toml already exist, remove it
 if [ -f %{cfg_install_dir}/blm.toml ]; then
-    ${csudo} rm -f %{homepath}/cfg/blm.toml || :
-fi
-
-# if blm3.service already softlink, remove it
-if [ -f %{cfg_install_dir}/blm3.service ]; then
-    ${csudo} rm -f %{homepath}/cfg/blm3.service || :
+    ${csudo} rm -f %{cfg_install_dir}/cfg/blm.toml || :
 fi
 
 # there can not libtaos.so*, otherwise ln -s  error
