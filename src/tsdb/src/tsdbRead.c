@@ -1690,7 +1690,9 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           //mem move next
           moveToNextRowInMem(pCheckInfo);
           //file move next, discard file row
-          pos += step;
+          if(!((step == -1 && pos == 0) || (step == 1 && pos == pCols->numOfRows - 1))) {
+            pos += step;
+          }
         } else {
           // not update, only mem move to next, discard mem row
           moveToNextRowInMem(pCheckInfo);
@@ -1719,14 +1721,28 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         int32_t qstart = 0, qend = 0;
         getQualifiedRowsPos(pQueryHandle, pos, end, numOfRows, &qstart, &qend);
 
+        // eithor mem or file pos must move one  
         if(qend >= qstart) {
           // copy qend - qstart + 1 rows from file
           numOfRows = doCopyRowsFromFileBlock(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, qstart, qend);
           int32_t num = qend - qstart + 1;
-          pos += num * step;
+          if(step == -1 && pos - num < 0) {
+            if(pos == 0)
+              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop          
+            pos = 0; // move file pos ok
+          }else if(step == 1 && pos + num >= pCols->numOfRows) {
+            if(pos == pCols->numOfRows - 1)
+              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop          
+            pos = pCols->numOfRows - 1; // move file pos ok
+          } else {
+            pos += num * step; // move file pos ok
+          }          
         } else {
           // nothing copy from file
-          pos += step;
+          if((step == -1 && pos == 0) || (step == 1 && pos == pCols->numOfRows - 1)) 
+            moveToNextRowInMem(pCheckInfo);  // can not move file pos, so must move mem pos, otherwise maybe death-loop          
+          else
+            pos += step; // nothing copy , so must move file, otherwise maybe death-loop
         }
         
         cur->win.ekey = ASCENDING_TRAVERSE(pQueryHandle->order)? keyFile[qend] : keyFile[qstart];
