@@ -478,19 +478,19 @@ TDengineCursor.prototype.closeStream = function closeStream(stream) {
 }
 /**
  * schemaless insert 
- * @param {*} lines 
- * @param {*} numOfLines 
- * @param {*} protocol 
- * @param {*} precision 
- * @returns int 
+ * @param {*} connection a valid database connection
+ * @param {*} lines string data, which statisfied with line proctocol
+ * @param {*} protocal Line protocol, enum type (0,1,2,3),indicate different line protocol
+ * @param {*} precision timestamp precision in lines, enum type (0,1,2,3,4,5,6)
+ * @returns TAOS_RES 
+ * 
  */
 TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, protocol, precision) {
   this._result = this._chandle.schemalessInsert(this._connection._conn, lines, protocol, precision);
-  let errorNo  = this._chandle.errno(this._result);
-  if ( errorNo !== 0) {
-    errStr = this._chandle.errStr(this._result);
-    this._chandle.freeResult(this._result)
-    throw new errors.InterfaceError((errorNo & 0xffff) +": "+errStr);
+  let errorNo = this._chandle.errno(this._result);
+  if (errorNo != 0) {
+    throw new errors.InterfaceError(errorNo + ":" + this._chandle.errStr(this._result));
+    this._chandle.freeResult(this._result);
   }
-  this._chandle.freeResult(this._result)
+  this._chandle.freeResult(this._result);
 }

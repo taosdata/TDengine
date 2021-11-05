@@ -1,8 +1,19 @@
-/**
- * Contains the the definitions/values assigned to various field types
- * @module FieldTypes
- */
 
+const SCHEMALESS_PROTOCOL = {
+  TSDB_SML_UNKNOWN_PROTOCOL: 0,
+  TSDB_SML_LINE_PROTOCOL: 1,
+  TSDB_SML_TELNET_PROTOCOL: 2,
+  TSDB_SML_JSON_PROTOCOL: 3
+}
+const SCHEMALESS_PRECISION = {
+  TSDB_SML_TIMESTAMP_NOT_CONFIGURED : 0,
+  TSDB_SML_TIMESTAMP_HOURS : 1,
+  TSDB_SML_TIMESTAMP_MINUTES : 2,
+  TSDB_SML_TIMESTAMP_SECONDS : 3,
+  TSDB_SML_TIMESTAMP_MILLI_SECONDS : 4,
+  TSDB_SML_TIMESTAMP_MICRO_SECONDS : 5,
+  TSDB_SML_TIMESTAMP_NANO_SECONDS : 6
+}
 const typeCodesToName = {
   0: 'Null',
   1: 'Boolean',
@@ -15,6 +26,10 @@ const typeCodesToName = {
   8: 'Binary',
   9: 'Timestamp',
   10: 'Nchar',
+  11: 'TINYINT_UNSIGNED',
+  12: 'SMALLINT_UNSIGNED',
+  13: 'INT_UNSIGNED',
+  14: 'BIGINT_UNSIGNED',
 }
 
 /**
@@ -25,25 +40,10 @@ const typeCodesToName = {
 function getType(typecode) {
   return typeCodesToName[typecode];
 }
-
-const SCHEMALESS_PRECISION = {
-  // Schemaless timestamp precision constants
-  NOT_CONFIGURED: 0,
-  HOURS: 1,
-  MINUTES: 2,
-  SECONDS: 3,
-  MILLI_SECONDS: 4,
-  MICRO_SECONDS: 5,
-  NANO_SECONDS: 6
-
-}
-
-const SCHEMALESS_PROTOCOL = {
-  UNKNOWN_PROTOCOL: 0,
-  LINE_PROTOCOL: 1,
-  TELNET_PROTOCOL: 2,
-  JSON_PROTOCOL: 3
-}
+/**
+ * Contains the the definitions/values assigned to various field types
+ * @module FieldTypes
+ */
 /**
  * TDengine Field Types and their type codes
  * @typedef {Object} FieldTypes
@@ -60,9 +60,7 @@ const SCHEMALESS_PROTOCOL = {
  * @property {number} C_TIMESTAMP - Timestamp in format "YYYY:MM:DD HH:MM:SS.MMM". Measured in number of milliseconds passed after
                                     1970-01-01 08:00:00.000 GMT.
  * @property {number} C_NCHAR - NChar field type encoded in ASCII, a wide string.
- *
- *
- *
+ *                                  
  * @property {number} C_TIMESTAMP_MILLI - The code for millisecond timestamps, as returned by libtaos.taos_result_precision(result).
  * @property {number} C_TIMESTAMP_MICRO - The code for microsecond timestamps, as returned by libtaos.taos_result_precision(result).
  */
@@ -78,13 +76,21 @@ module.exports = {
   C_BINARY: 8,
   C_TIMESTAMP: 9,
   C_NCHAR: 10,
+  C_TINYINT_UNSIGNED: 11,
+  C_SMALLINT_UNSIGNED: 12,
+  C_INT_UNSIGNED: 13,
+  C_BIGINT_UNSIGNED: 14,
   // NULL value definition
   // NOTE: These values should change according to C definition in tsdb.h
   C_BOOL_NULL: 2,
   C_TINYINT_NULL: -128,
+  C_TINYINT_UNSIGNED_NULL: 255,
   C_SMALLINT_NULL: -32768,
+  C_SMALLINT_UNSIGNED_NULL: 65535,
   C_INT_NULL: -2147483648,
-  C_BIGINT_NULL: -9223372036854775808,
+  C_INT_UNSIGNED_NULL: 4294967295,
+  C_BIGINT_NULL: -9223372036854775808n,
+  C_BIGINT_UNSIGNED_NULL: 18446744073709551615n,
   C_FLOAT_NULL: 2146435072,
   C_DOUBLE_NULL: -9223370937343148032,
   C_NCHAR_NULL: 4294967295,
@@ -93,5 +99,5 @@ module.exports = {
   C_TIMESTAMP_MICRO: 1,
   getType,
   SCHEMALESS_PROTOCOL,
-  SCHEMALESS_PRECISION,
+  SCHEMALESS_PRECISION
 }

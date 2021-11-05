@@ -1,77 +1,84 @@
-const taos = require('../tdengine');
 const _ = require('lodash');
+const taos = require('../tdengine');
 
-var conn = taos.connect({ host: "127.0.0.1", user: "root", password: "taosdata", config: "/etc/taos", port: 6030 });
+var conn = taos.connect({ host: "127.0.0.1", user: "root", password: "taosdata", config: "/etc/taos", port: 10 });
 var c1 = conn.cursor();
-executeUpdate("drop database if exists nodedb");
-executeUpdate("create database if not exists  nodedb keep 36500 precision 'ns'");
-executeUpdate("use nodedb");
+executeUpdate("drop database if exists  nodedb;");
+executeUpdate("create database if not exists  nodedb ;");
+executeUpdate("use nodedb;");
 
-let now = Date.now(); //  get utc timestamp with milliseconds.
-let lines0 = "schemaless,t1=3i64,t2=4f64,t3=\"t2\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 " + (now - 10) * 1_000_000;
+let tbname1 = "line_protocol_arr";
+let tbname2 = "json_protocol_arr";
+let tbname3 = "json_protocol_str";
+let tbname4 = "line_protocol_str";
 
-c1.schemalessInsert(lines0, taos.SCHEMALESS_PROTOCOL.LINE_PROTOCOL, taos.SCHEMALESS_PRECISION.NANO_SECONDS);
-c1.execute("select count(*) from schemaless");
-let row = _.first(c1.fetchall());
 
-if (row[0] != 1) {
-  throw "insert done but can't select as expected";
-}
-console.log("insert line protocol with string input: passed");
-
-let lines1 = [
-  "schemaless,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 " + (now - 2) * 1_000_000,
-  "schemaless,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 " + (now - 1) * 1_000_000,
+let line1 = [tbname1 + ",t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+tbname1 + ",t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+];
+let line2 = ["{"
+    + "\"metric\": \"" + tbname2 + "\","
+    + "\"timestamp\": 1626006833,"
+    + "\"value\": 10,"
+    + "\"tags\": {"
+    + " \"t1\": true,"
+    + "\"t2\": false,"
+    + "\"t3\": 10,"
+    + "\"t4\": \"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>\""
+    + "}"
+    + "}"
 ];
 
-c1.schemalessInsert(lines1, taos.SCHEMALESS_PROTOCOL.LINE_PROTOCOL, taos.SCHEMALESS_PRECISION.NANO_SECONDS);
-c1.execute("select count(*) from schemaless");
-row = _.first(c1.fetchall());
+let line3 = "{"
+    + "\"metric\": \"" + tbname3 + "\","
+    + "\"timestamp\": 1626006833000,"
+    + "\"value\": 10,"
+    + "\"tags\": {"
+    + " \"t1\": true,"
+    + "\"t2\": false,"
+    + "\"t3\": 10,"
+    + "\"t4\": \"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>\""
+    + "}"
+    + "}";
 
-if (row[0] != 3) {
-  throw "insert done but can't select as expected";
+let line4 = tbname4 + ",t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639";
+
+
+try {
+
+    c1.schemalessInsert(line1, taos.SCHEMALESS_PROTOCOL.TSDB_SML_LINE_PROTOCOL, taos.SCHEMALESS_PRECISION.TSDB_SML_TIMESTAMP_NANO_SECONDS);
+    testSchemaless(tbname1, line1.length);
+
+    c1.schemalessInsert(line2, taos.SCHEMALESS_PROTOCOL.TSDB_SML_JSON_PROTOCOL, taos.SCHEMALESS_PRECISION.TSDB_SML_TIMESTAMP_SECONDS);
+    testSchemaless(tbname2, line2.length);
+
+    c1.schemalessInsert(line3, taos.SCHEMALESS_PROTOCOL.TSDB_SML_JSON_PROTOCOL, taos.SCHEMALESS_PRECISION.TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+    testSchemaless(tbname3, 1);
+
+    c1.schemalessInsert(line4, taos.SCHEMALESS_PROTOCOL.TSDB_SML_LINE_PROTOCOL, taos.SCHEMALESS_PRECISION.TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+    testSchemaless(tbname4, 1);
+
+} catch (err) {
+    console.log(err)
 }
-console.log("insert line protocol with Array<string> input: passed");
-// json protocol
+function executeUpdate(sql) {
+    console.log(sql);
+    c1.execute(sql);
+}
 
-let lines2 = "{"
-  + "\"metric\": \"stb0_0\","
-  + "\"timestamp\": " + (now - 2) + ","
-  + "\"value\": 10,"
-  + "\"tags\": {"
-  + "\"t1\": true,"
-  + "\"t2\": false,"
-  + "\"t3\": 10,"
-  + "\"t4\": \"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>\""
-  + "}"
-  + "}"
-
-console.log(lines2)
-c1.schemalessInsert(lines2, 3, taos.SCHEMALESS_PRECISION.TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
-console.log("insert json protocol with string input: passed");
-
-let lines3 = "{"
-  + "\"metric\": \"stb0_0\","
-  + "\"timestamp\": " + (now - 1) + ","
-  + "\"value\": 10,"
-  + "\"tags\": {"
-  + "\"t1\": true,"
-  + "\"t2\": false,"
-  + "\"t3\": 10,"
-  + "\"t4\": \"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>\""
-  + "}"
-  + "}"
-
-console.log(lines3)
-c1.schemalessInsert(lines3, taos.SCHEMALESS_PROTOCOL.JSON_PROTOCOL, taos.SCHEMALESS_PRECISION.NOT_CONFIGURED);
-console.log("insert json protocol with Array<string> input: passed");
+function testSchemaless(tbname, numLines) {
+    let sql = "select count(*) from " + tbname + ";";
+    executeUpdate(sql);
+    let affectRows = _.first(c1.fetchall());
+    if (affectRows != numLines) {
+        console.log(1);
+        console.log(line2);
+        throw "protocol " + tbname + " schemaless insert success,but can't select as expect."
+    }
+    else {
+        console.log("protocol " + tbname + " schemaless insert success, can select as expect.")
+    }
+    console.log("===================")
+}
 
 setTimeout(() => conn.close(), 2000);
-
-function executeUpdate(sql) {
-  console.log(sql);
-  c1.execute(sql);
-}
-
-
-

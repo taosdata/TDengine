@@ -1,9 +1,9 @@
 var TDengineConnection = require('./nodetaos/connection.js')
-const constants = require('./nodetaos/constants');
+const TDengineConstant = require('./nodetaos/constants.js')
 module.exports = {
   connect: function (connection = {}) {
     return new TDengineConnection(connection);
   },
-  SCHEMALESS_PROTOCOL: constants.SCHEMALESS_PROTOCOL,
-  SCHEMALESS_PRECISION: constants.SCHEMALESS_PRECISION
+  SCHEMALESS_PROTOCOL: TDengineConstant.SCHEMALESS_PROTOCOL,
+  SCHEMALESS_PRECISION: TDengineConstant.SCHEMALESS_PRECISION,
 }
