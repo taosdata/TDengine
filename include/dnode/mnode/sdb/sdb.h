@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_SDB_H_
-#define _TD_MNODE_SDB_H_
+#ifndef _TD_SDB_H_
+#define _TD_SDB_H_
 
 #include "cJSON.h"
 
@@ -77,4 +77,4 @@ void sdbSetFp(EMnSdb, EMnKey, SdbDeployFp, SdbEncodeFp, SdbDecodeFp, int32_t dat
 }
 #endif
 
-#endif /*_TD_MNODE_INT_H_*/
+#endif /*_TD_SDB_H_*/

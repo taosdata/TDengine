@@ -14,25 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "thash.h"
-#include "tglobal.h"
 #include "cJSON.h"
-#include "sdb.h"
-
-#include "os.h"
-#include "taosmsg.h"
-#include "tlog.h"
-extern int32_t mDebugFlag;
-
-// mnode log function
-#define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", 255, __VA_ARGS__); }}
-#define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", 255, __VA_ARGS__); }}
-#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", 255, __VA_ARGS__); }}
-#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", 255, __VA_ARGS__); }}
-#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
-#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
-
+#include "sdbInt.h"
 
 static struct {
   char        currDir[PATH_MAX];
