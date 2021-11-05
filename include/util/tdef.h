@@ -140,8 +140,9 @@ do { \
 #define FUNCTION_ROUND       4503
 
 #define FUNCTION_LENGTH      4800
-#define FUNCTION_LTRIM       4801
-#define FUNCTION_RTRIM       4802
+#define FUNCTION_CONCAT      4801
+#define FUNCTION_LTRIM       4802
+#define FUNCTION_RTRIM       4803
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))

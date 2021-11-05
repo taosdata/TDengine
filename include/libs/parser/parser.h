@@ -80,8 +80,7 @@ typedef struct SQueryStmtInfo {
   SGroupbyExpr     groupbyExpr;   // groupby tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SArray *         exprList;      // SArray<SExprInfo*>
-  SArray *         exprList1;     // final exprlist in case of arithmetic expression exists
+  SArray**         exprList;      // SArray<SExprInfo*>
   SLimit           limit;
   SLimit           slimit;
   STagCond         tagCond;
@@ -112,6 +111,7 @@ typedef struct SQueryStmtInfo {
   struct SQueryStmtInfo *pDownstream;
   int32_t            havingFieldNum;
   SMultiFunctionsDesc     info;
+  int32_t            exprListLevelIndex;
 } SQueryStmtInfo;
 
 typedef struct SColumnIndex {
@@ -165,7 +165,7 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src);
 void columnListCopy(SArray* dst, const SArray* src, uint64_t uid);
 void columnListDestroy(SArray* pColumnList);
 
-void dropAllExprInfo(SArray* pExprInfo);
+void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel);
 SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, struct tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 

@@ -9,8 +9,9 @@ static void assignBasicParaInfo(struct SScalarFuncParam* dst, const struct SScal
   dst->num = src->num;
 }
 
-static void tceil(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+static void tceil(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
+  assert(numOfInput == 1);
 
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -34,8 +35,9 @@ static void tceil(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
   }
 }
 
-static void tfloor(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+static void tfloor(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
+  assert(numOfInput == 1);
 
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -61,8 +63,9 @@ static void tfloor(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
   }
 }
 
-static void _tabs(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+static void _tabs(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
+  assert(numOfInput == 1);
 
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -118,8 +121,9 @@ static void _tabs(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
   }
 }
 
-static void tround(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+static void tround(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
+  assert(numOfInput == 1);
 
   switch (pLeft->bytes) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -143,13 +147,55 @@ static void tround(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
   }
 }
 
-static void tlength(const SScalarFuncParam *pLeft, SScalarFuncParam* pOutput) {
+static void tlength(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+  assert(numOfInput == 1);
+
   int64_t* out = (int64_t*) pOutput->data;
   char* s = pLeft->data;
 
   for(int32_t i = 0; i < pLeft->num; ++i) {
     out[i] = varDataLen(POINTER_SHIFT(s, i * pLeft->bytes));
   }
+}
+
+static void tconcat(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+  assert(numOfInput > 0);
+
+  int32_t rowLen = 0;
+  int32_t num = 1;
+  for(int32_t i = 0; i < numOfInput; ++i) {
+    rowLen += pLeft[i].bytes;
+
+    if (pLeft[i].num > 1) {
+      num = pLeft[i].num;
+    }
+  }
+
+  pOutput->data = realloc(pOutput->data, rowLen * num);
+  assert(pOutput->data);
+
+  char* rstart = pOutput->data;
+  for(int32_t i = 0; i < num; ++i) {
+
+    char* s = rstart;
+    varDataSetLen(s, 0);
+    for (int32_t j = 0; j < numOfInput; ++j) {
+      char* p1 = POINTER_SHIFT(pLeft[j].data, i * pLeft[j].bytes);
+
+      memcpy(varDataVal(s) + varDataLen(s), varDataVal(p1), varDataLen(p1));
+      varDataLen(s) += varDataLen(p1);
+    }
+
+    rstart += rowLen;
+  }
+}
+
+static void tltrim(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+
+}
+
+static void trtrim(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+
 }
 
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
@@ -256,7 +302,6 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
     _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(pExprs->_node.optr);
 
     SScalarFuncParam left = {0}, right = {0};
-
     if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE || pLeft->nodeType == TEXPR_UNARYEXPR_NODE) {
       setScalarFuncParam(&left, leftOutput.type, leftOutput.bytes, leftOutput.data, leftOutput.num);
     } else if (pLeft->nodeType == TEXPR_COL_NODE) {
@@ -318,12 +363,15 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
   return 0;
 }
 
-SScalarFunctionInfo scalarFunc[5] = {
+SScalarFunctionInfo scalarFunc[8] = {
     {"ceil",   FUNCTION_TYPE_SCALAR, FUNCTION_CEIL,   tceil},
     {"floor",  FUNCTION_TYPE_SCALAR, FUNCTION_FLOOR,  tfloor},
     {"abs",    FUNCTION_TYPE_SCALAR, FUNCTION_ABS,    _tabs},
     {"round",  FUNCTION_TYPE_SCALAR, FUNCTION_ROUND,  tround},
     {"length", FUNCTION_TYPE_SCALAR, FUNCTION_LENGTH, tlength},
+    {"concat", FUNCTION_TYPE_SCALAR, FUNCTION_CONCAT, tconcat},
+    {"ltrim",  FUNCTION_TYPE_SCALAR, FUNCTION_LTRIM, tltrim},
+    {"rtrim",  FUNCTION_TYPE_SCALAR, FUNCTION_RTRIM, trtrim},
 };
 
 void setScalarFunctionSupp(struct SScalarFunctionSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {

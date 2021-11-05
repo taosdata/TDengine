@@ -226,9 +226,9 @@ static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryIn
   }
 
   if (pQueryInfo->havingFieldNum > 0 || pQueryInfo->info.arithmeticOnAgg) {
-    int32_t numOfExpr = (int32_t)taosArrayGetSize(pQueryInfo->exprList1);
-    pNode =
-        createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
+//    int32_t numOfExpr = (int32_t)taosArrayGetSize(pQueryInfo->exprList1);
+//    pNode =
+//        createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
   }
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
@@ -292,7 +292,7 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
       SArray* exprList = taosArrayInit(4, POINTER_BYTES);
       if (copyExprInfoList(exprList, pQueryInfo->exprList, uid, true) != 0) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        dropAllExprInfo(exprList);
+//        dropAllExprInfo(exprList);
         exit(-1);
       }
 
@@ -308,7 +308,7 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
       // 4. add the projection query node
       SQueryPlanNode* pNode = doAddTableColumnNode(pQueryInfo, pTableMetaInfo, &info, exprList, tableColumnList);
       columnListDestroy(tableColumnList);
-      dropAllExprInfo(exprList);
+//      dropAllExprInfo(exprList);
       taosArrayPush(upstream, &pNode);
     }
 
@@ -316,7 +316,7 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
     SQueryTableInfo info = {0};
     int32_t num = (int32_t) taosArrayGetSize(pQueryInfo->exprList);
     SQueryPlanNode* pNode = createQueryNode(QNODE_JOIN, "Join", upstream->pData, pQueryInfo->numOfTables,
-                                        pQueryInfo->exprList->pData, num, &info, NULL);
+                                        pQueryInfo->exprList[0]->pData, num, &info, NULL);
 
     // 4. add the aggregation or projection execution node
     pNode = doCreateQueryPlanForOneTableImpl(pQueryInfo, pNode, &info, pQueryInfo->exprList);
@@ -338,7 +338,7 @@ static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
   tfree(pQueryNode->info.name);
 
   tfree(pQueryNode->tableInfo.tableName);
-  dropAllExprInfo(pQueryNode->pExpr);
+//  dropAllExprInfo(pQueryNode->pExpr);
 
   if (pQueryNode->pPrevNodes != NULL) {
     int32_t size = (int32_t) taosArrayGetSize(pQueryNode->pPrevNodes);

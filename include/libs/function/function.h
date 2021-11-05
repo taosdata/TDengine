@@ -221,7 +221,7 @@ typedef struct SScalarFunctionInfo {
   char      name[FUNCTIONS_NAME_MAX_LENGTH];
   int8_t    type;              // scalar function or aggregation function
   uint32_t  functionId;        // index of scalar function
-  void     (*process)(const struct SScalarFuncParam *pInput, struct SScalarFuncParam* pOutput);
+  void     (*process)(struct SScalarFuncParam* pOutput, size_t numOfInput, const struct SScalarFuncParam *pInput);
 } SScalarFunctionInfo;
 
 typedef struct SMultiFunctionsDesc {

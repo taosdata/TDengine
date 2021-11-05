@@ -19,7 +19,7 @@ SSchema* getTbnameColumnSchema() {
 }
 
 size_t getNumOfExprs(SQueryStmtInfo* pQueryInfo) {
-  return taosArrayGetSize(pQueryInfo->exprList);
+  return taosArrayGetSize(pQueryInfo->exprList[0]);
 }
 
 SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
@@ -104,7 +104,6 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
 
   if (pParamExpr != NULL) {
     pExpr->pExpr = createFunctionExprNode(functionId, NULL, pParamExpr, 1);
-//    pExpr->base.pColumns
     // todo set the correct number of columns
   } else if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     assert(pParamExpr == NULL);
@@ -140,15 +139,17 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
   return pExpr;
 }
 
-void addExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index, SExprInfo* pExprInfo) {
-  assert(pQueryInfo != NULL && pQueryInfo->exprList != NULL);
+void addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t level) {
+  assert(pExprList != NULL );
 
-  int32_t num = (int32_t) taosArrayGetSize(pQueryInfo->exprList);
+  int32_t num = (int32_t) taosArrayGetSize(pExprList);
   if (index == num) {
-    taosArrayPush(pQueryInfo->exprList, &pExprInfo);
+    taosArrayPush(pExprList, &pExprInfo);
   } else {
-    taosArrayInsert(pQueryInfo->exprList, index, &pExprInfo);
+    taosArrayInsert(pExprList, index, &pExprInfo);
   }
+
+  printf("add function, id:%d, level:%d\n", pExprInfo->pExpr->_function.functionId, level);
 }
 
 void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize) {
@@ -176,15 +177,21 @@ void destroyExprInfo(SExprInfo* pExprInfo) {
   tfree(pExprInfo);
 }
 
-void dropAllExprInfo(SArray* pExprInfo) {
+static void dropOneLevelExprInfo(SArray* pExprInfo) {
   size_t size = taosArrayGetSize(pExprInfo);
 
-  for(int32_t i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
     destroyExprInfo(pExpr);
   }
 
   taosArrayDestroy(pExprInfo);
+}
+
+void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel) {
+  for(int32_t i = 0; i < numOfLevel; ++i) {
+    dropOneLevelExprInfo(pExprInfo[i]);
+  }
 }
 
 void addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes) {
