@@ -503,8 +503,8 @@ function install_service_on_systemd() {
 
     ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target blm3.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target blm3.service'        >> ${taosd_service_config}"
     ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
@@ -523,6 +523,11 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
     ${csudo} systemctl enable taosd
+}
+
+function install_blm3_service() {
+    [ -f ${script_dir}/cfg/blm3.service ] &&\
+        ${csudo} cp ${script_dir}/cfg/blm3.service ${service_config_dir}/
 }
 
 function install_service() {
@@ -566,6 +571,7 @@ function update_TDengine() {
 
     if [ "$osType" != "Darwin" ]; then
         install_service
+        install_blm3_service
     fi
 
     install_config
@@ -620,6 +626,7 @@ function install_TDengine() {
 
     if [ "$osType" != "Darwin" ]; then
         install_service
+        install_blm3_service
     fi
 
     install_config

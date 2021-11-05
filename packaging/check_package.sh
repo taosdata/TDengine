@@ -179,7 +179,8 @@ function check_header_path() {
 
 function check_blm3_config_dir() {
 	# check all config
-	check_file ${cfg_install_dir} blm3.toml
+	check_file ${cfg_install_dir} blm.toml
+	check_file ${cfg_install_dir} blm3.service
 	check_file ${install_main_dir}/cfg blm.toml.org
 	echo -e "Check conf path:\033[32mOK\033[0m!"
 }
