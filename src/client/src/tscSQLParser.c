@@ -3751,10 +3751,6 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       ++scalarFuncNum;
     }
 
-    if (IS_SCALAR_FUNCTION(functionId)) {
-      ++scalarFuncNum;
-    }
-
     if (TSDB_FUNC_IS_SCALAR(functionId)) {
       ++scalarFuncNum;
     }

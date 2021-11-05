@@ -1265,12 +1265,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
 
         if (pCtx[i].functionId < 0 || TSDB_FUNC_IS_SCALAR(pCtx[i].functionId)) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-          if (tsInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-            pCtx[i].ptsList = (int64_t*)tsInfo->pData;
-          } else {
-            pCtx[i].ptsList = NULL;
-          }
-
+          pCtx[i].ptsList = (int64_t*)tsInfo->pData;
           continue;
         }
 
