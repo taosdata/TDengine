@@ -455,7 +455,7 @@ function install_blm3_config() {
     fi
 
     [ -f ${script_dir}/cfg/blm.toml ] &&
-        ${csudo} cp -f ${script_dir}/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
+        ${csudo} cp -f ${script_dir}/cfg/blm.toml ${cfg_install_dir}/blm.toml.new
 
     [ -f ${cfg_install_dir}/blm.toml ] &&
         ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
@@ -473,7 +473,7 @@ function install_config() {
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
+    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${cfg_install_dir}/taos.cfg.new
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 
     [ ! -z $1 ] && return 0 || : # only install client
