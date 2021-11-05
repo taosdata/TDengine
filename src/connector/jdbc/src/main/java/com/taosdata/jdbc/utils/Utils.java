@@ -49,14 +49,9 @@ public class Utils {
             try {
                 return parseMicroSecTimestamp(timeStampStr);
             } catch (DateTimeParseException ee) {
-                try {
-                    return parseNanoSecTimestamp(timeStampStr);
-                } catch (DateTimeParseException eee) {
-                    eee.printStackTrace();
-                }
+                return parseNanoSecTimestamp(timeStampStr);
             }
         }
-        return null;
     }
 
     private static LocalDateTime parseMilliSecTimestamp(String timeStampStr) throws DateTimeParseException {
