@@ -37,6 +37,8 @@ SSyncRaftLog* syncRaftLogOpen();
 
 SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog);
 
+SyncIndex syncRaftLogSnapshotIndex(SSyncRaftLog* pLog);
+
 SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog);
 
 bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
@@ -49,5 +51,14 @@ SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index);
 
 int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
                       SSyncRaftEntry **ppEntries, int *n);
+
+void syncRaftLogRelease(SSyncRaftLog* pLog, SyncIndex index,
+                      SSyncRaftEntry *pEntries, int n);
+
+bool syncRaftLogMatchTerm();
+
+static FORCE_INLINE bool syncRaftLogIsCommitted(SSyncRaftLog* pLog, SyncIndex index) {
+  return pLog->commitIndex > index;
+}
 
 #endif  /* _TD_LIBS_SYNC_RAFT_LOG_H */

@@ -23,6 +23,10 @@ SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog) {
   return 0;
 }
 
+SyncIndex syncRaftLogSnapshotIndex(SSyncRaftLog* pLog) {
+  return 0;
+}
+
 SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog) {
   return 0;
 }
@@ -46,4 +50,9 @@ SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index) {
 int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
                       SSyncRaftEntry **ppEntries, int *n) {
   return 0;
+}
+
+void syncRaftLogRelease(SSyncRaftLog* pLog, SyncIndex index,
+                      SSyncRaftEntry *pEntries, int n) {
+  return;
 }

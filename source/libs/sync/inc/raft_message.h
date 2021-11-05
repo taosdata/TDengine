@@ -65,10 +65,10 @@ typedef struct RaftMsg_VoteResp {
 
 typedef struct RaftMsg_Append_Entries {
   // index of log entry preceeding new ones
-  SyncIndex prevIndex;
+  SyncIndex index;
 
   // term of entry at prevIndex
-  SyncTerm prevTerm;
+  SyncTerm term;
 
   // leader's commit index.
   SyncIndex commitIndex;
@@ -79,6 +79,10 @@ typedef struct RaftMsg_Append_Entries {
   // log entries array
   SSyncRaftEntry* entries;
 } RaftMsg_Append_Entries;
+
+typedef struct RaftMsg_Append_Resp {
+  SyncIndex index;
+} RaftMsg_Append_Resp;
 
 typedef struct SSyncMessage {
   RaftMessageType msgType;
@@ -95,6 +99,7 @@ typedef struct SSyncMessage {
     RaftMsg_VoteResp voteResp;
 
     RaftMsg_Append_Entries appendEntries;
+    RaftMsg_Append_Resp appendResp;
   };
 } SSyncMessage;
 
@@ -167,7 +172,7 @@ static FORCE_INLINE SSyncMessage* syncNewVoteRespMsg(SyncGroupId groupId, SyncNo
 }
 
 static FORCE_INLINE SSyncMessage* syncNewAppendMsg(SyncGroupId groupId, SyncNodeId from,
-                                                  SyncTerm term, SyncIndex prevIndex, SyncTerm prevTerm,
+                                                  SyncTerm term, SyncIndex logIndex, SyncTerm logTerm,
                                                   SyncIndex commitIndex, int nEntries, SSyncRaftEntry* entries) {
   SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
   if (pMsg == NULL) {
@@ -179,11 +184,29 @@ static FORCE_INLINE SSyncMessage* syncNewAppendMsg(SyncGroupId groupId, SyncNode
     .term = term,
     .msgType = RAFT_MSG_APPEND,
     .appendEntries = (RaftMsg_Append_Entries) {
-      .prevIndex = prevIndex,
-      .prevTerm = prevTerm,
+      .index = logIndex,
+      .term = logTerm,
       .commitIndex = commitIndex,
       .nEntries = nEntries,
       .entries = entries,
+    },
+  };
+
+  return pMsg;
+}
+
+static FORCE_INLINE SSyncMessage* syncNewEmptyAppendRespMsg(SyncGroupId groupId, SyncNodeId from, SyncTerm term) {
+  SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+  *pMsg = (SSyncMessage) {
+    .groupId = groupId,
+    .from = from,
+    .term = term,
+    .msgType = RAFT_MSG_APPEND_RESP,
+    .appendResp = (RaftMsg_Append_Resp) {
+
     },
   };
 
@@ -209,5 +232,6 @@ void syncFreeMessage(const SSyncMessage* pMsg);
 int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_MESSAGE_H */

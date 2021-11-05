@@ -23,7 +23,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   int quorum;
   int voterIndex;
 
-  voterIndex = syncRaftConfigurationIndexOfVoter(pRaft, pMsg->from);
+  voterIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
   if (voterIndex == -1) {
     syncError("[%d:%d] recv vote resp from unknown server %d", pRaft->selfGroupId, pRaft->selfId, pMsg->from);
     return 0;

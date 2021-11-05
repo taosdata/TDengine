@@ -23,7 +23,7 @@ static bool canGrantVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   SSyncMessage* pRespMsg;
-  int voteIndex = syncRaftConfigurationIndexOfVoter(pRaft, pMsg->from);
+  int voteIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
   if (voteIndex == -1) {
     return 0;
   }

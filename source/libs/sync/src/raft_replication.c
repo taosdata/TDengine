@@ -33,12 +33,61 @@ int syncRaftReplicate(SSyncRaft* pRaft, int i) {
   }
 
   SyncIndex nextIndex = syncRaftProgressNextIndex(progress);
-  SyncIndex prevIndex = nextIndex - 1;
-  SyncTerm prevTerm = syncRaftLogTermOf(pRaft->log, prevIndex);
+  SyncIndex snapshotIndex = syncRaftLogSnapshotIndex(pRaft->log);
+  bool inSnapshot = syncRaftProgressInSnapshot(progress);
+  SyncIndex prevIndex;
+  SyncTerm prevTerm;
 
-  if (prevTerm == SYNC_NON_TERM && !syncRaftProgressInSnapshot(progress)) {
-    goto send_snapshot;
+  /**
+   * From Section 3.5:
+   *
+   *   When sending an AppendEntries RPC, the leader includes the index and
+   *   term of the entry in its log that immediately precedes the new
+   *   entries. If the follower does not find an entry in its log with the
+   *   same index and term, then it refuses the new entries. The consistency
+   *   check acts as an induction step: the initial empty state of the logs
+   *   satisfies the Log Matching Property, and the consistency check
+   *   preserves the Log Matching Property whenever logs are extended. As a
+   *   result, whenever AppendEntries returns successfully, the leader knows
+   *   that the follower's log is identical to its own log up through the new
+   *   entries (Log Matching Property in Figure 3.2).
+   **/
+  if (nextIndex == 1) {
+    /**
+     * We're including the very first entry, so prevIndex and prevTerm are
+     * null. If the first entry is not available anymore, send the last
+     * snapshot if we're not already sending one. 
+     **/
+    if (snapshotIndex > 0 && !inSnapshot) {
+      goto send_snapshot;
+    }
+
+    // otherwise send append entries from start
+    prevIndex = 0;
+    prevTerm = 0;    
+  } else {
+    /**
+     * Set prevIndex and prevTerm to the index and term of the entry at
+     * nextIndex - 1. 
+     **/ 
+    prevIndex = nextIndex - 1;
+    prevTerm = syncRaftLogTermOf(pRaft->log, prevIndex);
+    /**
+     * If the entry is not anymore in our log, send the last snapshot if we're
+     * not doing so already.
+     **/
+    if (prevTerm == SYNC_NON_TERM && !inSnapshot) {
+      goto send_snapshot;
+    }
   }
+
+  /* Send empty AppendEntries RPC when installing a snaphot */
+  if (inSnapshot) {
+    prevIndex = syncRaftLogLastIndex(pRaft->log);
+    prevTerm = syncRaftLogLastTerm(pRaft->log);
+  }
+
+  return sendAppendEntries(pRaft, i, prevIndex, prevTerm);
 
 send_snapshot:
   if (syncRaftProgressRecentActive(progress)) {
@@ -69,7 +118,7 @@ static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex prevIndex, SyncT
                                       nEntry, entries);
 
   if (msg == NULL) {
-    return 0;
+    goto err_release_log;
   }
 
   pRaft->io.send(msg, pNode);
@@ -86,5 +135,9 @@ static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex prevIndex, SyncT
 
   syncRaftProgressUpdateSendTick(progress, pRaft->currentTick);
 
+  return 0;
+
+err_release_log:
+  syncRaftLogRelease(pRaft->log, nextIndex, entries, nEntry);
   return 0;
 }

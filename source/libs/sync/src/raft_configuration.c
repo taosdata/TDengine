@@ -16,7 +16,7 @@
 #include "raft_configuration.h"
 #include "raft.h"
 
-int syncRaftConfigurationIndexOfVoter(SSyncRaft *pRaft, SyncNodeId id) {
+int syncRaftConfigurationIndexOfNode(SSyncRaft *pRaft, SyncNodeId id) {
   return (int)(id);
 }
 

@@ -16,6 +16,7 @@
 #include "raft.h"
 #include "raft_configuration.h"
 #include "raft_log.h"
+#include "raft_replication.h"
 #include "syncInt.h"
 
 #define RAFT_READ_LOG_MAX_NUM 100
@@ -215,7 +216,7 @@ int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool acc
       pRaft->selfGroupId, pRaft->selfId, id, pRaft->term);
   }
   
-  int voteIndex = syncRaftConfigurationIndexOfVoter(pRaft, id);
+  int voteIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
   assert(voteIndex < pRaft->cluster.replica && voteIndex >= 0);
   assert(pRaft->candidateState.votes[voteIndex] == SYNC_RAFT_VOTE_RESP_UNKNOWN);
 
@@ -279,8 +280,38 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 }
 
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  // TODO
-  // if receive old term message, no need to continue
+  if (pRaft->checkQuorum && pMsg->msgType == RAFT_MSG_APPEND) {
+		/**
+     * We have received messages from a leader at a lower term. It is possible
+		 * that these messages were simply delayed in the network, but this could
+		 * also mean that this node has advanced its term number during a network
+		 * partition, and it is now unable to either win an election or to rejoin
+	   * the majority on the old term. If checkQuorum is false, this will be
+		 * handled by incrementing term numbers in response to MsgVote with a
+		 * higher term, but if checkQuorum is true we may not advance the term on
+		 * MsgVote and must generate other messages to advance the term. The net
+		 * result of these two features is to minimize the disruption caused by
+		 * nodes that have been removed from the cluster's configuration: a
+		 * removed node will send MsgVotes (or MsgPreVotes) which will be ignored,
+		 * but it will not receive MsgApp or MsgHeartbeat, so it will not create
+		 * disruptive term increases
+    **/
+    int peerIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
+    if (peerIndex < 0) {
+      return true;
+    }
+    SSyncMessage* msg = syncNewEmptyAppendRespMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+    if (msg == NULL) {
+      return true;
+    }
+
+    pRaft->io.send(msg, &(pRaft->cluster.nodeInfo[peerIndex]));
+  } else {
+    // ignore other cases
+    syncInfo("[%d:%d] [term:%" PRId64 "] ignored a %d message with lower term from %d [term:%" PRId64 "]",
+      pRaft->selfGroupId, pRaft->selfId, pRaft->term, pMsg->msgType, pMsg->from, pMsg->term);    
+  }
+
   return true;
 }
 
@@ -308,6 +339,9 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   if (msgType == RAFT_MSG_VOTE_RESP) {
     syncRaftHandleVoteRespMessage(pRaft, pMsg);
     return 0;
+  } else if (msgType == RAFT_MSG_APPEND) {
+    syncRaftBecomeFollower(pRaft, pRaft->term, pMsg->from);
+    syncRaftHandleAppendEntriesMessage(pRaft, pMsg);
   }
   return 0;
 }
@@ -353,7 +387,7 @@ static int triggerAll(SSyncRaft* pRaft) {
       continue;
     }
 
-    
+    syncRaftReplicate(pRaft, i);
   }
 }
 
