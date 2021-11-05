@@ -57,6 +57,10 @@ TEST_F(TqMetaTest, copyPutTest) {
 
   Foo* pFoo = (Foo*) tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo == NULL, true);
+
+  tqHandleCommit(pMeta, 1);
+  pFoo = (Foo*) tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo->a, 3);
 }
 
 TEST_F(TqMetaTest, persistTest) {
@@ -135,6 +139,42 @@ TEST_F(TqMetaTest, deleteTest) {
   pMeta = tqStoreOpen(pathName,
       FooSerializer, FooDeserializer, FooDeleter);
   ASSERT(pMeta);
+
   pFoo = (Foo*) tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo == NULL, true);
+}
+
+TEST_F(TqMetaTest, intxnPersist) {
+  Foo* pFoo = (Foo*)malloc(sizeof(Foo));
+  pFoo->a = 3;
+  tqHandleMovePut(pMeta, 1, pFoo);
+  tqHandleCommit(pMeta, 1);
+
+  Foo* pBar = (Foo*)malloc(sizeof(Foo));
+  pBar->a = 4;
+  tqHandleMovePut(pMeta, 1, pBar);
+
+  Foo* pFoo1 = (Foo*)tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo1->a, 3);
+
+  tqStoreClose(pMeta);
+  pMeta = tqStoreOpen(pathName,
+      FooSerializer, FooDeserializer, FooDeleter);
+  ASSERT(pMeta);
+
+  pFoo1 = (Foo*)tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo1->a, 3);
+
+  tqHandleCommit(pMeta, 1);
+
+  pFoo1 = (Foo*)tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo1->a, 4);
+
+  tqStoreClose(pMeta);
+  pMeta = tqStoreOpen(pathName,
+      FooSerializer, FooDeserializer, FooDeleter);
+  ASSERT(pMeta);
+
+  pFoo1 = (Foo*)tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo1->a, 4);
 }

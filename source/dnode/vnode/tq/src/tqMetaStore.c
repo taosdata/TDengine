@@ -153,9 +153,9 @@ TqMetaStore* tqStoreOpen(const char* path,
         } else {
           pNode->handle.valueInUse = TQ_DELETE_TOKEN;
         }
-        serializedObj = POINTER_SHIFT(serializedObj, serializedObj->ssize);
-        if(serializedObj->ssize != sizeof(TqSerializedHead)) {
-          pMeta->deserializer(serializedObj, &pNode->handle.valueInTxn);
+        TqSerializedHead* ptr = POINTER_SHIFT(serializedObj, serializedObj->ssize);
+        if(ptr->ssize != sizeof(TqSerializedHead)) {
+          pMeta->deserializer(ptr, &pNode->handle.valueInTxn);
         } else {
           pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
         }
@@ -590,4 +590,9 @@ int32_t tqHandleClear(TqMetaStore* pMeta, int64_t key) {
     }
   }
   return -2;
+}
+
+//TODO: clean deleted idx and data from persistent file
+int32_t tqStoreCompact(TqMetaStore *pMeta) {
+  return 0;
 }

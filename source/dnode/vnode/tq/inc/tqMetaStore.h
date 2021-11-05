@@ -92,6 +92,8 @@ int32_t       tqStoreClose(TqMetaStore*);
 //int32_t       tqStoreDelete(TqMetaStore*);
 //int32_t       TqStoreCommitAll(TqMetaStore*);
 int32_t       tqStorePersist(TqMetaStore*);
+//clean deleted idx and data from persistent file
+int32_t       tqStoreCompact(TqMetaStore*);
 
 void*   tqHandleGet(TqMetaStore*, int64_t key);
 int32_t tqHandleMovePut(TqMetaStore*, int64_t key, void* value);
