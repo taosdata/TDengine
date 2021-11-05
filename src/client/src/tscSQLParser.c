@@ -3740,6 +3740,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       ++prjNum;
     }
 
+    if (functionId == TSDB_FUNC_CEIL || functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND) {
+      ++scalarFuncNum;
+    }
+
     if (IS_SCALAR_FUNCTION(functionId)) {
       ++scalarFuncNum;
     }
