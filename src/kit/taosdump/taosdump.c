@@ -1977,45 +1977,87 @@ static int64_t writeResultToAvro(
             int len;
             switch (fields[col].type) {
                 case TSDB_DATA_TYPE_BOOL:
-                    avro_value_set_boolean(&value,
-                            ((((int32_t)(*((char *)row[col])))==1)?1:0));
+                    if (NULL == row[col]) {
+                        avro_value_set_int(&value, TSDB_DATA_BOOL_NULL);
+                    } else {
+                        avro_value_set_boolean(&value,
+                                ((((int32_t)(*((char *)row[col])))==1)?1:0));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_TINYINT:
-                    avro_value_set_int(&value, *((int8_t *)row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_int(&value, TSDB_DATA_TINYINT_NULL);
+                    } else {
+                        avro_value_set_int(&value, *((int8_t *)row[col]));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_SMALLINT:
-                    avro_value_set_int(&value, *((int16_t *)row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_int(&value, TSDB_DATA_SMALLINT_NULL);
+                    } else {
+                        avro_value_set_int(&value, *((int16_t *)row[col]));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_INT:
-                    avro_value_set_int(&value, *((int32_t *)row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_int(&value, TSDB_DATA_INT_NULL);
+                    } else {
+                        avro_value_set_int(&value, *((int32_t *)row[col]));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_BIGINT:
-                    avro_value_set_long(&value, *((int64_t *)row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_long(&value, TSDB_DATA_BIGINT_NULL);
+                    } else {
+                        avro_value_set_long(&value, *((int64_t *)row[col]));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_FLOAT:
-                    avro_value_set_float(&value, GET_FLOAT_VAL(row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_float(&value, TSDB_DATA_FLOAT_NULL);
+                    } else {
+                        avro_value_set_float(&value, GET_FLOAT_VAL(row[col]));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_DOUBLE:
-                    avro_value_set_double(&value, GET_DOUBLE_VAL(row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_double(&value, TSDB_DATA_DOUBLE_NULL);
+                    } else {
+                        avro_value_set_double(&value, GET_DOUBLE_VAL(row[col]));
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_BINARY:
-                    avro_value_set_string(&value, (char *)row[col]);
+                    if (NULL == row[col]) {
+                        avro_value_set_string(&value,
+                                (char *)NULL);
+                    } else {
+                        avro_value_set_string(&value, (char *)row[col]);
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_NCHAR:
-                    len = strlen((char*)row[col]);
-                    avro_value_set_bytes(&value, (void*)(row[col]),len);
+                    if (NULL == row[col]) {
+                        avro_value_set_bytes(&value,
+                                (void*)NULL,0);
+                    } else {
+                        len = strlen((char*)row[col]);
+                        avro_value_set_bytes(&value, (void*)(row[col]),len);
+                    }
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
-                    avro_value_set_long(&value, *((int64_t *)row[col]));
+                    if (NULL == row[col]) {
+                        avro_value_set_long(&value, TSDB_DATA_BIGINT_NULL);
+                    } else {
+                        avro_value_set_long(&value, *((int64_t *)row[col]));
+                    }
                     break;
 
                 default:
@@ -2199,6 +2241,8 @@ static int dumpInOneAvroFile(char* fcharset,
 
             FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct) * i);
 
+            bind->is_null = NULL;
+            int is_null = 1;
             if (0 == i) {
                 int64_t *ts = malloc(sizeof(int64_t));
                 assert(ts);
@@ -2210,9 +2254,9 @@ static int dumpInOneAvroFile(char* fcharset,
                 bind->buffer_length = sizeof(int64_t);
                 bind->buffer = ts;
                 bind->length = &bind->buffer_length;
-                bind->is_null = NULL;
             } else if (0 == avro_value_get_by_name(
                         &value, field->name, &field_value, NULL)) {
+
                 if (0 == strcasecmp(tableDes->cols[i].type, "int")) {
                     int32_t *n32 = malloc(sizeof(int32_t));
                     assert(n32);
@@ -2263,19 +2307,30 @@ static int dumpInOneAvroFile(char* fcharset,
                     assert(f);
 
                     avro_value_get_float(&field_value, f);
-                    debugPrint("%f | ", *f);
+                    if (TSDB_DATA_FLOAT_NULL == *f) {
+                        debugPrint("%s | ", "NULL");
+                        bind->is_null = &is_null;
+                    } else {
+                        debugPrint("%f | ", *f);
+                        bind->buffer = f;
+                    }
                     bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
                     bind->buffer_length = sizeof(float);
-                    bind->buffer = f;
                 } else if (0 == strcasecmp(tableDes->cols[i].type, "double")) {
                     double *dbl = malloc(sizeof(double));
                     assert(dbl);
 
                     avro_value_get_double(&field_value, dbl);
-                    debugPrint("%f | ", *dbl);
+                    if (TSDB_DATA_DOUBLE_NULL == *dbl) {
+                        debugPrint("%s | ", "NULL");
+                        bind->is_null = &is_null;
+                    } else {
+                        debugPrint("%f | ", *dbl);
+                        bind->buffer = dbl;
+                    }
+                    bind->buffer = dbl;
                     bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
                     bind->buffer_length = sizeof(double);
-                    bind->buffer = dbl;
                 } else if (0 == strcasecmp(tableDes->cols[i].type, "binary")) {
                     size_t size;
 
@@ -2306,7 +2361,6 @@ static int dumpInOneAvroFile(char* fcharset,
                 }
 
                 bind->length = &bind->buffer_length;
-                bind->is_null = NULL;
             }
 
         }
@@ -2459,10 +2513,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
 
     int32_t  sql_buf_len = g_args.max_sql_len;
     char* tmpBuffer = (char *)calloc(1, sql_buf_len + 128);
-    if (tmpBuffer == NULL) {
-        errorPrint("failed to allocate %d memory\n", sql_buf_len + 128);
-        return -1;
-    }
+    assert(tmpBuffer);
 
     char *pstr = tmpBuffer;
 

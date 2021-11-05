@@ -25,7 +25,7 @@ IF (TD_DARWIN AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
 ENDIF ()
 
-IF (AVRO_SUPPORT)
+IF (TD_AVRO_SUPPORT)
   MESSAGE("")
   MESSAGE("${Green} ENABLE avro format support ${ColourReset}")
   MESSAGE("")
