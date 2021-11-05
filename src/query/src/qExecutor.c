@@ -9323,21 +9323,4 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
 
     pQueryAttr->pFilterInfo = doDestroyFilterInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols);
 
-    pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-    pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
-    pQueryAttr->pExpr3 = destroyQueryFuncExpr(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
-
-    tfree(pQueryAttr->tagColList);
-    tfree(pQueryAttr->pFilterInfo);
-
-    pQueryAttr->tableCols = freeColumnInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols);
-
-    if (pQueryAttr->pGroupbyExpr != NULL) {
-      taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
-      tfree(pQueryAttr->pGroupbyExpr);
-    }
-
-    filterFreeInfo(pQueryAttr->pFilters);
-  }
-}
-
+    pQueryAttr->pExpr1 = destroyQueryFuncExpr(p
