@@ -578,12 +578,12 @@ pipeline {
             
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat wintest
-                '''
-                }
+                // timeout(time: 20, unit: 'MINUTES'){
+                // bat'''
+                // cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                // .\\test-all.bat wintest
+                // '''
+                // }
             }     
             script{
               win_stop=1
