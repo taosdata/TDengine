@@ -147,6 +147,9 @@ class TDTestCase:
             tdSql.error("select derivative(col, 10s, 1) from stb group by id")
             tdSql.error("select derivative(col, 999ms, 1) from stb group by id")
             tdSql.error("select derivative(col, 10s, 2) from stb group by id")
+            tdSql.error("select derivative(col, -106752999999999922222d, 0) from stb group by tbname");  #overflow error
+            tdSql.error("select derivative(col, 10y, 0) from stb group by tbname")      #TD-10399, DB error: syntax error near '10y, 0) from stb group by tbname;'
+            tdSql.error("select derivative(col, -106752d, 0) from stb group by tbname") #TD-10398 overflow tips
 
     def run(self):
         tdSql.prepare()        

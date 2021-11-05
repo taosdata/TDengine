@@ -1313,9 +1313,6 @@ static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
     if (pCtx[k].currentStage == MERGE_STAGE) {
       pCtx[k].order = TSDB_ORDER_ASC;
     }
-
-    pCtx[k].startTs = pQueryAttr->window.skey;
-
     if (pCtx[k].functionId < 0) {
       // load the script and exec
       SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
@@ -2451,7 +2448,7 @@ bool isQueryKilled(SQInfo *pQInfo) {
 
   // query has been executed more than tsShellActivityTimer, and the retrieve has not arrived
   // abort current query execution.
-  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->startExecTs/1000) > getMaximumIdleDurationSec()) &&
+  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->lastRetrieveTs/1000) > getMaximumIdleDurationSec()) &&
       (!needBuildResAfterQueryComplete(pQInfo))) {
 
     assert(pQInfo->startExecTs != 0);
@@ -4350,31 +4347,16 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     compSizes = tcalloc(numOfCols, sizeof(int32_t));
   }
 
-  if (pQueryAttr->pExpr2 == NULL) {
-    for (int32_t col = 0; col < numOfCols; ++col) {
-      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      if (compressed) {
-        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, data, compressed);
-        data += compSizes[col];
-        *compLen += compSizes[col];
-        compSizes[col] = htonl(compSizes[col]);
-      } else {
-        memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
-        data += pColRes->info.bytes * pRes->info.rows;
-      }
-    }
-  } else {
-    for (int32_t col = 0; col < numOfCols; ++col) {
-      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      if (compressed) {
-        compSizes[col] = htonl(compressQueryColData(pColRes, numOfRows, data, compressed));
-        data += compSizes[col];
-        *compLen += compSizes[col];
-        compSizes[col] = htonl(compSizes[col]);
-      } else {
-        memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
-        data += pColRes->info.bytes * numOfRows;
-      }
+  for (int32_t col = 0; col < numOfCols; ++col) {
+    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
+    if (compressed) {
+      compSizes[col] = compressQueryColData(pColRes, numOfRows, data, compressed);
+      data += compSizes[col];
+      *compLen += compSizes[col];
+      compSizes[col] = htonl(compSizes[col]);
+    } else {
+      memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
+      data += pColRes->info.bytes * numOfRows;
     }
   }
 
@@ -5991,6 +5973,18 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
   return NULL;
 }
 
+static int32_t resRowCompare(const void *r1, const void *r2) {
+  SResultRow *res1 = *(SResultRow **)r1;
+  SResultRow *res2 = *(SResultRow **)r2;
+
+  if (res1->win.skey == res2->win.skey) {
+    return 0;
+  } else {
+    return res1->win.skey > res2->win.skey ? 1 : -1;
+  }
+}
+
+
 static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -6036,6 +6030,10 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   pQueryAttr->window = win;
 
   pOperator->status = OP_RES_TO_RETURN;
+  if (pIntervalInfo->resultRowInfo.size > 0 && pQueryAttr->needSort) {
+    qsort(pIntervalInfo->resultRowInfo.pResult, pIntervalInfo->resultRowInfo.size, POINTER_BYTES, resRowCompare);
+  }
+  
   closeAllResultRows(&pIntervalInfo->resultRowInfo);
   setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
   finalizeQueryResult(pOperator, pIntervalInfo->pCtx, &pIntervalInfo->resultRowInfo, pIntervalInfo->rowCellInfoOffset);

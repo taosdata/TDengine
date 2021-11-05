@@ -21,78 +21,91 @@ import json
 import random
 import time
 import datetime
+import multiprocessing
 from multiprocessing import Manager, Pool, Lock
 from multipledispatch import dispatch
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 
 @dispatch(str, str)
-def v_print(msg: str, arg: str):
+def v_print(msg, arg):
+    # type: (str, str) -> None
     if verbose:
         print(msg % arg)
 
 
 @dispatch(str, str, str)
-def v_print(msg: str, arg1: str, arg2: str):
+def v_print(msg, arg1, arg2):
+    # type: (str, str, str) -> None
     if verbose:
         print(msg % (arg1, arg2))
 
 
 @dispatch(str, str, str, str)
-def v_print(msg: str, arg1: str, arg2: str, arg3: str):
+def v_print(msg, arg1, arg2, arg3):
+    # type: (str, str, str, str) -> None
     if verbose:
         print(msg % (arg1, arg2, arg3))
 
 
 @dispatch(str, str, str, str, str)
-def v_print(msg: str, arg1: str, arg2: str, arg3: str, arg4: str):
+def v_print(msg, arg1, arg2, arg3, arg4):
+    # type: (str, str, str, str, str) -> None
     if verbose:
         print(msg % (arg1, arg2, arg3, arg4))
 
 
 @dispatch(str, int)
-def v_print(msg: str, arg: int):
+def v_print(msg, arg):
+    # type: (str, int) -> None
     if verbose:
         print(msg % int(arg))
 
 
 @dispatch(str, int, str)
-def v_print(msg: str, arg1: int, arg2: str):
+def v_print(msg, arg1, arg2):
+    # type: (str, int, str) -> None
     if verbose:
         print(msg % (int(arg1), str(arg2)))
 
 
 @dispatch(str, str, int)
-def v_print(msg: str, arg1: str, arg2: int):
+def v_print(msg, arg1, arg2):
+    # type: (str, str, int) -> None
     if verbose:
         print(msg % (arg1, int(arg2)))
 
 
 @dispatch(str, int, int)
-def v_print(msg: str, arg1: int, arg2: int):
+def v_print(msg, arg1, arg2):
+    # type: (str, int, int) -> None
     if verbose:
         print(msg % (int(arg1), int(arg2)))
 
 
 @dispatch(str, int, int, str)
-def v_print(msg: str, arg1: int, arg2: int, arg3: str):
+def v_print(msg, arg1, arg2, arg3):
+    # type: (str, int, int, str) -> None
     if verbose:
         print(msg % (int(arg1), int(arg2), str(arg3)))
 
 
 @dispatch(str, int, int, int)
-def v_print(msg: str, arg1: int, arg2: int, arg3: int):
+def v_print(msg, arg1, arg2, arg3):
+    # type: (str, int, int, int) -> None
     if verbose:
         print(msg % (int(arg1), int(arg2), int(arg3)))
 
 
 @dispatch(str, int, int, int, int)
-def v_print(msg: str, arg1: int, arg2: int, arg3: int, arg4: int):
+def v_print(msg, arg1, arg2, arg3, arg4):
+    # type: (str, int, int, int, int) -> None
     if verbose:
         print(msg % (int(arg1), int(arg2), int(arg3), int(arg4)))
 
 
-def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
+def restful_execute(host, port, user, password, cmd):
+    # type: (str, int, str, str, str) -> None
     url = "http://%s:%d/rest/sql" % (host, restPort)
 
     v_print("restful_execute - cmd: %s", cmd)
@@ -112,7 +125,8 @@ def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
         print("resp: %s" % json.dumps(resp.json()))
 
 
-def query_func(process: int, thread: int, cmd: str):
+def query_func(process, thread, cmd):
+    # type: (int, int, str) -> None
     v_print("%d process %d thread cmd: %s", process, thread, cmd)
 
     if oneMoreHost != "NotSupported" and random.randint(
@@ -133,7 +147,8 @@ def query_func(process: int, thread: int, cmd: str):
                 host, port, user, password, cmd)
 
 
-def query_data_process(cmd: str):
+def query_data_process(cmd):
+    # type: (str) -> None
     # establish connection if native
     if native:
         v_print("host:%s, user:%s passwd:%s configDir:%s ", host, user, password, configDir)
@@ -256,7 +271,8 @@ def drop_databases():
                 (dbName, i))
 
 
-def insert_func(process: int, thread: int):
+def insert_func(process, thread):
+    # type: (int, int) -> None
     v_print("%d process %d thread, insert_func ", process, thread)
 
     # generate uuid
@@ -374,7 +390,8 @@ def create_tb():
                     (tbName, j))
 
 
-def insert_data_process(lock, i: int, begin: int, end: int):
+def insert_data_process(lock, i, begin, end):
+    # type: (multiprocessing._LockType, int, int, int) -> None
     lock.acquire()
     tasks = end - begin
     v_print("insert_data_process:%d table from %d to %d, tasks %d", i, begin, end, tasks)
@@ -675,7 +692,10 @@ if __name__ == "__main__":
         printConfig()
 
     if not skipPrompt:
-        input("Press any key to continue..")
+        try:
+            input("Press any key to continue..")
+        except SyntaxError:
+            pass
 
     # establish connection first if native
     if native:

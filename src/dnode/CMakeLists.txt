@@ -39,6 +39,10 @@ IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(taosd grant)
 ENDIF ()
 
+IF (TD_USB_DONGLE)
+  TARGET_LINK_LIBRARIES(taosd usb_dongle)
+ENDIF ()
+
 IF (TD_MQTT)
   TARGET_LINK_LIBRARIES(taosd mqtt)
 ENDIF ()
