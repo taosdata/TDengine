@@ -23,8 +23,12 @@ extern "C" {
 
 int32_t dnodeInitMnode();
 void    dnodeCleanupMnode();
-void    dnodeProcessMnodeMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 int32_t dnodeGetUserAuthFromMnode(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
+void dnodeProcessMnodeMgmtMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessMnodeReadMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessMnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+void dnodeProcessMnodeSyncMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }
