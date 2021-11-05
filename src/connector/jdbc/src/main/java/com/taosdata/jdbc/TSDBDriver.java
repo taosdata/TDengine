@@ -135,7 +135,6 @@ public class TSDBDriver extends AbstractDriver {
             TSDBJNIConnector.init(props);
             return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLWarning sqlWarning) {
-            sqlWarning.printStackTrace();
             return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLException sqlEx) {
             throw sqlEx;

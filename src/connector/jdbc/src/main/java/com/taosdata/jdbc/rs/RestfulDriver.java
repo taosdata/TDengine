@@ -50,9 +50,13 @@ public class RestfulDriver extends AbstractDriver {
             String password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), StandardCharsets.UTF_8.displayName());
             loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "unsupported UTF-8 concoding, user: " + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + ", password: " + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
         }
 
+        int poolSize = Integer.valueOf(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
+        boolean keepAlive = Boolean.valueOf(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
+
+        HttpClientPoolUtil.init(poolSize, keepAlive);
         String result = HttpClientPoolUtil.execute(loginUrl);
         JSONObject jsonResult = JSON.parseObject(result);
         String status = jsonResult.getString("status");
