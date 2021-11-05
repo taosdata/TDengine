@@ -2,7 +2,7 @@
 #
 # This file is used to install tdengine rpm package on centos systems. The operating system
 # is required to use systemd to manage services at boot
-#set -x
+# set -x
 
 iplist=""
 serverFqdn=""
@@ -86,6 +86,24 @@ function install_include() {
     ${csudo} ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+function install_avro_lib() {
+    ${csudo} rm -f ${lib_link_dir}/libavro* || :
+    ${csudo} rm -f ${lib64_link_dir}/libavro* || :
+
+    if [[ -f ${lib_dir}/libavro.so.23.0.0 ]]; then
+        ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23.0.0
+        ${csudo} ln -s ${lib_link_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23
+        ${csudo} ln -s ${lib_link_dir}/libavro.so.23 ${lib_link_dir}/libavro.so
+
+        if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libavro.so ]]; then
+            ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23.0.0           || :
+            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23   || :
+            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23 ${lib64_link_dir}/libavro.so   || :
+        fi
+    fi
+
+    ${csudo} ldconfig
+}
 function install_lib() {
     ${csudo} rm -f ${lib_link_dir}/libtaos* || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos* || :
@@ -97,6 +115,8 @@ function install_lib() {
       ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
     fi
+
+    ${csudo} ldconfig
 }
 
 function install_bin() {
@@ -474,6 +494,7 @@ function install_TDengine() {
     # Install include, lib, binary and service
     install_include
     install_lib
+    install_avro_lib
     install_bin
     install_service
     install_config
