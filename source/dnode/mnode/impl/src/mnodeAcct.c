@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "mnodeSdb.h"
+#include "mnodeInt.h"
 
 static void mnodeCreateDefaultAcct() {
   int32_t code = TSDB_CODE_SUCCESS;

@@ -24,6 +24,7 @@
 #include "thash.h"
 #include "cJSON.h"
 #include "mnode.h"
+#include "sdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,26 +61,6 @@ typedef struct SOperObj SOperObj;
 typedef struct SMnMsg SMnMsg;
 
 typedef enum {
-  MN_SDB_START = 0,
-  MN_SDB_CLUSTER = 1,
-  MN_SDB_DNODE = 2,
-  MN_SDB_MNODE = 3,
-  MN_SDB_ACCT = 4,
-  MN_SDB_AUTH = 5,
-  MN_SDB_USER = 6,
-  MN_SDB_DB = 7,
-  MN_SDB_VGROUP = 8,
-  MN_SDB_STABLE = 9,
-  MN_SDB_FUNC = 10,
-  MN_SDB_OPER = 11,
-  MN_SDB_MAX = 12
-} EMnSdb;
-
-typedef enum { MN_OP_START = 0, MN_OP_INSERT = 1, MN_OP_UPDATE = 2, MN_OP_DELETE = 3, MN_OP_MAX = 4 } EMnOp;
-
-typedef enum { MN_KEY_START = 0, MN_KEY_BINARY = 1, MN_KEY_INT32 = 2, MN_KEY_INT64 = 3, MN_KEY_MAX } EMnKey;
-
-typedef enum {
   MN_AUTH_ACCT_START = 0,
   MN_AUTH_ACCT_USER,
   MN_AUTH_ACCT_DNODE,
@@ -97,13 +78,7 @@ typedef enum {
   MN_AUTH_MAX
 } EMnAuthOp;
 
-typedef enum { MN_SDB_STAT_AVAIL = 0, MN_SDB_STAT_DROPPED = 1 } EMnSdbStat;
 
-typedef struct {
-  int8_t type;
-  int8_t status;
-  int8_t align[6];
-} SdbHead;
 
 typedef struct SClusterObj {
   SdbHead head;

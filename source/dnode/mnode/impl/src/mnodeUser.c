@@ -17,7 +17,7 @@
 #include "os.h"
 #include "tkey.h"
 #include "tglobal.h"
-#include "mnodeSdb.h"
+#include "mnodeInt.h"
 
 static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
   int32_t code = TSDB_CODE_SUCCESS;

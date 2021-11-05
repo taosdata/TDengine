@@ -27,7 +27,7 @@
 #include "mnodeMnode.h"
 #include "mnodeOper.h"
 #include "mnodeProfile.h"
-#include "mnodeSdb.h"
+#include "mnodeInt.h"
 #include "mnodeShow.h"
 #include "mnodeStable.h"
 #include "mnodeSync.h"

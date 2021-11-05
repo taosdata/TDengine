@@ -18,7 +18,7 @@
 #include "tworker.h"
 #include "tglobal.h"
 #include "mnodeMnode.h"
-#include "mnodeSdb.h"
+#include "mnodeInt.h"
 #include "mnodeShow.h"
 #include "mnodeSync.h"
 #include "mnodeWorker.h"
