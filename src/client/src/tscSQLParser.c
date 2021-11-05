@@ -3217,6 +3217,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
 
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
   strncpy(tmpTokenBuf, pToken->z, pToken->n);
+  
   pToken->z = tmpTokenBuf;
 
   if (pToken->type == TK_ID) {
@@ -5641,14 +5642,14 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   const char* msg3 = "top/bottom/sample not support fill";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "fill only available for interval query";
-  const char* msg6 = "not supported function now";
   const char* msg7 = "join query not supported fill operation";
 
   bool pointInterp = tscIsPointInterpQuery(pQueryInfo);
   if ((!isTimeWindowQuery(pQueryInfo)) && (!pointInterp)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
-  if(QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
+  
+  if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && (!pointInterp)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
@@ -7510,6 +7511,10 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
 
 int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
   const char* msg1 = "TWA/Diff/Derivative/Irate are not allowed to apply to super table without group by tbname";
+  const char* msg2 = "group by not supported in nested interp query";
+  const char* msg3 = "order by not supported in nested interp query";
+  const char* msg4 = "first column should be timestamp for interp query";
+  const char* msg5 = "interp input may be invalid";
 
   int32_t numOfExprs = (int32_t)tscNumOfExprs(pQueryInfo);
   size_t upNum = taosArrayGetSize(pQueryInfo->pUpstream);
@@ -7529,6 +7534,50 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
       }
     
       return invalidOperationMsg(msg, msg1);
+    } else if (f == TSDB_FUNC_INTERP) {
+      if (pQueryInfo->groupbyExpr.columnInfo) {
+        return invalidOperationMsg(msg, msg2);
+      }
+
+      if (pQueryInfo->order.order == TSDB_ORDER_DESC || (pQueryInfo->order.orderColId != INT32_MIN && pQueryInfo->order.orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
+        return invalidOperationMsg(msg, msg3);
+      }
+
+      for (int32_t j = 0; j < upNum; ++j) {
+        SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
+        if (pUp->groupbyExpr.columnInfo) {
+          return invalidOperationMsg(msg, msg2);
+        }
+        
+        if (pUp->order.order == TSDB_ORDER_DESC || (pUp->order.orderColId != INT32_MIN && pUp->order.orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
+          return invalidOperationMsg(msg, msg3);
+        }
+
+        int32_t exprNum = (int32_t)taosArrayGetSize(pUp->exprList);
+        if (exprNum > 0) {
+          SSqlExpr* expr = taosArrayGetP(pUp->exprList, 0);
+          if (expr->resType != TSDB_DATA_TYPE_TIMESTAMP) {
+            return invalidOperationMsg(msg, msg4);
+          }
+
+          STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);
+          bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+          if (!isSTable) {
+            continue;
+          }
+          
+          for (int32_t n = 0; n < exprNum; ++n) {
+            expr = taosArrayGetP(pUp->exprList, n);
+            if (expr->functionId == TSDB_FUNC_TOP ||
+                expr->functionId == TSDB_FUNC_BOTTOM ||
+                expr->functionId == TSDB_FUNC_SAMPLE) {
+              if (expr->param[0].i64 > 1) {
+                return invalidOperationMsg(msg, msg5);
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -9057,7 +9106,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     for (int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
       SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
       int32_t    f = pExpr->base.functionId;
-      if (f == TSDB_FUNC_STDDEV || f == TSDB_FUNC_PERCT || f == TSDB_FUNC_INTERP) {
+      if (f == TSDB_FUNC_STDDEV || f == TSDB_FUNC_PERCT) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 

@@ -1277,7 +1277,11 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
         }
 
       } else {
-        GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes);
+        if (curRowIndex == -1) {
+          GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[index]);
+        } else {
+          GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes);
+        }
       
         pCtx[k].end.key = curTs;
         pCtx[k].end.val = v2;
@@ -2277,7 +2281,7 @@ bool isQueryKilled(SQInfo *pQInfo) {
 
   // query has been executed more than tsShellActivityTimer, and the retrieve has not arrived
   // abort current query execution.
-  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->startExecTs/1000) > getMaximumIdleDurationSec()) &&
+  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->lastRetrieveTs/1000) > getMaximumIdleDurationSec()) &&
       (!needBuildResAfterQueryComplete(pQInfo))) {
 
     assert(pQInfo->startExecTs != 0);
@@ -2540,9 +2544,20 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
     if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
       qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
       SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      doUpdateLastKey(pQueryAttr);
     }
 
     pQueryAttr->order.order = TSDB_ORDER_ASC;
+    return;
+  }
+
+  if (pQueryAttr->pointInterpQuery && pQueryAttr->interval.interval > 0 && (!QUERY_IS_ASC_QUERY(pQueryAttr)) && pQueryAttr->range.skey == INT64_MIN) {
+    qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
+    SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+
+    pQueryAttr->order.order = TSDB_ORDER_ASC;
+    doUpdateLastKey(pQueryAttr);
+    pQueryAttr->needReverseScan = true;
     return;
   }
 
@@ -3004,7 +3019,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   if ((*status) != BLK_DATA_ALL_NEEDED) {
     // the pCtx[i] result is belonged to previous time window since the outputBuf has not been set yet,
     // the filter result may be incorrect. So in case of interval query, we need to set the correct time output buffer
-    if (QUERY_IS_INTERVAL_QUERY(pQueryAttr)) {
+    if (QUERY_IS_INTERVAL_QUERY(pQueryAttr) && (!pQueryAttr->pointInterpQuery)) {
       SResultRow* pResult = NULL;
 
       bool  masterScan = IS_MASTER_SCAN(pRuntimeEnv);
@@ -3016,7 +3031,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pRuntimeEnv->current->groupIndex);
@@ -4645,7 +4660,7 @@ static int32_t setupQueryHandle(void* tsdb, SQueryRuntimeEnv* pRuntimeEnv, int64
 
   STsdbQueryCond cond = createTsdbQueryCond(pQueryAttr, &pQueryAttr->window);
   if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
-    cond.type = BLOCK_LOAD_TABLE_SEQ_ORDER;
+    cond.type = BLOCK_LOAD_TABLE_SEQ_ORDER;    
   }
 
   if (!isSTableQuery
@@ -4772,7 +4787,9 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
 
   if (pTsBuf != NULL) {
     int16_t order = (pQueryAttr->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+    tsBufResetPos(pRuntimeEnv->pTsBuf);
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
+    tsBufNextPos(pTsBuf);    
   }
 
   int32_t ps = DEFAULT_PAGE_SIZE;
@@ -5107,7 +5124,6 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeE
   pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = doTableScanImpl;
-  pOperator->notify       = notifyTableScan;
 
   return pOperator;
 }
@@ -5156,7 +5172,7 @@ void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInf
     pTableScanInfo->pResultRowInfo = &pIntervalInfo->resultRowInfo;
     pTableScanInfo->rowCellInfoOffset = pIntervalInfo->rowCellInfoOffset;
   } else if (pDownstream->operatorType == OP_TimeEvery) {
-    STableEveryOperatorInfo *pEveryInfo = pDownstream->info;
+    STimeEveryOperatorInfo *pEveryInfo = pDownstream->info;
   
     pTableScanInfo->pCtx = pEveryInfo->binfo.pCtx;
     pTableScanInfo->pResultRowInfo = &pEveryInfo->binfo.resultRowInfo;
@@ -5208,6 +5224,10 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   pInfo->current      = 0;
   pInfo->order        = pRuntimeEnv->pQueryAttr->order.order;
 
+  if (pRuntimeEnv->pQueryAttr->pointInterpQuery) {
+    pRuntimeEnv->enableGroupData = true;
+  }
+  
   SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
   pOptr->name          = "DataBlocksOptimizedScanOperator";
   pOptr->operatorType  = OP_DataBlocksOptScan;
@@ -5215,6 +5235,7 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   pOptr->blockingOptr  = false;
   pOptr->info          = pInfo;
   pOptr->exec          = doTableScan;
+  pOptr->notify        = notifyTableScan;
 
   return pOptr;
 }
@@ -5918,10 +5939,40 @@ static void everyApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *p
   }
 }
 
+static int64_t getEveryStartTs(bool ascQuery, STimeWindow *range, STimeWindow *blockWin, SQueryAttr *pQueryAttr) {
+  int64_t startTs = range->skey, ekey = 0;
+  
+  assert(range->skey != INT64_MIN);
+
+  if (ascQuery) {
+    return startTs;
+  }
+
+  if (range->ekey != INT64_MIN) {
+    ekey = range->ekey;
+  } else {
+    ekey = blockWin->ekey;
+  }
+
+  if (pQueryAttr->interval.interval > 0) {
+    if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
+      int64_t lastTs = startTs;
+      while (startTs < ekey) {
+        lastTs = startTs;
+        startTs = taosTimeAdd(startTs, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision);
+      }
+      startTs = lastTs;
+    } else {
+      startTs = startTs + (ekey - startTs)/pQueryAttr->interval.interval * pQueryAttr->interval.interval;
+    }
+  }
+
+  return startTs;
+}
 
 static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlock, bool *needApply) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperatorInfo->pRuntimeEnv;
-  STableEveryOperatorInfo* pEveryInfo = (STableEveryOperatorInfo*)pOperatorInfo->info;
+  STimeEveryOperatorInfo* pEveryInfo = (STimeEveryOperatorInfo*)pOperatorInfo->info;
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
   int32_t gidx = pRuntimeEnv->current->groupIndex;
@@ -5951,8 +6002,7 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
   if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*) pColDataInfo->pData;
-    assert(tsCols[0] == pBlock->info.window.skey &&
-           tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
+    assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
   }
 
   if (pCtx->startTs == INT64_MIN) {
@@ -5961,21 +6011,47 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
         goto group_finished_exit;
       }
 
-      pCtx->startTs = tsCols[0];
+      if (ascQuery) {
+        if (pQueryAttr->needReverseScan) {
+          assert(pEveryInfo->rangeStart);
+          taosHashPut(pEveryInfo->rangeStart, &pBlock->info.tid, sizeof(pBlock->info.tid), tsCols, sizeof(*tsCols));
+          goto group_finished_exit;
+        } else {
+          pCtx->startTs = tsCols[0];
+        }
+      } else {
+        assert(pEveryInfo->rangeStart);
+        TSKEY * rstart = taosHashGet(pEveryInfo->rangeStart, &pBlock->info.tid, sizeof(pBlock->info.tid));
+        if (rstart) {
+          pQueryAttr->range.skey = *rstart;
+
+          pCtx->startTs = getEveryStartTs(ascQuery, &pQueryAttr->range, &pBlock->info.window, pQueryAttr);
+        } else {
+          goto group_finished_exit;
+        }
+      }
     } else {
-      pCtx->startTs = pQueryAttr->range.skey;
+      pCtx->startTs = getEveryStartTs(ascQuery, &pQueryAttr->range, &pBlock->info.window, pQueryAttr);
     }
 
     pCtx->endTs = INT64_MIN;
   } else if (pCtx->endTs == pCtx->startTs) {
     if (pQueryAttr->interval.interval > 0) {
       if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-        pCtx->startTs = taosTimeAdd(pCtx->startTs, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision);
+        if (ascQuery) {
+          pCtx->startTs = taosTimeAdd(pCtx->startTs, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision);
+        } else {
+          pCtx->startTs = taosTimeSub(pCtx->startTs, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision);
+        }
       } else {
-        pCtx->startTs = pCtx->startTs + pQueryAttr->interval.interval;
+        pCtx->startTs = ascQuery ? pCtx->startTs + pQueryAttr->interval.interval : pCtx->startTs - pQueryAttr->interval.interval;
       }
       
-      if (pQueryAttr->range.ekey != INT64_MIN && pCtx->startTs > pQueryAttr->range.ekey) {      
+      if (ascQuery && pQueryAttr->range.ekey != INT64_MIN && pCtx->startTs > pQueryAttr->range.ekey) {      
+        goto group_finished_exit;
+      }
+
+      if ((!ascQuery) && pQueryAttr->range.skey != INT64_MIN && pCtx->startTs < pQueryAttr->range.skey) {      
         goto group_finished_exit;
       }
     } else {
@@ -5985,19 +6061,27 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     pCtx->endTs = INT64_MIN;
   }
 
-  if (tsCols == NULL && pCtx->startTs > pEveryInfo->tableEndKey && ascQuery) {
-    if (pQueryAttr->range.ekey == INT64_MIN) {
+  if (tsCols == NULL && ((ascQuery && pCtx->startTs > pEveryInfo->tableEndKey) || ((!ascQuery) && pCtx->startTs < pEveryInfo->tableEndKey))) {
+    if ((ascQuery && pQueryAttr->range.ekey == INT64_MIN) || ((!ascQuery) && pQueryAttr->range.skey == INT64_MIN)) {
       goto group_finished_exit;
     }
     
-    if (pQueryAttr->fillType == TSDB_FILL_NONE || pQueryAttr->fillType == TSDB_FILL_LINEAR || pQueryAttr->fillType == TSDB_FILL_NEXT) {
+    if (pQueryAttr->fillType == TSDB_FILL_NONE || pQueryAttr->fillType == TSDB_FILL_LINEAR 
+    || ((ascQuery && pQueryAttr->fillType == TSDB_FILL_NEXT) || ((!ascQuery) && pQueryAttr->fillType == TSDB_FILL_PREV))) {
       goto group_finished_exit;
     }
 
-    if (pQueryAttr->fillType == TSDB_FILL_PREV) {
+    if (ascQuery && pQueryAttr->fillType == TSDB_FILL_PREV) {
       TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
       if (lastTs != INT64_MIN) {
         doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pEveryInfo->binfo.pRes->pDataBlock, lastTs, -1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
+      } else {
+        goto group_finished_exit;
+      }
+    } else if ((!ascQuery) && pQueryAttr->fillType == TSDB_FILL_NEXT) {
+      TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
+      if (lastTs != INT64_MIN) {
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pEveryInfo->binfo.pRes->pDataBlock, INT64_MIN, 0, lastTs, -1, 0, RESULT_ROW_END_INTERP);
       } else {
         goto group_finished_exit;
       }
@@ -6013,46 +6097,78 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
   }
 
 
-  int32_t startPos = binarySearchForKey((char *)tsCols, pBlock->info.rows, pCtx->startTs, TSDB_ORDER_ASC);
+  int32_t startPos = binarySearchForKey((char *)tsCols, pBlock->info.rows, pCtx->startTs, pQueryAttr->order.order);
 
-  if (pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
-    if (ascQuery) {
-      if (startPos < 0) {
-        saveDataBlockLastRow(pRuntimeEnv, &pBlock->info, pBlock->pDataBlock, pBlock->info.rows - 1);
-        return true;
-      } else if (startPos == 0) {
-        if (tsCols[startPos] == pCtx->startTs) {
-          doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, pCtx->startTs, startPos, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
-        } else {
-          TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
-          if (lastTs != INT64_MIN) {
-            doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, lastTs, -1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
-          }
-        }
+  if (ascQuery && pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
+    if (startPos < 0) {
+      saveDataBlockLastRow(pRuntimeEnv, &pBlock->info, pBlock->pDataBlock, pBlock->info.rows - 1);
+      return true;
+    } else if (startPos == 0) {
+      if (tsCols[startPos] == pCtx->startTs) {
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, pCtx->startTs, startPos, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
       } else {
-        if (tsCols[startPos] == pCtx->startTs) {
-          doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, pCtx->startTs, startPos, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
-        } else {      
-          doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, tsCols[startPos - 1], startPos - 1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
+        TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
+        if (lastTs != INT64_MIN) {
+          doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, lastTs, -1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
         }
       }
-
-      if (pQueryAttr->fillType != TSDB_FILL_LINEAR) {
-        *needApply = true;
-      }      
+    } else {
+      if (tsCols[startPos] == pCtx->startTs) {
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, pCtx->startTs, startPos, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
+      } else {      
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, tsCols[startPos - 1], startPos - 1, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
+      }
     }
+
+    if (pQueryAttr->fillType != TSDB_FILL_LINEAR) {
+      *needApply = true;
+    }      
   }
 
-  if ((pQueryAttr->fillType == TSDB_FILL_LINEAR || pQueryAttr->fillType == TSDB_FILL_NEXT) && pCtx->end.key == INT64_MIN) {
-    if (ascQuery) {
-      if (startPos < 0) {
-        return true;
+  if ((!ascQuery) && (pQueryAttr->fillType == TSDB_FILL_LINEAR || pQueryAttr->fillType == TSDB_FILL_NEXT) && pCtx->end.key == INT64_MIN) {
+    if (startPos < 0) {
+      saveDataBlockLastRow(pRuntimeEnv, &pBlock->info, pBlock->pDataBlock, 0);
+      return true;
+    } else if (startPos == (pBlock->info.rows - 1)) {
+      if (tsCols[startPos] == pCtx->startTs) {
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, INT64_MIN, 0, pCtx->startTs, startPos, 0, RESULT_ROW_END_INTERP);
+      } else {    
+        TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
+        if (lastTs != INT64_MIN) {
+          doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, INT64_MIN, 0, lastTs, -1, 0, RESULT_ROW_END_INTERP);
+        }
       }
-      
-      doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, INT64_MIN, 0, tsCols[startPos], startPos, 0, RESULT_ROW_END_INTERP);
-
-      *needApply = true;
+    } else {
+      if (tsCols[startPos] == pCtx->startTs) {
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, INT64_MIN, 0, pCtx->startTs, startPos, 0, RESULT_ROW_END_INTERP);
+      } else {
+        doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, INT64_MIN, 0, tsCols[startPos + 1], startPos + 1, 0, RESULT_ROW_END_INTERP);
+      }
     }
+    
+    if (pQueryAttr->fillType != TSDB_FILL_LINEAR) {
+      *needApply = true;
+    }      
+  }
+  
+  if (ascQuery && (pQueryAttr->fillType == TSDB_FILL_LINEAR || pQueryAttr->fillType == TSDB_FILL_NEXT) && pCtx->end.key == INT64_MIN) {
+    if (startPos < 0) {
+      return true;
+    }
+    
+    doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, INT64_MIN, 0, tsCols[startPos], startPos, 0, RESULT_ROW_END_INTERP);
+
+    *needApply = true;
+  }
+
+  if ((!ascQuery) && pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
+    if (startPos < 0) {
+      return true;
+    }
+    
+    doTimeWindowInterpolation(pOperatorInfo, pOperatorInfo->info, pBlock->pDataBlock, tsCols[startPos], startPos, INT64_MIN, 0, 0, RESULT_ROW_START_INTERP);
+
+    *needApply = true;
   }
 
   if (*needApply) {
@@ -6066,6 +6182,10 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
 group_finished_exit:
 
   qDebug("group idx[%d] interp finished", gidx);
+
+  if (pQueryAttr->needReverseScan) {
+    pQueryAttr->range.skey = INT64_MIN;
+  }
   
   pEveryInfo->groupDone = true;
 
@@ -6079,7 +6199,7 @@ group_finished_exit:
 
 
 static void doTimeEveryImpl(SOperatorInfo* pOperator, SQLFunctionCtx *pCtx, SSDataBlock* pBlock, bool newgroup) {
-  STableEveryOperatorInfo* pEveryInfo = (STableEveryOperatorInfo*) pOperator->info;
+  STimeEveryOperatorInfo* pEveryInfo = (STimeEveryOperatorInfo*) pOperator->info;
   SQueryRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
   int32_t           numOfOutput = pOperator->numOfOutput;
   SQueryAttr*       pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -6088,12 +6208,16 @@ static void doTimeEveryImpl(SOperatorInfo* pOperator, SQLFunctionCtx *pCtx, SSDa
   SSDataBlock* pRes = pEveryInfo->binfo.pRes;
   TSKEY* tsCols = NULL;
 
-  if (newgroup) {
-
-  }
-  
   if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
+    if (pColDataInfo->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      qError("no ts input for interp, error quit");
+      pEveryInfo->allDone = true;
+      pEveryInfo->groupDone = true;
+      setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
+      return;
+    }
+    
     tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey &&
            tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
@@ -6124,7 +6248,7 @@ static void doTimeEveryImpl(SOperatorInfo* pOperator, SQLFunctionCtx *pCtx, SSDa
 static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
 
-  STableEveryOperatorInfo* pEveryInfo = pOperator->info;
+  STimeEveryOperatorInfo* pEveryInfo = pOperator->info;
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   SOptrBasicInfo *pInfo = &pEveryInfo->binfo;
 
@@ -6178,7 +6302,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
     updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, pBlock->info.rows);
 
     doTimeEveryImpl(pOperator, pInfo->pCtx, pBlock, *newgroup);
-    if (pEveryInfo->groupDone) {
+    if (pEveryInfo->groupDone && pOperator->upstream[0]->notify) {
       qDebug("5");
     
       pOperator->upstream[0]->notify(pOperator->upstream[0], OPTION_SWITCH_TABLE);
@@ -6195,7 +6319,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
     }
   }
 
-  while(1) {
+  while(!pEveryInfo->allDone) {
     bool prevVal = *newgroup;
 
     // The upstream exec may change the value of the newgroup, so use a local variable instead.
@@ -6273,6 +6397,11 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
 
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
+    if (pEveryInfo->groupDone && pTableQueryInfo->groupIndex == pEveryInfo->lastGroupIdx) {
+      assert(pOperator->upstream[0]->notify == NULL);
+      continue;
+    }
+
     // todo dynamic set tags
     if (pTableQueryInfo != NULL) {
       setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
@@ -6286,7 +6415,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
     pEveryInfo->groupDone = false;
 
     doTimeEveryImpl(pOperator, pInfo->pCtx, pBlock, *newgroup);
-    if (pEveryInfo->groupDone) {
+    if (pEveryInfo->groupDone && pOperator->upstream[0]->notify) {
       qDebug("21");
     
       pOperator->upstream[0]->notify(pOperator->upstream[0], OPTION_SWITCH_TABLE);
@@ -6837,6 +6966,13 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
 
+static void destroyTimeEveryOperatorInfo(void* param, int32_t numOfOutput) {
+  STimeEveryOperatorInfo* pInfo = (STimeEveryOperatorInfo*) param;
+  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  taosHashCleanup(pInfo->rangeStart);
+}
+
+
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*) param;
   pInfo->pRes = destroyOutputBuf(pInfo->pRes);
@@ -7014,16 +7150,22 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
 
 
 SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
-  STableEveryOperatorInfo* pInfo = calloc(1, sizeof(STableEveryOperatorInfo));
+  STimeEveryOperatorInfo* pInfo = calloc(1, sizeof(STimeEveryOperatorInfo));
+  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pInfo->seed = rand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
   pInfo->groupDone = true;
+  pInfo->lastGroupIdx = -1;
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
   pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
 
+  if (pQueryAttr->needReverseScan) {
+    pInfo->rangeStart = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP), false, false);
+  }
+  
   initResultRowInfo(&pBInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
   setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MASTER_SCAN);
 
@@ -7038,7 +7180,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doTimeEvery;
-  pOperator->cleanup      = destroyProjectOperatorInfo;
+  pOperator->cleanup      = destroyTimeEveryOperatorInfo;
   appendUpstream(pOperator, upstream);
 
   return pOperator;

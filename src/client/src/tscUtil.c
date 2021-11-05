@@ -5347,4 +5347,3 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-

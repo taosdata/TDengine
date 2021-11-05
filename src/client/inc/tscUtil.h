@@ -83,6 +83,11 @@ typedef struct SJoinSupporter {
   int32_t         totalLen;
   int32_t         num;
   SArray*         pVgroupTables;
+
+  int16_t          fillType;      // final result fill type
+  int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+  
 } SJoinSupporter;
 
 

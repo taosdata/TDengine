@@ -136,6 +136,8 @@ sql insert into tb4_0 values ('2021-10-20 10:04:55',55,55.0,55,55,55,55.0,false,
 
 run general/parser/interp_full_test1.sim
 run general/parser/interp_full_test2.sim
+run general/parser/interp_full_test3.sim
+run general/parser/interp_full_test4.sim
 
 #print ================== restart server to commit data into disk
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

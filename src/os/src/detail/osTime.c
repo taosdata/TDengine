@@ -533,6 +533,27 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
 
+int64_t taosTimeSub(int64_t t, int64_t duration, char unit, int32_t precision) {
+  if (duration == 0) {
+    return t;
+  }
+  if (unit == 'y') {
+    duration *= 12;
+  } else if (unit != 'n') {
+    return t - duration;
+  }
+
+  struct tm tm;
+  time_t tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
+  localtime_r(&tt, &tm);
+  int mon = tm.tm_year * 12 + tm.tm_mon - (int)duration;
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+
+  return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+}
+
+
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
   if (ekey < skey) {
     int64_t tmp = ekey;
