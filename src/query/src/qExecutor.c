@@ -2482,18 +2482,20 @@ void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_TSC_QUERY_CANCELL
 //}
 
 static bool isFirstLastRowQuery(SQueryAttr *pQueryAttr) {
-  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
+
+  for (int32_t i = pQueryAttr->numOfOutput; i > 0; --i) {
     int32_t functionID = pQueryAttr->pExpr1[i].base.functionId;
-    if (functionID == TSDB_FUNC_LAST_ROW) {
-      return true;
+    if (functionID != TSDB_FUNC_LAST_ROW) {
+      return false;
     }
   }
 
-  return false;
+  return true;
 }
 
 static bool isCachedLastQuery(SQueryAttr *pQueryAttr) {
-  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
+  
+  for (int32_t i = pQueryAttr->numOfOutput - 1; i >= 0; --i) {
     int32_t functionID = pQueryAttr->pExpr1[i].base.functionId;
     if (functionID == TSDB_FUNC_LAST || functionID == TSDB_FUNC_LAST_DST) {
       continue;
@@ -5687,8 +5689,9 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   int32_t order = pQueryAttr->order.order;
 
   SOperatorInfo* upstream = pOperator->upstream[0];
-
-  while(1) {
+  int            ii = 0;
+  while (1) {
+    qDebug("doSTableAggregate::while::loop - %d", ii++);
     publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
     publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
