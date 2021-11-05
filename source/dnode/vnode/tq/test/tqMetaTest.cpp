@@ -130,4 +130,11 @@ TEST_F(TqMetaTest, deleteTest) {
   tqHandleCommit(pMeta, 1);
   pFoo = (Foo*) tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo == NULL, true);
+
+  tqStoreClose(pMeta);
+  pMeta = tqStoreOpen(pathName,
+      FooSerializer, FooDeserializer, FooDeleter);
+  ASSERT(pMeta);
+  pFoo = (Foo*) tqHandleGet(pMeta, 1);
+  EXPECT_EQ(pFoo == NULL, true);
 }

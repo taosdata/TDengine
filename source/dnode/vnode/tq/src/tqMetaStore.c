@@ -27,14 +27,13 @@ static int32_t tqHandlePutCommitted(TqMetaStore*, int64_t key, void* value);
 static void*   tqHandleGetUncommitted(TqMetaStore*, int64_t key);
 
 static inline void tqLinkUnpersist(TqMetaStore *pMeta, TqMetaList* pNode) {
-    if(pNode->unpersistNext == NULL) {
-      pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
-      pNode->unpersistPrev = pMeta->unpersistHead;
-      pMeta->unpersistHead->unpersistNext->unpersistPrev = pNode;
-      pMeta->unpersistHead->unpersistNext = pNode;
-    }
+  if(pNode->unpersistNext == NULL) {
+    pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
+    pNode->unpersistPrev = pMeta->unpersistHead;
+    pMeta->unpersistHead->unpersistNext->unpersistPrev = pNode;
+    pMeta->unpersistHead->unpersistNext = pNode;
+  }
 }
-
 
 typedef struct TqMetaPageBuf {
   int16_t offset;
@@ -401,7 +400,7 @@ void* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
-      if(pNode->handle.valueInUse != NULL) {
+      if(pNode->handle.valueInUse != NULL && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
         return pNode->handle.valueInUse;
       } else {
         return NULL;
@@ -546,9 +545,10 @@ int32_t tqHandleDel(TqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_SIZE;
   TqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
-      if(pNode->handle.valueInTxn
-          && pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-      pMeta->deleter(pNode->handle.valueInTxn);
+    if(pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
+      if(pNode->handle.valueInTxn) {
+        pMeta->deleter(pNode->handle.valueInTxn);
+      }
       pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
       tqLinkUnpersist(pMeta, pNode);
       return 0;
