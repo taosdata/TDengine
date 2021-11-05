@@ -38,3 +38,12 @@ int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog) {
 bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog) {
   return pLog->commitIndex > pLog->appliedIndex;
 }
+
+SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index) {
+  return SYNC_NON_TERM;
+}
+
+int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
+                      SSyncRaftEntry **ppEntries, int *n) {
+  return 0;
+}

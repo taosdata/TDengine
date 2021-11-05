@@ -16,11 +16,17 @@
 #ifndef _TD_LIBS_SYNC_TYPE_H
 #define _TD_LIBS_SYNC_TYPE_H
 
+#define SYNC_NON_NODE_ID -1
+#define SYNC_NON_TERM     0
+
 typedef int32_t SyncTime;
+typedef uint32_t SyncTick;
 
 typedef struct SSyncRaft SSyncRaft;
 
 typedef struct SSyncRaftLog SSyncRaftLog;
+
+typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 #ifndef MIN
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -32,13 +38,18 @@ typedef struct SSyncRaftLog SSyncRaftLog;
 
 typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
-  SYNC_RAFT_CAMPAIGN_ELECTION = 1,
-  SYNC_RAFT_CAMPAIGN_TRANSFER = 3,
+  SYNC_RAFT_CAMPAIGN_ELECTION     = 1,
+  SYNC_RAFT_CAMPAIGN_TRANSFER     = 2,
 } SyncRaftElectionType;
 
 typedef enum {
+  // the init vote resp status
   SYNC_RAFT_VOTE_RESP_UNKNOWN = 0,
+
+  // grant the vote request
   SYNC_RAFT_VOTE_RESP_GRANT   = 1,
+
+  //reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
 } SyncRaftVoteRespType;
 

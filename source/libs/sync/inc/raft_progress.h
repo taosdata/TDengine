@@ -85,6 +85,9 @@ struct SSyncRaftProgress {
    **/ 
   bool paused;
 
+  // last send append message tick
+  uint32_t lastSendTick;
+
 	/** 
    * pendingSnapshotIndex is used in PROGRESS_SNAPSHOT.
 	 * If there is a pending snapshot, the pendingSnapshotIndex will be set to the
@@ -116,7 +119,9 @@ int syncRaftProgressCreate(SSyncRaft* pRaft);
  **/
 bool syncRaftProgressMaybeUpdate(SSyncRaft* pRaft, int i, SyncIndex lastIndex);
 
-void syncRaftProgressOptimisticNextIndex(SSyncRaft* pRaft, int i, SyncIndex nextIndex);
+static FORCE_INLINE void syncRaftProgressOptimisticNextIndex(SSyncRaftProgress* progress, SyncIndex nextIndex) {
+  progress->nextIndex = nextIndex + 1;
+}
 
 /** 
  * syncRaftProgressMaybeDecrTo returns false if the given to index comes from an out of order message.
@@ -131,7 +136,35 @@ bool syncRaftProgressMaybeDecrTo(SSyncRaft* pRaft, int i,
  * MsgApps, is currently waiting for a snapshot, or has reached the
  * MaxInflightMsgs limit.
  **/
-bool syncRaftProgressIsPaused(SSyncRaft* pRaft, int i);
+bool syncRaftProgressIsPaused(SSyncRaftProgress* progress);
+
+static FORCE_INLINE void syncRaftProgressPause(SSyncRaftProgress* progress) {
+  progress->paused = true;
+}
+
+static FORCE_INLINE SyncIndex syncRaftProgressNextIndex(SSyncRaftProgress* progress) {
+  return progress->nextIndex;
+}
+
+static FORCE_INLINE RaftProgressState syncRaftProgressInReplicate(SSyncRaftProgress* progress) {
+  return progress->state == PROGRESS_REPLICATE;
+}
+
+static FORCE_INLINE RaftProgressState syncRaftProgressInSnapshot(SSyncRaftProgress* progress) {
+  return progress->state == PROGRESS_SNAPSHOT;
+}
+
+static FORCE_INLINE RaftProgressState syncRaftProgressInProbe(SSyncRaftProgress* progress) {
+  return progress->state == PROGRESS_PROBE;
+}
+
+static FORCE_INLINE bool syncRaftProgressRecentActive(SSyncRaftProgress* progress) {
+  return progress->recentActive;
+}
+
+static FORCE_INLINE bool syncRaftProgressUpdateSendTick(SSyncRaftProgress* progress, SyncTick current) {
+  return progress->lastSendTick = current;
+}
 
 void syncRaftProgressFailure(SSyncRaft* pRaft, int i);
 
@@ -159,7 +192,7 @@ void syncRaftInflightFreeFirstOne(SSyncRaftInflights* inflights);
 
 void syncRaftProgressAbortSnapshot(SSyncRaft* pRaft, int i);
 
-SyncIndex syncRaftProgressNextIndex(SSyncRaft* pRaft, int i);
+
 
 SyncIndex syncRaftProgressMatchIndex(SSyncRaft* pRaft, int i);
 
@@ -171,11 +204,9 @@ bool syncRaftProgressResetRecentRecv(SSyncRaft* pRaft, int i);
 
 void syncRaftProgressMarkRecentRecv(SSyncRaft* pRaft, int i);
 
-bool syncRaftProgressGetRecentRecv(SSyncRaft* pRaft, int i);
+
 
 void syncRaftProgressAbortSnapshot(SSyncRaft* pRaft, int i);
-
-RaftProgressState syncRaftProgressState(SSyncRaft* pRaft, int i);
 
 #endif
 

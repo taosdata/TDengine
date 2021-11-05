@@ -20,8 +20,6 @@
 #include "sync_type.h"
 #include "raft_message.h"
 
-#define SYNC_NON_NODE_ID -1
-
 typedef struct SSyncRaftProgress SSyncRaftProgress;
 
 typedef struct RaftLeaderState {
@@ -49,7 +47,8 @@ struct SSyncRaft {
   // owner sync node
   SSyncNode* pNode;
 
-  //SSyncInfo info;
+  int maxMsgSize;
+
   SSyncFSM      fsm;
   SSyncLogStore logStore;
   SStateManager stateManager;
@@ -74,7 +73,7 @@ struct SSyncRaft {
 	/** 
    * New configuration is ignored if there exists unapplied configuration.
    **/
-	bool pendingConf;
+	bool hasPendingConf;
 
   SSyncCluster cluster;
 
@@ -93,6 +92,9 @@ struct SSyncRaft {
 	 * only leader keeps heartbeatElapsed.
    **/
   uint16_t heartbeatElapsed;
+
+  // current tick count since start up
+  uint32_t currentTick;
 
   // election timeout tick(random in [3:6] tick)
   uint16_t electionTimeoutTick;
@@ -129,7 +131,7 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft);
 
 void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType);
 
-void syncRaftTriggerReplicate(SSyncRaft* pRaft);
+void syncRaftTriggerHeartbeat(SSyncRaft* pRaft);
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
 bool syncRaftIsPromotable(SSyncRaft* pRaft);

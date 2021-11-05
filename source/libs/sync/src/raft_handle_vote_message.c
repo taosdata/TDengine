@@ -15,6 +15,7 @@
 
 #include "syncInt.h"
 #include "raft.h"
+#include "raft_configuration.h"
 #include "raft_log.h"
 #include "raft_message.h"
 
@@ -31,12 +32,12 @@ int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   SyncTerm lastTerm = syncRaftLogLastTerm(pRaft->log);
 
   grant = canGrantVoteMessage(pRaft, pMsg);
-  pRespMsg = syncNewVoteRespMsg(pRaft->selfGroupId, pRaft->selfId, pMsg->to, pMsg->vote.cType, !grant);
+  pRespMsg = syncNewVoteRespMsg(pRaft->selfGroupId, pRaft->selfId, pMsg->vote.cType, !grant);
   if (pRespMsg == NULL) {
     return 0;
   }
   syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %" PRId64 ", vote: %d] %s for %d" \    
-    "[logterm: %" PRId64 ", index: %" PRId64 ", vote: %d] at term %" PRId64 "",
+    "[logterm: %" PRId64 ", index: %" PRId64 "] at term %" PRId64 "",
     pRaft->selfGroupId, pRaft->selfId, lastTerm, lastIndex, pRaft->voteFor,
     grant ? "grant" : "reject",
     pMsg->from, pMsg->vote.lastTerm, pMsg->vote.lastIndex, pRaft->term);
@@ -49,7 +50,7 @@ static bool canGrantVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   if (!(pRaft->voteFor == SYNC_NON_NODE_ID || pMsg->term > pRaft->term || pRaft->voteFor == pMsg->from)) {
     return false;
   }
-  if (!syncRaftLogIsUptodate(pRaft, pMsg->vote.lastIndex, pMsg->vote.lastTerm)) {
+  if (!syncRaftLogIsUptodate(pRaft->log, pMsg->vote.lastIndex, pMsg->vote.lastTerm)) {
     return false;
   }
 

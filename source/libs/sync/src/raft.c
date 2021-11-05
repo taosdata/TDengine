@@ -29,6 +29,8 @@ static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
+static int triggerAll(SSyncRaft* pRaft);
+
 static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
 
@@ -95,8 +97,8 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 }
 
 int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  syncDebug("from %d, to %d, type:%d, term:%" PRId64 ", state:%d",
-    pMsg->from, pMsg->to, pMsg->msgType, pMsg->term, pRaft->state);
+  syncDebug("from %d, type:%d, term:%" PRId64 ", state:%d",
+    pMsg->from, pMsg->msgType, pMsg->term, pRaft->state);
 
   if (preHandleMessage(pRaft, pMsg)) {
     syncFreeMessage(pMsg);
@@ -117,6 +119,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 }
 
 int32_t syncRaftTick(SSyncRaft* pRaft) {
+  pRaft->currentTick += 1;
   return 0;
 }
 
@@ -168,12 +171,22 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   pRaft->leaderId = pRaft->leaderId;
   pRaft->state  = TAOS_SYNC_ROLE_LEADER;
   // TODO: check if there is pending config log
+  int nPendingConf = syncRaftLogNumOfPendingConf(pRaft->log);
+  if (nPendingConf > 1) {
+    syncFatal("unexpected multiple uncommitted config entry");
+  }
+  if (nPendingConf == 1) {
+    pRaft->hasPendingConf = true;
+  }
 
   syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+
+  // after become leader, send initial heartbeat
+  syncRaftTriggerHeartbeat(pRaft);
 }
 
-void syncRaftTriggerReplicate(SSyncRaft* pRaft) {
-
+void syncRaftTriggerHeartbeat(SSyncRaft* pRaft) {
+  triggerAll(pRaft);
 }
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
@@ -219,7 +232,7 @@ int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool acc
 }
 
 /**
- * pre-handle message, return true is no need to continue
+ * pre-handle message, return true means no need to continue
  * Handle the message term, which may result in our stepping down to a follower.
  **/
 static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
@@ -230,9 +243,11 @@ static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   if (pMsg->term > pRaft->term) {
     return preHandleNewTermMessage(pRaft, pMsg);
+  } else if (pMsg->term < pRaft->term) {
+    return preHandleOldTermMessage(pRaft, pMsg);
   }
 
-  return preHandleOldTermMessage(pRaft, pMsg);;
+  return false;
 }
 
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
@@ -240,6 +255,7 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
   RaftMessageType msgType = pMsg->msgType;
 
   if (msgType == RAFT_MSG_VOTE) {
+    // TODO
     leaderId = SYNC_NON_NODE_ID;
   }
 
@@ -263,7 +279,7 @@ static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 }
 
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-
+  // TODO
   // if receive old term message, no need to continue
   return true;
 }
@@ -273,7 +289,7 @@ static int convertClear(SSyncRaft* pRaft) {
 }
 
 static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  convertClear(pRaft);
+  
   return 0;
 }
 
@@ -290,6 +306,7 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   }
 
   if (msgType == RAFT_MSG_VOTE_RESP) {
+    syncRaftHandleVoteRespMessage(pRaft, pMsg);
     return 0;
   }
   return 0;
@@ -324,6 +341,22 @@ static void tickHeartbeat(SSyncRaft* pRaft) {
 
 }
 
+/**
+ * trigger I/O requests for newly appended log entries or heartbeats.
+ **/
+static int triggerAll(SSyncRaft* pRaft) {
+  assert(pRaft->state == TAOS_SYNC_ROLE_LEADER);
+  int i;
+
+  for (i = 0; i < pRaft->cluster.replica; ++i) {
+    if (i == pRaft->cluster.selfIndex) {
+      continue;
+    }
+
+    
+  }
+}
+
 static void abortLeaderTransfer(SSyncRaft* pRaft) {
   pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
@@ -343,5 +376,5 @@ static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
 
   abortLeaderTransfer(pRaft);
 
-  pRaft->pendingConf = false;
+  pRaft->hasPendingConf = false;
 }

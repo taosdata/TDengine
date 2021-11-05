@@ -15,6 +15,7 @@
 
 #include "syncInt.h"
 #include "raft.h"
+#include "raft_configuration.h"
 #include "raft_message.h"
 
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
@@ -45,8 +46,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     if (pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
       syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
     } else {
-      syncRaftBecomeLeader(pRaft);
-      syncRaftTriggerReplicate(pRaft);
+      syncRaftBecomeLeader(pRaft);      
     }
 
     return 0;

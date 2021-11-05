@@ -19,6 +19,10 @@
 #include "sync.h"
 #include "sync_type.h"
 
+struct SSyncRaftEntry {
+
+};
+
 struct SSyncRaftLog {
   SyncIndex uncommittedConfigIndex;
 
@@ -40,5 +44,10 @@ bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
 int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
 
 bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog);
+
+SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index);
+
+int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
+                      SSyncRaftEntry **ppEntries, int *n);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_LOG_H */

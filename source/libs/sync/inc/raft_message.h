@@ -63,12 +63,28 @@ typedef struct RaftMsg_VoteResp {
   SyncRaftElectionType cType;
 } RaftMsg_VoteResp;
 
+typedef struct RaftMsg_Append_Entries {
+  // index of log entry preceeding new ones
+  SyncIndex prevIndex;
+
+  // term of entry at prevIndex
+  SyncTerm prevTerm;
+
+  // leader's commit index.
+  SyncIndex commitIndex;
+
+  // size of the log entries array
+  int nEntries;
+
+  // log entries array
+  SSyncRaftEntry* entries;
+} RaftMsg_Append_Entries;
+
 typedef struct SSyncMessage {
   RaftMessageType msgType;
   SyncTerm term;
   SyncGroupId groupId;
   SyncNodeId from;
-  SyncNodeId to;
 
   union {
     RaftMsgInternal_Prop propose;
@@ -77,6 +93,8 @@ typedef struct SSyncMessage {
 
     RaftMsg_Vote vote;
     RaftMsg_VoteResp voteResp;
+
+    RaftMsg_Append_Entries appendEntries;
   };
 } SSyncMessage;
 
@@ -107,7 +125,7 @@ static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNo
   return pMsg;
 }
 
-static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId from, SyncNodeId to,
+static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId from,
                                                 SyncTerm term, SyncRaftElectionType cType, 
                                                 SyncIndex lastIndex, SyncTerm lastTerm) {
   SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
@@ -117,7 +135,6 @@ static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId
   *pMsg = (SSyncMessage) {
     .groupId = groupId,
     .from = from,
-    .to = to,
     .term = term,
     .msgType = RAFT_MSG_VOTE,
     .vote = (RaftMsg_Vote) {
@@ -130,7 +147,7 @@ static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId
   return pMsg;
 }
 
-static FORCE_INLINE SSyncMessage* syncNewVoteRespMsg(SyncGroupId groupId, SyncNodeId from, SyncNodeId to,
+static FORCE_INLINE SSyncMessage* syncNewVoteRespMsg(SyncGroupId groupId, SyncNodeId from,
                                                   SyncRaftElectionType cType, bool rejected) {
   SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
   if (pMsg == NULL) {
@@ -139,11 +156,34 @@ static FORCE_INLINE SSyncMessage* syncNewVoteRespMsg(SyncGroupId groupId, SyncNo
   *pMsg = (SSyncMessage) {
     .groupId = groupId,
     .from = from,
-    .to = to,
     .msgType = RAFT_MSG_VOTE_RESP,
     .voteResp = (RaftMsg_VoteResp) {
       .cType = cType,
       .rejected = rejected,
+    },
+  };
+
+  return pMsg;
+}
+
+static FORCE_INLINE SSyncMessage* syncNewAppendMsg(SyncGroupId groupId, SyncNodeId from,
+                                                  SyncTerm term, SyncIndex prevIndex, SyncTerm prevTerm,
+                                                  SyncIndex commitIndex, int nEntries, SSyncRaftEntry* entries) {
+  SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+  *pMsg = (SSyncMessage) {
+    .groupId = groupId,
+    .from = from,
+    .term = term,
+    .msgType = RAFT_MSG_APPEND,
+    .appendEntries = (RaftMsg_Append_Entries) {
+      .prevIndex = prevIndex,
+      .prevTerm = prevTerm,
+      .commitIndex = commitIndex,
+      .nEntries = nEntries,
+      .entries = entries,
     },
   };
 
@@ -155,7 +195,7 @@ static FORCE_INLINE bool syncIsInternalMsg(RaftMessageType msgType) {
          msgType == RAFT_MSG_INTERNAL_ELECTION;
 }
 
-static FORCE_INLINE bool syncIsPreVoteRespMsg(SSyncMessage* pMsg) {
+static FORCE_INLINE bool syncIsPreVoteRespMsg(const SSyncMessage* pMsg) {
   return pMsg->msgType == RAFT_MSG_VOTE_RESP && pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION;
 }
 

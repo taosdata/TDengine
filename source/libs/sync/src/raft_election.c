@@ -62,7 +62,7 @@ void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
     SyncNodeId nodeId = pRaft->cluster.nodeInfo[i].nodeId;
 
     SSyncMessage* pMsg = syncNewVoteMsg(pRaft->selfGroupId, pRaft->selfId, 
-                                        nodeId, term, cType, lastIndex, lastTerm);
+                                        term, cType, lastIndex, lastTerm);
     if (pMsg == NULL) {
       continue;
     }

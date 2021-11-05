@@ -22,7 +22,6 @@
 static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state);
 
 static void resumeProgress(SSyncRaftProgress* progress);
-static void pauseProgress(SSyncRaftProgress* progress);
 
 int syncRaftProgressCreate(SSyncRaft* pRaft) {
 
@@ -56,11 +55,6 @@ bool syncRaftProgressMaybeUpdate(SSyncRaft* pRaft, int i, SyncIndex lastIndex) {
   }
 
   return updated;
-}
-
-void syncRaftProgressOptimisticNextIndex(SSyncRaft* pRaft, int i, SyncIndex nextIndex) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  pRaft->leaderState.progress[i].nextIndex = nextIndex + 1;
 }
 
 bool syncRaftProgressMaybeDecrTo(SSyncRaft* pRaft, int i,
@@ -103,15 +97,7 @@ static void resumeProgress(SSyncRaftProgress* progress) {
   progress->paused = false;
 }
 
-static void pauseProgress(SSyncRaftProgress* progress) {
-  progress->paused = true;
-}
-
-bool syncRaftProgressIsPaused(SSyncRaft* pRaft, int i) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
-
+bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
   switch (progress->state) {
     case PROGRESS_PROBE:
       return progress->paused;
