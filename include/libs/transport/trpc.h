@@ -22,22 +22,16 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "taosdef.h"
+#include "taosmsg.h"
 
 #define TAOS_CONN_SERVER   0
 #define TAOS_CONN_CLIENT   1
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcEpSet {
-  int8_t    inUse; 
-  int8_t    numOfEps;
-  uint16_t  port[TSDB_MAX_REPLICA];
-  char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
-} SRpcEpSet;
-
 typedef struct SRpcCorEpSet {
   int32_t version; 
-  SRpcEpSet epSet; 
+  SEpSet epSet; 
 } SRpcCorEpSet;
 
 typedef struct SRpcConnInfo {
@@ -72,7 +66,7 @@ typedef struct SRpcInit {
   char *ckey;         // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
-  void (*cfp)(SRpcMsg *, SRpcEpSet *);  
+  void (*cfp)(SRpcMsg *, SEpSet *);  
 
   // call back to retrieve the client auth info, for server app only 
   int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -85,11 +79,11 @@ void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
 void *rpcReallocCont(void *ptr, int contLen);
-void  rpcSendRequest(void *thandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
+void  rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 void  rpcSendResponse(const SRpcMsg *pMsg);
-void  rpcSendRedirectRsp(void *pConn, const SRpcEpSet *pEpSet); 
+void  rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void  rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+void  rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 void  rpcCancelRequest(int64_t rid);
 

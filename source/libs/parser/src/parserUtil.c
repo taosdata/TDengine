@@ -1765,7 +1765,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   SSqlCmd *pCmd = &pSql->cmd;
 
   pCmd->command = TSDB_SQL_MULTI_META;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
+  pCmd->msgType = TSDB_MSG_TYPE_TABLES_META;
 
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)pNameList;
@@ -1858,7 +1858,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
     case TAOS_REQ_FROM_HTTP:
       pCtx = pSql->param;
       if (pCtx && pCtx->db[0] != '\0') {
-        char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
+        char db[TSDB_FULL_DB_NAME_LEN] = {0};
         int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
         assert(len <= sizeof(db));
 

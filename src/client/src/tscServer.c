@@ -1166,7 +1166,7 @@ int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateDbMsg);
   
-  pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_CREATE_DB : TSDB_MSG_TYPE_CM_CREATE_TP;
+  pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CREATE_DB : TSDB_MSG_TYPE_CREATE_TP;
 
   SCreateDbMsg *pCreateDbMsg = (SCreateDbMsg *)pCmd->payload;
 
@@ -1182,7 +1182,7 @@ int32_t tscBuildCreateFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   SCreateFuncMsg *pCreateFuncMsg = (SCreateFuncMsg *)pCmd->payload;
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_FUNCTION;
+  pCmd->msgType = TSDB_MSG_TYPE_CREATE_FUNCTION;
 
   pCmd->payloadLen = sizeof(SCreateFuncMsg) + htonl(pCreateFuncMsg->codeLen);
 
@@ -1203,7 +1203,7 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SStrToken* t0 = taosArrayGet(pInfo->pMiscInfo->a, 0);
   strncpy(pCreate->ep, t0->z, t0->n);
   
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_DNODE;
+  pCmd->msgType = TSDB_MSG_TYPE_CREATE_DNODE;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1249,7 +1249,7 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  pCmd->msgType = TSDB_MSG_TYPE_CREATE_ACCT;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1277,9 +1277,9 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
-    pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_USER;
+    pCmd->msgType = TSDB_MSG_TYPE_ALTER_USER;
   } else {
-    pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_USER;
+    pCmd->msgType = TSDB_MSG_TYPE_CREATE_USER;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1288,7 +1288,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCfgDnodeMsg);
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CONFIG_DNODE;
+  pCmd->msgType = TSDB_MSG_TYPE_CONFIG_DNODE;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1310,14 +1310,14 @@ int32_t tscBuildDropDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
-  pCmd->msgType = (pInfo->pMiscInfo->dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_DROP_DB : TSDB_MSG_TYPE_CM_DROP_TP;
+  pCmd->msgType = (pInfo->pMiscInfo->dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_DROP_DB : TSDB_MSG_TYPE_DROP_TP;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildDropFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_FUNCTION;
+  pCmd->msgType = TSDB_MSG_TYPE_DROP_FUNCTION;
 
   pCmd->payloadLen = sizeof(SDropFuncMsg);
 
@@ -1340,7 +1340,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pDropTableMsg->supertable = (pInfo->pMiscInfo->tableType == TSDB_SUPER_TABLE)? 1:0;
   pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_TABLE;
+  pCmd->msgType = TSDB_MSG_TYPE_DROP_TABLE;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1358,7 +1358,7 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SDropDnodeMsg * pDrop = (SDropDnodeMsg *)pCmd->payload;
   tstrncpy(pDrop->ep, dnodeEp, tListLen(pDrop->ep));
-  pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_DNODE;
+  pCmd->msgType = TSDB_MSG_TYPE_DROP_DNODE;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1370,7 +1370,7 @@ int32_t tscBuildDropUserAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tstrncpy(user, pCmd->payload, TSDB_USER_LEN);
 
   pCmd->payloadLen = sizeof(SDropUserMsg);
-  pCmd->msgType = (pInfo->type == TSDB_SQL_DROP_USER)? TSDB_MSG_TYPE_CM_DROP_USER:TSDB_MSG_TYPE_CM_DROP_ACCT;
+  pCmd->msgType = (pInfo->type == TSDB_SQL_DROP_USER)? TSDB_MSG_TYPE_DROP_USER:TSDB_MSG_TYPE_DROP_ACCT;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
@@ -1395,7 +1395,7 @@ int32_t tscBuildUseDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SUseDbMsg *pUseDbMsg = (SUseDbMsg *)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   tNameExtractFullName(&pTableMetaInfo->name, pUseDbMsg->db);
-  pCmd->msgType = TSDB_MSG_TYPE_CM_USE_DB;
+  pCmd->msgType = TSDB_MSG_TYPE_USE_DB;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1412,14 +1412,14 @@ int32_t tscBuildSyncDbReplicaMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SSyncDbMsg *pSyncMsg = (SSyncDbMsg *)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   tNameExtractFullName(&pTableMetaInfo->name, pSyncMsg->db);
-  pCmd->msgType = TSDB_MSG_TYPE_CM_SYNC_DB;
+  pCmd->msgType = TSDB_MSG_TYPE_SYNC_DB;
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_SHOW;
+  pCmd->msgType = TSDB_MSG_TYPE_SHOW;
   pCmd->payloadLen = sizeof(SShowMsg) + 100;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -1473,13 +1473,13 @@ int32_t tscBuildKillMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   switch (pCmd->command) {
     case TSDB_SQL_KILL_QUERY:
-      pCmd->msgType = TSDB_MSG_TYPE_CM_KILL_QUERY;
+      pCmd->msgType = TSDB_MSG_TYPE_KILL_QUERY;
       break;
     case TSDB_SQL_KILL_CONNECTION:
-      pCmd->msgType = TSDB_MSG_TYPE_CM_KILL_CONN;
+      pCmd->msgType = TSDB_MSG_TYPE_KILL_CONN;
       break;
     case TSDB_SQL_KILL_STREAM:
-      pCmd->msgType = TSDB_MSG_TYPE_CM_KILL_STREAM;
+      pCmd->msgType = TSDB_MSG_TYPE_KILL_STREAM;
       break;
   }
   return TSDB_CODE_SUCCESS;
@@ -1592,7 +1592,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   msgLen = (int32_t)(pMsg - (char*)pCreateTableMsg);
   pCreateTableMsg->contLen = htonl(msgLen);
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
+  pCmd->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
 
   assert(msgLen + minMsgSize() <= size);
   return TSDB_CODE_SUCCESS;
@@ -1645,7 +1645,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   msgLen = (int32_t)(pMsg - (char*)pAlterTableMsg);
 
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_TABLE;
+  pCmd->msgType = TSDB_MSG_TYPE_ALTER_TABLE;
 
   assert(msgLen + minMsgSize() <= size);
 
@@ -1674,7 +1674,7 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
 int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SAlterDbMsg);
-  pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_ALTER_DB : TSDB_MSG_TYPE_CM_ALTER_TP;
+  pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_ALTER_DB : TSDB_MSG_TYPE_ALTER_TP;
 
   SAlterDbMsg *pAlterDbMsg = (SAlterDbMsg* )pCmd->payload;
   pAlterDbMsg->dbType = -1;
@@ -1711,7 +1711,7 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int count = removeDupVgid(result, size);
   pCmd->payloadLen = sizeof(SCompactMsg) + count * sizeof(int32_t);
-  pCmd->msgType = TSDB_MSG_TYPE_CM_COMPACT_VNODE;  
+  pCmd->msgType = TSDB_MSG_TYPE_COMPACT_VNODE;  
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
@@ -1741,7 +1741,7 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_RETRIEVE;
+  pCmd->msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
   pCmd->payloadLen = sizeof(SRetrieveTableMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -1861,7 +1861,7 @@ int tscProcessEmptyResultRsp(SSqlObj *pSql) { return tscLocalResultCommonBuilder
 int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CONNECT;
+  pCmd->msgType = TSDB_MSG_TYPE_CONNECT;
   pCmd->payloadLen = sizeof(SConnectMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -1898,7 +1898,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscBuildMultiTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
+  pCmd->msgType = TSDB_MSG_TYPE_TABLES_META;
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
 
   tscDebug("0x%"PRIx64" build load multi-tablemeta msg completed, numOfTables:%d, msg size:%d", pSql->self, pCmd->count,
@@ -1925,7 +1925,7 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pMsg += TSDB_TABLE_FNAME_LEN;
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_STABLE_VGROUP;
+  pCmd->msgType = TSDB_MSG_TYPE_STABLE_VGROUP;
   pCmd->payloadLen = (int32_t)(pMsg - pCmd->payload);
 
   return TSDB_CODE_SUCCESS;
@@ -1948,7 +1948,7 @@ int tscBuildRetrieveFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pMsg += varDataNetTLen(pMsg);
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_RETRIEVE_FUNC;
+  pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE_FUNC;
   pCmd->payloadLen = (int32_t)(pMsg - pCmd->payload);
 
   return TSDB_CODE_SUCCESS;
@@ -1996,7 +1996,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pthread_mutex_unlock(&pObj->mutex);
 
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_HEARTBEAT;
+  pCmd->msgType = TSDB_MSG_TYPE_HEARTBEAT;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2838,7 +2838,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
     }
 
     pNew->cmd.payloadLen = (int32_t)(pMsg - (char*)pInfoMsg);
-    pNew->cmd.msgType = TSDB_MSG_TYPE_CM_TABLE_META;
+    pNew->cmd.msgType = TSDB_MSG_TYPE_TABLE_META;
   }
 
   int32_t code = tscBuildAndSendRequest(pNew, NULL);
@@ -2913,7 +2913,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   }
 
   pNew->cmd.payloadLen = (int32_t) ((start - pInfo->tableNames) + sizeof(SMultiTableInfoMsg));
-  pNew->cmd.msgType = TSDB_MSG_TYPE_CM_TABLES_META;
+  pNew->cmd.msgType = TSDB_MSG_TYPE_TABLES_META;
 
   registerSqlObj(pNew);
   tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, vgroupInfo:%d, udf:%d, msg size:%d", pSql->self,

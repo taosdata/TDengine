@@ -5011,7 +5011,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   SSqlCmd *pCmd = &pSql->cmd;
 
   pCmd->command = TSDB_SQL_MULTI_META;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
+  pCmd->msgType = TSDB_MSG_TYPE_TABLES_META;
 
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)pNameList;

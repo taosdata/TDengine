@@ -54,7 +54,7 @@ typedef struct {
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
-  void   (*cfp)(SRpcMsg *, SRpcEpSet *);
+  void   (*cfp)(SRpcMsg *, SEpSet *);
   int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
 
   int32_t   refCount;
@@ -70,7 +70,7 @@ typedef struct {
 
 typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
-  SRpcEpSet epSet;      // ip list provided by app
+  SEpSet   epSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
   struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
@@ -84,7 +84,7 @@ typedef struct {
   int64_t   rid;        // refId returned by taosAddRef
   SRpcMsg  *pRsp;       // for synchronous API
   tsem_t   *pSem;       // for synchronous API
-  SRpcEpSet *pSet;      // for synchronous API 
+  SEpSet   *pSet;      // for synchronous API 
   char      msg[0];     // RpcHead starts from here
 } SRpcReqContext;
 
@@ -383,7 +383,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
+void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -403,10 +403,10 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
   char type = pMsg->msgType;
-  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_CM_RETRIEVE
-    || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_CM_STABLE_VGROUP
-    || type == TSDB_MSG_TYPE_CM_TABLES_META || type == TSDB_MSG_TYPE_CM_TABLE_META
-    || type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_DM_STATUS || type == TSDB_MSG_TYPE_CM_ALTER_TABLE)
+  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_SHOW_RETRIEVE
+    || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_STABLE_VGROUP
+    || type == TSDB_MSG_TYPE_TABLES_META || type == TSDB_MSG_TYPE_TABLE_META
+    || type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_STATUS || type == TSDB_MSG_TYPE_ALTER_TABLE)
     pContext->connType = RPC_CONN_TCPC;
 
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
@@ -486,15 +486,15 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   return;
 }
 
-void rpcSendRedirectRsp(void *thandle, const SRpcEpSet *pEpSet) {
+void rpcSendRedirectRsp(void *thandle, const SEpSet *pEpSet) {
   SRpcMsg  rpcMsg; 
   memset(&rpcMsg, 0, sizeof(rpcMsg));
   
-  rpcMsg.contLen = sizeof(SRpcEpSet);
+  rpcMsg.contLen = sizeof(SEpSet);
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
   if (rpcMsg.pCont == NULL) return;
 
-  memcpy(rpcMsg.pCont, pEpSet, sizeof(SRpcEpSet));
+  memcpy(rpcMsg.pCont, pEpSet, sizeof(SEpSet));
 
   rpcMsg.code = TSDB_CODE_RPC_REDIRECT;
   rpcMsg.handle = thandle;
@@ -516,7 +516,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   return 0;
 }
 
-void rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+void rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   SRpcReqContext *pContext;
   pContext = (SRpcReqContext *) ((char*)pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
 
@@ -794,9 +794,9 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
 }
 
 static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
-  SRpcConn   *pConn;
-  SRpcInfo   *pRpc = pContext->pRpc;
-  SRpcEpSet  *pEpSet = &pContext->epSet;
+  SRpcConn *pConn;
+  SRpcInfo *pRpc = pContext->pRpc;
+  SEpSet   *pEpSet = &pContext->epSet;
 
   pConn = rpcGetConnFromCache(pRpc->pCache, pEpSet->fqdn[pEpSet->inUse], pEpSet->port[pEpSet->inUse], pContext->connType);
   if ( pConn == NULL || pConn->user[0] == 0) {
@@ -926,7 +926,7 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   SRpcReqContext *pContext = pConn->pContext;
 
   if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
-    if (rpcContLenFromMsg(pHead->msgLen) < sizeof(SRpcEpSet)) {
+    if (rpcContLenFromMsg(pHead->msgLen) < sizeof(SEpSet)) {
       // if EpSet is not included in the msg, treat it as NOT_READY
       pHead->code = TSDB_CODE_RPC_NOT_READY; 
     } else {
@@ -1126,12 +1126,12 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   pContext->pConn = NULL;
   if (pContext->pRsp) { 
     // for synchronous API
-    memcpy(pContext->pSet, &pContext->epSet, sizeof(SRpcEpSet));
+    memcpy(pContext->pSet, &pContext->epSet, sizeof(SEpSet));
     memcpy(pContext->pRsp, pMsg, sizeof(SRpcMsg));
     tsem_post(pContext->pSem);
   } else {
     // for asynchronous API 
-    SRpcEpSet *pEpSet = NULL;
+    SEpSet *pEpSet = NULL;
     if (pContext->epSet.inUse != pContext->oldInUse || pContext->redirect) 
       pEpSet = &pContext->epSet;  
 
@@ -1175,7 +1175,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
 
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) {
       pContext->numOfTry = 0;
-      SRpcEpSet *pEpSet = (SRpcEpSet*)pHead->content;
+      SEpSet *pEpSet = (SEpSet*)pHead->content;
       if (pEpSet->numOfEps > 0) {
         memcpy(&pContext->epSet, pHead->content, sizeof(pContext->epSet));
         tDebug("%s, redirect is received, numOfEps:%d inUse:%d", pConn->info, pContext->epSet.numOfEps,
