@@ -26,6 +26,7 @@ typedef struct SMnodeMsg SMnodeMsg;
 
 typedef struct {
   int8_t   replica;
+  int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SMnodeCfg;
 

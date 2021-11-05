@@ -697,8 +697,9 @@ typedef struct {
 } SStatusRsp;
 
 typedef struct {
-  uint16_t port;
-  char     fqdn[TSDB_FQDN_LEN];
+  int32_t  id;
+  uint16_t port;                 // node sync Port
+  char     fqdn[TSDB_FQDN_LEN];  // node FQDN
 } SReplica;
 
 typedef struct {
@@ -719,8 +720,8 @@ typedef struct {
   int8_t   cacheLastRow;
   int8_t   update;
   int8_t   walLevel;
-  int8_t   replica;
   int8_t   quorum;
+  int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
