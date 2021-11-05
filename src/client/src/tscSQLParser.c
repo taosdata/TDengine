@@ -1788,12 +1788,12 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
     }
   }
 
-//  ret = exprTreeValidateTree(pNode);
-//  if (ret != TSDB_CODE_SUCCESS) {
-//    taosArrayDestroy(colList);
-//    tExprTreeDestroy(pNode, NULL);
-//    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-//  }
+  ret = exprTreeValidateTree(pNode);
+  if (ret != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(colList);
+    tExprTreeDestroy(pNode, NULL);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
 
@@ -9516,10 +9516,10 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
 
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         pSchema = (*pExpr)->pSchema;
-        strcpy(pSchema->name, TSQL_TBNAME_L);
-        pSchema->type = TSDB_DATA_TYPE_BINARY;
-        pSchema->colId = TSDB_TBNAME_COLUMN_INDEX;
-        pSchema->bytes = -1;
+        strcpy(pSchema->name, tGetTbnameColumnSchema()->name);
+        pSchema->type = tGetTbnameColumnSchema()->type;
+        pSchema->colId = tGetTbnameColumnSchema()->colId;
+        pSchema->bytes = tGetTbnameColumnSchema()->bytes;
       } else {
         pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
         *(*pExpr)->pSchema = *pSchema;

@@ -3407,8 +3407,9 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
 static void arithmetic_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
-
-  exprTreeNodeTraverse(sas->pExprInfo->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
+  tExprOperandInfo output;
+  output.data = pCtx->pOutput;
+  exprTreeNodeTraverse(sas->pExprInfo->pExpr, pCtx->size, &output, sas, pCtx->order, getArithColumnData);
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \
