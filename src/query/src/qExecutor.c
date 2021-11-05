@@ -5689,9 +5689,7 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   int32_t order = pQueryAttr->order.order;
 
   SOperatorInfo* upstream = pOperator->upstream[0];
-  int            ii = 0;
   while (1) {
-    qDebug("doSTableAggregate::while::loop - %d", ii++);
     publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
     publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
