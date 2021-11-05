@@ -44,7 +44,7 @@ typedef struct {
   int8_t     replica;
   int8_t     walLevel;
   int32_t    fsyncPeriod;  // millisecond
-  SVnodeDesc replicas[TSDB_MAX_REPLICA];
+  SReplica replicas[TSDB_MAX_REPLICA];
 } SVnodeCfg;
 
 typedef enum {

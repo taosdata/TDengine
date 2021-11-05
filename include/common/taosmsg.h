@@ -75,9 +75,9 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_FUNCTION, "create-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_FUNCTION, "alter-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE, "create-stable" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STABLE_VGROUP, "stable-vgroup" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE, "drop-stable" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE, "alter-stable" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE, "drop-stable" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STABLE_VGROUP, "stable-vgroup" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
@@ -108,6 +108,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_VNODE_IN, "sync-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE_IN, "compact-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE_IN, "create-mnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_MNODE_IN, "alter-mnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE_IN, "drop-mnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE_IN, "config-dnode" )
 
@@ -698,30 +699,30 @@ typedef struct {
 typedef struct {
   uint16_t port;
   char     fqdn[TSDB_FQDN_LEN];
-} SVnodeDesc;
+} SReplica;
 
 typedef struct {
-  char       db[TSDB_FULL_DB_NAME_LEN];
-  uint32_t   vgId;
-  int32_t    cacheBlockSize;
-  int32_t    totalBlocks;
-  int32_t    daysPerFile;
-  int32_t    daysToKeep0;
-  int32_t    daysToKeep1;
-  int32_t    daysToKeep2;
-  int32_t    minRowsPerFileBlock;
-  int32_t    maxRowsPerFileBlock;
-  int32_t    fsyncPeriod;
-  int8_t     reserved[16];
-  int8_t     precision;
-  int8_t     compression;
-  int8_t     cacheLastRow;
-  int8_t     update;
-  int8_t     walLevel;
-  int8_t     replica;
-  int8_t     quorum;
-  int8_t     selfIndex;
-  SVnodeDesc replicas[TSDB_MAX_REPLICA];
+  char     db[TSDB_FULL_DB_NAME_LEN];
+  uint32_t vgId;
+  int32_t  cacheBlockSize;
+  int32_t  totalBlocks;
+  int32_t  daysPerFile;
+  int32_t  daysToKeep0;
+  int32_t  daysToKeep1;
+  int32_t  daysToKeep2;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int32_t  fsyncPeriod;
+  int8_t   reserved[16];
+  int8_t   precision;
+  int8_t   compression;
+  int8_t   cacheLastRow;
+  int8_t   update;
+  int8_t   walLevel;
+  int8_t   replica;
+  int8_t   quorum;
+  int8_t   selfIndex;
+  SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
 
 typedef struct {
@@ -825,8 +826,11 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t   dnodeId;
-} SCreateMnodeMsg, SDropMnodeMsg;
+  int32_t    dnodeId;
+  int8_t     replica;
+  int8_t     reserved[3];
+  SReplica replicas[TSDB_MAX_REPLICA];
+} SCreateMnodeMsg, SAlterMnodeMsg, SDropMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;

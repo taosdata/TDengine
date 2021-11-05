@@ -70,6 +70,7 @@ static int32_t mnodeSetPara(SMnodePara para) {
   if (tsMint.para.SendMsgToDnode == NULL) return -1;
   if (tsMint.para.SendMsgToMnode == NULL) return -1;
   if (tsMint.para.SendRedirectMsg == NULL) return -1;
+  if (tsMint.para.PutMsgIntoApplyQueue == NULL) return -1;
   if (tsMint.para.dnodeId < 0) return -1;
   if (tsMint.para.clusterId < 0) return -1;
 
@@ -141,7 +142,7 @@ static bool mnodeNeedDeploy() {
   return true;
 }
 
-int32_t mnodeDeploy() {
+int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg) {
   if (tsMint.state != MN_STATUS_UNINIT) {
     mError("failed to deploy mnode since its deployed");
     return 0;
@@ -176,7 +177,7 @@ int32_t mnodeDeploy() {
   return 0;
 }
 
-void mnodeUnDeploy() {
+void mnodeUnDeploy(char *path) {
   sdbUnDeploy();
   mnodeCleanup();
 }
@@ -244,5 +245,6 @@ void mnodeCleanup() {
   }
 }
 
-int32_t mnodeStart() { return 0; }
+int32_t mnodeStart(char *path, SMnodeCfg *pCfg) { return 0; }
+int32_t mnodeAlter(SMnodeCfg *pCfg) { return 0; }
 void    mnodeStop() {}

@@ -20,6 +20,15 @@
 extern "C" {
 #endif
 
+typedef enum { MN_MSG_TYPE_WRITE = 1, MN_MSG_TYPE_APPLY, MN_MSG_TYPE_SYNC, MN_MSG_TYPE_READ } EMnMsgType;
+
+typedef struct SMnodeMsg SMnodeMsg;
+
+typedef struct {
+  int8_t   replica;
+  SReplica replicas[TSDB_MAX_REPLICA];
+} SMnodeCfg;
+
 typedef struct {
   int64_t numOfDnode;
   int64_t numOfMnode;
@@ -39,20 +48,25 @@ typedef struct {
   void (*SendMsgToDnode)(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
   void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
   void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
+  int32_t (*PutMsgIntoApplyQueue)(SMnodeMsg *pMsg);
 } SMnodePara;
 
 int32_t mnodeInit(SMnodePara para);
 void    mnodeCleanup();
 
-int32_t mnodeDeploy();
-void    mnodeUnDeploy();
-int32_t mnodeStart();
+int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg);
+void    mnodeUnDeploy(char *path);
+int32_t mnodeStart(char *path, SMnodeCfg *pCfg);
+int32_t mnodeAlter(SMnodeCfg *pCfg);
 void    mnodeStop();
 
 int32_t mnodeGetLoad(SMnodeLoad *pLoad);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-void mnodeProcessMsg(SRpcMsg *rpcMsg);
+SMnodeMsg *mnodeInitMsg(int32_t msgNum);
+int32_t    mnodeAppendMsg(SMnodeMsg *pMsg, SRpcMsg *pRpcMsg);
+void       mnodeCleanupMsg(SMnodeMsg *pMsg);
+void       mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType);
 
 #ifdef __cplusplus
 }
