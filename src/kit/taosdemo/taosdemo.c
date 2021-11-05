@@ -1303,7 +1303,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "S");
                     exit(EXIT_FAILURE);
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                arguments->timestamp_step = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--time-step=", strlen("--time-step="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--time-step=")))) {
                     arguments->async_mode = atoi((char *)(argv[i]+strlen("--time-step=")));
@@ -1313,7 +1313,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-S", strlen("-S"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-S")))) {
-                    arguments->async_mode = atoi((char *)(argv[i]+strlen("-S")));
+                    arguments->timestamp_step = atoi((char *)(argv[i]+strlen("-S")));
                 } else {
                     errorPrintReqArg2(argv[0], "-S");
                     exit(EXIT_FAILURE);
@@ -1326,7 +1326,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--time-step");
                     exit(EXIT_FAILURE);
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                arguments->timestamp_step = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
