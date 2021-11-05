@@ -11039,7 +11039,6 @@ static int insertTestProcess() {
     //  totalAffectedRows += g_Dbs.db[i].superTbls[j].totalAffectedRows;
     //}
     //printf("Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s)\n\n", end - start, totalInsertRows, totalAffectedRows, g_Dbs.threadCount);
-    postFreeResource();
 
     return 0;
 }
@@ -12240,6 +12239,7 @@ static void testCmdLine() {
     if (g_Dbs.aggr_func) {
         queryAggrFunc();
     }
+    postFreeResource();
 }
 
 int main(int argc, char *argv[]) {
