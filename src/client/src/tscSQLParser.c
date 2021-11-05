@@ -2256,6 +2256,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   const char* msg3 = "tbname not allowed in outer query";
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
+  const char* msg6 = "json tag can not use distinct";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
   int32_t tokenId = pItem->pNode->tokenId;
@@ -2364,6 +2365,11 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       if (tokenId == TK_ARROW && pSchema->type != TSDB_DATA_TYPE_JSON) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
+
+      if (tokenId == TK_ID && pSchema->type == TSDB_DATA_TYPE_JSON && pItem->distinct) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+
       if(pSchema->type == TSDB_DATA_TYPE_JSON && tokenId == TK_ARROW){
         pItem->aliasName = calloc(1, pItem->pNode->exprToken.n + 1);
         memcpy(pItem->aliasName, pItem->pNode->exprToken.z, pItem->pNode->exprToken.n);
