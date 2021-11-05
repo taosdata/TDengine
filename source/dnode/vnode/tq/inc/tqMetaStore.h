@@ -19,6 +19,11 @@
 #include "os.h"
 #include "tq.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TQ_BUCKET_SIZE 0xFF
 #define TQ_PAGE_SIZE 4096
 //key + offset + size
@@ -32,9 +37,23 @@ inline static int TqEmptyTail() { //16
   return TQ_PAGE_SIZE - TqMaxEntryOnePage();
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define TQ_ACTION_CONST      0
+#define TQ_ACTION_INUSE      1
+#define TQ_ACTION_INUSE_CONT 2
+#define TQ_ACTION_INTXN      3
+
+#define TQ_SVER              0
+
+static const int8_t TQ_CONST_DELETE = TQ_ACTION_CONST;
+#define TQ_DELETE_TOKEN  (void*)&TQ_CONST_DELETE
+
+typedef struct TqSerializedHead {
+  int16_t ver;
+  int16_t action;
+  int32_t checksum;
+  int64_t ssize;
+  char    content[];
+} TqSerializedHead;
 
 typedef struct TqMetaHandle {
   int64_t key;
@@ -59,30 +78,33 @@ typedef struct TqMetaStore {
   TqMetaList* unpersistHead;
   int fileFd; //TODO:temporaral use, to be replaced by unified tfile
   int idxFd;  //TODO:temporaral use, to be replaced by unified tfile
-  int (*serializer)(TqGroupHandle*, void**);
-  const void* (*deserializer)(const void*, TqGroupHandle*);
+  char* dirPath;
+  int (*serializer)(const void* pObj, TqSerializedHead** ppHead);
+  const void* (*deserializer)(const TqSerializedHead* pHead, void** ppObj);
   void  (*deleter)(void*);
 } TqMetaStore;
 
 TqMetaStore*  tqStoreOpen(const char* path,
-    int serializer(TqGroupHandle*, void**),
-    const void* deserializer(const void*, TqGroupHandle*),
-    void deleter(void*));
+    int serializer(const void* pObj, TqSerializedHead** ppHead),
+    const void* deserializer(const TqSerializedHead* pHead, void** ppObj),
+    void deleter(void* pObj));
 int32_t       tqStoreClose(TqMetaStore*);
 //int32_t       tqStoreDelete(TqMetaStore*);
 //int32_t       TqStoreCommitAll(TqMetaStore*);
 int32_t       tqStorePersist(TqMetaStore*);
 
-TqMetaHandle* tqHandleGet(TqMetaStore*, int64_t key);
-int32_t       tqHandlePut(TqMetaStore*, int64_t key, void* value);
+void*   tqHandleGet(TqMetaStore*, int64_t key);
+int32_t tqHandleMovePut(TqMetaStore*, int64_t key, void* value);
+int32_t tqHandleCopyPut(TqMetaStore*, int64_t key, void* value, size_t vsize);
 //do commit
-int32_t       tqHandleCommit(TqMetaStore*, int64_t key);
+int32_t tqHandleCommit(TqMetaStore*, int64_t key);
 //delete uncommitted
-int32_t       tqHandleAbort(TqMetaStore*, int64_t key);
-//delete committed
-int32_t       tqHandleDel(TqMetaStore*, int64_t key);
+int32_t tqHandleAbort(TqMetaStore*, int64_t key);
+//delete committed kv pair
+//notice that a delete action still needs to be committed
+int32_t tqHandleDel(TqMetaStore*, int64_t key);
 //delete both committed and uncommitted
-int32_t       tqHandleClear(TqMetaStore*, int64_t key);
+int32_t tqHandleClear(TqMetaStore*, int64_t key);
 
 #ifdef __cplusplus
 }
