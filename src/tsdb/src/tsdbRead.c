@@ -1728,12 +1728,14 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           int32_t num = qend - qstart + 1;
           if(step == -1 && pos - num < 0) {
             if(pos == 0)
-              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop          
-            pos = 0; // move file pos ok
+              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop
+            else
+              pos = 0; // move file pos ok
           }else if(step == 1 && pos + num >= pCols->numOfRows) {
             if(pos == pCols->numOfRows - 1)
-              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop          
-            pos = pCols->numOfRows - 1; // move file pos ok
+              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop
+            else
+              pos = pCols->numOfRows - 1; // move file pos ok
           } else {
             pos += num * step; // move file pos ok
           }          
