@@ -305,6 +305,12 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
   *pKVs = tcalloc(capacity, sizeof(TAOS_SML_KV));
   pkv = *pKVs;
 
+  size_t childTableNameLen = strlen(tsSmlChildTableName);
+  char childTbName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  if (childTableNameLen != 0) {
+    memcpy(childTbName, tsSmlChildTableName, childTableNameLen);
+    addEscapeCharToString(childTbName, (int32_t)(childTableNameLen));
+  }
   while (*cur != '\0') {
     ret = parseTelnetTagKey(pkv, &cur, pHash, info);
     if (ret) {
@@ -316,7 +322,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("OTD:0x%"PRIx64" Unable to parse value", info->id);
       return ret;
     }
-    if ((strcasecmp(pkv->key, "`ID`") == 0)) {
+    if (childTableNameLen != 0 && strcasecmp(pkv->key, childTbName) == 0) {
       *childTableName = tcalloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1, 1);
       memcpy(*childTableName, pkv->value, pkv->length);
       (*childTableName)[pkv->length] = '\0';
@@ -892,26 +898,33 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
   if (tags == NULL || tags->type != cJSON_Object) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
-  //only pick up the first ID value as child table name
-  cJSON *id = cJSON_GetObjectItem(tags, "ID");
-  if (id != NULL) {
-    if (!cJSON_IsString(id)) {
-      tscError("OTD:0x%"PRIx64" ID must be JSON string", info->id);
-      return TSDB_CODE_TSC_INVALID_JSON;
-    }
-    size_t idLen = strlen(id->valuestring);
-    *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
-    memcpy(*childTableName, id->valuestring, idLen);
-    strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
-    addEscapeCharToString(*childTableName, (int32_t)idLen);
 
-    //check duplicate IDs
-    cJSON_DeleteItemFromObject(tags, "ID");
-    id = cJSON_GetObjectItem(tags, "ID");
+  //handle child table name
+  size_t childTableNameLen = strlen(tsSmlChildTableName);
+  char childTbName[TSDB_TABLE_NAME_LEN] = {0};
+  if (childTableNameLen != 0) {
+    memcpy(childTbName, tsSmlChildTableName, childTableNameLen);
+    cJSON *id = cJSON_GetObjectItem(tags, childTbName);
     if (id != NULL) {
-      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+      if (!cJSON_IsString(id)) {
+        tscError("OTD:0x%"PRIx64" ID must be JSON string", info->id);
+        return TSDB_CODE_TSC_INVALID_JSON;
+      }
+      size_t idLen = strlen(id->valuestring);
+      *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
+      memcpy(*childTableName, id->valuestring, idLen);
+      strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
+      addEscapeCharToString(*childTableName, (int32_t)idLen);
+
+      //check duplicate IDs
+      cJSON_DeleteItemFromObject(tags, childTbName);
+      id = cJSON_GetObjectItem(tags, childTbName);
+      if (id != NULL) {
+        return TSDB_CODE_TSC_DUP_TAG_NAMES;
+      }
     }
   }
+
   int32_t tagNum = cJSON_GetArraySize(tags);
   //at least one tag pair required
   if (tagNum <= 0) {

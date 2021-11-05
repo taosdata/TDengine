@@ -213,7 +213,7 @@ else
   exit 1
 fi
 
-make -j8
+make -j8 && ${csudo} make install
 
 cd ${curr_dir}
 

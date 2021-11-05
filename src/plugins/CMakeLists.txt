@@ -45,6 +45,7 @@ ELSE ()
         COMMAND cmake -E copy blm3 ${CMAKE_BINARY_DIR}/build/bin
         COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
         COMMAND cmake -E copy ./example/config/blm.toml ${CMAKE_BINARY_DIR}/test/cfg/
+        COMMAND cmake -E copy ./blm3.service ${CMAKE_BINARY_DIR}/test/cfg/
   )
 ENDIF ()
 

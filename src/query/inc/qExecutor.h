@@ -43,6 +43,8 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
+#define RESET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:(((_r)->outputBuf)->info.rows = 0))
+
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData? 1 : 0)
 
 enum {
@@ -393,6 +395,7 @@ typedef struct SQInfo {
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
+  int64_t          lastRetrieveTs; // last retrieve timestamp  
   char*            sql;         // query sql string
   SQueryCostInfo   summary;
 } SQInfo;

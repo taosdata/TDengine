@@ -1178,13 +1178,14 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-void addEscapeCharToString(char *str, int32_t len) {
+char* addEscapeCharToString(char *str, int32_t len) {
   if (str == NULL) {
-    return;
+    return NULL;
   }
   memmove(str + 1, str, len);
   str[0] = str[len + 1] = TS_ESCAPE_CHAR;
   str[len + 2] = '\0';
+  return str;
 }
 
 bool isValidInteger(char *str) {
@@ -1908,8 +1909,6 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     }
     //Escape special character
     if (*cur == '\\') {
-      //TODO: escape will work after column & tag
-      //support spcial characters
       escapeSpecialCharacter(2, &cur);
     }
     key[len] = *cur;
@@ -1986,6 +1985,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     //Escape special character
     if (*cur == '\\') {
       escapeSpecialCharacter(isTag ? 2 : 3, &cur);
+      len++;
     }
     cur++;
     len++;
@@ -2108,6 +2108,13 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     pkv = *pKVs;
   }
 
+  size_t childTableNameLen = strlen(tsSmlChildTableName);
+  char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  if (childTableNameLen != 0) {
+    memcpy(childTableName, tsSmlChildTableName, childTableNameLen);
+    addEscapeCharToString(childTableName, (int32_t)(childTableNameLen));
+  }
+
   while (*cur != '\0') {
     ret = parseSmlKey(pkv, &cur, pHash, info);
     if (ret) {
@@ -2119,7 +2126,8 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField && (strcasecmp(pkv->key, "`ID`") == 0)) {
+
+    if (!isField && childTableNameLen != 0 && strcasecmp(pkv->key, childTableName) == 0)  {
       smlData->childTableName = malloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
