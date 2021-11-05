@@ -467,8 +467,7 @@ function install_service_on_systemd() {
 }
 
 function install_blm3_service() {
-    [ -f ${script_dir}/cfg/blm3.service ] &&\
-        ${csudo} cp ${script_dir}/cfg/blm3.service ${service_config_dir}/
+    [ -f ${cfg_dir}/blm3.service ] && ${csudo} cp ${cfg_dir}/blm3.service ${service_config_dir}
 }
 
 function install_service() {
@@ -501,10 +500,10 @@ function install_TDengine() {
     install_lib
     install_avro_lib
     install_bin
-    install_service
-    install_blm3_service
     install_config
     install_blm3_config
+    install_blm3_service
+    install_service
 
     # Ask if to start the service
     #echo
