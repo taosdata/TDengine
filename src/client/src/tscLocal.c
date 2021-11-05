@@ -361,7 +361,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
-    memset(buf, 0, lengths[i]);
+    memset(buf, 0, lengths[i] + 1);
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, i, buf);
 
     if (i == 0) {
