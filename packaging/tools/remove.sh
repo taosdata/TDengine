@@ -111,12 +111,14 @@ function clean_log() {
 
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
+    blm3_service_config="${service_config_dir}/blm3.service"
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${taosd_service_config}
+    [ -f ${blm3_service_config} ] && ${sudo} rm -f ${blm3_service_config}
 
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then

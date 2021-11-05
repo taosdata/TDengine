@@ -77,6 +77,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Node.js Connector](/connector#nodejs): driver for connecting to TDengine server from Node.js applications
 - [C# Connector](/connector#csharp): driver for connecting to TDengine server from C# applications
 - [Windows Client](https://www.taosdata.com/blog/2019/07/26/514.html): compile your own Windows client, which is required by various connectors on the Windows environment
+- [Rust Connector](/connector/rust): A taosc/RESTful API based TDengine client for Rust
 
 ## [Connections with Other Tools](/connections)
 
