@@ -177,7 +177,7 @@ def pre_test_noinstall(){
     mkdir debug
     cd debug
     cmake .. > /dev/null
-    make > /dev/null
+    make
     '''
     return 1
 }
