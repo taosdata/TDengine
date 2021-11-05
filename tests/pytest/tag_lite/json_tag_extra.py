@@ -340,18 +340,23 @@ class TDTestCase:
 
         tdSql.execute("INSERT INTO  jsons1_14 using  jsons1 tags('{\"tbname\":\"tt\",\"location\":\"tianjing\",\"dataStr\":\"是是是\"}') values(now,5, \"你就会\")")
 
-        # tdSql.execute("select ts,dataint3,jtag->tbname from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
-        # tdSql.checkRows(1)
+        tdSql.execute("select ts,jtag from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
+        tdSql.checkRows(1)
         # tdSql.checkData(0, 2, 'tt')
                
         # query normal column and tag column
         tdSql.query("select  jtag3->'',dataint3 from  jsons3")
         tdSql.checkRows(4)
 
+        tdSql.query("select tbname,dataint3,jtag3->'k1' from jsons3;")
+        tdSql.checkRows(4)
+        for i in range(4):
+            if tdSql.queryResult[i][1] == 4:
+                tdSql.checkData(i, 2, 'true') 
+        
+
         # query  child table 
-
-        tdSql.error("select * from  jsons3_2 where jtag3->'k1'=true;")
-
+        # tdSql.error("select * from  jsons3_2 where jtag3->'k1'=true;")
         # tdSql.checkData(0, 0, None)
         # tdSql.checkRows(3)
 
