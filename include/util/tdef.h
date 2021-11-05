@@ -160,11 +160,12 @@ do { \
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
+#define TSDB_FULL_DB_NAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
 #define TSDB_FUNC_NAME_LEN        65
 #define TSDB_FUNC_CODE_LEN        (65535 - 512)
 #define TSDB_FUNC_BUF_SIZE        512
 #define TSDB_TYPE_STR_MAX_LEN     32
-#define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
+#define TSDB_TABLE_FNAME_LEN      (TSDB_FULL_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -218,7 +219,7 @@ do { \
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           64
-#define TSDB_MAX_VNODES           2048
+#define TSDB_MAX_VNODES           512
 #define TSDB_MIN_VNODES_PER_DB    2
 #define TSDB_MAX_VNODES_PER_DB    64
 

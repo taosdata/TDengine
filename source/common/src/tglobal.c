@@ -277,13 +277,13 @@ void taosSetAllDebugFlag() {
   }
 }
 
-bool taosCfgDynamicOptions(char *msg) {
+int32_t taosCfgDynamicOptions(char *msg) {
   char *option, *value;
   int32_t   olen, vlen;
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return false;;
+  if (olen == 0) return -1;;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -324,18 +324,18 @@ bool taosCfgDynamicOptions(char *msg) {
           uError("monitor can't be updated, for monitor not initialized");
         }
       }
-      return true;
+      return 0;
     }
     if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
        taosSetAllDebugFlag(); 
     }
-    return true;
+    return 0;
   }
 
   if (strncasecmp(option, "resetlog", 8) == 0) {
     taosResetLog();
     taosPrintGlobalCfg();
-    return true;
+    return 0;
   }
 
   if (strncasecmp(option, "resetQueryCache", 15) == 0) {

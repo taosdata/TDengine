@@ -36,91 +36,104 @@ enum {
   TSDB_MESSAGE_NULL = 0,
 #endif
 
-// message from client to dnode
+// message from client to vnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SUBMIT, "submit" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_TABLE, "create-table" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TABLE, "drop-table" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_TABLE, "alter-table" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_UPDATE_TAG_VAL, "update-tag-val" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TABLE_META, "table-meta" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TABLES_META, "tables-meta" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONSUME, "mq-consume" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_ACK, "mq-ack" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_RESET, "mq-reset" )
+// message from client to mnode
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_ACCT, "alter-acct" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_ACCT, "drop-acct" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_USER, "create-user" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_USER, "alter-user" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_USER, "drop-user" ) 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_DNODE, "create-dnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE, "config-dnode" ) 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_DNODE, "drop-dnode" )   
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_DB, "create-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_DB, "drop-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_USE_DB, "use-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_DB, "alter-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_DB, "sync-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_TOPIC, "create-topic" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TOPIC, "drop-topic" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_TOPIC, "alter-topic" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_FUNCTION, "create-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_FUNCTION, "alter-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE, "create-stable" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STABLE_VGROUP, "stable-vgroup" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE, "drop-stable" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE, "alter-stable" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW, "show" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW_RETRIEVE, "retrieve" )  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW_RETRIEVE_FUNC, "retrieve-func" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE, "compact-vnode" )
+// message from client to qnode
+// message from client to dnode
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
+
+// message from vnode to vnode
+// message from vnode to mnode
+// message from vnode to qnode
+// message from vnode to dnode
+
+// message from mnode to vnode
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE_IN, "create-stable" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE_IN, "alter-stable" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE_IN, "drop-stable" )
+// message from mnode to mnode
+// message from mnode to qnode
+// message from mnode to dnode
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_VNODE_IN, "create-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_VNODE_IN, "alter-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_VNODE_IN, "drop-vnode" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_VNODE_IN, "sync-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE_IN, "compact-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE_IN, "create-mnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE_IN, "drop-mnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE_IN, "config-dnode" )
+
+// message from qnode to vnode
+// message from qnode to mnode
+// message from qnode to qnode
+// message from qnode to dnode
+
+// message from dnode to vnode
+// message from dnode to mnode
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STATUS, "status" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_GRANT, "grant" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH, "auth" )
+// message from dnode to qnode
+// message from dnode to dnode
+
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY0, "dummy0" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY1, "dummy1" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY2, "dummy2" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY3, "dummy3" )
-
-// message from mnode to dnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_TABLE, "create-table" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_TABLE, "drop-table" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_TABLE, "alter-table" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_VNODE, "create-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_VNODE, "drop-vnode" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_SYNC_VNODE, "sync-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_MNODE, "create-mnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_COMPACT_VNODE, "compact-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY4, "dummy4" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY5, "dummy5" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
-
-
-// message from client to mnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONNECT, "connect" )	 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_ACCT, "create-acct" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_ACCT, "alter-acct" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_ACCT, "drop-acct" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_USER, "create-user" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_USER, "alter-user" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_USER, "drop-user" ) 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DNODE, "create-dnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DNODE, "drop-dnode" )   
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DB, "create-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_FUNCTION, "create-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_FUNCTION, "drop-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_DB, "alter-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SYNC_DB, "sync-db-replica" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TABLE, "create-table" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TABLE, "drop-table" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TABLE, "alter-table" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLE_META, "table-meta" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_STABLE_VGROUP, "stable-vgroup" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_COMPACT_VNODE, "compact-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLES_META, "multiTable-meta" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_STREAM, "alter-stream" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SHOW, "show" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE, "retrieve" )     
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_QUERY, "kill-query" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_STREAM, "kill-stream" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_CONN, "kill-conn" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONFIG_DNODE, "cm-config-dnode" ) 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_HEARTBEAT, "heartbeat" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE_FUNC, "retrieve-func" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY8, "dummy8" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY9, "dummy9" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY10, "dummy10" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY11, "dummy11" )
-
-// message from dnode to mnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_CONFIG_TABLE, "config-table" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_CONFIG_VNODE, "config-vnode" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_STATUS, "status" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_GRANT, "grant" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_AUTH, "auth" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
-
-// message for topic
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TP, "create-tp" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )	  
-//TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 147
@@ -312,7 +325,7 @@ typedef struct {
 
 typedef struct {
   char    tableFname[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char    db[TSDB_FULL_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -403,10 +416,6 @@ typedef struct {
   uint64_t uid;
   char    tableFname[TSDB_TABLE_FNAME_LEN];
 } SDropSTableMsg;
-
-typedef struct {
-  int32_t vgId;
-} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
 typedef struct SColIndex {
   int16_t  colId;      // column id
@@ -561,21 +570,7 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  int32_t  vgId;
-  int32_t  dbCfgVersion;
-  int64_t  totalStorage;
-  int64_t  compStorage;
-  int64_t  pointsWritten;
-  uint64_t vnodeVersion;
-  int32_t  vgCfgVersion;
-  uint8_t  status;
-  uint8_t  role;
-  uint8_t  replica;
-  uint8_t  compact;
-} SVnodeLoad;
-
-typedef struct {
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
   int32_t  maxTables;
@@ -640,28 +635,46 @@ typedef struct {
   uint8_t ignoreNotExists;
 } SDropDbMsg, SUseDbMsg, SSyncDbMsg;
 
-// IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
-// TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
 typedef struct {
-  int64_t pointsWritten;  // In unit of points
-  int64_t totalStorage;   // In unit of bytes
-  int64_t compStorage;    // In unit of bytes
-  int64_t queryTime;      // In unit of second ??
-  char    reserved[64];
-} SVnodeStatisticInfo;
+  int32_t statusInterval;
+  int8_t  reserved[4];
+  int64_t checkTime;                    // 1970-01-01 00:00:00.000
+  char    timezone[TSDB_TIMEZONE_LEN];  // tsTimezone
+  char    locale[TSDB_LOCALE_LEN];      // tsLocale
+  char    charset[TSDB_LOCALE_LEN];     // tsCharset
+} SClusterCfg;
 
-typedef struct SVgroupAccess {
-  int32_t  vgId;
-  int8_t   accessState;
-} SVgroupAccess;
+typedef struct {
+  int32_t vgId;
+  int8_t  role;
+  int8_t  reserved[3];
+  int64_t totalStorage;
+  int64_t compStorage;
+  int64_t pointsWritten;
+  int64_t tablesNum;
+} SVnodeLoad;
+
+typedef struct {
+  int32_t    num;
+  SVnodeLoad data[];
+} SVnodeLoads;
+
+typedef struct SStatusMsg {
+  uint32_t    sversion;
+  int32_t     dnodeId;
+  int64_t     clusterId;
+  uint32_t    rebootTime;  // time stamp for last reboot
+  int32_t     numOfCores;
+  char        dnodeEp[TSDB_EP_LEN];
+  SClusterCfg clusterCfg;
+  SVnodeLoads vnodeLoads;
+} SStatusMsg;
 
 typedef struct {
   int32_t dnodeId;
   int8_t  dropped;
-  char    reserved[19];
+  char    reserved[3];
   int64_t clusterId;
-  int32_t numOfDnodes;
-  int32_t numOfVnodes;
 } SDnodeCfg;
 
 typedef struct {
@@ -678,31 +691,8 @@ typedef struct {
 } SDnodeEps;
 
 typedef struct {
-  int32_t statusInterval;  // tsStatusInterval
-  int8_t  reserved[36];
-  int64_t checkTime;                 // 1970-01-01 00:00:00.000
-  char    timezone[64];              // tsTimezone
-  char    locale[TSDB_LOCALE_LEN];   // tsLocale
-  char    charset[TSDB_LOCALE_LEN];  // tsCharset
-} SClusterCfg;
-
-typedef struct SStatusMsg {
-  uint32_t    version;
-  int32_t     dnodeId;
-  uint32_t    lastReboot;  // time stamp for last reboot
-  int32_t     openVnodes;
-  int32_t     numOfCores;
-  float       diskAvailable;
-  int8_t      reserved[36];
-  char        dnodeEp[TSDB_EP_LEN];
-  int64_t     clusterId;
-  SClusterCfg clusterCfg;
-  SVnodeLoad  load[];
-} SStatusMsg;
-
-typedef struct {
-  SDnodeCfg     dnodeCfg;
-  SVgroupAccess vgAccess[];
+  SDnodeCfg dnodeCfg;
+  SDnodeEps dnodeEps;
 } SStatusRsp;
 
 typedef struct {
@@ -711,7 +701,7 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
-  char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_FULL_DB_NAME_LEN];
   uint32_t   vgId;
   int32_t    cacheBlockSize;
   int32_t    totalBlocks;
@@ -731,8 +721,17 @@ typedef struct {
   int8_t     replica;
   int8_t     quorum;
   int8_t     selfIndex;
-  SVnodeDesc nodes[TSDB_MAX_REPLICA];
+  SVnodeDesc replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
+
+typedef struct {
+  int32_t vgId;
+} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
+
+typedef struct {
+  int32_t vgId;
+  int8_t  accessState;
+} SAuthVnodeMsg;
 
 typedef struct {
   char    tableFname[TSDB_TABLE_FNAME_LEN];
@@ -805,13 +804,13 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;
 
 typedef struct {
-  char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char db[TSDB_FULL_DB_NAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
 } SCompactMsg;
@@ -826,10 +825,8 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t  dnodeId;
-  int32_t  mnodeNum;
-  SDnodeEp mnodeEps[];
-} SCreateMnodeMsg;
+  int32_t   dnodeId;
+} SCreateMnodeMsg, SDropMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
@@ -895,16 +892,7 @@ typedef struct {
 
 typedef struct {
   char queryId[TSDB_KILL_MSG_LEN + 1];
-} SKillQueryMsg, SKillStreamMsg, SKillConnMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
-  uint64_t stime;  // stream starting time
-  int32_t  status;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-} SAlterStreamMsg;
+} SKillQueryMsg, SKillConnMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -919,8 +907,7 @@ typedef struct {
   int8_t  reserved1[7];
   char    name[TSDB_STEP_NAME_LEN];
   char    desc[TSDB_STEP_DESC_LEN];
-  char    reserved2[64];
-} SStartupStep;
+} SStartupMsg;
 
 // mq related
 typedef struct {
@@ -1007,6 +994,7 @@ typedef struct {
 typedef struct {
   /* data */
 } SUpdateTagValRsp;
+
 
 #pragma pack(pop)
 

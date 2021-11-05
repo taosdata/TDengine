@@ -228,11 +228,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists"
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            "Dnode out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_DNODE_ID_NOT_MATCHED,     "Dnode Id not matched")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_MNODE_ALREADY_DROPPED,    "Mnode already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_WRITE_ACCESS,          "No permission for disk files in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          "Invalid message length")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_TOO_MANY_VNODES,          "Too many vnode directories")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_EXITING,                  "Dnode is exiting")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_PARSE_VNODE_FILE_ERROR,   "Parse vnodes.json error")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       "Action in progress")
