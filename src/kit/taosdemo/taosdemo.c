@@ -9961,7 +9961,7 @@ int32_t generateSmlJsonTags(cJSON* tagsList, SSuperTable* stbInfo, threadInfo* p
         snprintf(tagName, TSDB_MAX_TAGS, "t%d", i);
         switch (stbInfo->tags[i].data_type) {
             case TSDB_DATA_TYPE_BOOL:
-                cJSON_AddNumberToObject(tag, "value", rand_bool());
+                cJSON_AddBoolToObject(tag, "value", rand_bool());
                 cJSON_AddStringToObject(tag, "type", "bool");
                 break;
             case TSDB_DATA_TYPE_TINYINT:
@@ -10044,7 +10044,7 @@ static int32_t generateSmlJsonCols(cJSON* array, cJSON* tag, SSuperTable* stbInf
     cJSON* value = cJSON_CreateObject();
     switch (stbInfo->columns[0].data_type) {
         case TSDB_DATA_TYPE_BOOL:
-            cJSON_AddNumberToObject(value, "value", rand_bool());
+            cJSON_AddBoolToObject(value, "value", rand_bool());
             cJSON_AddStringToObject(value, "type", "bool");
             break;
         case TSDB_DATA_TYPE_TINYINT:
