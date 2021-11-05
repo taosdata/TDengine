@@ -1721,7 +1721,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         int32_t qstart = 0, qend = 0;
         getQualifiedRowsPos(pQueryHandle, pos, end, numOfRows, &qstart, &qend);
 
-        // eithor mem or file pos must move one  
+        // either mem or file pos must move one  
         if(qend >= qstart) {
           // copy qend - qstart + 1 rows from file
           numOfRows = doCopyRowsFromFileBlock(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, qstart, qend);
