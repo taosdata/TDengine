@@ -35,14 +35,14 @@ EDnStat dnodeGetRunStat() { return tsInt.runStat; }
 
 void dnodeSetRunStat(EDnStat stat) { tsInt.runStat = stat; }
 
-static void dnodeReportStartup(char *name, char *desc) {
+void dnodeReportStartup(char *name, char *desc) {
   SStartupMsg *pStartup = &tsInt.startup;
   tstrncpy(pStartup->name, name, strlen(pStartup->name));
   tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
   pStartup->finished = 0;
 }
 
-static void dnodeReportStartupFinished(char *name, char *desc) {
+void dnodeReportStartupFinished(char *name, char *desc) {
   SStartupMsg *pStartup = &tsInt.startup;
   tstrncpy(pStartup->name, name, strlen(pStartup->name));
   tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
