@@ -66,8 +66,7 @@ typedef struct {
 
   int32_t affectedRows;
 } SSmlLinesInfo;
-
-void addEscapeCharToString(char *str, int32_t len);
+char* addEscapeCharToString(char *str, int32_t len);
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
 bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
 bool isValidInteger(char *str);
