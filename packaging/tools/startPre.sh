@@ -9,8 +9,8 @@ line=`grep StartLimitBurst ${taosd}`
 num=${line##*=}
 #echo "burst num: ${num}"
 
-startSeqFile=/usr/local/taos/.startSeq
-recordFile=/usr/local/taos/.startRecord
+startSeqFile=/var/log/taos/.startSeq
+recordFile=/var/log/taos/.startRecord
 
 startSeq=0
 
