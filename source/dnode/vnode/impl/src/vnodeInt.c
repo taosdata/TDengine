@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
 #define _DEFAULT_SOURCE
 #include "vnodeInt.h"
 #include "tqueue.h"
@@ -70,3 +71,5 @@ void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType) {
       break;
   }
 }
+
+#endif

@@ -13,21 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#ifndef _TD_VNODE_IMPL_H_
+#define _TD_VNODE_IMPL_H_
 
-#include "vnode.h"
+#include "os.h"
+
+#include "meta.h"
+#include "tq.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void SVnodeMsg;
-
-void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
+struct SVnodeOptions {
+  STsdbOptions tsdbOptions;
+  SMetaOptions metaOptions;
+  // STqOptions   tqOptions; // TODO
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_WRITE_H_*/
+#endif /*_TD_VNODE_IMPL_H_*/

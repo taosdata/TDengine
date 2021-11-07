@@ -13,21 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#include "vnodeDef.h"
 
-#include "vnode.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef void SVnodeMsg;
-
-void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
-
-#ifdef __cplusplus
+SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions) {
+  SVnode *pVnode = NULL;
+  /* TODO */
+  return pVnode;
 }
-#endif
 
-#endif /*_TD_VNODE_WRITE_H_*/
+void vnodeCloee(SVnode *pVnode) { /* TODO */
+}
+
+void vnodeDestroy(const char *path) { taosRemoveDir(path); }

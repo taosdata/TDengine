@@ -39,16 +39,6 @@ extern int32_t vDebugFlag;
 #define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 
-typedef struct SVnode {
-  int32_t    vgId;
-  SVnodeCfg  cfg;
-  SMeta     *pMeta;
-  STsdb     *pTsdb;
-  STQ       *pTQ;
-  SWal      *pWal;
-  SSyncNode *pSync;
-} SVnode;
-
 #ifdef __cplusplus
 }
 #endif

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#ifndef _TD_VNODE_DEF_H_
+#define _TD_VNODE_DEF_H_
 
 #include "vnode.h"
 
@@ -22,12 +22,11 @@
 extern "C" {
 #endif
 
-typedef void SVnodeMsg;
-
-void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
+struct SVnode {
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_WRITE_H_*/
+#endif /*_TD_VNODE_DEF_H_*/

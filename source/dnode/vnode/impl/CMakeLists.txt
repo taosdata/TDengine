@@ -7,6 +7,7 @@ target_include_directories(
 )
 target_link_libraries(
     vnode
+    PUBLIC os
     PUBLIC transport
     PUBLIC meta
     PUBLIC tq

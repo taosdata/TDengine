@@ -13,21 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_WRITE_H_
-#define _TD_VNODE_WRITE_H_
+#include "vnodeDef.h"
 
-#include "vnode.h"
+void vnodeOptionsInit(SVnodeOptions *pVnodeOptions) { /* TODO */ }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef void SVnodeMsg;
-
-void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_VNODE_WRITE_H_*/
+void vnodeOptionsClear(SVnodeOptions *pVnodeOptions) { /* TODO */ }

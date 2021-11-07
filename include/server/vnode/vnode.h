@@ -16,15 +16,29 @@
 #ifndef _TD_VNODE_H_
 #define _TD_VNODE_H_
 
-#include "os.h"
-#include "taosmsg.h"
-#include "trpc.h"
+#include "impl/vnodeImpl.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SVnode SVnode;
+/* ------------------------ TYPES EXPOSED ------------------------ */
+typedef struct SVnode        SVnode;
+typedef struct SVnodeOptions SVnodeOptions;
+
+/* ------------------------ SVnode ------------------------ */
+SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
+void    vnodeClose(SVnode *pVnode);
+void    vnodeDestroy(const char *path);
+
+/* ------------------------ SVnodeOptions ------------------------ */
+void vnodeOptionsInit(SVnodeOptions *);
+void vnodeOptionsClear(SVnodeOptions *);
+
+#if 1
+
+#include "taosMsg.h"
+#include "trpc.h"
 
 typedef struct {
   char       db[TSDB_FULL_DB_NAME_LEN];
@@ -70,8 +84,6 @@ typedef struct {
 int32_t vnodeInit(SVnodePara);
 void    vnodeCleanup();
 
-SVnode *vnodeOpen(int32_t vgId, const char *path);
-void    vnodeClose(SVnode *pVnode);
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
 void    vnodeDrop(SVnode *pVnode);
@@ -84,6 +96,8 @@ SVnodeMsg *vnodeInitMsg(int32_t msgNum);
 int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
 void       vnodeCleanupMsg(SVnodeMsg *pMsg);
 void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType);
+
+#endif
 
 #ifdef __cplusplus
 }
