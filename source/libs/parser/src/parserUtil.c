@@ -527,6 +527,44 @@ void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t fla
   }
 }
 
+SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema) {
+  SColumn c;
+  c.uid = uid;
+  c.flag = flag;
+  c.info.colId = pSchema->colId;
+  c.info.bytes = pSchema->bytes;
+  c.info.type = pSchema->type;
+
+  if (tableName != NULL) {
+    snprintf(c.name, tListLen(c.name), "%s.%s", tableName, pSchema->name);
+  } else {
+    tstrncpy(c.name, pSchema->name, tListLen(c.name));
+  }
+
+  return c;
+}
+
+SSourceParam addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn) {
+  assert(pSourceParam != NULL);
+  pSourceParam->num += 1;
+
+  if (pSourceParam->pExprNodeList != NULL) {
+    assert(pNode != NULL && pColumn == NULL);
+    if (pSourceParam->pExprNodeList == NULL) {
+      pSourceParam->pExprNodeList = taosArrayInit(4, POINTER_BYTES);
+    }
+
+    taosArrayPush(pSourceParam->pExprNodeList, &pNode);
+  } else {
+    assert(pColumn != NULL);
+    if (pSourceParam->pColumnList == NULL) {
+      pSourceParam->pColumnList = taosArrayInit(4, POINTER_BYTES);
+    }
+
+    taosArrayPush(pSourceParam->pColumnList, &pColumn);
+  }
+}
+
 int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
 }

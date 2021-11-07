@@ -4379,7 +4379,7 @@ int32_t functionCompatList[] = {
     6,          8,        7,
 };
 
-SAggFunctionInfo aggFunc[34] = {{
+SAggFunctionInfo aggFunc[35] = {{
                               // 0, count function does not invoke the finalize function
                               "count",
                               FUNCTION_TYPE_AGG,
@@ -4820,4 +4820,18 @@ SAggFunctionInfo aggFunc[34] = {{
                               blockinfo_func_finalizer,
                               block_func_merge,
                               dataBlockRequired,
-                          }};
+                          },
+                          {
+                              // 34
+                              "cov",   // return table id and the corresponding tags for join match and subscribe
+                              FUNCTION_TYPE_AGG,
+                              FUNCTION_COV,
+                              FUNCTION_COV,
+                              FUNCSTATE_SO | FUNCSTATE_STABLE,
+                              function_setup,
+                              sum_function,
+                              function_finalizer,
+                              sum_func_merge,
+                              statisRequired,
+                          }
+                          };

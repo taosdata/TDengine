@@ -28,7 +28,7 @@ extern "C" {
 #include "function.h"
 #include "tudf.h"
 
-extern SAggFunctionInfo aggFunc[34];
+extern SAggFunctionInfo aggFunc[35];
 
 typedef struct SResultRowEntryInfo {
   int8_t   hasResult;       // result generated, not NULL value

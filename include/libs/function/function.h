@@ -78,6 +78,8 @@ extern "C" {
 #define FUNCTION_MODE         36
 #define FUNCTION_SAMPLE       37
 
+#define FUNCTION_COV          38
+
 // determine the real data need to calculated the result
 enum {
   BLK_DATA_NO_NEEDED     = 0x0,

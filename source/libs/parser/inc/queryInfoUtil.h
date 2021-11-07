@@ -28,7 +28,8 @@ int32_t  getNumOfTags(const STableMeta* pTableMeta);
 SSchema *getTableColumnSchema(const STableMeta *pTableMeta);
 SSchema *getTableTagSchema(const STableMeta* pTableMeta);
 
-size_t     getNumOfExprs(SQueryStmtInfo* pQueryInfo);
+SArray  *getCurrentExprList(SQueryStmtInfo* pQueryInfo);
+size_t   getNumOfExprs(SQueryStmtInfo* pQueryInfo);
 SExprInfo* createBinaryExprInfo(struct tExprNode* pNode, SSchema* pResSchema);
 
 void       addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t level);

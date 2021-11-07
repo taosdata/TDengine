@@ -166,7 +166,16 @@ void columnListCopy(SArray* dst, const SArray* src, uint64_t uid);
 void columnListDestroy(SArray* pColumnList);
 
 void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel);
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, struct tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize);
+
+typedef struct SSourceParam {
+//  struct tExprNode **pExprNode;
+  SArray            *pExprNodeList; //Array<struct tExprNode*>
+//  SColumn           *pCols;
+  SArray            *pColumnList;   //Array<struct SColumn>
+  int32_t    num;
+} SSourceParam;
+
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);

@@ -394,14 +394,14 @@ void sqlCheck(const char* sql, bool valid) {
 //}
 
 TEST(testCase, function_Test10) {
-//  sqlCheck("select c from `t.1abc`", true);
-//  sqlCheck("select length(c) from `t.1abc`", true);
-//  sqlCheck("select sum(length(a+b)) from `t.1abc`", true);
-//  sqlCheck("select sum(sum(a+b)) from `t.1abc`", false);
-//  sqlCheck("select sum(length(a) + length(b)) from `t.1abc`", true);
-//  sqlCheck("select length(sum(a) + sum(b)) + length(sum(a) + sum(b)) from `t.1abc`", true);
-//  sqlCheck("select sum(length(sum(a))) from `t.1abc`", true);
-  sqlCheck("select concat(a,b) from `t.1abc`", true);
+  sqlCheck("select c from `t.1abc`", true);
+  sqlCheck("select length(c) from `t.1abc`", true);
+  sqlCheck("select sum(length(a+b)) from `t.1abc`", true);
+  sqlCheck("select sum(sum(a+b)) from `t.1abc`", false);
+  sqlCheck("select sum(length(a) + length(b)) from `t.1abc`", true);
+  sqlCheck("select length(sum(a) + sum(b)) + length(sum(a) + sum(b)) from `t.1abc`", true);
+  sqlCheck("select sum(length(sum(a))) from `t.1abc`", true);
+  sqlCheck("select cov(a, b) from `t.1abc`", true);
 //  sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
 //  sqlCheck("select length(length(length(a))) from `t.1abc`", true);
 }

@@ -39,6 +39,9 @@ extern "C" {
 TAOS_FIELD createField(const SSchema* pSchema);
 SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
+SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
+
+SSourceParam addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);
 
 SInternalField* insertFieldInfo(SFieldInfo* pFieldInfo, int32_t index, SSchema* field);
 int32_t getNumOfFields(SFieldInfo* pFieldInfo);

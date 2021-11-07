@@ -191,7 +191,7 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
       SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, i);
       SSchema resultSchema = *pSchema;
 
-      SExprInfo* p = createExprInfo(pTableMetaInfo1, FUNCTION_PRJ, &index, NULL, &resultSchema, 0);
+      SExprInfo* p = NULL;//createExprInfo(pTableMetaInfo1, FUNCTION_PRJ, &index, NULL, &resultSchema, 0);
       pExpr[i] = p;
     }
 

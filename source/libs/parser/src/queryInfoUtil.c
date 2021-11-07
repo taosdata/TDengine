@@ -18,8 +18,14 @@ SSchema* getTbnameColumnSchema() {
   return &_s;
 }
 
+SArray* getCurrentExprList(SQueryStmtInfo* pQueryInfo) {
+  assert(pQueryInfo != NULL && pQueryInfo->exprListLevelIndex >= 0 && pQueryInfo->exprListLevelIndex < 10);
+  return pQueryInfo->exprList[pQueryInfo->exprListLevelIndex];
+}
+
 size_t getNumOfExprs(SQueryStmtInfo* pQueryInfo) {
-  return taosArrayGetSize(pQueryInfo->exprList[0]);
+  SArray* pExprList = getCurrentExprList(pQueryInfo);
+  return taosArrayGetSize(pExprList);
 }
 
 SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
@@ -55,21 +61,29 @@ SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
-static tExprNode* createFunctionExprNode(int32_t functionId, SSchema* pSchema, tExprNode* pColumnNode, int32_t numOfCols) {
-  if (pColumnNode == NULL) {
-    pColumnNode = calloc(1, sizeof(tExprNode));
-    pColumnNode->nodeType = TEXPR_COL_NODE;
-    pColumnNode->pSchema = calloc(1, sizeof(SSchema));
-    memcpy(pColumnNode->pSchema, pSchema, sizeof(SSchema));
+static tExprNode* createFunctionExprNode(int32_t functionId, struct SSourceParam *pParam) {//SSchema* pSchema, tExprNode* pColumnNode, int32_t numOfCols) {
+  tExprNode** p = malloc(pParam->num * POINTER_BYTES);
+
+  if (pParam->pColumnList != NULL) {
+    for(int32_t i = 0; i < pParam->num; ++i) {
+      p[i] = calloc(1, sizeof(tExprNode));
+      p[i]->nodeType = TEXPR_COL_NODE;
+      p[i]->pSchema = calloc(1, sizeof(SSchema));
+      memcpy(p[i]->pSchema, taosArrayGetP(pParam->pColumnList, i), sizeof(SSchema));
+    }
   } else {
-    assert(pSchema == NULL);
+    assert(pParam->pColumnList == NULL);
+    for(int32_t i = 0; i < pParam->num; ++i) {
+      p[i] = taosArrayGetP(pParam->pExprNodeList, i);
+    }
   }
 
   tExprNode* pNode = calloc(1, sizeof(tExprNode));
+
   pNode->nodeType = TEXPR_FUNCTION_NODE;
   pNode->_function.functionId = functionId;
-  pNode->_function.pChild = pColumnNode;
-  pNode->_function.num = numOfCols;
+  pNode->_function.pChild = p;
+  pNode->_function.num = pParam->num;
 
   return pNode;
 }
@@ -87,7 +101,7 @@ SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema) {
   return pExpr;
 }
 
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize) {
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SSourceParam* pSourceParam, SSchema* pResSchema, int16_t interSize) {
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
   if (pExpr == NULL) {
     return NULL;
@@ -99,42 +113,35 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SC
   }
 
   SSqlExpr* p = &pExpr->base;
-  p->pColumns  = calloc(1, sizeof(SColumn));
-  p->numOfCols = 1;
 
-  if (pParamExpr != NULL) {
-    pExpr->pExpr = createFunctionExprNode(functionId, NULL, pParamExpr, 1);
-    // todo set the correct number of columns
-  } else if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-    assert(pParamExpr == NULL);
+  p->pColumns   = calloc(pSourceParam->num, sizeof(SColumn));
+  p->numOfCols  = pSourceParam->num;
+  p->interBytes = interSize;
+  memcpy(&p->resSchema, pResSchema, sizeof(SSchema));
+
+  if (pSourceParam->pExprNodeList != NULL) {
+    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
+    return pExpr;
+  }
+
+  SColumn* pCol = taosArrayGetP(pSourceParam->pColumnList, 0);
+  if (pCol->info.colId == TSDB_TBNAME_COLUMN_INDEX) {
+    assert(pSourceParam->num == 1);
 
     SSchema* s = getTbnameColumnSchema();
     setColumn(p->pColumns, uid, pTableMetaInfo->aliasName, TSDB_COL_TAG, s);
 
-    pExpr->pExpr = createFunctionExprNode(functionId, s, pParamExpr, 1);
-  } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX || functionId == FUNCTION_BLKINFO) {
-    assert(pParamExpr == NULL);
+    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
+  } else if (TSDB_COL_IS_UD_COL(pCol->flag) || functionId == FUNCTION_BLKINFO) {
     setColumn(p->pColumns, uid, pTableMetaInfo->aliasName, TSDB_COL_UDC, pResSchema);
-
-    SSchema s = createSchema(pResSchema->type, pResSchema->bytes, pColIndex->columnIndex, pResSchema->name);
-    pExpr->pExpr = createFunctionExprNode(functionId, &s, pParamExpr, 1);
+    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
   } else {
-    if (TSDB_COL_IS_TAG(pColIndex->type)) {
-      SSchema* pSchema = getTableTagSchema(pTableMetaInfo->pTableMeta);
-      setColumn(p->pColumns, uid, pTableMetaInfo->aliasName, TSDB_COL_TAG, &pSchema[pColIndex->columnIndex]);
-      pExpr->pExpr = createFunctionExprNode(functionId, &pSchema[pColIndex->columnIndex], pParamExpr, 1);
-    } else if (pTableMetaInfo->pTableMeta != NULL) {
-      // in handling select database/version/server_status(), the pTableMeta is NULL
-      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
-      setColumn(p->pColumns, uid, pTableMetaInfo->aliasName, TSDB_COL_NORMAL, pSchema);
-
-      pExpr->pExpr = createFunctionExprNode(functionId, pSchema, pParamExpr, 1);
+    for(int32_t i = 0; i < pSourceParam->num; ++i) {
+      SColumn* c = taosArrayGetP(pSourceParam->pColumnList, i);
+      p->pColumns[i] = *c;
     }
+    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
   }
-
-  p->pColumns->flag   = pColIndex->type;
-  p->interBytes       = interSize;
-  memcpy(&p->resSchema, pResSchema, sizeof(SSchema));
 
   return pExpr;
 }
@@ -149,7 +156,7 @@ void addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t
     taosArrayInsert(pExprList, index, &pExprInfo);
   }
 
-  printf("add function, id:%d, level:%d\n", pExprInfo->pExpr->_function.functionId, level);
+  printf("add function, id:%d, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionId, level, taosArrayGetSize(pExprList));
 }
 
 void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize) {
