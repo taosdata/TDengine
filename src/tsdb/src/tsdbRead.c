@@ -3653,6 +3653,9 @@ static bool tableFilterFp(const void* pNode, void* param) {
       return (val != NULL) && (!isNull(val, pInfo->sch.type));
     }
   } else if (pInfo->optr == TSDB_RELATION_IN) {
+     if(val == NULL) {
+       return false;
+     }
      int type = pInfo->sch.type;
      if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_TIMESTAMP) {
        int64_t v;
