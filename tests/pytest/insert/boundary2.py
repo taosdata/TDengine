@@ -61,6 +61,12 @@ class TDTestCase:
         tdSql.query("select count(*) from stb")
         tdSql.checkData(0, 0, 4096)
 
+        sql = "create table stb(ts timestamp, "
+        for i in range(15):
+            sql += "col%d binary(1022), " % (i + 1)
+        sql += "col1023 binary(1015))"
+        tdSql.error(sql)
+
         endTime = time.time()
 
         sql = "create table stb(ts timestamp, "

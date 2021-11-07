@@ -36,7 +36,8 @@ class TwoClients:
         tdDnodes.deploy(1)
         tdDnodes.start(1)
         
-        # first client create a stable and insert data
+        tdLog.sleep(2)
+        # first client create a stable and insert data        
         conn1 = taos.connect(host=self.host, user=self.user, password=self.password, config=tdDnodes.getSimCfgPath())
         cursor1 = conn1.cursor()
         cursor1.execute("drop database if exists db")
@@ -90,6 +91,8 @@ class TwoClients:
         cursor2.close()
         conn1.close()
         conn2.close()
+
+        tdLog.success("%s successfully executed" % __file__)
         
 clients = TwoClients()
 clients.initConnection()

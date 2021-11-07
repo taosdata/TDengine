@@ -38,6 +38,8 @@ void abs_max(char* data, short itype, short ibytes, int numOfRows, long long* ts
      *(long *)dataOutput=r;
 
      printf("abs_max out, dataoutput:%ld, numOfOutput:%d\n", *(long *)dataOutput, *numOfOutput);
+   } else {
+     *numOfOutput=0;
    }
 }
 
@@ -47,7 +49,7 @@ void abs_max_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfIn
    int i;
    int r = 0;
    printf("abs_max_finalize dataoutput:%p:%d, numOfOutput:%d, buf:%p\n", dataOutput, *dataOutput, *numOfOutput, buf);
-   *numOfOutput=1;
+
    printf("abs_max finalize, dataoutput:%ld, numOfOutput:%d\n", *(long *)dataOutput, *numOfOutput);
 }
 

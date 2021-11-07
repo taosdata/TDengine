@@ -2,7 +2,7 @@
 #
 # This file is used to install tdengine rpm package on centos systems. The operating system
 # is required to use systemd to manage services at boot
-#set -x
+# set -x
 
 iplist=""
 serverFqdn=""
@@ -86,6 +86,24 @@ function install_include() {
     ${csudo} ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+function install_avro_lib() {
+    ${csudo} rm -f ${lib_link_dir}/libavro* || :
+    ${csudo} rm -f ${lib64_link_dir}/libavro* || :
+
+    if [[ -f ${lib_dir}/libavro.so.23.0.0 ]]; then
+        ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23.0.0
+        ${csudo} ln -s ${lib_link_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23
+        ${csudo} ln -s ${lib_link_dir}/libavro.so.23 ${lib_link_dir}/libavro.so
+
+        if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libavro.so ]]; then
+            ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23.0.0           || :
+            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23   || :
+            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23 ${lib64_link_dir}/libavro.so   || :
+        fi
+    fi
+
+    ${csudo} ldconfig
+}
 function install_lib() {
     ${csudo} rm -f ${lib_link_dir}/libtaos* || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos* || :
@@ -97,6 +115,8 @@ function install_lib() {
       ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
     fi
+
+    ${csudo} ldconfig
 }
 
 function install_bin() {
@@ -127,7 +147,7 @@ function add_newHostname_to_hosts() {
   iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
   arr=($iphost)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
     if [[ "$s" == "$localIp" ]]; then
       return
@@ -182,7 +202,7 @@ function is_correct_ipaddr() {
   IFS=" "
   arr=($iplist)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
    if [[ "$s" == "$newIp" ]]; then
      return 0
@@ -280,11 +300,8 @@ function install_blm3_config() {
             ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
     fi
 
-    # restore the backup standard input, and turn off 6
-    exec 0<&6 6<&-
-
     [ -f ${cfg_dir}/blm.toml ] &&
-        ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.org
+        ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.new
 
     [ -f ${cfg_install_dir}/blm.toml ] &&
         ${csudo} ln -s ${cfg_install_dir}/blm.toml ${cfg_dir}
@@ -305,7 +322,7 @@ function install_config() {
     # restore the backup standard input, and turn off 6
     exec 0<&6 6<&-
 
-    ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
+    ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.new
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
     #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
     #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
@@ -427,8 +444,8 @@ function install_service_on_systemd() {
 
     ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target blm3.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target blm3.service'        >> ${taosd_service_config}"
     ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
@@ -447,6 +464,10 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
     ${csudo} systemctl enable taosd
+}
+
+function install_blm3_service() {
+    [ -f ${cfg_dir}/blm3.service ] && ${csudo} cp ${cfg_dir}/blm3.service ${service_config_dir}
 }
 
 function install_service() {
@@ -477,10 +498,12 @@ function install_TDengine() {
     # Install include, lib, binary and service
     install_include
     install_lib
+    install_avro_lib
     install_bin
-    install_service
     install_config
     install_blm3_config
+    install_blm3_service
+    install_service
 
     # Ask if to start the service
     #echo

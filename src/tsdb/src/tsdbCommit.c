@@ -1080,11 +1080,10 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   // Get # of cols not all NULL(not including key column)
   int nColsNotAllNull = 0;
-  int nAggrCols = 0;
   for (int ncol = 1; ncol < pDataCols->numOfCols; ncol++) {  // ncol from 1, we skip the timestamp column
     SDataCol *   pDataCol = pDataCols->cols + ncol;
     SBlockCol *  pBlockCol = pBlockData->cols + nColsNotAllNull;
-    SAggrBlkCol *pAggrBlkCol = pAggrBlkData->cols + nColsNotAllNull;
+    SAggrBlkCol *pAggrBlkCol = (SAggrBlkCol *)pAggrBlkData + nColsNotAllNull;
 
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
@@ -1106,7 +1105,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pAggrBlkCol->min), &(pAggrBlkCol->max),
                                                &(pAggrBlkCol->sum), &(pAggrBlkCol->minIndex), &(pAggrBlkCol->maxIndex),
                                                &(pAggrBlkCol->numOfNull));
-      ++nAggrCols;
     }
     nColsNotAllNull++;
   }
@@ -1188,9 +1186,8 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
     return -1;
   }
 
-  uint32_t aggrStatus = ((nAggrCols > 0) && (rowsToWrite > 8)) ? 1 : 0;  // TODO: How to make the decision?
+  uint32_t aggrStatus = ((nColsNotAllNull > 0) && (rowsToWrite > 8)) ? 1 : 0;  // TODO: How to make the decision?
   if (aggrStatus > 0) {
-    pAggrBlkData->numOfCols = nColsNotAllNull;
 
     taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
     tsdbUpdateDFileMagic(pDFileAggr, POINTER_SHIFT(pAggrBlkData, tsizeAggr - sizeof(TSCKSUM)));
@@ -1216,7 +1213,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
   pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = (uint64_t)offsetAggr;
-  pBlock->aggrLen = tsizeAggr;
 
   tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
@@ -1472,7 +1468,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       for (int i = 0; i < pDataCols->numOfCols; i++) {
         //TODO: dataColAppendVal may fail
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
-                         pTarget->maxPoints);
+                         pTarget->maxPoints, 0);
       }
 
       pTarget->numOfRows++;
@@ -1484,7 +1480,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
+      tdAppendMemRowToDataCol(row, pSchema, pTarget, true, 0);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
@@ -1493,7 +1489,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         for (int i = 0; i < pDataCols->numOfCols; i++) {
           //TODO: dataColAppendVal may fail
           dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
-                           pTarget->maxPoints);
+                           pTarget->maxPoints, 0);
         }
 
         if(update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
@@ -1506,7 +1502,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
           ASSERT(pSchema != NULL);
         }
 
-        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE,
+                                update != TD_ROW_PARTIAL_UPDATE ? 0 : -1);
       }
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);

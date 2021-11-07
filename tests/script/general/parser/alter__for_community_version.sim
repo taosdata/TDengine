@@ -79,15 +79,16 @@ endi
 if $data07 != 13 then 
  return -1
 endi
-sql alter database $db keep 365000
+sql alter database $db keep 36500
 sql show databases
 if $rows != 1 then
   return -1
 endi
-if $data07 != 365000 then 
+if $data07 != 36500 then 
  return -1
 endi
 
+sql_error alter database $db keep 365000
 
 ##### alter table test, simeplest case
 sql create table tb (ts timestamp, c1 int, c2 int, c3 int)

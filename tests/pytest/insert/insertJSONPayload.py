@@ -15,6 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 
 class TDTestCase:
@@ -35,7 +36,7 @@ class TDTestCase:
         print("============= step0 : test metric  ================")
         payload = ['''
         {
-	    "metric":	"`.stb.0.`",
+	    "metric":	".stb.0.",
 	    "timestamp":	1626006833610,
 	    "value":	10,
 	    "tags":	{
@@ -46,7 +47,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `.stb.0.`")
@@ -67,7 +68,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_0")
@@ -86,7 +87,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_1")
@@ -105,7 +106,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_2")
@@ -124,7 +125,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_3")
@@ -143,7 +144,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_4")
@@ -162,7 +163,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_5")
@@ -184,7 +185,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         ### timestamp 10 digits second ###
@@ -201,7 +202,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         print("============= step3 : test tags  ================")
@@ -216,7 +217,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_8")
@@ -232,7 +233,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_9")
@@ -248,7 +249,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_10")
@@ -274,7 +275,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_0")
@@ -297,7 +298,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_1")
@@ -320,7 +321,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_2")
@@ -343,7 +344,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("select ts from stb1_3")
@@ -367,7 +368,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         ### metric value ###
@@ -390,7 +391,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_0")
@@ -415,7 +416,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_1")
@@ -440,7 +441,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_2")
@@ -465,7 +466,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_3")
@@ -490,7 +491,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_4")
@@ -515,7 +516,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_5")
@@ -540,7 +541,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_6")
@@ -565,7 +566,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_7")
@@ -590,7 +591,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb2_8")
@@ -649,7 +650,7 @@ class TDTestCase:
 	    }
         }
         ''']
-        code = self._conn.schemaless_insert(payload, 2, None)
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb3_0")
@@ -662,6 +663,183 @@ class TDTestCase:
         tdSql.checkData(8, 1, "DOUBLE")
         tdSql.checkData(9, 1, "BINARY")
         tdSql.checkData(10, 1, "NCHAR")
+
+        ### special characters ###
+
+        payload = ['''
+        {
+	    "metric":	 "1234",
+	    "timestamp": 1626006833,
+	    "value":     1,
+	    "tags":	{
+		"id":	        "123",
+		"456":	        true,
+		"int":	        false,
+		"double":       1,
+		"into":         1,
+		"from":         2,
+		"!@#$.%^&*()":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
+        print("schemaless_insert result {}".format(code))
+
+        tdSql.query("describe `1234`")
+        tdSql.checkRows(8)
+
+        tdSql.query("select * from `123`")
+        tdSql.checkRows(1)
+
+        payload = ['''
+        {
+	    "metric":	 "int",
+	    "timestamp": 1626006833,
+	    "value":     1,
+	    "tags":	{
+		"id":	        "and",
+		"456":	        true,
+		"int":	        false,
+		"double":       1,
+		"into":         1,
+		"from":         2,
+		"!@#$.%^&*()":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
+        print("schemaless_insert result {}".format(code))
+
+        tdSql.query("describe `int`")
+        tdSql.checkRows(8)
+
+        tdSql.query("select * from `and`")
+        tdSql.checkRows(1)
+
+        payload = ['''
+        {
+	    "metric":	 "double",
+	    "timestamp": 1626006833,
+	    "value":     1,
+	    "tags":	{
+		"id":	        "for",
+		"456":	        true,
+		"int":	        false,
+		"double":       1,
+		"into":         1,
+		"from":         2,
+		"!@#$.%^&*()":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
+        print("schemaless_insert result {}".format(code))
+
+        tdSql.query("describe `double`")
+        tdSql.checkRows(8)
+
+        tdSql.query("select * from `for`")
+        tdSql.checkRows(1)
+
+        payload = ['''
+        {
+	    "metric":	 "from",
+	    "timestamp": 1626006833,
+	    "value":     1,
+	    "tags":	{
+		"id":	        "!@#.^&",
+		"456":	        true,
+		"int":	        false,
+		"double":       1,
+		"into":         1,
+		"from":         2,
+		"!@#$.%^&*()":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
+        print("schemaless_insert result {}".format(code))
+
+        tdSql.query("describe `from`")
+        tdSql.checkRows(8)
+
+        tdSql.query("select * from `!@#.^&`")
+        tdSql.checkRows(1)
+
+        payload = ['''
+        {
+	    "metric":	 "!@#$.%^&*()",
+	    "timestamp": 1626006833,
+	    "value":     1,
+	    "tags":	{
+		"id":	        "none",
+		"456":	        true,
+		"int":	        false,
+		"double":       1,
+		"into":         1,
+		"from":         2,
+		"!@#$.%^&*()":	"123_abc_.!@#$%^&*:;,./?|+-=()[]{}<>"
+	    }
+        }
+        ''']
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
+        print("schemaless_insert result {}".format(code))
+
+        tdSql.query("describe `!@#$.%^&*()`")
+        tdSql.checkRows(8)
+
+        tdSql.query("select * from `none`")
+        tdSql.checkRows(1)
+
+        payload = ['''
+        {
+	    "metric":	"STABLE",
+	    "timestamp":	{
+		"value":	1626006833,
+		"type":	"s"
+	    },
+	    "value":	{
+		"value":	"hello",
+		"type":	"nchar"
+	    },
+	    "tags":	{
+                "id":   "KEY",
+		"456":	{
+			"value":	true,
+			"type":	"bool"
+		},
+		"int":	{
+			"value":	127,
+			"type":	"tinyint"
+		},
+		"double":{
+			"value":	32767,
+			"type":	"smallint"
+		},
+		"into":	{
+			"value":	2147483647,
+			"type":	"int"
+		},
+		"INSERT":	{
+			"value":	9.2233720368547758e+18,
+			"type":	"bigint"
+		},
+		"!@#$.%^&*()":	{
+			"value":	11.12345,
+			"type":	"float"
+		}
+	    }
+        }
+        ''']
+
+        code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
+        print("schemaless_insert result {}".format(code))
+
+        tdSql.query("describe `stable`")
+        tdSql.checkRows(8)
+
+        tdSql.query("select * from `key`")
+        tdSql.checkRows(1)
 
 
     def stop(self):

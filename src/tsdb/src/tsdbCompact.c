@@ -67,7 +67,9 @@ int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
 void *tsdbCompactImpl(STsdbRepo *pRepo) {
   // Check if there are files in TSDB FS to compact
   if (REPO_FS(pRepo)->cstatus->pmf == NULL) {
-    tsdbInfo("vgId:%d no file to compact in FS", REPO_ID(pRepo));
+    pRepo->compactState = TSDB_NO_COMPACT;
+    tsem_post(&(pRepo->readyToCommit));
+    tsdbInfo("vgId:%d compact over, no file to compact in FS", REPO_ID(pRepo));
     return NULL;
   }
 
@@ -441,6 +443,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       if ((tdInitDataCols(pComph->pDataCols, pSchema) < 0) || (tdInitDataCols(pReadh->pDCols[0], pSchema) < 0) ||
           (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0)) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tdFreeSchema(pSchema);
         return -1;
       }
       tdFreeSchema(pSchema);

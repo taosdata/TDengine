@@ -155,6 +155,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscGroupbyTag(SQueryInfo* pQueryInfo);
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
@@ -251,6 +252,7 @@ void tscColumnListCopyAll(SArray* dst, const SArray* src);
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
+void tscRmEscapeAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded);
 
 void tscIncStreamExecutionCount(void* pStream);
