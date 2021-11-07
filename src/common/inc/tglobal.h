@@ -45,7 +45,7 @@ extern int32_t  tsDnodeId;
 // common
 extern int      tsRpcTimer;
 extern int      tsRpcMaxTime;
-extern int      tsRpcForceTcp; // all commands go to tcp protocol if this is enabled
+extern int      tsRpcForceTcp;  // all commands go to tcp protocol if this is enabled
 extern int32_t  tsMaxConnections;
 extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
@@ -56,18 +56,19 @@ extern float    tsRatioOfQueryCores;
 extern int8_t   tsDaylight;
 extern char     tsTimezone[];
 extern char     tsLocale[];
-extern char     tsCharset[];            // default encode string
+extern char     tsCharset[];  // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
-//query buffer management
-extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t  tsQueryBufferSizeBytes; // maximum allowed usage buffer size in byte for each data node during query processing
-extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
+// query buffer management
+extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
+extern int64_t
+    tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node during query processing
+extern int32_t tsRetrieveBlockingModel;  // retrieve threads will be blocked
 
-extern int8_t   tsKeepOriginalColumnName;
+extern int8_t tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsMaxSQLStringLen;
@@ -126,6 +127,7 @@ extern int8_t   tsHttpEnableCompress;
 extern int8_t   tsHttpEnableRecordSql;
 extern int8_t   tsTelegrafUseFieldNum;
 extern int8_t   tsHttpDbNameMandatory;
+extern int32_t  tsHttpKeepAlive;
 
 // mqtt
 extern int8_t tsEnableMqttModule;
@@ -162,22 +164,22 @@ extern int64_t tsTickPerDay[3];
 extern int32_t tsTopicBianryLen;
 
 // system info
-extern char    tsOsName[];
-extern int64_t tsPageSize;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
-extern float   tsTotalLogDirGB;
-extern float   tsTotalTmpDirGB;
-extern float   tsTotalDataDirGB;
-extern float   tsAvailLogDirGB;
-extern float   tsAvailTmpDirectorySpace;
-extern float   tsAvailDataDirGB;
-extern float   tsUsedDataDirGB;
-extern float   tsMinimalLogDirGB;
-extern float   tsReservedTmpDirectorySpace;
-extern float   tsMinimalDataDirGB;
-extern int32_t tsTotalMemoryMB;
+extern char     tsOsName[];
+extern int64_t  tsPageSize;
+extern int64_t  tsOpenMax;
+extern int64_t  tsStreamMax;
+extern int32_t  tsNumOfCores;
+extern float    tsTotalLogDirGB;
+extern float    tsTotalTmpDirGB;
+extern float    tsTotalDataDirGB;
+extern float    tsAvailLogDirGB;
+extern float    tsAvailTmpDirectorySpace;
+extern float    tsAvailDataDirGB;
+extern float    tsUsedDataDirGB;
+extern float    tsMinimalLogDirGB;
+extern float    tsReservedTmpDirectorySpace;
+extern float    tsMinimalDataDirGB;
+extern int32_t  tsTotalMemoryMB;
 extern uint32_t tsVersion;
 
 // build info
@@ -188,26 +190,28 @@ extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 // log
-extern int8_t  tsAsyncLog;
-extern int32_t tsNumOfLogLines;
-extern int32_t tsLogKeepDays;
-extern int32_t dDebugFlag;
-extern int32_t vDebugFlag;
-extern int32_t mDebugFlag;
+extern int8_t   tsAsyncLog;
+extern int32_t  tsNumOfLogLines;
+extern int32_t  tsLogKeepDays;
+extern int32_t  dDebugFlag;
+extern int32_t  vDebugFlag;
+extern int32_t  mDebugFlag;
 extern uint32_t cDebugFlag;
-extern int32_t jniDebugFlag;
-extern int32_t tmrDebugFlag;
-extern int32_t sdbDebugFlag;
-extern int32_t httpDebugFlag;
-extern int32_t mqttDebugFlag;
-extern int32_t monDebugFlag;
-extern int32_t uDebugFlag;
-extern int32_t rpcDebugFlag;
-extern int32_t odbcDebugFlag;
+extern int32_t  jniDebugFlag;
+extern int32_t  tmrDebugFlag;
+extern int32_t  sdbDebugFlag;
+extern int32_t  httpDebugFlag;
+extern int32_t  mqttDebugFlag;
+extern int32_t  monDebugFlag;
+extern int32_t  uDebugFlag;
+extern int32_t  rpcDebugFlag;
+extern int32_t  odbcDebugFlag;
 extern uint32_t qDebugFlag;
-extern int32_t wDebugFlag;
-extern int32_t cqDebugFlag;
-extern int32_t debugFlag;
+extern int32_t  wDebugFlag;
+extern int32_t  cqDebugFlag;
+extern int32_t  debugFlag;
+
+extern int8_t tsClientMerge;
 
 #ifdef TD_TSZ
 // lossy 
@@ -216,8 +220,9 @@ extern double fPrecision;
 extern double dPrecision;
 extern uint32_t maxRange;
 extern uint32_t curRange;
-extern char Compressor[];
+extern char     Compressor[];
 #endif
+
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

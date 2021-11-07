@@ -67,6 +67,8 @@ static void httpDestroyContext(void *data) {
     pContext->parser = NULL;
   }
 
+  pthread_mutex_destroy(&pContext->ctxMutex);
+
   tfree(pContext);
 }
 
@@ -121,12 +123,14 @@ HttpContext *httpCreateContext(SOCKET fd) {
 
   TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pContext;
   HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pContext,
-                                         sizeof(TSDB_CACHE_PTR_TYPE), 3000);
+                                         sizeof(TSDB_CACHE_PTR_TYPE), tsHttpKeepAlive);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
   // set the ref to 0
   taosCacheRelease(tsHttpServer.contextCache, (void **)&ppContext, false);
+
+  pthread_mutex_init(&pContext->ctxMutex, NULL);
 
   return pContext;
 }

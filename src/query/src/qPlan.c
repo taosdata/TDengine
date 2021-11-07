@@ -645,6 +645,12 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     } else {
       op = OP_Project;
       taosArrayPush(plan, &op);
+
+      if (pQueryAttr->pExpr2 != NULL) {
+        op = OP_Project;
+        taosArrayPush(plan, &op);
+      }
+
       if (pQueryAttr->distinct) {
         op = OP_Distinct;
         taosArrayPush(plan, &op);

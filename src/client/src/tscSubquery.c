@@ -2881,7 +2881,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     SSqlObj *userSql = pParentSql->rootObj;
 
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
-      if (userSql != pParentSql) {
+      if (userSql != pParentSql && pParentSql->freeParam != NULL) {
         (*pParentSql->freeParam)(&pParentSql->param);
       }
 
