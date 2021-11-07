@@ -37,48 +37,42 @@
 #include "mnodeTelem.h"
 
 static struct {
-  int32_t  state;
-  int32_t  dnodeId;
-  int64_t  clusterId;
-  tmr_h    timer;
-  SMnodeFp fp;
-  SSteps * steps1;
-  SSteps * steps2;
+  int32_t    state;
+  int32_t    dnodeId;
+  int64_t    clusterId;
+  tmr_h      timer;
+  SSteps    *steps1;
+  SSteps    *steps2;
+  SMnodePara para;
 } tsMint;
 
 tmr_h mnodeGetTimer() { return tsMint.timer; }
 
-int32_t mnodeGetDnodeId() { return tsMint.dnodeId; }
+int32_t mnodeGetDnodeId() { return tsMint.para.dnodeId; }
 
-int64_t mnodeGetClusterId() { return tsMint.clusterId; }
+int64_t mnodeGetClusterId() { return tsMint.para.clusterId; }
 
 EMnStatus mnodeGetStatus() { return tsMint.state; }
 
 void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg) {
-  (*tsMint.fp.SendMsgToDnode)(epSet, rpcMsg);
+  (*tsMint.para.SendMsgToDnode)(epSet, rpcMsg);
 }
 
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsMint.fp.SendMsgToMnode)(rpcMsg); }
+void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsMint.para.SendMsgToMnode)(rpcMsg); }
 
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell) { (*tsMint.fp.SendRedirectMsg)(rpcMsg, forShell); }
+void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell) { (*tsMint.para.SendRedirectMsg)(rpcMsg, forShell); }
 
-void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port) {
-  (*tsMint.fp.GetDnodeEp)(dnodeId, ep, fqdn, port);
-}
-
-int32_t mnodeGetStatistics(SMnodeStat *stat) { return 0; }
+int32_t mnodeGetLoad(SMnodeLoad *pLoad) { return 0; }
 
 static int32_t mnodeSetPara(SMnodePara para) {
-  tsMint.fp = para.fp;
-  tsMint.dnodeId = para.dnodeId;
-  tsMint.clusterId = para.clusterId;
+  tsMint.para = para;
 
-  if (tsMint.fp.SendMsgToDnode == NULL) return -1;
-  if (tsMint.fp.SendMsgToMnode == NULL) return -1;
-  if (tsMint.fp.SendRedirectMsg == NULL) return -1;
-  if (tsMint.fp.GetDnodeEp == NULL) return -1;
-  if (tsMint.dnodeId < 0) return -1;
-  if (tsMint.clusterId < 0) return -1;
+  if (tsMint.para.SendMsgToDnode == NULL) return -1;
+  if (tsMint.para.SendMsgToMnode == NULL) return -1;
+  if (tsMint.para.SendRedirectMsg == NULL) return -1;
+  if (tsMint.para.PutMsgIntoApplyQueue == NULL) return -1;
+  if (tsMint.para.dnodeId < 0) return -1;
+  if (tsMint.para.clusterId < 0) return -1;
 
   return 0;
 }
@@ -142,13 +136,13 @@ static void mnodeCleanupStep1() { taosStepCleanup(tsMint.steps1); }
 static void mnodeCleanupStep2() { taosStepCleanup(tsMint.steps2); }
 
 static bool mnodeNeedDeploy() {
-  if (tsMint.dnodeId > 0) return false;
-  if (tsMint.clusterId > 0) return false;
+  if (tsMint.para.dnodeId > 0) return false;
+  if (tsMint.para.clusterId > 0) return false;
   if (strcmp(tsFirst, tsLocalEp) != 0) return false;
   return true;
 }
 
-int32_t mnodeDeploy() {
+int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg) {
   if (tsMint.state != MN_STATUS_UNINIT) {
     mError("failed to deploy mnode since its deployed");
     return 0;
@@ -156,7 +150,7 @@ int32_t mnodeDeploy() {
     tsMint.state = MN_STATUS_INIT;
   }
 
-  if (tsMint.dnodeId <= 0 || tsMint.clusterId <= 0) {
+  if (tsMint.para.dnodeId <= 0 || tsMint.para.clusterId <= 0) {
     mError("failed to deploy mnode since cluster not ready");
     return TSDB_CODE_MND_NOT_READY;
   }
@@ -183,7 +177,7 @@ int32_t mnodeDeploy() {
   return 0;
 }
 
-void mnodeUnDeploy() {
+void mnodeUnDeploy(char *path) {
   sdbUnDeploy();
   mnodeCleanup();
 }
@@ -251,5 +245,6 @@ void mnodeCleanup() {
   }
 }
 
-int32_t mnodeStart() { return 0; }
+int32_t mnodeStart(char *path, SMnodeCfg *pCfg) { return 0; }
+int32_t mnodeAlter(SMnodeCfg *pCfg) { return 0; }
 void    mnodeStop() {}

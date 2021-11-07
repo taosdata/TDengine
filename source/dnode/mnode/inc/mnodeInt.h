@@ -32,7 +32,6 @@ EMnStatus mnodeGetStatus();
 void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
-void mnodeGetDnodeEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 
 #ifdef __cplusplus
 }

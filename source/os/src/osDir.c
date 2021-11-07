@@ -55,7 +55,7 @@ void taosRemoveDir(const char *dirname) {
   closedir(dir);
   rmdir(dirname);
 
-  printf("dir:%s is removed", dirname);
+  printf("dir:%s is removed\n", dirname);
 }
 
 bool taosDirExist(char *dirname) { return access(dirname, F_OK) == 0; }

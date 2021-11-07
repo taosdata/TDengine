@@ -983,7 +983,7 @@ static int32_t dnodeInitVnodeModule() {
 int32_t dnodeInitVnodes() {
   dInfo("dnode-vnodes start to init");
 
-  SSteps *pSteps = taosStepInit(3, dnodeReportStartup);
+  SSteps *pSteps = taosStepInit(6, dnodeReportStartup);
   taosStepAdd(pSteps, "dnode-vnode-env", dnodeInitVnodeModule, vnodeCleanup);
   taosStepAdd(pSteps, "dnode-vnode-mgmt", dnodeInitVnodeMgmtWorker, dnodeCleanupVnodeMgmtWorker);
   taosStepAdd(pSteps, "dnode-vnode-read", dnodeInitVnodeReadWorker, dnodeCleanupVnodeReadWorker);
