@@ -351,15 +351,13 @@ function install_config() {
         [ -f ${script_dir}/../cfg/taos.cfg ] &&
         ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/taos.cfg
-        ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-        ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg/taos.cfg
+        ${csudo} cp -f ${script_dir}/../cfg/taos.cfg \
+            ${cfg_install_dir}/taos.cfg.${verNumber}
+        ${csudo} ln -s ${cfg_install_dir}/taos.cfg \
+            ${install_main_dir}/cfg/taos.cfg
     else
-        if [ "$osType" != "Darwin" ]; then
-            ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-        else
-            ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org\
-                || ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_2_dir}/cfg/taos.cfg.org
-        fi
+        ${csudo} cp -f ${script_dir}/../cfg/taos.cfg \
+            ${cfg_install_dir}/taos.cfg.${verNumber}
     fi
 }
 
@@ -371,19 +369,15 @@ function install_blm3_config() {
         [ -f ${cfg_install_dir}/blm.toml ] &&
             ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
         [ -f ${binary_dir}/test/cfg/blm.toml ] &&
-            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
-        [ -f ${cfg_install_dir}/blm.toml ] &&
-            ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
+            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
+                ${cfg_install_dir}/blm.toml.${verNumber}
+        [ -f ${cfg_install_dir}/blm.toml ] && \
+            ${csudo} ln -s ${cfg_install_dir}/blm.toml \
+            ${install_main_dir}/cfg/blm.toml
     else
         if [ -f "${binary_dir}/test/cfg/blm.toml" ]; then
-            if [ "$osType" != "Darwin" ]; then
-                ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
-                    ${install_main_dir}/cfg/blm.toml.org
-            else
-                ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org \
-                    || ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
-                    ${install_main_2_dir}/cfg/blm.toml.org
-            fi
+            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
+                ${cfg_install_dir}/blm.toml.${verNumber}
         fi
     fi
 }
