@@ -21,8 +21,6 @@ extern "C" {
 #endif
 #include "vnodeInt.h"
 
-typedef void SVnodeMsg;
-
 void vnodeProcessReadMsg(SVnode *pVnode, SVnodeMsg *pMsg);
 
 #ifdef __cplusplus

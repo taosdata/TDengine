@@ -37,7 +37,7 @@ void vnodeOptionsClear(SVnodeOptions *);
 
 #if 1
 
-#include "taosMsg.h"
+#include "taosmsg.h"
 #include "trpc.h"
 
 typedef struct {

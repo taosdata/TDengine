@@ -22,8 +22,6 @@
 extern "C" {
 #endif
 
-typedef void SVnodeMsg;
-
 void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
 
 #ifdef __cplusplus

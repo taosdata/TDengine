@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if 0
 #define _DEFAULT_SOURCE
 #include "vnodeInt.h"
 #include "tqueue.h"
@@ -21,7 +20,6 @@
 int32_t vnodeInit(SVnodePara para) { return 0; }
 void    vnodeCleanup() {}
 
-SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }
 void    vnodeClose(SVnode *pVnode) {}
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg) { return NULL; }
@@ -71,5 +69,3 @@ void vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType) {
       break;
   }
 }
-
-#endif
