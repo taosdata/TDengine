@@ -35,12 +35,12 @@ fi
 if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taosd
   strip ${build_dir}/bin/taos
-  # lite version doesn't include blm3,  which will lead to no restful interface
+  # lite version doesn't include taosadapter,  which will lead to no restful interface
   bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh ${script_dir}/startPre.sh"
 else
   bin_files="${build_dir}/bin/taosd \
       ${build_dir}/bin/taos \
-      ${build_dir}/bin/blm3 \
+      ${build_dir}/bin/taosadapter \
       ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosdemo \
       ${build_dir}/bin/tarbitrator\
@@ -78,7 +78,7 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 
-[ -f ${cfg_dir}/blm.toml ] && cp ${cfg_dir}/blm.toml ${install_dir}/cfg/blm.toml
+[ -f ${cfg_dir}/taosadapter.toml ] && cp ${cfg_dir}/taosadapter.toml ${install_dir}/cfg/taosadapter.toml
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb

@@ -114,8 +114,8 @@ if [ "$osType" != "Darwin" ]; then
     fi
 fi
 
-function kill_blm3() {
-    pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
+function kill_taosadapter() {
+    pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
         ${csudo} kill -9 $pid   || :
     fi
@@ -156,7 +156,7 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/blm3 || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
 
@@ -176,7 +176,7 @@ function install_bin() {
         #Make link
         [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos    || :
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
-        [ -x ${install_main_dir}/bin/blm3 ]  && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3 || :
+        [ -x ${install_main_dir}/bin/taosadapter ]  && ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
@@ -191,7 +191,7 @@ function install_bin() {
         #Make link
         [ -x ${install_main_dir}/bin/taos ] || [ -x ${install_main_2_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos || ${csudo} ln -s ${install_main_2_dir}/bin/taos  || :
         [ -x ${install_main_dir}/bin/taosd ] || [ -x ${install_main_2_dir}/bin/taosd ] &&  ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd || ${csudo} ln -s ${install_main_2_dir}/bin/taosd || :
-        [ -x ${install_main_dir}/bin/blm3 ] || [ -x ${install_main_2_dir}/bin/blm3 ] &&  ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3 || ${csudo} ln -s ${install_main_2_dir}/bin/blm3 || :
+        [ -x ${install_main_dir}/bin/taosadapter ] || [ -x ${install_main_2_dir}/bin/taosadapter ] &&  ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || ${csudo} ln -s ${install_main_2_dir}/bin/taosadapter || :
         [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump   || :
         [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo   || :
     fi
@@ -361,23 +361,23 @@ function install_config() {
     fi
 }
 
-function install_blm3_config() {
-    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+function install_taosadapter_config() {
+    if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${binary_dir}/test/cfg/blm.toml ] &&
-            ${csudo} cp ${binary_dir}/test/cfg/blm.toml ${cfg_install_dir}
-        [ -f ${cfg_install_dir}/blm.toml ] &&
-            ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
-        [ -f ${binary_dir}/test/cfg/blm.toml ] &&
-            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
-                ${cfg_install_dir}/blm.toml.${verNumber}
-        [ -f ${cfg_install_dir}/blm.toml ] && \
-            ${csudo} ln -s ${cfg_install_dir}/blm.toml \
-            ${install_main_dir}/cfg/blm.toml
+        [ -f ${binary_dir}/test/cfg/taosadapter.toml ] &&
+            ${csudo} cp ${binary_dir}/test/cfg/taosadapter.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/taosadapter.toml ] &&
+            ${csudo} chmod 644 ${cfg_install_dir}/taosadapter.toml
+        [ -f ${binary_dir}/test/cfg/taosadapter.toml ] &&
+            ${csudo} cp -f ${binary_dir}/test/cfg/taosadapter.toml \
+                ${cfg_install_dir}/taosadapter.toml.${verNumber}
+        [ -f ${cfg_install_dir}/taosadapter.toml ] && \
+            ${csudo} ln -s ${cfg_install_dir}/taosadapter.toml \
+            ${install_main_dir}/cfg/taosadapter.toml
     else
-        if [ -f "${binary_dir}/test/cfg/blm.toml" ]; then
-            ${csudo} cp -f ${binary_dir}/test/cfg/blm.toml \
-                ${cfg_install_dir}/blm.toml.${verNumber}
+        if [ -f "${binary_dir}/test/cfg/taosadapter.toml" ]; then
+            ${csudo} cp -f ${binary_dir}/test/cfg/taosadapter.toml \
+                ${cfg_install_dir}/taosadapter.toml.${verNumber}
         fi
     fi
 }
@@ -497,8 +497,8 @@ function install_service_on_systemd() {
 
     ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target blm3.service'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target blm3.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target taosadapter.service'        >> ${taosd_service_config}"
     ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
@@ -519,9 +519,9 @@ function install_service_on_systemd() {
     ${csudo} systemctl enable taosd
 }
 
-function install_blm3_service() {
-    [ -f ${script_dir}/cfg/blm3.service ] &&\
-        ${csudo} cp ${script_dir}/cfg/blm3.service ${service_config_dir}/
+function install_taosadapter_service() {
+    [ -f ${script_dir}/cfg/taosadapter.service ] &&\
+        ${csudo} cp ${script_dir}/cfg/taosadapter.service ${service_config_dir}/
 }
 
 function install_service() {
@@ -531,7 +531,7 @@ function install_service() {
         install_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_blm3
+        kill_taosadapter
         kill_taosd
     fi
 }
@@ -547,7 +547,7 @@ function update_TDengine() {
         elif ((${service_mod}==1)); then
             ${csudo} service taosd stop || :
         else
-            kill_blm3
+            kill_taosadapter
             kill_taosd
         fi
         sleep 1
@@ -565,11 +565,11 @@ function update_TDengine() {
 
     if [ "$osType" != "Darwin" ]; then
         install_service
-        install_blm3_service
+        install_taosadapter_service
     fi
 
     install_config
-    install_blm3_config
+    install_taosadapter_config
 
     if [ "$osType" != "Darwin" ]; then
         echo
@@ -577,7 +577,7 @@ function update_TDengine() {
         echo
 
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-        echo -e "${GREEN_DARK}To configure blm3 (if has) ${NC}: edit /etc/taos/blm.toml"
+        echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
         elif ((${service_mod}==1)); then
@@ -620,11 +620,11 @@ function install_TDengine() {
 
     if [ "$osType" != "Darwin" ]; then
         install_service
-        install_blm3_service
+        install_taosadapter_service
     fi
 
     install_config
-    install_blm3_config
+    install_taosadapter_config
 
     if [ "$osType" != "Darwin" ]; then
         # Ask if to start the service
@@ -632,7 +632,7 @@ function install_TDengine() {
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-        echo -e "${GREEN_DARK}To configure blm (if has) ${NC}: edit /etc/taos/blm.toml"
+        echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
         elif ((${service_mod}==1)); then
