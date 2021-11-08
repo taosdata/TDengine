@@ -1759,13 +1759,6 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
   // expr string is set as the parameter of function
   SColumnIndex index = {.tableIndex = tableIndex};
 
-  SExprInfo* pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE, sizeof(double),
-                                   getNewResColId(pCmd), sizeof(double), false);
-
-  char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->exprToken.z;
-  size_t len = MIN(sizeof(pExpr->base.aliasName), pItem->pNode->exprToken.n + 1);
-  tstrncpy(pExpr->base.aliasName, name, len);
-
   tExprNode* pNode = NULL;
   SArray* colList = taosArrayInit(10, sizeof(SColIndex));
 
@@ -1795,6 +1788,14 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
+
+  SExprInfo* pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, pNode->resultType, pNode->resultBytes,
+                                   getNewResColId(pCmd), 0, false);
+
+  char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->exprToken.z;
+  size_t len = MIN(sizeof(pExpr->base.aliasName), pItem->pNode->exprToken.n + 1);
+  tstrncpy(pExpr->base.aliasName, name, len);
+
   SBufferWriter bw = tbufInitWriter(NULL, false);
 
   TRY(0) {
@@ -1811,7 +1812,7 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
   // set the serialized binary string as the parameter of arithmetic expression
   tscExprAddParams(&pExpr->base, c, TSDB_DATA_TYPE_BINARY, (int32_t)len);
   if (finalResult) {
-    insertResultField(pQueryInfo, exprIndex, columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->base.aliasName,
+    insertResultField(pQueryInfo, exprIndex, columnList, pExpr->base.resBytes, pExpr->base.resType, pExpr->base.aliasName,
                       pExpr);
   }
 
@@ -4495,15 +4496,6 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&pExpr->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) !=
         TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql
-    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index.tableIndex)->pTableMeta;
-    SSchema*    pSchema = tscGetTableSchema(pTableMeta) + index.columnIndex;
-
-    if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL) ||
-        (pSchema->type == TSDB_DATA_TYPE_BINARY) || (pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 

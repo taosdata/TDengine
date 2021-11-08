@@ -8203,9 +8203,6 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
         tfree(pExprs);
         return code;
       }
-
-      type  = TSDB_DATA_TYPE_DOUBLE;
-      bytes = tDataTypes[type].bytes;
     } else if (pExprs[i].base.functionId == TSDB_FUNC_BLKINFO) {
       SSchema s = {.type=TSDB_DATA_TYPE_BINARY, .bytes=TSDB_MAX_BINARY_LEN};
       type = s.type;
@@ -8266,7 +8263,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     }
 
     // todo remove it
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
+    if (pExprs[i].base.functionId != TSDB_FUNC_ARITHM && getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
                           &pExprs[i].base.interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
