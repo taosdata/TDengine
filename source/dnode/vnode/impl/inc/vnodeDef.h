@@ -17,6 +17,7 @@
 #define _TD_VNODE_DEF_H_
 
 #include "vnode.h"
+#include "vnodeAllocatorPool.h"
 #include "vnodeOptions.h"
 #include "vnodeStateMgr.h"
 
@@ -25,12 +26,13 @@ extern "C" {
 #endif
 
 struct SVnode {
-  char*         path;
-  SVnodeOptions options;
-  SVState       state;
-  SMeta*        pMeta;
-  STsdb*        pTsdb;
-  STQ*          pTq;
+  char*           path;
+  SVnodeOptions   options;
+  SVState         state;
+  SVAllocatorPool pool;
+  SMeta*          pMeta;
+  STsdb*          pTsdb;
+  STQ*            pTq;
 };
 
 #ifdef __cplusplus

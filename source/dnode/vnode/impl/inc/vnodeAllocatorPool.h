@@ -13,29 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_IMPL_H_
-#define _TD_VNODE_IMPL_H_
+#ifndef _TD_VNODE_ALLOCATOR_POOL_H_
+#define _TD_VNODE_ALLOCATOR_POOL_H_
 
-#include "os.h"
-#include "trequest.h"
-
-#include "meta.h"
-#include "tq.h"
-#include "tsdb.h"
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SVnodeOptions {
-  size_t       wsize;
-  STsdbOptions tsdbOptions;
-  SMetaOptions metaOptions;
-  // STqOptions   tqOptions; // TODO
-};
+typedef struct {
+} SVAllocatorPool;
+
+int  vnodeOpenAllocatorPool(SVnode *pVnode);
+void vnodeCloseAllocatorPool(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_IMPL_H_*/
+#endif /*_TD_VNODE_ALLOCATOR_POOL_H_*/
