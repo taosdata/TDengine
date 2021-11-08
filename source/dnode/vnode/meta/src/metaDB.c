@@ -32,13 +32,9 @@ static int  metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid);
   } while (0)
 
 int metaOpenDB(SMeta *pMeta) {
-  char               dbDir[128];
   char               dir[128];
   char *             err = NULL;
   rocksdb_options_t *options = rocksdb_options_create();
-
-  // TODO
-  sprintf(dbDir, "%s/db", pMeta->path);
 
   if (pMeta->pCache) {
     rocksdb_options_set_row_cache(options, pMeta->pCache);
@@ -53,23 +49,23 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // tbDb
-  sprintf(dir, "%s/tb_db", dbDir);
+  sprintf(dir, "%s/tb_db", pMeta->path);
   META_OPEN_DB_IMPL(pMeta->pDB->tbDb, options, dir, err);
 
   // nameDb
-  sprintf(dir, "%s/name_db", dbDir);
+  sprintf(dir, "%s/name_db", pMeta->path);
   META_OPEN_DB_IMPL(pMeta->pDB->nameDb, options, dir, err);
 
   // tagDb
-  sprintf(dir, "%s/tag_db", dbDir);
+  sprintf(dir, "%s/tag_db", pMeta->path);
   META_OPEN_DB_IMPL(pMeta->pDB->tagDb, options, dir, err);
 
   // schemaDb
-  sprintf(dir, "%s/schema_db", dbDir);
+  sprintf(dir, "%s/schema_db", pMeta->path);
   META_OPEN_DB_IMPL(pMeta->pDB->schemaDb, options, dir, err);
 
   // mapDb
-  sprintf(dir, "%s/map_db", dbDir);
+  sprintf(dir, "%s/map_db", pMeta->path);
   META_OPEN_DB_IMPL(pMeta->pDB->mapDb, options, dir, err);
 
   rocksdb_options_destroy(options);

@@ -89,14 +89,16 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
-  if (metaOpen(dir, &(pVnode->options.metaOptions)) < 0) {
+  pVnode->pMeta = metaOpen(dir, &(pVnode->options.metaOptions));
+  if (pVnode->pMeta == NULL) {
     // TODO: handle error
     return -1;
   }
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  if (tsdbOpen(dir, &(pVnode->options.tsdbOptions)) < 0) {
+  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->options.tsdbOptions));
+  if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
   }
