@@ -2501,6 +2501,7 @@ static void nonrand_string(char *str, int size)
 }
 #endif
 
+#ifdef WINDOWS
 static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
 
 static void rand_string(char *str, int size) {
@@ -2515,6 +2516,68 @@ static void rand_string(char *str, int size) {
         str[n] = 0;
     }
 }
+#else
+
+static int usc2utf8(char* p, int unic, int mode) {
+    assert(mode <= 5);
+    switch (mode) {
+        case 0:
+            *p = (unic & 0x7F);
+            return 1;
+        case 1:
+            *(p+1) = (unic & 0x3F) | 0x80;
+            *p = ((unic >> 6) & 0x1F) | 0xC0;
+            return 2;
+        case 2:
+            *(p+2) = (unic & 0x3F) | 0x80;
+            *(p+1) = ((unic >> 6) & 0x3F) | 0x80;
+            *p = ((unic >> 12) & 0x0F) | 0xE0;
+            return 3;
+        case 3:
+            *(p+3) = (unic & 0x3F) | 0x80;
+            *(p+2) = ((unic >> 6) & 0x3F) | 0x80;
+            *(p+1) = ((unic >> 12) & 0x3F) | 0x80;
+            *p = ((unic >> 18) & 0x07) | 0xF0;
+            return 4;
+        case 4:
+            *(p+4) = (unic & 0x3F) | 0x80;
+            *(p+3) = ((unic >> 6) & 0x3F) | 0x80;
+            *(p+2) = ((unic >> 12) & 0x3F) | 0x80;
+            *(p+1) = ((unic >> 18) & 0x3F) | 0x80;
+            *p = ((unic >> 24) & 0x03) | 0xF8;
+            return 5;
+        case 5:
+            *(p+5) = (unic & 0x3F) | 0x80;
+            *(p+4) = ((unic >> 6) & 0x3F) | 0x80;
+            *(p+3) = ((unic >> 12) & 0x3F) | 0x80;
+            *(p+2) = ((unic >> 18) & 0x3F) | 0x80;
+            *(p+1) = ((unic >> 24) & 0x3F) | 0x80;
+            *p = ((unic >> 30) & 0x01) | 0xFC;
+            return 6;
+        default:
+            break;
+    }
+    return 0;
+}
+
+static void rand_string(char *str, int size) {
+    char* pstr = str;
+    int move = 0;
+    while (size > 0) {
+        int unic = rand();
+        if (size <= 3) {
+            move = usc2utf8(pstr, unic, size - 1);
+            pstr += move;
+            size -= move;
+            break;
+        }
+        move = usc2utf8(pstr, unic, (int)(unic%3));
+        pstr += move;
+        size -= move;
+    }
+}
+
+#endif
 
 static char *rand_double_str()
 {
