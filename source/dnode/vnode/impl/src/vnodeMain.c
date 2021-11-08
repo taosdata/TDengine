@@ -74,7 +74,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeOptions *pVnodeOptions) {
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->options), pVnodeOptions);
 
-  return NULL;
+  return pVnode;
 }
 
 static void vnodeFree(SVnode *pVnode) {
