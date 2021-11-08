@@ -120,16 +120,18 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
       }
 
       tExprNode* child1 = pExpr->_func.pChildren[0];
+
       if (child1->nodeType == TSQL_NODE_VALUE) {
-        if (!IS_VAR_DATA_TYPE(child1->pVal->nType)) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-        tVariantTypeSetType(child1->pVal, (char)(child1->resultType));
         child1->resultType = (int16_t)child1->pVal->nType;
         child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
       }
 
-      if (!IS_VAR_DATA_TYPE(child1->resultType))
+      if (!IS_VAR_DATA_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_SMALLINT;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes;
       break;
     }
 
