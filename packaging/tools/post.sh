@@ -301,7 +301,7 @@ function install_blm3_config() {
     fi
 
     [ -f ${cfg_dir}/blm.toml ] &&
-        ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.org
+        ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.new
 
     [ -f ${cfg_install_dir}/blm.toml ] &&
         ${csudo} ln -s ${cfg_install_dir}/blm.toml ${cfg_dir}
@@ -322,7 +322,7 @@ function install_config() {
     # restore the backup standard input, and turn off 6
     exec 0<&6 6<&-
 
-    ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
+    ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.new
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
     #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
     #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
@@ -467,8 +467,7 @@ function install_service_on_systemd() {
 }
 
 function install_blm3_service() {
-    [ -f ${script_dir}/cfg/blm3.service ] &&\
-        ${csudo} cp ${script_dir}/cfg/blm3.service ${service_config_dir}/
+    [ -f ${cfg_dir}/blm3.service ] && ${csudo} cp ${cfg_dir}/blm3.service ${service_config_dir}
 }
 
 function install_service() {
@@ -501,10 +500,10 @@ function install_TDengine() {
     install_lib
     install_avro_lib
     install_bin
-    install_service
-    install_blm3_service
     install_config
     install_blm3_config
+    install_blm3_service
+    install_service
 
     # Ask if to start the service
     #echo
