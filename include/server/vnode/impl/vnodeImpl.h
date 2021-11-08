@@ -17,6 +17,7 @@
 #define _TD_VNODE_IMPL_H_
 
 #include "os.h"
+#include "trequest.h"
 
 #include "meta.h"
 #include "tq.h"

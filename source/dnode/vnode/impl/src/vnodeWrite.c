@@ -13,5 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "vnodeWrite.h"
+#include "vnodeDef.h"
+
+int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
+  /* TODO */
+  return 0;
+}
+
+int vnodeApplyWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
+  /* TODO */
+  return 0;
+}
