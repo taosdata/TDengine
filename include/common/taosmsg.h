@@ -495,6 +495,10 @@ typedef struct SSessionWindow {
   int32_t primaryColId;    // primary timestamp column
 } SSessionWindow;
 
+typedef struct SStateWindow {
+  int32_t columnId;
+} SStateWindow;
+
 typedef struct {
   SMsgHead    head;
   char        version[TSDB_VERSION_LEN];

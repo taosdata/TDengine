@@ -46,9 +46,14 @@ bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* funct
   return true;
 }
 
-const char* qGetFunctionName(int32_t functionId) {
+bool qIsAggregateFunction(const char* functionName) {
+  assert(functionName != NULL);
+  bool scalefunc = false;
+  qIsBuiltinFunction(functionName, strlen(functionName), &scalefunc);
 
+  return !scalefunc;
 }
+
 
 SAggFunctionInfo* qGetFunctionInfo(const char* name, int32_t len) {
   pthread_once(&functionHashTableInit, doInitFunctionHashTable);

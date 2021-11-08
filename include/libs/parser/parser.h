@@ -77,6 +77,7 @@ typedef struct SQueryStmtInfo {
   STimeWindow      window;        // the whole query time window
   SInterval        interval;      // tumble time window
   SSessionWindow   sessionWindow; // session time window
+  SStateWindow     stateWindow;   // state window query
   SGroupbyExpr     groupbyExpr;   // groupby tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
@@ -180,6 +181,7 @@ STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 
 int32_t getNewResColId();
+void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);
 
 #ifdef __cplusplus
 }

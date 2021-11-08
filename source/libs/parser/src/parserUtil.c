@@ -544,7 +544,7 @@ SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSc
   return c;
 }
 
-SSourceParam addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn) {
+void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn) {
   assert(pSourceParam != NULL);
   pSourceParam->num += 1;
 

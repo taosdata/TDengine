@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "plannerInt.h"
-#include "parser.h"
 #include "function.h"
+#include "os.h"
+#include "parser.h"
+#include "plannerInt.h"
 
 #define QNODE_TAGSCAN       1
 #define QNODE_TABLESCAN     2
@@ -30,7 +30,8 @@
 #define QNODE_UNIONALL      10
 #define QNODE_TIMEWINDOW    11
 #define QNODE_SESSIONWINDOW 12
-#define QNODE_FILL          13
+#define QNODE_STATEWINDOW   13
+#define QNODE_FILL          14
 
 typedef struct SFillEssInfo {
   int32_t  fillType;  // fill type
@@ -161,7 +162,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
 static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SQueryTableInfo* info,
                                         SArray* pExprs, SArray* tableCols) {
   if (pQueryInfo->info.onlyTagQuery) {
-    int32_t     num = (int32_t) taosArrayGetSize(pExprs);
+    int32_t num = (int32_t) taosArrayGetSize(pExprs);
     SQueryPlanNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info, NULL);
 
     if (pQueryInfo->info.distinct) {
@@ -178,20 +179,19 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
     pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
   } else {
+    STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
+
     // table source column projection, generate the projection expr
     int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
     SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
-
-    STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
-
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumn* pCol = taosArrayGetP(tableCols, i);
-      SColumnIndex index = {.tableIndex = 0, /*.columnIndex = pCol->columnIndex*/};
+      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo1->pTableMeta, i);
 
-      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, i);
-      SSchema resultSchema = *pSchema;
+      SSourceParam param = {0};
+      addIntoSourceParam(&param, NULL, pCol);
 
-      SExprInfo* p = NULL;//createExprInfo(pTableMetaInfo1, FUNCTION_PRJ, &index, NULL, &resultSchema, 0);
+      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, pSchema, 0);
       pExpr[i] = p;
     }
 
@@ -202,33 +202,69 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
   return pNode;
 }
 
-static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info,
-                                                    SArray* pExprs) {
+static int32_t getFunctionLevel(SQueryStmtInfo* pQueryInfo) {
+  int32_t n = 10;
+
+  int32_t level = 0;
+  for(int32_t i = 0; i < n; ++i) {
+    SArray* pList = pQueryInfo->exprList[i];
+    if (taosArrayGetSize(pList) > 0) {
+      level += 1;
+    }
+  }
+
+  return level;
+}
+
+static SQueryPlanNode* createOneQueryPlanNode(SArray* p, SQueryPlanNode* pNode, SExprInfo* pExpr, SQueryTableInfo* info) {
+  if (pExpr->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
+    bool aggregateFunc = qIsAggregateFunction(pExpr->pExpr->_function.functionName);
+    if (aggregateFunc) {
+      int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
+      return createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, p->pData, numOfOutput, info, NULL);
+    } else {
+      int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
+      return createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, numOfOutput, info, NULL);
+    }
+  } else {
+    int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
+    return createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, numOfOutput, info, NULL);
+  }
+}
+
+static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info, SArray** pExprs) {
   // check for aggregation
   size_t numOfGroupCols = taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo);
 
-  if (pQueryInfo->interval.interval > 0) {
-    int32_t numOfOutput = (int32_t)taosArrayGetSize(pExprs);
+  int32_t level = getFunctionLevel(pQueryInfo);
+  for(int32_t i = level - 1; i >= 0; --i) {
+    SArray* p = pQueryInfo->exprList[i];
+    SExprInfo* pExpr = (SExprInfo*)taosArrayGetP(p, 0);
 
-    pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, pExprs->pData, numOfOutput, info, &pQueryInfo->interval);
-    if (numOfGroupCols != 0) {
-      pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, pExprs->pData, numOfOutput, info, &pQueryInfo->groupbyExpr);
+    if (i == 0) {
+      if (pQueryInfo->interval.interval > 0) {
+        int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
+        pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, p->pData, numOfOutput, info, &pQueryInfo->interval);
+      } else if (pQueryInfo->sessionWindow.gap > 0) {
+        pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
+      } else if (pQueryInfo->stateWindow.columnId > 0) {
+        pNode = createQueryNode(QNODE_STATEWINDOW, "StateWindowAgg", &pNode, 1, NULL, 0, info, NULL);
+      } else {
+        pNode = createOneQueryPlanNode(p, pNode, pExpr, info);
+      }
+    } else {
+      pNode = createOneQueryPlanNode(p, pNode, pExpr, info);
     }
-  } else if (numOfGroupCols > 0) {
-    int32_t numOfOutput = (int32_t)taosArrayGetSize(pExprs);
-    pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, pExprs->pData, numOfOutput, info,
-                            &pQueryInfo->groupbyExpr);
-  } else if (pQueryInfo->sessionWindow.gap > 0) {
-    pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
-  } else if (pQueryInfo->info.simpleAgg) {
-    int32_t numOfOutput = (int32_t)taosArrayGetSize(pExprs);
-    pNode = createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
   }
 
-  if (pQueryInfo->havingFieldNum > 0 || pQueryInfo->info.arithmeticOnAgg) {
+  if (numOfGroupCols != 0) {
+    pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, NULL, 0, info, &pQueryInfo->groupbyExpr);
+  }
+
+  if (pQueryInfo->havingFieldNum > 0) {
 //    int32_t numOfExpr = (int32_t)taosArrayGetSize(pQueryInfo->exprList1);
-//    pNode =
-//        createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
+//    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info,
+//        NULL);
   }
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
@@ -314,7 +350,7 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
 
     // 3. add the join node here
     SQueryTableInfo info = {0};
-    int32_t num = (int32_t) taosArrayGetSize(pQueryInfo->exprList);
+    int32_t num = (int32_t) taosArrayGetSize(pQueryInfo->exprList[0]);
     SQueryPlanNode* pNode = createQueryNode(QNODE_JOIN, "Join", upstream->pData, pQueryInfo->numOfTables,
                                         pQueryInfo->exprList[0]->pData, num, &info, NULL);
 
@@ -324,7 +360,7 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
     taosArrayPush(upstream, &pNode);
   } else { // only one table, normal query process
     STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
-    SQueryPlanNode* pNode = doCreateQueryPlanForOneTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList, pQueryInfo->colList);
+    SQueryPlanNode* pNode = doCreateQueryPlanForOneTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList[0], pQueryInfo->colList);
     upstream = taosArrayInit(5, POINTER_BYTES);
     taosArrayPush(upstream, &pNode);
   }

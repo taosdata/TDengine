@@ -259,7 +259,7 @@ int32_t qIsBuiltinFunction(const char* name, int32_t len, bool* scalarFunction);
 
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
 
-const char* qGetFunctionName(int32_t functionId);
+bool qIsAggregateFunction(const char* functionName);
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 

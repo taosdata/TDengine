@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <function.h>
 #include <gtest/gtest.h>
 #include <iostream>
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -66,65 +67,60 @@ void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq *req) {
 }
 }
 
-//TEST(testCase, planner_test) {
-//  SSqlInfo info1 = doGenerateAST("select top(a*b / 99, 20) from `t.1abc` interval(10s, 1s)");
-//  ASSERT_EQ(info1.valid, true);
-//
-//  char    msg[128] = {0};
-//  SMsgBuf buf;
-//  buf.len = 128;
-//  buf.buf = msg;
-//
-//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-//  ASSERT_EQ(code, 0);
-//
-//  SMetaReq req = {0};
-//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-//  ASSERT_EQ(ret, 0);
-//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-//
-//  SQueryStmtInfo* pQueryInfo = createQueryInfo();
-//  setTableMetaInfo(pQueryInfo, &req);
-//
-//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-//  ASSERT_EQ(ret, 0);
-//
-//  SArray* pExprList = pQueryInfo->exprList[0];
-//  ASSERT_EQ(taosArrayGetSize(pExprList), 2);
-//
-//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 1);
-//  ASSERT_EQ(p1->base.pColumns->uid, 110);
-//  ASSERT_EQ(p1->base.numOfParams, 1);
-//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
-//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "top(a*b / 99, 20)");
-//  ASSERT_EQ(p1->base.pColumns->flag, TSDB_COL_NORMAL);
-//  ASSERT_STRCASEEQ(p1->base.token, "top(a*b / 99, 20)");
-//  ASSERT_EQ(p1->base.interBytes, 16);
-//
-//  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_FUNCTION_NODE);
-//  ASSERT_EQ(p1->pExpr->_function.functionId, FUNCTION_TOP);
-//  ASSERT_TRUE(p1->pExpr->_node.pRight == NULL);
-//
-//  tExprNode* pParam = p1->pExpr->_node.pLeft;
-//
-//  ASSERT_EQ(pParam->nodeType, TEXPR_BINARYEXPR_NODE);
-//  ASSERT_EQ(pParam->_node.optr, TSDB_BINARY_OP_DIVIDE);
-//  ASSERT_EQ(pParam->_node.pLeft->nodeType, TEXPR_BINARYEXPR_NODE);
-//  ASSERT_EQ(pParam->_node.pRight->nodeType, TEXPR_VALUE_NODE);
-//
-//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
-//
-//  struct SQueryPlanNode* n = nullptr;
-//  code = qCreateQueryPlan(pQueryInfo, &n);
-//
-//  char* str = NULL;
-//  qQueryPlanToString(n, &str);
-//  printf("%s\n", str);
-//
-//  destroyQueryInfo(pQueryInfo);
-//  qParserClearupMetaRequestInfo(&req);
-//  destroySqlInfo(&info1);
-//}
+TEST(testCase, planner_test) {
+  SSqlInfo info1 = doGenerateAST("select top(a*b / 99, 20) from `t.1abc` interval(10s, 1s)");
+  ASSERT_EQ(info1.valid, true);
+
+  char    msg[128] = {0};
+  SMsgBuf buf;
+  buf.len = 128;
+  buf.buf = msg;
+
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+  ASSERT_EQ(code, 0);
+
+  SMetaReq req = {0};
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+
+  SQueryStmtInfo* pQueryInfo = createQueryInfo();
+  setTableMetaInfo(pQueryInfo, &req);
+
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+  ASSERT_EQ(ret, 0);
+
+  SArray* pExprList = pQueryInfo->exprList[0];
+  ASSERT_EQ(taosArrayGetSize(pExprList), 2);
+
+  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 1);
+  ASSERT_EQ(p1->base.pColumns->uid, 110);
+  ASSERT_EQ(p1->base.numOfParams, 1);
+  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_STRCASEEQ(p1->base.resSchema.name, "top(a*b / 99, 20)");
+  ASSERT_EQ(p1->base.pColumns->flag, TSDB_COL_TMP);
+  ASSERT_STRCASEEQ(p1->base.token, "top(a*b / 99, 20)");
+  ASSERT_EQ(p1->base.interBytes, 16);
+
+  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_FUNCTION_NODE);
+  ASSERT_STREQ(p1->pExpr->_function.functionName, "top");
+
+  tExprNode* pParam = p1->pExpr->_function.pChild[0];
+
+  ASSERT_EQ(pParam->nodeType, TEXPR_COL_NODE);
+  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
+  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
+
+  struct SQueryPlanNode* n = nullptr;
+  code = qCreateQueryPlan(pQueryInfo, &n);
+
+  char* str = NULL;
+  qQueryPlanToString(n, &str);
+  printf("%s\n", str);
+
+  destroyQueryInfo(pQueryInfo);
+  qParserClearupMetaRequestInfo(&req);
+  destroySqlInfo(&info1);
+}
