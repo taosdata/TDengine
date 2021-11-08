@@ -286,7 +286,9 @@ int tsdbSyncCommitConfig(STsdbRepo* pRepo) {
   }
 
   if (tsdbLockRepo(pRepo) < 0) return -1;
-  tsdbScheduleCommit(pRepo, COMMIT_CONFIG_REQ);
+  if (tsdbScheduleCommit(pRepo, NULL, COMMIT_CONFIG_REQ) < 0) {
+    tsem_post(&(pRepo->readyToCommit));
+  }
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   tsem_wait(&(pRepo->readyToCommit));
@@ -318,7 +320,9 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   if (tsdbLockRepo(pRepo) < 0) return -1;
   pRepo->imem = pRepo->mem;
   pRepo->mem = NULL;
-  tsdbScheduleCommit(pRepo, COMMIT_REQ);
+  if (tsdbScheduleCommit(pRepo, NULL, COMMIT_REQ) < 0) {
+    tsem_post(&(pRepo->readyToCommit));
+  }
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;

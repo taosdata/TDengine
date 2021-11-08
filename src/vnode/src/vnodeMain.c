@@ -128,6 +128,22 @@ int32_t vnodeCompact(int32_t vgId) {
   return TSDB_CODE_SUCCESS;  
 }
 
+int32_t vnodeTruncate(STruncateTblMsg *pMsg) {
+  int32_t vgId = pMsg->vgId;
+  void *  pVnode = vnodeAcquire(vgId);
+  if (pVnode != NULL) {
+    vDebug("vgId:%d, truncate table %s msg is received", vgId, pMsg->tableFname);
+    // not care success or not
+    void *param = NULL;
+    tsdbTruncate(((SVnodeObj *)pVnode)->tsdb, param);
+    vnodeRelease(pVnode);
+  } else {
+    vInfo("vgId:%d, vnode not exist, can't truncate table %s in it", vgId, pMsg->tableFname);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
   STsdbCfg tsdbCfg = pVnode->tsdbCfg;
   SSyncCfg syncCfg = pVnode->syncCfg;

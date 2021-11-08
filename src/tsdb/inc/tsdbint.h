@@ -66,6 +66,8 @@ extern "C" {
 #include "tsdbCommit.h"
 // Compact
 #include "tsdbCompact.h"
+// Truncate
+#include "tsdbTruncate.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
 
@@ -97,6 +99,8 @@ struct STsdbRepo {
 
   SMergeBuf       mergeBuf;  //used when update=2
   int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
+  int8_t          truncateState;  // truncate state: inTruncate/noTruncate/waitingTruncate
+
   pthread_t*      pthread;
 };
 

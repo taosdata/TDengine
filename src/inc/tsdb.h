@@ -96,6 +96,7 @@ int        tsdbCloseRepo(STsdbRepo *repo, int toCommit);
 int32_t    tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg);
 int        tsdbGetState(STsdbRepo *repo);
 int8_t     tsdbGetCompactState(STsdbRepo *repo);
+int8_t     tsdbGetTruncateState(STsdbRepo *repo);
 // --------- TSDB TABLE DEFINITION
 typedef struct {
   uint64_t uid;  // the unique table ID
@@ -412,6 +413,9 @@ int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 
 // For TSDB Compact
 int tsdbCompact(STsdbRepo *pRepo);
+
+// For TSDB Truncate
+int tsdbTruncate(STsdbRepo *pRepo, void *param);
 
 // For TSDB Health Monitor
 
