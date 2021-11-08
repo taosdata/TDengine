@@ -340,7 +340,7 @@ class TDTestCase:
 
         tdSql.execute("INSERT INTO  jsons1_14 using  jsons1 tags('{\"tbname\":\"tt\",\"location\":\"tianjing\",\"dataStr\":\"是是是\"}') values(now,5, \"你就会\")")
 
-        tdSql.execute("select ts,jtag from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
+        tdSql.query("select ts,jtag from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
         tdSql.checkRows(1)
         # tdSql.checkData(0, 2, 'tt')
                
