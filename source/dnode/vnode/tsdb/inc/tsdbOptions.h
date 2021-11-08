@@ -22,7 +22,8 @@ extern "C" {
 
 extern const STsdbOptions defautlTsdbOptions;
 
-int tsdbValidateOptions(const STsdbOptions *);
+int  tsdbValidateOptions(const STsdbOptions *);
+void tsdbOptionsCopy(STsdbOptions *pDest, const STsdbOptions *pSrc);
 
 #ifdef __cplusplus
 }

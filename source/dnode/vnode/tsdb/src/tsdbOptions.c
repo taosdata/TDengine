@@ -30,3 +30,5 @@ int tsdbValidateOptions(const STsdbOptions *pTsdbOptions) {
   // TODO
   return 0;
 }
+
+void tsdbOptionsCopy(STsdbOptions *pDest, const STsdbOptions *pSrc) { memcpy(pDest, pSrc, sizeof(STsdbOptions)); }

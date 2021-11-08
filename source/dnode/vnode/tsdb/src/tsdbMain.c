@@ -15,18 +15,80 @@
 
 #include "tsdbDef.h"
 
+static STsdb *tsdbNew(const char *path, const STsdbOptions *pTsdbOptions);
+static void   tsdbFree(STsdb *pTsdb);
+static int    tsdbOpenImpl(STsdb *pTsdb);
+static void   tsdbCloseImpl(STsdb *pTsdb);
+
 STsdb *tsdbOpen(const char *path, const STsdbOptions *pTsdbOptions) {
   STsdb *pTsdb = NULL;
-  /* TODO */
+
+  // Set default TSDB Options
+  if (pTsdbOptions == NULL) {
+    pTsdbOptions = &defautlTsdbOptions;
+  }
+
+  // Validate the options
+  if (tsdbValidateOptions(pTsdbOptions) < 0) {
+    // TODO: handle error
+    return NULL;
+  }
+
+  // Create the handle
+  pTsdb = tsdbNew(path, pTsdbOptions);
+  if (pTsdb == NULL) {
+    // TODO: handle error
+    return NULL;
+  }
+
+  taosMkDir(path);
+
+  // Open the TSDB
+  if (tsdbOpenImpl(pTsdb) < 0) {
+    // TODO: handle error
+    return NULL;
+  }
+
   return pTsdb;
 }
 
 void tsdbClose(STsdb *pTsdb) {
   if (pTsdb) {
-    /* TODO */
+    tsdbCloseImpl(pTsdb);
+    tsdbFree(pTsdb);
   }
 }
 
 void tsdbRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
+static STsdb *tsdbNew(const char *path, const STsdbOptions *pTsdbOptions) {
+  STsdb *pTsdb = NULL;
+
+  pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
+  if (pTsdb == NULL) {
+    // TODO: handle error
+    return NULL;
+  }
+
+  pTsdb->path = strdup(path);
+  tsdbOptionsCopy(&(pTsdb->options), pTsdbOptions);
+
+  return pTsdb;
+}
+
+static void tsdbFree(STsdb *pTsdb) {
+  if (pTsdb) {
+    tfree(pTsdb->path);
+    free(pTsdb);
+  }
+}
+
+static int tsdbOpenImpl(STsdb *pTsdb) {
+  // TODO
+  return 0;
+}
+
+static void tsdbCloseImpl(STsdb *pTsdb) {
+  // TODO
+}
