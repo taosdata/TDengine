@@ -936,8 +936,7 @@ void vectorLog(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs,
 }
 
 void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
-  assert(functionId == TSDB_FUNC_SCALAR_CONCAT);
-  assert(numInputs == 2);
+  assert(functionId == TSDB_FUNC_SCALAR_CONCAT && numInputs == 2 && order == TSDB_ORDER_ASC);
   assert(pInputs[0].numOfRows >= 1 && pInputs[1].numOfRows >= 1);
   assert(pOutput->numOfRows >= MAX(pInputs[0].numOfRows, pInputs[1].numOfRows));
   char* data0 = NULL;
@@ -989,7 +988,7 @@ tScalarFunctionInfo aScalarFunctions[] = {
     },
     {
         TSDB_FUNC_SCALAR_CONCAT,
-        "strconcat",
+        "concat",
         vectorConcat
     },
 };

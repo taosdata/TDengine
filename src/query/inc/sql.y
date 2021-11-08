@@ -17,7 +17,6 @@
 %left PLUS MINUS.
 %left DIVIDE TIMES.
 %left STAR SLASH REM.
-%left CONCAT.
 %right UMINUS UPLUS BITNOT.
 
 %include {
