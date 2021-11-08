@@ -40,7 +40,6 @@ SMemAllocator *tdCreateHeapAllocator() {
     return NULL;
   }
 
-  pMemAllocator->usage = 0;
   pMemAllocator->malloc = haMalloc;
   pMemAllocator->calloc = haCalloc;
   pMemAllocator->realloc = NULL;
