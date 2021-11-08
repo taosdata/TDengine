@@ -1745,7 +1745,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           */         
         } else {
           // nothing copy from file
-          pos += num * step;
+          pos += step;
           /*
           if((step == -1 && pos == 0) || (step == 1 && pos == pCols->numOfRows - 1)) 
             moveToNextRowInMem(pCheckInfo);  // can not move file pos, so must move mem pos, otherwise maybe death-loop          
