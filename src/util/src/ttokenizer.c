@@ -626,6 +626,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     while (isspace(t) || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
+        t0.type = TK_ILLEGAL;
         return t0;
       }
 
