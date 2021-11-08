@@ -826,8 +826,10 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
   pSqlNode->pHaving     = pHaving;
-  pSqlNode->pRange      = *pRange;
-
+  if (pRange) {
+    pSqlNode->pRange      = *pRange;
+  }
+  
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;
   } else {
