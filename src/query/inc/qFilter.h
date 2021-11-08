@@ -181,6 +181,7 @@ typedef struct SFilterColInfo {
   uint8_t type;
   int32_t dataType;
   uint8_t optr;   // for equal operation in the relation of RELATION_IN
+  int64_t value;  // for equal operation in the relation of RELATION_IN
   void   *info;
 } SFilterColInfo;
 
