@@ -75,7 +75,7 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
         if (!IS_VAR_DATA_TYPE(child2->pVal->nType)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        tVariantTypeSetType(child2->pVal, child1->resultType);
+        tVariantTypeSetType(child2->pVal, (char)(child1->resultType));
         child2->resultType = (int16_t)child2->pVal->nType;
         child2->resultBytes = (int16_t)(child2->pVal->nLen + VARSTR_HEADER_SIZE);
       }
