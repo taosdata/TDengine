@@ -26,6 +26,12 @@ option(
 )
 
 option(
+    BUILD_WITH_NURAFT
+    "If build with NuRaft" 
+    OFF
+)
+
+option(
     BUILD_DEPENDENCY_TESTS 
     "If build dependency tests" 
     OFF

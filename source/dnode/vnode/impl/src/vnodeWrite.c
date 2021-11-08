@@ -15,36 +15,14 @@
 
 #include "vnodeDef.h"
 
-static int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest);
-
 int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
   /* TODO */
   return 0;
 }
 
-int vnodeApplyWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
-  SReqBatchIter rbIter;
-
-  tdInitRBIter(&rbIter, pReqBatch);
-
-  for (;;) {
-    const SRequest *pReq = tdRBIterNext(&rbIter);
-    if (pReq == NULL) {
-      break;
-    }
-
-    if (vnodeApplyWriteRequest(pVnode, pReq) < 0) {
-      // TODO
-    }
-  }
-
-  tdClearRBIter(&rbIter);
-
+int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
+  /* TODO */
   return 0;
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
-  /* TODO */
-  return 0;
-}

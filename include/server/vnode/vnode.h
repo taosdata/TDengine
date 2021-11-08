@@ -31,7 +31,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
 void    vnodeClose(SVnode *pVnode);
 void    vnodeDestroy(const char *path);
 int     vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch);
-int     vnodeApplyWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch);
+int     vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest);
 int     vnodeProcessReadReq(SVnode *pVnode, SRequest *pReq);
 int     vnodeProcessSyncReq(SVnode *pVnode, SRequest *pReq);
 

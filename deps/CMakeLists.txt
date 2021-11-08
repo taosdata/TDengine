@@ -67,6 +67,12 @@ if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)
 endif(${BUILD_WITH_LUCENE})
 
+# NuRaft
+if(${BUILD_WITH_NURAFT})
+    add_subdirectory(nuraft)
+endif(${BUILD_WITH_NURAFT})
+
+
 # ================================================================================================
 # DEPENDENCY TEST
 # ================================================================================================
