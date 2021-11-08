@@ -20,9 +20,25 @@
 extern "C" {
 #endif
 
+/* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SRequest      SRequest;
 typedef struct SReqBatch     SReqBatch;
 typedef struct SReqBatchIter SReqBatchIter;
+
+// SRequest
+
+// SReqBatch
+
+// SReqBatchIter
+void            tdInitRBIter(SReqBatchIter *pIter, SReqBatch *pReqBatch);
+const SRequest *tdRBIterNext(SReqBatchIter *pIter);
+void            tdClearRBIter(SReqBatchIter *pIter);
+
+/* ------------------------ TYPES DEFINITION ------------------------ */
+struct SReqBatchIter {
+  int        iReq;
+  SReqBatch *pReqBatch;
+};
 
 #ifdef __cplusplus
 }
