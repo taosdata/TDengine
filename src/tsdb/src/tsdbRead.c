@@ -1735,12 +1735,14 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
               pos = 0; // move file pos ok
           }else if(step == 1 && pos + num >= pCols->numOfRows) {
             if(pos == pCols->numOfRows - 1)
-              moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop
+              //moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop
+              tsdbError("current not move memrow");
             else
               pos = pCols->numOfRows - 1; // move file pos ok
           } else {
             pos += num * step; // move file pos ok
           } 
+
         } else {
           // nothing copy from file
           pos += step;
