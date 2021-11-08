@@ -47,6 +47,10 @@ SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index) {
   return SYNC_NON_TERM;
 }
 
+int syncRaftLogAppend(SSyncRaftLog* pLog, SSyncRaftEntry *pEntries, int n) {
+
+}
+
 int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
                       SSyncRaftEntry **ppEntries, int *n) {
   return 0;

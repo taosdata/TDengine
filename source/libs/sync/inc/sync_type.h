@@ -16,6 +16,9 @@
 #ifndef _TD_LIBS_SYNC_TYPE_H
 #define _TD_LIBS_SYNC_TYPE_H
 
+#include <stdint.h>
+#include "osMath.h"
+
 #define SYNC_NON_NODE_ID -1
 #define SYNC_NON_TERM     0
 
@@ -24,16 +27,23 @@ typedef uint32_t SyncTick;
 
 typedef struct SSyncRaft SSyncRaft;
 
+typedef struct SSyncRaftProgress SSyncRaftProgress;
+typedef struct SSyncRaftProgressTrackerConfig SSyncRaftProgressTrackerConfig;
+
+typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
+
 typedef struct SSyncRaftLog SSyncRaftLog;
 
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
+#if 0
 #ifndef MIN
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #endif
 
 #ifndef MAX
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#endif
 #endif
 
 typedef enum {

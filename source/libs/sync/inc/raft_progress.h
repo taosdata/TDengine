@@ -73,6 +73,8 @@ typedef enum RaftProgressState {
  * progresses of all followers, and sends entries to the follower based on its progress.
  **/
 struct SSyncRaftProgress {
+  SyncNodeId id;
+
   SyncIndex nextIndex;
 
   SyncIndex matchIndex;
@@ -108,16 +110,18 @@ struct SSyncRaftProgress {
    * flow control sliding window
    **/
   SSyncRaftInflights inflights;
+
+  // IsLearner is true if this progress is tracked for a learner.
+  bool isLearner;
 };
 
-int syncRaftProgressCreate(SSyncRaft* pRaft);
-//int syncRaftProgressRecreate(SSyncRaft* pRaft, const RaftConfiguration* configuration);
+void syncRaftInitProgress(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
 /**
  * syncRaftProgressMaybeUpdate returns false if the given lastIndex index comes from i-th node's log.
  * Otherwise it updates the progress and returns true.
  **/
-bool syncRaftProgressMaybeUpdate(SSyncRaft* pRaft, int i, SyncIndex lastIndex);
+bool syncRaftProgressMaybeUpdate(SSyncRaftProgress* progress, SyncIndex lastIndex);
 
 static FORCE_INLINE void syncRaftProgressOptimisticNextIndex(SSyncRaftProgress* progress, SyncIndex nextIndex) {
   progress->nextIndex = nextIndex + 1;
@@ -127,7 +131,7 @@ static FORCE_INLINE void syncRaftProgressOptimisticNextIndex(SSyncRaftProgress* 
  * syncRaftProgressMaybeDecrTo returns false if the given to index comes from an out of order message.
  * Otherwise it decreases the progress next index to min(rejected, last) and returns true.
  **/
-bool syncRaftProgressMaybeDecrTo(SSyncRaft* pRaft, int i,
+bool syncRaftProgressMaybeDecrTo(SSyncRaftProgress* progress,
                                 SyncIndex rejected, SyncIndex lastIndex);
 
 /** 
@@ -166,20 +170,20 @@ static FORCE_INLINE bool syncRaftProgressUpdateSendTick(SSyncRaftProgress* progr
   return progress->lastSendTick = current;
 }
 
-void syncRaftProgressFailure(SSyncRaft* pRaft, int i);
+void syncRaftProgressFailure(SSyncRaftProgress* progress);
 
-bool syncRaftProgressNeedAbortSnapshot(SSyncRaft* pRaft, int i);
+bool syncRaftProgressNeedAbortSnapshot(SSyncRaftProgress* progress);
 
 /** 
- * return true if i-th node's log is up-todate
+ * return true if progress's log is up-todate
  **/
-bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, int i);
+bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
-void syncRaftProgressBecomeProbe(SSyncRaft* pRaft, int i);
+void syncRaftProgressBecomeProbe(SSyncRaftProgress* progress);
 
-void syncRaftProgressBecomeReplicate(SSyncRaft* pRaft, int i);
+void syncRaftProgressBecomeReplicate(SSyncRaftProgress* progress);
 
-void syncRaftProgressBecomeSnapshot(SSyncRaft* pRaft, int i, SyncIndex snapshotIndex);
+void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snapshotIndex);
 
 /* inflights APIs */
 int syncRaftInflightReset(SSyncRaftInflights* inflights);

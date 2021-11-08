@@ -40,9 +40,15 @@ int syncRaftProgressRecreate(SSyncRaft* pRaft, const RaftConfiguration* configur
 }
 */
 
-bool syncRaftProgressMaybeUpdate(SSyncRaft* pRaft, int i, SyncIndex lastIndex) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
+void syncRaftInitProgress(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
+  *progress = (SSyncRaftProgress) {
+    .matchIndex = progress->id == pRaft->selfId ? syncRaftLogLastIndex(pRaft->log) : 0,
+    .nextIndex  = syncRaftLogLastIndex(pRaft->log) + 1,
+    //.inflights  = 
+  };
+}
+
+bool syncRaftProgressMaybeUpdate(SSyncRaftProgress* progress, SyncIndex lastIndex) {
   bool updated = false;
 
   if (progress->matchIndex < lastIndex) {
@@ -57,11 +63,8 @@ bool syncRaftProgressMaybeUpdate(SSyncRaft* pRaft, int i, SyncIndex lastIndex) {
   return updated;
 }
 
-bool syncRaftProgressMaybeDecrTo(SSyncRaft* pRaft, int i,
+bool syncRaftProgressMaybeDecrTo(SSyncRaftProgress* progress,
                                 SyncIndex rejected, SyncIndex lastIndex) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
-
   if (progress->state == PROGRESS_REPLICATE) {
 		/** 
      * the rejection must be stale if the progress has matched and "rejected"
@@ -110,30 +113,19 @@ bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
   }
 }
 
-void syncRaftProgressFailure(SSyncRaft* pRaft, int i) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
-
+void syncRaftProgressFailure(SSyncRaftProgress* progress) {
   progress->pendingSnapshotIndex = 0;
 }
 
-bool syncRaftProgressNeedAbortSnapshot(SSyncRaft* pRaft, int i) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
-
+bool syncRaftProgressNeedAbortSnapshot(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_SNAPSHOT && progress->matchIndex >= progress->pendingSnapshotIndex;
 }
 
-bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, int i) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
+bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
   return syncRaftLogLastIndex(pRaft->log) + 1 == progress->nextIndex;
 }
 
-void syncRaftProgressBecomeProbe(SSyncRaft* pRaft, int i) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
+void syncRaftProgressBecomeProbe(SSyncRaftProgress* progress) {
   /**
    * If the original state is ProgressStateSnapshot, progress knows that
 	 * the pending snapshot has been sent to this peer successfully, then
@@ -149,16 +141,12 @@ void syncRaftProgressBecomeProbe(SSyncRaft* pRaft, int i) {
   }
 }
 
-void syncRaftProgressBecomeReplicate(SSyncRaft* pRaft, int i) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
+void syncRaftProgressBecomeReplicate(SSyncRaftProgress* progress) {
   resetProgressState(progress, PROGRESS_REPLICATE);
   progress->nextIndex = progress->matchIndex + 1;
 }
 
-void syncRaftProgressBecomeSnapshot(SSyncRaft* pRaft, int i, SyncIndex snapshotIndex) {
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
+void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snapshotIndex) {
   resetProgressState(progress, PROGRESS_SNAPSHOT);
   progress->pendingSnapshotIndex = snapshotIndex;
 }

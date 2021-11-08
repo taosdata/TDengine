@@ -20,17 +20,12 @@
 #include "sync_type.h"
 #include "raft_message.h"
 
-typedef struct SSyncRaftProgress SSyncRaftProgress;
 
 typedef struct RaftLeaderState {
-  int nProgress;
-  SSyncRaftProgress* progress;
+
 } RaftLeaderState;
 
 typedef struct RaftCandidateState {
-  /* votes results */
-  SyncRaftVoteRespType votes[TSDB_MAX_REPLICA];
-
   /* true if in pre-vote phase */
   bool inPreVote;
 } RaftCandidateState;
@@ -47,17 +42,34 @@ struct SSyncRaft {
   // owner sync node
   SSyncNode* pNode;
 
-  int maxMsgSize;
+  SSyncCluster cluster; 
+
+  SyncNodeId selfId;
+  SyncGroupId selfGroupId;
+
+  SSyncRaftIOMethods io;
 
   SSyncFSM      fsm;
   SSyncLogStore logStore;
   SStateManager stateManager;
 
+  union {
+    RaftLeaderState leaderState;
+    RaftCandidateState candidateState;
+  };
+
   SyncTerm term;
   SyncNodeId voteFor;
 
-  SyncNodeId selfId;
-  SyncGroupId selfGroupId;
+  SSyncRaftLog *log;
+
+  int maxMsgSize;
+  SSyncRaftProgressTracker *tracker;
+
+  ESyncRole state;
+
+  // isLearner is true if the local raft node is a learner.
+  bool isLearner;
 
   /**
    * the leader id
@@ -70,15 +82,23 @@ struct SSyncRaft {
    **/
   SyncNodeId leadTransferee;
 
-	/** 
-   * New configuration is ignored if there exists unapplied configuration.
+	/**
+   * Only one conf change may be pending (in the log, but not yet
+	 * applied) at a time. This is enforced via pendingConfIndex, which
+	 * is set to a value >= the log index of the latest pending
+	 * configuration change (if any). Config changes are only allowed to
+	 * be proposed if the leader's applied index is greater than this
+	 * value.
    **/
-	bool hasPendingConf;
+  SyncIndex pendingConfigIndex;
 
-  SSyncCluster cluster;
-
-  ESyncRole state;
-
+	/** 
+   * an estimate of the size of the uncommitted tail of the Raft log. Used to
+	 * prevent unbounded log growth. Only maintained by the leader. Reset on
+	 * term changes.
+   **/
+  uint32_t uncommittedSize;
+ 
 	/** 
    * number of ticks since it reached last electionTimeout when it is leader
 	 * or candidate.
@@ -96,24 +116,19 @@ struct SSyncRaft {
   // current tick count since start up
   uint32_t currentTick;
 
-  // election timeout tick(random in [3:6] tick)
-  uint16_t electionTimeoutTick;
-
-  // heartbeat timeout tick(default: 1 tick)
-  uint16_t heartbeatTimeoutTick;
-
   bool preVote;
   bool checkQuorum;
 
-  SSyncRaftIOMethods io;
+  int heartbeatTimeout;
+  int electionTimeout;
 
-  // union different state data
-  union {
-    RaftLeaderState leaderState;
-    RaftCandidateState candidateState;
-  };
-  
-  SSyncRaftLog *log;
+	/**
+   * randomizedElectionTimeout is a random number between
+	 * [electiontimeout, 2 * electiontimeout - 1]. It gets reset
+	 * when raft changes its state to follower or candidate.
+   **/
+	int randomizedElectionTimeout;
+	bool disableProposalForwarding;
 
   SyncRaftStepFp stepFp;
 

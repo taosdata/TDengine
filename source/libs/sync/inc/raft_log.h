@@ -19,8 +19,18 @@
 #include "sync.h"
 #include "sync_type.h"
 
-struct SSyncRaftEntry {
+typedef enum SyncEntryType {
+  SYNC_ENTRY_TYPE_LOG = 1,
+}SyncEntryType;
 
+struct SSyncRaftEntry {
+  SyncTerm term;
+
+  SyncIndex index;
+
+  SyncEntryType type;
+
+  SSyncBuffer buffer;
 };
 
 struct SSyncRaftLog {
@@ -48,6 +58,8 @@ int syncRaftLogNumOfPendingConf(SSyncRaftLog* pLog);
 bool syncRaftHasUnappliedLog(SSyncRaftLog* pLog);
 
 SyncTerm syncRaftLogTermOf(SSyncRaftLog* pLog, SyncIndex index);
+
+int syncRaftLogAppend(SSyncRaftLog* pLog, SSyncRaftEntry *pEntries, int n);
 
 int syncRaftLogAcquire(SSyncRaftLog* pLog, SyncIndex index, int maxMsgSize,
                       SSyncRaftEntry **ppEntries, int *n);

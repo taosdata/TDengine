@@ -20,7 +20,7 @@
 #include "raft_message.h"
 
 int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  RaftMsg_Append_Entries *appendEntries = &(pMsg->appendEntries);
+  const RaftMsg_Append_Entries *appendEntries = &(pMsg->appendEntries);
   
   int peerIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
   
@@ -33,7 +33,7 @@ int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMs
     return 0;
   }
 
-  RaftMsg_Append_Entries *appendResp = &(pMsg->appendResp);
+  RaftMsg_Append_Entries *appendResp = &(pRespMsg->appendResp);
   // ignore committed logs
   if (syncRaftLogIsCommitted(pRaft->log, appendEntries->index)) {
     appendResp->index = pRaft->log->commitIndex;

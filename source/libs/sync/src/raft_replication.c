@@ -22,6 +22,7 @@ static int sendSnapshot(SSyncRaft* pRaft, int i);
 static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex index, SyncTerm term);
 
 int syncRaftReplicate(SSyncRaft* pRaft, int i) {
+#if 0
   assert(pRaft->state == TAOS_SYNC_ROLE_LEADER);
   assert(i >= 0 && i < pRaft->leaderState.nProgress);
 
@@ -99,6 +100,8 @@ send_snapshot:
     prevTerm  = syncRaftLogLastTerm(pRaft->log);
     return sendAppendEntries(pRaft, i, prevIndex, prevTerm);
   }
+#endif
+  return 0;
 }
 
 static int sendSnapshot(SSyncRaft* pRaft, int i) {
@@ -106,6 +109,7 @@ static int sendSnapshot(SSyncRaft* pRaft, int i) {
 }
 
 static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex prevIndex, SyncTerm prevTerm) {
+#if 0
   SyncIndex nextIndex = prevIndex + 1;
   SSyncRaftEntry *entries;
   int nEntry;
@@ -139,5 +143,6 @@ static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex prevIndex, SyncT
 
 err_release_log:
   syncRaftLogRelease(pRaft->log, nextIndex, entries, nEntry);
+#endif
   return 0;
 }

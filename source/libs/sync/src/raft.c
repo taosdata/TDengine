@@ -17,6 +17,7 @@
 #include "raft_configuration.h"
 #include "raft_log.h"
 #include "raft_replication.h"
+#include "sync_raft_progress_tracker.h"
 #include "syncInt.h"
 
 #define RAFT_READ_LOG_MAX_NUM 100
@@ -34,6 +35,9 @@ static int triggerAll(SSyncRaft* pRaft);
 
 static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
+
+static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
+static bool maybeCommit(SSyncRaft* pRaft);
 
 static void abortLeaderTransfer(SSyncRaft* pRaft);
 
@@ -58,6 +62,12 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   stateManager = &(pRaft->stateManager);
   logStore = &(pRaft->logStore);
   fsm = &(pRaft->fsm);
+
+  // init progress tracker
+  pRaft->tracker = syncRaftOpenProgressTracker();
+  if (pRaft->tracker == NULL) {
+    return -1;
+  }
 
   // open raft log
   if ((pRaft->log = syncRaftLogOpen()) == NULL) {
@@ -88,7 +98,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
   assert(initIndex == serverState.commitIndex);
 
-  pRaft->heartbeatTimeoutTick = 1;
+  //pRaft->heartbeatTimeoutTick = 1;
 
   syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
 
@@ -137,7 +147,7 @@ void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId
 
 void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
   convertClear(pRaft);
-  memset(pRaft->candidateState.votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(SyncRaftVoteRespType) * TSDB_MAX_REPLICA);
+
 	/**
    * Becoming a pre-candidate changes our step functions and state,
 	 * but doesn't change anything else. In particular it does not increase
@@ -152,7 +162,6 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
 
 void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
   convertClear(pRaft);
-  memset(pRaft->candidateState.votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(SyncRaftVoteRespType) * TSDB_MAX_REPLICA);
 
   pRaft->candidateState.inPreVote = false;
   pRaft->stepFp = stepCandidate;
@@ -176,14 +185,22 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   if (nPendingConf > 1) {
     syncFatal("unexpected multiple uncommitted config entry");
   }
-  if (nPendingConf == 1) {
-    pRaft->hasPendingConf = true;
-  }
 
   syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 
-  // after become leader, send initial heartbeat
-  syncRaftTriggerHeartbeat(pRaft);
+  // after become leader, send a no-op log
+  SSyncRaftEntry* entry = (SSyncRaftEntry*)malloc(sizeof(SSyncRaftEntry));
+  if (entry == NULL) {
+    return;
+  }
+  *entry = (SSyncRaftEntry) {
+    .buffer = (SSyncBuffer) {
+      .data = NULL,
+      .len = 0,
+    }
+  };
+  appendEntries(pRaft, entry, 1);
+  //syncRaftTriggerHeartbeat(pRaft);
 }
 
 void syncRaftTriggerHeartbeat(SSyncRaft* pRaft) {
@@ -192,7 +209,7 @@ void syncRaftTriggerHeartbeat(SSyncRaft* pRaft) {
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft) {
   // electionTimeoutTick in [3,6] tick
-  pRaft->electionTimeoutTick = taosRand() % 4 + 3;
+  pRaft->randomizedElectionTimeout = taosRand() % 4 + 3;
 }
 
 bool syncRaftIsPromotable(SSyncRaft* pRaft) {
@@ -200,7 +217,7 @@ bool syncRaftIsPromotable(SSyncRaft* pRaft) {
 }
 
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
-  return pRaft->electionElapsed >= pRaft->electionTimeoutTick;
+  return pRaft->electionElapsed >= pRaft->randomizedElectionTimeout;
 }
 
 int syncRaftQuorum(SSyncRaft* pRaft) {
@@ -208,6 +225,7 @@ int syncRaftQuorum(SSyncRaft* pRaft) {
 }
 
 int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool accept, int* rejectNum) {
+/*
   if (accept) {
     syncInfo("[%d:%d] received (pre-vote %d) from %d at term %" PRId64 "", 
       pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
@@ -230,6 +248,8 @@ int syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, bool preVote, bool acc
 
   if (rejectNum) *rejectNum = rejected;
   return granted;
+*/
+  return 0;
 }
 
 /**
@@ -375,6 +395,34 @@ static void tickHeartbeat(SSyncRaft* pRaft) {
 
 }
 
+static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
+  SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
+  SyncTerm term = pRaft->term;
+  int i;
+
+  for (i = 0; i < n; ++i) {
+    entries[i].term = term;
+    entries[i].index = lastIndex + 1 + i;
+  }
+
+  syncRaftLogAppend(pRaft->log, entries, n);
+
+  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap[pRaft->cluster.selfIndex]);
+  syncRaftProgressMaybeUpdate(progress, lastIndex);
+  // Regardless of maybeCommit's return, our caller will call bcastAppend.
+  maybeCommit(pRaft);
+}
+
+/**
+ * maybeCommit attempts to advance the commit index. Returns true if
+ * the commit index changed (in which case the caller should call
+ * r.bcastAppend).
+ **/
+static bool maybeCommit(SSyncRaft* pRaft) {
+  
+  return true;
+}
+
 /**
  * trigger I/O requests for newly appended log entries or heartbeats.
  **/
@@ -395,6 +443,10 @@ static void abortLeaderTransfer(SSyncRaft* pRaft) {
   pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
 
+static void initProgress(SSyncRaftProgress* progress, void* arg) {
+  syncRaftInitProgress((SSyncRaft*)arg, progress);
+}
+
 static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
   if (pRaft->term != term) {
     pRaft->term = term;
@@ -410,5 +462,9 @@ static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
 
   abortLeaderTransfer(pRaft);
 
-  pRaft->hasPendingConf = false;
+  syncRaftResetVotes(pRaft->tracker);
+  syncRaftProgressVisit(pRaft->tracker, initProgress, pRaft);
+
+  pRaft->pendingConfigIndex = 0;
+  pRaft->uncommittedSize = 0;
 }
