@@ -24,7 +24,8 @@ extern "C" {
 
 extern const SVnodeOptions defaultVnodeOptions;
 
-int vnodeValidateOptions(const SVnodeOptions*);
+int  vnodeValidateOptions(const SVnodeOptions *);
+void vnodeOptionsCopy(SVnodeOptions *pDest, const SVnodeOptions *pSrc);
 
 #ifdef __cplusplus
 }

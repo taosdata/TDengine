@@ -27,3 +27,7 @@ int vnodeValidateOptions(const SVnodeOptions *pVnodeOptions) {
   // TODO
   return 0;
 }
+
+void vnodeOptionsCopy(SVnodeOptions *pDest, const SVnodeOptions *pSrc) {
+  memcpy((void *)pDest, (void *)pSrc, sizeof(SVnodeOptions));
+}
