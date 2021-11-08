@@ -18,7 +18,6 @@
 
 #include "vnode.h"
 
-#include "amalloc.h"
 #include "meta.h"
 #include "sync.h"
 #include "tlog.h"
