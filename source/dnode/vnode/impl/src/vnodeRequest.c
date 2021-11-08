@@ -12,18 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "vnodeDef.h"
-
-int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
-  /* TODO */
-  return 0;
-}
-
-int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
-  int type;
-  /* TODO */
-  return 0;
-}
-
-/* ------------------------ STATIC METHODS ------------------------ */

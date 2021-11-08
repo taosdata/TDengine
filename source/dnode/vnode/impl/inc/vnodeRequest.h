@@ -13,17 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
+#ifndef _TD_VNODE_REQUEST_H_
+#define _TD_VNODE_REQUEST_H_
 
-int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
-  /* TODO */
-  return 0;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
 }
+#endif
 
-int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
-  int type;
-  /* TODO */
-  return 0;
-}
-
-/* ------------------------ STATIC METHODS ------------------------ */
+#endif /*_TD_VNODE_REQUEST_H_*/

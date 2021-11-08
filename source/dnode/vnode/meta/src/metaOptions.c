@@ -13,11 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
+#include "metaDef.h"
 
-const static SMetaOptions defaultMetaOptions = {.lruCacheSize = 0};
-
-static void metaOptionsCopy(SMetaOptions *pDest, const SMetaOptions *pSrc);
+const SMetaOptions defaultMetaOptions = {.lruCacheSize = 0};
 
 /* ------------------------ EXPOSED METHODS ------------------------ */
 void metaOptionsInit(SMetaOptions *pMetaOptions) { metaOptionsCopy(pMetaOptions, &defaultMetaOptions); }

@@ -85,10 +85,32 @@ static void vnodeFree(SVnode *pVnode) {
 }
 
 static int vnodeOpenImpl(SVnode *pVnode) {
+  char dir[TSDB_FILENAME_LEN];
+
+  // Open meta
+  sprintf(dir, "%s/meta", pVnode->path);
+  if (metaOpen(dir, &(pVnode->options.metaOptions)) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  // Open tsdb
+  sprintf(dir, "%s/tsdb", pVnode->path);
+  if (tsdbOpen(dir, &(pVnode->options.tsdbOptions)) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  // TODO: Open TQ
+
   // TODO
   return 0;
 }
 
 static void vnodeCloseImpl(SVnode *pVnode) {
-  // TODO
+  if (pVnode) {
+    // TODO: Close TQ
+    tsdbClose(pVnode->pTsdb);
+    metaClose(pVnode->pMeta);
+  }
 }

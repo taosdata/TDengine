@@ -18,6 +18,7 @@
 const SVnodeOptions defaultVnodeOptions = {0}; /* TODO */
 
 void vnodeOptionsInit(SVnodeOptions *pVnodeOptions) { /* TODO */
+  vnodeOptionsCopy(pVnodeOptions, &defaultVnodeOptions);
 }
 
 void vnodeOptionsClear(SVnodeOptions *pVnodeOptions) { /* TODO */
