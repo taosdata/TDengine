@@ -27,10 +27,17 @@ extern "C" {
 #define TQ_BUCKET_SIZE 0xFF
 #define TQ_PAGE_SIZE 4096
 //key + offset + size
-#define TQ_IDX_ENTRY_SIZE 24
+#define TQ_IDX_SIZE 24
+//4096 / 24
+#define TQ_MAX_IDX_ONE_PAGE 170
+//24 * 170
+#define TQ_IDX_PAGE_BODY_SIZE 4080
+//4096 - 4080
+#define TQ_IDX_PAGE_HEAD_SIZE 16
+
 
 inline static int TqMaxEntryOnePage() { //170
-  return TQ_PAGE_SIZE / TQ_IDX_ENTRY_SIZE;
+  return TQ_PAGE_SIZE / TQ_IDX_SIZE;
 }
 
 inline static int TqEmptyTail() { //16

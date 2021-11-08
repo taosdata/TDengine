@@ -86,8 +86,6 @@ TEST_F(TqMetaTest, persistTest) {
 
   pBar = (Foo*)tqHandleGet(pMeta, 2);
   EXPECT_EQ(pBar == NULL, true);
-
-  //taosRemoveDir(pathName);
 }
 
 TEST_F(TqMetaTest, uncommittedTest) {
