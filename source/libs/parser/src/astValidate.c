@@ -3026,6 +3026,7 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
         (*pExpr)->nodeType = TEXPR_FUNCTION_NODE;
 
         (*pExpr)->_function.pChild = p;
+        (*pExpr)->_function.num = num;
         strncpy((*pExpr)->_function.functionName, pSqlExpr->Expr.operand.z, pSqlExpr->Expr.operand.n);
         return TSDB_CODE_SUCCESS;
       } else {
@@ -3155,6 +3156,9 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
         }
       }
     }
+
+    // scalar op aggregate check
+
   }
 
   return TSDB_CODE_SUCCESS;

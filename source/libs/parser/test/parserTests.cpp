@@ -404,6 +404,8 @@ TEST(testCase, function_Test10) {
   sqlCheck("select length(sum(a) + sum(b)) + length(sum(a) + sum(b)) from `t.1abc`", true);
   sqlCheck("select sum(length(sum(a))) from `t.1abc`", true);
   sqlCheck("select cov(a, b) from `t.1abc`", true);
+  sqlCheck("select sum(length(a) + count(b)) from `t.1abc`", false);
+
   //  sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
   //  sqlCheck("select length(length(length(a))) from `t.1abc`", true);
 }
@@ -582,12 +584,35 @@ TEST(testCase, function_Test6) {
   tExprNode* pParam = p1->pExpr->_function.pChild[0];
 
   ASSERT_EQ(pParam->nodeType, TSDB_COL_TMP);
-//  ASSERT_EQ(pParam->_node.optr, TSDB_BINARY_OP_DIVIDE);
+//  ASSERT_EQ(pParam->.optr, TSDB_BINARY_OP_DIVIDE);
 //  ASSERT_EQ(pParam->_node.pLeft->nodeType, TEXPR_BINARYEXPR_NODE);
 //  ASSERT_EQ(pParam->_node.pRight->nodeType, TEXPR_VALUE_NODE);
 
   ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
+
+  destroyQueryInfo(pQueryInfo);
+  qParserClearupMetaRequestInfo(&req);
+  destroySqlInfo(&info1);
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  info1 = doGenerateAST("select sum(length(a)+length(b)) from `t.1abc` interval(10s, 1s)");
+  ASSERT_EQ(info1.valid, true);
+
+  pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+  ASSERT_EQ(code, 0);
+
+  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+
+  pQueryInfo = createQueryInfo();
+  setTableMetaInfo(pQueryInfo, &req);
+
+  pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+  ASSERT_EQ(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
   qParserClearupMetaRequestInfo(&req);
