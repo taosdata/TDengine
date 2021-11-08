@@ -24,7 +24,6 @@ extern "C" {
 
 int32_t mnodeInitWorker();
 void    mnodeCleanupWorker();
-void    mnodeProcessMsg(SRpcMsg *rpcMsg);
 void    mnodeSendRsp(SMnMsg *pMsg, int32_t code);
 void    mnodeReDispatchToWriteQueue(SMnMsg *pMsg);
 
