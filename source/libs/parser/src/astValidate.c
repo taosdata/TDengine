@@ -3137,7 +3137,7 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
     }
 
   } else {
-    *pExpr = (tExprNode *)calloc(1, sizeof(tExprNode));
+    *pExpr = (tExprNode*)calloc(1, sizeof(tExprNode));
     (*pExpr)->nodeType = TEXPR_BINARYEXPR_NODE;
 
     (*pExpr)->_node.pLeft = pLeft;
@@ -3158,9 +3158,16 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
     }
 
     // scalar op aggregate check
+    if (pLeft->nodeType == TEXPR_FUNCTION_NODE && pRight->nodeType != TEXPR_FUNCTION_NODE) {
+      return buildInvalidOperationMsg(pMsgBuf, "invalid expression");
+    }
 
+    if (pLeft->nodeType == TEXPR_FUNCTION_NODE && pRight->nodeType == TEXPR_FUNCTION_NODE) {
+      if (qIsAggregateFunction(pLeft->_function.functionName) != qIsAggregateFunction(pRight->_function.functionName)) {
+        return buildInvalidOperationMsg(pMsgBuf, "invalid expression");
+      }
+    }
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
