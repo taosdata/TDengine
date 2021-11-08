@@ -168,9 +168,7 @@ void columnListDestroy(SArray* pColumnList);
 void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel);
 
 typedef struct SSourceParam {
-//  struct tExprNode **pExprNode;
   SArray            *pExprNodeList; //Array<struct tExprNode*>
-//  SColumn           *pCols;
   SArray            *pColumnList;   //Array<struct SColumn>
   int32_t    num;
 } SSourceParam;

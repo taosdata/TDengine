@@ -68,8 +68,15 @@ static tExprNode* createFunctionExprNode(const char* funcName, struct SSourcePar
     for(int32_t i = 0; i < pParam->num; ++i) {
       p[i] = calloc(1, sizeof(tExprNode));
       p[i]->nodeType = TEXPR_COL_NODE;
-      p[i]->pSchema = calloc(1, sizeof(SSchema));
-      memcpy(p[i]->pSchema, taosArrayGetP(pParam->pColumnList, i), sizeof(SSchema));
+
+      SColumn* pSrc = taosArrayGetP(pParam->pColumnList, i);
+      SSchema* pSchema = calloc(1, sizeof(SSchema));
+
+      tstrncpy(pSchema->name, pSrc->name, tListLen(pSchema->name));
+      pSchema->type  = pSrc->info.type;
+      pSchema->bytes = pSrc->info.bytes;
+      pSchema->colId = pSrc->info.colId;
+      p[i]->pSchema = pSchema;
     }
   } else {
     assert(pParam->pColumnList == NULL);
@@ -88,7 +95,7 @@ static tExprNode* createFunctionExprNode(const char* funcName, struct SSourcePar
   return pNode;
 }
 
-SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema) {
+SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema, const char* funcName) {
   assert(pNode != NULL && pResSchema != NULL);
 
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
@@ -97,6 +104,10 @@ SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema) {
   }
 
   pExpr->pExpr = pNode;
+
+  char* fName = pExpr->pExpr->_function.functionName;
+  tstrncpy(fName, funcName, tListLen(pExpr->pExpr->_function.functionName));
+
   memcpy(&pExpr->base.resSchema, pResSchema, sizeof(SSchema));
   return pExpr;
 }
@@ -156,7 +167,7 @@ void addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t
     taosArrayInsert(pExprList, index, &pExprInfo);
   }
 
-  printf("add function, id:%s, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionName, level, taosArrayGetSize(pExprList));
+  printf("add function: %s, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionName, level, taosArrayGetSize(pExprList));
 }
 
 void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize) {

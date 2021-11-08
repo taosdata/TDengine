@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <function.h>
 #include <gtest/gtest.h>
 #include <iostream>
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -393,86 +394,91 @@ void sqlCheck(const char* sql, bool valid) {
 //  destroySqlInfo(&info1);
 //}
 
-TEST(testCase, function_Test10) {
-  sqlCheck("select c from `t.1abc`", true);
-  sqlCheck("select length(c) from `t.1abc`", true);
-  sqlCheck("select sum(length(a+b)) from `t.1abc`", true);
-  sqlCheck("select sum(sum(a+b)) from `t.1abc`", false);
-  sqlCheck("select sum(length(a) + length(b)) from `t.1abc`", true);
-  sqlCheck("select length(sum(a) + sum(b)) + length(sum(a) + sum(b)) from `t.1abc`", true);
-  sqlCheck("select sum(length(sum(a))) from `t.1abc`", true);
-  sqlCheck("select cov(a, b) from `t.1abc`", true);
-//  sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
-//  sqlCheck("select length(length(length(a))) from `t.1abc`", true);
+//TEST(testCase, function_Test10) {
+//  sqlCheck("select c from `t.1abc`", true);
+//  sqlCheck("select length(c) from `t.1abc`", true);
+//  sqlCheck("select sum(length(a+b)) from `t.1abc`", true);
+//  sqlCheck("select sum(sum(a+b)) from `t.1abc`", false);
+//  sqlCheck("select sum(length(a) + length(b)) from `t.1abc`", true);
+//  sqlCheck("select length(sum(a) + sum(b)) + length(sum(a) + sum(b)) from `t.1abc`", true);
+//  sqlCheck("select sum(length(sum(a))) from `t.1abc`", true);
+//  sqlCheck("select cov(a, b) from `t.1abc`", true);
+////  sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
+////  sqlCheck("select length(length(length(a))) from `t.1abc`", true);
+//}
+
+TEST(testCase, function_Test6) {
+  SSqlInfo info1 = doGenerateAST("select sum(a+b) as a1, first(b*a), count(b+b), count(1), count(42.1) from `t.1abc` interval(10s, 1s)");
+  ASSERT_EQ(info1.valid, true);
+
+  char    msg[128] = {0};
+  SMsgBuf buf;
+  buf.len = 128;
+  buf.buf = msg;
+
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+  ASSERT_EQ(code, 0);
+
+  SMetaReq req = {0};
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+
+  SQueryStmtInfo* pQueryInfo = createQueryInfo();
+  setTableMetaInfo(pQueryInfo, &req);
+
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+  ASSERT_EQ(ret, 0);
+
+  SArray* pExprList = pQueryInfo->exprList[0];
+  ASSERT_EQ(taosArrayGetSize(pExprList), 5);
+
+  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+  ASSERT_EQ(p1->base.pColumns->uid, 110);
+  ASSERT_EQ(p1->base.numOfParams, 0);
+  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1");
+  ASSERT_EQ(p1->base.pColumns->flag, TSDB_COL_TMP);
+  ASSERT_STRCASEEQ(p1->base.token, "sum(a+b)");
+  ASSERT_EQ(p1->base.interBytes, 16);
+  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_FUNCTION_NODE);
+  ASSERT_STRCASEEQ(p1->pExpr->_function.functionName, "sum");
+  ASSERT_EQ(p1->pExpr->_function.num, 1);
+
+  tExprNode* pParam = p1->pExpr->_function.pChild[0];
+
+  ASSERT_EQ(pParam->nodeType, TEXPR_COL_NODE);
+  ASSERT_STREQ(pParam->pSchema->name, "t.1abc.a+b");
+
+  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
+  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 5);
+
+  SExprInfo* p2 = (SExprInfo*) taosArrayGetP(pExprList, 1);
+  ASSERT_EQ(p2->base.pColumns->uid, 110);
+  ASSERT_EQ(p2->base.numOfParams, 0);
+  ASSERT_EQ(p2->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_STRCASEEQ(p2->base.resSchema.name, "first(b*a)");
+
+  ASSERT_EQ(p2->base.pColumns->flag, TSDB_COL_TMP);
+  ASSERT_STREQ(p2->base.pColumns->name, "t.1abc.b*a");
+
+  ASSERT_STRCASEEQ(p2->base.token, "first(b*a)");
+  ASSERT_EQ(p2->base.interBytes, 24);
+  ASSERT_EQ(p2->pExpr->nodeType, TEXPR_FUNCTION_NODE);
+  ASSERT_STRCASEEQ(p2->pExpr->_function.functionName, "first");
+  ASSERT_EQ(p2->pExpr->_function.num, 1);
+  ASSERT_EQ(p2->pExpr->_function.pChild[0]->nodeType, TEXPR_COL_NODE);
+  ASSERT_STREQ(p2->pExpr->_function.pChild[0]->pSchema->name, "t.1abc.b*a");
+
+
+  destroyQueryInfo(pQueryInfo);
+  qParserClearupMetaRequestInfo(&req);
+  destroySqlInfo(&info1);
 }
 
-//TEST(testCase, function_Test6) {
-//  SSqlInfo info1 = doGenerateAST("select sum(a+b) as a1, first(b*a), count(b+b), count(1), count(42.1) from `t.1abc` interval(10s, 1s)");
-//  ASSERT_EQ(info1.valid, true);
-//
-//  char    msg[128] = {0};
-//  SMsgBuf buf;
-//  buf.len = 128;
-//  buf.buf = msg;
-//
-//  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
-//  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
-//  ASSERT_EQ(code, 0);
-//
-//  SMetaReq req = {0};
-//  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
-//  ASSERT_EQ(ret, 0);
-//  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
-//
-//  SQueryStmtInfo* pQueryInfo = createQueryInfo();
-//  setTableMetaInfo(pQueryInfo, &req);
-//
-//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
-//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-//  ASSERT_EQ(ret, 0);
-//
-//  SArray* pExprList = pQueryInfo->exprList[0];
-//  ASSERT_EQ(taosArrayGetSize(pExprList), 5);
-//
-//  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
-//  ASSERT_EQ(p1->base.pColumns->uid, 110);
-//  ASSERT_EQ(p1->base.numOfParams, 0);
-//  ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
-//  ASSERT_STRCASEEQ(p1->base.resSchema.name, "a1");
-//  ASSERT_EQ(p1->base.pColumns->flag, TSDB_COL_NORMAL);
-//  ASSERT_STRCASEEQ(p1->base.token, "sum(a+b)");
-//  ASSERT_EQ(p1->base.interBytes, 16);
-//  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_UNARYEXPR_NODE);
-//  ASSERT_EQ(p1->pExpr->_function.functionId, FUNCTION_SUM);
-//  ASSERT_TRUE(p1->pExpr->_node.pRight == NULL);
-//
-//  tExprNode* pParam = p1->pExpr->_node.pLeft;
-//
-//  ASSERT_EQ(pParam->nodeType, TEXPR_BINARYEXPR_NODE);
-//  ASSERT_EQ(pParam->_node.optr, TSDB_BINARY_OP_ADD);
-//  ASSERT_EQ(pParam->_node.pLeft->nodeType, TEXPR_COL_NODE);
-//  ASSERT_EQ(pParam->_node.pRight->nodeType, TEXPR_COL_NODE);
-//
-//  ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-//  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 5);
-//
-//  SExprInfo* p2 = (SExprInfo*) taosArrayGetP(pExprList, 1);
-//  ASSERT_EQ(p2->base.pColumns->uid, 110);
-//  ASSERT_EQ(p2->base.numOfParams, 0);
-//  ASSERT_EQ(p2->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
-//  ASSERT_STRCASEEQ(p2->base.resSchema.name, "first(b*a)");
-//  ASSERT_EQ(p2->base.pColumns->flag, TSDB_COL_NORMAL);
-//  ASSERT_STRCASEEQ(p2->base.token, "first(b*a)");
-//  ASSERT_EQ(p2->base.interBytes, 24);
-//  ASSERT_EQ(p2->pExpr->nodeType, TEXPR_UNARYEXPR_NODE);
-//  ASSERT_EQ(p2->pExpr->_function.functionId, FUNCTION_FIRST);
-//  ASSERT_TRUE(p2->pExpr->_node.pRight == NULL);
-//
-//  destroyQueryInfo(pQueryInfo);
-//  qParserClearupMetaRequestInfo(&req);
-//  destroySqlInfo(&info1);
-//}
-//
+
 //TEST(testCase, function_Test7) {
 //  SSqlInfo info1 = doGenerateAST("select count(a+b),count(1) from `t.1abc` interval(10s, 1s)");
 //  ASSERT_EQ(info1.valid, true);
@@ -510,7 +516,7 @@ TEST(testCase, function_Test10) {
 //  ASSERT_STRCASEEQ(p1->base.token, "count(a+b)");
 //  ASSERT_EQ(p1->base.interBytes, 8);
 //  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_UNARYEXPR_NODE);
-//  ASSERT_EQ(p1->pExpr->_function.functionId, FUNCTION_COUNT);
+//  ASSERT_STREQ(p1->pExpr->_function.functionName, "count");
 //  ASSERT_TRUE(p1->pExpr->_node.pRight == NULL);
 //
 //  tExprNode* pParam = p1->pExpr->_node.pLeft;
@@ -566,7 +572,7 @@ TEST(testCase, function_Test10) {
 //  ASSERT_EQ(p1->base.interBytes, 16);
 //
 //  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_UNARYEXPR_NODE);
-//  ASSERT_EQ(p1->pExpr->_function.functionId, FUNCTION_TOP);
+//  ASSERT_STRCASEEQ(p1->pExpr->_function.functionName, "top");
 //  ASSERT_TRUE(p1->pExpr->_node.pRight == NULL);
 //
 //  tExprNode* pParam = p1->pExpr->_node.pLeft;
