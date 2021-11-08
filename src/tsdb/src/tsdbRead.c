@@ -1727,8 +1727,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           // copy qend - qstart + 1 rows from file
           numOfRows = doCopyRowsFromFileBlock(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, qstart, qend);
           int32_t num = qend - qstart + 1;
-          pos += num * step;
-          /*
+          //pos += num * step;
           if(step == -1 && pos - num < 0) {
             if(pos == 0)
               moveToNextRowInMem(pCheckInfo);  //can not move file pos, so must move mem pos, otherwise maybe death-loop
@@ -1742,7 +1741,6 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           } else {
             pos += num * step; // move file pos ok
           } 
-          */         
         } else {
           // nothing copy from file
           pos += step;
