@@ -175,7 +175,7 @@ typedef struct SSourceParam {
   int32_t    num;
 } SSourceParam;
 
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, const char* funcName, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);

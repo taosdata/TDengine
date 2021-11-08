@@ -4810,7 +4810,7 @@ SAggFunctionInfo aggFunc[35] = {{
                           },
                           {
                                 // 33
-                              "_block_dist",   // return table id and the corresponding tags for join match and subscribe
+                              "block_dist",   // return table id and the corresponding tags for join match and subscribe
                               FUNCTION_TYPE_AGG,
                               FUNCTION_BLKINFO,
                               FUNCTION_BLKINFO,

@@ -1709,9 +1709,9 @@ void setResultColName(char* name, tSqlExprItem* pItem, SToken* pToken, SToken* f
 }
 
 
-SExprInfo* doAddOneExprInfo(SQueryStmtInfo* pQueryInfo, int16_t functionId, SSourceParam* pSourceParam, int32_t outputIndex,
+SExprInfo* doAddOneExprInfo(SQueryStmtInfo* pQueryInfo, const char* funcName, SSourceParam* pSourceParam, int32_t outputIndex,
                            STableMetaInfo* pTableMetaInfo, SSchema* pResultSchema, int32_t interSize, const char* token, bool finalResult) {
-  SExprInfo* pExpr = createExprInfo(pTableMetaInfo, functionId, pSourceParam, pResultSchema, interSize);
+  SExprInfo* pExpr = createExprInfo(pTableMetaInfo, funcName, pSourceParam, pResultSchema, interSize);
 
   SArray* pExprList = getCurrentExprList(pQueryInfo);
   addExprInfo(pExprList, outputIndex, pExpr, pQueryInfo->exprListLevelIndex);
@@ -2978,8 +2978,8 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
         (*pExpr)->nodeType = TEXPR_FUNCTION_NODE;
 
         (*pExpr)->_function.pChild = p;
-        (*pExpr)->_function.functionId = functionId;
-        (*pExpr)->_function.functionName = strndup(pSqlExpr->Expr.operand.z, pSqlExpr->Expr.operand.n);
+//        (*pExpr)->_function.functionId = functionId;
+        strncpy((*pExpr)->_function.functionName, pSqlExpr->Expr.operand.z, pSqlExpr->Expr.operand.n);
         return TSDB_CODE_SUCCESS;
       } else {
         printf("agg function found, %s\n", pSqlExpr->exprToken.z);
@@ -3826,7 +3826,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
     validateSqlNode(p, pQueryInfo, &buf);
   }
 
-  SArray* functionList = extractFunctionIdList(pQueryInfo->exprList[0]);
+  SArray* functionList = extractFunctionList(pQueryInfo->exprList[0]);
   extractFunctionDesc(functionList, &pQueryInfo->info);
 
   if ((code = checkForInvalidExpr(pQueryInfo, &buf)) != TSDB_CODE_SUCCESS) {

@@ -544,7 +544,7 @@ struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, co
     pFillCol[i].col.colId  = pExprInfo->base.resSchema.colId;
     pFillCol[i].tagIndex   = -2;
     pFillCol[i].flag       = pExprInfo->base.pColumns->flag;    // always be the normal column for table query
-    pFillCol[i].functionId = pExprInfo->pExpr->_function.functionId;
+//    pFillCol[i].functionId = pExprInfo->pExpr->_function.functionId;
     pFillCol[i].fillVal.i  = fillVal[i];
 
     offset += pExprInfo->base.resSchema.bytes;

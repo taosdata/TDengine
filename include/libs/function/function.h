@@ -182,8 +182,8 @@ typedef struct tExprNode {
     struct SVariant    *pVal;   // value node
 
     struct {// function node
-      char             *functionName;
-      int32_t           functionId;
+      char              functionName[FUNCTIONS_NAME_MAX_LENGTH];
+//      int32_t           functionId;
       int32_t           num;
 
       // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the

@@ -61,7 +61,7 @@ SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
-static tExprNode* createFunctionExprNode(int32_t functionId, struct SSourceParam *pParam) {//SSchema* pSchema, tExprNode* pColumnNode, int32_t numOfCols) {
+static tExprNode* createFunctionExprNode(const char* funcName, struct SSourceParam *pParam) {
   tExprNode** p = malloc(pParam->num * POINTER_BYTES);
 
   if (pParam->pColumnList != NULL) {
@@ -81,7 +81,7 @@ static tExprNode* createFunctionExprNode(int32_t functionId, struct SSourceParam
   tExprNode* pNode = calloc(1, sizeof(tExprNode));
 
   pNode->nodeType = TEXPR_FUNCTION_NODE;
-  pNode->_function.functionId = functionId;
+  tstrncpy(pNode->_function.functionName, funcName, tListLen(pNode->_function.functionName));
   pNode->_function.pChild = p;
   pNode->_function.num = pParam->num;
 
@@ -101,7 +101,7 @@ SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema) {
   return pExpr;
 }
 
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SSourceParam* pSourceParam, SSchema* pResSchema, int16_t interSize) {
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, const char* funcName, SSourceParam* pSourceParam, SSchema* pResSchema, int16_t interSize) {
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
   if (pExpr == NULL) {
     return NULL;
@@ -120,7 +120,7 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SS
   memcpy(&p->resSchema, pResSchema, sizeof(SSchema));
 
   if (pSourceParam->pExprNodeList != NULL) {
-    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
+    pExpr->pExpr = createFunctionExprNode(funcName, pSourceParam);
     return pExpr;
   }
 
@@ -131,16 +131,16 @@ SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SS
     SSchema* s = getTbnameColumnSchema();
     setColumn(p->pColumns, uid, pTableMetaInfo->aliasName, TSDB_COL_TAG, s);
 
-    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
-  } else if (TSDB_COL_IS_UD_COL(pCol->flag) || functionId == FUNCTION_BLKINFO) {
+    pExpr->pExpr = createFunctionExprNode(funcName, pSourceParam);
+  } else if (TSDB_COL_IS_UD_COL(pCol->flag) || strcmp(funcName, "block_dist") == 0) {
     setColumn(p->pColumns, uid, pTableMetaInfo->aliasName, TSDB_COL_UDC, pResSchema);
-    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
+    pExpr->pExpr = createFunctionExprNode(funcName, pSourceParam);
   } else {
     for(int32_t i = 0; i < pSourceParam->num; ++i) {
       SColumn* c = taosArrayGetP(pSourceParam->pColumnList, i);
       p->pColumns[i] = *c;
     }
-    pExpr->pExpr = createFunctionExprNode(functionId, pSourceParam);
+    pExpr->pExpr = createFunctionExprNode(funcName, pSourceParam);
   }
 
   return pExpr;
@@ -156,14 +156,13 @@ void addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t
     taosArrayInsert(pExprList, index, &pExprInfo);
   }
 
-  printf("add function, id:%d, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionId, level, taosArrayGetSize(pExprList));
+  printf("add function, id:%s, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionName, level, taosArrayGetSize(pExprList));
 }
 
 void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize) {
   assert(pExprInfo != NULL);
 
   SSqlExpr* pse = &pExprInfo->base;
-  pExprInfo->pExpr->_function.functionId = functionId;
   assert(0);
 
   pse->resSchema.type  = resType;
@@ -172,7 +171,7 @@ void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int
 
 SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index) {
   assert(pQueryInfo != NULL && pQueryInfo->exprList && index >= 0);
-  return taosArrayGetP(pQueryInfo->exprList, index);
+  return taosArrayGetP(getCurrentExprList(pQueryInfo->exprList), index);
 }
 
 void destroyExprInfo(SExprInfo* pExprInfo) {
@@ -214,7 +213,7 @@ void addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
 
 int32_t getExprFunctionId(SExprInfo *pExprInfo) {
   assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
-  return pExprInfo->pExpr->_function.functionId;
+  return 0;
 }
 
 void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
@@ -310,14 +309,14 @@ int32_t getResRowLength(SArray* pExprList) {
   return size;
 }
 
-SArray* extractFunctionIdList(SArray* pExprInfoList) {
+SArray* extractFunctionList(SArray* pExprInfoList) {
   assert(pExprInfoList != NULL);
 
   size_t len = taosArrayGetSize(pExprInfoList);
   SArray* p = taosArrayInit(len, sizeof(int32_t));
   for(int32_t i = 0; i < len; ++i) {
     SExprInfo* pExprInfo = taosArrayGetP(pExprInfoList, i);
-    taosArrayPush(p, &pExprInfo->pExpr->_function.functionId);
+    taosArrayPush(p, &pExprInfo->pExpr->_function.functionName);
   }
 
   return p;

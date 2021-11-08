@@ -43,7 +43,7 @@ void       addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32
 void       cleanupFieldInfo(SFieldInfo* pFieldInfo);
 
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
-SArray* extractFunctionIdList(SArray* pExprInfoList);
+SArray    *extractFunctionList(SArray* pExprInfoList);
 
 #ifdef __cplusplus
 }

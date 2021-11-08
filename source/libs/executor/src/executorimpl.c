@@ -162,7 +162,7 @@ int64_t genQueryId(void) {
 
 static int32_t getExprFunctionId(SExprInfo *pExprInfo) {
   assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
-  return pExprInfo->pExpr->_function.functionId;
+  return 0;
 }
 
 static void getNextTimeWindow(SQueryAttr* pQueryAttr, STimeWindow* tw) {
