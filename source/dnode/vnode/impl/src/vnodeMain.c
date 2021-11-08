@@ -15,13 +15,47 @@
 
 #include "vnodeDef.h"
 
+static SVnode *vnodeNew(const char *path, const SVnodeOptions *pVnodeOptions);
+static void    vnodeFree(SVnode *pVnode);
+
 SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions) {
   SVnode *pVnode = NULL;
-  /* TODO */
+
+  // Set default options
+  if (pVnodeOptions == NULL) {
+    pVnodeOptions = &defaultVnodeOptions;
+  }
+
+  // Validate options
+  if (vnodeValidateOptions(pVnodeOptions) < 0) {
+    // TODO
+    return NULL;
+  }
+
+  pVnode = vnodeNew(path, pVnodeOptions);
+  if (pVnode == NULL) {
+    // TODO: handle error
+    return NULL;
+  }
+
+  taosMkDir(path);
+
   return pVnode;
 }
 
-void vnodeCloee(SVnode *pVnode) { /* TODO */
+void vnodeClose(SVnode *pVnode) { /* TODO */
 }
 
 void vnodeDestroy(const char *path) { taosRemoveDir(path); }
+
+/* ------------------------ STATIC METHODS ------------------------ */
+static SVnode *vnodeNew(const char *path, const SVnodeOptions *pVnodeOptions) {
+  // TODO
+  return NULL;
+}
+
+static void vnodeFree(SVnode *pVnode) {
+  if (pVnode) {
+    // TODO
+  }
+}

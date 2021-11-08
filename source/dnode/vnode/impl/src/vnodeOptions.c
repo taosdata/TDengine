@@ -15,6 +15,15 @@
 
 #include "vnodeDef.h"
 
-void vnodeOptionsInit(SVnodeOptions *pVnodeOptions) { /* TODO */ }
+const SVnodeOptions defaultVnodeOptions = {0}; /* TODO */
 
-void vnodeOptionsClear(SVnodeOptions *pVnodeOptions) { /* TODO */ }
+void vnodeOptionsInit(SVnodeOptions *pVnodeOptions) { /* TODO */
+}
+
+void vnodeOptionsClear(SVnodeOptions *pVnodeOptions) { /* TODO */
+}
+
+int vnodeValidateOptions(const SVnodeOptions *pVnodeOptions) {
+  // TODO
+  return 0;
+}

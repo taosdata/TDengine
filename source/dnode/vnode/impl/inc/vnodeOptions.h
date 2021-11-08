@@ -13,26 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_DEF_H_
-#define _TD_VNODE_DEF_H_
+#ifndef _TD_VNODE_OPTIONS_H_
+#define _TD_VNODE_OPTIONS_H_
 
 #include "vnode.h"
-#include "vnodeOptions.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SVnode {
-  char*         path;
-  SVnodeOptions options;
-  SMeta*        pMeta;
-  STsdb*        pTsdb;
-  STQ*          pTq;
-};
+extern const SVnodeOptions defaultVnodeOptions;
+
+int vnodeValidateOptions(const SVnodeOptions*);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_DEF_H_*/
+#endif /*_TD_VNODE_OPTIONS_H_*/
