@@ -95,7 +95,7 @@ static tExprNode* createFunctionExprNode(const char* funcName, struct SSourcePar
   return pNode;
 }
 
-SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema, const char* funcName) {
+SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema) {
   assert(pNode != NULL && pResSchema != NULL);
 
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
@@ -104,10 +104,6 @@ SExprInfo* createBinaryExprInfo(tExprNode* pNode, SSchema* pResSchema, const cha
   }
 
   pExpr->pExpr = pNode;
-
-  char* fName = pExpr->pExpr->_function.functionName;
-  tstrncpy(fName, funcName, tListLen(pExpr->pExpr->_function.functionName));
-
   memcpy(&pExpr->base.resSchema, pResSchema, sizeof(SSchema));
   return pExpr;
 }
@@ -167,7 +163,11 @@ void addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t
     taosArrayInsert(pExprList, index, &pExprInfo);
   }
 
-  printf("add function: %s, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionName, level, taosArrayGetSize(pExprList));
+  if (pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
+    printf("add function: %s, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionName, level, taosArrayGetSize(pExprList));
+  } else {
+    printf("add operator: %s, level:%d, total:%ld\n", pExprInfo->base.resSchema.name, level, taosArrayGetSize(pExprList));
+  }
 }
 
 void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize) {
