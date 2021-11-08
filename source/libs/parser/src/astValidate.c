@@ -2412,7 +2412,7 @@ int32_t addAggExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t colIndex, tSq
       SSourceParam param = {0};
       addIntoSourceParam(&param, NULL, &c);
 
-      SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, functionId, &param, colIndex, pTableMetaInfo, &s, resInfo.intermediateBytes, token, finalResult);
+      SExprInfo* pExpr = doAddOneExprInfo(pQueryInfo, "block_dist", &param, colIndex, pTableMetaInfo, &s, resInfo.intermediateBytes, token, finalResult);
 
       int64_t rowSize = pTableMetaInfo->pTableMeta->tableInfo.rowSize;
       addExprInfoParam(&pExpr->base, (char*) &rowSize, TSDB_DATA_TYPE_BIGINT, 8);
@@ -2724,7 +2724,7 @@ static int32_t handleTbnameProjection(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
   const char* msg3 = "tbname not allowed in outer query";
 
   SSchema colSchema = {0};
-  int32_t functionId = 0;
+  char* funcName = NULL;
 
   if (outerQuery) {  // todo??
     STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
@@ -2746,10 +2746,10 @@ static int32_t handleTbnameProjection(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
     }
 
     colSchema = pSchema[pIndex->columnIndex];
-    functionId = FUNCTION_PRJ;
+    funcName = "project_col";
   } else {
     colSchema = *getTbnameColumnSchema();
-    functionId = FUNCTION_TAGPRJ;
+    funcName = "project_tag";
   }
 
   SSchema resultSchema = colSchema;
@@ -2764,7 +2764,7 @@ static int32_t handleTbnameProjection(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
   SSourceParam param = {0};
   addIntoSourceParam(&param, NULL, &c);
 
-  doAddOneExprInfo(pQueryInfo, functionId, &param, startPos, pTableMetaInfo, &colSchema, 0, rawName, true);
+  doAddOneExprInfo(pQueryInfo, "project_tab", &param, startPos, pTableMetaInfo, &colSchema, 0, rawName, true);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2991,7 +2991,6 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
         (*pExpr)->nodeType = TEXPR_FUNCTION_NODE;
 
         (*pExpr)->_function.pChild = p;
-//        (*pExpr)->_function.functionId = functionId;
         strncpy((*pExpr)->_function.functionName, pSqlExpr->Expr.operand.z, pSqlExpr->Expr.operand.n);
         return TSDB_CODE_SUCCESS;
       } else {
@@ -3077,11 +3076,7 @@ int32_t  sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQuerySt
       SSchema* pSchema = getOneColumnSchema(pTableMeta, index.columnIndex);
       *(*pExpr)->pSchema = *pSchema;
 
-      if (pCols != NULL) {  // record the involved columns
-        SColumn c = createColumn(pTableMeta->uid, pTableMetaInfo->aliasName,  TSDB_COL_NORMAL, (*pExpr)->pSchema);
-        taosArrayPush(pCols, &c);
-      }
-
+      columnListInsert(pQueryInfo->colList, pTableMeta->uid, pSchema, TSDB_COL_NORMAL);
       return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->tokenId == TK_SET) {
       int32_t colType = -1;
@@ -3188,11 +3183,6 @@ static int32_t addScalarExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t exp
   for (int32_t i = 0; i < num; ++i) {
     SColumn* pCol = taosArrayGet(pColumnList, i);
     pExpr->base.pColumns[i] = *pCol;
-
-    if (pCol->flag == TSDB_COL_NORMAL) {
-      SSchema sch = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
-      columnListInsert(pQueryInfo->colList, pCol->uid, &sch, pCol->flag);
-    }
   }
 
   pExpr->base.numOfCols = num;
@@ -3213,6 +3203,11 @@ static int32_t addScalarExprAndResColumn(SQueryStmtInfo* pQueryInfo, int32_t exp
   pSqlExpr->param[0].nType = TSDB_DATA_TYPE_BINARY;
 
   tbufCloseWriter(&bw);
+
+  if (pQueryInfo->exprListLevelIndex == 0) {
+    int32_t exists = getNumOfFields(&pQueryInfo->fieldsInfo);
+    addResColumnInfo(pQueryInfo, exists, &pExpr->base.resSchema, pExpr);
+  }
 
   //    tbufCloseWriter(&bw); // TODO there is a memory leak
 
