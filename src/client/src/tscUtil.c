@@ -722,11 +722,10 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
       }
     }
 
-  } else if (convertNchar && (pInfo->field.type == TSDB_DATA_TYPE_NCHAR || pInfo->field.type == TSDB_DATA_TYPE_JSON)) {
+  } else if (convertNchar && (pInfo->field.type == TSDB_DATA_TYPE_NCHAR)) {
     // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
     char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
-    if(buffer == NULL)
-       return ;
+    if (buffer == NULL) return;
     pRes->buffer[i] = buffer;
     // string terminated char for binary data
     memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
@@ -735,11 +734,9 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
     for (int32_t k = 0; k < pRes->numOfRows; ++k) {
       char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
 
-      if (isNull(p, TSDB_DATA_TYPE_NCHAR) && pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
+      if (isNull(p, TSDB_DATA_TYPE_NCHAR)) {
         memcpy(dst, p, varDataTLen(p));
-      } else if(isNull(p, TSDB_DATA_TYPE_JSON) && pInfo->field.type == TSDB_DATA_TYPE_JSON) {
-        memcpy(dst, p, varDataTLen(p));
-      }else if (varDataLen(p) > 0) {
+      } else if (varDataLen(p) > 0) {
         int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
         varDataSetLen(dst, length);
 
@@ -752,8 +749,53 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
       p += pInfo->field.bytes;
     }
-
     memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+  }else if (pInfo->field.type == TSDB_DATA_TYPE_JSON) {
+      // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
+      char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+      if (buffer == NULL) return;
+      pRes->buffer[i] = buffer;
+      // string terminated char for binary data
+      memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
+
+      char* p = pRes->urow[i];
+      for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+        char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+        char type = *p;
+        char* realData = p + CHAR_BYTES;
+        if (type == TSDB_DATA_TYPE_NCHAR && isNull(realData, TSDB_DATA_TYPE_NCHAR)) {
+          memcpy(dst, realData, varDataTLen(realData));
+        } else if (type == TSDB_DATA_TYPE_NCHAR) {
+          if(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null){   // json null value
+            assert(varDataLen(realData) == INT_BYTES);
+            sprintf(varDataVal(dst), "%s", "null");
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          }else {
+            int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
+            varDataSetLen(dst, length);
+            if (length == 0) {
+              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+            }
+          }
+          return;
+        }else if (type == TSDB_DATA_TYPE_DOUBLE) {
+          double jsonVd = *(double*)(realData);
+          sprintf(varDataVal(dst), "%.9lf", jsonVd);
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else if (type == TSDB_DATA_TYPE_BIGINT) {
+          int64_t jsonVd = *(int64_t*)(realData);
+          sprintf(varDataVal(dst), "%" PRId64, jsonVd);
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else if (type == TSDB_DATA_TYPE_BOOL) {
+          sprintf(varDataVal(dst), "%s", (*((char *)realData) == 1) ? "true" : "false");
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else {
+          assert(0);
+        }
+
+        p += pInfo->field.bytes;
+      }
+      memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
   }
 
   if (convertNchar) {
@@ -5338,53 +5380,42 @@ void getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, i
 
   void* result = getJsonTagValue(data, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
   if (result == NULL){    // json key no result
-    setNull(dst, TSDB_DATA_TYPE_JSON, 0);
+    *(char*)dst = TSDB_DATA_TYPE_NCHAR;
+    setNull(dst + CHAR_BYTES, TSDB_DATA_TYPE_JSON, 0);
     return;
   }
 
-  char out[20] = {0};
   char* realData = POINTER_SHIFT(result, CHAR_BYTES);
   if(*(char*)result == TSDB_DATA_TYPE_NCHAR) {
-    assert(varDataTLen(realData) <= bytes);
-    varDataCopy(dst, realData);
+    assert(varDataTLen(realData) < bytes);
+    memcpy(dst, result, CHAR_BYTES + varDataTLen(realData));
     return;
-  }else if (*(char*)result == TSDB_DATA_TYPE_DOUBLE) {
-    double jsonVd = *(double*)(realData);
-    sprintf(varDataVal(out), "%.9lf", jsonVd);
-    varDataSetLen(out, strlen(varDataVal(out)));
-  }else if (*(char*)result == TSDB_DATA_TYPE_BIGINT) {
-    int64_t jsonVd = *(int64_t*)(realData);
-    sprintf(varDataVal(out), "%" PRId64, jsonVd);
-    varDataSetLen(out, strlen(varDataVal(out)));
+  }else if (*(char*)result == TSDB_DATA_TYPE_DOUBLE || *(char*)result == TSDB_DATA_TYPE_BIGINT) {
+    memcpy(dst, result, CHAR_BYTES + LONG_BYTES);
+    return;
   }else if (*(char*)result == TSDB_DATA_TYPE_BOOL) {
-    sprintf(varDataVal(out), "%s", (*((char *)realData) == 1) ? "true" : "false");
-    varDataSetLen(out, strlen(varDataVal(out)));
+    memcpy(dst, result, CHAR_BYTES + CHAR_BYTES);
+    return;
   }else {
     assert(0);
   }
-
-  int32_t length = 0;
-
-  if(!taosMbsToUcs4(varDataVal(out), varDataLen(out), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length)){
-    tscError("getJsonTagValueElment mbstoucs4 error! length:%d", length);
-  }
-  varDataSetLen(dst, length);
-  assert(varDataTLen(dst) <= bytes);
 }
 
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
   char* json = parseTagDatatoJson(data);
+  char* tagData = dst + CHAR_BYTES;
+  *(char*)dst = TSDB_DATA_TYPE_NCHAR;
   if(json == NULL){
-    setNull(dst, TSDB_DATA_TYPE_JSON, 0);
+    setNull(tagData, TSDB_DATA_TYPE_JSON, 0);
     return;
   }
 
   int32_t length = 0;
-  if(!taosMbsToUcs4(json, strlen(json), varDataVal(dst), bytes - VARSTR_HEADER_SIZE, &length)){
+  if(!taosMbsToUcs4(json, strlen(json), varDataVal(tagData), bytes - VARSTR_HEADER_SIZE, &length)){
     tscError("getJsonTagValueAll mbstoucs4 error! length:%d", length);
   }
-  varDataSetLen(dst, length);
-  assert(varDataTLen(dst) <= bytes);
+  varDataSetLen(tagData, length);
+  assert(varDataTLen(tagData) <= bytes);
   tfree(json);
 }
 
@@ -5425,14 +5456,19 @@ char* parseTagDatatoJson(void *p){
       char* realData = POINTER_SHIFT(val, CHAR_BYTES);
       char type = *(char*)val;
       if(type == TSDB_DATA_TYPE_NCHAR) {
-        int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
-        if (length < 0) {
-          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                   (char*)val);
-          goto end;
+        cJSON* value = NULL;
+        if(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null){   // json null value
+          assert(varDataLen(realData) == INT_BYTES);
+          value = cJSON_CreateNull();
+        }else{
+          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
+          if (length < 0) {
+            tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                     (char*)val);
+            goto end;
+          }
+          value = cJSON_CreateString(tagJsonValue);
         }
-
-        cJSON* value = cJSON_CreateString(tagJsonValue);
         if (value == NULL)
         {
           goto end;
@@ -5518,9 +5554,6 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
 
     char *jsonKey = item->string;
     if(strtrim(jsonKey) == 0) continue;
-    if (item->type == cJSON_NULL){
-      continue;
-    }
     if(!isValidateTag(jsonKey)){
       tscError("json key not validate");
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json key not validate", NULL);
@@ -5574,6 +5607,13 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       *tagData = item->valueint;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BOOL, tagVal, true);
+    }else if(item->type == cJSON_NULL){
+      char tagVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
+      *tagVal = jsonType2DbType(0, item->type);    // type
+      int32_t* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
+      varDataSetLen(tagData, INT_BYTES);
+      *(uint32_t*)(varDataVal(tagData)) = TSDB_DATA_JSON_null;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
     }
     else{
       retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);
@@ -5597,6 +5637,7 @@ int8_t jsonType2DbType(double data, int jsonType){
     case cJSON_Number:
       if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
     case cJSON_String:
+    case cJSON_NULL:
       return TSDB_DATA_TYPE_NCHAR;
     case cJSON_True:
     case cJSON_False:

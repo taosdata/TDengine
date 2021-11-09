@@ -267,12 +267,18 @@ class TDTestCase:
         tdSql.checkData(0, 0, "sss")
         tdSql.checkData(0, 2, "fff")
     
-        # test group by & order by
+        # test group by & order by   string
         tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'location' order by jtag->'location' desc")
         tdSql.checkData(1, 0, 2.5)
         tdSql.checkData(1, 1, 2)
         tdSql.checkData(1, 2, "beijing")
         tdSql.checkData(2, 2, None)
+
+        # test group by & order by   int
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_20 using db_json_tag_test.jsons1 tags('{\"tagint\":1}') values(now, 1, false, \"你就会\")")
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_21 using db_json_tag_test.jsons1 tags('{\"tagint\":11}') values(now, 11, false, \"你就会\")")
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_22 using db_json_tag_test.jsons1 tags('{\"tagint\":2}') values(now, 2, false, \"你就会\")")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
