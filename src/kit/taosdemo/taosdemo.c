@@ -12239,7 +12239,6 @@ static void testCmdLine() {
     if (g_Dbs.aggr_func) {
         queryAggrFunc();
     }
-    postFreeResource();
 }
 
 int main(int argc, char *argv[]) {
@@ -12281,6 +12280,7 @@ int main(int argc, char *argv[]) {
         if (g_dupstr)
             free(g_dupstr);
     }
+    postFreeResource();
 
     return 0;
 }
