@@ -5387,21 +5387,21 @@ void* getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, 
   char* realData = POINTER_SHIFT(result, CHAR_BYTES);
   if(*(char*)result == TSDB_DATA_TYPE_NCHAR || *(char*)result == TSDB_DATA_TYPE_BINARY) {
     assert(varDataTLen(realData) < bytes);
-    if(!dst) return realData;
+    if(!dst) return result;
     memcpy(dst, result, CHAR_BYTES + varDataTLen(realData));
     return dst;
   }else if (*(char*)result == TSDB_DATA_TYPE_DOUBLE || *(char*)result == TSDB_DATA_TYPE_BIGINT) {
-    if(!dst) return realData;
+    if(!dst) return result;
     memcpy(dst, result, CHAR_BYTES + LONG_BYTES);
     return dst;
   }else if (*(char*)result == TSDB_DATA_TYPE_BOOL) {
-    if(!dst) return realData;
+    if(!dst) return result;
     memcpy(dst, result, CHAR_BYTES + CHAR_BYTES);
     return dst;
   }else {
     assert(0);
   }
-  return realData;
+  return result;
 }
 
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
