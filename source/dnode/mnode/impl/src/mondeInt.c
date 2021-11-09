@@ -161,7 +161,7 @@ int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg) {
   if (code != 0) {
     mError("failed to deploy mnode since init step1 error");
     tsMint.state = MN_STATUS_UNINIT;
-    return TSDB_CODE_MND_SDB_ERROR;
+    return TSDB_CODE_MND_APP_ERROR;
   }
 
   code = mnodeInitStep2();
@@ -169,7 +169,7 @@ int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg) {
     mnodeCleanupStep1();
     mError("failed to deploy mnode since init step2 error");
     tsMint.state = MN_STATUS_UNINIT;
-    return TSDB_CODE_MND_SDB_ERROR;
+    return TSDB_CODE_MND_APP_ERROR;
   }
 
   mDebug("mnode is deployed and waiting for raft to confirm");

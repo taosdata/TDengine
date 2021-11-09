@@ -14,133 +14,117 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "mnodeInt.h"
 
-static void mnodeCreateDefaultAcct() {
-  int32_t code = TSDB_CODE_SUCCESS;
+#define ACCT_VER 1
+
+static SSdbRawData *mnodeAcctActionEncode(SAcctObj *pAcct) {
+  SSdbRawData *pRaw = calloc(1, sizeof(SAcctObj) + sizeof(SSdbRawData));
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t dataLen = 0;
+  char   *pData = pRaw->data;
+  SDB_SET_BINARY_VAL(pData, dataLen, pAcct->acct, TSDB_USER_LEN)
+  SDB_SET_INT64_VAL(pData, dataLen, pAcct->createdTime)
+  SDB_SET_INT64_VAL(pData, dataLen, pAcct->updateTime)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->acctId)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->status)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxUsers)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxDbs)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxTimeSeries)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxStreams)
+  SDB_SET_INT64_VAL(pData, dataLen, pAcct->cfg.maxStorage)
+  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.accessState)
+
+  pRaw->dataLen = dataLen;
+  pRaw->type = SDB_ACCT;
+  pRaw->sver = ACCT_VER;
+  return pRaw;
+}
+
+static SAcctObj *mnodeAcctActionDecode(SSdbRawData *pRaw) {
+  if (pRaw->sver != ACCT_VER) {
+    terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
+    return NULL;
+  }
+
+  SAcctObj *pAcct = calloc(1, sizeof(SAcctObj));
+  if (pAcct == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t code = 0;
+  int32_t dataLen = pRaw->dataLen;
+  char   *pData = pRaw->data;
+  SDB_GET_BINARY_VAL(pData, dataLen, pAcct->acct, TSDB_USER_LEN, code)
+  SDB_GET_INT64_VAL(pData, dataLen, pAcct->createdTime, code)
+  SDB_GET_INT64_VAL(pData, dataLen, pAcct->updateTime, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->acctId, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->status, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxUsers, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxDbs, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxTimeSeries, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxStreams, code)
+  SDB_GET_INT64_VAL(pData, dataLen, pAcct->cfg.maxStorage, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.accessState, code)
+
+  if (code != 0) {
+    tfree(pAcct);
+    terrno = code;
+    return NULL;
+  }
+
+  return pAcct;
+}
+
+static int32_t mnodeAcctActionInsert(SAcctObj *pAcct) { return 0; }
+
+static int32_t mnodeAcctActionDelete(SAcctObj *pAcct) { return 0; }
+
+static int32_t mnodeAcctActionUpdate(SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
+  memcpy(pDstAcct, pSrcAcct, (int32_t)((char *)&pDstAcct->info - (char *)&pDstAcct));
+  return 0;
+}
+
+static int32_t mnodeCreateDefaultAcct() {
+  int32_t code = 0;
 
   SAcctObj acctObj = {0};
   tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
+  acctObj.createdTime = taosGetTimestampMs();
+  acctObj.updateTime = taosGetTimestampMs();
+  acctObj.acctId = 1;
   acctObj.cfg = (SAcctCfg){.maxUsers = 128,
                            .maxDbs = 128,
                            .maxTimeSeries = INT32_MAX,
                            .maxStreams = 1000,
                            .maxStorage = INT64_MAX,
                            .accessState = TSDB_VN_ALL_ACCCESS};
-  acctObj.acctId = 1;
-  acctObj.createdTime = taosGetTimestampMs();
-  acctObj.updateTime = taosGetTimestampMs();
 
-  sdbInsertRow(MN_SDB_ACCT, &acctObj);
-}
-
-int32_t mnodeEncodeAcct(SAcctObj *pAcct, char *buf, int32_t maxLen) {
-  int32_t len = 0;
-
-  len += snprintf(buf + len, maxLen - len, "{\"type\":%d, ", MN_SDB_ACCT);
-  len += snprintf(buf + len, maxLen - len, "\"acct\":\"%s\", ", pAcct->acct);
-  len += snprintf(buf + len, maxLen - len, "\"acctId\":\"%d\", ", pAcct->acctId);
-  len += snprintf(buf + len, maxLen - len, "\"maxUsers\":\"%d\", ", pAcct->cfg.maxUsers);
-  len += snprintf(buf + len, maxLen - len, "\"maxDbs\":\"%d\", ", pAcct->cfg.maxDbs);
-  len += snprintf(buf + len, maxLen - len, "\"maxTimeSeries\":\"%d\", ", pAcct->cfg.maxTimeSeries);
-  len += snprintf(buf + len, maxLen - len, "\"maxStreams\":\"%d\", ", pAcct->cfg.maxStreams);
-  len += snprintf(buf + len, maxLen - len, "\"maxStorage\":\"%" PRIu64 "\", ", pAcct->cfg.maxStorage);
-  len += snprintf(buf + len, maxLen - len, "\"accessState\":\"%d\", ", pAcct->cfg.accessState);
-  len += snprintf(buf + len, maxLen - len, "\"createdTime\":\"%" PRIu64 "\", ", pAcct->createdTime);
-  len += snprintf(buf + len, maxLen - len, "\"updateTime\":\"%" PRIu64 "\"}\n", pAcct->updateTime);
-
-  return len;
-}
-
-SAcctObj *mnodeDecodeAcct(cJSON *root) {
-  int32_t   code = -1;
-  SAcctObj *pAcct = calloc(1, sizeof(SAcctObj));
-
-  cJSON *acct = cJSON_GetObjectItem(root, "acct");
-  if (!acct || acct->type != cJSON_String) {
-    mError("failed to parse acct since acct not found");
-    goto DECODE_ACCT_OVER;
+  SSdbRawData *pRaw = mnodeAcctActionEncode(&acctObj);
+  if (pRaw != NULL) {
+    code = sdbWrite(pRaw);
+  } else {
+    code = terrno;
   }
-  tstrncpy(pAcct->acct, acct->valuestring, TSDB_USER_LEN);
 
-  cJSON *acctId = cJSON_GetObjectItem(root, "acctId");
-  if (!acctId || acctId->type != cJSON_String) {
-    mError("acct:%s, failed to parse since acctId not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->acctId = atol(acctId->valuestring);
-
-  cJSON *maxUsers = cJSON_GetObjectItem(root, "maxUsers");
-  if (!maxUsers || maxUsers->type != cJSON_String) {
-    mError("acct:%s, failed to parse since maxUsers not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->cfg.maxUsers = atol(maxUsers->valuestring);
-
-  cJSON *maxDbs = cJSON_GetObjectItem(root, "maxDbs");
-  if (!maxDbs || maxDbs->type != cJSON_String) {
-    mError("acct:%s, failed to parse since maxDbs not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->cfg.maxDbs = atol(maxDbs->valuestring);
-
-  cJSON *maxTimeSeries = cJSON_GetObjectItem(root, "maxTimeSeries");
-  if (!maxTimeSeries || maxTimeSeries->type != cJSON_String) {
-    mError("acct:%s, failed to parse since maxTimeSeries not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->cfg.maxTimeSeries = atol(maxTimeSeries->valuestring);
-
-  cJSON *maxStreams = cJSON_GetObjectItem(root, "maxStreams");
-  if (!maxStreams || maxStreams->type != cJSON_String) {
-    mError("acct:%s, failed to parse since maxStreams not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->cfg.maxStreams = atol(maxStreams->valuestring);
-
-  cJSON *maxStorage = cJSON_GetObjectItem(root, "maxStorage");
-  if (!maxStorage || maxStorage->type != cJSON_String) {
-    mError("acct:%s, failed to parse since maxStorage not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->cfg.maxStorage = atoll(maxStorage->valuestring);
-
-  cJSON *accessState = cJSON_GetObjectItem(root, "accessState");
-  if (!accessState || accessState->type != cJSON_String) {
-    mError("acct:%s, failed to parse since accessState not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->cfg.accessState = atol(accessState->valuestring);
-
-  cJSON *createdTime = cJSON_GetObjectItem(root, "createdTime");
-  if (!createdTime || createdTime->type != cJSON_String) {
-    mError("acct:%s, failed to parse since createdTime not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->createdTime = atol(createdTime->valuestring);
-
-  cJSON *updateTime = cJSON_GetObjectItem(root, "updateTime");
-  if (!updateTime || updateTime->type != cJSON_String) {
-    mError("acct:%s, failed to parse since updateTime not found", pAcct->acct);
-    goto DECODE_ACCT_OVER;
-  }
-  pAcct->updateTime = atol(updateTime->valuestring);
-
-  code = 0;
-  mTrace("acct:%s, parse success", pAcct->acct);
-
-DECODE_ACCT_OVER:
-  if (code != 0) {
-    free(pAcct);
-    pAcct = NULL;
-  }
-  return pAcct;
+  return code;
 }
 
 int32_t mnodeInitAcct() {
-  sdbSetFp(MN_SDB_ACCT, MN_KEY_BINARY, mnodeCreateDefaultAcct, (SdbEncodeFp)mnodeEncodeAcct,
-           (SdbDecodeFp)(mnodeDecodeAcct), sizeof(SAcctObj));
+  SSdbDesc desc = {.sdbType = SDB_ACCT,
+                   .keyType = SDB_KEY_BINARY,
+                   .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
+                   .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
+                   .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
+                   .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
+                   .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
+                   .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
+  sdbSetHandler(desc);
 
   return 0;
 }

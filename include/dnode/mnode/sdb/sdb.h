@@ -16,62 +16,130 @@
 #ifndef _TD_SDB_H_
 #define _TD_SDB_H_
 
-#include "cJSON.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define SDB_GET_BINARY_VAL(pData, dataLen, val, valLen, code) \
+  {                                                           \
+    if ((dataLen) >= (valLen)) {                              \
+      memcpy((val), (char *)(pData), (valLen));               \
+      (dataLen) -= (valLen);                                  \
+      (pData) = (char *)(pData) + (valLen);                   \
+    } else {                                                  \
+      code = TSDB_CODE_SDB_INVAID_RAW_DATA_LEN;               \
+    }                                                         \
+  }
+
+#define SDB_GET_INT32_VAL(pData, dataLen, val, code) \
+  {                                                  \
+    if (dataLen >= sizeof(int32_t)) {                \
+      *(int32_t *)(pData) = (int32_t)(val);          \
+      (dataLen) -= sizeof(int32_t);                  \
+      (pData) = (char *)(pData) + sizeof(int32_t);   \
+    } else {                                         \
+      code = TSDB_CODE_SDB_INVAID_RAW_DATA_LEN;      \
+    }                                                \
+  }
+
+#define SDB_GET_INT64_VAL(pData, dataLen, val, code) \
+  {                                                  \
+    if (dataLen >= sizeof(int64_t)) {                \
+      *(int64_t *)(pData) = (int64_t)(val);          \
+      (dataLen) -= sizeof(int64_t);                  \
+      (pData) = (char *)(pData) + sizeof(int64_t);   \
+    } else {                                         \
+      code = TSDB_CODE_SDB_INVAID_RAW_DATA_LEN;      \
+    }                                                \
+  }
+
+#define SDB_SET_INT64_VAL(pData, dataLen, val) \
+  {                                            \
+    *(int64_t *)(pData) = (int64_t)(val);      \
+    (dataLen) += sizeof(int64_t);              \
+    (pData) += sizeof(int64_t);                \
+  }
+
+#define SDB_SET_INT32_VAL(pData, dataLen, val) \
+  {                                            \
+    *(int32_t *)(pData) = (int32_t)(val);      \
+    (dataLen) += sizeof(int32_t);              \
+    (pData) += sizeof(int32_t);                \
+  }
+
+#define SDB_SET_BINARY_VAL(pData, dataLen, val, valLen) \
+  {                                                     \
+    memcpy((char *)(pData), (val), (valLen));           \
+    (dataLen) += (valLen);                              \
+    (pData) += (valLen);                                \
+  }
+
 typedef enum {
-  MN_SDB_START = 0,
-  MN_SDB_CLUSTER = 1,
-  MN_SDB_DNODE = 2,
-  MN_SDB_MNODE = 3,
-  MN_SDB_ACCT = 4,
-  MN_SDB_AUTH = 5,
-  MN_SDB_USER = 6,
-  MN_SDB_DB = 7,
-  MN_SDB_VGROUP = 8,
-  MN_SDB_STABLE = 9,
-  MN_SDB_FUNC = 10,
-  MN_SDB_OPER = 11,
-  MN_SDB_MAX = 12
-} EMnSdb;
+  SDB_START = 0,
+  SDB_VERSION = 1,
+  SDB_CLUSTER = 2,
+  SDB_DNODE = 3,
+  SDB_MNODE = 4,
+  SDB_ACCT = 5,
+  SDB_AUTH = 6,
+  SDB_USER = 7,
+  SDB_DB = 8,
+  SDB_VGROUP = 9,
+  SDB_STABLE = 10,
+  SDB_FUNC = 11,
+  SDB_OPER = 12,
+  SDB_MAX = 13
+} ESdbType;
 
-typedef enum { MN_OP_START = 0, MN_OP_INSERT = 1, MN_OP_UPDATE = 2, MN_OP_DELETE = 3, MN_OP_MAX = 4 } EMnOp;
-
-typedef enum { MN_KEY_START = 0, MN_KEY_BINARY = 1, MN_KEY_INT32 = 2, MN_KEY_INT64 = 3, MN_KEY_MAX } EMnKey;
-
-typedef enum { MN_SDB_STAT_AVAIL = 0, MN_SDB_STAT_DROPPED = 1 } EMnSdbStat;
+typedef enum { SDB_ACTION_INSERT = 1, SDB_ACTION_UPDATE = 2, SDB_ACTION_DELETE = 3 } ESdbAction;
+typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
+typedef enum { SDB_STATUS_CREATING = 1, SDB_STATUS_READY, SDB_STATUS_DROPPING, SDB_STATUS_DROPPED } ESdbStatus;
 
 typedef struct {
-  int8_t type;
-  int8_t status;
-  int8_t align[6];
-} SdbHead;
+  int8_t  type;
+  int8_t  sver;
+  int8_t  status;
+  int8_t  action;
+  int8_t  reserved[4];
+  int32_t cksum;
+  int32_t dataLen;
+  char    data[];
+} SSdbRawData;
 
-typedef void (*SdbDeployFp)();
-typedef void *(*SdbDecodeFp)(cJSON *root);
-typedef int32_t (*SdbEncodeFp)(void *pHead, char *buf, int32_t maxLen);
+typedef int32_t (*SdbInsertFp)(void *pObj);
+typedef int32_t (*SdbUpdateFp)(void *pSrcObj, void *pDstObj);
+typedef int32_t (*SdbDeleteFp)(void *pObj);
+typedef int32_t (*SdbDeployFp)();
+typedef void *(*SdbDecodeFp)(SSdbRawData *pRaw);
+typedef SSdbRawData *(*SdbEncodeFp)(void *pObj);
+
+typedef struct {
+  ESdbType    sdbType;
+  EKeyType    keyType;
+  SdbDeployFp deployFp;
+  SdbEncodeFp encodeFp;
+  SdbDecodeFp decodeFp;
+  SdbInsertFp insertFp;
+  SdbUpdateFp updateFp;
+  SdbDeleteFp deleteFp;
+} SSdbDesc;
 
 int32_t sdbInit();
 void    sdbCleanup();
+void    sdbSetHandler(SSdbDesc desc);
 
 int32_t sdbRead();
+int32_t sdbWrite(SSdbRawData *pRawData);
 int32_t sdbCommit();
 
 int32_t sdbDeploy();
 void    sdbUnDeploy();
 
-void   *sdbInsertRow(EMnSdb sdb, void *pObj);
-void    sdbDeleteRow(EMnSdb sdb, void *pHead);
-void   *sdbUpdateRow(EMnSdb sdb, void *pHead);
-void   *sdbGetRow(EMnSdb sdb, void *pKey);
-void   *sdbFetchRow(EMnSdb sdb, void *pIter);
-void    sdbCancelFetch(EMnSdb sdb, void *pIter);
-int32_t sdbGetCount(EMnSdb sdb);
-
-void sdbSetFp(EMnSdb, EMnKey, SdbDeployFp, SdbEncodeFp, SdbDecodeFp, int32_t dataSize);
+void   *sdbAcquire(ESdbType sdb, void *pKey);
+void    sdbRelease(ESdbType sdb, void *pObj);
+void   *sdbFetch(ESdbType sdb, void *pIter);
+void    sdbCancelFetch(ESdbType sdb, void *pIter);
+int32_t sdbGetSize(ESdbType sdb);
 
 #ifdef __cplusplus
 }

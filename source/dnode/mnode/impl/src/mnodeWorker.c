@@ -50,7 +50,7 @@ static SMnMsg *mnodeInitMsg2(SRpcMsg *pRpcMsg) {
 
   SRpcConnInfo connInfo = {0};
   if (rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo) == 0) {
-    pMsg->pUser = sdbGetRow(MN_SDB_USER, connInfo.user);
+    pMsg->pUser = sdbAcquire(SDB_USER, connInfo.user);
   }
 
   if (pMsg->pUser == NULL) {
@@ -77,7 +77,7 @@ static void mnodeDispatchToWriteQueue(SRpcMsg *pRpcMsg) {
   } else {
     SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
     if (pMsg == NULL) {
-      SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
+      SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_USER_NOT_EXIST};
       rpcSendResponse(&rpcRsp);
     } else {
       mTrace("msg:%p, app:%p type:%s is put into wqueue", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
@@ -103,7 +103,7 @@ static void mnodeDispatchToReadQueue(SRpcMsg *pRpcMsg) {
   } else {
     SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
     if (pMsg == NULL) {
-      SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
+      SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_USER_NOT_EXIST};
       rpcSendResponse(&rpcRsp);
     } else {
       mTrace("msg:%p, app:%p type:%s is put into rqueue", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
@@ -120,7 +120,7 @@ static void mnodeDispatchToPeerQueue(SRpcMsg *pRpcMsg) {
   } else {
     SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
     if (pMsg == NULL) {
-      SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
+      SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_USER_NOT_EXIST};
       rpcSendResponse(&rpcRsp);
     } else {
       mTrace("msg:%p, app:%p type:%s is put into peer req queue", pMsg, pMsg->rpcMsg.ahandle,
@@ -135,7 +135,7 @@ static void mnodeDispatchToPeerQueue(SRpcMsg *pRpcMsg) {
 void mnodeDispatchToPeerRspQueue(SRpcMsg *pRpcMsg) {
   SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
   if (pMsg == NULL) {
-    SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
+    SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_USER_NOT_EXIST};
     rpcSendResponse(&rpcRsp);
   } else {
     mTrace("msg:%p, app:%p type:%s is put into peer rsp queue", pMsg, pMsg->rpcMsg.ahandle,

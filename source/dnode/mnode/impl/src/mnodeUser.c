@@ -19,8 +19,96 @@
 #include "tglobal.h"
 #include "mnodeInt.h"
 
+#define USER_VER 1
+
+static SSdbRawData *mnodeUserActionEncode(SUserObj *pUser) {
+  SSdbRawData *pRaw = calloc(1, sizeof(SUserObj) + sizeof(SSdbRawData));
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t dataLen = 0;
+  char   *pData = pRaw->data;
+  SDB_SET_BINARY_VAL(pData, dataLen, pUser->user, TSDB_USER_LEN)
+  SDB_SET_BINARY_VAL(pData, dataLen, pUser->pass, TSDB_KEY_LEN)
+  SDB_SET_BINARY_VAL(pData, dataLen, pUser->acct, TSDB_KEY_LEN)
+  SDB_SET_INT64_VAL(pData, dataLen, pUser->createdTime)
+  SDB_SET_INT64_VAL(pData, dataLen, pUser->updateTime)
+  SDB_SET_INT32_VAL(pData, dataLen, pUser->rootAuth)
+
+  pRaw->dataLen = dataLen;
+  pRaw->type = SDB_USER;
+  pRaw->sver = USER_VER;
+  return pRaw;
+}
+
+static SUserObj *mnodeUserActionDecode(SSdbRawData *pRaw) {
+  if (pRaw->sver != USER_VER) {
+    terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
+    return NULL;
+  }
+
+  SUserObj *pUser = calloc(1, sizeof(SUserObj));
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t code = 0;
+  int32_t dataLen = pRaw->dataLen;
+  char   *pData = pRaw->data;
+  SDB_GET_BINARY_VAL(pData, dataLen, pUser->user, TSDB_USER_LEN, code)
+  SDB_GET_BINARY_VAL(pData, dataLen, pUser->pass, TSDB_KEY_LEN, code)
+  SDB_GET_BINARY_VAL(pData, dataLen, pUser->acct, TSDB_USER_LEN, code)
+  SDB_GET_INT64_VAL(pData, dataLen, pUser->createdTime, code)
+  SDB_GET_INT64_VAL(pData, dataLen, pUser->updateTime, code)
+  SDB_GET_INT32_VAL(pData, dataLen, pUser->rootAuth, code)
+
+  if (code != 0) {
+    tfree(pUser);
+    terrno = code;
+    return NULL;
+  }
+
+  return pUser;
+}
+
+static int32_t mnodeUserActionInsert(SUserObj *pUser) {
+  pUser->prohibitDbHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pUser->prohibitDbHash == NULL) {
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
+
+  pUser->pAcct = sdbAcquire(SDB_ACCT, pUser->acct);
+  if (pUser->pAcct == NULL) {
+    return TSDB_CODE_MND_ACCT_NOT_EXIST;
+  }
+
+  return 0;
+}
+
+static int32_t mnodeUserActionDelete(SUserObj *pUser) {
+  if (pUser->prohibitDbHash) {
+    taosHashCleanup(pUser->prohibitDbHash);
+    pUser->prohibitDbHash = NULL;
+  }
+
+  if (pUser->acct != NULL) {
+    sdbRelease(SDB_ACCT, pUser->pAcct);
+    pUser->pAcct = NULL;
+  }
+
+  return 0;
+}
+
+static int32_t mnodeUserActionUpdate(SUserObj *pSrcUser, SUserObj *pDstUser) {
+  memcpy(pDstUser, pSrcUser, (int32_t)((char *)&pDstUser->prohibitDbHash - (char *)&pDstUser));
+  return 0;
+}
+
 static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = 0;
 
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
@@ -33,97 +121,40 @@ static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
     userObj.rootAuth = 1;
   }
 
-  sdbInsertRow(MN_SDB_USER, &userObj);
-}
-
-static void mnodeCreateDefaultUsers() {
-  mnodeCreateDefaultUser(TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
-  mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "monitor", tsInternalPass);
-  mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, tsInternalPass);
-}
-
-int32_t mnodeEncodeUser(SUserObj *pUser, char *buf, int32_t maxLen) {
-  int32_t len = 0;
-  char   *base64 = base64_encode((const unsigned char *)pUser->pass, TSDB_KEY_LEN);
-
-  len += snprintf(buf + len, maxLen - len, "{\"type\":%d, ", MN_SDB_USER);
-  len += snprintf(buf + len, maxLen - len, "\"user\":\"%s\", ", pUser->user);
-  len += snprintf(buf + len, maxLen - len, "\"auth\":\"%24s\", ", base64);
-  len += snprintf(buf + len, maxLen - len, "\"acct\":\"%s\", ", pUser->acct);
-  len += snprintf(buf + len, maxLen - len, "\"createdTime\":\"%" PRIu64 "\", ", pUser->createdTime);
-  len += snprintf(buf + len, maxLen - len, "\"updateTime\":\"%" PRIu64 "\"}\n", pUser->updateTime);
-
-  free(base64);
-  return len;
-}
-
-SUserObj *mnodeDecodeUser(cJSON *root) {
-  int32_t   code = -1;
-  SUserObj *pUser = calloc(1, sizeof(SUserObj));
-
-  cJSON *user = cJSON_GetObjectItem(root, "user");
-  if (!user || user->type != cJSON_String) {
-    mError("failed to parse user since user not found");
-    goto DECODE_USER_OVER;
-  }
-  tstrncpy(pUser->user, user->valuestring, TSDB_USER_LEN);
-
-  if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
-    pUser->rootAuth = 1;
-  }
-
-  cJSON *pass = cJSON_GetObjectItem(root, "auth");
-  if (!pass || pass->type != cJSON_String) {
-    mError("user:%s, failed to parse since auth not found", pUser->user);
-    goto DECODE_USER_OVER;
-  }
-
-  int32_t outlen = 0;
-  char   *base64 = (char *)base64_decode(pass->valuestring, strlen(pass->valuestring), &outlen);
-  if (outlen != TSDB_KEY_LEN) {
-    mError("user:%s, failed to parse since invalid auth format", pUser->user);
-    free(base64);
-    goto DECODE_USER_OVER;
+  SSdbRawData *pRaw = mnodeUserActionEncode(&userObj);
+  if (pRaw != NULL) {
+    code = sdbWrite(pRaw);
   } else {
-    memcpy(pUser->pass, base64, outlen);
-    free(base64);
+    code = terrno;
   }
 
-  cJSON *acct = cJSON_GetObjectItem(root, "acct");
-  if (!acct || acct->type != cJSON_String) {
-    mError("user:%s, failed to parse since acct not found", pUser->user);
-    goto DECODE_USER_OVER;
-  }
-  tstrncpy(pUser->acct, acct->valuestring, TSDB_USER_LEN);
+  return code;
+}
 
-  cJSON *createdTime = cJSON_GetObjectItem(root, "createdTime");
-  if (!createdTime || createdTime->type != cJSON_String) {
-    mError("user:%s, failed to parse since createdTime not found", pUser->user);
-    goto DECODE_USER_OVER;
-  }
-  pUser->createdTime = atol(createdTime->valuestring);
+static int32_t mnodeCreateDefaultUsers() {
+  int32_t code = mnodeCreateDefaultUser(TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
+  if (code != 0) return code;
 
-  cJSON *updateTime = cJSON_GetObjectItem(root, "updateTime");
-  if (!updateTime || updateTime->type != cJSON_String) {
-    mError("user:%s, failed to parse since updateTime not found", pUser->user);
-    goto DECODE_USER_OVER;
-  }
-  pUser->updateTime = atol(updateTime->valuestring);
+  code = mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "monitor", tsInternalPass);
+  if (code != 0) return code;
 
-  code = 0;
-  mTrace("user:%s, parse success", pUser->user);
+  code = mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, tsInternalPass);
+  if (code != 0) return code;
 
-DECODE_USER_OVER:
-  if (code != 0) {
-    free(pUser);
-    pUser = NULL;
-  }
-  return pUser;
+  return code;
 }
 
 int32_t mnodeInitUser() {
-  sdbSetFp(MN_SDB_USER, MN_KEY_BINARY, mnodeCreateDefaultUsers, (SdbEncodeFp)mnodeEncodeUser,
-           (SdbDecodeFp)(mnodeDecodeUser), sizeof(SUserObj));
+  SSdbDesc desc = {.sdbType = SDB_USER,
+                   .keyType = SDB_KEY_BINARY,
+                   .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
+                   .encodeFp = (SdbEncodeFp)mnodeUserActionEncode,
+                   .decodeFp = (SdbDecodeFp)mnodeUserActionDecode,
+                   .insertFp = (SdbInsertFp)mnodeUserActionInsert,
+                   .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
+                   .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
+  sdbSetHandler(desc);
+
   return 0;
 }
 
