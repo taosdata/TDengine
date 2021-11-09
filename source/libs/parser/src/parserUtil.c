@@ -609,8 +609,9 @@ void fieldInfoUpdateOffset(SQueryStmtInfo* pQueryInfo) {
   int32_t offset = 0;
   size_t numOfExprs = getNumOfExprs(pQueryInfo);
 
+  SArray* pList = getCurrentExprList(pQueryInfo);
   for (int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* p = taosArrayGetP(pQueryInfo->exprList, i);
+    SExprInfo* p = taosArrayGetP(pList, i);
 
 //    p->base.offset = offset;
     offset += p->base.resSchema.bytes;
@@ -1216,13 +1217,13 @@ int32_t queryInfoCopy(SQueryStmtInfo* pQueryInfo, const SQueryStmtInfo* pSrc) {
     memcpy(pQueryInfo->fillVal, pSrc->fillVal, pSrc->fieldsInfo.numOfOutput * sizeof(int64_t));
   }
 
-  if (copyAllExprInfo(pQueryInfo->exprList, pSrc->exprList, true) != 0) {
+  if (copyAllExprInfo(pQueryInfo->exprList[0], pSrc->exprList[0], true) != 0) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
 
   columnListCopyAll(pQueryInfo->colList, pSrc->colList);
-  copyFieldInfo(&pQueryInfo->fieldsInfo, &pSrc->fieldsInfo, pQueryInfo->exprList);
+  copyFieldInfo(&pQueryInfo->fieldsInfo, &pSrc->fieldsInfo, pQueryInfo->exprList[0]);
 
   for(int32_t i = 0; i < pSrc->numOfTables; ++i) {
     STableMetaInfo* p1 = getMetaInfo((SQueryStmtInfo*) pSrc, i);
