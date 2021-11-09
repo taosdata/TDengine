@@ -29,8 +29,8 @@ typedef struct {
   SVMemAllocator allocators[3];
 } SVAllocatorPool;
 
-int             vnodeOpenAllocatorPool(SVnode *pVnode);
-void            vnodeCloseAllocatorPool(SVnode *pVnode);
+int  vnodeOpenAllocatorPool(SVnode *pVnode);
+void vnodeCloseAllocatorPool(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
