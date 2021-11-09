@@ -27,7 +27,7 @@ typedef struct SMemAllocator SMemAllocator;
 #define MALLOCATOR_APIS                                        \
   void *(*malloc)(SMemAllocator *, size_t size);               \
   void *(*calloc)(SMemAllocator *, size_t nmemb, size_t size); \
-  void *(*realloc)(SMemAllocator *, size_t size);              \
+  void *(*realloc)(SMemAllocator *, void *ptr, size_t size);   \
   void (*free)(SMemAllocator *, void *ptr);                    \
   size_t (*usage)(SMemAllocator *);
 
@@ -49,6 +49,12 @@ void           tdDestroyHeapAllocator(SMemAllocator *pMemAllocator);
 // arena allocator
 SMemAllocator *tdCreateArenaAllocator(size_t size);
 void           tdDestroyArenaAllocator(SMemAllocator *);
+
+#define mMalloc(pMemAllocator, size) (*(pMemAllocator->malloc))(pMemAllocator, size)
+#define mCalloc(pMemAllocator, nmemb, size) (*(pMemAllocator->calloc))(pMemAllocator, nmemb, size)
+#define mRealloc(pMemAllocator, ptr, size) (*(pMemAllocator->realloc))(pMemAllocator, ptr, size)
+#define mFree(pMemAllocator, ptr) (*(pMemAllocator->free))(pMemAllocator, ptr)
+#define mUsage(pMemAllocator) (*(pMemAllocator->usage))(pMemAllocator)
 
 #ifdef __cplusplus
 }
