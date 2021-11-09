@@ -4733,6 +4733,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       pRight->tokenId = TK_STRING;
       pRight->value.nType = TSDB_DATA_TYPE_BINARY;
       pRight->value.nLen = INT_BYTES;
+      pRight->value.pz = calloc(INT_BYTES, 1);
       *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
     }
   }else{
