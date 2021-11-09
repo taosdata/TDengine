@@ -149,6 +149,22 @@ class TDTestCase:
         tdLog.info("case for bug_6387")
         self.bug_6387()
 
+        #JIRA TS-583
+        tdLog.info("case for JIRA TS-583")
+        tdSql.execute("create database test2")
+        tdSql.execute("use test2")
+        tdSql.execute("create table stb(ts timestamp, c1 int) tags(t1 binary(120))")
+        tdSql.execute("create table t0 using stb tags('abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz')")
+    
+        tdSql.query("show create table t0")        
+        tdSql.checkRows(1)
+
+        tdSql.execute("create table stb2(ts timestamp, c1 int) tags(t1 nchar(120))")
+        tdSql.execute("create table t1 using stb2 tags('abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz')")
+        
+        tdSql.query("show create table t1")        
+        tdSql.checkRows(1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
