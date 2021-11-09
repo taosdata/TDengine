@@ -777,7 +777,6 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
               tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
             }
           }
-          return;
         }else if (type == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(realData);
           sprintf(varDataVal(dst), "%.9lf", jsonVd);
