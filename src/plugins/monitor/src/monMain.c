@@ -412,7 +412,7 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", req_http int, req_http_rate float"
              ", req_select int, req_select_rate float"
              ", req_insert int, req_insert_success int, req_insert_rate float"
-             ", req_insert_batch int, req_insert_batch_sucesss int, req_insert_batch_rate float"
+             ", req_insert_batch int, req_insert_batch_success int, req_insert_batch_rate float"
              ", errors int"
              ", vnodes_num int"
              ", masters int"
