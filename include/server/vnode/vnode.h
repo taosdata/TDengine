@@ -16,7 +16,12 @@
 #ifndef _TD_VNODE_H_
 #define _TD_VNODE_H_
 
-#include "impl/vnodeImpl.h"
+#include "os.h"
+#include "trequest.h"
+
+#include "meta.h"
+#include "tq.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +43,14 @@ int     vnodeProcessSyncReq(SVnode *pVnode, SRequest *pReq);
 /* ------------------------ SVnodeOptions ------------------------ */
 void vnodeOptionsInit(SVnodeOptions *);
 void vnodeOptionsClear(SVnodeOptions *);
+
+/* ------------------------ STRUCT DEFINITIONS ------------------------ */
+struct SVnodeOptions {
+  size_t       wsize;
+  STsdbOptions tsdbOptions;
+  SMetaOptions metaOptions;
+  // STqOptions   tqOptions; // TODO
+};
 
 #if 1
 

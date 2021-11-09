@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+typedef struct {
+  /* data */
+} SVnodeSync;
+
 #ifdef __cplusplus
 }
 #endif

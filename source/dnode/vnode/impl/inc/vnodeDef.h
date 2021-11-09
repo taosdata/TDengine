@@ -23,6 +23,7 @@
 #include "vnodeCommit.h"
 #include "vnodeOptions.h"
 #include "vnodeStateMgr.h"
+#include "vnodeSync.h"
 
 #ifdef __cplusplus
 extern "C" {
