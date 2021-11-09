@@ -2978,7 +2978,7 @@ static void full_copy_function(SQLFunctionCtx *pCtx) {
   for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
     SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
     if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
-      aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      aAggs[TSDB_FUNC_TAG].xFunction(tagCtx);
     }
   }
 }

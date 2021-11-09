@@ -3434,7 +3434,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->clauseLimit    = pSrc->clauseLimit;
   pQueryInfo->prjOffset      = pSrc->prjOffset;
   pQueryInfo->numOfTables    = 0;
-  pQueryInfo->window         = pSrc->window;
+  pQueryInfo->range          = pSrc->range;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
   pQueryInfo->pTableMetaInfo = NULL;
   pQueryInfo->multigroupResult = pSrc->multigroupResult;
