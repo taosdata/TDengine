@@ -13,34 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_DEF_H_
-#define _TD_VNODE_DEF_H_
-
-#include "mallocator.h"
-#include "sync.h"
-#include "vnode.h"
-#include "vnodeAllocatorPool.h"
-#include "vnodeCommit.h"
-#include "vnodeOptions.h"
-#include "vnodeStateMgr.h"
+#ifndef _TD_VNODE_SYNC_H_
+#define _TD_VNODE_SYNC_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SVnode {
-  char*           path;
-  SVnodeOptions   options;
-  SVState         state;
-  SVAllocatorPool pool;
-  SMemAllocator*  inuse;
-  SMeta*          pMeta;
-  STsdb*          pTsdb;
-  STQ*            pTq;
-};
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_DEF_H_*/
+#endif /*_TD_VNODE_SYNC_H_*/

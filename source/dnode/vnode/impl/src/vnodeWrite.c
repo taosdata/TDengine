@@ -31,6 +31,8 @@ int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
     // TODO: handle error
   }
 
+  memcpy(pReq, pRequest, reqSize);
+
   // Push the request to TQ so consumers can consume
   tqPushMsg(pVnode->pTq, pReq, 0);
 
