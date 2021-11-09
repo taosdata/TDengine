@@ -66,7 +66,7 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
 
       int16_t prevResultType = TSDB_DATA_TYPE_NULL;
       int16_t resultType = TSDB_DATA_TYPE_NULL;
-      bool resultTypeAlreadySet = false;
+      bool resultTypeDeduced = false;
       for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
         tExprNode *child = pExpr->_func.pChildren[i];
         if (child->nodeType != TSQL_NODE_VALUE) {
@@ -74,18 +74,22 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
           if (!IS_VAR_DATA_TYPE(resultType)) {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
-          if (!resultTypeAlreadySet) {
-            resultTypeAlreadySet = true;
+          if (!resultTypeDeduced) {
+            resultTypeDeduced = true;
           } else {
             if (resultType != prevResultType) {
               return TSDB_CODE_TSC_INVALID_OPERATION;
             }
           }
           prevResultType = child->resultType;
+        } else {
+          if (!IS_VAR_DATA_TYPE(child->resultType)) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
         }
       }
 
-      if (resultTypeAlreadySet) {
+      if (resultTypeDeduced) {
         for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
           tExprNode *child = pExpr->_func.pChildren[i];
           if (child->nodeType == TSQL_NODE_VALUE) {
@@ -98,7 +102,16 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
           }
         }
       } else {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+        for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+          tExprNode *child = pExpr->_func.pChildren[i];
+          assert(child->nodeType == TSQL_NODE_VALUE) ;
+          resultType = child->resultType;
+          for (int j = i+1; j < pExpr->_func.numChildren; ++j) {
+            if (pExpr->_func.pChildren[j]->resultType != resultType) {
+              return TSDB_CODE_TSC_INVALID_OPERATION;
+            }
+          }
+        }
       }
 
       pExpr->resultType = resultType;
@@ -142,7 +155,6 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
 }
 
 int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
-  //TODO: modify. keep existing behavior
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
