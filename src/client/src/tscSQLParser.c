@@ -4728,11 +4728,13 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   SStrToken* colName = NULL;
   if(pLeft->tokenId == TK_ARROW){
     colName = &(pLeft->pLeft->columnName);
-    // transform for json->'key'=null
-    pRight->tokenId = TK_STRING;
-    pRight->value.nType = TSDB_DATA_TYPE_BINARY;
-    pRight->value.nLen = INT_BYTES;
-    *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
+    if (pRight->tokenId == TK_NULL && (*pExpr)->tokenId == TK_EQ) {
+      // transform for json->'key'=null
+      pRight->tokenId = TK_STRING;
+      pRight->value.nType = TSDB_DATA_TYPE_BINARY;
+      pRight->value.nLen = INT_BYTES;
+      *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
+    }
   }else{
     colName = &(pLeft->columnName);
   }
