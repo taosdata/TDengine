@@ -55,25 +55,31 @@ struct SVnodeOptions {
   /**
    * @brief time to live of tables in this vnode
    * in SECONDS
-   * 
+   *
    */
   uint32_t ttl;
 
   /**
    * @brief if time-series requests eventual consistency
-   * 
+   *
    */
   bool isWeak;
 
   /**
+   * @brief if the allocator is heap allcator or arena allocator
+   *
+   */
+  bool isHeapAllocator;
+
+  /**
    * @brief TSDB options
-   * 
+   *
    */
   STsdbOptions tsdbOptions;
 
   /**
    * @brief META options
-   * 
+   *
    */
   SMetaOptions metaOptions;
   // STqOptions   tqOptions; // TODO
