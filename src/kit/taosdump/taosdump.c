@@ -1167,7 +1167,7 @@ static int getTableDes(
     while ((row = taos_fetch_row(res)) != NULL) {
         tstrncpy(tableDes->cols[colCount].field,
                 (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                min(TSDB_COL_NAME_LEN + 1,
+                min(TSDB_COL_NAME_LEN,
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes + 1));
         tstrncpy(tableDes->cols[colCount].type,
                 (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -1226,7 +1226,6 @@ static int getTableDes(
 
         int32_t* length = taos_fetch_lengths(res);
 
-        //int32_t* length = taos_fetch_lengths(tmpResult);
         switch (fields[0].type) {
             case TSDB_DATA_TYPE_BOOL:
                 sprintf(tableDes->cols[i].value, "%d",
@@ -1261,11 +1260,11 @@ static int getTableDes(
             case TSDB_DATA_TYPE_BINARY:
                 memset(tableDes->cols[i].value, 0,
                         sizeof(tableDes->cols[i].value));
-                int len = strlen((char *)row[0]);
+                int len = strlen((char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
                 // FIXME for long value
                 if (len < (COL_VALUEBUF_LEN - 2)) {
                     converStringToReadable(
-                            (char *)row[0],
+                            (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                             length[0],
                             tableDes->cols[i].value,
                             len);
@@ -1284,27 +1283,44 @@ static int getTableDes(
                 break;
 
             case TSDB_DATA_TYPE_NCHAR:
-                {
-                    memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
-                    char tbuf[COMMAND_SIZE-2];    // need reserve 2 bytes for ' '
+                memset(tableDes->cols[i].value, 0,
+                        sizeof(tableDes->cols[i].note));
+                int nlen = strlen((char *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
+                if (nlen < (COL_VALUEBUF_LEN-2)) {
+                    char tbuf[COL_VALUEBUF_LEN-2];    // need reserve 2 bytes for ' '
                     convertNCharToReadable(
                             (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
-                            length[0], tbuf, COMMAND_SIZE-2);
+                            length[0], tbuf, COL_VALUEBUF_LEN-2);
                     sprintf(tableDes->cols[i].value, "%s", tbuf);
-                    break;
+                } else {
+                    tableDes->cols[i].var_value = calloc(1, len * 4);
+                    if (tableDes->cols[i].var_value == NULL) {
+                        errorPrint("%s() LN%d, memory alalocation failed!\n",
+                                __func__, __LINE__);
+                        taos_free_result(res);
+                        return -1;
+                    }
+                    converStringToReadable(
+                            (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
+                            length[0],
+                            (char *)(tableDes->cols[i].var_value), len);
                 }
+                break;
             case TSDB_DATA_TYPE_TIMESTAMP:
-                sprintf(tableDes->cols[i].value, "%" PRId64 "", *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
+                sprintf(tableDes->cols[i].value, "%" PRId64 "",
+                        *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
 #if 0
                 if (!g_args.mysqlFlag) {
-                    sprintf(tableDes->cols[i].value, "%" PRId64 "", *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
+                    sprintf(tableDes->cols[i].value, "%" PRId64 "",
+                            *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
                 } else {
                     char buf[64] = "\0";
                     int64_t ts = *((int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
                     time_t tt = (time_t)(ts / 1000);
                     struct tm *ptm = localtime(&tt);
                     strftime(buf, 64, "%y-%m-%d %H:%M:%S", ptm);
-                    sprintf(tableDes->cols[i].value, "\'%s.%03d\'", buf, (int)(ts % 1000));
+                    sprintf(tableDes->cols[i].value, "\'%s.%03d\'", buf,
+                            (int)(ts % 1000));
                 }
 #endif
                 break;
