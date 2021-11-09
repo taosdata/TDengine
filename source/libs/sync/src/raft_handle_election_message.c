@@ -19,7 +19,7 @@
 #include "raft_message.h"
 
 int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (pRaft->state == TAOS_SYNC_ROLE_LEADER) {
+  if (pRaft->state == TAOS_SYNC_STATE_LEADER) {
     syncDebug("[%d:%d] ignoring RAFT_MSG_INTERNAL_ELECTION because already leader", pRaft->selfGroupId, pRaft->selfId);
     return 0;
   }

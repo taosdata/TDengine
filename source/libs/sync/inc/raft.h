@@ -68,7 +68,7 @@ struct SSyncRaft {
   int maxMsgSize;
   SSyncRaftProgressTracker *tracker;
 
-  ESyncRole state;
+  ESyncState state;
 
   // isLearner is true if the local raft node is a learner.
   bool isLearner;

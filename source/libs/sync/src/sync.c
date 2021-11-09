@@ -167,6 +167,14 @@ int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, b
 
 void syncReconfig(const SSyncNode* pNode, const SSyncCluster* pCfg) {}
 
+int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode) {
+  return 0;
+}
+
+int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode) {
+  return 0;
+}
+
 // process rpc rsp message from other sync server
 static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
 

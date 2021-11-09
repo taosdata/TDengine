@@ -23,7 +23,7 @@ static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex index, SyncTerm 
 
 int syncRaftReplicate(SSyncRaft* pRaft, int i) {
 #if 0
-  assert(pRaft->state == TAOS_SYNC_ROLE_LEADER);
+  assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
   assert(i >= 0 && i < pRaft->leaderState.nProgress);
 
   SyncNodeId nodeId = pRaft->cluster.nodeInfo[i].nodeId;
