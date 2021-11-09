@@ -278,9 +278,18 @@ class TDTestCase:
         tdSql.execute("INSERT INTO db_json_tag_test.jsons1_20 using db_json_tag_test.jsons1 tags('{\"tagint\":1}') values(now, 1, false, \"你就会\")")
         tdSql.execute("INSERT INTO db_json_tag_test.jsons1_21 using db_json_tag_test.jsons1 tags('{\"tagint\":11}') values(now, 11, false, \"你就会\")")
         tdSql.execute("INSERT INTO db_json_tag_test.jsons1_22 using db_json_tag_test.jsons1 tags('{\"tagint\":2}') values(now, 2, false, \"你就会\")")
+        tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'tagint' order by jtag->'tagint' desc")
+        //tdSql.checkData(1, 0, 2.5)
 
         # test json->'key'=null
         tdSql.execute("insert into db_json_tag_test.jsons1_9 values('2020-04-17 15:20:00.000', 5, false, 'json19')")
+        tdSql.query("select * from db_json_tag_test.jsons1")
+        tdSql.checkRows(9)
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'time' is null")
+        tdSql.checkRows(8)
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'time'=null")
+        tdSql.checkRows(1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

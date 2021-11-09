@@ -3381,7 +3381,7 @@ static void doSetTagValueInParam(void* pTable, char* param, int32_t paramLen, in
     val = tsdbGetTableName(pTable);
     assert(val != NULL);
   } else {
-    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
+    val = tsdbGetTableTagVal(pTable, tagColId, type);
   }
 
   if (val == NULL || isNull(val, type)) {
@@ -7218,7 +7218,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
         data = tsdbGetTableName(item->pTable);
       } else {
-        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);
+        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type);
         if(type == TSDB_DATA_TYPE_JSON){
           if(pExprInfo->base.numOfParams > 0){ // tag-> operation
             getJsonTagValueElment(item->pTable, pExprInfo->base.param[0].pz, pExprInfo->base.param[0].nLen, output, bytes);
@@ -7267,7 +7267,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
         } else {
-          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
+          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type);
           if(type == TSDB_DATA_TYPE_JSON){
             if(pExprInfo[j].base.numOfParams > 0){ // tag-> operation
               getJsonTagValueElment(item->pTable, pExprInfo[j].base.param[0].pz, pExprInfo[j].base.param[0].nLen, dst, bytes);

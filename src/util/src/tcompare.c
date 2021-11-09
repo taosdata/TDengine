@@ -576,6 +576,12 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
 }
 
 int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
+  if (type == TSDB_DATA_TYPE_JSON){
+    assert(*f1 == *f2);
+    type = *f1;
+    f1 = POINTER_SHIFT(f1, CHAR_BYTES);
+    f2 = POINTER_SHIFT(f2, CHAR_BYTES);
+  }
   switch (type) {
     case TSDB_DATA_TYPE_INT:        DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:     DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -588,8 +594,7 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     case TSDB_DATA_TYPE_USMALLINT:  DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
     case TSDB_DATA_TYPE_UINT:       DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
     case TSDB_DATA_TYPE_UBIGINT:    DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_NCHAR:{
       tstr* t1 = (tstr*) f1;
       tstr* t2 = (tstr*) f2;
 

@@ -367,6 +367,12 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
 }
 
 int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+  if (type == TSDB_DATA_TYPE_JSON){
+    assert(*f1 == *f2);
+    type = *f1;
+    f1 = POINTER_SHIFT(f1, CHAR_BYTES);
+    f2 = POINTER_SHIFT(f2, CHAR_BYTES);
+  }
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -391,8 +397,7 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       }
 
     };
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON: { // todo handle the var string compare
+    case TSDB_DATA_TYPE_NCHAR: { // todo handle the var string compare
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 

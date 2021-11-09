@@ -5372,31 +5372,36 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-void getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, int16_t bytes){
+void* getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, int16_t bytes){
   char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
   jsonKeyMd5(key, keyLen, keyMd5);
 
   void* result = getJsonTagValue(data, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
   if (result == NULL){    // json key no result
+    if(!dst) return NULL;
     *(char*)dst = TSDB_DATA_TYPE_NCHAR;
     setNull(dst + CHAR_BYTES, TSDB_DATA_TYPE_JSON, 0);
-    return;
+    return dst;
   }
 
   char* realData = POINTER_SHIFT(result, CHAR_BYTES);
   if(*(char*)result == TSDB_DATA_TYPE_NCHAR || *(char*)result == TSDB_DATA_TYPE_BINARY) {
     assert(varDataTLen(realData) < bytes);
+    if(!dst) return realData;
     memcpy(dst, result, CHAR_BYTES + varDataTLen(realData));
-    return;
+    return dst;
   }else if (*(char*)result == TSDB_DATA_TYPE_DOUBLE || *(char*)result == TSDB_DATA_TYPE_BIGINT) {
+    if(!dst) return realData;
     memcpy(dst, result, CHAR_BYTES + LONG_BYTES);
-    return;
+    return dst;
   }else if (*(char*)result == TSDB_DATA_TYPE_BOOL) {
+    if(!dst) return realData;
     memcpy(dst, result, CHAR_BYTES + CHAR_BYTES);
-    return;
+    return dst;
   }else {
     assert(0);
   }
+  return realData;
 }
 
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {

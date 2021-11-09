@@ -721,8 +721,11 @@ int32_t tagValCompar(const void* p1, const void* p2) {
   const STidTags* t1 = (const STidTags*) varDataVal(p1);
   const STidTags* t2 = (const STidTags*) varDataVal(p2);
 
+  if (t1->padding == TSDB_DATA_TYPE_JSON){
+    __compar_fn_t func = getComparFunc(t1->tag[0], 0);
+    return func(t1->tag + CHAR_BYTES, t2->tag + CHAR_BYTES);
+  }
   __compar_fn_t func = getComparFunc(t1->padding, 0);
-
   return func(t1->tag, t2->tag);
 }
 

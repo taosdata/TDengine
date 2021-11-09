@@ -204,7 +204,7 @@ _err:
   return -1;
 }
 
-void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t bytes) {
+void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type) {
   // TODO: this function should be changed also
 
   STSchema *pSchema = tsdbGetTableTagSchema((STable*) pTable);
@@ -220,9 +220,6 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
     val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
     assert(type == pCol->type);
   }
-  // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
-  //   assert(varDataLen(val) < pCol->bytes);
-  // }
 
   return val;
 }

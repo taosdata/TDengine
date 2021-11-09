@@ -3515,8 +3515,13 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
         STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
         bytes = pCol->bytes;
         type = pCol->type;
-        f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
-        f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
+        if (type == TSDB_DATA_TYPE_JSON){
+          f1 = getJsonTagValueElment(pTable1, pColIndex->name, strlen(pColIndex->name), NULL, TSDB_MAX_JSON_TAGS_LEN);
+          f2 = getJsonTagValueElment(pTable2, pColIndex->name, strlen(pColIndex->name), NULL, TSDB_MAX_JSON_TAGS_LEN);
+        }else{
+          f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
+          f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
+        }
       } 
     }
 

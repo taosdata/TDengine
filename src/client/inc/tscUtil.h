@@ -391,7 +391,7 @@ char* cloneCurrentDBName(SSqlObj* pSql);
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId);
 char* parseTagDatatoJson(void *p);
-void getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* out, int16_t bytes);
+void* getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* out, int16_t bytes);
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
 
 int8_t jsonType2DbType(double data, int jsonType);
