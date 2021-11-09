@@ -12,10 +12,10 @@ TARGET_LINK_LIBRARIES(query tsdb tutil lua)
 
 IF (TD_LINUX)
   TARGET_LINK_LIBRARIES(query m rt lua)
-  ADD_SUBDIRECTORY(tests)
+#  ADD_SUBDIRECTORY(tests)
 ENDIF ()
 
 IF (TD_DARWIN)
   TARGET_LINK_LIBRARIES(query m lua)
-  ADD_SUBDIRECTORY(tests)
+#  ADD_SUBDIRECTORY(tests)
 ENDIF ()

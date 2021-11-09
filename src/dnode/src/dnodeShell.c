@@ -83,18 +83,18 @@ int32_t dnodeInitShell() {
     numOfThreads = 1;
   }
 
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = tsDnodeShellPort;
-  rpcInit.label        = "SHELL";
-  rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp          = dnodeProcessMsgFromShell;
-  rpcInit.sessions     = tsMaxShellConns;
-  rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
-  rpcInit.afp          = dnodeRetrieveUserAuthInfo;
+  SRpcInit rpcInit1;
+  memset(&rpcInit1, 0, sizeof(rpcInit1));
+  rpcInit1.localPort    = tsDnodeShellPort;
+  rpcInit1.label        = "SHELL";
+  rpcInit1.numOfThreads = numOfThreads;
+  rpcInit1.cfp          = dnodeProcessMsgFromShell;
+  rpcInit1.sessions     = tsMaxShellConns;
+  rpcInit1.connType     = TAOS_CONN_SERVER;
+  rpcInit1.idleTime     = tsShellActivityTimer * 1000;
+  rpcInit1.afp          = dnodeRetrieveUserAuthInfo;
 
-  tsShellRpc = rpcOpen(&rpcInit);
+  tsShellRpc = rpcOpen(&rpcInit1);
   if (tsShellRpc == NULL) {
     dError("failed to init shell rpc server");
     return -1;

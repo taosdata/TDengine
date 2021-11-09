@@ -392,9 +392,9 @@ void taosCleanUpTcpClient(void *chandle) {
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
   SClientObj *    pClientObj = shandle;
-  int32_t index = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
-    atomic_store_32(&pClientObj->index, index + 1);
-  SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
+  int32_t index1 = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
+    atomic_store_32(&pClientObj->index, index1 + 1);
+  SThreadObj *pThreadObj = pClientObj->pThreadObj[index1];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -403,12 +403,12 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   if (fd <= 0) return NULL;
 #endif
 
-  struct sockaddr_in sin;
+  struct sockaddr_in sin1;
   uint16_t localPort = 0;
-  unsigned int addrlen = sizeof(sin);
-  if (getsockname(fd, (struct sockaddr *)&sin, &addrlen) == 0 &&
-      sin.sin_family == AF_INET && addrlen == sizeof(sin)) {
-    localPort = (uint16_t)ntohs(sin.sin_port);
+  unsigned int addrlen = sizeof(sin1);
+  if (getsockname(fd, (struct sockaddr *)&sin1, &addrlen) == 0 &&
+      sin1.sin_family == AF_INET && addrlen == sizeof(sin1)) {
+    localPort = (uint16_t)ntohs(sin1.sin_port);
   }
 
   SFdObj *pFdObj = taosMallocFdObj(pThreadObj, fd);

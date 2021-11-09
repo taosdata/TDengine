@@ -168,9 +168,9 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
 }
 
 // TODO refactor: use macro
-SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
-  assert(index >= 0 && offset != NULL);
-  return (SResultRowCellInfo*)((char*) pRow->pCellInfo + offset[index]);
+SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index1, int32_t* offset) {
+  assert(index1 >= 0 && offset != NULL);
+  return (SResultRowCellInfo*)((char*) pRow->pCellInfo + offset[index1]);
 }
 
 size_t getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv) {

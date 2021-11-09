@@ -71,7 +71,7 @@ static void *sendRequest(void *param) {
 }
 
 int main(int argc, char *argv[]) {
-  SRpcInit  rpcInit;
+  SRpcInit  rpcInit1;
   SRpcEpSet epSet;
   int      msgSize = 128;
   int      numOfReqs = 0;
@@ -91,18 +91,18 @@ int main(int argc, char *argv[]) {
   strcpy(epSet.fqdn[1], "192.168.0.1");
 
   // client info
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  //rpcInit.localIp      = "0.0.0.0";
-  rpcInit.localPort    = 0;
-  rpcInit.label        = "APP";
-  rpcInit.numOfThreads = 1;
-  rpcInit.sessions     = 100;
-  rpcInit.idleTime     = tsShellActivityTimer*1000;
-  rpcInit.user         = "michael";
-  rpcInit.secret       = secret;
-  rpcInit.ckey         = "key";
-  rpcInit.spi          = 1;
-  rpcInit.connType     = TAOS_CONN_CLIENT;
+  memset(&rpcInit1, 0, sizeof(rpcInit1));
+  //rpcInit1.localIp      = "0.0.0.0";
+  rpcInit1.localPort    = 0;
+  rpcInit1.label        = "APP";
+  rpcInit1.numOfThreads = 1;
+  rpcInit1.sessions     = 100;
+  rpcInit1.idleTime     = tsShellActivityTimer*1000;
+  rpcInit1.user         = "michael";
+  rpcInit1.secret       = secret;
+  rpcInit1.ckey         = "key";
+  rpcInit1.spi          = 1;
+  rpcInit1.connType     = TAOS_CONN_CLIENT;
 
   for (int i=1; i<argc; ++i) { 
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
@@ -110,11 +110,11 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
       tstrncpy(epSet.fqdn[0], argv[++i], sizeof(epSet.fqdn[0])); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
-      rpcInit.numOfThreads = atoi(argv[++i]);
+      rpcInit1.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
       msgSize = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-s")==0 && i < argc-1) {
-      rpcInit.sessions = atoi(argv[++i]); 
+      rpcInit1.sessions = atoi(argv[++i]); 
     } else if (strcmp(argv[i], "-n")==0 && i < argc-1) {
       numOfReqs = atoi(argv[++i]); 
     } else if (strcmp(argv[i], "-a")==0 && i < argc-1) {
@@ -122,26 +122,26 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-o")==0 && i < argc-1) {
       tsCompressMsgSize = atoi(argv[++i]); 
     } else if (strcmp(argv[i], "-u")==0 && i < argc-1) {
-      rpcInit.user = argv[++i];
+      rpcInit1.user = argv[++i];
     } else if (strcmp(argv[i], "-k")==0 && i < argc-1) {
-      rpcInit.secret = argv[++i];
+      rpcInit1.secret = argv[++i];
     } else if (strcmp(argv[i], "-spi")==0 && i < argc-1) {
-      rpcInit.spi = atoi(argv[++i]);
+      rpcInit1.spi = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-i ip]: first server IP address, default is:%s\n", serverIp);
       printf("  [-p port]: server port number, default is:%d\n", epSet.port[0]);
-      printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
-      printf("  [-s sessions]: number of rpc sessions, default is:%d\n", rpcInit.sessions);
+      printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit1.numOfThreads);
+      printf("  [-s sessions]: number of rpc sessions, default is:%d\n", rpcInit1.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
       printf("  [-a threads]: number of app threads, default is:%d\n", appThreads);
       printf("  [-n requests]: number of requests per thread, default is:%d\n", numOfReqs);
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
-      printf("  [-u user]: user name for the connection, default is:%s\n", rpcInit.user);
-      printf("  [-k secret]: password for the connection, default is:%s\n", rpcInit.secret);
-      printf("  [-spi SPI]: security parameter index, default is:%d\n", rpcInit.spi);
+      printf("  [-u user]: user name for the connection, default is:%s\n", rpcInit1.user);
+      printf("  [-k secret]: password for the connection, default is:%s\n", rpcInit1.secret);
+      printf("  [-spi SPI]: security parameter index, default is:%d\n", rpcInit1.spi);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
   taosInitLog("client.log", 100000, 10);
 
-  void *pRpc = rpcOpen(&rpcInit);
+  void *pRpc = rpcOpen(&rpcInit1);
   if (pRpc == NULL) {
     tError("failed to initialize RPC");
     return -1;

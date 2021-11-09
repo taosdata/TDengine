@@ -330,7 +330,7 @@ int32_t sdbUpdateSync(void *pMnodes) {
   mDebug("vgId:1, update sync config, pMnodes:%p", pMnodes);
 
   SSyncCfg syncCfg = {0};
-  int32_t  index = 0;
+  int32_t  index1 = 0;
 
   if (pMinfos == NULL) {
     mDebug("vgId:1, mInfos not input, use mInfos in sdb, numOfMnodes:%d", syncCfg.replica);
@@ -341,29 +341,29 @@ int32_t sdbUpdateSync(void *pMnodes) {
       pIter = mnodeGetNextMnode(pIter, &pMnode);
       if (pMnode == NULL) break;
 
-      syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
+      syncCfg.nodeInfo[index1].nodeId = pMnode->mnodeId;
 
       SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
       if (pDnode != NULL) {
-        syncCfg.nodeInfo[index].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
-        tstrncpy(syncCfg.nodeInfo[index].nodeFqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
-        index++;
+        syncCfg.nodeInfo[index1].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
+        tstrncpy(syncCfg.nodeInfo[index1].nodeFqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
+        index1++;
       }
 
       mnodeDecDnodeRef(pDnode);
       mnodeDecMnodeRef(pMnode);
     }
-    syncCfg.replica = index;
+    syncCfg.replica = index1;
   } else {
     mDebug("vgId:1, mInfos input, numOfMnodes:%d", pMinfos->mnodeNum);
 
-    for (index = 0; index < pMinfos->mnodeNum; ++index) {
-      SMInfo *node = &pMinfos->mnodeInfos[index];
-      syncCfg.nodeInfo[index].nodeId = node->mnodeId;
-      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
-      syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
+    for (index1 = 0; index1 < pMinfos->mnodeNum; ++index1) {
+      SMInfo *node = &pMinfos->mnodeInfos[index1];
+      syncCfg.nodeInfo[index1].nodeId = node->mnodeId;
+      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index1].nodeFqdn, &syncCfg.nodeInfo[index1].nodePort);
+      syncCfg.nodeInfo[index1].nodePort += TSDB_PORT_SYNC;
     }
-    syncCfg.replica = index;
+    syncCfg.replica = index1;
     mnodeUpdateMnodeEpSet(pMnodes);
   }
 

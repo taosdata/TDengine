@@ -448,9 +448,9 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
 int32_t compare_aRv(SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColIndex* pColIndex = taosArrayGet(colIndex, i);
-    int32_t index = pColIndex->colIndex;
+    int32_t index1 = pColIndex->colIndex;
 
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index1);
     assert(pColIndex->colId == pColInfo->info.colId);
 
     char* data = pColInfo->pData + rowIndex * pColInfo->info.bytes;
@@ -1022,14 +1022,14 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
   }
 }
 
-SSchema* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
-  assert(pColumnModel != NULL && index >= 0 && index < pColumnModel->numOfCols);
-  return &pColumnModel->pFields[index].field;
+SSchema* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index1) {
+  assert(pColumnModel != NULL && index1 >= 0 && index1 < pColumnModel->numOfCols);
+  return &pColumnModel->pFields[index1].field;
 }
 
-int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index) {
-  assert(pColumnModel != NULL && index >= 0 && index < pColumnModel->numOfCols);
-  return pColumnModel->pFields[index].offset;
+int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index1) {
+  assert(pColumnModel != NULL && index1 >= 0 && index1 < pColumnModel->numOfCols);
+  return pColumnModel->pFields[index1].offset;
 }
 
 void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockCapacity, int32_t s, int32_t e) {
@@ -1103,17 +1103,17 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
   tfree(pDesc);
 }
 
-void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn) {
-  assert(numOfRows > 0 && numOfCols > 0 && index >= 0 && index < numOfCols);
+void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index1, __compar_fn_t compareFn) {
+  assert(numOfRows > 0 && numOfCols > 0 && index1 >= 0 && index1 < numOfCols);
 
-  int32_t bytes = pSchema[index].bytes;
+  int32_t bytes = pSchema[index1].bytes;
   int32_t size = bytes + sizeof(int32_t);
 
   char* buf = calloc(1, size * numOfRows);
 
   for(int32_t i = 0; i < numOfRows; ++i) {
     char* dest = buf + size * i;
-    memcpy(dest, ((char*) pCols[index]) + bytes * i, bytes);
+    memcpy(dest, ((char*) pCols[index1]) + bytes * i, bytes);
     *(int32_t*)(dest+bytes) = i;
   }
 
@@ -1125,7 +1125,7 @@ void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOf
   for(int32_t i = 0; i < numOfCols; ++i) {
     int32_t bytes1 = pSchema[i].bytes;
 
-    if (i == index) {
+    if (i == index1) {
       for(int32_t j = 0; j < numOfRows; ++j){
         char* src  = buf + (j * size);
         char* dest = ((char*)pCols[i]) + (j * bytes1);

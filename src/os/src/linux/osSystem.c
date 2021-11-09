@@ -33,9 +33,9 @@ void* taosLoadDll(const char *filename) {
 
 void* taosLoadSym(void* handle, char* name) {
 	void* sym = dlsym(handle, name);
-  char* error = NULL;
+  char* error1 = NULL;
   
-	if ((error = dlerror()) != NULL)  {  
+	if ((error1 = dlerror()) != NULL)  {  
     uWarn("load sym:%s failed, error:%s", name, dlerror());  
 		return NULL;  
 	} 

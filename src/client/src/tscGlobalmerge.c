@@ -33,12 +33,12 @@ typedef struct SCompareParam {
   int32_t            groupOrderType;
 } SCompareParam;
 
-static bool needToMerge(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index, char **buf) {
+static bool needToMerge(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index1, char **buf) {
   int32_t ret = 0;
 
   size_t  size = taosArrayGetSize(columnIndexList);
   if (size > 0) {
-    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, index, buf, TSDB_ORDER_ASC);
+    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, index1, buf, TSDB_ORDER_ASC);
   }
 
   // if ret == 0, means the result belongs to the same group
@@ -555,9 +555,9 @@ static void savePrevOrderColumns(char** prevRow, SArray* pColumnList, SSDataBloc
   int32_t size = (int32_t) taosArrayGetSize(pColumnList);
 
   for(int32_t i = 0; i < size; ++i) {
-    SColIndex* index = taosArrayGet(pColumnList, i);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index->colIndex);
-    assert(index->colId == pColInfo->info.colId);
+    SColIndex* index1 = taosArrayGet(pColumnList, i);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index1->colIndex);
+    assert(index1->colId == pColInfo->info.colId);
 
     memcpy(prevRow[i], pColInfo->pData + pColInfo->info.bytes * rowIndex, pColInfo->info.bytes);
   }
@@ -775,7 +775,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
     }
 
 #ifdef _DEBUG_VIEW
-    printf("chosen data in pTree[0] = %d\n", pTree->pNode[0].index);
+    printf("chosen data in pTree[0] = %d\n", pTree->pNode[0].index1);
 #endif
 
     assert((pTree->pNode[0].index < pMerger->numOfBuffer) && (pTree->pNode[0].index >= 0));

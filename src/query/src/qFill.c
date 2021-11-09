@@ -63,8 +63,8 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
 
   // set the primary timestamp column value
-  int32_t index = pFillInfo->numOfCurrent;
-  char* val = elePtrAt(data[0], TSDB_KEYSIZE, index);
+  int32_t index1 = pFillInfo->numOfCurrent;
+  char* val = elePtrAt(data[0], TSDB_KEYSIZE, index1);
   *(TSKEY*) val = pFillInfo->currentKey;
 
   // set the other values
@@ -78,11 +78,11 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
           continue;
         }
 
-        char* output = elePtrAt(data[i], pCol->col.bytes, index);
+        char* output = elePtrAt(data[i], pCol->col.bytes, index1);
         assignVal(output, p + pCol->col.offset, pCol->col.bytes, pCol->col.type);
       }
     } else {  // no prev value yet, set the value for NULL
-      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
+      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index1);
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
     char* p = FILL_IS_ASC_FILL(pFillInfo)? next : prev;
@@ -94,11 +94,11 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
           continue;
         }
 
-        char* output = elePtrAt(data[i], pCol->col.bytes, index);
+        char* output = elePtrAt(data[i], pCol->col.bytes, index1);
         assignVal(output, p + pCol->col.offset, pCol->col.bytes, pCol->col.type);
       }
     } else { // no prev value yet, set the value for NULL
-      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
+      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index1);
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
     // TODO : linear interpolation supports NULL value
@@ -112,7 +112,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         int16_t type  = pCol->col.type;
         int16_t bytes = pCol->col.bytes;
 
-        char *val1 = elePtrAt(data[i], pCol->col.bytes, index);
+        char *val1 = elePtrAt(data[i], pCol->col.bytes, index1);
         if (type == TSDB_DATA_TYPE_BINARY|| type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BOOL) {
           setNull(val1, pCol->col.type, bytes);
           continue;
@@ -124,7 +124,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         taosGetLinearInterpolationVal(&point, type, &point1, &point2, type);
       }
     } else {
-      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
+      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index1);
     }
   } else { // fill the default value */
     for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
@@ -133,12 +133,12 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         continue;
       }
 
-      char* val1 = elePtrAt(data[i], pCol->col.bytes, index);
+      char* val1 = elePtrAt(data[i], pCol->col.bytes, index1);
       assignVal(val1, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
     }
   }
 
-  setTagsValue(pFillInfo, data, index);
+  setTagsValue(pFillInfo, data, index1);
   pFillInfo->currentKey = taosTimeAdd(pFillInfo->currentKey, pFillInfo->interval.sliding * step, pFillInfo->interval.slidingUnit, pFillInfo->precision);
   pFillInfo->numOfCurrent++;
 }
@@ -301,11 +301,11 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
       numOfTags += 1;
 
       bool exists = false;
-      int32_t index = -1;
+      int32_t index1 = -1;
       for (int32_t j = 0; j < k; ++j) {
         if (pFillInfo->pTags[j].col.colId == pColInfo->col.colId) {
           exists = true;
-          index = j;
+          index1 = j;
           break;
         }
       }
@@ -321,7 +321,7 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
 
         k += 1;
       } else {
-        pColInfo->tagIndex = index;
+        pColInfo->tagIndex = index1;
       }
     }
 
@@ -518,7 +518,7 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, void** output, int32_t cap
     assert(numOfRes == pFillInfo->numOfCurrent);
   }
 
-  qDebug("fill:%p, generated fill result, src block:%d, index:%d, brange:%"PRId64"-%"PRId64", currentKey:%"PRId64", current:%d, total:%d, %p",
+  qDebug("fill:%p, generated fill result, src block:%d, index1:%d, brange:%"PRId64"-%"PRId64", currentKey:%"PRId64", current:%d, total:%d, %p",
       pFillInfo, pFillInfo->numOfRows, pFillInfo->index, pFillInfo->start, pFillInfo->end, pFillInfo->currentKey, pFillInfo->numOfCurrent,
          pFillInfo->numOfTotal, pFillInfo->handle);
 

@@ -970,25 +970,25 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
   taosArraySetSize(tagBinds, numTags);
   int isNullColBind = TSDB_TRUE;
   for (int j = 0; j < numTags; ++j) {
-    TAOS_BIND* bind = taosArrayGet(tagBinds, j);
-    bind->is_null = &isNullColBind;
+    TAOS_BIND* bind1 = taosArrayGet(tagBinds, j);
+    bind1->is_null = &isNullColBind;
   }
   for (int j = 0; j < numTags; ++j) {
     if (tagKVs[j] == NULL) continue;
     TAOS_SML_KV* kv =  tagKVs[j];
-    TAOS_BIND* bind = taosArrayGet(tagBinds, kv->fieldSchemaIdx);
-    bind->buffer_type = kv->type;
-    bind->length = malloc(sizeof(uintptr_t*));
-    *bind->length = kv->length;
-    bind->buffer = kv->value;
-    bind->is_null = NULL;
+    TAOS_BIND* bind1 = taosArrayGet(tagBinds, kv->fieldSchemaIdx);
+    bind1->buffer_type = kv->type;
+    bind1->length = malloc(sizeof(uintptr_t*));
+    *bind1->length = kv->length;
+    bind1->buffer = kv->value;
+    bind1->is_null = NULL;
   }
 
   int32_t code = creatChildTableIfNotExists(taos, cTableName, sTableName, sTableSchema->tags, tagBinds, info);
 
   for (int i = 0; i < taosArrayGetSize(tagBinds); ++i) {
-    TAOS_BIND* bind = taosArrayGet(tagBinds, i);
-    free(bind->length);
+    TAOS_BIND* bind1 = taosArrayGet(tagBinds, i);
+    free(bind1->length);
   }
   taosArrayDestroy(tagBinds);
   return code;
@@ -1014,17 +1014,17 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
     }
 
     for (int j = 0; j < numCols; ++j) {
-      TAOS_BIND* bind = colBinds + j;
-      bind->is_null = &isNullColBind;
+      TAOS_BIND* bind1 = colBinds + j;
+      bind1->is_null = &isNullColBind;
     }
     for (int j = 0; j < point->fieldNum; ++j) {
       TAOS_SML_KV* kv = point->fields + j;
-      TAOS_BIND* bind = colBinds + kv->fieldSchemaIdx;
-      bind->buffer_type = kv->type;
-      bind->length = malloc(sizeof(uintptr_t*));
-      *bind->length = kv->length;
-      bind->buffer = kv->value;
-      bind->is_null = NULL;
+      TAOS_BIND* bind1 = colBinds + kv->fieldSchemaIdx;
+      bind1->buffer_type = kv->type;
+      bind1->length = malloc(sizeof(uintptr_t*));
+      *bind1->length = kv->length;
+      bind1->buffer = kv->value;
+      bind1->is_null = NULL;
     }
     taosArrayPush(rowsBind, &colBinds);
   }
@@ -1037,8 +1037,8 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
   for (int i = 0; i < rows; ++i) {
     TAOS_BIND* colBinds = taosArrayGetP(rowsBind, i);
     for (int j = 0; j < numCols; ++j) {
-      TAOS_BIND* bind = colBinds + j;
-      free(bind->length);
+      TAOS_BIND* bind1 = colBinds + j;
+      free(bind1->length);
     }
     free(colBinds);
   }
@@ -1794,14 +1794,14 @@ static int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index, SSmlLinesInfo* info) {
+static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index1, SSmlLinesInfo* info) {
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
   char key[] = "_ts";
   char *value = NULL;
 
-  start = cur = *index;
+  start = cur = *index1;
   *pTS = calloc(1, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
@@ -1851,8 +1851,8 @@ static bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   return false;
 }
 
-static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash, SSmlLinesInfo* info) {
-  const char *cur = *index;
+static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index1, SHashObj *pHash, SSmlLinesInfo* info) {
+  const char *cur = *index1;
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
   uint16_t len = 0;
 
@@ -1887,17 +1887,17 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
   pKV->key = calloc(len + 1, 1);
   memcpy(pKV->key, key, len + 1);
   //tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
-  *index = cur + 1;
+  *index1 = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
 
-static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
+static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index1,
                           bool *is_last_kv, SSmlLinesInfo* info) {
   const char *start, *cur;
   char *value = NULL;
   uint16_t len = 0;
-  start = cur = *index;
+  start = cur = *index1;
 
   while (1) {
     // unescaped ',' or ' ' or '\0' identifies a value
@@ -1928,13 +1928,13 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   }
   free(value);
 
-  *index = (*cur == '\0') ? cur : cur + 1;
+  *index1 = (*cur == '\0') ? cur : cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index,
+static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index1,
                                    uint8_t *has_tags, SSmlLinesInfo* info) {
-  const char *cur = *index;
+  const char *cur = *index1;
   uint16_t len = 0;
 
   pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + 1, 1);    // +1 to avoid 1772 line over write
@@ -1973,7 +1973,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     len++;
   }
   pSml->stableName[len] = '\0';
-  *index = cur + 1;
+  *index1 = cur + 1;
   tscDebug("SML:0x%"PRIx64" Stable name in measurement:%s|len:%d", info->id, pSml->stableName, len);
 
   return TSDB_CODE_SUCCESS;
@@ -1992,10 +1992,10 @@ static int32_t isValidChildTableName(const char *pTbName, int16_t len) {
 
 
 static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **index, bool isField,
+                               const char **index1, bool isField,
                                TAOS_SML_DATA_POINT* smlData, SHashObj *pHash,
                                SSmlLinesInfo* info) {
-  const char *cur = *index;
+  const char *cur = *index1;
   int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
   bool is_last_kv = false;
@@ -2077,7 +2077,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
 error:
   return ret;
 done:
-  *index = cur;
+  *index1 = cur;
   return ret;
 }
 
@@ -2097,13 +2097,13 @@ static void moveTimeStampToFirstKv(TAOS_SML_DATA_POINT** smlData, TAOS_SML_KV *t
 }
 
 int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
-  const char* index = sql;
+  const char* index1 = sql;
   int32_t ret = TSDB_CODE_SUCCESS;
   uint8_t has_tags = 0;
   TAOS_SML_KV *timestamp = NULL;
   SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
-  ret = parseSmlMeasurement(smlData, &index, &has_tags, info);
+  ret = parseSmlMeasurement(smlData, &index1, &has_tags, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse measurement", info->id);
     taosHashCleanup(keyHashTable);
@@ -2113,7 +2113,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
 
   //Parse Tags
   if (has_tags) {
-    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index, false, smlData, keyHashTable, info);
+    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index1, false, smlData, keyHashTable, info);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse tag", info->id);
       taosHashCleanup(keyHashTable);
@@ -2123,7 +2123,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
   tscDebug("SML:0x%"PRIx64" Parse tags finished, num of tags:%d", info->id, smlData->tagNum);
 
   //Parse fields
-  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index, true, smlData, keyHashTable, info);
+  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index1, true, smlData, keyHashTable, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse field", info->id);
     taosHashCleanup(keyHashTable);
@@ -2133,7 +2133,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
   taosHashCleanup(keyHashTable);
 
   //Parse timestamp
-  ret = parseSmlTimeStamp(&timestamp, &index, info);
+  ret = parseSmlTimeStamp(&timestamp, &index1, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse timestamp", info->id);
     return ret;

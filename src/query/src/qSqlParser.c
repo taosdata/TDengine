@@ -538,8 +538,8 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder) {
   return pList;
 }
 
-SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index) {
-  if (pList == NULL || pVar == NULL || index >= taosArrayGetSize(pList)) {
+SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index1) {
+  if (pList == NULL || pVar == NULL || index1 >= taosArrayGetSize(pList)) {
     return tVariantListAppend(NULL, pVar, sortOrder);
   }
 
@@ -548,7 +548,7 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
   item.pVar = *pVar;
   item.sortOrder = sortOrder;
 
-  taosArrayInsert(pList, index, &item);
+  taosArrayInsert(pList, index1, &item);
   return pList;
 }
 
@@ -559,7 +559,9 @@ SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, 
   }
 
   pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
-  SRelElementPair p = {.tableName = *pName};
+  SRelElementPair p;
+  memset(&p,0,sizeof(p));
+  p.tableName = *pName;
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -598,7 +600,9 @@ SRelationInfo* addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
 
   pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
 
-  SRelElementPair p = {.pSubquery = pSub};
+  SRelElementPair p;
+  memset(&p,0,sizeof(p));
+  p.pSubquery = pSub;
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {

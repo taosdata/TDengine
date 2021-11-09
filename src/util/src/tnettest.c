@@ -314,27 +314,27 @@ static void taosNetCheckPort(uint32_t hostIp, int32_t startPort, int32_t endPort
 }
 
 void *taosNetInitRpc(char *secretEncrypt, char spi) {
-  SRpcInit rpcInit;
+  SRpcInit rpcInit1;
   void *   pRpcConn = NULL;
 
   char user[] = "nettestinternal";
   char pass[] = "nettestinternal";
   taosEncryptPass((uint8_t *)pass, strlen(pass), secretEncrypt);
 
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = 0;
-  rpcInit.label = "NT";
-  rpcInit.numOfThreads = 1;  // every DB connection has only one thread
-  rpcInit.cfp = NULL;
-  rpcInit.sessions = 16;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = user;
-  rpcInit.idleTime = 2000;
-  rpcInit.ckey = "key";
-  rpcInit.spi = spi;
-  rpcInit.secret = secretEncrypt;
+  memset(&rpcInit1, 0, sizeof(rpcInit1));
+  rpcInit1.localPort = 0;
+  rpcInit1.label = "NT";
+  rpcInit1.numOfThreads = 1;  // every DB connection has only one thread
+  rpcInit1.cfp = NULL;
+  rpcInit1.sessions = 16;
+  rpcInit1.connType = TAOS_CONN_CLIENT;
+  rpcInit1.user = user;
+  rpcInit1.idleTime = 2000;
+  rpcInit1.ckey = "key";
+  rpcInit1.spi = spi;
+  rpcInit1.secret = secretEncrypt;
 
-  pRpcConn = rpcOpen(&rpcInit);
+  pRpcConn = rpcOpen(&rpcInit1);
   return pRpcConn;
 }
 

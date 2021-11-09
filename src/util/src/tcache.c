@@ -615,9 +615,9 @@ void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
     return;
   }
 
-  const char* stat[] = {"false", "true"};
+  const char* stat1[] = {"false", "true"};
   uDebug("cache:%s start to cleanup trashcan, numOfElem in trashcan:%d, free:%s", pCacheObj->name,
-      pCacheObj->numOfElemsInTrash, (force? stat[1]:stat[0]));
+      pCacheObj->numOfElemsInTrash, (force? stat1[1]:stat1[0]));
 
   STrashElem *pElem = pCacheObj->pTrash;
   while (pElem) {
@@ -674,10 +674,10 @@ bool travHashTableFn(void* param, void* data) {
   return true;
 }
 
-static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time1, __cache_free_fn_t fp) {
   assert(pCacheObj != NULL);
 
-  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time};
+  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time1};
   taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
 }
 

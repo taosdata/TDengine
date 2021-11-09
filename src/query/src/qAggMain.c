@@ -895,14 +895,14 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
     }
 
     void*   tval = NULL;
-    int16_t index = 0;
+    int16_t index1 = 0;
     
     if (isMin) {
       tval = &pCtx->preAggVals.statis.min;
-      index = pCtx->preAggVals.statis.minIndex;
+      index1 = pCtx->preAggVals.statis.minIndex;
     } else {
       tval = &pCtx->preAggVals.statis.max;
-      index = pCtx->preAggVals.statis.maxIndex;
+      index1 = pCtx->preAggVals.statis.maxIndex;
     }
     
     TSKEY key = TSKEY_INITIAL_VAL;
@@ -913,12 +913,12 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
        *
        * The following codes of 3 lines will be removed later.
        */
-//      if (index < 0 || index >= pCtx->size + pCtx->startOffset) {
-//        index = 0;
+//      if (index1 < 0 || index1 >= pCtx->size + pCtx->startOffset) {
+//        index1 = 0;
 //      }
 
-      // the index is the original position, not the relative position
-      key = pCtx->ptsList[index];
+      // the index1 is the original position, not the relative position
+      key = pCtx->ptsList[index1];
     }
     
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
@@ -1554,15 +1554,15 @@ static void first_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
 }
 
-static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index) {
+static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index1) {
   int64_t *timestamp = GET_TS_LIST(pCtx);
   
   SFirstLastInfo *pInfo = (SFirstLastInfo *)(pCtx->pOutput + pCtx->inputBytes);
   
-  if (pInfo->hasResult != DATA_SET_FLAG || timestamp[index] < pInfo->ts) {
+  if (pInfo->hasResult != DATA_SET_FLAG || timestamp[index1] < pInfo->ts) {
     memcpy(pCtx->pOutput, pData, pCtx->inputBytes);
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->ts = timestamp[index];
+    pInfo->ts = timestamp[index1];
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo->ts);
   }
@@ -1685,19 +1685,19 @@ static void last_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
 }
 
-static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index) {
+static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index1) {
   int64_t *timestamp = GET_TS_LIST(pCtx);
   
   SFirstLastInfo *pInfo = (SFirstLastInfo *)(pCtx->pOutput + pCtx->inputBytes);
   
-  if (pInfo->hasResult != DATA_SET_FLAG || pInfo->ts < timestamp[index]) {
+  if (pInfo->hasResult != DATA_SET_FLAG || pInfo->ts < timestamp[index1]) {
 #if defined(_DEBUG_VIEW)
-    qDebug("assign index:%d, ts:%" PRId64 ", val:%d, ", index, timestamp[index], *(int32_t *)pData);
+    qDebug("assign index1:%d, ts:%" PRId64 ", val:%d, ", index1, timestamp[index1], *(int32_t *)pData);
 #endif
     
     memcpy(pCtx->pOutput, pData, pCtx->inputBytes);
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->ts = timestamp[index];
+    pInfo->ts = timestamp[index1];
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo->ts);
   }
@@ -2562,12 +2562,12 @@ static bool leastsquares_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo
   return true;
 }
 
-#define LEASTSQR_CAL(p, x, y, index, step) \
+#define LEASTSQR_CAL(p, x, y, index1, step) \
   do {                                     \
     (p)[0][0] += (double)(x) * (x);        \
     (p)[0][1] += (double)(x);              \
-    (p)[0][2] += (double)(x) * (y)[index]; \
-    (p)[1][2] += (y)[index];               \
+    (p)[0][2] += (double)(x) * (y)[index1]; \
+    (p)[1][2] += (y)[index1];               \
     (x) += step;                           \
   } while (0)
 
@@ -2992,7 +2992,7 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
     } else {                                                                                 \
       *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i64));      \
       *(type *)(&(ctx)->param[1].i64) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
+      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index1);                             \
     }                                                                                        \
   } while (0);
 
@@ -3164,16 +3164,16 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 char *getArithColumnData(void *param, const char* name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
   
-  int32_t index = -1;
+  int32_t index1 = -1;
   for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
     if (colId == pSupport->colList[i].colId) {
-      index = i;
+      index1 = i;
       break;
     }
   }
   
-  assert(index >= 0);
-  return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
+  assert(index1 >= 0);
+  return pSupport->data[index1] + pSupport->offset * pSupport->colList[index1].bytes;
 }
 
 static void arithmetic_function(SQLFunctionCtx *pCtx) {
@@ -3381,14 +3381,14 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
   return val;
 }
 
-static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t size) {
+static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index1, int32_t size) {
   int32_t notNullElems = 0;
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY    *tsList = GET_TS_LIST(pCtx);
 
-  int32_t i = index;
+  int32_t i = index1;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   SPoint1* last = &pInfo->p;
 
@@ -3399,7 +3399,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     assert(last->key == INT64_MIN);
 
     last->key = tsList[i];
-    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, index));
+    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, index1));
 
     pInfo->dOutput += twa_get_area(pCtx->start, *last);
 
@@ -3409,7 +3409,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     i += step;
   } else if (pInfo->p.key == INT64_MIN) {
     last->key = tsList[i];
-    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, index));
+    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, index1));
 
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey = last->key;
@@ -3980,7 +3980,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *pData = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
-      qDebug("%p rate_function() index of null data:%d", pCtx, i);
+      qDebug("%p rate_function() index1 of null data:%d", pCtx, i);
       continue;
     }
     
