@@ -1290,7 +1290,7 @@ static int getTableDes(
                     convertNCharToReadable(
                             (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                             length[0], tbuf, COMMAND_SIZE-2);
-                    sprintf(tableDes->cols[i].value, "%s", tbuf);
+                    sprintf(tableDes->cols[i].value, "%.*s", COL_VALUEBUF_LEN-1, tbuf);
                     break;
                 }
             case TSDB_DATA_TYPE_TIMESTAMP:
