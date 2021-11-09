@@ -82,7 +82,7 @@ else
   cp ${build_dir}/bin/taos          ${install_dir}/bin/tq
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/tqd
   cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
-  cp ${build_dir}/bin/blm3          ${install_dir}/bin/blm3 ||:
+  cp ${build_dir}/bin/taosadapter          ${install_dir}/bin/taosadapter ||:
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/tqdemo
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/tqdump
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin

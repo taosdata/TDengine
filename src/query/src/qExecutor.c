@@ -4231,7 +4231,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
   int32_t start = 0;
   int32_t step = -1;
 
-  qDebug("QInfo:0x%"PRIx64" start to copy data from windowResInfo to output buf", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" start to copy data from resultrowInfo to output buf", GET_QID(pRuntimeEnv));
   assert(orderType == TSDB_ORDER_ASC || orderType == TSDB_ORDER_DESC);
 
   if (orderType == TSDB_ORDER_ASC) {
@@ -5220,7 +5220,6 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
   pInfo->reverseTimes = 0;
   pInfo->order        = pRuntimeEnv->pQueryAttr->order.order;
   pInfo->current      = 0;
-//  pInfo->prevGroupId  = -1;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableScanOperator";

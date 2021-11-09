@@ -355,16 +355,16 @@ enum OPERATOR_TYPE_E {
 
 typedef struct SOperatorInfo {
   uint8_t               operatorType;
-  bool                  blockingOptr;  // block operator or not
-  uint8_t               status;        // denote if current operator is completed
-  int32_t               numOfOutput;   // number of columns of the current operator results
-  char                 *name;          // name, used to show the query execution plan
-  void                 *info;          // extension attribution
+  bool                  blockingOptr;   // block operator or not
+  uint8_t               status;         // denote if current operator is completed
+  int32_t               numOfOutput;    // number of columns of the current operator results
+  char                 *name;           // name, used to show the query execution plan
+  void                 *info;           // extension attribution
   SExprInfo            *pExpr;
   SQueryRuntimeEnv     *pRuntimeEnv;
 
-  struct SOperatorInfo **upstream;     // upstream pointer list
-  int32_t               numOfUpstream; // number of upstream. The value is always ONE expect for join operator
+  struct SOperatorInfo **upstream;      // upstream pointer list
+  int32_t               numOfUpstream;  // number of upstream. The value is always ONE expect for join operator
   __operator_fn_t       exec;
   __optr_cleanup_fn_t   cleanup;
 } SOperatorInfo;
