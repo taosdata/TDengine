@@ -1894,13 +1894,14 @@ static int32_t handleSQLExprItem(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   if (arithmeticType == NORMAL_ARITHMETIC) {
-    handleScalarExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
+    code = handleScalarExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
   } else {
-    handleAggregateExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
+    code = handleAggregateExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSqlExprItem* pItem, int32_t colId) {

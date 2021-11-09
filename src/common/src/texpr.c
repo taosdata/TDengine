@@ -169,7 +169,7 @@ int32_t exprTreeValidateTree(tExprNode *pExpr) {
     if (!IS_VAR_DATA_TYPE(pExpr->pVal->nType)) {
       pExpr->resultBytes = tDataTypes[pExpr->pVal->nType].bytes;
     } else {
-      pExpr->resultBytes = pExpr->pVal->nLen + VARSTR_HEADER_SIZE;
+      pExpr->resultBytes = (int16_t)(pExpr->pVal->nLen + VARSTR_HEADER_SIZE);
     }
   } else if (pExpr->nodeType == TSQL_NODE_COL) {
     pExpr->resultType = pExpr->pSchema->type;
@@ -1017,7 +1017,7 @@ void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInpu
     if (!hasNullInputs) {
       int16_t dataLen = 0;
       for (int j = 0; j < numInputs; ++j) {
-        memcpy((void*)(varDataVal(outputData)+dataLen), varDataVal(inputData[j]), varDataLen(inputData[j]));
+        memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[j]), varDataLen(inputData[j]));
         dataLen += varDataLen(inputData[j]);
       }
       varDataSetLen(outputData, dataLen);
