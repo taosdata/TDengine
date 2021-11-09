@@ -96,9 +96,12 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
             if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
               return TSDB_CODE_TSC_INVALID_OPERATION;
             }
-            tVariantTypeSetType(child->pVal, (char)resultType);
+            char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+            tVariantDump(child->pVal, payload, resultType, true);
+            int16_t resultBytes = varDataTLen(payload);
+            free(payload);
             child->resultType = resultType;
-            child->resultBytes = (int16_t)(child->pVal->nLen + VARSTR_HEADER_SIZE);
+            child->resultBytes = (int16_t)(resultBytes);
           }
         }
       } else {
