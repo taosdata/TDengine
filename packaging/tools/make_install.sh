@@ -520,8 +520,13 @@ function install_service_on_systemd() {
 }
 
 function install_taosadapter_service() {
-    [ -f ${script_dir}/cfg/taosadapter.service ] &&\
-        ${csudo} cp ${script_dir}/cfg/taosadapter.service ${service_config_dir}/
+    if ((${service_mod}==0)); then
+        [ -f ${binary_dir}/test/cfg/taosadapter.service ] &&\
+            ${csudo} cp ${binary_dir}/test/cfg/taosadapter.service\
+	    ${service_config_dir}/ || :
+    else
+        kill_taosadapter
+    fi
 }
 
 function install_service() {
@@ -531,7 +536,6 @@ function install_service() {
         install_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_taosadapter
         kill_taosd
     fi
 }
