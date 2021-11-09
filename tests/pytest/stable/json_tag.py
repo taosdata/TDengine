@@ -279,7 +279,10 @@ class TDTestCase:
         tdSql.execute("INSERT INTO db_json_tag_test.jsons1_21 using db_json_tag_test.jsons1 tags('{\"tagint\":11}') values(now, 11, false, \"你就会\")")
         tdSql.execute("INSERT INTO db_json_tag_test.jsons1_22 using db_json_tag_test.jsons1 tags('{\"tagint\":2}') values(now, 2, false, \"你就会\")")
         tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'tagint' order by jtag->'tagint' desc")
-        #tdSql.checkData(1, 0, 2.5)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 2, 11)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(3, 2, None)
 
         # test json->'key'=null
         tdSql.execute("insert into db_json_tag_test.jsons1_9 values('2020-04-17 15:20:00.000', 5, false, 'json19')")
