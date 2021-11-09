@@ -168,4 +168,14 @@ TEST(testCase, displayPlan) {
   generateLogicplan("select count(*) from `t.1abc` group by a");
   generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s)");
   generateLogicplan("select count(*),sum(a),avg(b),min(a+b) from `t.1abc`");
+
+  // order by + group by column + limit offset + fill
+
+
+  // join
+
+
+  // union
+
+
 }

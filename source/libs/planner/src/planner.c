@@ -154,6 +154,8 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
       memcpy(pNode->pExtInfo, pExtInfo, sizeof(SLimit));
       break;
     }
+    default:
+      assert(0);
   }
   
   return pNode;
@@ -257,14 +259,14 @@ static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryIn
     }
   }
 
+  // group by column not by tag
   if (numOfGroupCols != 0) {
     pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, NULL, 0, info, &pQueryInfo->groupbyExpr);
   }
 
   if (pQueryInfo->havingFieldNum > 0) {
 //    int32_t numOfExpr = (int32_t)taosArrayGetSize(pQueryInfo->exprList1);
-//    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info,
-//        NULL);
+//    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
   }
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
