@@ -2972,6 +2972,17 @@ static void copy_function(SQLFunctionCtx *pCtx) {
   assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
 }
 
+static void full_copy_function(SQLFunctionCtx *pCtx) {
+  copy_function(pCtx);
+  
+  for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+    SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+    if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+      aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+    }
+  }
+}
+
 enum {
   INITIAL_VALUE_NOT_ASSIGNED = 0,
 };
@@ -5294,7 +5305,7 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               interp_function,
                               doFinalizer,
-                              copy_function,
+                              full_copy_function,
                               dataBlockRequired,
                           },
                           {

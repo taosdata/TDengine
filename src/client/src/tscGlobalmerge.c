@@ -595,7 +595,7 @@ static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, i
 
   for (int32_t j = 0; j < numOfExpr; ++j) {
     int32_t functionId = pCtx[j].functionId;
-    if (functionId == TSDB_FUNC_TS_DUMMY) {
+    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
