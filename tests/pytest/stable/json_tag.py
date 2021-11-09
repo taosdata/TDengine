@@ -283,6 +283,12 @@ class TDTestCase:
         tdSql.checkData(0, 2, 11)
         tdSql.checkData(1, 2, 2)
         tdSql.checkData(3, 2, None)
+        tdSql.checkData(3, 1, 6)
+        tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'tagint' order by jtag->'tagint'")
+        tdSql.checkData(0, 1, 6)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(3, 2, 11)
 
         # test json->'key'=null
         tdSql.execute("insert into db_json_tag_test.jsons1_9 values('2020-04-17 15:20:00.000', 5, false, 'json19')")
