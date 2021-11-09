@@ -10326,7 +10326,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
 
     int64_t ntables = 0;
-    uint64_t tableFrom;
+    uint64_t tableFrom = 0;
 
     if (stbInfo) {
         int64_t limit;
