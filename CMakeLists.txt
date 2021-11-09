@@ -76,8 +76,15 @@ add_subdirectory(source)
 
 # docs
 if(${BUILD_DOCS})
-    execute_process(COMMAND doxygen ${PROJECT_SOURCE_DIR}/docs/Doxyfile)
+    find_program(DOC_GENERATOR doxygen)
+    if(NOT DOC_GENERATOR)
+        message("doxygen is not found, skip doc build")
+    else()
+        execute_process(
+            COMMAND doxygen ${CMAKE_SOURCE_DIR}/docs/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        )
+    endif(NOT DOC_GENERATOR)
 endif(${BUILD_DOCS})
-
 
 # tests (TODO)

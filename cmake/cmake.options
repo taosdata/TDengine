@@ -40,5 +40,5 @@ option(
 option(
     BUILD_DOCS
     "If use doxygen build documents" 
-    OFF
+    ON
 )
