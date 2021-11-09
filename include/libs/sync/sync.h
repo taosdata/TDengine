@@ -29,10 +29,10 @@ typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
 
 typedef enum {
-  TAOS_SYNC_ROLE_FOLLOWER = 0,
-  TAOS_SYNC_ROLE_CANDIDATE = 1,
-  TAOS_SYNC_ROLE_LEADER = 2,
-} ESyncRole;
+  TAOS_SYNC_STATE_FOLLOWER = 0,
+  TAOS_SYNC_STATE_CANDIDATE = 1,
+  TAOS_SYNC_STATE_LEADER = 2,
+} ESyncState;
 
 typedef struct {
   void*  data;
@@ -55,7 +55,7 @@ typedef struct {
   int32_t   selfIndex;
   int32_t   replica;
   SNodeInfo node[TSDB_MAX_REPLICA];
-  ESyncRole role[TSDB_MAX_REPLICA];
+  ESyncState role[TSDB_MAX_REPLICA];
 } SNodesRole;
 
 typedef struct SSyncFSM {
@@ -159,9 +159,9 @@ void       syncStop(const SSyncNode*);
 
 int32_t syncPropose(SSyncNode* syncNode, const SSyncBuffer* pBuf, void* pData, bool isWeak);
 
-// int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode);
+int32_t syncAddNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
-// int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode);
+int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode);
 
 extern int32_t sDebugFlag;
 

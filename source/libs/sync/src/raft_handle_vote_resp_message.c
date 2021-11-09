@@ -23,7 +23,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   int quorum;
   int voterIndex;
 
-  assert(pRaft->state == TAOS_SYNC_ROLE_CANDIDATE);
+  assert(pRaft->state == TAOS_SYNC_STATE_CANDIDATE);
 
   voterIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
   if (voterIndex == -1) {
@@ -31,7 +31,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     return 0;
   }
 
-  if (pRaft->state != TAOS_SYNC_ROLE_CANDIDATE) {
+  if (pRaft->state != TAOS_SYNC_STATE_CANDIDATE) {
     syncError("[%d:%d] is not candidate, ignore vote resp", pRaft->selfGroupId, pRaft->selfId);
     return 0;
   }
