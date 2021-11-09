@@ -27,24 +27,25 @@ extern "C" {
 typedef struct SVnode SVnode;
 
 typedef struct {
-  char       db[TSDB_FULL_DB_NAME_LEN];
-  int32_t    cacheBlockSize;  // MB
-  int32_t    totalBlocks;
-  int32_t    daysPerFile;
-  int32_t    daysToKeep0;
-  int32_t    daysToKeep1;
-  int32_t    daysToKeep2;
-  int32_t    minRowsPerFileBlock;
-  int32_t    maxRowsPerFileBlock;
-  int8_t     precision;  // time resolution
-  int8_t     compression;
-  int8_t     cacheLastRow;
-  int8_t     update;
-  int8_t     quorum;
-  int8_t     replica;
-  int8_t     walLevel;
-  int32_t    fsyncPeriod;  // millisecond
-  SVnodeDesc replicas[TSDB_MAX_REPLICA];
+  char     db[TSDB_FULL_DB_NAME_LEN];
+  int32_t  cacheBlockSize;  // MB
+  int32_t  totalBlocks;
+  int32_t  daysPerFile;
+  int32_t  daysToKeep0;
+  int32_t  daysToKeep1;
+  int32_t  daysToKeep2;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int8_t   precision;  // time resolution
+  int8_t   compression;
+  int8_t   cacheLastRow;
+  int8_t   update;
+  int8_t   quorum;
+  int8_t   replica;
+  int8_t   selfIndex;
+  int8_t   walLevel;
+  int32_t  fsyncPeriod;  // millisecond
+  SReplica replicas[TSDB_MAX_REPLICA];
 } SVnodeCfg;
 
 typedef enum {

@@ -19,9 +19,6 @@
 #include "os.h"
 #include "tutil.h"
 
-#define TQ_ACTION_INSERT 0x7f7f7f7fULL
-#define TQ_ACTION_DELETE 0x80808080ULL
-
 #ifdef __cplusplus
 extern "C" {
 #endif

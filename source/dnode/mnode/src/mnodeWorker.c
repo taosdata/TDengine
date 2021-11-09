@@ -39,7 +39,7 @@ static struct {
   void (*msgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 } tsMworker = {0};
 
-static SMnMsg *mnodeInitMsg(SRpcMsg *pRpcMsg) {
+static SMnMsg *mnodeInitMsg2(SRpcMsg *pRpcMsg) {
   int32_t    size = sizeof(SMnMsg) + pRpcMsg->contLen;
   SMnMsg *pMsg = taosAllocateQitem(size);
 
@@ -62,7 +62,7 @@ static SMnMsg *mnodeInitMsg(SRpcMsg *pRpcMsg) {
   return pMsg;
 }
 
-static void mnodeCleanupMsg(SMnMsg *pMsg) {
+static void mnodeCleanupMsg2(SMnMsg *pMsg) {
   if (pMsg == NULL) return;
   if (pMsg->rpcMsg.pCont != pMsg->pCont) {
     tfree(pMsg->rpcMsg.pCont);
@@ -75,7 +75,7 @@ static void mnodeDispatchToWriteQueue(SRpcMsg *pRpcMsg) {
   if (mnodeGetStatus() != MN_STATUS_READY || tsMworker.writeQ == NULL) {
     mnodeSendRedirectMsg(pRpcMsg, true);
   } else {
-    SMnMsg *pMsg = mnodeInitMsg(pRpcMsg);
+    SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
     if (pMsg == NULL) {
       SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
       rpcSendResponse(&rpcRsp);
@@ -91,7 +91,7 @@ static void mnodeDispatchToWriteQueue(SRpcMsg *pRpcMsg) {
 void mnodeReDispatchToWriteQueue(SMnMsg *pMsg) {
   if (mnodeGetStatus() != MN_STATUS_READY || tsMworker.writeQ == NULL) {
     mnodeSendRedirectMsg(&pMsg->rpcMsg, true);
-    mnodeCleanupMsg(pMsg);
+    mnodeCleanupMsg2(pMsg);
   } else {
     taosWriteQitem(tsMworker.writeQ, pMsg);
   }
@@ -101,7 +101,7 @@ static void mnodeDispatchToReadQueue(SRpcMsg *pRpcMsg) {
   if (mnodeGetStatus() != MN_STATUS_READY || tsMworker.readQ == NULL) {
     mnodeSendRedirectMsg(pRpcMsg, true);
   } else {
-    SMnMsg *pMsg = mnodeInitMsg(pRpcMsg);
+    SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
     if (pMsg == NULL) {
       SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
       rpcSendResponse(&rpcRsp);
@@ -118,7 +118,7 @@ static void mnodeDispatchToPeerQueue(SRpcMsg *pRpcMsg) {
   if (mnodeGetStatus() != MN_STATUS_READY || tsMworker.peerReqQ == NULL) {
     mnodeSendRedirectMsg(pRpcMsg, false);
   } else {
-    SMnMsg *pMsg = mnodeInitMsg(pRpcMsg);
+    SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
     if (pMsg == NULL) {
       SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
       rpcSendResponse(&rpcRsp);
@@ -133,7 +133,7 @@ static void mnodeDispatchToPeerQueue(SRpcMsg *pRpcMsg) {
 }
 
 void mnodeDispatchToPeerRspQueue(SRpcMsg *pRpcMsg) {
-  SMnMsg *pMsg = mnodeInitMsg(pRpcMsg);
+  SMnMsg *pMsg = mnodeInitMsg2(pRpcMsg);
   if (pMsg == NULL) {
     SRpcMsg rpcRsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_MND_INVALID_USER};
     rpcSendResponse(&rpcRsp);
@@ -162,7 +162,7 @@ void mnodeSendRsp(SMnMsg *pMsg, int32_t code) {
   };
 
   rpcSendResponse(&rpcRsp);
-  mnodeCleanupMsg(pMsg);
+  mnodeCleanupMsg2(pMsg);
 }
 
 static void mnodeInitMsgFp() {
@@ -405,7 +405,7 @@ static void mnodeProcessPeerRsp(SMnMsg *pMsg, void *unused) {
 
   if (!mnodeIsMaster()) {
     mError("msg:%p, ahandle:%p type:%s not processed for not master", pRpcMsg, pRpcMsg->ahandle, taosMsg[msgType]);
-    mnodeCleanupMsg(pMsg);
+    mnodeCleanupMsg2(pMsg);
   }
 
   if (tsMworker.peerRspFp[msgType]) {
@@ -414,7 +414,7 @@ static void mnodeProcessPeerRsp(SMnMsg *pMsg, void *unused) {
     mError("msg:%p, ahandle:%p type:%s is not processed", pRpcMsg, pRpcMsg->ahandle, taosMsg[msgType]);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mnodeCleanupMsg2(pMsg);
 }
 
 int32_t mnodeInitWorker() {
@@ -486,10 +486,9 @@ void mnodeCleanupWorker() {
   mInfo("mnode worker is closed");
 }
 
-void mnodeProcessMsg(SRpcMsg *pMsg) {
-  if (tsMworker.msgFp[pMsg->msgType]) {
-    (*tsMworker.msgFp[pMsg->msgType])(pMsg);
-  } else {
-    assert(0);
-  }
-}
+SMnodeMsg *mnodeInitMsg(int32_t msgNum) { return NULL; }
+
+int32_t mnodeAppendMsg(SMnodeMsg *pMsg, SRpcMsg *pRpcMsg) { return 0; }
+
+void mnodeCleanupMsg(SMnodeMsg *pMsg) {}
+void mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType) {}

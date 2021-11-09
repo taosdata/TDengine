@@ -20,6 +20,16 @@
 extern "C" {
 #endif
 
+typedef enum { MN_MSG_TYPE_WRITE = 1, MN_MSG_TYPE_APPLY, MN_MSG_TYPE_SYNC, MN_MSG_TYPE_READ } EMnMsgType;
+
+typedef struct SMnodeMsg SMnodeMsg;
+
+typedef struct {
+  int8_t   replica;
+  int8_t   selfIndex;
+  SReplica replicas[TSDB_MAX_REPLICA];
+} SMnodeCfg;
+
 typedef struct {
   int64_t numOfDnode;
   int64_t numOfMnode;
@@ -31,32 +41,33 @@ typedef struct {
   int64_t totalPoints;
   int64_t totalStorage;
   int64_t compStorage;
-} SMnodeStat;
+} SMnodeLoad;
 
 typedef struct {
+  int32_t dnodeId;
+  int64_t clusterId;
   void (*SendMsgToDnode)(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
   void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
   void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
-  void (*GetDnodeEp)(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
-} SMnodeFp;
-
-typedef struct {
-  SMnodeFp fp;
-  int64_t  clusterId;
-  int32_t  dnodeId;
+  int32_t (*PutMsgIntoApplyQueue)(SMnodeMsg *pMsg);
 } SMnodePara;
 
 int32_t mnodeInit(SMnodePara para);
 void    mnodeCleanup();
-int32_t mnodeDeploy();
-void    mnodeUnDeploy();
-int32_t mnodeStart();
+
+int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg);
+void    mnodeUnDeploy(char *path);
+int32_t mnodeStart(char *path, SMnodeCfg *pCfg);
+int32_t mnodeAlter(SMnodeCfg *pCfg);
 void    mnodeStop();
 
-int32_t mnodeGetStatistics(SMnodeStat *stat);
+int32_t mnodeGetLoad(SMnodeLoad *pLoad);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-void mnodeProcessMsg(SRpcMsg *rpcMsg);
+SMnodeMsg *mnodeInitMsg(int32_t msgNum);
+int32_t    mnodeAppendMsg(SMnodeMsg *pMsg, SRpcMsg *pRpcMsg);
+void       mnodeCleanupMsg(SMnodeMsg *pMsg);
+void       mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType);
 
 #ifdef __cplusplus
 }
