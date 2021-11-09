@@ -1293,7 +1293,7 @@ static int getTableDes(
                             length[0], tbuf, COL_VALUEBUF_LEN-2);
                     sprintf(tableDes->cols[i].value, "%s", tbuf);
                 } else {
-                    tableDes->cols[i].var_value = calloc(1, len * 4);
+                    tableDes->cols[i].var_value = calloc(1, nlen * 4);
                     if (tableDes->cols[i].var_value == NULL) {
                         errorPrint("%s() LN%d, memory alalocation failed!\n",
                                 __func__, __LINE__);
@@ -1303,7 +1303,7 @@ static int getTableDes(
                     converStringToReadable(
                             (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                             length[0],
-                            (char *)(tableDes->cols[i].var_value), len);
+                            (char *)(tableDes->cols[i].var_value), nlen);
                 }
                 break;
             case TSDB_DATA_TYPE_TIMESTAMP:
