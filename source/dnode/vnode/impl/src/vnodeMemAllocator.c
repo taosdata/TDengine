@@ -15,11 +15,46 @@
 
 #include "vnodeDef.h"
 
-/* ------------------------ Heap Allocator ------------------------ */
 typedef struct {
   uint64_t tsize;
   uint64_t used;
 } SVHeapAllocator;
+
+typedef struct SVArenaNode {
+  struct SVArenaNode *prev;
+} SVArenaNode;
+
+typedef struct {
+} SVArenaAllocator;
+
+typedef struct {
+  int8_t   type;
+  uint64_t tsize;
+  T_REF_DECLARE()
+  union {
+    SVHeapAllocator  vha;
+    SVArenaAllocator vaa;
+  };
+} SVMemAllocator;
+
+SMemAllocator *vnodeCreateMemAllocator(int8_t type, uint64_t size) {
+  /* TODO */
+  return NULL;
+}
+
+void vnodeDestroyMemAllocator(SMemAllocator *pma) {
+  // TODO
+}
+
+void vnodeRefMemAllocator(SMemAllocator *pma) {
+  // TODO
+}
+
+void vnodeUnrefMemAllocator(SMemAllocator *pma) {
+  // TODO
+}
+
+/* ------------------------ Heap Allocator IMPL ------------------------ */
 
 SMemAllocator *vhaCreate(uint64_t size) {
   SMemAllocator *pma;
@@ -62,6 +97,4 @@ static uint64_t vhaUsage(SMemAllocator *pma) {
   return 0;
 }
 
-/* ------------------------ Arena Allocator ------------------------ */
-typedef struct {
-} SVArenaAllocator;
+/* ------------------------ Arena Allocator IMPL ------------------------ */

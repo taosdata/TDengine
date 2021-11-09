@@ -18,6 +18,8 @@
 
 #include "mallocator.h"
 #include "sync.h"
+#include "tlockfree.h"
+
 #include "vnode.h"
 #include "vnodeAllocatorPool.h"
 #include "vnodeCommit.h"
