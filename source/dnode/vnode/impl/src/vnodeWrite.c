@@ -21,9 +21,10 @@ int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
 }
 
 int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
-  int    reqType; /* TODO */
-  size_t reqSize; /* TODO */
-  int    code = 0;
+  int      reqType;        /* TODO */
+  size_t   reqSize;        /* TODO */
+  uint64_t reqVersion = 0; /* TODO */
+  int      code = 0;
 
   // Copy the request to vnode buffer
   SRequest *pReq = mMalloc(pVnode->inuse, reqSize);

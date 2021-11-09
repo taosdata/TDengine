@@ -25,7 +25,8 @@ extern "C" {
 typedef struct {
   int            nexta;
   int            enda;
-  SMemAllocator *allocators[3];
+  SMemAllocator *free[3];
+  SMemAllocator *used[3];
 } SVAllocatorPool;
 
 int  vnodeOpenAllocatorPool(SVnode *pVnode);
