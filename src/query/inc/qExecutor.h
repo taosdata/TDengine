@@ -361,11 +361,11 @@ enum OPERATOR_TYPE_E {
 
 typedef struct SOperatorInfo {
   uint8_t               operatorType;
-  bool                  blockingOptr;  // block operator or not
-  uint8_t               status;        // denote if current operator is completed
-  int32_t               numOfOutput;   // number of columns of the current operator results
-  char                 *name;          // name, used to show the query execution plan
-  void                 *info;          // extension attribution
+  bool                  blockingOptr;   // block operator or not
+  uint8_t               status;         // denote if current operator is completed
+  int32_t               numOfOutput;    // number of columns of the current operator results
+  char                 *name;           // name, used to show the query execution plan
+  void                 *info;           // extension attribution
   SExprInfo            *pExpr;
   SQueryRuntimeEnv     *pRuntimeEnv;
 

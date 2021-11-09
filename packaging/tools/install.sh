@@ -185,7 +185,7 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/blm3     || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
@@ -197,7 +197,7 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
     [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
-    [ -x ${install_main_dir}/bin/blm3 ] && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3                      || :
+    [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter                      || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
@@ -447,18 +447,18 @@ function local_fqdn_check() {
   fi
 }
 
-function install_blm3_config() {
-    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+function install_taosadapter_config() {
+    if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/blm.toml ] && ${csudo} cp ${script_dir}/cfg/blm.toml ${cfg_install_dir}
-        [ -f ${cfg_install_dir}/blm.toml ] && ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+        [ -f ${script_dir}/cfg/taosadapter.toml ] && ${csudo} cp ${script_dir}/cfg/taosadapter.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/taosadapter.toml ] && ${csudo} chmod 644 ${cfg_install_dir}/taosadapter.toml
     fi
 
-    [ -f ${script_dir}/cfg/blm.toml ] &&
-        ${csudo} cp -f ${script_dir}/cfg/blm.toml ${cfg_install_dir}/blm.toml.new
+    [ -f ${script_dir}/cfg/taosadapter.toml ] &&
+        ${csudo} cp -f ${script_dir}/cfg/taosadapter.toml ${cfg_install_dir}/taosadapter.toml.new
 
-    [ -f ${cfg_install_dir}/blm.toml ] &&
-        ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
+    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
+        ${csudo} ln -s ${cfg_install_dir}/taosadapter.toml ${install_main_dir}/cfg/taosadapter.toml
 
     [ ! -z $1 ] && return 0 || : # only install client
 
@@ -679,8 +679,8 @@ function install_service_on_systemd() {
     taosd_service_config="${service_config_dir}/taosd.service"
     ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target blm3.service'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target blm3.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target taosadapter.service'        >> ${taosd_service_config}"
     ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
@@ -756,9 +756,9 @@ function install_service_on_systemd() {
     fi
 }
 
-function install_blm3_service() {
-    [ -f ${script_dir}/cfg/blm3.service ] &&\
-        ${csudo} cp ${script_dir}/cfg/blm3.service ${service_config_dir}/
+function install_taosadapter_service() {
+    [ -f ${script_dir}/cfg/taosadapter.service ] &&\
+        ${csudo} cp ${script_dir}/cfg/taosadapter.service ${service_config_dir}/
 }
 
 function install_service() {
@@ -883,9 +883,9 @@ function update_TDengine() {
     if [ -z $1 ]; then
         install_bin
         install_service
-        install_blm3_service
+        install_taosadapter_service
         install_config
-        install_blm3_config
+        install_taosadapter_config
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then
@@ -965,7 +965,7 @@ function install_TDengine() {
         # For installing new
         install_bin
         install_service
-        install_blm3_service
+        install_taosadapter_service
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then
