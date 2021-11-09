@@ -5417,7 +5417,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0 && condExpr.pTimewindow != NULL) {
     setNormalExprToCond(&condExpr.pColumnCond, condExpr.pTimewindow, TK_AND);
-    condExpr.pTimewindow = NULL;
+    condExpr.pTimewindow = tSqlExprClone(condExpr.pTimewindow);
   }
 
   tSqlExprCompact(pExpr);
