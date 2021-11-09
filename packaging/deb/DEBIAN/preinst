@@ -28,12 +28,12 @@ if [ -f "${install_main_dir}/taos.cfg" ]; then
     ${csudo} rm -f ${install_main_dir}/cfg/taos.cfg   || :
 fi
 
-if [ -f "${install_main_dir}/blm.toml" ]; then
-    ${csudo} rm -f ${install_main_dir}/cfg/blm.toml     || :
+if [ -f "${install_main_dir}/taosadapter.toml" ]; then
+    ${csudo} rm -f ${install_main_dir}/cfg/taosadapter.toml     || :
 fi
 
-if [ -f "${install_main_dir}/blm3.service" ]; then
-    ${csudo} rm -f ${install_main_dir}/cfg/blm3.service || :
+if [ -f "${install_main_dir}/taosadapter.service" ]; then
+    ${csudo} rm -f ${install_main_dir}/cfg/taosadapter.service || :
 fi
 
 # there can not libtaos.so*, otherwise ln -s  error

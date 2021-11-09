@@ -54,8 +54,8 @@ else
     service_mod=2
 fi
 
-function kill_blm3() {
-  pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
+function kill_taosadapter() {
+  pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -78,7 +78,7 @@ function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/taos        || :
     ${csudo} rm -f ${bin_link_dir}/taosd       || :
-    ${csudo} rm -f ${bin_link_dir}/blm3        || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter        || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo    || :
     ${csudo} rm -f ${bin_link_dir}/taosdump    || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos      || :
@@ -111,14 +111,14 @@ function clean_log() {
 
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
-    blm3_service_config="${service_config_dir}/blm3.service"
+    taosadapter_service_config="${service_config_dir}/taosadapter.service"
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${taosd_service_config}
-    [ -f ${blm3_service_config} ] && ${sudo} rm -f ${blm3_service_config}
+    [ -f ${taosadapter_service_config} ] && ${sudo} rm -f ${taosadapter_service_config}
 
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
@@ -193,7 +193,7 @@ function clean_service() {
         clean_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_blm3
+        kill_taosadapter
         kill_taosd
         kill_tarbitrator
     fi

@@ -185,23 +185,23 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 | TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。        |
 | TCP | 6042      | Arbitrator 的服务端口。           | 随 Arbitrator 启动参数设置变化。 |
 | TCP | 6043      | TaosKeeper 监控服务端口。         | 随 TaosKeeper 启动参数设置变化。 |
-| TCP | 6044      | 支持 StatsD 的数据接入端口。       | 随 BLM3 启动参数设置变化（2.3.0.1+以上版本）。 |
-| TCP | 6045      | 支持 collectd 数据接入端口。       | 随 BLM3 启动参数设置变化（2.3.0.1+以上版本）。 |
+| TCP | 6044      | 支持 StatsD 的数据接入端口。       | 随 taosadapter 启动参数设置变化（2.3.0.1+以上版本）。 |
+| TCP | 6045      | 支持 collectd 数据接入端口。       | 随 taosadapter 启动参数设置变化（2.3.0.1+以上版本）。 |
 | TCP | 6060      | 企业版内 Monitor 服务的网络端口。   |                               |
 | UDP | 6030-6034 | 客户端与服务端之间通讯。            | 随 serverPort 端口变化。        |
 | UDP | 6035-6039 | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
 
 ## 20. go 语言编写组件编译失败怎样解决？
 
-新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 BLM3 组件，取代之前内置的 httpd ，提供包含原  httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD等）的数据接入功能。
-使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 blm3 仓库代码后再编译。
+新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 taosadapter 组件，取代之前内置的 httpd ，提供包含原  httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD等）的数据接入功能。
+使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 taosadapter 仓库代码后再编译。
 
-目前编译方式默认自动编译 blm3。go 语言版本要求 1.14 以上，如果发生 go 编译错误，往往是国内访问 go mod 问题，可以通过设置 go 环境变量来解决：
+目前编译方式默认自动编译 taosadapter。go 语言版本要求 1.14 以上，如果发生 go 编译错误，往往是国内访问 go mod 问题，可以通过设置 go 环境变量来解决：
 
 ```sh
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-如果希望继续使用之前的内置 httpd，可以关闭 blm3 编译，使用 
+如果希望继续使用之前的内置 httpd，可以关闭 taosadapter 编译，使用 
 `cmake .. -DBUILD_HTTP=true` 使用原来内置的 httpd。

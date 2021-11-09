@@ -5753,6 +5753,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg9 = "orderby column must projected in subquery";
   const char* msg10 = "not support distinct mixed with order by";
   const char* msg11 = "not support order with udf";
+  const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -5851,6 +5852,9 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     size_t s = taosArrayGetSize(pSortOrder);
     if (s == 1) {
       if (orderByTags) {
+        if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
+          return invalidOperationMsg(pMsgBuf, msg12);
+        }
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);

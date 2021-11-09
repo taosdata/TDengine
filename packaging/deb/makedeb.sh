@@ -44,11 +44,11 @@ mkdir -p ${pkg_dir}${install_home_path}/init.d
 mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
-if [ -f "${compile_dir}/test/cfg/blm.toml" ]; then
-    cp ${compile_dir}/test/cfg/blm.toml                 ${pkg_dir}${install_home_path}/cfg
+if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
+    cp ${compile_dir}/test/cfg/taosadapter.toml                 ${pkg_dir}${install_home_path}/cfg
 fi
-if [ -f "${compile_dir}/test/cfg/blm3.service" ]; then
-    cp ${compile_dir}/test/cfg/blm3.service          ${pkg_dir}${install_home_path}/cfg ||:
+if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
+    cp ${compile_dir}/test/cfg/taosadapter.service          ${pkg_dir}${install_home_path}/cfg ||:
 fi
 
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
@@ -62,8 +62,8 @@ cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 
-if [ -f "${compile_dir}/build/bin/blm3" ]; then
-    cp ${compile_dir}/build/bin/blm3                    ${pkg_dir}${install_home_path}/bin ||:
+if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
+    cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin

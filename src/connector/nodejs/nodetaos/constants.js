@@ -101,3 +101,4 @@ module.exports = {
   SCHEMALESS_PROTOCOL,
   SCHEMALESS_PRECISION
 }
+

@@ -81,7 +81,7 @@ else
 #  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh ${script_dir}/set_core.sh"
   cp ${build_dir}/bin/taos          ${install_dir}/bin/power
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
-  cp ${build_dir}/bin/blm3          ${install_dir}/bin/blm3 ||:
+  cp ${build_dir}/bin/taosadapter          ${install_dir}/bin/taosadapter ||:
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump
