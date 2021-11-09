@@ -177,15 +177,17 @@ static int tsdbTruncateMeta(STsdbRepo *pRepo) {
 static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param) {
   STruncateH compactH;
   SDFileSet *pSet = NULL;
+  STruncateTblMsg *pMsg = (STruncateTblMsg *)param;
+  ASSERT(pMsg != NULL);
 
-  tsdbDebug("vgId:%d start to truncate TS data", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d start to truncate TS data for %" PRIu64, REPO_ID(pRepo), pMsg->uid);
 
   if (tsdbInitTruncateH(&compactH, pRepo) < 0) {
     return -1;
   }
 
   while ((pSet = tsdbFSIterNext(&(compactH.fsIter)))) {
-    // Remove those expired files
+    // remove expired files
     if (pSet->fid < compactH.rtn.minFid) {
       tsdbInfo("vgId:%d FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
