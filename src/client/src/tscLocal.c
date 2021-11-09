@@ -358,9 +358,13 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
   int num_fields = taos_num_fields(pSql);
   TAOS_FIELD *fields = taos_fetch_fields(pSql);
 
-  char buf[TSDB_COL_NAME_LEN + 16]; 
   for (int i = 0; i < num_fields; i++) {
-    memset(buf, 0, sizeof(buf));
+    char *buf = calloc(1, lengths[i] + 1);
+    if (buf == NULL) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    memset(buf, 0, lengths[i] + 1);
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, i, buf);
 
     if (i == 0) {
@@ -373,10 +377,13 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
     } else {
       snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s,", buf);
     }
+
+    free(buf);
+
     if (i == num_fields - 1) {
       sprintf(result + strlen(result) - 1, "%s", ")");
     }
-  }  
+  }
 
   if (0 == strlen(result)) {
    return TSDB_CODE_TSC_INVALID_TABLE_NAME;

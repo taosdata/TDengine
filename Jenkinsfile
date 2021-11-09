@@ -177,7 +177,7 @@ def pre_test_noinstall(){
     mkdir debug
     cd debug
     cmake .. > /dev/null
-    make > /dev/null
+    make
     '''
     return 1
 }
@@ -361,7 +361,7 @@ pipeline {
         stage('python_3_s6') {
           agent{label " slave6 || slave16 "}
           steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+            timeout(time: 65, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date

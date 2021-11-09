@@ -1303,7 +1303,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "S");
                     exit(EXIT_FAILURE);
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                arguments->timestamp_step = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--time-step=", strlen("--time-step="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--time-step=")))) {
                     arguments->async_mode = atoi((char *)(argv[i]+strlen("--time-step=")));
@@ -1313,7 +1313,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-S", strlen("-S"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-S")))) {
-                    arguments->async_mode = atoi((char *)(argv[i]+strlen("-S")));
+                    arguments->timestamp_step = atoi((char *)(argv[i]+strlen("-S")));
                 } else {
                     errorPrintReqArg2(argv[0], "-S");
                     exit(EXIT_FAILURE);
@@ -1326,7 +1326,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--time-step");
                     exit(EXIT_FAILURE);
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                arguments->timestamp_step = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 exit(EXIT_FAILURE);
@@ -6491,6 +6491,17 @@ static void postFreeResource() {
     tmfree(g_randfloat_buff);
     tmfree(g_rand_current_buff);
     tmfree(g_rand_phase_buff);
+    tmfree(g_randdouble_buff);
+    tmfree(g_randuint_buff);
+    tmfree(g_randutinyint_buff);
+    tmfree(g_randusmallint_buff);
+    tmfree(g_randubigint_buff);
+    tmfree(g_randint);
+    tmfree(g_randuint);
+    tmfree(g_randbigint);
+    tmfree(g_randubigint);
+    tmfree(g_randfloat);
+    tmfree(g_randdouble);
 
     tmfree(g_sampleDataBuf);
 
@@ -11028,7 +11039,6 @@ static int insertTestProcess() {
     //  totalAffectedRows += g_Dbs.db[i].superTbls[j].totalAffectedRows;
     //}
     //printf("Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s)\n\n", end - start, totalInsertRows, totalAffectedRows, g_Dbs.threadCount);
-    postFreeResource();
 
     return 0;
 }
@@ -12229,6 +12239,7 @@ static void testCmdLine() {
     if (g_Dbs.aggr_func) {
         queryAggrFunc();
     }
+    postFreeResource();
 }
 
 int main(int argc, char *argv[]) {
