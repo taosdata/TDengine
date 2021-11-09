@@ -368,10 +368,20 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
 
 int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   if (type == TSDB_DATA_TYPE_JSON){
-    assert(*f1 == *f2);
-    type = *f1;
-    f1 = POINTER_SHIFT(f1, CHAR_BYTES);
-    f2 = POINTER_SHIFT(f2, CHAR_BYTES);
+    bool f1IsNull = (*f1 == TSDB_DATA_TYPE_NCHAR && isNull(f1 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
+    bool f2IsNull = (*f2 == TSDB_DATA_TYPE_NCHAR && isNull(f2 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
+    if(f1IsNull && f2IsNull){
+      return 0;
+    }else if(f1IsNull && !f2IsNull){
+      return -1;
+    }else if(!f1IsNull && f2IsNull){
+      return 1;
+    }else{
+      assert(*f1 == *f2);
+      type = *f1;
+      f1 += CHAR_BYTES;
+      f2 += CHAR_BYTES;
+    }
   }
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
