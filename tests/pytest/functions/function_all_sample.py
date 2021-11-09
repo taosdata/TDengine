@@ -388,6 +388,16 @@ class TDTestCase:
         self.checksample(**case25)
         case26 = {"k": 1000}
         self.checksample(**case26)
+        case27 = {
+            "table_expr": "stb1",
+            "condition": "group by tbname slimit 1 "
+        }
+        self.checksample(**case27)         # with slimit
+        case28 = {
+            "table_expr": "stb1",
+            "condition": "group by tbname slimit 1 soffset 1"
+        }
+        self.checksample(**case28)         # with soffset
 
         pass
 
@@ -497,16 +507,7 @@ class TDTestCase:
             "condition": "group by c6"
         }
         # self.checksample(**err46)         # group by normal col
-        err47 = {
-            "table_expr": "stb1",
-            "condition": "group by tbname slimit 1 "
-        }
-        self.checksample(**err47)         # with slimit
-        err48 = {
-            "table_expr": "stb1",
-            "condition": "group by tbname slimit 1 soffset 1"
-        }
-        self.checksample(**err48)         # with soffset
+
         err49 = {"k": "2021-01-01 00:00:00.000"}
         self.checksample(**err49)         # k: timestamp
         err50 = {"k": False}
@@ -653,10 +654,14 @@ class TDTestCase:
         self.sample_error_query()
 
     def run(self):
-        # run in  develop branch
-        self.sample_test_run()
-        pass
-
+        import traceback
+        try:
+            # run in  develop branch
+            self.sample_test_run()
+            pass
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
     def stop(self):
         tdSql.close()

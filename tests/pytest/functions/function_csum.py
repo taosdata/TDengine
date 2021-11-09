@@ -59,6 +59,12 @@ class TDTestCase:
             tdSql.checkRows(0)
             return
 
+        if "order by tbname" in condition:
+            tdSql.error(self.csum_query_form(
+                col=col, alias=alias, table_expr=table_expr, condition=condition
+            ))
+            return
+
         if "group" in condition:
 
             tb_condition = condition.split("group by")[1].split(" ")[1]
@@ -195,11 +201,6 @@ class TDTestCase:
         # case20~21: with order by
         case20 = {"condition": "order by ts"}
         self.checkcsum(**case20)
-        case21 = {
-            "table_expr": "stb1",
-            "condition": "group by tbname order by tbname"
-        }
-        self.checkcsum(**case21)
 
         # case22: with union
         case22 = {
@@ -290,6 +291,11 @@ class TDTestCase:
             "condition": "group by tbname slimit 1 soffset 1"
         }
         tdSql.error(self.csum_query_form(**slimit_soffset_sql))
+        order_by_tbname_sql = {
+            "table_expr": "stb1",
+            "condition": "group by tbname order by tbname"
+        }
+        tdSql.error(self.csum_query_form(**order_by_tbname_sql))
 
         pass
 
@@ -398,9 +404,15 @@ class TDTestCase:
         self.csum_error_query()
 
     def run(self):
-        # run in  develop branch
-        self.csum_test_run()
-        pass
+        import traceback
+        try:
+            # run in  develop branch
+            self.csum_test_run()
+            pass
+        except Exception as e:
+            traceback.print_exc()
+            raise e
+
 
 
     def stop(self):

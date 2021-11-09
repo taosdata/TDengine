@@ -154,6 +154,13 @@ class TDTestCase:
                 table_expr=table_expr, condition=condition
             ))
 
+        if "order by tbname" in condition.lower():
+            print(f"case in {line}: ", end='')
+            return tdSql.error(self.mavg_query_form(
+                sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
+                table_expr=table_expr, condition=condition
+            ))                
+
         if all(["group" in condition.lower(), "tbname" not in condition.lower()]):
             print(f"case in {line}: ", end='')
             return tdSql.error(self.mavg_query_form(
@@ -356,11 +363,11 @@ class TDTestCase:
         # case20~21: with order by
         case20 = {"condition": "order by ts"}
         self.checkmavg(**case20)
-        case21 = {
-            "table_expr": "stb1",
-            "condition": "group by tbname order by tbname"
-        }
-        self.checkmavg(**case21)
+        #case21 = {
+        #    "table_expr": "stb1",
+        #    "condition": "group by tbname order by tbname"
+        #}
+        #self.checkmavg(**case21)
 
         # case22: with union
         case22 = {
@@ -538,6 +545,11 @@ class TDTestCase:
         self.checkmavg(**err66)         # k: NULL
         err67 = {"k": 0.999999}
         self.checkmavg(**err67)         # k: left out of [1, 1000]
+        err68 = {
+            "table_expr": "stb1",
+            "condition": "group by tbname order by tbname" # order by tbname not supported
+        }
+        self.checkmavg(**err68)
 
         pass
 
@@ -646,9 +658,14 @@ class TDTestCase:
         self.mavg_error_query()
 
     def run(self):
-        # run in  develop branch
-        self.mavg_test_run()
-        pass
+        import traceback
+        try:
+            # run in  develop branch
+            self.mavg_test_run()
+            pass
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
 
     def stop(self):
