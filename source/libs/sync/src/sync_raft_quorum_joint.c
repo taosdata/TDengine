@@ -13,26 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H
-#define _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H
-
-#include "taosdef.h"
-#include "sync.h"
-#include "sync_type.h"
-
-/**
- * SSyncRaftQuorumJointConfig is a configuration of two groups of (possibly overlapping)
- * majority configurations. Decisions require the support of both majorities.
- **/
-typedef struct SSyncRaftQuorumJointConfig {
-  SSyncCluster majorityConfig[2];
-}SSyncRaftQuorumJointConfig;
+#include "sync_raft_quorum_majority.h"
+#include "sync_raft_quorum_joint.h"
+#include "sync_raft_quorum.h"
 
 /**
  * syncRaftVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const SyncRaftVoteResult* votes);
+SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const SyncRaftVoteResult* votes) {
+  SyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->majorityConfig[0]), votes);
+  SyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->majorityConfig[1]), votes);
 
-#endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */
+  if (r1 == r2) {
+    // If they agree, return the agreed state.
+    return r1;
+  }
+
+  if (r1 == SYNC_RAFT_VOTE_LOST || r2 == SYNC_RAFT_VOTE_LOST) {
+    // If either config has lost, loss is the only possible outcome.
+    return SYNC_RAFT_VOTE_LOST;
+  }
+
+  // One side won, the other one is pending, so the whole outcome is.
+  return SYNC_RAFT_VOTE_PENDING;
+}

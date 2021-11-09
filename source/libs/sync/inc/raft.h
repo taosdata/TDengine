@@ -19,7 +19,8 @@
 #include "sync.h"
 #include "sync_type.h"
 #include "raft_message.h"
-
+#include "sync_raft_impl.h"
+#include "sync_raft_quorum.h"
 
 typedef struct RaftLeaderState {
 
@@ -139,21 +140,5 @@ struct SSyncRaft {
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo);
 int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int32_t syncRaftTick(SSyncRaft* pRaft);
-
-void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId);
-void syncRaftBecomePreCandidate(SSyncRaft* pRaft);
-void syncRaftBecomeCandidate(SSyncRaft* pRaft);
-void syncRaftBecomeLeader(SSyncRaft* pRaft);
-
-void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType);
-
-void syncRaftTriggerHeartbeat(SSyncRaft* pRaft);
-
-void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
-bool syncRaftIsPromotable(SSyncRaft* pRaft);
-bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
-int  syncRaftQuorum(SSyncRaft* pRaft);
-int  syncRaftNumOfGranted(SSyncRaft* pRaft, SyncNodeId id, 
-                          bool preVote, bool accept, int* rejectNum);
 
 #endif /* _TD_LIBS_SYNC_RAFT_H */

@@ -61,6 +61,6 @@ typedef enum {
 
   //reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
-} SyncRaftVoteRespType;
+} SyncRaftVoteResult;
 
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

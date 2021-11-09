@@ -23,6 +23,11 @@ void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
   bool preVote;
   RaftMessageType voteMsgType;
 
+  if (syncRaftIsPromotable(pRaft)) {
+    syncDebug("[%d:%d] is unpromotable; campaign() should have been called", pRaft->selfGroupId, pRaft->selfId);
+    return 0;
+  }
+
   if (cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
     syncRaftBecomePreCandidate(pRaft);
     preVote = true;
@@ -36,8 +41,8 @@ void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
   }
 
   int quorum = syncRaftQuorum(pRaft);
-  int granted = syncRaftNumOfGranted(pRaft, pRaft->selfId, preVote, true, NULL);
-  if (quorum <= granted) {
+  SSyncRaftVoteResult result = syncRaftPollVote(pRaft, pRaft->selfId, preVote, true, NULL, NULL);
+  if (result == SYNC_RAFT_VOTE_WON) {
 		/**
      * We won the election after voting for ourselves (which must mean that
 		 * this is a single-node cluster). Advance to the next state.

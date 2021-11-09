@@ -23,6 +23,8 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   int quorum;
   int voterIndex;
 
+  assert(pRaft->state == TAOS_SYNC_ROLE_CANDIDATE);
+
   voterIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
   if (voterIndex == -1) {
     syncError("[%d:%d] recv vote resp from unknown server %d", pRaft->selfGroupId, pRaft->selfId, pMsg->from);
@@ -34,24 +36,23 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     return 0;
   }
 
-  granted = syncRaftNumOfGranted(pRaft, pMsg->from, 
+  SSyncRaftVoteResult result = syncRaftPollVote(pRaft, pMsg->from, 
                                 pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION,
-                                !pMsg->voteResp.rejected, &rejected);
-  quorum = syncRaftQuorum(pRaft);
+                                !pMsg->voteResp.rejected, &rejected, &granted);
 
   syncInfo("[%d:%d] [quorum:%d] has received %d votes and %d vote rejections",
     pRaft->selfGroupId, pRaft->selfId, quorum, granted, rejected);
 
-  if (granted >= quorum) {
-    if (pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
+  if (result == SYNC_RAFT_VOTE_WON) {
+    if (pRaft->candidateState.inPreVote) {
       syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
     } else {
-      syncRaftBecomeLeader(pRaft);      
-    }
+      syncRaftBecomeLeader(pRaft);
 
-    return 0;
-  } else if (rejected == quorum) {
+    }
+  } else if (result == SYNC_RAFT_VOTE_LOST) {
     syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
   }
+
   return 0;
 }

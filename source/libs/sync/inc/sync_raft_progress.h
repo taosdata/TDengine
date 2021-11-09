@@ -63,6 +63,8 @@ typedef enum RaftProgressState {
  * progresses of all followers, and sends entries to the follower based on its progress.
  **/
 struct SSyncRaftProgress {
+	SyncNodeId id;
+
   SyncIndex nextIndex;
 
   SyncIndex matchIndex;

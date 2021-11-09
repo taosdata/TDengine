@@ -23,7 +23,8 @@
 struct SSyncRaftProgressTrackerConfig {
   SSyncRaftQuorumJointConfig voters;
 
-	/** AutoLeave is true if the configuration is joint and a transition to the
+	/** 
+	 * autoLeave is true if the configuration is joint and a transition to the
 	 * incoming configuration should be carried out automatically by Raft when
 	 * this is possible. If false, the configuration will be joint until the
 	 * application initiates the transition manually.
@@ -86,7 +87,7 @@ struct SSyncRaftProgressTracker {
 
   SSyncRaftProgress progressMap[TSDB_MAX_REPLICA];
 
-	SyncRaftVoteRespType votes[TSDB_MAX_REPLICA];
+	SyncRaftVoteResult votes[TSDB_MAX_REPLICA];
   int maxInflight;
 };
 
@@ -96,5 +97,17 @@ void syncRaftResetVotes(SSyncRaftProgressTracker*);
 
 typedef void (*visitProgressFp)(int i, SSyncRaftProgress* progress, void* arg);
 void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, void* arg);
+
+/**
+ * syncRaftRecordVote records that the node with the given id voted for this Raft
+ * instance if v == true (and declined it otherwise).
+ **/
+void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant);
+
+/** 
+ * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
+ * election outcome is known.
+ **/
+SyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_PROGRESS_TRACKER_H */

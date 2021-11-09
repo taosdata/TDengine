@@ -34,6 +34,8 @@ void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress) 
     .matchIndex = i == pRaft->selfIndex ? syncRaftLogLastIndex(pRaft->log) : 0,
     .nextIndex  = syncRaftLogLastIndex(pRaft->log) + 1,
     .inflights  = inflights,
+    .isLearner  = false,
+    .state      = PROGRESS_STATE_PROBE,
   };
 }
 
