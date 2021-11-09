@@ -765,17 +765,16 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
         char* realData = p + CHAR_BYTES;
         if (type == TSDB_DATA_TYPE_NCHAR && isNull(realData, TSDB_DATA_TYPE_NCHAR)) {
           memcpy(dst, realData, varDataTLen(realData));
-        } else if (type == TSDB_DATA_TYPE_NCHAR) {
-          if(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null){   // json null value
-            assert(varDataLen(realData) == INT_BYTES);
-            sprintf(varDataVal(dst), "%s", "null");
-            varDataSetLen(dst, strlen(varDataVal(dst)));
-          }else {
-            int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
-            varDataSetLen(dst, length);
-            if (length == 0) {
-              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
-            }
+        } else if (type == TSDB_DATA_TYPE_BINARY) {
+          assert(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null);   // json null value
+          assert(varDataLen(realData) == INT_BYTES);
+          sprintf(varDataVal(dst), "%s", "null");
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else if (type == TSDB_DATA_TYPE_NCHAR) {
+          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
+          varDataSetLen(dst, length);
+          if (length == 0) {
+            tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
           }
         }else if (type == TSDB_DATA_TYPE_DOUBLE) {
           double jsonVd = *(double*)(realData);
@@ -5385,7 +5384,7 @@ void getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, i
   }
 
   char* realData = POINTER_SHIFT(result, CHAR_BYTES);
-  if(*(char*)result == TSDB_DATA_TYPE_NCHAR) {
+  if(*(char*)result == TSDB_DATA_TYPE_NCHAR || *(char*)result == TSDB_DATA_TYPE_BINARY) {
     assert(varDataTLen(realData) < bytes);
     memcpy(dst, result, CHAR_BYTES + varDataTLen(realData));
     return;
@@ -5454,20 +5453,24 @@ char* parseTagDatatoJson(void *p){
       char tagJsonValue[TSDB_MAX_JSON_TAGS_LEN] = {0};
       char* realData = POINTER_SHIFT(val, CHAR_BYTES);
       char type = *(char*)val;
-      if(type == TSDB_DATA_TYPE_NCHAR) {
-        cJSON* value = NULL;
-        if(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null){   // json null value
-          assert(varDataLen(realData) == INT_BYTES);
-          value = cJSON_CreateNull();
-        }else{
-          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
-          if (length < 0) {
-            tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                     (char*)val);
-            goto end;
-          }
-          value = cJSON_CreateString(tagJsonValue);
+      if(type == TSDB_DATA_TYPE_BINARY) {
+        assert(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null);   // json null value
+        assert(varDataLen(realData) == INT_BYTES);
+        cJSON* value = cJSON_CreateNull();
+        if (value == NULL)
+        {
+          goto end;
         }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if(type == TSDB_DATA_TYPE_NCHAR) {
+        int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
+        if (length < 0) {
+          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                   (char*)val);
+          goto end;
+        }
+        cJSON* value = cJSON_CreateString(tagJsonValue);
+
         if (value == NULL)
         {
           goto end;
@@ -5612,7 +5615,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       int32_t* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       varDataSetLen(tagData, INT_BYTES);
       *(uint32_t*)(varDataVal(tagData)) = TSDB_DATA_JSON_null;
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BINARY, tagVal, true);
     }
     else{
       retCode =  tscSQLSyntaxErrMsg(errMsg, "invalidate json value", NULL);
@@ -5636,8 +5639,9 @@ int8_t jsonType2DbType(double data, int jsonType){
     case cJSON_Number:
       if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
     case cJSON_String:
-    case cJSON_NULL:
       return TSDB_DATA_TYPE_NCHAR;
+    case cJSON_NULL:
+      return TSDB_DATA_TYPE_BINARY;
     case cJSON_True:
     case cJSON_False:
       return TSDB_DATA_TYPE_BOOL;
