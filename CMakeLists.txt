@@ -74,4 +74,10 @@ target_include_directories(api INTERFACE "include/client")
 # src
 add_subdirectory(source)
 
+# docs
+if(${BUILD_DOCS})
+    execute_process(COMMAND doxygen ${PROJECT_SOURCE_DIR}/docs/Doxyfile)
+endif(${BUILD_DOCS})
+
+
 # tests (TODO)

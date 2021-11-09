@@ -36,3 +36,9 @@ option(
     "If build dependency tests" 
     OFF
 )
+
+option(
+    BUILD_DOCS
+    "If use doxygen build documents" 
+    ON
+)
