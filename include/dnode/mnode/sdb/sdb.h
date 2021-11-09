@@ -93,7 +93,7 @@ typedef enum {
 
 typedef enum { SDB_ACTION_INSERT = 1, SDB_ACTION_UPDATE = 2, SDB_ACTION_DELETE = 3 } ESdbAction;
 typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
-typedef enum { SDB_STATUS_CREATING = 1, SDB_STATUS_READY, SDB_STATUS_DROPPING, SDB_STATUS_DROPPED } ESdbStatus;
+typedef enum { SDB_STATUS_CREATING = 1, SDB_STATUS_READY = 2, SDB_STATUS_DROPPING = 3 } ESdbStatus;
 
 typedef struct {
   int8_t  type;
@@ -136,7 +136,7 @@ int32_t sdbDeploy();
 void    sdbUnDeploy();
 
 void   *sdbAcquire(ESdbType sdb, void *pKey);
-void    sdbRelease(ESdbType sdb, void *pObj);
+void    sdbRelease(void *pObj);
 void   *sdbFetch(ESdbType sdb, void *pIter);
 void    sdbCancelFetch(ESdbType sdb, void *pIter);
 int32_t sdbGetSize(ESdbType sdb);

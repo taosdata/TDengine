@@ -24,7 +24,6 @@
 #include "thash.h"
 #include "cJSON.h"
 #include "mnode.h"
-#include "sdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -268,6 +267,7 @@ typedef struct {
 
 typedef struct SMnMsg {
   void (*fp)(SMnMsg *pMsg, int32_t code);
+  char      user[TSDB_USER_LEN];
   SUserObj *pUser;
   int16_t   received;
   int16_t   successed;

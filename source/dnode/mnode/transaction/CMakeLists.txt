@@ -7,5 +7,8 @@ target_include_directories(
 )
 target_link_libraries(
     transaction
-    PUBLIC transport
+    PRIVATE os
+    PRIVATE common
+    PRIVATE util
+    PRIVATE sdb
 )

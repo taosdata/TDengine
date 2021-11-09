@@ -10,5 +10,4 @@ target_link_libraries(
     PRIVATE os
     PRIVATE common
     PRIVATE util
-    PRIVATE cjson
 )

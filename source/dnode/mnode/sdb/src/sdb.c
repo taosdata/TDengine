@@ -377,7 +377,7 @@ void *sdbAcquire(ESdbType sdb, void *pKey) {
   }
 }
 
-void sdbRelease(ESdbType sdb, void *pObj) {
+void sdbRelease(void *pObj) {
   SSdbRow *pRow = (SSdbRow *)((char *)pObj - sizeof(SSdbRow));
   atomic_sub_fetch_32(&pRow->refCount, 1);
 }

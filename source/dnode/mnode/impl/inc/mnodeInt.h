@@ -17,6 +17,8 @@
 #define _TD_MNODE_INT_H_
 
 #include "mnodeDef.h"
+#include "sdb.h"
+#include "trn.h"
 
 #ifdef __cplusplus
 extern "C" {
