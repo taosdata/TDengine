@@ -406,8 +406,10 @@ TEST(testCase, function_Test10) {
   sqlCheck("select cov(a, b) from `t.1abc`", true);
   sqlCheck("select sum(length(a) + count(b)) from `t.1abc`", false);
 
-    sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
-    sqlCheck("select length(length(length(a))) from `t.1abc`", true);
+  sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
+  sqlCheck("select length(length(length(a))) from `t.1abc`", true);
+  sqlCheck("select count() from `t.1abc`", false);
+  sqlCheck("select block_dist() from `t.1abc`", true);
 }
 
 TEST(testCase, function_Test6) {

@@ -2017,12 +2017,18 @@ int32_t extractFunctionParameterInfo(SQueryStmtInfo* pQueryInfo, int32_t tokenId
 static int32_t checkForkParam(tSqlExpr* pSqlExpr, size_t k, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid parameters";
 
+  SArray* pParamList = pSqlExpr->Expr.paramList;
+
   if (k == 0) {
-    if (pSqlExpr->Expr.paramList != NULL && taosArrayGetSize(pSqlExpr->Expr.paramList) != 0) {
+    if (pParamList != NULL && taosArrayGetSize(pParamList) != 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
+  } else if (k == 1) {
+    if (!(pParamList == NULL || taosArrayGetSize(pParamList) == k)) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);;
+    }
   } else {
-    if (pSqlExpr->Expr.paramList == NULL || taosArrayGetSize(pSqlExpr->Expr.paramList) != k) {
+    if (pParamList != NULL && taosArrayGetSize(pParamList) != k) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   }

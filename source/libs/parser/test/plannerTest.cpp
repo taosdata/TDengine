@@ -65,6 +65,44 @@ void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq *req) {
   setSchema(&pSchema[3], TSDB_DATA_TYPE_DOUBLE, 8, "col", 3);
 
 }
+
+void generateLogicplan(const char* sql) {
+  SSqlInfo info1 = doGenerateAST(sql);
+  ASSERT_EQ(info1.valid, true);
+
+  char    msg[128] = {0};
+  SMsgBuf buf;
+  buf.len = 128;
+  buf.buf = msg;
+
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+  ASSERT_EQ(code, 0);
+
+  SMetaReq req = {0};
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+
+  SQueryStmtInfo* pQueryInfo = createQueryInfo();
+  setTableMetaInfo(pQueryInfo, &req);
+
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+  ASSERT_EQ(ret, 0);
+
+  struct SQueryPlanNode* n = nullptr;
+  code = qCreateQueryPlan(pQueryInfo, &n);
+
+  char* str = NULL;
+  qQueryPlanToString(n, &str);
+  printf("%s\n", str);
+
+  destroyQueryInfo(pQueryInfo);
+  qParserClearupMetaRequestInfo(&req);
+  destroySqlInfo(&info1);
+
+}
 }
 
 TEST(testCase, planner_test) {
@@ -123,4 +161,11 @@ TEST(testCase, planner_test) {
   destroyQueryInfo(pQueryInfo);
   qParserClearupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
+}
+
+TEST(testCase, displayPlan) {
+  generateLogicplan("select count(*) from `t.1abc`");
+  generateLogicplan("select count(*) from `t.1abc` group by a");
+  generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s)");
+  generateLogicplan("select count(*),sum(a),avg(b),min(a+b) from `t.1abc`");
 }
