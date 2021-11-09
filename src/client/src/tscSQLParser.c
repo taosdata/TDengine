@@ -1828,6 +1828,8 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
 
 static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem,
                                    SColumnList* columnList, bool finalResult) {
+  const char* msg2 = "invalid arithmetic expression in select clause";
+
   columnList->num = 0;
   columnList->ids[0] = (SColumnIndex) {0, 0};
 
@@ -1862,6 +1864,11 @@ static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_
   }
 
   pInfo->pExpr = pExprInfo;
+  ret = exprTreeValidateTree(pExprInfo->pExpr);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tExprTreeDestroy(pExprInfo->pExpr, NULL);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
 
@@ -1879,7 +1886,7 @@ static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_
   pSqlExpr->param[0].nType = TSDB_DATA_TYPE_BINARY;
 
 //    tbufCloseWriter(&bw); // TODO there is a memory leak
-
+  tExprTreeDestroy(pInfo->pExpr->pExpr, NULL);
   return TSDB_CODE_SUCCESS;
 }
 

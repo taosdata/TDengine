@@ -417,8 +417,10 @@ void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
   uint8_t numChildren = pExpr->_func.numChildren;
   if (numChildren == 0) {
     _expr_scalar_function_t scalarFn = getExprScalarFunction(pExpr->_func.functionId);
-    scalarFn(pExpr->_func.functionId, NULL, 0, output, order);
+    output->type = pExpr->resultType;
+    output->bytes = pExpr->resultBytes;
     output->numOfRows = numOfRows;
+    scalarFn(pExpr->_func.functionId, NULL, 0, output, order);
     return;
   }
 
