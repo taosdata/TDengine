@@ -23,8 +23,7 @@
 extern "C" {
 #endif
 
-typedef struct {
-} STrans;
+typedef struct STrans STrans;
 
 int32_t trnInit();
 void    trnCleanup();
@@ -33,11 +32,11 @@ STrans *trnCreate();
 int32_t trnCommit(STrans *);
 void    trnDrop(STrans *);
 
-void trnAppendRedoLog(STrans *, SSdbRawData *);
-void trnAppendUndoLog(STrans *, SSdbRawData *);
-void trnAppendCommitLog(STrans *, SSdbRawData *);
-void trnAppendRedoAction(STrans *, SEpSet *, void *pMsg);
-void trnAppendUndoAction(STrans *, SEpSet *, void *pMsg);
+int32_t trnAppendRedoLog(STrans *, SSdbRawData *);
+int32_t trnAppendUndoLog(STrans *, SSdbRawData *);
+int32_t trnAppendCommitLog(STrans *, SSdbRawData *);
+int32_t trnAppendRedoAction(STrans *, SEpSet *, void *pMsg);
+int32_t trnAppendUndoAction(STrans *, SEpSet *, void *pMsg);
 
 #ifdef __cplusplus
 }

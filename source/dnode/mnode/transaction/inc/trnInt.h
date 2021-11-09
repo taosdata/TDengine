@@ -19,6 +19,7 @@
 #include "os.h"
 #include "trn.h"
 #include "tglobal.h"
+#include "tarray.h"
 #include "tlog.h"
 
 #ifdef __cplusplus
@@ -31,6 +32,14 @@ extern "C" {
 #define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", 255, __VA_ARGS__); }}
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
+
+typedef struct STrans {
+  SArray *redoLogs;
+  SArray *undoLogs;
+  SArray *commitLogs;
+  SArray *redoActions;
+  SArray *undoActions;
+} STrans;
 
 #ifdef __cplusplus
 }
