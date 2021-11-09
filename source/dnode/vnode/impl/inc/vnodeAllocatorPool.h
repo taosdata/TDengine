@@ -17,7 +17,6 @@
 #define _TD_VNODE_ALLOCATOR_POOL_H_
 
 #include "vnode.h"
-#include "vnodeMemAllocator.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +25,7 @@ extern "C" {
 typedef struct {
   int            nexta;
   int            enda;
-  SVMemAllocator allocators[3];
+  SMemAllocator *allocators[3];
 } SVAllocatorPool;
 
 int  vnodeOpenAllocatorPool(SVnode *pVnode);

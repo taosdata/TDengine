@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-typedef struct {
-} SVMemAllocator;
-
 #ifdef __cplusplus
 }
 #endif

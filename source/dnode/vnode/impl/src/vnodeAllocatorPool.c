@@ -21,5 +21,17 @@ int vnodeOpenAllocatorPool(SVnode *pVnode) {
 }
 
 void vnodeCloseAllocatorPool(SVnode *pVnode) {
-    // TODO
+  if (pVnode->pool) {
+  }
+}
+
+/* ------------------------ STATIC METHODS ------------------------ */
+static SVAllocatorPool *vapCreate() {
+  SVAllocatorPool *pPool = NULL;
+  /* TODO */
+  return pPool;
+}
+
+static void vapDestroy() {
+  // TODO
 }

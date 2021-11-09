@@ -52,6 +52,8 @@ struct SVnodeOptions {
   // STqOptions   tqOptions; // TODO
 };
 
+/* ------------------------ FOR COMPILE ------------------------ */
+
 #if 1
 
 #include "taosmsg.h"
