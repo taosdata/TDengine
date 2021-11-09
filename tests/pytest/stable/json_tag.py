@@ -187,8 +187,8 @@ class TDTestCase:
 
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_9 using db_json_tag_test.jsons1 tags('{\"\":4, \"time\":null}')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_9")
-        tdSql.checkData(0, 0, None)
-
+        tdSql.checkData(0, 0, "{\"time\":null}")
+        
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_10 using db_json_tag_test.jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
         tdSql.query("select jtag from db_json_tag_test.jsons1_10")
         tdSql.checkData(0, 0, "{\"k1\":\"\",\"k2\":true,\"k3\":false,\"k4\":55}")
@@ -203,10 +203,10 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag is null")
-        tdSql.checkRows(5)
+        tdSql.checkRows(4)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag is not null")
-        tdSql.checkRows(5)
+        tdSql.checkRows(6)
 
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' is not null")
         tdSql.checkRows(3)
@@ -224,7 +224,7 @@ class TDTestCase:
 
         # test distinct
         tdSql.query("select distinct jtag from db_json_tag_test.jsons1")
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
 
         tdSql.query("select distinct jtag->'location' from db_json_tag_test.jsons1")
         tdSql.checkRows(3)
