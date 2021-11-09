@@ -13,5 +13,4 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "vnodeRead.h"
+#include "vnodeDef.h"

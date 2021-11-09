@@ -30,14 +30,14 @@ extern "C" {
 #endif
 
 struct SVnode {
-  char*           path;
-  SVnodeOptions   options;
-  SVState         state;
-  SVAllocatorPool pool;
-  SMemAllocator*  inuse;
-  SMeta*          pMeta;
-  STsdb*          pTsdb;
-  STQ*            pTq;
+  char*            path;
+  SVnodeOptions    options;
+  SVState          state;
+  SVAllocatorPool* pool;
+  SMemAllocator*   inuse;
+  SMeta*           pMeta;
+  STsdb*           pTsdb;
+  STQ*             pTq;
 };
 
 #ifdef __cplusplus
