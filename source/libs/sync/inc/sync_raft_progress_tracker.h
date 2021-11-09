@@ -18,7 +18,7 @@
 
 #include "sync_type.h"
 #include "sync_raft_quorum_joint.h"
-#include "raft_progress.h"
+#include "sync_raft_progress.h"
 
 struct SSyncRaftProgressTrackerConfig {
   SSyncRaftQuorumJointConfig voters;
@@ -94,7 +94,7 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker();
 
 void syncRaftResetVotes(SSyncRaftProgressTracker*);
 
-typedef void (*visitProgressFp)(SSyncRaftProgress* progress, void* arg);
+typedef void (*visitProgressFp)(int i, SSyncRaftProgress* progress, void* arg);
 void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, void* arg);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_PROGRESS_TRACKER_H */

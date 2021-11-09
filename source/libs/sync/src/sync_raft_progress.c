@@ -15,57 +15,50 @@
 
 #include "raft.h"
 #include "raft_log.h"
-#include "raft_progress.h"
+#include "sync_raft_progress.h"
+#include "sync_raft_progress_tracker.h"
 #include "sync.h"
 #include "syncInt.h"
 
 static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state);
+static void probeAcked(SSyncRaftProgress* progress);
 
 static void resumeProgress(SSyncRaftProgress* progress);
 
-int syncRaftProgressCreate(SSyncRaft* pRaft) {
-
-/*
-  inflights->buffer = (SyncIndex*)malloc(sizeof(SyncIndex) * pRaft->maxInflightMsgs);
-  if (inflights->buffer == NULL) {
-    return RAFT_OOM;
+void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress) {
+  SSyncRaftInflights* inflights = syncRaftOpenInflights(pRaft->tracker->maxInflight);
+  if (inflights == NULL) {
+    return;
   }
-  inflights->size  = pRaft->maxInflightMsgs;
-*/
-}
-
-/*
-int syncRaftProgressRecreate(SSyncRaft* pRaft, const RaftConfiguration* configuration) {
-
-}
-*/
-
-void syncRaftInitProgress(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
   *progress = (SSyncRaftProgress) {
-    .matchIndex = progress->id == pRaft->selfId ? syncRaftLogLastIndex(pRaft->log) : 0,
+    .matchIndex = i == pRaft->selfIndex ? syncRaftLogLastIndex(pRaft->log) : 0,
     .nextIndex  = syncRaftLogLastIndex(pRaft->log) + 1,
-    //.inflights  = 
+    .inflights  = inflights,
   };
 }
 
+/**
+ * syncRaftProgressMaybeUpdate is called when an MsgAppResp arrives from the follower, with the
+ * index acked by it. The method returns false if the given n index comes from
+ * an outdated message. Otherwise it updates the progress and returns true.
+ **/
 bool syncRaftProgressMaybeUpdate(SSyncRaftProgress* progress, SyncIndex lastIndex) {
   bool updated = false;
 
   if (progress->matchIndex < lastIndex) {
     progress->matchIndex = lastIndex;
     updated = true;
-    resumeProgress(progress);
+    probeAcked(progress);
   }
-  if (progress->nextIndex < lastIndex + 1) { 
-    progress->nextIndex = lastIndex + 1;
-  }
+
+  progress->nextIndex = MAX(progress->nextIndex, lastIndex + 1);
 
   return updated;
 }
 
 bool syncRaftProgressMaybeDecrTo(SSyncRaftProgress* progress,
-                                SyncIndex rejected, SyncIndex lastIndex) {
-  if (progress->state == PROGRESS_REPLICATE) {
+                                SyncIndex rejected, SyncIndex matchHint) {
+  if (progress->state == PROGRESS_STATE_REPLICATE) {
 		/** 
      * the rejection must be stale if the progress has matched and "rejected"
 		 * is smaller than "match".
@@ -77,143 +70,102 @@ bool syncRaftProgressMaybeDecrTo(SSyncRaftProgress* progress,
 
     /* directly decrease next to match + 1 */
     progress->nextIndex = progress->matchIndex + 1;
-    //syncRaftProgressBecomeProbe(raft, i);
     return true;
   }
 
+	/**
+   * The rejection must be stale if "rejected" does not match next - 1. This
+	 * is because non-replicating followers are probed one entry at a time.
+   **/
   if (rejected != progress->nextIndex - 1) {
     syncDebug("rejected index %" PRId64 " different from next index %" PRId64 " -> ignore"
       , rejected, progress->nextIndex);
     return false;
   }
 
-  progress->nextIndex = MIN(rejected, lastIndex + 1);
-  if (progress->nextIndex < 1) {
-    progress->nextIndex = 1;
-  }
+  progress->nextIndex = MAX(MIN(rejected, matchHint + 1), 1);
 
-  resumeProgress(progress);
+  progress->probeSent = false;
   return true;
 }
 
-static void resumeProgress(SSyncRaftProgress* progress) {
-  progress->paused = false;
-}
-
+/**
+ * syncRaftProgressIsPaused returns whether sending log entries to this node has been throttled.
+ * This is done when a node has rejected recent MsgApps, is currently waiting
+ * for a snapshot, or has reached the MaxInflightMsgs limit. In normal
+ * operation, this is false. A throttled node will be contacted less frequently
+ * until it has reached a state in which it's able to accept a steady stream of
+ * log entries again.
+ **/
 bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
   switch (progress->state) {
-    case PROGRESS_PROBE:
-      return progress->paused;
-    case PROGRESS_REPLICATE:
-      return syncRaftInflightFull(&progress->inflights);
-    case PROGRESS_SNAPSHOT:
+    case PROGRESS_STATE_PROBE:
+      return progress->probeSent;
+    case PROGRESS_STATE_REPLICATE:
+      return syncRaftInflightFull(progress->inflights);
+    case PROGRESS_STATE_SNAPSHOT:
       return true;
     default:
       syncFatal("error sync state:%d", progress->state);
   }
 }
 
-void syncRaftProgressFailure(SSyncRaftProgress* progress) {
-  progress->pendingSnapshotIndex = 0;
-}
-
-bool syncRaftProgressNeedAbortSnapshot(SSyncRaftProgress* progress) {
-  return progress->state == PROGRESS_SNAPSHOT && progress->matchIndex >= progress->pendingSnapshotIndex;
-}
-
 bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
   return syncRaftLogLastIndex(pRaft->log) + 1 == progress->nextIndex;
 }
 
+/**
+ * syncRaftProgressBecomeProbe transitions into StateProbe. Next is reset to Match+1 or,
+ * optionally and if larger, the index of the pending snapshot.
+ **/
 void syncRaftProgressBecomeProbe(SSyncRaftProgress* progress) {
   /**
    * If the original state is ProgressStateSnapshot, progress knows that
 	 * the pending snapshot has been sent to this peer successfully, then
 	 * probes from pendingSnapshot + 1.
    **/
-  if (progress->state == PROGRESS_SNAPSHOT) {
+  if (progress->state == PROGRESS_STATE_SNAPSHOT) {
     SyncIndex pendingSnapshotIndex = progress->pendingSnapshotIndex;
-    resetProgressState(progress, PROGRESS_PROBE);
+    resetProgressState(progress, PROGRESS_STATE_PROBE);
     progress->nextIndex = MAX(progress->matchIndex + 1, pendingSnapshotIndex + 1);
   } else {
-    resetProgressState(progress, PROGRESS_PROBE);
+    resetProgressState(progress, PROGRESS_STATE_PROBE);
     progress->nextIndex = progress->matchIndex + 1;
   }
 }
 
+/**
+ * syncRaftProgressBecomeReplicate transitions into StateReplicate, resetting Next to Match+1.
+ **/
 void syncRaftProgressBecomeReplicate(SSyncRaftProgress* progress) {
-  resetProgressState(progress, PROGRESS_REPLICATE);
+  resetProgressState(progress, PROGRESS_STATE_REPLICATE);
   progress->nextIndex = progress->matchIndex + 1;
 }
 
 void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snapshotIndex) {
-  resetProgressState(progress, PROGRESS_SNAPSHOT);
+  resetProgressState(progress, PROGRESS_STATE_SNAPSHOT);
   progress->pendingSnapshotIndex = snapshotIndex;
 }
 
-int syncRaftInflightReset(SSyncRaftInflights* inflights) {  
-  inflights->count = 0;
-  inflights->start = 0;
-  
-  return 0;
-}
-
-bool syncRaftInflightFull(SSyncRaftInflights* inflights) {
-  return inflights->count == inflights->size;
-}
-
-void syncRaftInflightAdd(SSyncRaftInflights* inflights, SyncIndex inflightIndex) {
-  assert(!syncRaftInflightFull(inflights));
-
-  int next = inflights->start + inflights->count;
-  int size = inflights->size;
-  /* is next wrapped around buffer? */
-  if (next >= size) {
-    next -= size;
-  }
-
-  inflights->buffer[next] = inflightIndex;
-  inflights->count++;
-}
-
-void syncRaftInflightFreeTo(SSyncRaftInflights* inflights, SyncIndex toIndex) {
-  if (inflights->count == 0 || toIndex < inflights->buffer[inflights->start]) {
-    return;
-  }
-
-  int i, idx;
-  for (i = 0, idx = inflights->start; i < inflights->count; i++) {
-    if (toIndex < inflights->buffer[idx]) {
-      break;
-    }
-
-    int size = inflights->size;
-    idx++;
-    if (idx >= size) {
-      idx -= size;
-    }
-  }
-
-  inflights->count -= i;
-  inflights->start  = idx;
-  assert(inflights->count >= 0);
-  if (inflights->count == 0) {
-    inflights->start = 0;
-  }
-}
-
-void syncRaftInflightFreeFirstOne(SSyncRaftInflights* inflights) {
-  syncRaftInflightFreeTo(inflights, inflights->buffer[inflights->start]);
-}
-
+/**
+ * ResetState moves the Progress into the specified State, resetting ProbeSent,
+ * PendingSnapshot, and Inflights.
+ **/
 static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state) {
-  progress->paused = false;
+  progress->probeSent = false;
   progress->pendingSnapshotIndex = 0;
   progress->state = state;
-  syncRaftInflightReset(&(progress->inflights));
+  syncRaftInflightReset(progress->inflights);
 }
 
-
+/**
+ * probeAcked is called when this peer has accepted an append. It resets
+ * ProbeSent to signal that additional append messages should be sent without
+ * further delay.
+ **/
+static void probeAcked(SSyncRaftProgress* progress) {
+  progress->probeSent = false;
+}
 
 #if 0
 
@@ -250,33 +202,33 @@ bool syncRaftProgressGetRecentRecv(SSyncRaft* pRaft, int i) {
 
 void syncRaftProgressBecomeSnapshot(SSyncRaft* pRaft, int i) {
   SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
-  resetProgressState(progress, PROGRESS_SNAPSHOT);
+  resetProgressState(progress, PROGRESS_STATE_SNAPSHOT);
   progress->pendingSnapshotIndex = raftLogSnapshotIndex(pRaft->log);
 }
 
 void syncRaftProgressBecomeProbe(SSyncRaft* pRaft, int i) {
   SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
 
-  if (progress->state == PROGRESS_SNAPSHOT) {
+  if (progress->state == PROGRESS_STATE_SNAPSHOT) {
     assert(progress->pendingSnapshotIndex > 0);
     SyncIndex pendingSnapshotIndex = progress->pendingSnapshotIndex;
-    resetProgressState(progress, PROGRESS_PROBE);
+    resetProgressState(progress, PROGRESS_STATE_PROBE);
     progress->nextIndex = max(progress->matchIndex + 1, pendingSnapshotIndex);
   } else {
-    resetProgressState(progress, PROGRESS_PROBE);
+    resetProgressState(progress, PROGRESS_STATE_PROBE);
     progress->nextIndex = progress->matchIndex + 1;
   }
 }
 
 void syncRaftProgressBecomeReplicate(SSyncRaft* pRaft, int i) {
-  resetProgressState(pRaft->leaderState.progress, PROGRESS_REPLICATE);
+  resetProgressState(pRaft->leaderState.progress, PROGRESS_STATE_REPLICATE);
   pRaft->leaderState.progress->nextIndex = pRaft->leaderState.progress->matchIndex + 1;
 }
 
 void syncRaftProgressAbortSnapshot(SSyncRaft* pRaft, int i) {
   SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
   progress->pendingSnapshotIndex = 0;
-  progress->state = PROGRESS_PROBE;
+  progress->state = PROGRESS_STATE_PROBE;
 }
 
 RaftProgressState syncRaftProgressState(SSyncRaft* pRaft, int i) {

@@ -44,6 +44,7 @@ struct SSyncRaft {
 
   SSyncCluster cluster; 
 
+  int selfIndex;
   SyncNodeId selfId;
   SyncGroupId selfGroupId;
 
@@ -113,9 +114,6 @@ struct SSyncRaft {
    **/
   uint16_t heartbeatElapsed;
 
-  // current tick count since start up
-  uint32_t currentTick;
-
   bool preVote;
   bool checkQuorum;
 
@@ -129,6 +127,9 @@ struct SSyncRaft {
    **/
 	int randomizedElectionTimeout;
 	bool disableProposalForwarding;
+
+  // current tick count since start up
+  uint32_t currentTick;
 
   SyncRaftStepFp stepFp;
 

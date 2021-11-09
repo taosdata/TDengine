@@ -15,7 +15,7 @@
 
 #include "raft.h"
 #include "raft_log.h"
-#include "raft_progress.h"
+#include "sync_raft_progress.h"
 #include "raft_replication.h"
 
 static int sendSnapshot(SSyncRaft* pRaft, int i);

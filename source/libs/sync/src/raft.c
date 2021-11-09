@@ -102,6 +102,8 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
 
   syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
 
+  pRaft->selfIndex = pRaft->cluster.selfIndex;
+
   syncInfo("[%d:%d] restore vgid %d state: snapshot index success", 
     pRaft->selfGroupId, pRaft->selfId, pInfo->vgId);
   return 0;
@@ -443,8 +445,8 @@ static void abortLeaderTransfer(SSyncRaft* pRaft) {
   pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
 
-static void initProgress(SSyncRaftProgress* progress, void* arg) {
-  syncRaftInitProgress((SSyncRaft*)arg, progress);
+static void initProgress(int i, SSyncRaftProgress* progress, void* arg) {
+  syncRaftInitProgress(i, (SSyncRaft*)arg, progress);
 }
 
 static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {

@@ -32,10 +32,6 @@ void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp vi
   int i;
   for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SSyncRaftProgress* progress = &(tracker->progressMap[i]);
-    if (progress->id == SYNC_NON_NODE_ID) {
-      continue;
-    }
-
-    visit(progress, arg);
+    visit(i, progress, arg);
   }
 }
