@@ -21,9 +21,39 @@ int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
 }
 
 int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
-  int type;
-  /* TODO */
-  return 0;
+  int    reqType; /* TODO */
+  size_t reqSize; /* TODO */
+  int    code = 0;
+
+  // Copy the request to vnode buffer
+  SRequest *pReq = mMalloc(pVnode->inuse, reqSize);
+  if (pReq == NULL) {
+    // TODO: handle error
+  }
+
+  // Push the request to TQ so consumers can consume
+  tqPushMsg(pVnode->pTq, pReq, 0);
+
+  // Process the request
+  switch (reqType) {
+    case TSDB_MSG_TYPE_CREATE_TABLE:
+      code = metaCreateTable(pVnode->pMeta, NULL /* TODO */);
+      break;
+    case TSDB_MSG_TYPE_DROP_TABLE:
+      code = metaDropTable(pVnode->pMeta, 0 /* TODO */);
+      break;
+      /* TODO */
+    default:
+      break;
+  }
+
+  if (vnodeShouldCommit(pVnode)) {
+    if (vnodeAsyncCommit(pVnode) < 0) {
+      // TODO: handle error
+    }
+  }
+
+  return code;
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */

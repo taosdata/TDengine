@@ -16,10 +16,12 @@
 #ifndef _TD_VNODE_DEF_H_
 #define _TD_VNODE_DEF_H_
 
+#include "mallocator.h"
 #include "vnode.h"
 #include "vnodeAllocatorPool.h"
 #include "vnodeOptions.h"
 #include "vnodeStateMgr.h"
+#include "vnodeCommit.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +32,7 @@ struct SVnode {
   SVnodeOptions   options;
   SVState         state;
   SVAllocatorPool pool;
-  SVMemAllocator* inuse;
+  SMemAllocator*  inuse;
   SMeta*          pMeta;
   STsdb*          pTsdb;
   STQ*            pTq;
