@@ -146,7 +146,11 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
-
+    int16_t leftType = pExpr->_node.pLeft->resultType;
+    int16_t rightType = pExpr->_node.pRight->resultType;
+    if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
     pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
     pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
     return TSDB_CODE_SUCCESS;
@@ -161,8 +165,12 @@ int32_t exprTreeValidateTree(tExprNode *pExpr) {
     return TSDB_CODE_SUCCESS;
   }
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
-    pExpr->resultType = -1;
-    pExpr->resultBytes = -1;
+    pExpr->resultType = pExpr->pVal->nType;
+    if (!IS_VAR_DATA_TYPE(pExpr->pVal->nType)) {
+      pExpr->resultBytes = tDataTypes[pExpr->pVal->nType].bytes;
+    } else {
+      pExpr->resultBytes = pExpr->pVal->nLen + VARSTR_HEADER_SIZE;
+    }
   } else if (pExpr->nodeType == TSQL_NODE_COL) {
     pExpr->resultType = pExpr->pSchema->type;
     if (pExpr->pSchema->colId != TSDB_TBNAME_COLUMN_INDEX) {
@@ -1009,7 +1017,7 @@ void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInpu
     if (!hasNullInputs) {
       int16_t dataLen = 0;
       for (int j = 0; j < numInputs; ++j) {
-        memcpy(varDataVal(outputData)+dataLen, varDataVal(inputData[j]), varDataLen(inputData[j]));
+        memcpy((void*)(varDataVal(outputData)+dataLen), varDataVal(inputData[j]), varDataLen(inputData[j]));
         dataLen += varDataLen(inputData[j]);
       }
       varDataSetLen(outputData, dataLen);
