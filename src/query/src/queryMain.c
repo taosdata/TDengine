@@ -346,6 +346,9 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
   }
 
+  RESET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv));
+  pQInfo->lastRetrieveTs = taosGetTimestampMs();
+
   pQInfo->rspContext = NULL;
   pQInfo->dataReady  = QUERY_RESULT_NOT_READY;
 
