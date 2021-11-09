@@ -36,13 +36,21 @@ module.exports = {
     C_BINARY : 8,
     C_TIMESTAMP : 9,
     C_NCHAR : 10,
+    C_TINYINT_UNSIGNED : 11,
+    C_SMALLINT_UNSIGNED : 12,
+    C_INT_UNSIGNED : 13,
+    C_BIGINT_UNSIGNED : 14,
     // NULL value definition
     // NOTE: These values should change according to C definition in tsdb.h
     C_BOOL_NULL : 2,
     C_TINYINT_NULL : -128,
+    C_TINYINT_UNSIGNED_NULL : 255,
     C_SMALLINT_NULL : -32768,
+    C_SMALLINT_UNSIGNED_NULL : 65535,
     C_INT_NULL : -2147483648,
-    C_BIGINT_NULL : -9223372036854775808,
+    C_INT_UNSIGNED_NULL : 4294967295,
+    C_BIGINT_NULL : -9223372036854775808n,
+    C_BIGINT_UNSIGNED_NULL : 18446744073709551615n,
     C_FLOAT_NULL : 2146435072,
     C_DOUBLE_NULL : -9223370937343148032,
     C_NCHAR_NULL : 4294967295,
@@ -64,6 +72,10 @@ const typeCodesToName = {
   8 : 'Binary',
   9 : 'Timestamp',
   10 : 'Nchar',
+  11 : 'TINYINT_UNSIGNED',
+  12 : 'SMALLINT_UNSIGNED',
+  13 : 'INT_UNSIGNED',
+  14 : 'BIGINT_UNSIGNED',
 }
 
 /**

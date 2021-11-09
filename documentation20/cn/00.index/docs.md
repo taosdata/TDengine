@@ -81,6 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Node.js Connector](/connector#nodejs)：给node应用提供一个连接TDengine服务器的驱动
 * [C# Connector](/connector#csharp)：给C#应用提供一个连接TDengine服务器的驱动
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
+* [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
 ## [与其他工具的连接](/connections)
 

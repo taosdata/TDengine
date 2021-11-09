@@ -3208,7 +3208,14 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
     default:
       qError("error input type");
   }
-
+  if (notNullElems > 0) {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
+  }
   GET_RES_INFO(pCtx)->numOfRes += notNullElems;
 }
 
@@ -3383,6 +3390,12 @@ static void diff_function(SQLFunctionCtx *pCtx) {
      */
     assert(pCtx->hasNull);
   } else {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
     int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
 
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
@@ -4758,8 +4771,6 @@ static void csum_function(SQLFunctionCtx *pCtx) {
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
-  qDebug("%p csum_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
-
   for (; i < pCtx->size && i >= 0; i += step) {
     char* pData = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4801,6 +4812,12 @@ static void csum_function(SQLFunctionCtx *pCtx) {
   if (notNullElems == 0) {
     assert(pCtx->hasNull);
   } else {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
     GET_RES_INFO(pCtx)->numOfRes += notNullElems;
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
   }
@@ -4874,6 +4891,12 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
   if (notNullElems <= 0) {
     assert(pCtx->hasNull);
   } else {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
     GET_RES_INFO(pCtx)->numOfRes += notNullElems;
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
   }
