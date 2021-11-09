@@ -1641,10 +1641,13 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         break;
       }
 
-      // above condition same with key in file
-      if (((pos > endPos || keyFile[pos] > pQueryHandle->window.ekey) && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-          ((pos < endPos || keyFile[pos] < pQueryHandle->window.ekey) && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
-        break;
+      // break if pos not in this block endPos range. note old code when pos is -1 can crash.
+      if(ASCENDING_TRAVERSE(pQueryHandle->order)) { //ASC
+        if(pos > endPos || keyFile[pos] > pQueryHandle->window.ekey)
+          break;
+      } else { //DESC
+        if(pos < endPos || keyFile[pos] < pQueryHandle->window.ekey)
+          break;
       }
 
       // put keyMem row 
