@@ -4574,12 +4574,12 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
   const char* msg = "only support is [not] null";
 
   tSqlExpr* pRight = pExpr->pRight;
-  if (pRight->tokenId == TK_NULL && (!(pExpr->tokenId == TK_ISNULL || pExpr->tokenId == TK_NOTNULL))) {
+  SSchema* pSchema = tscGetTableSchema(pTableMeta);
+  if (pRight->tokenId == TK_NULL && pSchema[index].type != TSDB_DATA_TYPE_JSON && (!(pExpr->tokenId == TK_ISNULL || pExpr->tokenId == TK_NOTNULL))) {
     return invalidOperationMsg(msgBuf, msg);
   }
 
   if (pRight->tokenId == TK_STRING) {
-    SSchema* pSchema = tscGetTableSchema(pTableMeta);
     if (IS_VAR_DATA_TYPE(pSchema[index].type) || pSchema[index].type == TSDB_DATA_TYPE_JSON) {
       return TSDB_CODE_SUCCESS;
     }
@@ -4728,6 +4728,11 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   SStrToken* colName = NULL;
   if(pLeft->tokenId == TK_ARROW){
     colName = &(pLeft->pLeft->columnName);
+    // transform for json->'key'=null
+    pRight->tokenId = TK_STRING;
+    pRight->value.nType = TSDB_DATA_TYPE_BINARY;
+    pRight->value.nLen = INT_BYTES;
+    *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
   }else{
     colName = &(pLeft->columnName);
   }
