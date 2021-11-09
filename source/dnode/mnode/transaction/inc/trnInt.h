@@ -41,6 +41,7 @@ typedef struct STrans {
   SArray *undoActions;
 } STrans;
 
+
 #ifdef __cplusplus
 }
 #endif

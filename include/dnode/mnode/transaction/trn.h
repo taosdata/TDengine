@@ -29,7 +29,9 @@ int32_t trnInit();
 void    trnCleanup();
 
 STrans *trnCreate();
+int32_t trnPrepare(STrans *);
 int32_t trnCommit(STrans *);
+int32_t trnExecute(STrans *);
 void    trnDrop(STrans *);
 
 int32_t trnAppendRedoLog(STrans *, SSdbRawData *);

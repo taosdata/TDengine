@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #define SDB_GET_BINARY_VAL(pData, dataLen, val, valLen, code) \
-  {                                                           \
+  if (code == 0) {                                            \
     if ((dataLen) >= (valLen)) {                              \
       memcpy((val), (char *)(pData), (valLen));               \
       (dataLen) -= (valLen);                                  \
@@ -32,7 +32,7 @@ extern "C" {
   }
 
 #define SDB_GET_INT32_VAL(pData, dataLen, val, code) \
-  {                                                  \
+  if (code == 0) {                                   \
     if (dataLen >= sizeof(int32_t)) {                \
       *(int32_t *)(pData) = (int32_t)(val);          \
       (dataLen) -= sizeof(int32_t);                  \
@@ -43,7 +43,7 @@ extern "C" {
   }
 
 #define SDB_GET_INT64_VAL(pData, dataLen, val, code) \
-  {                                                  \
+  if (code == 0) {                                   \
     if (dataLen >= sizeof(int64_t)) {                \
       *(int64_t *)(pData) = (int64_t)(val);          \
       (dataLen) -= sizeof(int64_t);                  \
@@ -87,7 +87,7 @@ typedef enum {
   SDB_VGROUP = 9,
   SDB_STABLE = 10,
   SDB_FUNC = 11,
-  SDB_OPER = 12,
+  SDB_TRANS = 12,
   SDB_MAX = 13
 } ESdbType;
 
