@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <cli@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,15 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_RAFT_INT_H_
-#define _TD_RAFT_INT_H_
+#ifndef _TD_LIBS_SYNC_RAFT_CONFIGURATION_H
+#define _TD_LIBS_SYNC_RAFT_CONFIGURATION_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "sync.h"
+#include "sync_type.h"
 
-#ifdef __cplusplus
-}
-#endif
+// return -1 if cannot find this id
+int syncRaftConfigurationIndexOfNode(SSyncRaft *pRaft, SyncNodeId id);
 
-#endif /*_TD_RAFT_INT_H_*/
+int syncRaftConfigurationVoterCount(SSyncRaft *pRaft);
+
+#endif  /* _TD_LIBS_SYNC_RAFT_CONFIGURATION_H */

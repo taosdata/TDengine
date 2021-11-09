@@ -4,6 +4,7 @@ add_library(sync ${SYNC_SRC})
 target_link_libraries(
     sync
     PUBLIC common
+    PUBLIC transport
     PUBLIC util
     PUBLIC wal
 )
