@@ -48,27 +48,32 @@ void vnodeOptionsClear(SVnodeOptions *);
 struct SVnodeOptions {
   /**
    * @brief write buffer size in BYTES
+   *
    */
   uint64_t wsize;
 
   /**
    * @brief time to live of tables in this vnode
    * in SECONDS
+   * 
    */
   uint32_t ttl;
 
   /**
    * @brief if time-series requests eventual consistency
+   * 
    */
   bool isWeak;
 
   /**
    * @brief TSDB options
+   * 
    */
   STsdbOptions tsdbOptions;
 
   /**
-   * @brief META operations
+   * @brief META options
+   * 
    */
   SMetaOptions metaOptions;
   // STqOptions   tqOptions; // TODO
