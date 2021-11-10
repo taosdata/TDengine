@@ -15,6 +15,9 @@
 
 #include "vnodeDef.h"
 
+#define VNODE_HEAP_ALLOCATOR 0
+#define VNODE_ARENA_ALLOCATOR 1
+
 typedef struct {
   uint64_t tsize;
   uint64_t used;
@@ -22,9 +25,13 @@ typedef struct {
 
 typedef struct SVArenaNode {
   struct SVArenaNode *prev;
+  void *              nptr;
+  char                data[];
 } SVArenaNode;
 
 typedef struct {
+  SVArenaNode *inuse;
+  SVArenaNode  node;
 } SVArenaAllocator;
 
 typedef struct {
@@ -37,9 +44,43 @@ typedef struct {
   };
 } SVMemAllocator;
 
-SMemAllocator *vnodeCreateMemAllocator(int8_t type, uint64_t size) {
-  /* TODO */
-  return NULL;
+SMemAllocator *vnodeCreateMemAllocator(int8_t type, uint64_t tsize, uint64_t ssize /* step size only for arena */) {
+  SMemAllocator * pma;
+  uint64_t        msize;
+  SVMemAllocator *pva;
+
+  msize = sizeof(*pma) + sizeof(SVMemAllocator);
+  if (type == VNODE_ARENA_ALLOCATOR) {
+    msize += tsize;
+  }
+
+  pma = (SMemAllocator *)calloc(1, msize);
+  if (pma == NULL) {
+    return NULL;
+  }
+
+  pma->impl = POINTER_SHIFT(pma, sizeof(*pma));
+  pva = (SVMemAllocator *)(pma->impl);
+  pva->type = type;
+  pva->tsize = tsize;
+
+  if (type == VNODE_HEAP_ALLOCATOR) {
+    pma->malloc = NULL;
+    pma->calloc = NULL;
+    pma->realloc = NULL;
+    pma->free = NULL;
+    pma->usage = NULL;
+  } else if (type == VNODE_ARENA_ALLOCATOR) {
+    pma->malloc = NULL;
+    pma->calloc = NULL;
+    pma->realloc = NULL;
+    pma->free = NULL;
+    pma->usage = NULL;
+  } else {
+    ASSERT(0);
+  }
+
+  return pma;
 }
 
 void vnodeDestroyMemAllocator(SMemAllocator *pma) {
@@ -55,46 +96,5 @@ void vnodeUnrefMemAllocator(SMemAllocator *pma) {
 }
 
 /* ------------------------ Heap Allocator IMPL ------------------------ */
-
-SMemAllocator *vhaCreate(uint64_t size) {
-  SMemAllocator *pma;
-
-  pma = (SMemAllocator *)calloc(1, sizeof(*pma) + sizeof(SVHeapAllocator));
-  if (pma == NULL) {
-    return NULL;
-  }
-
-  pma->impl = POINTER_SHIFT(pma, sizeof(*pma));
-
-  /* TODO */
-  return NULL;
-}
-
-void vhaDestroy(SMemAllocator *pma) { /* TODO */
-}
-
-static void *vhaMalloc(SMemAllocator *pma, uint64_t size) {
-  SVHeapAllocator *pvha = (SVHeapAllocator *)(pma->impl);
-  /* TODO */
-  return NULL;
-}
-
-static void *vhaCalloc(SMemAllocator *pma, size_t nmemb, uint64_t size) {
-  // todo
-  return NULL;
-}
-
-static void *vhaRealloc(SMemAllocator *pma, void *ptr, uint64_t size) {
-  /* TODO */
-  return NULL;
-}
-
-static void vhaFree(SMemAllocator *pma, void *ptr) { /* TODO */
-}
-
-static uint64_t vhaUsage(SMemAllocator *pma) {
-  /* TODO */
-  return 0;
-}
 
 /* ------------------------ Arena Allocator IMPL ------------------------ */
