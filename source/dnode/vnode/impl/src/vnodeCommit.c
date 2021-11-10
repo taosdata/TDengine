@@ -13,13 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "vnodeDef.h"
 
 static int vnodeStartCommit(SVnode *pVnode);
 static int vnodeEndCommit(SVnode *pVnode);
 
+bool vnodeShouldCommit(SVnode *pVnode) { return false; }
+
 int vnodeAsyncCommit(SVnode *pVnode) {
-  #if 0
+#if 0
   if (vnodeStartCommit(pVnode) < 0) {
     // TODO
   }

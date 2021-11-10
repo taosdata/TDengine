@@ -13,14 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaUid.h"
+#ifndef _TD_META_TB_TAG_H_
+#define _TD_META_TB_TAG_H_
 
-tb_uid_t generateUid(STableUidGenerator *pGen) {
-  // Generate a new table UID
-  return ++(pGen->nextUid);
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void tableUidGeneratorInit(STableUidGenerator *pGen, tb_uid_t suid) {
-  // Init a generator
-  pGen->nextUid = suid;
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_META_TB_TAG_H_*/

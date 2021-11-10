@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_RAFT_INT_H_
-#define _TD_RAFT_INT_H_
+#ifndef _TD_META_QUERY_H_
+#define _TD_META_QUERY_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ extern "C" {
 }
 #endif
 
-#endif /*_TD_RAFT_INT_H_*/
+#endif /*_TD_META_QUERY_H_*/

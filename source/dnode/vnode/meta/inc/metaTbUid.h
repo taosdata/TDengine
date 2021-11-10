@@ -23,20 +23,17 @@ extern "C" {
 #endif
 
 /* ------------------------ APIS EXPOSED ------------------------ */
-typedef struct STableUidGenerator STableUidGenerator;
+typedef struct STbUidGenerator {
+  tb_uid_t nextUid;
+} STbUidGenerator;
+
+// STableUidGenerator
+int  metaOpenUidGnrt(SMeta *pMeta);
+void metaCloseUidGnrt(SMeta *pMeta);
 
 // tb_uid_t
 #define IVLD_TB_UID 0
-tb_uid_t generateUid(STableUidGenerator *);
-
-// STableUidGenerator
-void tableUidGeneratorInit(STableUidGenerator *, tb_uid_t suid);
-#define tableUidGeneratorClear(ug)
-
-/* ------------------------ FOR TEST AND COMPILE ONLY ------------------------ */
-struct STableUidGenerator {
-  tb_uid_t nextUid;
-};
+tb_uid_t metaGenerateUid(SMeta *pMeta);
 
 #ifdef __cplusplus
 }

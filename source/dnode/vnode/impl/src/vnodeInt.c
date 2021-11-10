@@ -20,8 +20,6 @@
 int32_t vnodeInit(SVnodePara para) { return 0; }
 void    vnodeCleanup() {}
 
-SVnode *vnodeOpen(int32_t vgId, const char *path) { return NULL; }
-void    vnodeClose(SVnode *pVnode) {}
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg) { return NULL; }
 void    vnodeDrop(SVnode *pVnode) {}

@@ -22,6 +22,9 @@
 //
 //handle management message
 //
+
+int tqGetgHandleSSize(const TqGroupHandle *gHandle);
+
 static int tqProtoCheck(TmqMsgHead *pMsg) {
   return pMsg->protoVer == 0;
 }
