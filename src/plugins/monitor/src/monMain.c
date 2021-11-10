@@ -1028,7 +1028,7 @@ static int32_t checkCreateVgroupTable(int32_t vgId) {
   code = taos_errno(result);
   if (code != 0) {
     create_table = true;
-    snprintf(subsql, SQL_LENGTH, "create table if not exists %s.vgroup_%d using %s.vgroups_info tags(%d)",
+    snprintf(subsql, sizeof(subsql), "create table if not exists %s.vgroup_%d using %s.vgroups_info tags(%d)",
                tsMonitorDbName, vgId, tsMonitorDbName, vgId);
     monError("table vgroup_%d not exist, create table vgroup_%d", vgId, vgId);
   }
