@@ -191,7 +191,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
   
-  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR || pVar->nType == TSDB_DATA_TYPE_JSON) {
     tfree(pVar->pz);
     pVar->nLen = 0;
   }

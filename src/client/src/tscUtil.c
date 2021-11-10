@@ -5414,7 +5414,7 @@ void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
   }
 
   int32_t length = 0;
-  if(!taosMbsToUcs4(json, strlen(json), varDataVal(tagData), bytes - VARSTR_HEADER_SIZE, &length)){
+  if(!taosMbsToUcs4(json, strlen(json), varDataVal(tagData), bytes - VARSTR_HEADER_SIZE - CHAR_BYTES, &length)){
     tscError("getJsonTagValueAll mbstoucs4 error! length:%d", length);
   }
   varDataSetLen(tagData, length);
@@ -5589,11 +5589,11 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       char *jsonValue = item->valuestring;
       strtrim(jsonValue);
       outLen = 0;
-      char tagVal[TSDB_MAX_JSON_TAGS_LEN + CHAR_BYTES] = {0};
+      char tagVal[TSDB_MAX_JSON_TAGS_LEN] = {0};
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       if (!taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
-                         TSDB_MAX_JSON_TAGS_LEN, &outLen)) {
+                         TSDB_MAX_JSON_TAGS_LEN - CHAR_BYTES - VARSTR_HEADER_SIZE, &outLen)) {
         tscError("json string error:%s|%s", strerror(errno), jsonValue);
         retCode = tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
         goto end;
