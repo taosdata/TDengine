@@ -4,8 +4,8 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 
-def skipbuild=0
-def win_stop=0
+// def skipbuild=0
+// def win_stop=0
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
