@@ -199,9 +199,11 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *
   return true;
 }
 
-bool taosGetProcIO(float *readKB, float *writeKB) {
-  *readKB = 0;
-  *writeKB = 0;
+bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {
+  *rcharKB = 0;
+  *wcharKB = 0;
+  *rbyteKB = 0;
+  *wbyteKB = 0;
   return true;
 }
 
