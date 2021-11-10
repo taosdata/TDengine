@@ -2882,13 +2882,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tstrncpy(pExpr->base.aliasName, aAggs[TSDB_FUNC_TS].name, sizeof(pExpr->base.aliasName));
 
         const int32_t TS_COLUMN_INDEX = PRIMARYKEY_TIMESTAMP_COL_INDEX;
-        SColumnList   ids = createColumnList(1, index2.tableIndex, TS_COLUMN_INDEX);
+        SColumnList   ids = createColumnList(1, index1.tableIndex, TS_COLUMN_INDEX);
         insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
                           aAggs[TSDB_FUNC_TS].name, pExpr);
 
         colIndex += 1;  // the first column is ts
 
-        pExpr = tscExprAppend(pQueryInfo, functionId, &index2, resultType, resultSize, getNewResColId(pCmd), resultSize, false);
+        pExpr = tscExprAppend(pQueryInfo, functionId, &index1, resultType, resultSize, getNewResColId(pCmd), resultSize, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
       }
   
