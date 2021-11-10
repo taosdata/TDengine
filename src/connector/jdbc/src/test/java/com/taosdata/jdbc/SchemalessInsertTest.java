@@ -1,5 +1,7 @@
 package com.taosdata.jdbc;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
 import com.taosdata.jdbc.enums.SchemalessTimestampType;
 import org.junit.After;
@@ -10,10 +12,14 @@ import org.junit.Test;
 import java.sql.*;
 
 public class SchemalessInsertTest {
-    private String host = "127.0.0.1";
-    private String dbname = "test_schemaless_insert";
+    private final String dbname = "test_schemaless_insert";
     private Connection conn;
 
+    /**
+     * schemaless insert compatible with influxdb
+     *
+     * @throws SQLException execute error
+     */
     @Test
     public void schemalessInsert() throws SQLException {
         // given
@@ -41,6 +47,11 @@ public class SchemalessInsertTest {
         statement.close();
     }
 
+    /**
+     * telnet insert compatible with opentsdb
+     *
+     * @throws SQLException execute error
+     */
     @Test
     public void telnetInsert() throws SQLException {
         // given
@@ -71,6 +82,11 @@ public class SchemalessInsertTest {
         statement.close();
     }
 
+    /**
+     * json insert compatible with opentsdb json format
+     *
+     * @throws SQLException execute error
+     */
     @Test
     public void jsonInsert() throws SQLException {
         // given
@@ -113,13 +129,15 @@ public class SchemalessInsertTest {
         while (rs.next()) {
             rowCnt++;
         }
-//        Assert.assertEquals(json.length, rowCnt);
+
+        Assert.assertEquals(((JSONArray) JSONObject.parse(json)).size(), rowCnt);
         rs.close();
         statement.close();
     }
 
     @Before
     public void before() {
+        String host = "127.0.0.1";
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         try {
             conn = DriverManager.getConnection(url);
