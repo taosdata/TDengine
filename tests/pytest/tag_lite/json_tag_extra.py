@@ -89,7 +89,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.execute("CREATE TABLE if not exists  jsons2_6 using  jsons2 tags('{\"nv\":null,\"tea\":true,\"\":false,\"\":123,\"tea\":false}')")
         tdSql.query("select jtag2 from  jsons2_6")
-        tdSql.checkData(0, 0, "{\"tea\":true}")
+        tdSql.checkData(0, 0, "{\"nv\":null,\"tea\":true}")
         tdSql.error("CREATE TABLE if not exists  jsons2_7 using  jsons2 tags('{\"nv\":null,\"tea\":123,\"\":false,\"\":123,\"tea\":false}')")
         tdSql.execute("CREATE TABLE if not exists  jsons2_7 using  jsons2 tags('{\"test7\":\"\"}')")
         tdSql.query("select jtag2 from  jsons2_7")
@@ -100,8 +100,8 @@ class TDTestCase:
         tdSql.error("ALTER STABLE  jsons2 add tag jtag3 nchar(20)")
         tdSql.error("ALTER STABLE  jsons2 drop tag jtag2")
         tdSql.execute("ALTER STABLE jsons2 change tag jtag2 jtag3")
-        tdSql.query("select jtag3 from  jsons2_6")
-        tdSql.checkData(0, 0, "{\"tea\":true}")       
+        tdSql.query("select jtag3->'tea' from  jsons2_6")
+        tdSql.checkData(0, 0, "true")       
         tdSql.error("ALTER TABLE  jsons2_6 SET TAG jtag3='{\"tea-=[].;!@#$%^&*()/\":}'")
         tdSql.execute("ALTER TABLE  jsons2_6 SET TAG jtag3='{\"tea-=[].;!@#$%^&*()/\":false}'")
         tdSql.query("select jtag3 from  jsons2_6")
@@ -233,7 +233,7 @@ class TDTestCase:
 
         tdSql.execute("CREATE TABLE if not exists  jsons1_9 using  jsons1 tags('{\"\":4, \"time\":null}')")
         tdSql.query("select jtag from  jsons1_9")
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "{\"time\":null}")
 
         tdSql.execute("CREATE TABLE if not exists  jsons1_10 using  jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
         tdSql.query("select jtag from  jsons1_10")
@@ -249,10 +249,10 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         tdSql.query("select jtag from  jsons1 where jtag is null")
-        tdSql.checkRows(5)
+        tdSql.checkRows(4)
 
         tdSql.query("select jtag from  jsons1 where jtag is not null")
-        tdSql.checkRows(5)
+        tdSql.checkRows(6)
 
         tdSql.query("select * from  jsons1 where jtag->'location' is not null")
         tdSql.checkRows(3)
@@ -270,7 +270,7 @@ class TDTestCase:
 
         # test distinct
         tdSql.query("select distinct jtag from  jsons1")
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
 
         tdSql.query("select distinct jtag->'location' from  jsons1")
         tdSql.checkRows(2)
@@ -293,8 +293,12 @@ class TDTestCase:
         tdSql.query("select tbname,jtag->'tbname' from  jsons1 where jtag->'tbname'='tt'")
         tdSql.checkRows(1)
 
-        # tdSql.query("select * from jsons1 where jtag->'num' is not null or jtag?'class' and jtag?'databool'")
-        # tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'num' is not null or jtag?'class' and jtag?'databool'")
+        tdSql.checkRows(2)
+
+        tdSql.query("select * from jsons1 where jtag->'num' is not null and jtag?'class' or jtag?'databool'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 4)
 
         # tdSql.query("select * from jsons1 where jtag->'num' is not null or jtag?'class' and jtag?'databool' and jtag->'k1' match '中' or  jtag->'location' in ('beijing')  and  jtag->'location' like 'bei%'")
 
@@ -332,28 +336,61 @@ class TDTestCase:
         tdSql.error("select  jtag3?'k1'=true from  jsons3;")
         tdSql.error("select  jtag3->'k1'=true from  jsons3;")
         tdSql.error("insert into jsons3_5 using  jsons3 tags('{\"t\":true,\"t123\":789,\"k1\":1,\"s\":null}')  values(now, 5, true, 'test')")
-        tdSql.execute("insert into jsons3_5 using  jsons3 tags('{\"t\":true,\"t123\":012,\"k1\":null,\"s\":null}')  values(now, 5, true, 'test')")
+        tdSql.execute("insert into jsons3_5 using  jsons3 tags('{\"t\":true,\"t123\":012,\"k2\":null,\"s\":null}')  values(now, 5, true, 'test')")
         tdSql.execute("insert into jsons3_6 using  jsons3 tags('{\"t\":true,\"t123\":789,\"k1\":false,\"s\":null}')  values(now, 5, true, 'test')")
-        # tdSql.execute("select distinct jtag3 from jsons3 where jtag3->'t123'=12 or jtag3?'k1'")
-        # tdSql.checkRows(3)
+        tdSql.query("select jtag3 from jsons3 where jtag3->'t123'=12 or jtag3?'k1'")
+        tdSql.checkRows(4)
+        tdSql.query("select distinct jtag3 from jsons3 where jtag3->'t123'=12 or jtag3?'k1'")
+        tdSql.checkRows(3)
 
 
         tdSql.execute("INSERT INTO  jsons1_14 using  jsons1 tags('{\"tbname\":\"tt\",\"location\":\"tianjing\",\"dataStr\":\"是是是\"}') values(now,5, \"你就会\")")
 
-        tdSql.query("select ts,jtag from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
+        tdSql.query("select ts,jtag->'tbname',tbname from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
         tdSql.checkRows(1)
-        # tdSql.checkData(0, 2, 'tt')
+        tdSql.checkData(0, 1, 'tt')
                
-        # query normal column and tag column
         tdSql.query("select  jtag3->'',dataint3 from  jsons3")
         tdSql.checkRows(4)
-
+        for i in range(4):
+            if tdSql.queryResult[i][1] == 4:
+                tdSql.checkData(i, 0, None) 
         tdSql.query("select tbname,dataint3,jtag3->'k1' from jsons3;")
         tdSql.checkRows(4)
         for i in range(4):
             if tdSql.queryResult[i][1] == 4:
                 tdSql.checkData(i, 2, 'true') 
-        
+        # group by and order by 
+        tdSql.query("select  avg(dataInt)  from jsons1 group by jtag->'location';")
+        # tdSql.checkRows(3)
+        # tdSql.query("select  count(dataint)  from jsons1 group by jtag->'location'")
+
+        # tdSql.query("select  avg(dataInt) as 123  from jsons1 group by jtag->'location' order by 123")
+        # tdSql.query("select  avg(dataInt)   from jsons1 group by jtag->'location' order by ts;")
+        # tdSql.query("select  avg(dataInt)   from jsons1 group by jtag->'location' order by tbname;")
+        # tdSql.error("select  avg(dataInt)   from jsons1 group by jtag->'location' order by dataInt;")
+        # tdSql.error("select  avg(dataInt),tbname   from jsons1 group by jtag->'location' order by tbname;")
+        # tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location';")
+        # tdSql.query("select  top(dataint,100)  from jsons1 group by jtag->'location';")
+        # tdSql.query("select  bottom(dataint,1)  from jsons1 group by jtag->'location';")
+        # tdSql.query("select  bottom(dataint,100)  from jsons1 group by jtag->'location';")
+
+
+        # test join
+        tdSql.execute("create table if not exists jsons6(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
+        tdSql.execute("create table if not exists jsons5(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
+        tdSql.execute("CREATE TABLE if not exists jsons6_1 using jsons6 tags('{\"loc\":\"fff\",\"id\":6}')")
+        tdSql.execute("CREATE TABLE if not exists jsons6_2 using jsons6 tags('{\"loc\":\"ffc\",\"id\":5}')")
+        tdSql.execute("insert into jsons6_1 values ('2020-04-18 15:00:00.000', 1, false, 'json1')")
+        tdSql.execute("insert into jsons6_2 values ('2020-04-18 15:00:01.000', 2, false, 'json1')")
+        tdSql.execute("insert into jsons5_1 using jsons5 tags('{\"loc\":\"fff\",\"num\":5,\"location\":\"beijing\"}') values ('2020-04-18 15:00:00.000', 2, true, 'json2')")
+        tdSql.execute("insert into jsons5_2 using jsons5 tags('{\"loc\":\"fff\",\"id\":5,\"location\":\"beijing\"}') values ('2020-04-18 15:00:01.000', 2, true, 'json2')")
+
+        tdSql.error("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
+        tdSql.query("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'id'=b.jtag->'id'")
+        tdSql.checkData(0, 0, "sss")
+        tdSql.checkData(0, 2, "ffc")
+
 
         # query  child table 
         # tdSql.error("select * from  jsons3_2 where jtag3->'k1'=true;")
