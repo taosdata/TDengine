@@ -815,13 +815,15 @@ SColumn* columnListInsert(SArray* pColumnList, uint64_t uid, SSchema* pSchema, i
   b->info.bytes = pSchema->bytes;
   b->info.type  = pSchema->type;
   tstrncpy(b->name, pSchema->name, tListLen(b->name));
-
   taosArrayInsert(pColumnList, i, &b);
+
   return b;
 }
 
-SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid) {
+SColumn* insertPrimaryTsColumn(SArray* pColumnList, const char* colName, uint64_t tableUid) {
   SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_ID};
+  strncpy(s.name, colName, tListLen(s.name));
+
   return columnListInsert(pColumnList, tableUid, &s, TSDB_COL_NORMAL);
 }
 

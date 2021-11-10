@@ -86,10 +86,8 @@ typedef struct SOrder {
 } SOrder;
 
 typedef struct SGroupbyExpr {
-  int16_t  tableIndex;
   SArray*  columnInfo;  // SArray<SColIndex>, group by columns information
-  int16_t  orderIndex;  // order by column index
-  int16_t  orderType;   // order by type: asc/desc
+  bool     groupbyTag;  // group by tag or column
 } SGroupbyExpr;
 
 // the structure for sql function in select clause

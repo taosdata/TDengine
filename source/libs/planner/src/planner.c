@@ -46,12 +46,14 @@ typedef struct SJoinCond {
 
 static SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo);
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode);
+static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo);
 
 int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
   return 0;
 }
 
 int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode) {
+  exprInfoPushDown((struct SQueryStmtInfo*) pQueryInfo);
   SArray* upstream = createQueryPlanImpl((struct SQueryStmtInfo*) pQueryInfo);
   assert(taosArrayGetSize(upstream) == 1);
 
@@ -134,12 +136,11 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
 
     case QNODE_GROUPBY: {
       SGroupbyExpr* p = (SGroupbyExpr*) pExtInfo;
-      SGroupbyExpr* pGroupbyExpr = calloc(1, sizeof(SGroupbyExpr));
 
-      pGroupbyExpr->tableIndex = p->tableIndex;
-      pGroupbyExpr->orderType  = p->orderType;
-      pGroupbyExpr->orderIndex = p->orderIndex;
+      SGroupbyExpr* pGroupbyExpr = calloc(1, sizeof(SGroupbyExpr));
+      pGroupbyExpr->groupbyTag = p->groupbyTag;
       pGroupbyExpr->columnInfo = taosArrayDup(p->columnInfo);
+
       pNode->pExtInfo = pGroupbyExpr;
       break;
     }
@@ -155,7 +156,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
       break;
     }
     default:
-      assert(0);
+      break;
   }
   
   return pNode;
@@ -188,12 +189,11 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
     SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumn* pCol = taosArrayGetP(tableCols, i);
-      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo1->pTableMeta, i);
 
       SSourceParam param = {0};
       addIntoSourceParam(&param, NULL, pCol);
-
-      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, pSchema, 0);
+      SSchema s = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
+      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, &s, 0);
       pExpr[i] = p;
     }
 
@@ -234,34 +234,45 @@ static SQueryPlanNode* createOneQueryPlanNode(SArray* p, SQueryPlanNode* pNode, 
   }
 }
 
-static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info, SArray** pExprs) {
-  // check for aggregation
+static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info) {
+  // group by column not by tag
   size_t numOfGroupCols = taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo);
 
+  // check for aggregation
   int32_t level = getFunctionLevel(pQueryInfo);
+
   for(int32_t i = level - 1; i >= 0; --i) {
     SArray* p = pQueryInfo->exprList[i];
-    SExprInfo* pExpr = (SExprInfo*)taosArrayGetP(p, 0);
 
-    if (i == 0) {
+    size_t num = taosArrayGetSize(p);
+    bool aggregateFunc = false;
+    for(int32_t j = 0; j < num; ++j) {
+      SExprInfo* pExpr = (SExprInfo*)taosArrayGetP(p, 0);
+      if (pExpr->pExpr->nodeType != TEXPR_FUNCTION_NODE) {
+        continue;
+      }
+
+      aggregateFunc = qIsAggregateFunction(pExpr->pExpr->_function.functionName);
+      if (aggregateFunc) {
+        break;
+      }
+    }
+
+    if (aggregateFunc) {
       if (pQueryInfo->interval.interval > 0) {
-        int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
-        pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, p->pData, numOfOutput, info, &pQueryInfo->interval);
+        pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, p->pData, num, info, &pQueryInfo->interval);
       } else if (pQueryInfo->sessionWindow.gap > 0) {
         pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
       } else if (pQueryInfo->stateWindow.columnId > 0) {
         pNode = createQueryNode(QNODE_STATEWINDOW, "StateWindowAgg", &pNode, 1, NULL, 0, info, NULL);
+      } else if (numOfGroupCols != 0 && !pQueryInfo->groupbyExpr.groupbyTag) {
+          pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, p->pData, num, info, &pQueryInfo->groupbyExpr);
       } else {
-        pNode = createOneQueryPlanNode(p, pNode, pExpr, info);
+        pNode = createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, p->pData, num, info, NULL);
       }
     } else {
-      pNode = createOneQueryPlanNode(p, pNode, pExpr, info);
+      pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, num, info, NULL);
     }
-  }
-
-  // group by column not by tag
-  if (numOfGroupCols != 0) {
-    pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, NULL, 0, info, &pQueryInfo->groupbyExpr);
   }
 
   if (pQueryInfo->havingFieldNum > 0) {
@@ -285,7 +296,7 @@ static SQueryPlanNode* doCreateQueryPlanForOneTableImpl(SQueryStmtInfo* pQueryIn
   return pNode;
 }
 
-static SQueryPlanNode* doCreateQueryPlanForOneTable(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
+static SQueryPlanNode* doCreateQueryPlanForSingleTable(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
                                                 SArray* tableCols) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tstrncpy(name, pTableMetaInfo->name.tname, TSDB_TABLE_FNAME_LEN);
@@ -299,9 +310,60 @@ static SQueryPlanNode* doCreateQueryPlanForOneTable(SQueryStmtInfo* pQueryInfo, 
     return pNode;
   }
 
-  SQueryPlanNode* pNode1 = doCreateQueryPlanForOneTableImpl(pQueryInfo, pNode, &info, pExprs);
+  SQueryPlanNode* pNode1 = doCreateQueryPlanForSingleTableImpl(pQueryInfo, pNode, &info);
   tfree(info.tableName);
   return pNode1;
+}
+
+static bool isAllAggExpr(SArray* pList) {
+  assert(pList != NULL);
+
+  for (int32_t k = 0; k < taosArrayGetSize(pList); ++k) {
+    SExprInfo* p = taosArrayGetP(pList, k);
+    if (p->pExpr->nodeType != TEXPR_FUNCTION_NODE || !qIsAggregateFunction(p->pExpr->_function.functionName)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
+  assert(pQueryInfo != NULL);
+
+  size_t level = getFunctionLevel(pQueryInfo);
+  for(int32_t i = 0; i < level - 1; ++i) {
+    SArray* p = pQueryInfo->exprList[i];
+
+    SArray* pNext = pQueryInfo->exprList[i + 1];
+    if (!isAllAggExpr(pNext)) {
+      continue;
+    }
+
+    for (int32_t j = 0; j < taosArrayGetSize(p); ++j) {
+      SExprInfo* pExpr = taosArrayGetP(p, j);
+
+      bool canPushDown = true;
+      if (pExpr->pExpr->nodeType == TEXPR_FUNCTION_NODE && qIsAggregateFunction(pExpr->pExpr->_function.functionName)) {
+        for (int32_t k = 0; k < taosArrayGetSize(pNext); ++k) {
+          SExprInfo* pNextLevelExpr = taosArrayGetP(pNext, k);
+          if (pExpr->base.pColumns->info.colId == pNextLevelExpr->base.resSchema.colId) {
+            // pExpr is dependent on the output of the under layer, so it can not be push downwards
+            canPushDown = false;
+            break;
+          }
+        }
+      }
+
+      if (canPushDown) {
+        taosArrayInsert(pNext, j, &pExpr);
+        taosArrayRemove(p, j);
+
+        // add the project function in level of "i"
+        
+      }
+    }
+  }
 }
 
 SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
@@ -357,12 +419,12 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
                                         pQueryInfo->exprList[0]->pData, num, &info, NULL);
 
     // 4. add the aggregation or projection execution node
-    pNode = doCreateQueryPlanForOneTableImpl(pQueryInfo, pNode, &info, pQueryInfo->exprList);
+    pNode = doCreateQueryPlanForSingleTableImpl(pQueryInfo, pNode, &info);
     upstream = taosArrayInit(5, POINTER_BYTES);
     taosArrayPush(upstream, &pNode);
   } else { // only one table, normal query process
     STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
-    SQueryPlanNode* pNode = doCreateQueryPlanForOneTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList[0], pQueryInfo->colList);
+    SQueryPlanNode* pNode = doCreateQueryPlanForSingleTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList[0], pQueryInfo->colList);
     upstream = taosArrayInit(5, POINTER_BYTES);
     taosArrayPush(upstream, &pNode);
   }
@@ -403,14 +465,30 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
   switch(pQueryNode->info.type) {
     case QNODE_TABLESCAN: {
       STimeWindow* win = (STimeWindow*)pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "%s #%" PRIu64 ") time_range: %" PRId64 " - %" PRId64 "\n",
+      len1 = sprintf(buf + len, "%s #%" PRIu64 ") time_range: %" PRId64 " - %" PRId64 " cols: ",
                      pQueryNode->tableInfo.tableName, pQueryNode->tableInfo.uid, win->skey, win->ekey);
+      assert(len1 > 0);
+      len += len1;
+
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
+        SColumn* pCol = taosArrayGetP(pQueryNode->pExpr, i);
+        len1 = sprintf(buf + len, " [%s #%d] ", pCol->name, pCol->info.colId);
+
+        assert(len1 > 0);
+        len += len1;
+      }
+
+      len1 = sprintf(buf + len, "\n");
+      assert(len1 > 0);
+
       len += len1;
       break;
     }
 
     case QNODE_PROJECT: {
       len1 = sprintf(buf + len, "cols: ");
+      assert(len1 > 0);
+
       len += len1;
 
       for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
@@ -418,6 +496,8 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
 
         SSqlExpr* p = &pExprInfo->base;
         len1 = sprintf(buf + len, "[%s #%d]", p->resSchema.name, p->resSchema.colId);
+        assert(len1 > 0);
+
         len += len1;
 
         if (i < pQueryNode->numOfExpr - 1) {
@@ -493,11 +573,16 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
       }
 
       SGroupbyExpr* pGroupbyExpr = pQueryNode->pExtInfo;
-      SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, 0);
-
-      len1 = sprintf(buf + len,") groupby_col: [%s #%d]\n", pIndex->name, pIndex->colId);
+      len1 = sprintf(buf + len,") groupby_col: ");
       len += len1;
 
+      for(int32_t i = 0; i < taosArrayGetSize(pGroupbyExpr->columnInfo); ++i) {
+        SColumn* pCol = taosArrayGet(pGroupbyExpr->columnInfo, i);
+        len1 = sprintf(buf + len, "[%s #%d] ", pCol->name, pCol->info.colId);
+        len += len1;
+      }
+
+      len += sprintf(buf + len, "\n");
       break;
     }
 

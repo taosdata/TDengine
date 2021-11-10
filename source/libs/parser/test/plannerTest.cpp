@@ -96,12 +96,13 @@ void generateLogicplan(const char* sql) {
 
   char* str = NULL;
   qQueryPlanToString(n, &str);
+
+  printf("--------SQL:%s\n", sql);
   printf("%s\n", str);
 
   destroyQueryInfo(pQueryInfo);
   qParserClearupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
-
 }
 }
 
@@ -164,10 +165,17 @@ TEST(testCase, planner_test) {
 }
 
 TEST(testCase, displayPlan) {
-  generateLogicplan("select count(*) from `t.1abc`");
-  generateLogicplan("select count(*) from `t.1abc` group by a");
-  generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s)");
-  generateLogicplan("select count(*),sum(a),avg(b),min(a+b) from `t.1abc`");
+//  generateLogicplan("select count(*) from `t.1abc`");
+//  generateLogicplan("select count(*)+ 22 from `t.1abc`");
+//  generateLogicplan("select count(*)+ 22 from `t.1abc` interval(1h)");
+//  generateLogicplan("select count(*) from `t.1abc` group by a");
+//  generateLogicplan("select count(A+B) from `t.1abc` group by a");
+//  generateLogicplan("select count(length(a)+b) from `t.1abc` group by a");
+//  generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s)");
+//  generateLogicplan("select count(*),sum(a),avg(b),min(a+b)+99 from `t.1abc`");
+//  generateLogicplan("select count(*), min(a) + 99 from `t.1abc`");
+//  generateLogicplan("select count(length(count(*) + 22)) from `t.1abc`");
+  generateLogicplan("select concat(concat(a,b), concat(a,b)) from `t.1abc`");
 
   // order by + group by column + limit offset + fill
 
@@ -177,5 +185,10 @@ TEST(testCase, displayPlan) {
 
   // union
 
+
+  // Aggregate(count(*) [count(*) #5056], sum(a) [sum(a) #5057], avg(b) [avg(b) #5058], min(a+b) [min(a+b) #5060])
+  // Projection(cols: [a+b #5059]) filters:(nil)
+  //  Projection(cols: [ts #0], [a #1], [b #2]) filters:(nil)
+  //   TableScan(t.1abc #110) time_range: -9223372036854775808 - 9223372036854775807
 
 }

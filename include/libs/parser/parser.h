@@ -179,6 +179,7 @@ int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deep
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
+SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 
 int32_t getNewResColId();
 void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);

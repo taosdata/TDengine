@@ -37,7 +37,6 @@ extern "C" {
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
 TAOS_FIELD createField(const SSchema* pSchema);
-SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
 SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
 
@@ -54,7 +53,7 @@ STableMetaInfo* addEmptyMetaInfo(SQueryStmtInfo* pQueryInfo);
 void columnListCopyAll(SArray* dst, const SArray* src);
 
 SColumn* columnListInsert(SArray* pColumnList, uint64_t uid, SSchema* pSchema, int32_t flag);
-SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid);
+SColumn* insertPrimaryTsColumn(SArray* pColumnList, const char* colName, uint64_t tableUid);
 
 void cleanupTagCond(STagCond* pTagCond);
 void cleanupColumnCond(SArray** pCond);

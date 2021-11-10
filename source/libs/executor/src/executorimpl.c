@@ -7851,9 +7851,6 @@ SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pCo
     return NULL;
   }
 
-  pGroupbyExpr->orderType = pQueryMsg->orderType;
-  pGroupbyExpr->orderIndex = pQueryMsg->orderByIdx;
-
   pGroupbyExpr->columnInfo = taosArrayInit(pQueryMsg->numOfGroupCols, sizeof(SColIndex));
   for(int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
     taosArrayPush(pGroupbyExpr->columnInfo, &pColIndex[i]);
