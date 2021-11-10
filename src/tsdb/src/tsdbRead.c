@@ -1544,7 +1544,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   int16_t offset;
 
   bool isRow1DataRow = isDataRow(row1);
-  bool isRow2DataRow;
+  bool isRow2DataRow = false;
   bool isChosenRowDataRow;
   int32_t chosen_itr;
   void *value;
