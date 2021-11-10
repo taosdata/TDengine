@@ -1812,7 +1812,7 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
   // set the serialized binary string as the parameter of arithmetic expression
   tscExprAddParams(&pExpr->base, c, TSDB_DATA_TYPE_BINARY, (int32_t)len);
   if (finalResult) {
-    insertResultField(pQueryInfo, exprIndex, columnList, pExpr->base.resBytes, pExpr->base.resType, pExpr->base.aliasName,
+    insertResultField(pQueryInfo, exprIndex, columnList, pExpr->base.resBytes, (int8_t)pExpr->base.resType, pExpr->base.aliasName,
                       pExpr);
   }
 
