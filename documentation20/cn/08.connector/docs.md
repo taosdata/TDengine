@@ -407,9 +407,9 @@ typedef struct TAOS_MULTI_BIND {
 
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
 
+2.2.0.0版本接口：
 - `int taos_insert_lines(TAOS* taos, char* lines[], int numLines)`
 
-  （2.2.0.0 版本新增）  
   以 Schemaless 格式写入多行数据。其中：
     * taos：调用 taos_connect 返回的数据库连接。
     * lines：由 char 字符串指针组成的数组，指向本次想要写入数据库的多行数据。
@@ -420,6 +420,65 @@ typedef struct TAOS_MULTI_BIND {
   说明：
     1. 此接口是一个同步阻塞式接口，使用时机与 `taos_query()` 一致。
     2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
+
+2.3.0.0版本接口：
+- `int taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, const char* precision, int* affectedRows, char* msg, int msgBufLen)`
+  **参数说明**
+    taos:  数据库连接，通过taos_connect 函数建立的数据库连接。
+    lines：文本数据。满足解析格式要求的无模式文本字符串。
+    numLines:文本数据的行数，不能为 0 。
+    protocol: 行协议类型，用于标识文本数据格式。
+    precision：文本数据中的时间戳精度字符串。
+    affectedRows：插入操作完成以后，正确写入到数据库中的记录行数。
+    msg: 如果出现错误（函数返回值不为 0）情况下，错误提示信息。该参数是输入参数，需要用户指定消息输出缓冲区，如果不指定该缓冲区（输入为NULL），即使出现错误也不会得到错误提示信息。
+    msgBufLen: 缓冲区的长度，避免错误提示消息越界。
+    
+  **返回值**
+    0：无错误发生。
+    非 0 值：发生了错误。此时可以通过msg获取错误信息的提示。该返回值含义可以参考taoserror.h文件中的错误码定义。
+  
+  **说明**
+    协议类型是枚举类型，包含以下三种格式：
+    SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)
+    SML_TELNET_PROTOCOL: OpenTSDB文本行协议
+    SML_JSON_PROTOCOL: OpenTSDB Json协议格式
+    
+    时间戳分辨率的说明使用如下字符串：“h“ （小时）、”m“（分钟）、”s“ （秒） ”ms“（毫秒）、”u“ (微秒）、”ns”（纳秒），不区分大小写。需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。对于 OpenTSDB的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+  
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <taos.h>
+ 
+int main() {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+ 
+  // error message buffer
+  char msg[512] = {0};
+   
+  // connect to server
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+   
+  // prepare the line string
+  char* lines1[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+  };
+ 
+  // schema-less insert
+  int code = taos_schemaless_insert(taos, lines1, 2, SML_LINE_PROTOCOL, "ns", msg, sizeof(msg)/sizeof(msg[0]));
+  if (code != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", msg);
+  }
+ 
+  // close the connection
+  taos_close(taos);
+  return (code);
+}
+```
+**注**：后续2.2.0.0版本也更新成2.3.0.0版本的接口。
 
 ### 连续查询接口
 
