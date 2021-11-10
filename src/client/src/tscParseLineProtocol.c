@@ -156,13 +156,15 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
 
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
   char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
-  strtolower(sTableName, point->stableName);
+  strncpy(sTableName, point->stableName, strlen(point->stableName));
+  //strtolower(sTableName, point->stableName);
   taosStringBuilderAppendString(&sb, sTableName);
   for (int j = 0; j < point->tagNum; ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     TAOS_SML_KV* tagKv = point->tags + j;
     char tagName[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
-    strtolower(tagName, tagKv->key);
+    strncpy(tagName, tagKv->key, strlen(tagKv->key));
+    //strtolower(tagName, tagKv->key);
     taosStringBuilderAppendString(&sb, tagName);
     taosStringBuilderAppendChar(&sb, '=');
     taosStringBuilderAppend(&sb, tagKv->value, tagKv->length);
