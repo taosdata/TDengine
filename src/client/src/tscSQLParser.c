@@ -1886,7 +1886,6 @@ static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_
   pSqlExpr->param[0].nType = TSDB_DATA_TYPE_BINARY;
 
 //    tbufCloseWriter(&bw); // TODO there is a memory leak
-  tExprTreeDestroy(pInfo->pExpr->pExpr, NULL);
   return TSDB_CODE_SUCCESS;
 }
 

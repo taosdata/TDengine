@@ -115,7 +115,7 @@ typedef struct tExprNode {
     struct {
       int16_t functionId;
       uint8_t numChildren;
-      struct tExprNode** pChildren;
+      struct tExprNode **pChildren;
     } _func;
   };
   int16_t resultType;

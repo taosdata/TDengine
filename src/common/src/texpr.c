@@ -956,6 +956,8 @@ tExprNode* exprdup(tExprNode* pNode) {
   }
 
   pCloned->nodeType = pNode->nodeType;
+  pCloned->resultType = pNode->resultType;
+  pCloned->resultBytes = pNode->resultBytes;
   return pCloned;
 }
 
