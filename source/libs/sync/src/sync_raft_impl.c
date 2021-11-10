@@ -44,7 +44,7 @@ void syncRaftBecomeFollower(SSyncRaft* pRaft, SyncTerm term, SyncNodeId leaderId
   resetRaft(pRaft, term);
   pRaft->tickFp = tickElection;
   pRaft->leaderId = leaderId;
-  pRaft->state = TAOS_SYNC_ROLE_FOLLOWER;
+  pRaft->state = TAOS_SYNC_STATE_FOLLOWER;
   syncInfo("[%d:%d] became followe at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
@@ -58,7 +58,7 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft) {
    **/
   pRaft->stepFp = stepCandidate;
   pRaft->tickFp = tickElection;
-  pRaft->state  = TAOS_SYNC_ROLE_CANDIDATE;
+  pRaft->state  = TAOS_SYNC_STATE_CANDIDATE;
   pRaft->candidateState.inPreVote = true;
   syncInfo("[%d:%d] became pre-candidate at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
@@ -72,17 +72,17 @@ void syncRaftBecomeCandidate(SSyncRaft* pRaft) {
   resetRaft(pRaft, pRaft->term + 1);
   pRaft->tickFp = tickElection;
   pRaft->voteFor = pRaft->selfId;
-  pRaft->state  = TAOS_SYNC_ROLE_CANDIDATE;
+  pRaft->state  = TAOS_SYNC_STATE_CANDIDATE;
   syncInfo("[%d:%d] became candidate at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftBecomeLeader(SSyncRaft* pRaft) {
-  assert(pRaft->state != TAOS_SYNC_ROLE_FOLLOWER);
+  assert(pRaft->state != TAOS_SYNC_STATE_FOLLOWER);
 
   pRaft->stepFp = stepLeader;
   resetRaft(pRaft, pRaft->term);
   pRaft->leaderId = pRaft->leaderId;
-  pRaft->state  = TAOS_SYNC_ROLE_LEADER;
+  pRaft->state  = TAOS_SYNC_STATE_LEADER;
   // TODO: check if there is pending config log
   int nPendingConf = syncRaftLogNumOfPendingConf(pRaft->log);
   if (nPendingConf > 1) {
@@ -263,7 +263,7 @@ static bool maybeCommit(SSyncRaft* pRaft) {
  * trigger I/O requests for newly appended log entries or heartbeats.
  **/
 static int triggerAll(SSyncRaft* pRaft) {
-  assert(pRaft->state == TAOS_SYNC_ROLE_LEADER);
+  assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
   int i;
 
   for (i = 0; i < pRaft->cluster.replica; ++i) {
