@@ -3913,11 +3913,11 @@ static void interp_function(SQLFunctionCtx *pCtx) {
   if (pCtx->start.key == pCtx->startTs) {
     assert(pCtx->start.key != INT64_MIN);
     
-    SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->start.val);
+    COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->start.val);
     
     goto interp_success_exit;    
   } else if (pCtx->end.key == pCtx->startTs && pCtx->end.key != INT64_MIN && fillType == TSDB_FILL_NEXT) {
-    SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->end.val);
+    COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->end.val);
     
     goto interp_success_exit;    
   }
@@ -3936,6 +3936,9 @@ static void interp_function(SQLFunctionCtx *pCtx) {
        || pCtx->end.key == INT64_MIN || pCtx->end.key < pCtx->startTs) {
         goto interp_exit;
       }
+
+      GET_TYPED_DATA(pCtx->start.val, double, pCtx->inputType, &pCtx->start.val);
+      GET_TYPED_DATA(pCtx->end.val, double, pCtx->inputType, &pCtx->end.val);
       
       SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
       SPoint point2 = {.key = pCtx->end.key, .val = &pCtx->end.val};
@@ -3954,7 +3957,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
         goto interp_exit;
       }
 
-      SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->start.val);
+      COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->start.val);
       break;
 
     case TSDB_FILL_NEXT:
@@ -3962,7 +3965,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
         goto interp_exit;
       }
     
-      SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)&pCtx->end.val);
+      COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->end.val);
       break;
 
     case TSDB_FILL_NONE:

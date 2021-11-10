@@ -1260,13 +1260,12 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
     if (functionId == TSDB_FUNC_INTERP) {
       if (type == RESULT_ROW_START_INTERP) {
         if (prevRowIndex == -1) {
-          GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[index]);
+          COPY_DATA(&pCtx[k].start.val, (char *)pRuntimeEnv->prevRow[index]);
         } else {
-          GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes);
+          COPY_DATA(&pCtx[k].start.val, (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes);
         }
       
         pCtx[k].start.key = prevTs;
-        pCtx[k].start.val = v1;
 
         if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
           if (prevRowIndex == -1) {
@@ -1278,13 +1277,12 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
       } else {
         if (curRowIndex == -1) {
-          GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[index]);
+          COPY_DATA(&pCtx[k].end.val, pRuntimeEnv->prevRow[index]);
         } else {
-          GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes);
+          COPY_DATA(&pCtx[k].end.val, (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes);
         }
       
         pCtx[k].end.key = curTs;
-        pCtx[k].end.val = v2;
 
         if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
           pCtx[k].end.ptr = (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes;
