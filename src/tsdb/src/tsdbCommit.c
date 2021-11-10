@@ -229,7 +229,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   SBlockIdx *pBlkIdx;
   size_t     nidx = taosArrayGetSize(pIdxA);
   int        tlen = 0, size;
-  int64_t    offset;
+  int64_t    offset = 0;
 
   if (nidx <= 0) {
     // All data are deleted

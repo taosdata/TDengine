@@ -729,17 +729,17 @@ Query OK, 1 row(s) in set (0.001091s)
 
 | **Operation** | **Note**                 | **Applicable Data Types**                 |
 | ------------- | ------------------------ | ----------------------------------------- |
-| >             | larger than              | **`timestamp`** and all numeric types     |
-| <             | smaller than             | **`timestamp`** and all numeric types     |
-| >=            | larger than or equal to  | **`timestamp`** and all numeric types     |
-| <=            | smaller than or equal to | **`timestamp`** and all numeric types     |
+| >             | larger than              | all types except bool                     |
+| <             | smaller than             | all types except bool                     |
+| >=            | larger than or equal to  | all types except bool                     |
+| <=            | smaller than or equal to | all types except bool                     |
 | =             | equal to                 | all types                                 |
 | <>            | not equal to             | all types                                 |
 | is [not] null | is null or is not null   | all types                                 |
-| between and   | within a certain range   | **`timestamp`** and all numeric types     |
+| between and   | within a certain range   | all types except bool                     |
 | in            | match any value in a set | all types except first column `timestamp` |
 | like          | match a wildcard string  | **`binary`** **`nchar`**                  |
-| match/nmatch  | filter regex             | **regex**                                 |
+| match/nmatch  | filter regex             | **`binary`** **`nchar`**                  |
 
 1. <> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 2. like 算子使用通配符字符串进行匹配检查。
@@ -766,15 +766,10 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **使用限制**
 
-   只能针对表名（即 tbname 筛选）和标签的名称和binary类型标签值 进行正则表达式过滤，不支持针对普通列使用正则表达式过滤。
-
-   只能在 WHERE 子句中作为过滤条件存在。
+   只能针对表名（即 tbname 筛选）、binary/nchar类型标签值进行正则表达式过滤，不支持普通列的过滤。
 
    正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
 
-   **嵌套查询支持**
-
-   可以在内层查询和外层查询中使用。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
 
 <a class="anchor" id="join"></a>
 ### JOIN 子句

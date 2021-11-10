@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node test/test.js && node test/testMicroseconds.js &&  node test/testNanoseconds.js"
+    "test": "node test/test.js && node test/testMicroseconds.js &&  node test/testNanoseconds.js && node test/testUnsignedType.js "
   },
   "repository": {
     "type": "git",
