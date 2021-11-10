@@ -19,6 +19,7 @@
 #include "mallocator.h"
 #include "sync.h"
 #include "tlockfree.h"
+#include "wal.h"
 
 #include "vnode.h"
 #include "vnodeAllocatorPool.h"
@@ -41,6 +42,7 @@ struct SVnode {
   SMeta*           pMeta;
   STsdb*           pTsdb;
   STQ*             pTq;
+  SWal*            pWal;
   SVnodeSync*      pSync;
   SVnodeFS*        pFs;
 };

@@ -13,22 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_IMPL_H_
-#define _TD_TSDB_IMPL_H_
-
-#include "os.h"
+#ifndef _TD_TSDB_MEM_TABLE_H_
+#define _TD_TSDB_MEM_TABLE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct STsdbOptions {
-  size_t lruCacheSize;
-  /* TODO */
-};
+typedef struct SMemTable SMemTable;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TSDB_IMPL_H_*/
+#endif /*_TD_TSDB_MEM_TABLE_H_*/

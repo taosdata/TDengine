@@ -16,15 +16,14 @@
 #ifndef _TD_TSDB_H_
 #define _TD_TSDB_H_
 
-#include "impl/tsdbImpl.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // TYPES EXPOSED
-typedef struct STsdb        STsdb;
-typedef struct STsdbOptions STsdbOptions;
+typedef struct STsdb             STsdb;
+typedef struct STsdbOptions      STsdbOptions;
+typedef struct STsdbMemAllocator STsdbMemAllocator;
 
 // STsdb
 STsdb *tsdbOpen(const char *path, const STsdbOptions *);
@@ -34,6 +33,12 @@ void   tsdbRemove(const char *path);
 // STsdbOptions
 int  tsdbOptionsInit(STsdbOptions *);
 void tsdbOptionsClear(STsdbOptions *);
+
+/* ------------------------ STRUCT DEFINITIONS ------------------------ */
+struct STsdbOptions {
+  uint64_t lruCacheSize;
+  /* TODO */
+};
 
 #ifdef __cplusplus
 }

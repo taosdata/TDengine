@@ -12,28 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_TSDB_DEF_H_
-#define _TD_TSDB_DEF_H_
-
-#include "mallocator.h"
-
-#include "tsdb.h"
-#include "tsdbMemTable.h"
-#include "tsdbOptions.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct STsdb {
-  char *             path;
-  STsdbOptions       options;
-  STsdbMemAllocator *pTMA;
-};
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_TSDB_DEF_H_*/
