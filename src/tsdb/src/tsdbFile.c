@@ -80,6 +80,7 @@ void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
   buf = tsdbDecodeMFInfo(buf, &(pMFile->info));
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pMFile), aname, TSDB_FILENAME_LEN);
+  *(TSDB_FILE_FULL_NAME(pMFile) + TSDB_FILENAME_LEN - 1) = '\0';
   TSDB_FILE_SET_CLOSED(pMFile);
 
   tfree(aname);
@@ -346,6 +347,7 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info), TSDB_LATEST_SFS_VER);
   buf = taosDecodeString(buf, &aname);
   strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
+  *(TSDB_FILE_FULL_NAME(pDFile) + TSDB_FILENAME_LEN - 1) = '\0';
   TSDB_FILE_SET_CLOSED(pDFile);
   tfree(aname);
 
