@@ -275,6 +275,8 @@ typedef struct RecordSchema_S {
 #endif
 
 static int64_t g_totalDumpOutRows = 0;
+static int64_t g_totalDumpInSuccess = 0;
+static int64_t g_totalDumpInFailed = 0;
 
 SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
@@ -2112,7 +2114,7 @@ void freeBindArray(char *bindArray, int onlyCol)
     }
 }
 
-static int dumpInOneAvroFile(char* fcharset,
+static int64_t dumpInOneAvroFile(char* fcharset,
         char* encode, char *avroFilepath)
 {
     debugPrint("avroFilepath: %s\n", avroFilepath);
@@ -2244,12 +2246,13 @@ static int dumpInOneAvroFile(char* fcharset,
             malloc(sizeof(TAOS_BIND) * onlyCol);
     assert(bindArray);
 
-    int success = 0;
-    int failed = 0;
+    int64_t success = 0;
+    int64_t failed = 0;
     while(!avro_file_reader_read_value(reader, &value)) {
         memset(bindArray, 0, sizeof(TAOS_BIND) * onlyCol);
         TAOS_BIND *bind;
 
+        int is_null = 1;
         for (int i = 0; i < recordSchema->num_fields; i++) {
             bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * i));
 
@@ -2258,7 +2261,6 @@ static int dumpInOneAvroFile(char* fcharset,
             FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct) * i);
 
             bind->is_null = NULL;
-            int is_null = 1;
             if (0 == i) {
                 int64_t *ts = malloc(sizeof(int64_t));
                 assert(ts);
@@ -2328,8 +2330,8 @@ static int dumpInOneAvroFile(char* fcharset,
                         bind->is_null = &is_null;
                     } else {
                         debugPrint("%f | ", *f);
-                        bind->buffer = f;
                     }
+                    bind->buffer = f;
                     bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
                     bind->buffer_length = sizeof(float);
                 } else if (0 == strcasecmp(tableDes->cols[i].type, "double")) {
@@ -2342,7 +2344,6 @@ static int dumpInOneAvroFile(char* fcharset,
                         bind->is_null = &is_null;
                     } else {
                         debugPrint("%f | ", *dbl);
-                        bind->buffer = dbl;
                     }
                     bind->buffer = dbl;
                     bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
@@ -2404,7 +2405,7 @@ static int dumpInOneAvroFile(char* fcharset,
     }
 
     if (0 != taos_stmt_execute(stmt)) {
-        errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
+        errorPrint("%s() LN%d taos_stmt_execute() failed! reason: %s\n",
                 __func__, __LINE__, taos_stmt_errstr(stmt));
         failed = success;
     }
@@ -2444,11 +2445,17 @@ static void* dumpInAvroWorkThreadFp(void *arg)
         sprintf(avroFile, "%s/%s", g_args.inpath,
                 g_tsDumpInAvroFiles[pThread->from + i]);
 
-        if (0 == dumpInOneAvroFile(g_tsCharset,
-                    g_args.encode,
-                    avroFile)) {
-            okPrint("[%d] Success dump in file: %s\n",
-                    pThread->threadIndex, avroFile);
+        int64_t rows = dumpInOneAvroFile(g_tsCharset,
+                g_args.encode,
+                avroFile);
+        if (rows >= 0) {
+            g_totalDumpInSuccess += rows;
+            okPrint("[%d] %"PRId64" rows of file(%s) be successfully dumped in!\n",
+                    pThread->threadIndex, rows, avroFile);
+        } else {
+            g_totalDumpInFailed += rows;
+            errorPrint("[%d] %"PRId64" rows of file(%s) failed to dumped in!\n",
+                    pThread->threadIndex, rows, avroFile);
         }
     }
 
@@ -2457,8 +2464,6 @@ static void* dumpInAvroWorkThreadFp(void *arg)
 
 static int64_t dumpInAvroWorkThreads()
 {
-    int64_t ret = 0;
-
     int32_t threads = g_args.thread_num;
 
     uint64_t avroFileCount = getFilesNum("avro");
@@ -2518,7 +2523,11 @@ static int64_t dumpInAvroWorkThreads()
 
     freeFileList(g_tsDumpInAvroFiles, avroFileCount);
 
-    return ret;
+    if (g_totalDumpInFailed < 0) {
+        return g_totalDumpInFailed;
+    }
+
+    return g_totalDumpInSuccess;
 }
 
 #endif /* AVRO_SUPPORT */
@@ -3944,6 +3953,7 @@ int main(int argc, char *argv[]) {
     printf("isDumpIn: %d\n", g_args.isDumpIn);
     printf("arg_list_len: %d\n", g_args.arg_list_len);
     printf("debug_print: %d\n", g_args.debug_print);
+    fflush(stdout);
 
     for (int32_t i = 0; i < g_args.arg_list_len; i++) {
         if (g_args.databases || g_args.all_databases) {
@@ -4004,6 +4014,7 @@ int main(int argc, char *argv[]) {
     for (int32_t i = 0; i < g_args.arg_list_len; i++) {
         fprintf(g_fpOfResult, "arg_list[%d]: %s\n", i, g_args.arg_list[i]);
     }
+    fprintf(g_fpOfResult, "debug_print: %d\n", g_args.debug_print);
 
     g_numOfCores = (int32_t)sysconf(_SC_NPROCESSORS_ONLN);
 
@@ -4015,9 +4026,13 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "# DumpIn start time:                   %d-%02d-%02d %02d:%02d:%02d\n",
                 tm.tm_year + 1900, tm.tm_mon + 1,
                 tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        if (dumpIn() < 0) {
+        int64_t rows = dumpIn();
+        if (rows < 0) {
             errorPrint("%s\n", "dumpIn() failed!");
             ret = -1;
+        } else {
+            okPrint("%"PRId64" dumped in!\n", rows);
+            ret = 0;
         }
     } else {
         fprintf(g_fpOfResult, "============================== DUMP OUT ============================== \n");
