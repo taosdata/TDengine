@@ -1085,30 +1085,26 @@ public class RestfulDatabaseMetaDataTest {
     }
 
     @BeforeClass
-    public static void beforeClass() {
-        try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            connection = DriverManager.getConnection(url, properties);
-            metaData = connection.getMetaData().unwrap(RestfulDatabaseMetaData.class);
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public static void beforeClass() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        connection = DriverManager.getConnection(url, properties);
+        Statement stmt = connection.createStatement();
+        stmt.execute("drop database if exists log");
+        stmt.execute("create database if not exists log precision 'us'");
+        stmt.execute("use log");
+        stmt.execute("create table `dn` (ts TIMESTAMP,cpu_taosd FLOAT,cpu_system FLOAT,cpu_cores INT,mem_taosd FLOAT,mem_system FLOAT,mem_total INT,disk_used FLOAT,disk_total INT,band_speed FLOAT,io_read FLOAT,io_write FLOAT,req_http INT,req_select INT,req_insert INT) TAGS (dnodeid INT,fqdn BINARY(128))");
+        stmt.execute("insert into dn1 using dn tags(1,'a') (ts) values(now)");
+
+        metaData = connection.getMetaData().unwrap(RestfulDatabaseMetaData.class);
     }
 
     @AfterClass
-    public static void afterClass() {
-        try {
-            if (connection != null)
-                connection.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public static void afterClass() throws SQLException {
+        if (connection != null)
+            connection.close();
     }
 
 }

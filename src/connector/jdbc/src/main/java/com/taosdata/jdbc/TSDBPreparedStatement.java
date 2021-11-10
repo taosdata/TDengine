@@ -980,8 +980,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void close() throws SQLException {
-        this.columnDataClearBatchInternal();
-        this.columnDataCloseBatch();
+        if (this.nativeStmtHandle != 0L) {
+            this.columnDataClearBatchInternal();
+            this.columnDataCloseBatch();
+        }
         super.close();
     }
 }

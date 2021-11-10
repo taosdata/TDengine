@@ -543,15 +543,6 @@ public class SQLTest {
         Assert.assertNotNull(rs);
     }
 
-    @Test
-    public void testCase053() {
-        String sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn1 where ts> now - 60m and ts<= now interval(1m) fill(value, 0)";
-        // when
-        ResultSet rs = executeQuery(connection, sql);
-        // then
-        Assert.assertNotNull(rs);
-    }
-
     private boolean execute(Connection connection, String sql) {
         try (Statement statement = connection.createStatement()) {
             return statement.execute(sql);
