@@ -142,7 +142,7 @@ pipeline {
           }
       }
   //     stage('Parallel test stage') {
-
+  //     skip defaultCheckout 
   //       options { skipDefaultCheckout() } 
   //       when {
   //         allOf{
