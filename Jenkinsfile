@@ -3,7 +3,7 @@ import hudson.model.*;
 import jenkins.model.CauseOfInterruption
 properties([pipelineTriggers([githubPush()])])
 node {
-    // git url: 'https://github.com/taosdata/TDengine.git'
+    git url: 'https://github.com/taosdata/TDengine.git'
 }
 
 def skipbuild=0
