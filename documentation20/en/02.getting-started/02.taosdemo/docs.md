@@ -154,7 +154,7 @@ The complete list of taosdemo command-line arguments can be displayed via taosde
 ```
 $ taosdemo --help
 
--f, --file=FILE The meta file to the execution procedure.
+-f, --file=FILE The meta file to the execution procedure. Recommend UTF-8 instead of UTF-8 with BOM.
 -u, --user=USER The user name to use when connecting to the server.
 -p, --password The password to use when connecting to the server.
 -c, --config-dir=CONFIG_DIR Configuration directory.

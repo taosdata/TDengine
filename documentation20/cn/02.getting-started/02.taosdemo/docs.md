@@ -145,7 +145,7 @@ insert delay, avg:       8.31ms, max:     860.12ms, min:       2.00ms
 ```
 $ taosdemo --help
 
--f, --file=FILE The meta file to the execution procedure.
+-f, --file=FILE The meta file to the execution procedure. Recommend UTF-8 instead of UTF-8 with BOM.
 -u, --user=USER The user name to use when connecting to the server.
 -p, --password The password to use when connecting to the server.
 -c, --config-dir=CONFIG_DIR Configuration directory.
@@ -442,7 +442,7 @@ TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维�
 taosdemo支持两种配置参数的模式，一种是命令行参数，一种是使用json格式的配置文件。
 一、命令行参数
 
--f：指定taosdemo所需参数的meta文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是NULL。
+-f：指定taosdemo所需参数的meta文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是NULL。建议UTF-8而不是带BOM的UTF-8。
 
 -u： 用户名。可选项，缺省是“root“。
 
