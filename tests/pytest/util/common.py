@@ -13,6 +13,7 @@
 
 import random
 import string
+import os
 from util.sql import tdSql
 from util.dnodes import tdDnodes
 class TDCom:
@@ -82,6 +83,14 @@ class TDCom:
             else:
                 letters += i
         return nums, letters
+
+    def smlPass(self, func):
+        def wrapper(*args):
+            if tdSql.getVariable("smlChildTableName")[0].upper() == "ID":
+                return func(*args)
+            else:
+                pass
+        return wrapper
 
     def close(self):
         self.cursor.close()
