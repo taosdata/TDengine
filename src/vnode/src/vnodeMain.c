@@ -117,7 +117,7 @@ int32_t vnodeDrop(int32_t vgId) {
 int32_t vnodeCompact(int32_t vgId) {
   void *pVnode = vnodeAcquire(vgId);
   if (pVnode != NULL) {
-    vDebug("vgId:%d, compact vnode msg is received", vgId);
+    printf("vgId:%d, compact vnode msg is received\n", vgId);
     //not care success or not
     tsdbCompact(((SVnodeObj*)pVnode)->tsdb);  
     vnodeRelease(pVnode);
@@ -125,17 +125,31 @@ int32_t vnodeCompact(int32_t vgId) {
     vInfo("vgId:%d, vnode not exist, can't compact it", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
+  printf("vgId:%d, compact vnode msg is finished\n", vgId);
   return TSDB_CODE_SUCCESS;  
 }
 
 int32_t vnodeTruncate(STruncateTblMsg *pMsg) {
-  int32_t vgId = pMsg->vgId;
+  // build test data
+  // pMsg->vgId = 2;
+  // pMsg->uid = 562949986978701;
+  // pMsg->nSpan = 1;
+  // pMsg->span = malloc(pMsg->nSpan * sizeof(STimeWindow));
+
+    int32_t vgId = 2;
   void *  pVnode = vnodeAcquire(vgId);
   if (pVnode != NULL) {
     vDebug("vgId:%d, truncate table %s msg is received", vgId, pMsg->tableFname);
     // not care success or not
-    void *param = NULL;
-    tsdbTruncate(((SVnodeObj *)pVnode)->tsdb, param);
+    STruncateTblMsg *param = (STruncateTblMsg *)calloc(1, sizeof(STruncateTblMsg) + pMsg->nSpan * sizeof(STimeWindow));
+    param->vgId = 2;
+    param->uid = 562949986978794;
+    param->nSpan = 1;
+    param->span[0].skey = 0;
+    param->span[0].ekey = 1;
+    if (tsdbTruncate(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
+      tfree(param);
+    }
     vnodeRelease(pVnode);
   } else {
     vInfo("vgId:%d, vnode not exist, can't truncate table %s in it", vgId, pMsg->tableFname);

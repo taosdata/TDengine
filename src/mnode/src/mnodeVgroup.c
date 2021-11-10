@@ -836,9 +836,9 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
     *(int8_t *)pWrite = pVgroup->compact; 
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pVgroup->truncate;
-    cols++;
+    // pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    // *(int8_t *)pWrite = pVgroup->truncate;
+    // cols++;
 
     mnodeDecVgroupRef(pVgroup);
     numOfRows++;
