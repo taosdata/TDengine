@@ -419,18 +419,46 @@ or
 
  `pip3 install src/connector/python/`
 
+You can install the `taospy` connector from [PyPI](https://pypi.org/project/taospy/):
+
+```sh
+pip install taospy
+```
+
 #### Windows
 
-With Windows TDengine client installed, copy the file "C:\TDengine\driver\taos.dll" to the "C:\ windows\ system32" directory and enter the Windows <em>cmd</em> command line interface:
+With Windows TDengine client installed, copy the file "C:\TDengine\driver\taos.dll" to the "C:\Windows\system32" directory and enter the Windows *cmd* command line interface:
 
 ```cmd
 cd C:\TDengine\connector\python
 python -m pip install .
 ```
 
+Or install from PyPI:
+
+```cmd
+pip install taospy
+```
+
 - If there is no `pip` command on the machine, the user can copy the taos folder under src/connector/python to the application directory for use. For Windows client, after installing the TDengine Windows client, copy C:\ TDengine\driver\taos.dll to the C:\ windows\ system32 directory.
 
 ### How to use
+
+#### PEP-249 Python Database API
+
+Definitely you can use the [PEP-249](https://www.python.org/dev/peps/pep-0249/) database API like other type of databases:
+
+```python
+import taos
+
+conn = taos.connect()
+cursor = conn.cursor()
+
+cursor.execute("show databases")
+results = cursor.fetchall()
+for row in results:
+    print(row)
+```
 
 #### Code sample
 
@@ -488,6 +516,44 @@ for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
 ```
 
+- Since v2.1.0, python connector provides a new API for query:
+
+```python
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists pytest")
+
+result = conn.query("show databases")
+num_of_fields = result.field_count
+for field in result.fields:
+    print(field)
+for row in result:
+    print(row)
+conn.execute("drop database pytest")
+```
+
+The `query` method returns `TaosResult` class. It provides high level APIs for convenient use:
+
+Properties:
+
+- `fields`: the `TaosFields` object contains the column metadata, given the collection of each column field metadata by iterator.
+- `field_count`: column number of result.
+- `affected_rows`: the rows completed for insert.
+- `row_count`: the rows number for select.
+- `precision`: the result precision.
+
+Functions:
+
+- `fetch_all()`: get all data as tuple array.
+- `fetch_all_into_dict()`: get all data as dict array, added since v2.1.1
+- `blocks_iter()`: provides iterator by C `taos_fetch_blocks` API
+- `rows_iter()`: provides iterator by C `taos_fetch_row` API
+- `fetch_rows_a`: fetch rows by async API in taosc.
+- `errno`: error code if failed.
+- `errstr`: error string if failed.
+- `close`: close result, you do not need to call it directly, result will auto closed out of scope.
+
 - Create subscription
 
 ```python
@@ -509,6 +575,7 @@ for d in data:
 ```python
 sub.close()
 ```
+
 
 - Close connection
 

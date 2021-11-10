@@ -414,6 +414,19 @@ bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscGroupbyTag(SQueryInfo* pQueryInfo) {
+  SGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (TSDB_COL_IS_TAG(pIndex->flag)) {  // group by tag
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
 
@@ -1256,6 +1269,7 @@ static void createInputDataFilterInfo(SQueryInfo* px, int32_t numOfCol1, int32_t
 }
 */
 
+
 void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pSql) {
   SSqlRes* pOutput = &pSql->res;
 
@@ -1270,6 +1284,28 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
         .numOfTables = 1,
         .pGroupList = taosArrayInit(1, POINTER_BYTES),
     };
+
+    SUdfInfo* pUdfInfo = NULL;
+    
+    size_t size = tscNumOfExprs(px);
+    for (int32_t j = 0; j < size; ++j) {
+      SExprInfo* pExprInfo = tscExprGet(px, j);
+
+      int32_t functionId = pExprInfo->base.functionId;
+      if (functionId < 0) {
+        if (pUdfInfo) {
+          pSql->res.code = tscInvalidOperationMsg(pSql->cmd.payload, "only one udf allowed", NULL);
+          return;
+        }
+        
+        pUdfInfo = taosArrayGet(px->pUdfInfo, -1 * functionId - 1);
+        int32_t code = initUdfInfo(pUdfInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          pSql->res.code = code;
+          return;
+        }
+      }
+    }
 
     tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
@@ -1352,6 +1388,9 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
     px->pQInfo = createQInfoFromQueryNode(px, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN, pSql->self);
 
+    px->pQInfo->runtimeEnv.udfIsCopy = true;
+    px->pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
+    
     tfree(pColumnInfo);
     tfree(schema);
 
@@ -4800,9 +4839,14 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         functionId = TSDB_FUNC_STDDEV;
       }
 
+      SUdfInfo* pUdfInfo = NULL;
+      if (functionId < 0) {
+         pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
+      }
+
       int32_t inter = 0;
       getResultDataInfo(pSource->base.colType, pSource->base.colBytes, functionId, 0, &pse->resType,
-          &pse->resBytes, &inter, 0, false, NULL);
+          &pse->resBytes, &inter, 0, false, pUdfInfo);
       pse->colType  = pse->resType;
       pse->colBytes = pse->resBytes;
 
@@ -5095,7 +5139,6 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
 
   if (nextStr == NULL) {
     tstrncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
-    len = (int32_t) strlen(tablename);
   } else {
     len = (int32_t)(nextStr - (*str));
     if (len >= TSDB_TABLE_NAME_LEN) {

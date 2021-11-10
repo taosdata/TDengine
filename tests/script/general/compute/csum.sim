@@ -88,6 +88,88 @@ sql select csum(tbcol) as b from $tb where ts <= $ms interval(1m) -x step6
   return -1
 step6:
 
+print =============== csum result overflow follow sum behavior
+sql create table overflow(ts timestamp, c1 bigint)
+sql insert into overflow values(now-1s, NULL)(now, 9223372036854775807)(now+1s, 9223372036854775807)
+sql select csum(c1) from overflow
+print $data00 , $data01, $data10, $data11
+if $data01 != 9223372036854775807 then
+  return -1
+endi
+if $data11 != -2 then
+  return -1
+endi
+
+print ==========>TD10758
+sql create stable st(ts timestamp, c1 int) tags(t int);
+sql create table ct1 using st tags(1)
+sql insert into ct1 values(now, 1)(now+1s, 2)(now+2s, 3)
+sql select csum(c1),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select csum(c1),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select diff(c1),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select diff(c1),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select mavg(c1,2),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select mavg(c1,2),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select derivative(c1,1s,0),ts,tbname,t from ct1
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+sql select derivative(c1,1s,0),ts,tbname,t from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+
+
 print =============== clear
 sql drop database $db
 sql show databases

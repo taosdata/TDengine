@@ -204,7 +204,6 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", disk_used float, disk_total int"
              ", band_speed float"
              ", io_read float, io_write float"
-             ", io_read_rate float, io_write_rate float"
              ", req_http int, req_select int, req_insert int"
              ") tags (dnodeid int, fqdn binary(%d))",
              tsMonitorDbName, TSDB_FQDN_LEN);
@@ -326,10 +325,7 @@ static int32_t monBuildIoSql(char *sql) {
     monDebug("failed to get io info");
   }
 
-  float readRate = readKB/tsMonitorInterval;
-  float writeRate = writeKB/tsMonitorInterval;
-
-  return sprintf(sql, ", %f, %f, %f, %f", readKB, writeKB, readRate, writeRate);
+  return sprintf(sql, ", %f, %f", readKB, writeKB);
 }
 
 static void monSaveSystemInfo() {

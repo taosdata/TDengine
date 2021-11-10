@@ -32,20 +32,20 @@ if command -v sudo > /dev/null; then
 fi
 
 function cp_rpm_package() {
-local cur_dir
-cd $1
-cur_dir=$(pwd)
+    local cur_dir
+    cd $1
+    cur_dir=$(pwd)
 
-for dirlist in $(ls ${cur_dir}); do
-  if test -d ${dirlist}; then
-    cd ${dirlist}
-    cp_rpm_package ${cur_dir}/${dirlist}
-    cd ..
-  fi
-  if test -e ${dirlist}; then
-    cp ${cur_dir}/${dirlist} ${output_dir}/TDengine-${tdengine_ver}.rpm
-  fi
-done
+    for dirlist in "$(ls ${cur_dir})"; do
+        if test -d ${dirlist}; then
+            cd ${dirlist}
+            cp_rpm_package ${cur_dir}/${dirlist}
+            cd ..
+        fi
+        if test -e ${dirlist}; then
+            cp ${cur_dir}/${dirlist} ${output_dir}/TDengine-${tdengine_ver}.rpm
+        fi
+    done
 }
 
 if [ -d ${pkg_dir} ]; then
@@ -55,6 +55,10 @@ ${csudo} mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
 ${csudo} mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
+
+if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
+    sed -i.bak 's/#Requires:/Requires: jansson snappy/g' ${spec_file}
+fi
 
 ${csudo} rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
 

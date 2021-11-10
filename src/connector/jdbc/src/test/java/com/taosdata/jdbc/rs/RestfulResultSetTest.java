@@ -660,7 +660,6 @@ public class RestfulResultSetTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
             stmt = conn.createStatement();
             stmt.execute("create database if not exists restful_test");
@@ -670,7 +669,7 @@ public class RestfulResultSetTest {
             stmt.execute("insert into restful_test.weather values('2021-01-01 00:00:00.000', 1, 100, 3.1415, 3.1415926, 'abc', 10, 10, true, '涛思数据')");
             rs = stmt.executeQuery("select * from restful_test.weather");
             rs.next();
-        } catch (ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
             e.printStackTrace();
         }
 
