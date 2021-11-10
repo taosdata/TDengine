@@ -487,11 +487,11 @@ select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_option(K) sl
 
 select(A) ::= LP select(B) RP. {A = B;}
 
-%type union {SArray*}
+%type union {SSubclause*}
 %destructor union {destroyAllSqlNode($$);}
 union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
-union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
-
+union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, SQL_TYPE_UNIONALL, X);  }
+union(Y) ::= union(Z) UNION select(X).     { Y = appendSelectClause(Z, SQL_TYPE_UNION, X);  }
 cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 
 // Support for the SQL exprssion without from & where subclauses, e.g.,

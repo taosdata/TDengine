@@ -182,7 +182,7 @@ void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int
 
 SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index) {
   assert(pQueryInfo != NULL && pQueryInfo->exprList && index >= 0);
-  return taosArrayGetP(getCurrentExprList(pQueryInfo->exprList), index);
+  return taosArrayGetP(getCurrentExprList(pQueryInfo), index);
 }
 
 void destroyExprInfo(SExprInfo* pExprInfo) {

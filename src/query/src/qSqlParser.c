@@ -556,11 +556,11 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, SStrToken* pAlias) {
   if (pRelationInfo == NULL) {
     pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElement));
   }
 
-  pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
-  SRelElementPair p = {.tableName = *pName};
+  pRelationInfo->type = SQL_FROM_NODE_TABLES;
+  SRelElement p = {.tableName = *pName};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -576,7 +576,7 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
     return NULL;
   }
 
-  if (pRelationInfo->type == SQL_NODE_FROM_TABLELIST) {
+  if (pRelationInfo->type == SQL_FROM_NODE_TABLES) {
     taosArrayDestroy(pRelationInfo->list);
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
@@ -594,12 +594,12 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
 SRelationInfo* addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias) {
   if (pRelationInfo == NULL) {
     pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElement));
   }
 
-  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+  pRelationInfo->type = SQL_FROM_NODE_SUBQUERY;
 
-  SRelElementPair p = {.pSubquery = pSub};
+  SRelElement p = {.pSubquery = pSub};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -972,6 +972,7 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
 
 SArray* setSubclause(SArray* pList, void *pSqlNode) {
   if (pList == NULL) {
+
     pList = taosArrayInit(1, POINTER_BYTES);
   }
   

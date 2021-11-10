@@ -82,12 +82,12 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
   int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
 
   for (int32_t j = 0; j < numOfSub; ++j) {
-    SRelElementPair* sub = taosArrayGet(pSqlNode->from->list, j);
+    SRelElement* sub = taosArrayGet(pSqlNode->from->list, j);
 
-    int32_t num = (int32_t)taosArrayGetSize(sub->pSubquery);
+    int32_t num = (int32_t)taosArrayGetSize(sub->pSubquery->node);
     for (int32_t i = 0; i < num; ++i) {
-      SSqlNode* p = taosArrayGetP(sub->pSubquery, i);
-      if (p->from->type == SQL_NODE_FROM_TABLELIST) {
+      SSqlNode* p = taosArrayGetP(sub->pSubquery->node, i);
+      if (p->from->type == SQL_FROM_NODE_TABLES) {
         int32_t code = getTableNameFromSqlNode(p, tableNameList, pMsgBuf);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -105,10 +105,10 @@ int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, SMsgB
   const char* msg1 = "invalid table name";
 
   int32_t numOfTables = (int32_t) taosArrayGetSize(pSqlNode->from->list);
-  assert(pSqlNode->from->type == SQL_NODE_FROM_TABLELIST);
+  assert(pSqlNode->from->type == SQL_FROM_NODE_TABLES);
 
   for(int32_t j = 0; j < numOfTables; ++j) {
-    SRelElementPair* item = taosArrayGet(pSqlNode->from->list, j);
+    SRelElement* item = taosArrayGet(pSqlNode->from->list, j);
 
     SToken* t = &item->tableName;
     if (t->type == TK_INTEGER || t->type == TK_FLOAT || t->type == TK_STRING) {
@@ -138,15 +138,15 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
   pMetaInfo->pTableName = taosArrayInit(4, sizeof(SName));
   pMetaInfo->pUdf = taosArrayInit(4, POINTER_BYTES);
 
-  size_t size = taosArrayGetSize(pSqlInfo->list);
+  size_t size = taosArrayGetSize(pSqlInfo->sub.node);
   for (int32_t i = 0; i < size; ++i) {
-    SSqlNode* pSqlNode = taosArrayGetP(pSqlInfo->list, i);
+    SSqlNode* pSqlNode = taosArrayGetP(pSqlInfo->sub.node, i);
     if (pSqlNode->from == NULL) {
       return buildInvalidOperationMsg(&msgBuf, "invalid from clause");
     }
 
     // load the table meta in the FROM clause
-    if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
+    if (pSqlNode->from->type == SQL_FROM_NODE_TABLES) {
       code = getTableNameFromSqlNode(pSqlNode, pMetaInfo->pTableName, &msgBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;

@@ -268,11 +268,11 @@ void destroyQueryInfo(SQueryStmtInfo* pQueryInfo) {
 }
 
 static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
-  SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, index);
+  SRelElement* subInfo = taosArrayGet(pSqlNode->from->list, index);
 
   // union all is not support currently
-  SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
-  if (taosArrayGetSize(subInfo->pSubquery) >= 2) {
+  SSqlNode* p = taosArrayGetP(subInfo->pSubquery->node, 0);
+  if (taosArrayGetSize(subInfo->pSubquery->node) >= 2) {
     return buildInvalidOperationMsg(pMsgBuf, "not support union in subquery");
   }
 
@@ -804,6 +804,7 @@ int32_t validateSessionNode(SQueryStmtInfo *pQueryInfo, SSessionWindowVal* pSess
 
   SSchema* pSchema = getOneColumnSchema(pTableMeta, index.columnIndex);
   pQueryInfo->sessionWindow.col = createColumn(pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, index.type, pSchema);
+  pQueryInfo->info.sessionWindow = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1401,13 +1402,13 @@ int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf*
 //    return doLocalQueryProcess(pCmd, pQueryInfo, pSqlNode);
   }
 
-  if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+  if (pSqlNode->from->type == SQL_FROM_NODE_SUBQUERY) {
     pQueryInfo->numOfTables = 0;
 
     // parse the subquery in the first place
     int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
     for (int32_t i = 0; i < numOfSub; ++i) {
-      SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, i);
+      SRelElement* subInfo = taosArrayGet(pSqlNode->from->list, i);
       code = doValidateSubquery(pSqlNode, i, pQueryInfo, pMsgBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -1574,7 +1575,8 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
   const char* msg5 = "scalar function can not be used in time window query";
   const char* msg6 = "not support distinct mixed with join";
   const char* msg7 = "not support distinct mixed with groupby";
-  const char* msg8 = "_block_dist not support subquery, only support stable/table";
+  const char* msg8 = "block_dist not support subquery, only support stable/table";
+  const char* msg9 = "time window aggregate can not be mixed up with group by column";
 
   if (pQueryInfo->info.topbotQuery) {
 
@@ -1656,6 +1658,15 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
    * nested subquery not support block_dist query
    * select block_dist() from (select * from table_name)
    */
+
+  /*
+   * 8. invalid sql:
+   * select count(*) from table_name [interval(10s)|session(ts, 10s)|state_window(col_name)] group by col_name
+   */
+  if ((pQueryInfo->info.timewindow || pQueryInfo->info.stateWindow || pQueryInfo->info.sessionWindow) &&
+      pQueryInfo->info.groupbyColumn) {
+    return buildInvalidOperationMsg(pMsgBuf, msg9);
+  }
 }
 
 static int32_t resColId = 5000;
@@ -3790,7 +3801,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 
-        if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+        if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_FROM_NODE_SUBQUERY) {
           return setInvalidOperatorMsg(pMsgBuf, msg1);
         }
 
@@ -3895,9 +3906,9 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
   SMsgBuf buf = {.buf = msgBuf, .len = msgBufLen};
 
-  size_t len = taosArrayGetSize(pInfo->list);
+  size_t len = taosArrayGetSize(pInfo->sub.node);
   for(int32_t i = 0; i < len; ++i) {
-    SSqlNode* p = taosArrayGetP(pInfo->list, i);
+    SSqlNode* p = taosArrayGetP(pInfo->sub.node, i);
     code = evaluateSqlNode(p, pTableMeta->tableInfo.precision, &buf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -3905,7 +3916,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   }
 
   for(int32_t i = 0; i < len; ++i) {
-    SSqlNode* p = taosArrayGetP(pInfo->list, i);
+    SSqlNode* p = taosArrayGetP(pInfo->sub.node, i);
     validateSqlNode(p, pQueryInfo, &buf);
   }
 
@@ -3916,6 +3927,5 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
     return code;
   }
 
-  // convert the sqlnode into queryinfo
   return code;
 }

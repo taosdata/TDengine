@@ -75,7 +75,7 @@ void sqlCheck(const char* sql, bool valid) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -87,7 +87,7 @@ void sqlCheck(const char* sql, bool valid) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
 
   if (valid) {
@@ -112,7 +112,7 @@ TEST(testCase, validateAST_test) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -124,7 +124,7 @@ TEST(testCase, validateAST_test) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
 
   SArray* pExprList = pQueryInfo->exprList[0];
@@ -170,7 +170,7 @@ TEST(testCase, function_Test) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -182,7 +182,7 @@ TEST(testCase, function_Test) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
 
   SArray* pExprList = pQueryInfo->exprList[0];
@@ -216,7 +216,7 @@ TEST(testCase, function_Test2) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -228,7 +228,7 @@ TEST(testCase, function_Test2) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
 
   SArray* pExprList = pQueryInfo->exprList[0];
@@ -262,7 +262,7 @@ TEST(testCase, function_Test3) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -274,7 +274,7 @@ TEST(testCase, function_Test3) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
 
   SArray* pExprList = pQueryInfo->exprList[0];
@@ -307,7 +307,7 @@ TEST(testCase, function_Test4) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -319,7 +319,7 @@ TEST(testCase, function_Test4) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
 
   SArray* pExprList = pQueryInfo->exprList[0];
@@ -355,7 +355,7 @@ TEST(testCase, function_Test5) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -367,7 +367,7 @@ TEST(testCase, function_Test5) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_EQ(ret, 0);
 
@@ -410,6 +410,8 @@ TEST(testCase, function_Test10) {
   sqlCheck("select length(length(length(a))) from `t.1abc`", true);
   sqlCheck("select count() from `t.1abc`", false);
   sqlCheck("select block_dist() from `t.1abc`", true);
+  sqlCheck("select block_dist(a) from `t.1abc`", false);
+  sqlCheck("select count(*) from `t.1abc` interval(1s) group by a", false);
 }
 
 TEST(testCase, function_Test6) {
@@ -422,7 +424,7 @@ TEST(testCase, function_Test6) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -434,7 +436,7 @@ TEST(testCase, function_Test6) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_EQ(ret, 0);
 
@@ -492,7 +494,7 @@ TEST(testCase, function_Test6) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -504,7 +506,7 @@ TEST(testCase, function_Test6) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_EQ(ret, 0);
 
@@ -551,7 +553,7 @@ TEST(testCase, function_Test6) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -563,7 +565,7 @@ TEST(testCase, function_Test6) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_EQ(ret, 0);
 
@@ -601,7 +603,7 @@ TEST(testCase, function_Test6) {
   info1 = doGenerateAST("select sum(length(a)+length(b)) from `t.1abc` interval(10s, 1s)");
   ASSERT_EQ(info1.valid, true);
 
-  pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -612,7 +614,7 @@ TEST(testCase, function_Test6) {
   pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_EQ(ret, 0);
 
@@ -630,7 +632,7 @@ TEST(testCase, function_Test6) {
   SSqlInfo info1 = doGenerateAST("select count(k) from `t.1abc` interval(10s, 1s)");
   ASSERT_EQ(info1.valid, true);
 
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -642,7 +644,7 @@ TEST(testCase, function_Test6) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_NE(ret, 0);
 
@@ -653,7 +655,7 @@ TEST(testCase, function_Test6) {
   info1 = doGenerateAST("select top(a*b, ABC) from `t.1abc` interval(10s, 1s)");
   ASSERT_EQ(info1.valid, true);
 
-  pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -664,7 +666,7 @@ TEST(testCase, function_Test6) {
   pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_NE(ret, 0);
 

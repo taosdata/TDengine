@@ -235,11 +235,12 @@ typedef struct SMultiFunctionsDesc {
   bool hasFilter;
   bool onlyTagQuery;
   bool orderProjectQuery;
-  bool stateWindow;
   bool globalMerge;
   bool multigroupResult;
   bool blockDistribution;
+  bool stateWindow;
   bool timewindow;
+  bool sessionWindow;
   bool topbotQuery;
   bool interpQuery;
   bool distinct;
