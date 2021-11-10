@@ -25,7 +25,7 @@
 
 static char **shellSQLFiles = NULL;
 static int32_t shellSQLFileNum = 0;
-static char shellTablesSQLFile[TSDB_FILENAME_LEN] = {0};
+static char shellTablesSQLFile[4096] = {0};
 
 typedef struct {
   pthread_t threadID;
