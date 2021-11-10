@@ -3956,7 +3956,7 @@ static void toSSDataBlock(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv* pRunti
   }
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t orderType = (pQueryAttr->pGroupbyExpr != NULL) ? pQueryAttr->pGroupbyExpr->orderType : TSDB_ORDER_ASC;
+  int32_t orderType = TSDB_ORDER_ASC;//(pQueryAttr->pGroupbyExpr != NULL) ? pQueryAttr->pGroupbyExpr->orderType : TSDB_ORDER_ASC;
   doCopyToSDataBlock(pRuntimeEnv, pGroupResInfo, orderType, pBlock);
 
   // refactor : extract method
@@ -7090,16 +7090,16 @@ static bool validateQueryMsg(SQueryTableMsg *pQueryMsg) {
     return false;
   }
 
-  if (pQueryMsg->sw.gap < 0 || pQueryMsg->sw.primaryColId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+//  if (pQueryMsg->sw.gap < 0 || pQueryMsg->sw.primaryColId != PRIMARYKEY_TIMESTAMP_COL_ID) {
     //qError("qmsg:%p illegal value of session window time %" PRId64, pQueryMsg, pQueryMsg->sw.gap);
-    return false;
-  }
+//    return false;
+//  }
 
-  if (pQueryMsg->sw.gap > 0 && pQueryMsg->interval.interval > 0) {
+//  if (pQueryMsg->sw.gap > 0 && pQueryMsg->interval.interval > 0) {
     //qError("qmsg:%p illegal value of session window time %" PRId64" and interval value %"PRId64, pQueryMsg,
 //        pQueryMsg->sw.gap, pQueryMsg->interval.interval);
-    return false;
-  }
+//    return false;
+//  }
 
   if (pQueryMsg->numOfTables <= 0) {
     //qError("qmsg:%p illegal value of numOfTables %d", pQueryMsg, pQueryMsg->numOfTables);
@@ -7245,8 +7245,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->secondStageOutput = htonl(pQueryMsg->secondStageOutput);
   pQueryMsg->sqlstrLen = htonl(pQueryMsg->sqlstrLen);
   pQueryMsg->prevResultLen = htonl(pQueryMsg->prevResultLen);
-  pQueryMsg->sw.gap = htobe64(pQueryMsg->sw.gap);
-  pQueryMsg->sw.primaryColId = htonl(pQueryMsg->sw.primaryColId);
+//  pQueryMsg->sw.gap = htobe64(pQueryMsg->sw.gap);
+//  pQueryMsg->sw.primaryColId = htonl(pQueryMsg->sw.primaryColId);
   pQueryMsg->tableScanOperator = htonl(pQueryMsg->tableScanOperator);
   pQueryMsg->numOfOperator = htonl(pQueryMsg->numOfOperator);
   pQueryMsg->udfContentOffset = htonl(pQueryMsg->udfContentOffset);
@@ -8045,7 +8045,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->tagColList      = pTagCols;
   pQueryAttr->prjInfo.vgroupLimit = pQueryMsg->vgroupLimit;
   pQueryAttr->prjInfo.ts      = (pQueryMsg->order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
-  pQueryAttr->sw              = pQueryMsg->sw;
+//  pQueryAttr->sw              = pQueryMsg->sw;
   pQueryAttr->vgId            = vgId;
 
   pQueryAttr->stableQuery     = pQueryMsg->stableQuery;
