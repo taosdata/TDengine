@@ -16,10 +16,11 @@
 #ifndef _TD_VNODE_WRITE_H_
 #define _TD_VNODE_WRITE_H_
 
+#include "vnode.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
 void vnodeProcessWriteMsg(SVnode* pVnode, SVnodeMsg* pMsg);
 
