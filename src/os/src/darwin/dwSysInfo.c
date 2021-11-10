@@ -219,6 +219,12 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
+bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
+  *netInKb = 0;
+  *netOutKb = 0;
+  return true;
+}
+
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   *sysCpuUsage = 0;
   *procCpuUsage = 0;

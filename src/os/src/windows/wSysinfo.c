@@ -169,6 +169,12 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
+bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
+  *netInKb = 0;
+  *netOutKb = 0;
+  return true;
+}
+
 bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   IO_COUNTERS io_counter;
   if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
