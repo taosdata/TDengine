@@ -175,11 +175,11 @@ bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
   return true;
 }
 
-bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *wbytes) {
   IO_COUNTERS io_counter;
   if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
-    if (readbyte) *readbyte = io_counter.ReadTransferCount;
-    if (writebyte) *writebyte = io_counter.WriteTransferCount;
+    if (rchars) *rchars = io_counter.ReadTransferCount;
+    if (wchars) *wchars = io_counter.WriteTransferCount;
     return true;
   }
   return false;
@@ -192,7 +192,7 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
   int64_t curReadbyte = 0;
   int64_t curWritebyte = 0;
 
-  if (!taosReadProcIO(&curReadbyte, &curWritebyte)) {
+  if (!taosReadProcIO(&curReadbyte, &curWritebyte, NULL, NULL)) {
     return false;
   }
 
