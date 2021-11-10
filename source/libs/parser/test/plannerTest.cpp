@@ -167,7 +167,7 @@ TEST(testCase, planner_test) {
 TEST(testCase, displayPlan) {
 //  generateLogicplan("select count(*) from `t.1abc`");
 //  generateLogicplan("select count(*)+ 22 from `t.1abc`");
-//  generateLogicplan("select count(*)+ 22 from `t.1abc` interval(1h)");
+//  generateLogicplan("select count(*)+ 22 from `t.1abc` interval(1h, 20s) sliding(10m) limit 20,30");
 //  generateLogicplan("select count(*) from `t.1abc` group by a");
 //  generateLogicplan("select count(A+B) from `t.1abc` group by a");
 //  generateLogicplan("select count(length(a)+b) from `t.1abc` group by a");
@@ -175,7 +175,9 @@ TEST(testCase, displayPlan) {
 //  generateLogicplan("select count(*),sum(a),avg(b),min(a+b)+99 from `t.1abc`");
 //  generateLogicplan("select count(*), min(a) + 99 from `t.1abc`");
 //  generateLogicplan("select count(length(count(*) + 22)) from `t.1abc`");
-  generateLogicplan("select concat(concat(a,b), concat(a,b)) from `t.1abc`");
+//  generateLogicplan("select concat(concat(a,b), concat(a,b)) from `t.1abc` limit 20");
+//  generateLogicplan("select count(*), first(a), last(b) from `t.1abc` state_window(a)");
+  generateLogicplan("select count(*), first(a), last(b) from `t.1abc` session(ts, 20s)");
 
   // order by + group by column + limit offset + fill
 

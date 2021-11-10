@@ -491,15 +491,6 @@ typedef struct SInterval {
   int64_t offset;
 } SInterval;
 
-typedef struct SSessionWindow {
-  int64_t gap;             // gap between two session window(in microseconds)
-  int32_t primaryColId;    // primary timestamp column
-} SSessionWindow;
-
-typedef struct SStateWindow {
-  int32_t columnId;
-} SStateWindow;
-
 typedef struct {
   SMsgHead    head;
   char        version[TSDB_VERSION_LEN];
@@ -524,7 +515,7 @@ typedef struct {
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
-  SSessionWindow sw;            // session window
+//  SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
   uint16_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns

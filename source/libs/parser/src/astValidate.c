@@ -763,6 +763,7 @@ int32_t validateSessionNode(SQueryStmtInfo *pQueryInfo, SSessionWindowVal* pSess
   const char* msg2 = "only one type time window allowed";
   const char* msg3 = "invalid column name";
   const char* msg4 = "invalid time window";
+  const char* msg5 = "only the primary time stamp column can be used in session window";
 
   // no session window
   if (!TPARSER_HAS_TOKEN(pSession->gap)) {
@@ -795,18 +796,22 @@ int32_t validateSessionNode(SQueryStmtInfo *pQueryInfo, SSessionWindowVal* pSess
   }
 
   if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_ID) {
-    return buildInvalidOperationMsg(pMsgBuf, msg3);
+    return buildInvalidOperationMsg(pMsgBuf, msg5);
   }
 
-  pQueryInfo->sessionWindow.primaryColId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  SSchema* pSchema = getOneColumnSchema(pTableMeta, index.columnIndex);
+  pQueryInfo->sessionWindow.col = createColumn(pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, index.type, pSchema);
   return TSDB_CODE_SUCCESS;
 }
 
 // parse the window_state
 int32_t validateStateWindowNode(SQueryStmtInfo *pQueryInfo, SWindowStateVal* pWindowState, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid column name";
-  const char* msg2 = "invalid column type";
-  const char* msg3 = "not support state_window with group by ";
+  const char* msg2 = "invalid column type to create state window";
+  const char* msg3 = "not support state_window with group by";
   const char* msg4 = "function not support for super table query";
   const char* msg5 = "not support state_window on tag column";
 
@@ -836,22 +841,15 @@ int32_t validateStateWindowNode(SQueryStmtInfo *pQueryInfo, SWindowStateVal* pWi
     return buildInvalidOperationMsg(pMsgBuf, msg5);
   }
 
-  if (pGroupExpr->columnInfo == NULL) {
-    pGroupExpr->columnInfo = taosArrayInit(4, sizeof(SColIndex));
-  }
-
   SSchema* pSchema = getOneColumnSchema(pTableMeta, index.columnIndex);
   if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || IS_FLOAT_TYPE(pSchema->type)) {
     return buildInvalidOperationMsg(pMsgBuf, msg2);
   }
 
-  columnListInsert(pQueryInfo->colList, pTableMeta->uid, pSchema, TSDB_COL_NORMAL);
-  SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
-
-  //TODO use group by routine? state window query not support stable query.
-  taosArrayPush(pGroupExpr->columnInfo, &colIndex);
+  pQueryInfo->stateWindow.col = createColumn(pTableMeta->uid, pTableMetaInfo->aliasName, index.type, pSchema);
   pQueryInfo->info.stateWindow = true;
 
+  columnListInsert(pQueryInfo->colList, pTableMeta->uid, pSchema, index.type);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3047,10 +3045,10 @@ int32_t validateSqlExpr(const tSqlExpr* pSqlExpr, SQueryStmtInfo *pQueryInfo, SM
     if (pLeft->type == SQL_NODE_SQLFUNCTION && pRight->type == SQL_NODE_SQLFUNCTION) {
 
       char token[FUNCTIONS_NAME_MAX_LENGTH] = {0};
-      tstrncpy(token, pLeft->Expr.operand.z, pLeft->Expr.operand.n);
+      strncpy(token, pLeft->Expr.operand.z, pLeft->Expr.operand.n);
       bool agg1 = qIsAggregateFunction(token);
 
-      tstrncpy(token, pRight->Expr.operand.z, pRight->Expr.operand.n);
+      strncpy(token, pRight->Expr.operand.z, pRight->Expr.operand.n);
       bool agg2 = qIsAggregateFunction(token);
 
       if (agg1 != agg2) {

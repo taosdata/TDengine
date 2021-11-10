@@ -95,8 +95,7 @@ int32_t qCreateQueryJob(const struct SQueryDistPlanNode* pPhyNode, struct SQuery
 //======================================================================================================================
 
 static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPlanNode** prev, int32_t numOfPrev,
-                                   SExprInfo** pExpr, int32_t numOfOutput, SQueryTableInfo* pTableInfo,
-                                   void* pExtInfo) {
+                                   SExprInfo** pExpr, int32_t numOfOutput, SQueryTableInfo* pTableInfo, void* pExtInfo) {
   SQueryPlanNode* pNode = calloc(1, sizeof(SQueryPlanNode));
 
   pNode->info.type = type;
@@ -131,6 +130,20 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
       SInterval* pInterval = calloc(1, sizeof(SInterval));
       pNode->pExtInfo = pInterval;
       memcpy(pInterval, pExtInfo, sizeof(SInterval));
+      break;
+    }
+
+    case QNODE_STATEWINDOW: {
+      SColumn* psw = calloc(1, sizeof(SColumn));
+      pNode->pExtInfo = psw;
+      memcpy(psw, pExtInfo, sizeof(SColumn));
+      break;
+    }
+
+    case QNODE_SESSIONWINDOW: {
+      SSessionWindow *pSessionWindow = calloc(1, sizeof(SSessionWindow));
+      pNode->pExtInfo = pSessionWindow;
+      memcpy(pSessionWindow, pExtInfo, sizeof(struct SSessionWindow));
       break;
     }
 
@@ -262,9 +275,9 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(SQueryStmtInfo* pQuer
       if (pQueryInfo->interval.interval > 0) {
         pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, p->pData, num, info, &pQueryInfo->interval);
       } else if (pQueryInfo->sessionWindow.gap > 0) {
-        pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
-      } else if (pQueryInfo->stateWindow.columnId > 0) {
-        pNode = createQueryNode(QNODE_STATEWINDOW, "StateWindowAgg", &pNode, 1, NULL, 0, info, NULL);
+        pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, p->pData, num, info, &pQueryInfo->sessionWindow);
+      } else if (pQueryInfo->stateWindow.col.info.colId > 0) {
+        pNode = createQueryNode(QNODE_STATEWINDOW, "StateWindowAgg", &pNode, 1, p->pData, num, info, &pQueryInfo->stateWindow);
       } else if (numOfGroupCols != 0 && !pQueryInfo->groupbyExpr.groupbyTag) {
           pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, p->pData, num, info, &pQueryInfo->groupbyExpr);
       } else {
@@ -343,8 +356,8 @@ static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
     for (int32_t j = 0; j < taosArrayGetSize(p); ++j) {
       SExprInfo* pExpr = taosArrayGetP(p, j);
 
-      bool canPushDown = true;
       if (pExpr->pExpr->nodeType == TEXPR_FUNCTION_NODE && qIsAggregateFunction(pExpr->pExpr->_function.functionName)) {
+        bool canPushDown = true;
         for (int32_t k = 0; k < taosArrayGetSize(pNext); ++k) {
           SExprInfo* pNextLevelExpr = taosArrayGetP(pNext, k);
           if (pExpr->base.pColumns->info.colId == pNextLevelExpr->base.resSchema.colId) {
@@ -353,14 +366,14 @@ static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
             break;
           }
         }
-      }
 
-      if (canPushDown) {
-        taosArrayInsert(pNext, j, &pExpr);
-        taosArrayRemove(p, j);
+        if (canPushDown) {
+          taosArrayInsert(pNext, j, &pExpr);
+          taosArrayRemove(p, j);
 
-        // add the project function in level of "i"
-        
+          // todo add the project function in level of "i"
+
+        }
       }
     }
   }
@@ -390,7 +403,7 @@ SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
       uint64_t        uid = pTableMetaInfo->pTableMeta->uid;
 
       SArray* exprList = taosArrayInit(4, POINTER_BYTES);
-      if (copyExprInfoList(exprList, pQueryInfo->exprList, uid, true) != 0) {
+      if (copyExprInfoList(exprList, pQueryInfo->exprList[0], uid, true) != 0) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
 //        dropAllExprInfo(exprList);
         exit(-1);
@@ -555,6 +568,46 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
                      pInterval->offset, TSDB_TIME_PRECISION_MILLI_STR);
       len += len1;
 
+      break;
+    }
+
+    case QNODE_STATEWINDOW: {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
+        SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
+        SSqlExpr* pExpr = &pExprInfo->base;
+        len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
+        if (i < pQueryNode->numOfExpr - 1) {
+          len1 = sprintf(buf + len,", ");
+          len += len1;
+        }
+      }
+
+      len1 = sprintf(buf + len,") ");
+      len += len1;
+
+      SColumn* pCol = pQueryNode->pExtInfo;
+      len1 = sprintf(buf + len, "col:%s #%d\n", pCol->name, pCol->info.colId);
+      len += len1;
+      break;
+    }
+
+    case QNODE_SESSIONWINDOW: {
+      for(int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
+        SExprInfo* pExprInfo = taosArrayGetP(pQueryNode->pExpr, i);
+        SSqlExpr* pExpr = &pExprInfo->base;
+        len += sprintf(buf + len,"%s [%s #%d]", pExpr->token, pExpr->resSchema.name, pExpr->resSchema.colId);
+        if (i < pQueryNode->numOfExpr - 1) {
+          len1 = sprintf(buf + len,", ");
+          len += len1;
+        }
+      }
+
+      len1 = sprintf(buf + len,") ");
+      len += len1;
+
+      struct SSessionWindow* ps = pQueryNode->pExtInfo;
+      len1 = sprintf(buf + len, "col:[%s #%d], gap:%"PRId64" (ms) \n", ps->col.name, ps->col.info.colId, ps->gap);
+      len += len1;
       break;
     }
 

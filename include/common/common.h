@@ -107,6 +107,15 @@ typedef struct SExprInfo {
   struct tExprNode  *pExpr;
 } SExprInfo;
 
+typedef struct SStateWindow {
+  SColumn col;
+} SStateWindow;
+
+typedef struct SSessionWindow {
+  int64_t gap;             // gap between two session window(in microseconds)
+  SColumn col;
+} SSessionWindow;
+
 #define QUERY_ASC_FORWARD_STEP   1
 #define QUERY_DESC_FORWARD_STEP -1
 

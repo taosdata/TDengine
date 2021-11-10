@@ -48,10 +48,10 @@ bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* funct
 
 bool qIsAggregateFunction(const char* functionName) {
   assert(functionName != NULL);
-  bool scalefunc = false;
-  qIsBuiltinFunction(functionName, strlen(functionName), &scalefunc);
+  bool scalarfunc = false;
+  qIsBuiltinFunction(functionName, strlen(functionName), &scalarfunc);
 
-  return !scalefunc;
+  return !scalarfunc;
 }
 
 
