@@ -4014,10 +4014,6 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
       // TODO: more error handling
     } END_TRY
 
-    if (tbufTell(&bw) >= TSDB_MAX_WHERE_LEN ) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "where condition string is too long");
-    }
-
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
@@ -5202,10 +5198,6 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-
-    if (tbufTell(&bw) >= TSDB_MAX_WHERE_LEN ) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "where condition string is too long");
-    }
 
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
