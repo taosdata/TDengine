@@ -20,7 +20,6 @@
 
 extern char *g_sampleDataBuf;
 #if STMT_BIND_PARAM_BATCH == 1
-// bind param batch
 extern char *g_sampleBindBatchArray;
 #endif
 extern int32_t * g_randint;
@@ -29,21 +28,20 @@ extern int64_t * g_randbigint;
 extern uint64_t *g_randubigint;
 extern float *   g_randfloat;
 extern double *  g_randdouble;
-
-extern char *g_randbool_buff;
-extern char *g_randint_buff;
-extern char *g_randuint_buff;
-extern char *g_rand_voltage_buff;
-extern char *g_randbigint_buff;
-extern char *g_randubigint_buff;
-extern char *g_randsmallint_buff;
-extern char *g_randusmallint_buff;
-extern char *g_randtinyint_buff;
-extern char *g_randutinyint_buff;
-extern char *g_randfloat_buff;
-extern char *g_rand_current_buff;
-extern char *g_rand_phase_buff;
-extern char *g_randdouble_buff;
+extern char *    g_randbool_buff;
+extern char *    g_randint_buff;
+extern char *    g_randuint_buff;
+extern char *    g_rand_voltage_buff;
+extern char *    g_randbigint_buff;
+extern char *    g_randubigint_buff;
+extern char *    g_randsmallint_buff;
+extern char *    g_randusmallint_buff;
+extern char *    g_randtinyint_buff;
+extern char *    g_randutinyint_buff;
+extern char *    g_randfloat_buff;
+extern char *    g_rand_current_buff;
+extern char *    g_rand_phase_buff;
+extern char *    g_randdouble_buff;
 /***** Declare functions *****/
 void                init_rand_data();
 char *              rand_bool_str();
