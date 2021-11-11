@@ -6071,7 +6071,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   bool dbIncluded = false;
 
   SStrToken tmpToken = pAlterSQL->name;
-  char tmpTokenBuf[pAlterSQL->name.n];
+  const int32_t bufLen = pAlterSQL->name.n;
+  char tmpTokenBuf[bufLen];
   tmpToken.z = tmpTokenBuf;
   memcpy(tmpTokenBuf, pAlterSQL->name.z, pAlterSQL->name.n);
   if (tscValidateName(&tmpToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
