@@ -45,10 +45,10 @@ mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
-    cp ${compile_dir}/test/cfg/taosadapter.toml                 ${pkg_dir}${install_home_path}/cfg
+    cp ${compile_dir}/test/cfg/taosadapter.toml		${pkg_dir}${install_home_path}/cfg || :
 fi
 if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
-    cp ${compile_dir}/test/cfg/taosadapter.service          ${pkg_dir}${install_home_path}/cfg ||:
+    cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
 
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
