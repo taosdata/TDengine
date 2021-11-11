@@ -1867,6 +1867,7 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   ret = exprTreeValidateTree(pExprInfo->pExpr);
   if (ret != TSDB_CODE_SUCCESS) {
     tExprTreeDestroy(pExprInfo->pExpr, NULL);
+    pExprInfo->pExpr = NULL;
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
