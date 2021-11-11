@@ -316,11 +316,6 @@ function install_data() {
 }
 
 function install_connector() {
-    if [ -d "${source_dir}/src/connector/grafanaplugin/dist" ]; then
-        ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin/dist ${install_main_dir}/connector/grafanaplugin
-    else
-        echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-    fi
     if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
         ${csudo} cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector
     else

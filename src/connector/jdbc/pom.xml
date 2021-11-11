@@ -112,6 +112,7 @@
                         <include>**/*Test.java</include>
                     </includes>
                     <excludes>
+                        <exclude>**/HttpClientPoolUtilTest.java</exclude>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
                         <exclude>**/DatetimeBefore1970Test.java</exclude>

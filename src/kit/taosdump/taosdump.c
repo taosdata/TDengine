@@ -1972,7 +1972,7 @@ static int getTableDes(
     while ((row = taos_fetch_row(res)) != NULL) {
         tstrncpy(tableDes->cols[colCount].field,
                 (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                min(TSDB_COL_NAME_LEN + 1,
+                min(TSDB_COL_NAME_LEN,
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes + 1));
         tstrncpy(tableDes->cols[colCount].type,
                 (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],

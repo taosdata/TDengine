@@ -41,6 +41,7 @@ typedef struct STable {
   int16_t        restoreColumnNum;
   bool           hasRestoreLastColumn;
   int            lastColSVersion;
+  int16_t        cacheLastConfigVersion;
   T_REF_DECLARE()
 } STable;
 
