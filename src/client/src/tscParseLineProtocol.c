@@ -631,11 +631,11 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
       if (code != 0) {
         tscError("SML:0x%"PRIx64" reconcile point schema failed. can not create %s", info->id, pointSchema->sTableName);
         return code;
-      } else {
-        pointSchema->precision = dbSchema.precision;
-        destroySmlSTableSchema(&dbSchema);
       }
-    } else if (code == TSDB_CODE_SUCCESS) {
+    }
+
+    if (code == TSDB_CODE_SUCCESS) {
+      pointSchema->precision = dbSchema.precision;
       size_t pointTagSize = taosArrayGetSize(pointSchema->tags);
       size_t pointFieldSize = taosArrayGetSize(pointSchema->fields);
 
@@ -1177,13 +1177,14 @@ static void escapeSpecialCharacter(uint8_t field, const char **pos) {
   *pos = cur;
 }
 
-void addEscapeCharToString(char *str, int32_t len) {
+char* addEscapeCharToString(char *str, int32_t len) {
   if (str == NULL) {
-    return;
+    return NULL;
   }
   memmove(str + 1, str, len);
   str[0] = str[len + 1] = TS_ESCAPE_CHAR;
   str[len + 2] = '\0';
+  return str;
 }
 
 bool isValidInteger(char *str) {
@@ -1511,9 +1512,9 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info
   errno = 0;
   uint8_t type = pVal->type;
   int16_t length = pVal->length;
-  int64_t val_s;
-  uint64_t val_u;
-  double val_d;
+  int64_t val_s = 0;
+  uint64_t val_u = 0;
+  double val_d = 0.0;
 
   strntolower_s(str, str, (int32_t)strlen(str));
   if (IS_FLOAT_TYPE(type)) {
@@ -1813,7 +1814,7 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
 int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
                             uint16_t len, SSmlLinesInfo* info) {
   int32_t ret;
-  SMLTimeStampType type;
+  SMLTimeStampType type = SML_TIME_STAMP_NOW;
   int64_t tsVal;
 
   ret = isTimeStamp(value, len, &type, info);
@@ -1907,8 +1908,6 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     }
     //Escape special character
     if (*cur == '\\') {
-      //TODO: escape will work after column & tag
-      //support spcial characters
       escapeSpecialCharacter(2, &cur);
     }
     key[len] = *cur;
@@ -1985,6 +1984,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     //Escape special character
     if (*cur == '\\') {
       escapeSpecialCharacter(isTag ? 2 : 3, &cur);
+      len++;
     }
     cur++;
     len++;
@@ -2107,6 +2107,13 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     pkv = *pKVs;
   }
 
+  size_t childTableNameLen = strlen(tsSmlChildTableName);
+  char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  if (childTableNameLen != 0) {
+    memcpy(childTableName, tsSmlChildTableName, childTableNameLen);
+    addEscapeCharToString(childTableName, (int32_t)(childTableNameLen));
+  }
+
   while (*cur != '\0') {
     ret = parseSmlKey(pkv, &cur, pHash, info);
     if (ret) {
@@ -2118,7 +2125,8 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
     }
-    if (!isField && (strcasecmp(pkv->key, "`ID`") == 0)) {
+
+    if (!isField && childTableNameLen != 0 && strcasecmp(pkv->key, childTableName) == 0)  {
       smlData->childTableName = malloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
@@ -2405,7 +2413,7 @@ static SSqlObj* createSmlQueryObj(TAOS* taos, int32_t affected_rows, int32_t cod
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
   int code = TSDB_CODE_SUCCESS;
   int affected_rows = 0;
-  SMLTimeStampType tsType;
+  SMLTimeStampType tsType = SML_TIME_STAMP_NOW;
 
   if (protocol == TSDB_SML_LINE_PROTOCOL) {
     code = convertPrecisionType(precision, &tsType);

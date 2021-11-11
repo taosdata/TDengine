@@ -448,7 +448,9 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   }
 }
 
-void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
+void
+
+orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
   if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
     fn = tsAscOrder;

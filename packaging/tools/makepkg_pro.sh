@@ -62,7 +62,7 @@ else
 fi
 cp ${build_dir}/bin/taos          ${install_dir}/bin/prodbc
 cp ${build_dir}/bin/taosd         ${install_dir}/bin/prodbs
-cp ${build_dir}/bin/blm3          ${install_dir}/bin/blm3 ||:
+cp ${build_dir}/bin/taosadapter          ${install_dir}/bin/taosadapter ||:
 cp ${script_dir}/remove_pro.sh  ${install_dir}/bin
 chmod a+x ${install_dir}/bin/* || :
 
@@ -154,11 +154,6 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 #if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
 #  cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
 
-#  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-#    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-#  else
-#    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-#  fi
 #  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
 #    cp -r ${connector_dir}/go ${install_dir}/connector
 #  else

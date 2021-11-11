@@ -2454,6 +2454,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg12 = "parameter is out of range [1, 100]";
   const char* msg13 = "parameter list required";
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
+  const char* msg15 = "parameter is out of range [1, 1000]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2901,11 +2902,15 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
         }
       } else if (functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
+        if (pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
-        int64_t numRowsSelected = GET_INT32_VAL(val);
+        int64_t numRowsSelected = GET_INT64_VAL(val);
         if (numRowsSelected <= 0 || numRowsSelected > 1000) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg15);
         }
 
         // todo REFACTOR
@@ -5748,6 +5753,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg9 = "orderby column must projected in subquery";
   const char* msg10 = "not support distinct mixed with order by";
   const char* msg11 = "not support order with udf";
+  const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -5846,6 +5852,9 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     size_t s = taosArrayGetSize(pSortOrder);
     if (s == 1) {
       if (orderByTags) {
+        if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
+          return invalidOperationMsg(pMsgBuf, msg12);
+        }
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
