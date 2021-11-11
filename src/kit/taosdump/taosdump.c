@@ -263,6 +263,7 @@ char *g_avro_codec[] = {
 typedef struct FieldStruct_S {
     char name[FIELD_NAME_LEN];
     char type[TYPE_NAME_LEN];
+    bool nullable;
 } FieldStruct;
 
 typedef struct RecordSchema_S {
@@ -1658,17 +1659,18 @@ static int convertTbDesToJson(
 
     char *pstr = *jsonSchema;
     pstr += sprintf(pstr,
-            "{\"type\": \"record\", \"name\": \"%s.%s\", \"fields\": [",
+            "{\"type\":\"record\", \"name\":\"%s.%s\", \"fields\":[",
             dbName, tbName);
     for (int i = 0; i < colCount; i ++) {
         if (0 == i) {
             pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\", \"type\":\"%s\"",
                     tableDes->cols[i].field, "long");
         } else {
             if (strcasecmp(tableDes->cols[i].type, "binary") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\", \"type\":[\"null\",\"%s\"]",
+// CBD                    "{\"name\": \"%s\", \"type\": [\"null\", \"%s\"]",
                     tableDes->cols[i].field, "string");
             } else if (strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
                 pstr += sprintf(pstr,
@@ -1692,7 +1694,7 @@ static int convertTbDesToJson(
                     tableDes->cols[i].field, "long");
             } else if (strcasecmp(tableDes->cols[i].type, "timestamp") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\", \"type\":\"%s\"",
                     tableDes->cols[i].field, "long");
             } else {
                 pstr += sprintf(pstr,
@@ -1845,7 +1847,7 @@ static json_t *load_json(char *jsonbuf)
 
 static RecordSchema *parse_json_to_recordschema(json_t *element)
 {
-    RecordSchema *recordSchema = malloc(sizeof(RecordSchema));
+    RecordSchema *recordSchema = calloc(1, sizeof(RecordSchema));
     assert(recordSchema);
 
     if (JSON_OBJECT != json_typeof(element)) {
@@ -1884,9 +1886,57 @@ static RecordSchema *parse_json_to_recordschema(json_t *element)
                         if (0 == strcmp(ele_key, "name")) {
                             tstrncpy(field->name, json_string_value(ele_value), FIELD_NAME_LEN-1);
                         } else if (0 == strcmp(ele_key, "type")) {
-                            if (JSON_STRING == json_typeof(ele_value)) {
+                            int ele_type = json_typeof(ele_value);
+
+                            if (JSON_STRING == ele_type) {
                                 tstrncpy(field->type, json_string_value(ele_value), TYPE_NAME_LEN-1);
-                            } else if (JSON_OBJECT == json_typeof(ele_value)) {
+                            } else if (JSON_ARRAY == ele_type) {
+                                size_t ele_size = json_array_size(ele_value);
+
+                                for(size_t ele_i = 0; ele_i < ele_size;
+                                        ele_i ++) {
+                                    json_t *arr_type_ele =
+                                        json_array_get(ele_value, ele_i);
+
+                                    if (JSON_STRING == json_typeof(arr_type_ele)) {
+                                        const char *arr_type_ele_str =
+                                            json_string_value(arr_type_ele);
+
+                                        if(0 == strcmp(arr_type_ele_str,
+                                                            "null")) {
+                                            field->nullable = true;
+                                        } else {
+                                            tstrncpy(field->type,
+                                                    arr_type_ele_str,
+                                                    TYPE_NAME_LEN-1);
+                                        }
+                                    } else if (JSON_OBJECT ==
+                                            json_typeof(arr_type_ele)) {
+                                        const char *arr_type_ele_key;
+                                        json_t *arr_type_ele_value;
+
+                                        json_object_foreach(arr_type_ele,
+                                                arr_type_ele_key,
+                                                arr_type_ele_value) {
+                                            if (JSON_STRING ==
+                                                    json_typeof(arr_type_ele_value)) {
+                                                const char *arr_type_ele_value_str =
+                                                    json_string_value(arr_type_ele_value);
+                                                if(0 == strcmp(arr_type_ele_value_str,
+                                                            "null")) {
+                                                    field->nullable = true;
+                                                } else {
+                                                    tstrncpy(field->type,
+                                                            arr_type_ele_value_str,
+                                                            TYPE_NAME_LEN-1);
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        fprintf(stderr, "Error: not supported!\n");
+                                    }
+                                }
+                            } else if (JSON_OBJECT == ele_type) {
                                 const char *obj_key;
                                 json_t *obj_value;
 
@@ -1895,6 +1945,16 @@ static RecordSchema *parse_json_to_recordschema(json_t *element)
                                         if (JSON_STRING == json_typeof(obj_value)) {
                                             tstrncpy(field->type,
                                                     json_string_value(obj_value), TYPE_NAME_LEN-1);
+                                        } else if (JSON_OBJECT == json_typeof(obj_value)) {
+                                            const char *field_key;
+                                            json_t *field_value;
+
+                                            json_object_foreach(obj_value, field_key, field_value) {
+                                                if (JSON_STRING == json_typeof(field_value)) {
+                                                    tstrncpy(field->type,
+                                                            json_string_value(field_value), TYPE_NAME_LEN-1);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1931,6 +1991,7 @@ static int64_t writeResultToAvro(
         TAOS_RES *res)
 {
     avro_schema_t schema;
+//    if (avro_schema_from_json_literal(jsonSchema, &schema)) {
     if (avro_schema_from_json_length(jsonSchema, strlen(jsonSchema), &schema)) {
         errorPrint("%s() LN%d, Unable to parse:\n%s \nto schema\nerror message: %s\n",
                 __func__, __LINE__, jsonSchema, avro_strerror());
@@ -1982,7 +2043,7 @@ static int64_t writeResultToAvro(
 
     int64_t count = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
-        avro_value_t value;
+        avro_value_t value, branch;
 
         for (int col = 0; col < numFields; col++) {
             if (0 != avro_value_get_by_name(
@@ -2052,18 +2113,20 @@ static int64_t writeResultToAvro(
                     break;
 
                 case TSDB_DATA_TYPE_BINARY:
-                    if (NULL == row[col]) {
-                        avro_value_set_string(&value,
-                                (char *)NULL);
+
+                    if (NULL != row[col]) {
+                        avro_value_set_branch(&value, 1, &branch);
+                        avro_value_set_string(&branch, (char *)row[col]);
                     } else {
-                        avro_value_set_string(&value, (char *)row[col]);
+                        avro_value_set_branch(&value, 0, &branch);
+                        avro_value_set_null(&branch);
                     }
                     break;
 
                 case TSDB_DATA_TYPE_NCHAR:
                     if (NULL == row[col]) {
                         avro_value_set_bytes(&value,
-                                (void*)NULL,0);
+                                (void*)TSDB_DATA_NCHAR_NULL,0);
                     } else {
                         len = strlen((char*)row[col]);
                         avro_value_set_bytes(&value, (void*)(row[col]),len);
@@ -2351,9 +2414,18 @@ static int64_t dumpInOneAvroFile(char* fcharset,
                 } else if (0 == strcasecmp(tableDes->cols[i].type, "binary")) {
                     size_t size;
 
+                    avro_value_t branch;
+                    avro_value_get_current_branch(&field_value, &branch);
+
                     char *buf = NULL;
-                    avro_value_get_string(&field_value, (const char **)&buf, &size);
-                    debugPrint("%s | ", (char *)buf);
+                    avro_value_get_string(&branch, (const char **)&buf, &size);
+
+                    if (NULL == buf) {
+                        debugPrint("%s | ", "NULL");
+                        bind->is_null = &is_null;
+                    } else {
+                        debugPrint("%s | ", (char *)buf);
+                    }
                     bind->buffer_type = TSDB_DATA_TYPE_BINARY;
                     bind->buffer_length = tableDes->cols[i].length;
                     bind->buffer = buf;
@@ -2362,7 +2434,12 @@ static int64_t dumpInOneAvroFile(char* fcharset,
                     void *bytesbuf = NULL;
 
                     avro_value_get_bytes(&field_value, (const void **)&bytesbuf, &bytessize);
-                    debugPrint("%s | ", (char*)bytesbuf);
+                    if ((void *)TSDB_DATA_NCHAR_NULL == bytesbuf) {
+                        debugPrint("%s | ", "NULL");
+                        bind->is_null = &is_null;
+                    } else {
+                        debugPrint("%s | ", (char*)bytesbuf);
+                    }
                     bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
                     bind->buffer_length = tableDes->cols[i].length;
                     bind->buffer = bytesbuf;
