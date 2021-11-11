@@ -41,7 +41,7 @@ sql create dnode $hostname2
 sleep 10000
 
 sql show log.tables;
-if $rows > 6 then
+if $rows > 20 then
   return -1
 endi
 
