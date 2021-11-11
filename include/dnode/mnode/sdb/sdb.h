@@ -27,7 +27,7 @@ extern "C" {
       (dataLen) -= (valLen);                                  \
       (pData) = (char *)(pData) + (valLen);                   \
     } else {                                                  \
-      code = TSDB_CODE_SDB_INVAID_RAW_DATA_LEN;               \
+      code = TSDB_CODE_SDB_INVALID_DATA_LEN;                  \
     }                                                         \
   }
 
@@ -38,7 +38,7 @@ extern "C" {
       (dataLen) -= sizeof(int32_t);                  \
       (pData) = (char *)(pData) + sizeof(int32_t);   \
     } else {                                         \
-      code = TSDB_CODE_SDB_INVAID_RAW_DATA_LEN;      \
+      code = TSDB_CODE_SDB_INVALID_DATA_LEN;         \
     }                                                \
   }
 
@@ -49,7 +49,7 @@ extern "C" {
       (dataLen) -= sizeof(int64_t);                  \
       (pData) = (char *)(pData) + sizeof(int64_t);   \
     } else {                                         \
-      code = TSDB_CODE_SDB_INVAID_RAW_DATA_LEN;      \
+      code = TSDB_CODE_SDB_INVALID_DATA_LEN;         \
     }                                                \
   }
 
@@ -121,11 +121,11 @@ typedef struct {
   SdbInsertFp insertFp;
   SdbUpdateFp updateFp;
   SdbDeleteFp deleteFp;
-} SSdbHandle;
+} SSdbTable;
 
 int32_t sdbInit();
 void    sdbCleanup();
-void    sdbSetHandle(SSdbHandle handle);
+void    sdbSetTable(SSdbTable table);
 
 int32_t sdbRead();
 int32_t sdbWrite(SSdbRaw *pRaw);

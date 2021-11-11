@@ -21,17 +21,20 @@ static SSdbMgr tsSdb = {0};
 
 static int32_t sdbCreateDir() {
   if (!taosMkDir(tsSdb.currDir)) {
-    mError("failed to create dir:%s", tsSdb.currDir);
-    return TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", tsSdb.currDir, terrstr());
+    return -1;
   }
 
   if (!taosMkDir(tsSdb.syncDir)) {
-    mError("failed to create dir:%s", tsSdb.syncDir);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", tsSdb.syncDir, terrstr());
     return -1;
   }
 
   if (!taosMkDir(tsSdb.tmpDir)) {
-    mError("failed to create dir:%s", tsSdb.tmpDir);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", tsSdb.tmpDir, terrstr());
     return -1;
   }
 
@@ -41,8 +44,10 @@ static int32_t sdbCreateDir() {
 static int32_t sdbRunDeployFp() {
   for (int32_t i = SDB_START; i < SDB_MAX; ++i) {
     SdbDeployFp fp = tsSdb.deployFps[i];
-    if (fp) {
-      (*fp)();
+    if (fp == NULL) continue;
+    if ((*fp)() != 0) {
+      mError("failed to deploy sdb:%d since %s", i, terrstr());
+      return -1;
     }
   }
 
@@ -51,11 +56,13 @@ static int32_t sdbRunDeployFp() {
 
 static SHashObj *sdbGetHash(int32_t sdb) {
   if (sdb >= SDB_MAX || sdb <= SDB_START) {
+    terrno = TSDB_CODE_SDB_INVALID_TABLE_TYPE;
     return NULL;
   }
 
   SHashObj *hash = tsSdb.hashObjs[sdb];
   if (hash == NULL) {
+    terrno = TSDB_CODE_SDB_APP_ERROR;
     return NULL;
   }
 
@@ -112,7 +119,7 @@ static int32_t sdbReadDataFile() {
     }
 
     if (ret < sizeof(SSdbRaw)) {
-      code = TSDB_CODE_SDB_INTERNAL_ERROR;
+      code = TSDB_CODE_SDB_APP_ERROR;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
     }
@@ -159,7 +166,7 @@ static int32_t sdbWriteDataFile() {
         taosWriteFile(fd, pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
       } else {
         taosHashCancelIterate(hash, pRow);
-        code = TSDB_CODE_SDB_INTERNAL_ERROR;
+        code = TSDB_CODE_SDB_APP_ERROR;
         break;
       }
 
@@ -232,7 +239,7 @@ void sdbUnDeploy() {}
 int32_t sdbInit() {
   char path[PATH_MAX + 100];
 
-  snprintf(path, PATH_MAX + 100, "%s%scurrent%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(path, PATH_MAX + 100, "%s%scur%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
   tsSdb.currDir = strdup(path);
 
   snprintf(path, PATH_MAX + 100, "%s%ssync%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
@@ -293,15 +300,15 @@ void sdbCleanup() {
   }
 }
 
-void sdbSetHandle(SSdbHandle handle) {
-  ESdbType sdb = handle.sdbType;
-  tsSdb.keyTypes[sdb] = handle.keyType;
-  tsSdb.insertFps[sdb] = handle.insertFp;
-  tsSdb.updateFps[sdb] = handle.updateFp;
-  tsSdb.deleteFps[sdb] = handle.deleteFp;
-  tsSdb.deployFps[sdb] = handle.deployFp;
-  tsSdb.encodeFps[sdb] = handle.encodeFp;
-  tsSdb.decodeFps[sdb] = handle.decodeFp;
+void sdbSetTable(SSdbTable table) {
+  ESdbType sdb = table.sdbType;
+  tsSdb.keyTypes[sdb] = table.keyType;
+  tsSdb.insertFps[sdb] = table.insertFp;
+  tsSdb.updateFps[sdb] = table.updateFp;
+  tsSdb.deleteFps[sdb] = table.deleteFp;
+  tsSdb.deployFps[sdb] = table.deployFp;
+  tsSdb.encodeFps[sdb] = table.encodeFp;
+  tsSdb.decodeFps[sdb] = table.decodeFp;
 }
 
 #if 0

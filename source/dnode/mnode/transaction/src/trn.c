@@ -61,7 +61,7 @@ SSdbRaw *trnActionEncode(STrans *pTrans) {
 
 STrans *trnActionDecode(SSdbRaw *pRaw) {
   if (pRaw->sver != TRN_VER) {
-    terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
 
@@ -223,14 +223,14 @@ int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, void *pMsg) {
 }
 
 int32_t trnInit() {
-  SSdbHandle handle = {.sdbType = SDB_TRANS,
-                   .keyType = SDB_KEY_INT32,
-                   .encodeFp = (SdbEncodeFp)trnActionEncode,
-                   .decodeFp = (SdbDecodeFp)trnActionDecode,
-                   .insertFp = (SdbInsertFp)trnActionInsert,
-                   .updateFp = (SdbUpdateFp)trnActionUpdate,
-                   .deleteFp = (SdbDeleteFp)trnActionDelete};
-  sdbSetHandle(handle);
+  SSdbTable table = {.sdbType = SDB_TRANS,
+                     .keyType = SDB_KEY_INT32,
+                     .encodeFp = (SdbEncodeFp)trnActionEncode,
+                     .decodeFp = (SdbDecodeFp)trnActionDecode,
+                     .insertFp = (SdbInsertFp)trnActionInsert,
+                     .updateFp = (SdbUpdateFp)trnActionUpdate,
+                     .deleteFp = (SdbDeleteFp)trnActionDelete};
+  sdbSetTable(table);
 
   return 0;
 }

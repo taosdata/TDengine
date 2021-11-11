@@ -45,7 +45,7 @@ static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
 
 static SUserObj *mnodeUserActionDecode(SSdbRaw *pRaw) {
   if (pRaw->sver != USER_VER) {
-    terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
 
@@ -234,15 +234,15 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
 }
 
 int32_t mnodeInitUser() {
-  SSdbHandle handle = {.sdbType = SDB_USER,
-                       .keyType = SDB_KEY_BINARY,
-                       .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
-                       .encodeFp = (SdbEncodeFp)mnodeUserActionEncode,
-                       .decodeFp = (SdbDecodeFp)mnodeUserActionDecode,
-                       .insertFp = (SdbInsertFp)mnodeUserActionInsert,
-                       .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
-                       .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
-  sdbSetHandle(handle);
+  SSdbTable table = {.sdbType = SDB_USER,
+                     .keyType = SDB_KEY_BINARY,
+                     .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
+                     .encodeFp = (SdbEncodeFp)mnodeUserActionEncode,
+                     .decodeFp = (SdbDecodeFp)mnodeUserActionDecode,
+                     .insertFp = (SdbInsertFp)mnodeUserActionInsert,
+                     .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
+  sdbSetTable(table);
 
   return 0;
 }

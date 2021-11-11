@@ -47,7 +47,7 @@ static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
 
 static SAcctObj *mnodeAcctActionDecode(SSdbRaw *pRaw) {
   if (pRaw->sver != ACCT_VER) {
-    terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
 
@@ -114,15 +114,15 @@ static int32_t mnodeCreateDefaultAcct() {
 }
 
 int32_t mnodeInitAcct() {
-  SSdbHandle handle = {.sdbType = SDB_ACCT,
-                       .keyType = SDB_KEY_BINARY,
-                       .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
-                       .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
-                       .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
-                       .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
-                       .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
-                       .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
-  sdbSetHandle(handle);
+  SSdbTable table = {.sdbType = SDB_ACCT,
+                     .keyType = SDB_KEY_BINARY,
+                     .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
+                     .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
+                     .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
+                     .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
+                     .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
+  sdbSetTable(table);
 
   return 0;
 }
