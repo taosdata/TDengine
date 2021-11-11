@@ -855,7 +855,7 @@ static int32_t monBuildDnodeReqSql(char *sql) {
   int32_t monQueryReqCnt = monFetchQueryReqCnt();
   int32_t monSubmitReqCnt = monFetchSubmitReqCnt();
 
-  float interval = tsMonitorInterval * 1.0;
+  float interval = (float)(tsMonitorInterval * 1.0);
   float httpReqRate = dInfo.httpReqNum / interval;
   float queryReqRate = (dInfo.queryReqNum - monQueryReqCnt)/ interval;
   float submitReqRate = (dInfo.submitReqNum - monSubmitReqCnt) / interval;
@@ -1220,7 +1220,7 @@ static void monSaveGrantsInfo() {
         } else {
           struct tm expTime = {0};
           strptime((char *)row[i], "%Y-%m-%d %H:%M:%S", &expTime);
-          int32_t expTimeSec = mktime(&expTime);
+          int32_t expTimeSec = (int32_t)mktime(&expTime);
           pos += snprintf(sql + pos, SQL_LENGTH, ", %d", expTimeSec - taosGetTimestampSec());
         }
       } else if (strcmp(fields[i].name, "timeseries") == 0) {
