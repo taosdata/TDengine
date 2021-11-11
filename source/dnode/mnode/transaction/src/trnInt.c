@@ -191,6 +191,8 @@ void trnDrop(STrans *pTrans) {
   tfree(pTrans);
 }
 
+void trnSetRpcHandle(STrans *pTrans, void *rpcHandle) { pTrans->rpcHandle = rpcHandle; }
+
 static int32_t trnAppendArray(SArray *pArray, SSdbRaw *pRaw) {
   if (pArray == NULL || pRaw == NULL) {
     terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
