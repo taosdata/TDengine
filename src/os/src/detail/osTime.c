@@ -387,29 +387,44 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
     }
   } //end switch fromPrecision
 end_:
-  if (tempResult > (double)INT64_MAX) return INT64_MAX;
-  if (tempResult < (double)INT64_MIN) return INT64_MIN + 1;  // INT64_MIN means NULL
+  if (tempResult >= (double)INT64_MAX) return INT64_MAX;
+  if (tempResult <= (double)INT64_MIN) return INT64_MIN + 1;  // INT64_MIN means NULL
   return time;
 }
 
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
 
   switch (unit) {
-    case 's':
+    case 's':{
+      double temp = ((double)val) * MILLISECOND_PER_SECOND;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_SECOND, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'm':
+    }
+    case 'm':{
+      double temp = ((double)val) * MILLISECOND_PER_MINUTE;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_MINUTE, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'h':
+    }
+    case 'h':{
+      double temp = ((double)val) * MILLISECOND_PER_HOUR;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_HOUR, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'd':
+    }
+    case 'd': {
+      double temp = ((double)val) * MILLISECOND_PER_DAY;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
-    case 'w':
+    }
+    case 'w': {
+      double temp = ((double)val) * MILLISECOND_PER_WEEK;
+      if (temp >= (double)INT64_MAX || temp <= (double)INT64_MIN) return -1;
       (*result) = convertTimePrecision(val * MILLISECOND_PER_WEEK, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
+    }
     case 'a':
       (*result) = convertTimePrecision(val, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
