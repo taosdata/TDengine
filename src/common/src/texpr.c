@@ -28,127 +28,31 @@
 #include "texpr.h"
 #include "tarithoperator.h"
 
+static int32_t exprValidateMathNode(tExprNode *pExpr);
+static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
+static int32_t exprValidateStringLengthNode(tExprNode *pExpr);
 
 int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
   //TODO: check childs for every function
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_POW:
-    case TSDB_FUNC_SCALAR_LOG: {
-      if (pExpr->_func.numChildren != 2) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-      tExprNode *child1 = pExpr->_func.pChildren[0];
-      tExprNode *child2 = pExpr->_func.pChildren[1];
-      if (child2->nodeType == TSQL_NODE_VALUE) {
-        if (!IS_NUMERIC_TYPE(child2->pVal->nType)) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-        child2->resultType = (int16_t)child2->pVal->nType;
-        child2->resultBytes = (int16_t)tDataTypes[child2->resultType].bytes;
-      }
-      else if (!IS_NUMERIC_TYPE(child2->resultType)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      if (!IS_NUMERIC_TYPE(child1->resultType)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
-      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-      break;
+    case TSDB_FUNC_SCALAR_LOG:
+    case TSDB_FUNC_SCALAR_ABS:
+    case TSDB_FUNC_SCALAR_ACOS:
+    case TSDB_FUNC_SCALAR_ASIN:
+    case TSDB_FUNC_SCALAR_ATAN:
+    case TSDB_FUNC_SCALAR_COS:
+    case TSDB_FUNC_SCALAR_SIN:
+    case TSDB_FUNC_SCALAR_TAN:
+    case TSDB_FUNC_SCALAR_SQRT:{
+      return exprValidateMathNode(pExpr);
     }
     case TSDB_FUNC_SCALAR_CONCAT: {
-      if (pExpr->_func.numChildren < 2) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      int16_t prevResultType = TSDB_DATA_TYPE_NULL;
-      int16_t resultType = TSDB_DATA_TYPE_NULL;
-      bool resultTypeDeduced = false;
-      for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
-        tExprNode *child = pExpr->_func.pChildren[i];
-        if (child->nodeType != TSQL_NODE_VALUE) {
-          resultType = child->resultType;
-          if (!IS_VAR_DATA_TYPE(resultType)) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          if (!resultTypeDeduced) {
-            resultTypeDeduced = true;
-          } else {
-            if (resultType != prevResultType) {
-              return TSDB_CODE_TSC_INVALID_OPERATION;
-            }
-          }
-          prevResultType = child->resultType;
-        } else {
-          if (!IS_VAR_DATA_TYPE(child->resultType)) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-        }
-      }
-
-      if (resultTypeDeduced) {
-        for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
-          tExprNode *child = pExpr->_func.pChildren[i];
-          if (child->nodeType == TSQL_NODE_VALUE) {
-            if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
-              return TSDB_CODE_TSC_INVALID_OPERATION;
-            }
-            char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-            tVariantDump(child->pVal, payload, resultType, true);
-            int16_t resultBytes = varDataTLen(payload);
-            free(payload);
-            child->resultType = resultType;
-            child->resultBytes = (int16_t)(resultBytes);
-          }
-        }
-      } else {
-        for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
-          tExprNode *child = pExpr->_func.pChildren[i];
-          assert(child->nodeType == TSQL_NODE_VALUE) ;
-          resultType = child->resultType;
-          for (int j = i+1; j < pExpr->_func.numChildren; ++j) {
-            if (pExpr->_func.pChildren[j]->resultType != resultType) {
-              return TSDB_CODE_TSC_INVALID_OPERATION;
-            }
-          }
-        }
-      }
-
-      pExpr->resultType = resultType;
-      int16_t resultBytes = 0;
-      for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
-        tExprNode *child = pExpr->_func.pChildren[i];
-        if (resultBytes <= resultBytes + child->resultBytes - VARSTR_HEADER_SIZE) {
-          resultBytes += child->resultBytes - VARSTR_HEADER_SIZE;
-        } else {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-      }
-      pExpr->resultBytes = resultBytes + VARSTR_HEADER_SIZE;
-      break;
+      return exprValidateStringConcatNode(pExpr);
     }
     case TSDB_FUNC_SCALAR_LENGTH: {
-      if (pExpr->_func.numChildren != 1) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      tExprNode* child1 = pExpr->_func.pChildren[0];
-
-      if (child1->nodeType == TSQL_NODE_VALUE) {
-        child1->resultType = (int16_t)child1->pVal->nType;
-        child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
-      }
-
-      if (!IS_VAR_DATA_TYPE(child1->resultType)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      pExpr->resultType = TSDB_DATA_TYPE_SMALLINT;
-      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes;
-      break;
+      return exprValidateStringLengthNode(pExpr);
     }
 
     default:
@@ -961,49 +865,162 @@ tExprNode* exprdup(tExprNode* pNode) {
   return pCloned;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// scalar functions
+int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
+  if (pExpr->_func.numChildren < 2) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
 
-void vectorPow(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
-  assert(numInputs == 2);
-  assert(pInputs[1].numOfRows == 1  && pInputs[0].numOfRows >= 1);
-  int numOfRows = pInputs[0].numOfRows;
-
-  double base = 0;
-  GET_TYPED_DATA(base, double, pInputs[1].type, pInputs[1].data);
-
-  for (int i = 0; i < numOfRows; ++i) {
-    char* pInputData = pInputs[0].data + i * pInputs[0].bytes;
-    char* pOutputData = pOutput->data + i * pOutput->bytes;
-    if (isNull(pInputData, pInputs[0].type)) {
-      setNull(pOutputData, pOutput->type, pOutput->bytes);
+  int16_t prevResultType = TSDB_DATA_TYPE_NULL;
+  int16_t resultType = TSDB_DATA_TYPE_NULL;
+  bool resultTypeDeduced = false;
+  for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+    tExprNode *child = pExpr->_func.pChildren[i];
+    if (child->nodeType != TSQL_NODE_VALUE) {
+      resultType = child->resultType;
+      if (!IS_VAR_DATA_TYPE(resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (!resultTypeDeduced) {
+        resultTypeDeduced = true;
+      } else {
+        if (resultType != prevResultType) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+      prevResultType = child->resultType;
     } else {
-      double v1 = 0;
-      GET_TYPED_DATA(v1, double, pInputs[0].type, pInputData);
-      double result = pow(v1, base);
-      SET_TYPED_DATA(pOutputData, pOutput->type, result);
+      if (!IS_VAR_DATA_TYPE(child->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
     }
   }
+
+  if (resultTypeDeduced) {
+    for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+      tExprNode *child = pExpr->_func.pChildren[i];
+      if (child->nodeType == TSQL_NODE_VALUE) {
+        if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        tVariantDump(child->pVal, payload, resultType, true);
+        int16_t resultBytes = varDataTLen(payload);
+        free(payload);
+        child->resultType = resultType;
+        child->resultBytes = (int16_t)(resultBytes);
+      }
+    }
+  } else {
+    for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+      tExprNode *child = pExpr->_func.pChildren[i];
+      assert(child->nodeType == TSQL_NODE_VALUE) ;
+      resultType = child->resultType;
+      for (int j = i+1; j < pExpr->_func.numChildren; ++j) {
+        if (pExpr->_func.pChildren[j]->resultType != resultType) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+    }
+  }
+
+  pExpr->resultType = resultType;
+  int16_t resultBytes = 0;
+  for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+    tExprNode *child = pExpr->_func.pChildren[i];
+    if (resultBytes <= resultBytes + child->resultBytes - VARSTR_HEADER_SIZE) {
+      resultBytes += child->resultBytes - VARSTR_HEADER_SIZE;
+    } else {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+  pExpr->resultBytes = resultBytes + VARSTR_HEADER_SIZE;
+  return TSDB_CODE_SUCCESS;
 }
 
-void vectorLog(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
-  assert(numInputs == 2);
-  assert(pInputs[1].numOfRows == 1  && pInputs[0].numOfRows >= 1);
-  int numOfRows = pInputs[0].numOfRows;
+int32_t exprValidateStringLengthNode(tExprNode *pExpr) {
+  if (pExpr->_func.numChildren != 1) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
 
-  double base = 0;
-  GET_TYPED_DATA(base, double, pInputs[1].type, pInputs[1].data);
+  tExprNode* child1 = pExpr->_func.pChildren[0];
 
-  for (int i = 0; i < numOfRows; ++i) {
-    char* pInputData = pInputs[0].data + i * pInputs[0].bytes;
-    char* pOutputData = pOutput->data + i * pOutput->bytes;
-    if (isNull(pInputData, pInputs[0].type)) {
-      setNull(pOutputData, pOutput->type, pOutput->bytes);
-    } else {
-      double v1 = 0;
-      GET_TYPED_DATA(v1, double, pInputs[0].type, pInputData);
-      double result = log(v1) / log(base);
-      SET_TYPED_DATA(pOutputData, pOutput->type, result);
+  if (child1->nodeType == TSQL_NODE_VALUE) {
+    child1->resultType = (int16_t)child1->pVal->nType;
+    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+  }
+
+  if (!IS_VAR_DATA_TYPE(child1->resultType)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  pExpr->resultType = TSDB_DATA_TYPE_SMALLINT;
+  pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exprValidateMathNode(tExprNode *pExpr) {
+  switch (pExpr->_func.functionId) {
+    case TSDB_FUNC_SCALAR_POW:
+    case TSDB_FUNC_SCALAR_LOG: {
+      if (pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      tExprNode *child2 = pExpr->_func.pChildren[1];
+      if (!IS_NUMERIC_TYPE(child1->resultType) || !IS_NUMERIC_TYPE(child2->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+      return TSDB_CODE_SUCCESS;
+    }
+    case TSDB_FUNC_SCALAR_ABS: {
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (IS_SIGNED_NUMERIC_TYPE(child1->resultType) || IS_UNSIGNED_NUMERIC_TYPE(child1->resultType)) {
+        pExpr->resultType = TSDB_DATA_TYPE_UBIGINT;
+        pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_UBIGINT].bytes;
+      } else if (IS_FLOAT_TYPE(child1->resultType)) {
+        pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+        pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+      }
+      break;
+    }
+    case TSDB_FUNC_SCALAR_SQRT:
+    case TSDB_FUNC_SCALAR_ASIN:
+    case TSDB_FUNC_SCALAR_ACOS:
+    case TSDB_FUNC_SCALAR_ATAN:
+    case TSDB_FUNC_SCALAR_SIN:
+    case TSDB_FUNC_SCALAR_COS:
+    case TSDB_FUNC_SCALAR_TAN:{
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child1 = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child1->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+      break;
+    }
+
+    default: {
+      assert(false);
+      break;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
@@ -1067,6 +1084,159 @@ void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numInpu
     }
   }
 }
+
+void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
+
+  for (int i = 0; i < numInputs; ++i) {
+    assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);
+  }
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+
+    if (!hasNullInputs) {
+      switch (functionId) {
+        case TSDB_FUNC_SCALAR_LOG: {
+          assert(numInputs == 2);
+          double base = 0;
+          GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = log(v1) / log(base);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+
+        case TSDB_FUNC_SCALAR_POW:{
+          assert(numInputs == 2);
+          double base = 0;
+          GET_TYPED_DATA(base, double, pInputs[1].type, inputData[1]);
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = pow(v1, base);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+
+        case TSDB_FUNC_SCALAR_ABS: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+          if (IS_SIGNED_NUMERIC_TYPE(pInputs[0].type)) {
+            int64_t v1 = 0;
+            GET_TYPED_DATA(v1, int64_t, pInputs[0].type, inputData[0]);
+            uint64_t result = (uint64_t)(llabs(v1));
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          } else if (IS_UNSIGNED_NUMERIC_TYPE(pInputs[0].type)) {
+            uint64_t v1 = 0;
+            GET_TYPED_DATA(v1, uint64_t, pInputs[0].type, inputData[0]);
+            SET_TYPED_DATA(outputData, pOutput->type, v1);
+          } else if (IS_FLOAT_TYPE(pInputs[0].type)) {
+            double v1 = 0;
+            GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+            double result = fabs(v1);
+            SET_TYPED_DATA(outputData, pOutput->type, result);
+          }
+          break;
+        }
+        case TSDB_FUNC_SCALAR_SQRT: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = sqrt(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+
+          break;
+        }
+        case TSDB_FUNC_SCALAR_ASIN: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = asin(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_ACOS: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = acos(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_ATAN: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = atan(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_SIN: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = sin(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_COS: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = cos(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_TAN:{
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+
+          double v1 = 0;
+          GET_TYPED_DATA(v1, double, pInputs[0].type, inputData[0]);
+          double result = tan(v1);
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        default: {
+          assert(false);
+          break;
+        }
+      }
+    }
+  }
+  free(inputData);
+}
+
 _expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
   assert(TSDB_FUNC_IS_SCALAR(funcId));
   int16_t scalaIdx = TSDB_FUNC_SCALAR_INDEX(funcId);
@@ -1078,12 +1248,52 @@ tScalarFunctionInfo aScalarFunctions[] = {
     {
         TSDB_FUNC_SCALAR_POW,
         "pow",
-        vectorPow
+        vectorMathFunc
     },
     {
         TSDB_FUNC_SCALAR_LOG,
         "log",
-        vectorLog
+        vectorMathFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_ABS,
+        "abs",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_ACOS,
+        "acos",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_ASIN,
+        "asin",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_ATAN,
+        "atan",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_COS,
+        "cos",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_SIN,
+        "sin",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_TAN,
+        "tan",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_SQRT,
+        "sqrt",
+        vectorMathFunc,
     },
     {
         TSDB_FUNC_SCALAR_CONCAT,

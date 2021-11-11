@@ -4292,10 +4292,12 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     int32_t* childrenTypes = calloc(numChildren, sizeof(int32_t));
     for (int32_t i = 0; i < numChildren; ++i) {
       tSqlExprItem* pParamElem = taosArrayGet(pExpr->Expr.paramList, i);
-      code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, childrenTypes + i, uid);
-      if (code != TSDB_CODE_SUCCESS) {
-        free(childrenTypes);
-        return code;
+      if (TSDB_FUNC_IS_SCALAR(functionId)) {
+        code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, childrenTypes + i, uid);
+        if (code != TSDB_CODE_SUCCESS) {
+          free(childrenTypes);
+          return code;
+        }
       }
 
       if (!TSDB_FUNC_IS_SCALAR(functionId) &&
@@ -4305,20 +4307,19 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
 
     }
     {
-      bool allChildValue = true;
-      bool anyChildScalar = false;
-      bool anyChildAgg = false;
-      for (int i = 0; i < numChildren; ++i) {
-        assert (childrenTypes[i] != SQLEXPR_TYPE_UNASSIGNED);
-        allChildValue = allChildValue && (childrenTypes[i] == SQLEXPR_TYPE_VALUE);
-        anyChildScalar = anyChildScalar || (childrenTypes[i] == SQLEXPR_TYPE_SCALAR);
-        anyChildAgg = anyChildAgg || (childrenTypes[i] == SQLEXPR_TYPE_AGG);
-      }
-      if (anyChildAgg && anyChildScalar) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
       if (TSDB_FUNC_IS_SCALAR(functionId)) {
+        bool allChildValue = true;
+        bool anyChildScalar = false;
+        bool anyChildAgg = false;
+        for (int i = 0; i < numChildren; ++i) {
+          assert (childrenTypes[i] != SQLEXPR_TYPE_UNASSIGNED);
+          allChildValue = allChildValue && (childrenTypes[i] == SQLEXPR_TYPE_VALUE);
+          anyChildScalar = anyChildScalar || (childrenTypes[i] == SQLEXPR_TYPE_SCALAR);
+          anyChildAgg = anyChildAgg || (childrenTypes[i] == SQLEXPR_TYPE_AGG);
+        }
+        if (anyChildAgg && anyChildScalar) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
         if (anyChildAgg) {
           *type = SQLEXPR_TYPE_AGG;
         } else if (allChildValue) {
@@ -4331,14 +4332,14 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
       }
     }
     free(childrenTypes);
-
+  //end if param list is not null
   } else {
     if (TSDB_FUNC_IS_SCALAR(functionId)) {
       *type = SQLEXPR_TYPE_SCALAR;
     } else {
       *type = SQLEXPR_TYPE_AGG;
     }
-  }
+  } // else param list is null
 
   if (!TSDB_FUNC_IS_SCALAR(functionId)) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
