@@ -7595,7 +7595,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
 
   pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
-  pQueryMsg->colCondLen = htons(pQueryMsg->colCondLen);  
+  pQueryMsg->colCondLen = htonl(pQueryMsg->colCondLen);
 
   pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
   pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
@@ -8245,7 +8245,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createQueryFilter(char *data, uint16_t len, void** pFilters) {
+int32_t createQueryFilter(char *data, int32_t len, void** pFilters) {
   tExprNode* expr = NULL;
   
   TRY(TSDB_MAX_TAG_CONDITIONS) {
