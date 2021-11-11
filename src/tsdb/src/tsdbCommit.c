@@ -17,13 +17,7 @@
 extern int32_t tsTsdbMetaCompactRatio;
 
 #define TSDB_MAX_SUBBLOCKS 8
-FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
-  if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
-  } else {
-    return (int)((key / tsTickPerDay[precision] / days));
-  }
-}
+
 typedef struct {
   SRtn         rtn;     // retention snapshot
   SFSIter      fsIter;  // tsdb file iterator

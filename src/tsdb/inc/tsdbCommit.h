@@ -54,4 +54,12 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   }
 }
 
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+  if (key < 0) {
+    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+  } else {
+    return (int)((key / tsTickPerDay[precision] / days));
+  }
+}
+
 #endif /* _TD_TSDB_COMMIT_H_ */
