@@ -14,15 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mnodeSync.h"
 #include "os.h"
-#include "tkey.h"
 #include "tglobal.h"
-#include "mnodeInt.h"
+#include "tkey.h"
 
 #define USER_VER 1
 
-static SSdbRawData *mnodeUserActionEncode(SUserObj *pUser) {
-  SSdbRawData *pRaw = calloc(1, sizeof(SUserObj) + sizeof(SSdbRawData));
+static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
+  SSdbRaw *pRaw = calloc(1, sizeof(SUserObj) + sizeof(SSdbRaw));
   if (pRaw == NULL) {
     terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
     return NULL;
@@ -43,7 +43,7 @@ static SSdbRawData *mnodeUserActionEncode(SUserObj *pUser) {
   return pRaw;
 }
 
-static SUserObj *mnodeUserActionDecode(SSdbRawData *pRaw) {
+static SUserObj *mnodeUserActionDecode(SSdbRaw *pRaw) {
   if (pRaw->sver != USER_VER) {
     terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
     return NULL;
@@ -77,12 +77,14 @@ static SUserObj *mnodeUserActionDecode(SSdbRawData *pRaw) {
 static int32_t mnodeUserActionInsert(SUserObj *pUser) {
   pUser->prohibitDbHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->prohibitDbHash == NULL) {
-    return TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return -1;
   }
 
   pUser->pAcct = sdbAcquire(SDB_ACCT, pUser->acct);
   if (pUser->pAcct == NULL) {
-    return TSDB_CODE_MND_ACCT_NOT_EXIST;
+    terrno = TSDB_CODE_MND_ACCT_NOT_EXIST;
+    return -1;
   }
 
   return 0;
@@ -108,8 +110,6 @@ static int32_t mnodeUserActionUpdate(SUserObj *pSrcUser, SUserObj *pDstUser) {
 }
 
 static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
-  int32_t code = 0;
-
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -121,35 +121,31 @@ static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
     userObj.rootAuth = 1;
   }
 
-  SSdbRawData *pRaw = mnodeUserActionEncode(&userObj);
-  if (pRaw != NULL) {
-    code = sdbWrite(pRaw);
-  } else {
-    code = terrno;
+  SSdbRaw *pRaw = mnodeUserActionEncode(&userObj);
+  if (pRaw == NULL) {
+    return -1;
   }
 
-  return code;
+  return sdbWrite(pRaw);
 }
 
 static int32_t mnodeCreateDefaultUsers() {
-  int32_t code = mnodeCreateDefaultUser(TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
-  if (code != 0) return code;
+  if (mnodeCreateDefaultUser(TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+    return -1;
+  }
 
-  code = mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "monitor", tsInternalPass);
-  if (code != 0) return code;
+  if (mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "monitor", tsInternalPass) != 0) {
+    return -1;
+  }
 
-  code = mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, tsInternalPass);
-  if (code != 0) return code;
+  if (mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, tsInternalPass) != 0) {
+    return -1;
+  }
 
-  return code;
+  return 0;
 }
 
 static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnMsg *pMsg) {
-  int32_t      code = 0;
-  STrans      *pTrans = NULL;
-  SSdbRawData *pUndoRaw = NULL;
-  SSdbRawData *pRedoRaw = NULL;
-
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -158,79 +154,80 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnMsg *pMsg)
   userObj.updateTime = userObj.createdTime;
   userObj.rootAuth = 0;
 
-  pRedoRaw = mnodeUserActionEncode(&userObj);
-  if (pRedoRaw == NULL) {
-    code = terrno;
-    goto CREATE_USER_OVER;
+  STrans *pTrans = trnCreate(TRN_POLICY_ROLLBACK);
+  if (pTrans == NULL) return -1;
+
+  SSdbRaw *pRedoRaw = mnodeUserActionEncode(&userObj);
+  if (pRedoRaw == NULL || trnAppendRedoLog(pTrans, pRedoRaw) != 0) {
+    trnDrop(pTrans);
+    return -1;
   }
-  pRedoRaw->status = SDB_STATUS_READY;
+  pRedoRaw->status = SDB_STATUS_CREATING;
   pRedoRaw->action = SDB_ACTION_INSERT;
 
-  pUndoRaw = mnodeUserActionEncode(&userObj);
-  if (pUndoRaw == NULL) {
-    code = terrno;
-    goto CREATE_USER_OVER;
+  SSdbRaw *pUndoRaw = mnodeUserActionEncode(&userObj);
+  if (pUndoRaw == NULL || trnAppendUndoLog(pTrans, pUndoRaw) != 0) {
+    trnDrop(pTrans);
+    return -1;
   }
   pUndoRaw->status = SDB_STATUS_DROPPING;
   pUndoRaw->action = SDB_ACTION_DELETE;
 
-  pTrans = trnCreate();
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_OUT_OF_MEMORY;
-    goto CREATE_USER_OVER;
-  }
-  trnAppendRedoLog(pTrans, pRedoRaw);
-  trnAppendUndoLog(pTrans, pUndoRaw);
-
-  code = trnCommit(pTrans);
-
-CREATE_USER_OVER:
-  if (code != 0) {
+  SSdbRaw *pCommitRaw = mnodeUserActionEncode(&userObj);
+  if (pCommitRaw == NULL || trnAppendCommitLog(pTrans, pCommitRaw) != 0) {
     trnDrop(pTrans);
-    free(pRedoRaw);
-    free(pUndoRaw);
+    return -1;
+  }
+  pCommitRaw->status = SDB_STATUS_READY;
+  pCommitRaw->action = SDB_ACTION_UPDATE;
+
+  trnSetRpcHandle(pTrans, pMsg->rpcMsg.handle);
+
+  if (trnPrepare(pTrans, mnodeSyncPropose) != 0) {
+    trnDrop(pTrans);
+    return -1;
   }
 
-  return code;
+  trnDrop(pTrans);
+  return 0;
 }
 
 static int32_t mnodeProcessCreateUserMsg(SMnMsg *pMsg) {
   SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
-  int32_t         code = TSDB_CODE_SUCCESS;
 
   if (pCreate->user[0] == 0) {
-    code = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    mError("user:%s, failed to create since %s", pCreate->user, tstrerror(code));
-    return code;
+    terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
+    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
+    return -1;
   }
 
   if (pCreate->pass[0] == 0) {
-    code = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    mError("user:%s, failed to create since %s", pCreate->user, tstrerror(code));
-    return code;
+    terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
+    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
+    return -1;
   }
 
   SUserObj *pUser = sdbAcquire(SDB_USER, pCreate->user);
   if (pUser != NULL) {
     sdbRelease(pUser);
-    code = TSDB_CODE_MND_USER_ALREADY_EXIST;
-    mError("user:%s, failed to create since %s", pCreate->user, tstrerror(code));
-    return code;
+    terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
+    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
+    return -1;
   }
 
   SUserObj *pOperUser = sdbAcquire(SDB_USER, pMsg->user);
   if (pOperUser == NULL) {
-    code = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("user:%s, failed to create since %s", pCreate->user, tstrerror(code));
-    return code;
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
+    return -1;
   }
 
-  code = mnodeCreateUser(pOperUser->acct, pCreate->user, pCreate->pass, pMsg);
+  int32_t code = mnodeCreateUser(pOperUser->acct, pCreate->user, pCreate->pass, pMsg);
   sdbRelease(pOperUser);
 
   if (code != 0) {
-    mError("user:%s, failed to create since %s", pCreate->user, tstrerror(code));
-    return code;
+    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
+    return -1;
   }
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;

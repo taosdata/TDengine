@@ -33,14 +33,35 @@ extern "C" {
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 
+#define TRN_VER 1
+#define TRN_DEFAULT_ARRAY_SIZE 8
+
+typedef enum {
+  TRN_STAGE_PREPARE = 1,
+  TRN_STAGE_EXECUTE = 2,
+  TRN_STAGE_COMMIT = 3,
+  TRN_STAGE_ROLLBACK = 4,
+  TRN_STAGE_RETRY = 5
+} ETrnStage;
+
 typedef struct STrans {
-  SArray *redoLogs;
-  SArray *undoLogs;
-  SArray *commitLogs;
-  SArray *redoActions;
-  SArray *undoActions;
+  int32_t    id;
+  ETrnStage  stage;
+  ETrnPolicy policy;
+  void      *rpcHandle;
+  SArray    *redoLogs;
+  SArray    *undoLogs;
+  SArray    *commitLogs;
+  SArray    *redoActions;
+  SArray    *undoActions;
 } STrans;
 
+SSdbRaw *trnActionEncode(STrans *pTrans);
+STrans  *trnActionDecode(SSdbRaw *pRaw);
+int32_t  trnActionInsert(STrans *pTrans);
+int32_t  trnActionDelete(STrans *pTrans);
+int32_t  trnActionUpdate(STrans *pSrcTrans, STrans *pDstTrans);
+int32_t  trnGenerateTransId();
 
 #ifdef __cplusplus
 }

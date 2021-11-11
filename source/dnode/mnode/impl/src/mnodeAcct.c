@@ -18,8 +18,8 @@
 
 #define ACCT_VER 1
 
-static SSdbRawData *mnodeAcctActionEncode(SAcctObj *pAcct) {
-  SSdbRawData *pRaw = calloc(1, sizeof(SAcctObj) + sizeof(SSdbRawData));
+static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
+  SSdbRaw *pRaw = calloc(1, sizeof(SAcctObj) + sizeof(SSdbRaw));
   if (pRaw == NULL) {
     terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
     return NULL;
@@ -45,7 +45,7 @@ static SSdbRawData *mnodeAcctActionEncode(SAcctObj *pAcct) {
   return pRaw;
 }
 
-static SAcctObj *mnodeAcctActionDecode(SSdbRawData *pRaw) {
+static SAcctObj *mnodeAcctActionDecode(SSdbRaw *pRaw) {
   if (pRaw->sver != ACCT_VER) {
     terrno = TSDB_CODE_SDB_INVAID_RAW_DATA_VER;
     return NULL;
@@ -96,23 +96,21 @@ static int32_t mnodeCreateDefaultAcct() {
   SAcctObj acctObj = {0};
   tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
   acctObj.createdTime = taosGetTimestampMs();
-  acctObj.updateTime = taosGetTimestampMs();
+  acctObj.updateTime = acctObj.createdTime;
   acctObj.acctId = 1;
-  acctObj.cfg = (SAcctCfg){.maxUsers = 128,
-                           .maxDbs = 128,
+  acctObj.cfg = (SAcctCfg){.maxUsers = 1024,
+                           .maxDbs = 1024,
                            .maxTimeSeries = INT32_MAX,
-                           .maxStreams = 1000,
+                           .maxStreams = 8092,
                            .maxStorage = INT64_MAX,
                            .accessState = TSDB_VN_ALL_ACCCESS};
 
-  SSdbRawData *pRaw = mnodeAcctActionEncode(&acctObj);
+  SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
   if (pRaw != NULL) {
-    code = sdbWrite(pRaw);
-  } else {
-    code = terrno;
+    return -1;
   }
 
-  return code;
+  return sdbWrite(pRaw);
 }
 
 int32_t mnodeInitAcct() {

@@ -24,21 +24,23 @@ extern "C" {
 #endif
 
 typedef struct STrans STrans;
+typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
 
 int32_t trnInit();
 void    trnCleanup();
 
-STrans *trnCreate();
-int32_t trnPrepare(STrans *);
-int32_t trnCommit(STrans *);
-int32_t trnExecute(STrans *);
-void    trnDrop(STrans *);
+STrans *trnCreate(ETrnPolicy);
+void    trnDrop(STrans *pTrans);
+void    trnSetRpcHandle(STrans *pTrans, void *rpcHandle);
+int32_t trnAppendRedoLog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t trnAppendUndoLog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t trnAppendCommitLog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t trnAppendRedoAction(STrans *pTrans, SEpSet *, void *pMsg);
+int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *, void *pMsg);
 
-int32_t trnAppendRedoLog(STrans *, SSdbRawData *);
-int32_t trnAppendUndoLog(STrans *, SSdbRawData *);
-int32_t trnAppendCommitLog(STrans *, SSdbRawData *);
-int32_t trnAppendRedoAction(STrans *, SEpSet *, void *pMsg);
-int32_t trnAppendUndoAction(STrans *, SEpSet *, void *pMsg);
+int32_t trnPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData));
+int32_t trnApply(SSdbRaw *pRaw, void *pData, int32_t code);
+int32_t trnExecute(int32_t tranId);
 
 #ifdef __cplusplus
 }

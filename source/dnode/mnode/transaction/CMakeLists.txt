@@ -11,4 +11,5 @@ target_link_libraries(
     PRIVATE common
     PRIVATE util
     PRIVATE sdb
+    PRIVATE transport
 )

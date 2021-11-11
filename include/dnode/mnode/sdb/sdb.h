@@ -76,18 +76,18 @@ extern "C" {
 
 typedef enum {
   SDB_START = 0,
-  SDB_VERSION = 1,
-  SDB_CLUSTER = 2,
-  SDB_DNODE = 3,
-  SDB_MNODE = 4,
-  SDB_ACCT = 5,
-  SDB_AUTH = 6,
-  SDB_USER = 7,
-  SDB_DB = 8,
-  SDB_VGROUP = 9,
-  SDB_STABLE = 10,
-  SDB_FUNC = 11,
-  SDB_TRANS = 12,
+  SDB_TRANS = 1,
+  SDB_VERSION = 2,
+  SDB_CLUSTER = 3,
+  SDB_DNODE = 4,
+  SDB_MNODE = 5,
+  SDB_ACCT = 6,
+  SDB_AUTH = 7,
+  SDB_USER = 8,
+  SDB_DB = 9,
+  SDB_VGROUP = 10,
+  SDB_STABLE = 11,
+  SDB_FUNC = 12,
   SDB_MAX = 13
 } ESdbType;
 
@@ -104,14 +104,14 @@ typedef struct {
   int32_t cksum;
   int32_t dataLen;
   char    data[];
-} SSdbRawData;
+} SSdbRaw;
 
 typedef int32_t (*SdbInsertFp)(void *pObj);
 typedef int32_t (*SdbUpdateFp)(void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(void *pObj);
 typedef int32_t (*SdbDeployFp)();
-typedef void *(*SdbDecodeFp)(SSdbRawData *pRaw);
-typedef SSdbRawData *(*SdbEncodeFp)(void *pObj);
+typedef void *(*SdbDecodeFp)(SSdbRaw *pRaw);
+typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 
 typedef struct {
   ESdbType    sdbType;
@@ -129,7 +129,7 @@ void    sdbCleanup();
 void    sdbSetHandler(SSdbDesc desc);
 
 int32_t sdbRead();
-int32_t sdbWrite(SSdbRawData *pRawData);
+int32_t sdbWrite(SSdbRaw *pRaw);
 int32_t sdbCommit();
 
 int32_t sdbDeploy();

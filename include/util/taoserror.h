@@ -27,6 +27,7 @@ extern "C" {
 #define TAOS_FAILED(err)                    ((err) < 0)
 
 const char* tstrerror(int32_t err);
+const char* terrstr();
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())

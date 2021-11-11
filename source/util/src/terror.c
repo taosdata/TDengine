@@ -524,3 +524,5 @@ const char* tstrerror(int32_t err) {
 
   return "";
 }
+
+const char* terrstr() { return tstrerror(terrno); }

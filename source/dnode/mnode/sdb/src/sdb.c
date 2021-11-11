@@ -61,7 +61,7 @@ static SHashObj *sdbGetHash(int32_t sdb) {
   return hash;
 }
 
-int32_t sdbWrite(SSdbRawData *pRaw) {
+int32_t sdbWrite(SSdbRaw *pRaw) {
   SHashObj *hash = sdbGetHash(pRaw->type);
   switch (pRaw->action) {
     case SDB_ACTION_INSERT:
@@ -85,7 +85,7 @@ static int32_t sdbReadVersion(FileFd fd) { return 0; }
 static int32_t sdbReadDataFile() {
   int32_t code = 0;
 
-  SSdbRawData *pRaw = malloc(SDB_MAX_SIZE);
+  SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
   if (pRaw == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
@@ -101,7 +101,7 @@ static int32_t sdbReadDataFile() {
 
   int64_t offset = 0;
   while (1) {
-    int32_t ret = (int32_t)taosReadFile(fd, pRaw, sizeof(SSdbRawData));
+    int32_t ret = (int32_t)taosReadFile(fd, pRaw, sizeof(SSdbRaw));
     if (ret == 0) break;
 
     if (ret < 0) {
@@ -110,7 +110,7 @@ static int32_t sdbReadDataFile() {
       break;
     }
 
-    if (ret < sizeof(SSdbRawData)) {
+    if (ret < sizeof(SSdbRaw)) {
       code = TSDB_CODE_SDB_INTERNAL_ERROR;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
@@ -143,7 +143,7 @@ static int32_t sdbWriteDataFile() {
     return code;
   }
 
-  for (int32_t i = SDB_START; i < SDB_MAX; ++i) {
+  for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
     SHashObj *hash = tsSdb.hashObjs[i];
     if (!hash) continue;
 
@@ -153,9 +153,9 @@ static int32_t sdbWriteDataFile() {
     SSdbRow *pRow = taosHashIterate(hash, NULL);
     while (pRow != NULL) {
       if (pRow->status == SDB_STATUS_READY) continue;
-      SSdbRawData *pRaw = (*encodeFp)(pRow->data);
+      SSdbRaw *pRaw = (*encodeFp)(pRow->data);
       if (pRaw != NULL) {
-        taosWriteFile(fd, pRaw, sizeof(SSdbRawData) + pRaw->dataLen);
+        taosWriteFile(fd, pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
       } else {
         taosHashCancelIterate(hash, pRow);
         code = TSDB_CODE_SDB_INTERNAL_ERROR;
