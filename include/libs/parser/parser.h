@@ -26,50 +26,6 @@ extern "C" {
 #include "tvariant.h"
 #include "function.h"
 
-typedef struct SColumn {
-  uint64_t     tableUid;
-  int32_t      columnIndex;
-  SColumnInfo  info;
-} SColumn;
-
-// the structure for sql function in select clause
-typedef struct SSqlExpr {
-  char      token[TSDB_COL_NAME_LEN];      // original token
-  SSchema   resSchema;
-  SColIndex colInfo;
-  uint64_t  uid;            // table uid, todo refactor use the pointer
-  int32_t   interBytes;     // inter result buffer size
-  int16_t   numOfParams;    // argument value of each function
-  SVariant  param[3];       // parameters are not more than 3
-} SSqlExpr;
-
-typedef struct SExprInfo {
-  SSqlExpr           base;
-  struct tExprNode  *pExpr;
-} SExprInfo;
-
-//typedef struct SInterval {
-//  int32_t  tz;            // query client timezone
-//  char     intervalUnit;
-//  char     slidingUnit;
-//  char     offsetUnit;
-//  int64_t  interval;
-//  int64_t  sliding;
-//  int64_t  offset;
-//} SInterval;
-//
-//typedef struct SSessionWindow {
-//  int64_t  gap;             // gap between two session window(in microseconds)
-//  int32_t  primaryColId;    // primary timestamp column
-//} SSessionWindow;
-
-typedef struct SGroupbyExpr {
-  int16_t  tableIndex;
-  SArray*  columnInfo;  // SArray<SColIndex>, group by columns information
-  int16_t  orderIndex;  // order by column index
-  int16_t  orderType;   // order by type: asc/desc
-} SGroupbyExpr;
-
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
@@ -81,16 +37,6 @@ typedef struct SFieldInfo {
   SField     *final;
   SArray     *internalField; // SArray<SInternalField>
 } SFieldInfo;
-
-typedef struct SLimit {
-  int64_t   limit;
-  int64_t   offset;
-} SLimit;
-
-typedef struct SOrder {
-  uint32_t  order;
-  int32_t   orderColId;
-} SOrder;
 
 typedef struct SCond {
   uint64_t uid;
@@ -120,12 +66,6 @@ typedef struct STagCond {
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
   SVgroupsInfo  *vgroupList;
-
-  /*
-   * 1. keep the vgroup index during the multi-vnode super table projection query
-   * 2. keep the vgroup index for multi-vnode insertion
-   */
-  int32_t       vgroupIndex;
   SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
@@ -137,11 +77,11 @@ typedef struct SQueryStmtInfo {
   STimeWindow      window;        // the whole query time window
   SInterval        interval;      // tumble time window
   SSessionWindow   sessionWindow; // session time window
+  SStateWindow     stateWindow;   // state window query
   SGroupbyExpr     groupbyExpr;   // groupby tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
-  SArray *         exprList;      // SArray<SExprInfo*>
-  SArray *         exprList1;     // final exprlist in case of arithmetic expression exists
+  SArray**         exprList;      // SArray<SExprInfo*>
   SLimit           limit;
   SLimit           slimit;
   STagCond         tagCond;
@@ -172,6 +112,7 @@ typedef struct SQueryStmtInfo {
   struct SQueryStmtInfo *pDownstream;
   int32_t            havingFieldNum;
   SMultiFunctionsDesc     info;
+  int32_t            exprListLevelIndex;
 } SQueryStmtInfo;
 
 typedef struct SColumnIndex {
@@ -225,14 +166,23 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src);
 void columnListCopy(SArray* dst, const SArray* src, uint64_t uid);
 void columnListDestroy(SArray* pColumnList);
 
-void dropAllExprInfo(SArray* pExprInfo);
-SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, struct tExprNode* pParamExpr, SSchema* pResSchema, int16_t interSize);
+void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel);
+
+typedef struct SSourceParam {
+  SArray            *pExprNodeList; //Array<struct tExprNode*>
+  SArray            *pColumnList;   //Array<struct SColumn>
+  int32_t    num;
+} SSourceParam;
+
+SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, const char* funcName, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
+SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 
 int32_t getNewResColId();
+void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);
 
 #ifdef __cplusplus
 }

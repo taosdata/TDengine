@@ -12,11 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "hash.h"
 #include "os.h"
 #include "queryLog.h"
-#include "qFilter.h"
 #include "tcompare.h"
-#include "hash.h"
+#include "tfilter.h"
 #include "tscUtil.h"
 
 OptrStr gOptrStr[] = {

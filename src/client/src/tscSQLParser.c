@@ -23,9 +23,7 @@
 #include <qSqlparser.h>
 #include "../../../include/client/taos.h"
 #include "os.h"
-#include "qFilter.h"
 #include "qPlan.h"
-#include "qScript.h"
 #include "qSqlparser.h"
 #include "qTableMeta.h"
 #include "qUtil.h"
@@ -33,10 +31,12 @@
 #include "taosmsg.h"
 #include "tcompare.h"
 #include "texpr.h"
+#include "tfilter.h"
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tsclient.h"
+#include "tscript.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "ttokendef.h"
@@ -912,7 +912,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 
-        if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+        if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_FROM_NODE_SUBQUERY) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
 
@@ -7981,11 +7981,11 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
-  if (pFromInfo->type == SQL_NODE_FROM_SUBQUERY){
+  if (pFromInfo->type == SQL_FROM_NODE_SUBQUERY){
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
   }
 
-  SRelElementPair* p1 = taosArrayGet(pFromInfo->list, 0);
+  SRelElement* p1 = taosArrayGet(pFromInfo->list, 0);
   SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -8415,10 +8415,10 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
   const char* msg1 = "invalid table name";
 
   int32_t numOfTables = (int32_t) taosArrayGetSize(pSqlNode->from->list);
-  assert(pSqlNode->from->type == SQL_NODE_FROM_TABLELIST);
+  assert(pSqlNode->from->type == SQL_FROM_NODE_TABLES);
 
   for(int32_t j = 0; j < numOfTables; ++j) {
-    SRelElementPair* item = taosArrayGet(pSqlNode->from->list, j);
+    SRelElement* item = taosArrayGet(pSqlNode->from->list, j);
 
     SStrToken* t = &item->tableName;
     if (t->type == TK_INTEGER || t->type == TK_FLOAT) {
@@ -8446,12 +8446,12 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
   int32_t numOfSub = (int32_t) taosArrayGetSize(pSqlNode->from->list);
 
   for(int32_t j = 0; j < numOfSub; ++j) {
-    SRelElementPair* sub = taosArrayGet(pSqlNode->from->list, j);
+    SRelElement* sub = taosArrayGet(pSqlNode->from->list, j);
 
     int32_t num = (int32_t)taosArrayGetSize(sub->pSubquery);
     for (int32_t i = 0; i < num; ++i) {
       SSqlNode* p = taosArrayGetP(sub->pSubquery, i);
-      if (p->from->type == SQL_NODE_FROM_TABLELIST) {
+      if (p->from->type == SQL_FROM_NODE_TABLES) {
         int32_t code = getTableNameFromSqlNode(p, tableNameList, msgBuf, pSql);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -8520,7 +8520,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     // load the table meta in the from clause
-    if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
+    if (pSqlNode->from->type == SQL_FROM_NODE_TABLES) {
       code = getTableNameFromSqlNode(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
@@ -8678,7 +8678,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    SRelElementPair *item = taosArrayGet(pSqlNode->from->list, i);
+    SRelElement *item = taosArrayGet(pSqlNode->from->list, i);
     SStrToken       *oriName = &item->tableName;
 
     if (oriName->type == TK_INTEGER || oriName->type == TK_FLOAT) {
@@ -8786,7 +8786,7 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
 }
 
 static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pSql, SQueryInfo* pQueryInfo, char* msgBuf) {
-  SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, index);
+  SRelElement* subInfo = taosArrayGet(pSqlNode->from->list, index);
 
   // union all is not support currently
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
@@ -8890,7 +8890,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     return doLocalQueryProcess(pCmd, pQueryInfo, pSqlNode);
   }
 
-  if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+  if (pSqlNode->from->type == SQL_FROM_NODE_SUBQUERY) {
     clearAllTableMetaInfo(pQueryInfo, false, pSql->self);
     pQueryInfo->numOfTables = 0;
 
@@ -8898,9 +8898,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
     for (int32_t i = 0; i < numOfSub; ++i) {
       // check if there is 3 level select
-      SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, i);
+      SRelElement* subInfo = taosArrayGet(pSqlNode->from->list, i);
       SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
-      if (p->from->type == SQL_NODE_FROM_SUBQUERY) {
+      if (p->from->type == SQL_FROM_NODE_SUBQUERY) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
@@ -9379,8 +9379,8 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 void normalizeSqlNode(SSqlNode* pSqlNode, const char* dbName) {
   assert(pSqlNode != NULL);
 
-  if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
-//    SRelElementPair *item = taosArrayGet(pSqlNode->from->list, 0);
+  if (pSqlNode->from->type == SQL_FROM_NODE_TABLES) {
+//    SRelElement *item = taosArrayGet(pSqlNode->from->list, 0);
 //    item->TableName.name;
   }
 

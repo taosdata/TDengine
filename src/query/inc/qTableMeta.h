@@ -1,9 +1,9 @@
 #ifndef TDENGINE_QTABLEUTIL_H
 #define TDENGINE_QTABLEUTIL_H
 
-#include "tsdb.h"  //todo tsdb should not be here
 #include "qSqlparser.h"
-#include "qFilter.h"
+#include "tfilter.h"
+#include "tsdb.h"  //todo tsdb should not be here
 
 typedef struct SFieldInfo {
   int16_t      numOfOutput;   // number of column in result

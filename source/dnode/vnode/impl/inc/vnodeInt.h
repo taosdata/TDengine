@@ -18,7 +18,6 @@
 
 #include "vnode.h"
 
-#include "amalloc.h"
 #include "meta.h"
 #include "sync.h"
 #include "tlog.h"
@@ -38,16 +37,6 @@ extern int32_t vDebugFlag;
 #define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", 255, __VA_ARGS__); }}
 #define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
-
-typedef struct SVnode {
-  int32_t    vgId;
-  SVnodeCfg  cfg;
-  SMeta     *pMeta;
-  STsdb     *pTsdb;
-  STQ       *pTQ;
-  SWal      *pWal;
-  SSyncNode *pSync;
-} SVnode;
 
 #ifdef __cplusplus
 }

@@ -55,12 +55,12 @@ void taosRemoveDir(const char *dirname) {
   closedir(dir);
   rmdir(dirname);
 
-  printf("dir:%s is removed", dirname);
+  printf("dir:%s is removed\n", dirname);
 }
 
 bool taosDirExist(char *dirname) { return access(dirname, F_OK) == 0; }
 
-bool taosMkDir(char *dirname) {
+bool taosMkDir(const char *dirname) {
   int32_t code = mkdir(dirname, 0755);
   if (code < 0 && errno == EEXIST) {
     return true;

@@ -17,14 +17,80 @@
 #define _TD_VNODE_H_
 
 #include "os.h"
-#include "taosmsg.h"
-#include "trpc.h"
+#include "trequest.h"
+
+#include "meta.h"
+#include "tq.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SVnode SVnode;
+/* ------------------------ TYPES EXPOSED ------------------------ */
+typedef struct SVnode        SVnode;
+typedef struct SVnodeOptions SVnodeOptions;
+
+/* ------------------------ SVnode ------------------------ */
+SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
+void    vnodeClose(SVnode *pVnode);
+void    vnodeDestroy(const char *path);
+int     vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch);
+int     vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest);
+int     vnodeProcessReadReq(SVnode *pVnode, SRequest *pReq);
+int     vnodeProcessSyncReq(SVnode *pVnode, SRequest *pReq);
+
+/* ------------------------ SVnodeOptions ------------------------ */
+void vnodeOptionsInit(SVnodeOptions *);
+void vnodeOptionsClear(SVnodeOptions *);
+
+/* ------------------------ STRUCT DEFINITIONS ------------------------ */
+struct SVnodeOptions {
+  /**
+   * @brief write buffer size in BYTES
+   *
+   */
+  uint64_t wsize;
+
+  /**
+   * @brief time to live of tables in this vnode
+   * in SECONDS
+   *
+   */
+  uint32_t ttl;
+
+  /**
+   * @brief if time-series requests eventual consistency
+   *
+   */
+  bool isWeak;
+
+  /**
+   * @brief if the allocator is heap allcator or arena allocator
+   *
+   */
+  bool isHeapAllocator;
+
+  /**
+   * @brief TSDB options
+   *
+   */
+  STsdbOptions tsdbOptions;
+
+  /**
+   * @brief META options
+   *
+   */
+  SMetaOptions metaOptions;
+  // STqOptions   tqOptions; // TODO
+};
+
+/* ------------------------ FOR COMPILE ------------------------ */
+
+#if 1
+
+#include "taosmsg.h"
+#include "trpc.h"
 
 typedef struct {
   char     db[TSDB_FULL_DB_NAME_LEN];
@@ -71,8 +137,6 @@ typedef struct {
 int32_t vnodeInit(SVnodePara);
 void    vnodeCleanup();
 
-SVnode *vnodeOpen(int32_t vgId, const char *path);
-void    vnodeClose(SVnode *pVnode);
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
 void    vnodeDrop(SVnode *pVnode);
@@ -85,6 +149,8 @@ SVnodeMsg *vnodeInitMsg(int32_t msgNum);
 int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
 void       vnodeCleanupMsg(SVnodeMsg *pMsg);
 void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType);
+
+#endif
 
 #ifdef __cplusplus
 }

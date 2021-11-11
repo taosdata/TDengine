@@ -16,13 +16,14 @@
 #ifndef _TD_VNODE_COMMIT_H_
 #define _TD_VNODE_COMMIT_H_
 
-#include "vnodeInt.h"
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int vnodeAsyncCommit(SVnode *pVnode);
+bool vnodeShouldCommit(SVnode *pVnode);
+int  vnodeAsyncCommit(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

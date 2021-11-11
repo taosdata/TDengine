@@ -21,7 +21,6 @@
 #include "hash.h"
 #include "qExecutor.h"
 #include "qResultbuf.h"
-#include "qScript.h"
 #include "qUtil.h"
 #include "queryLog.h"
 #include "tcompare.h"
@@ -29,6 +28,7 @@
 #include "texpr.h"
 #include "tlosertree.h"
 #include "tscLog.h"
+#include "tscript.h"
 #include "ttype.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)

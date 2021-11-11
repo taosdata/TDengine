@@ -16,22 +16,26 @@
 #ifndef _TD_META_DEF_H_
 #define _TD_META_DEF_H_
 
-#include "metaUid.h"
-#include "tkv.h"
+#include "meta.h"
+#include "metaCache.h"
+#include "metaDB.h"
+#include "metaIdx.h"
+#include "metaOptions.h"
+#include "metaTbOptions.h"
+#include "metaTbTag.h"
+#include "metaTbUid.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct SMeta {
-  STableUidGenerator uidGenerator;
-
-  STkvDb* tableDb;   // uid->table obj
-  STkvDb* tbnameDb;  // tbname --> uid
-  STkvDb* schemaDb;  // uid+version --> schema
-  STkvDb* tagDb;     // uid --> tag
-  STkvDb* tagIdx;    // TODO: need to integrate lucene or our own
-  // STkvCache* metaCache; // TODO: add a global cache here
+  char*           path;     // path of current meta
+  SMetaOptions    options;  // meta option
+  meta_db_t*      pDB;      // raw data db
+  meta_index_t*   pIdx;     // tag index
+  meta_cache_t*   pCache;   // LRU cache
+  STbUidGenerator uidGnrt;  // meta table UID generator
 };
 
 #ifdef __cplusplus

@@ -25,7 +25,7 @@ extern "C" {
 
 struct SSDataBlock;
 
-typedef struct {
+typedef struct SFillColInfo {
   STColumn col;             // column info
   int16_t  functionId;      // sql function id
   int16_t  flag;            // column flag: TAG COLUMN|NORMAL COLUMN
@@ -64,30 +64,11 @@ typedef struct SFillInfo {
   void*     handle;               // for debug purpose
 } SFillInfo;
 
-typedef struct SPoint {
-  int64_t key;
-  void *  val;
-} SPoint;
-
-SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-                            int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                            SFillColInfo* pFillCol, void* handle);
-
-void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp);
-
-void* taosDestroyFillInfo(SFillInfo *pFillInfo);
-
-void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-
-void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-
-bool taosFillHasMoreResults(SFillInfo* pFillInfo);
-
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
-int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
-int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, void** output, int32_t capacity);
+
+
 
 #ifdef __cplusplus
 }

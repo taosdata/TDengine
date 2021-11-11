@@ -1,0 +1,12 @@
+
+# NuRaft
+ExternalProject_Add(NuRaft
+        GIT_REPOSITORY https://github.com/eBay/NuRaft.git
+        GIT_TAG v1.3.0
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/nuraft"
+        BINARY_DIR "${CMAKE_SOURCE_DIR}/deps/nuraft"
+        CONFIGURE_COMMAND "./prepare.sh"
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )

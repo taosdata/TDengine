@@ -189,7 +189,7 @@ static SQueryNode* doCreateQueryPlanForOneTableImpl(SQueryInfo* pQueryInfo, SQue
   return pNode;
 }
 
-static SQueryNode* doCreateQueryPlanForOneTable(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
+static SQueryNode* doCreateQueryPlanForSingleTable(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
                                                 SArray* tableCols) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);
@@ -266,7 +266,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
     taosArrayPush(upstream, &pNode);
   } else { // only one table, normal query process
     STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
-    SQueryNode* pNode = doCreateQueryPlanForOneTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList, pQueryInfo->colList);
+    SQueryNode* pNode = doCreateQueryPlanForSingleTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList, pQueryInfo->colList);
     upstream = taosArrayInit(5, POINTER_BYTES);
     taosArrayPush(upstream, &pNode);
   }
