@@ -42,7 +42,7 @@ static struct {
   SSteps    *pInitSteps;
   SSteps    *pStartSteps;
   SMnodePara para;
-  MnodeRpcFp msgFp;
+  MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
 } tsMint;
 
 int32_t mnodeGetDnodeId() { return tsMint.para.dnodeId; }

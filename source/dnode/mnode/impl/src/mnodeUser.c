@@ -234,15 +234,15 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
 }
 
 int32_t mnodeInitUser() {
-  SSdbDesc desc = {.sdbType = SDB_USER,
-                   .keyType = SDB_KEY_BINARY,
-                   .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
-                   .encodeFp = (SdbEncodeFp)mnodeUserActionEncode,
-                   .decodeFp = (SdbDecodeFp)mnodeUserActionDecode,
-                   .insertFp = (SdbInsertFp)mnodeUserActionInsert,
-                   .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
-                   .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
-  sdbSetHandler(desc);
+  SSdbHandle handle = {.sdbType = SDB_USER,
+                       .keyType = SDB_KEY_BINARY,
+                       .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
+                       .encodeFp = (SdbEncodeFp)mnodeUserActionEncode,
+                       .decodeFp = (SdbDecodeFp)mnodeUserActionDecode,
+                       .insertFp = (SdbInsertFp)mnodeUserActionInsert,
+                       .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
+                       .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
+  sdbSetHandle(handle);
 
   return 0;
 }

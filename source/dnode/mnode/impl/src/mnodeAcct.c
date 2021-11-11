@@ -106,7 +106,7 @@ static int32_t mnodeCreateDefaultAcct() {
                            .accessState = TSDB_VN_ALL_ACCCESS};
 
   SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
-  if (pRaw != NULL) {
+  if (pRaw == NULL) {
     return -1;
   }
 
@@ -114,15 +114,15 @@ static int32_t mnodeCreateDefaultAcct() {
 }
 
 int32_t mnodeInitAcct() {
-  SSdbDesc desc = {.sdbType = SDB_ACCT,
-                   .keyType = SDB_KEY_BINARY,
-                   .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
-                   .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
-                   .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
-                   .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
-                   .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
-                   .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
-  sdbSetHandler(desc);
+  SSdbHandle handle = {.sdbType = SDB_ACCT,
+                       .keyType = SDB_KEY_BINARY,
+                       .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
+                       .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
+                       .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
+                       .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
+                       .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
+                       .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
+  sdbSetHandle(handle);
 
   return 0;
 }

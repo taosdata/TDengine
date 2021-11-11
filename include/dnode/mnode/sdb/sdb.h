@@ -121,11 +121,11 @@ typedef struct {
   SdbInsertFp insertFp;
   SdbUpdateFp updateFp;
   SdbDeleteFp deleteFp;
-} SSdbDesc;
+} SSdbHandle;
 
 int32_t sdbInit();
 void    sdbCleanup();
-void    sdbSetHandler(SSdbDesc desc);
+void    sdbSetHandle(SSdbHandle handle);
 
 int32_t sdbRead();
 int32_t sdbWrite(SSdbRaw *pRaw);

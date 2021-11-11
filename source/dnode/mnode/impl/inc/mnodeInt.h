@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-typedef void (*MnodeRpcFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *pMsg);
+typedef void (*MnodeRpcFp)(SMnodeMsg *pMsg);
 
 tmr_h   mnodeGetTimer();
 int32_t mnodeGetDnodeId();

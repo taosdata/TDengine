@@ -223,14 +223,14 @@ int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, void *pMsg) {
 }
 
 int32_t trnInit() {
-  SSdbDesc desc = {.sdbType = SDB_TRANS,
+  SSdbHandle handle = {.sdbType = SDB_TRANS,
                    .keyType = SDB_KEY_INT32,
                    .encodeFp = (SdbEncodeFp)trnActionEncode,
                    .decodeFp = (SdbDecodeFp)trnActionDecode,
                    .insertFp = (SdbInsertFp)trnActionInsert,
                    .updateFp = (SdbUpdateFp)trnActionUpdate,
                    .deleteFp = (SdbDeleteFp)trnActionDelete};
-  sdbSetHandler(desc);
+  sdbSetHandle(handle);
 
   return 0;
 }

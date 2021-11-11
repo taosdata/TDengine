@@ -15,8 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
+#include "tglobal.h"
 
-static SSdbObj tsSdb = {0};
+static SSdbMgr tsSdb = {0};
 
 static int32_t sdbCreateDir() {
   if (!taosMkDir(tsSdb.currDir)) {
@@ -153,7 +154,7 @@ static int32_t sdbWriteDataFile() {
     SSdbRow *pRow = taosHashIterate(hash, NULL);
     while (pRow != NULL) {
       if (pRow->status == SDB_STATUS_READY) continue;
-      SSdbRaw *pRaw = (*encodeFp)(pRow->data);
+      SSdbRaw *pRaw = (*encodeFp)(pRow->pData);
       if (pRaw != NULL) {
         taosWriteFile(fd, pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
       } else {
@@ -292,15 +293,15 @@ void sdbCleanup() {
   }
 }
 
-void sdbSetHandler(SSdbDesc desc) {
-  ESdbType sdb = desc.sdbType;
-  tsSdb.keyTypes[sdb] = desc.keyType;
-  tsSdb.insertFps[sdb] = desc.insertFp;
-  tsSdb.updateFps[sdb] = desc.updateFp;
-  tsSdb.deleteFps[sdb] = desc.deleteFp;
-  tsSdb.deployFps[sdb] = desc.deployFp;
-  tsSdb.encodeFps[sdb] = desc.encodeFp;
-  tsSdb.decodeFps[sdb] = desc.decodeFp;
+void sdbSetHandle(SSdbHandle handle) {
+  ESdbType sdb = handle.sdbType;
+  tsSdb.keyTypes[sdb] = handle.keyType;
+  tsSdb.insertFps[sdb] = handle.insertFp;
+  tsSdb.updateFps[sdb] = handle.updateFp;
+  tsSdb.deleteFps[sdb] = handle.deleteFp;
+  tsSdb.deployFps[sdb] = handle.deployFp;
+  tsSdb.encodeFps[sdb] = handle.encodeFp;
+  tsSdb.decodeFps[sdb] = handle.decodeFp;
 }
 
 #if 0
@@ -370,7 +371,7 @@ void *sdbAcquire(ESdbType sdb, void *pKey) {
 
   if (pRow->status == SDB_STATUS_READY) {
     atomic_add_fetch_32(&pRow->refCount, 1);
-    return pRow->data;
+    return pRow->pData;
   } else {
     terrno = -1;  // todo
     return NULL;

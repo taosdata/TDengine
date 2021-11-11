@@ -19,7 +19,6 @@
 #include "os.h"
 #include "sdb.h"
 #include "taosmsg.h"
-#include "tglobal.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
@@ -35,7 +34,7 @@ extern "C" {
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 
-#define SDB_MAX_SIZE (32*1024)
+#define SDB_MAX_SIZE (32 * 1024)
 
 typedef struct {
   char       *currDir;
@@ -52,13 +51,13 @@ typedef struct {
   SdbDeployFp deployFps[SDB_MAX];
   SdbEncodeFp encodeFps[SDB_MAX];
   SdbDecodeFp decodeFps[SDB_MAX];
-} SSdbObj;
+} SSdbMgr;
 
 typedef struct {
   ESdbStatus status;
-  int32_t  refCount;
-  int32_t  dataLen;
-  char    *data[];
+  int32_t    refCount;
+  int32_t    dataLen;
+  char       pData[];
 } SSdbRow;
 
 #ifdef __cplusplus
