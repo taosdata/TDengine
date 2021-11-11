@@ -185,30 +185,39 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *
   return false;
 }
 
-bool taosGetProcIO(float *readKB, float *writeKB) {
-  static int64_t lastReadbyte = -1;
-  static int64_t lastWritebyte = -1;
+bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {
+  static int64_t lastRchar = -1, lastRbyte = -1;
+  static int64_t lastWchar = -1, lastWbyte = -1;
 
-  int64_t curReadbyte = 0;
-  int64_t curWritebyte = 0;
+  int64_t curRchar = 0, curRbyte = 0;
+  int64_t curWchar = 0, curWbyte = 0;
 
-  if (!taosReadProcIO(&curReadbyte, &curWritebyte, NULL, NULL)) {
+  if (!taosReadProcIO(&curRchar, &curWchar, &curRbyte, &curWbyte)) {
     return false;
   }
 
-  if (lastReadbyte == -1 || lastWritebyte == -1) {
-    lastReadbyte = curReadbyte;
-    lastWritebyte = curWritebyte;
+  if (lastRchar == -1 || lastWchar == -1 || lastRbyte == -1 || lastWbyte == -1) {
+    lastRchar = curRchar;
+    lastWchar = curWchar;
+    lastRbyte = curRbyte;
+    lastWbyte = curWbyte;
     return false;
   }
 
-  *readKB = (float)((double)(curReadbyte - lastReadbyte) / 1024);
-  *writeKB = (float)((double)(curWritebyte - lastWritebyte) / 1024);
-  if (*readKB < 0) *readKB = 0;
-  if (*writeKB < 0) *writeKB = 0;
+  *rcharKB = (float)((double)(curRchar - lastRchar) / 1024);
+  *wcharKB = (float)((double)(curWchar - lastWchar) / 1024);
+  if (*rcharKB < 0) *rcharKB = 0;
+  if (*wcharKB < 0) *wcharKB = 0;
 
-  lastReadbyte = curReadbyte;
-  lastWritebyte = curWritebyte;
+  *rbyteKB = (float)((double)(curRbyte - lastRbyte) / 1024);
+  *wbyteKB = (float)((double)(curWbyte - lastWbyte) / 1024);
+  if (*rbyteKB < 0) *rbyteKB = 0;
+  if (*wbyteKB < 0) *wbyteKB = 0;
+
+  lastRchar = curRchar;
+  lastWchar = curWchar;
+  lastRbyte = curRbyte;
+  lastWbyte = curWbyte;
 
   return true;
 }
@@ -217,11 +226,11 @@ void taosGetSystemInfo() {
   tsNumOfCores = taosGetCpuCores();
   tsTotalMemoryMB = taosGetTotalMemory();
 
-  float tmp1, tmp2;
+  float tmp1, tmp2, tmp3, tmp4;
   // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
-  taosGetProcIO(&tmp1, &tmp2);
+  taosGetProcIO(&tmp1, &tmp2, &tmp3, &tmp4);
 
   taosGetSystemTimezone();
   taosGetSystemLocale();
