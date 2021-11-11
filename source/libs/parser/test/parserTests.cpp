@@ -412,6 +412,16 @@ TEST(testCase, function_Test10) {
   sqlCheck("select block_dist() from `t.1abc`", true);
   sqlCheck("select block_dist(a) from `t.1abc`", false);
   sqlCheck("select count(*) from `t.1abc` interval(1s) group by a", false);
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  sqlCheck("select length119(a,b) from `t.1abc`", false);
+  sqlCheck("select length(a,b) from `t.1abc`", false);
+  sqlCheck("select block_dist() + 20 from `t.1abc`", false);
+  sqlCheck("select top(a, 20), count(b) from `t.1abc`", false);
+  sqlCheck("select count(b), c from `t.1abc`", false);
+  sqlCheck("select last_row(*), count(b) from `t.1abc`", false);
+  sqlCheck("select last_row(a, b) + 20 from `t.1abc`", false);
+  sqlCheck("select last_row(count(*)) from `t.1abc`", false);
 }
 
 TEST(testCase, function_Test6) {

@@ -217,42 +217,12 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
   return pNode;
 }
 
-static int32_t getFunctionLevel(SQueryStmtInfo* pQueryInfo) {
-  int32_t n = 10;
-
-  int32_t level = 0;
-  for(int32_t i = 0; i < n; ++i) {
-    SArray* pList = pQueryInfo->exprList[i];
-    if (taosArrayGetSize(pList) > 0) {
-      level += 1;
-    }
-  }
-
-  return level;
-}
-
-static SQueryPlanNode* createOneQueryPlanNode(SArray* p, SQueryPlanNode* pNode, SExprInfo* pExpr, SQueryTableInfo* info) {
-  if (pExpr->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
-    bool aggregateFunc = qIsAggregateFunction(pExpr->pExpr->_function.functionName);
-    if (aggregateFunc) {
-      int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
-      return createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, p->pData, numOfOutput, info, NULL);
-    } else {
-      int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
-      return createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, numOfOutput, info, NULL);
-    }
-  } else {
-    int32_t numOfOutput = (int32_t)taosArrayGetSize(p);
-    return createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, numOfOutput, info, NULL);
-  }
-}
-
 static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info) {
   // group by column not by tag
   size_t numOfGroupCols = taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo);
 
   // check for aggregation
-  int32_t level = getFunctionLevel(pQueryInfo);
+  int32_t level = getExprFunctionLevel(pQueryInfo);
 
   for(int32_t i = level - 1; i >= 0; --i) {
     SArray* p = pQueryInfo->exprList[i];
@@ -344,7 +314,7 @@ static bool isAllAggExpr(SArray* pList) {
 static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
   assert(pQueryInfo != NULL);
 
-  size_t level = getFunctionLevel(pQueryInfo);
+  size_t level = getExprFunctionLevel(pQueryInfo);
   for(int32_t i = 0; i < level - 1; ++i) {
     SArray* p = pQueryInfo->exprList[i];
 

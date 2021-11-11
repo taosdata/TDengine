@@ -223,7 +223,7 @@ void addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
 }
 
 int32_t getExprFunctionId(SExprInfo *pExprInfo) {
-  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
+  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE);
   return 0;
 }
 
@@ -350,11 +350,16 @@ bool tscHasColumnFilter(SQueryStmtInfo* pQueryInfo) {
   return false;
 }
 
-//void tscClearInterpInfo(SQueryStmtInfo* pQueryInfo) {
-//  if (!tscIsPointInterpQuery(pQueryInfo)) {
-//    return;
-//  }
-//
-//  pQueryInfo->fillType = TSDB_FILL_NONE;
-//  tfree(pQueryInfo->fillVal);
-//}
+int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo) {
+  int32_t n = 10;
+
+  int32_t level = 0;
+  for(int32_t i = 0; i < n; ++i) {
+    SArray* pList = pQueryInfo->exprList[i];
+    if (taosArrayGetSize(pList) > 0) {
+      level += 1;
+    }
+  }
+
+  return level;
+}
