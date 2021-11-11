@@ -36,6 +36,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
+static int32_t vnodeCheckWal(SVnodeObj *pVnode);
 
 int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -167,6 +168,13 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   return code;
 }
 
+static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
+  if (pVnode->isCommiting == 0) {
+    return tsdbCheckWal(pVnode->tsdb, (uint32_t)(walGetFSize(pVnode->wal) >> 20));
+  }
+  return 0;
+}
+
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int code = TSDB_CODE_SUCCESS;
 
@@ -179,6 +187,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
     code = terrno;
     ASSERT(code != 0);
+  }
+
+  if (((++pVnode->tblMsgVer) & 32767) == 0) {  // lazy check
+    vnodeCheckWal(pVnode);
   }
 
   tsdbClearTableCfg(pCfg);

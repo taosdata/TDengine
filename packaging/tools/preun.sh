@@ -58,6 +58,12 @@ function kill_taosd() {
 }
 
 function clean_service_on_systemd() {
+    blm3_service_config="${service_config_dir}/blm3.service"
+    if systemctl is-active --quiet blm3; then
+        echo "blm3 is running, stopping it..."
+        ${csudo} systemctl stop blm3 &> /dev/null || echo &> /dev/null
+    fi
+
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
 
     if systemctl is-active --quiet ${taos_service_name}; then
@@ -67,6 +73,9 @@ function clean_service_on_systemd() {
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
 
     ${csudo} rm -f ${taosd_service_config}
+
+    [ -f ${blm3_service_config} ] && ${csudo} rm -f ${blm3_service_config}
+
 }
 
 function clean_service_on_sysvinit() {
@@ -115,7 +124,7 @@ ${csudo} rm -f ${bin_link_dir}/blm3       || :
 ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
 ${csudo} rm -f ${bin_link_dir}/taosdump   || :
 ${csudo} rm -f ${bin_link_dir}/set_core   || :
-${csudo} rm -f ${cfg_link_dir}/*          || :
+${csudo} rm -f ${cfg_link_dir}/*.new      || :
 ${csudo} rm -f ${inc_link_dir}/taos.h     || :
 ${csudo} rm -f ${inc_link_dir}/taoserror.h || :
 ${csudo} rm -f ${lib_link_dir}/libtaos.*   || :

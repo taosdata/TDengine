@@ -32,6 +32,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_USER_IS_REQUIRED = 0x2319;        // user is required
     public static final int ERROR_PASSWORD_IS_REQUIRED = 0x231a;    // password is required
     public static final int ERROR_INVALID_JSON_FORMAT = 0x231b;
+    public static final int ERROR_HTTP_ENTITY_IS_NULL = 0x231c; //http entity is null
 
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
@@ -74,6 +75,7 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_USER_IS_REQUIRED);
         errorNumbers.add(ERROR_PASSWORD_IS_REQUIRED);
         errorNumbers.add(ERROR_INVALID_JSON_FORMAT);
+        errorNumbers.add(ERROR_HTTP_ENTITY_IS_NULL);
 
         errorNumbers.add(ERROR_RESTFul_Client_Protocol_Exception);
 

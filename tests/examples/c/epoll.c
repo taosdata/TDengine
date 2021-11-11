@@ -92,7 +92,7 @@ static void null_event(ep_t *ep, struct epoll_event *ev, fde_t *client);
       fprintf(stderr, "" fmt "\n", ##__VA_ARGS__);                                   \
     }                                                                                \
     fprintf(stderr, "usage:\n");                                                     \
-    fprintf(stderr, "  %s -l <port>             : specify listenning port\n", arg0); \
+    fprintf(stderr, "  %s -l <port>             : specify listening port\n", arg0); \
   } while (0)
 
 int main(int argc, char *argv[]) {
@@ -256,7 +256,7 @@ static int open_listen(unsigned short port) {
       E("getsockname() failed");
     }
     A(len == sizeof(si), "internal logic error");
-    D("listenning at: %d", ntohs(si.sin_port));
+    D("listening at: %d", ntohs(si.sin_port));
     return skt;
   } while (0);
   close(skt);
