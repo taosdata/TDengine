@@ -1740,7 +1740,7 @@ void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t tableUid) {
   tscColumnListInsert(pQueryInfo->colList, PRIMARYKEY_TIMESTAMP_COL_INDEX, tableUid, &s);
 }
 
-static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem,
+static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem,
                                 SColumnList* columnList, bool finalResult) {
   const char* msg2 = "invalid arithmetic expression in select clause";
   const char* msg3 = "tag columns can not be used in arithmetic expression";
@@ -1789,7 +1789,7 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
   }
 
 
-  SExprInfo* pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, pNode->resultType, pNode->resultBytes,
+  SExprInfo* pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_SCALAR_EXPR, &index, pNode->resultType, pNode->resultBytes,
                                    getNewResColId(pCmd), 0, false);
 
   char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->exprToken.z;
@@ -1826,7 +1826,7 @@ static int32_t handleScalarExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t e
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem,
+static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem,
                                    SColumnList* columnList, bool finalResult) {
   const char* msg2 = "invalid arithmetic expression in select clause";
 
@@ -1851,7 +1851,7 @@ static int32_t handleAggregateExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_
   pExprInfo->base.interBytes = 0;
   pExprInfo->base.resType    = TSDB_DATA_TYPE_DOUBLE;
 
-  pExprInfo->base.functionId = TSDB_FUNC_ARITHM;
+  pExprInfo->base.functionId = TSDB_FUNC_SCALAR_EXPR;
   pExprInfo->base.numOfParams = 1;
   pExprInfo->base.resColId = getNewResColId(pCmd);
   strncpy(pExprInfo->base.aliasName, aliasName, tListLen(pExprInfo->base.aliasName));
@@ -1893,18 +1893,18 @@ static int32_t handleSQLExprItem(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   const char* msg1 = "invalid column name, illegal column type, or columns in arithmetic expression from two tables";
 
   SColumnList columnList = {0};
-  int32_t     arithmeticType = SQLEXPR_TYPE_UNASSIGNED;
+  int32_t     sqlExprType = SQLEXPR_TYPE_UNASSIGNED;
 
   uint64_t uid;
-  if (validateSQLExprItem(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType, &uid) != TSDB_CODE_SUCCESS) {
+  if (validateSQLExprItem(pCmd, pItem->pNode, pQueryInfo, &columnList, &sqlExprType, &uid) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-  if (arithmeticType == SQLEXPR_TYPE_SCALAR) {
-    code = handleScalarExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
+  if (sqlExprType == SQLEXPR_TYPE_SCALAR) {
+    code = handleScalarTypeExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
   } else {
-    code = handleAggregateExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
+    code = handleAggTypeExpr(pCmd, pQueryInfo, exprIndex, pItem, &columnList, true);
   }
 
   return code;
@@ -3138,79 +3138,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       return TSDB_CODE_SUCCESS;
     }
 
-    case TSDB_FUNC_SCALAR_LOG:
-    case TSDB_FUNC_SCALAR_POW: {
-      // 1. valid the number of parameters
-      if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) {
-        /* no parameters or more than one parameter for function */
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-
-      tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
-      if (pParamElem->pNode->tokenId != TK_ID) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-
-      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
-
-      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-      }
-
-      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-      SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
-
-      // functions can not be applied to tags
-      if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-      }
-
-      // 2. valid the column type
-      if (!IS_NUMERIC_TYPE(pSchema->type)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
-      }
-
-      // 3. valid the parameters
-      if (pParamElem[1].pNode->tokenId == TK_ID) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-
-      int16_t  resultType = pSchema->type;
-      int16_t  resultSize = pSchema->bytes;
-      int32_t  interResult = 0;
-
-      tVariant* pVariant = &pParamElem[1].pNode->value;
-      char val[8] = {0};
-      tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
-
-      SExprInfo* pExpr = NULL;
-      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize, &interResult, 0, false,
-                        pUdfInfo);
-      pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
-      tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double ));
-
-      memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
-      getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
-
-      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
-
-      if (finalResult) {
-        int32_t numOfOutput = tscNumOfFields(pQueryInfo);
-        insertResultField(pQueryInfo, numOfOutput, &ids, pExpr->base.resBytes, (int32_t)pExpr->base.resType,
-                          pExpr->base.aliasName, pExpr);
-      } else {
-        assert(ids.num == 1);
-        tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
-      }
-
-      tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
-      return TSDB_CODE_SUCCESS;
-    }
-
     default: {
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
       pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
       if (pUdfInfo == NULL) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
@@ -3763,7 +3692,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       ++scalarFuncNum;
     }
 
-    if (functionId == TSDB_FUNC_ARITHM) {
+    if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       ++scalarFuncNum;
     }
 
@@ -6730,7 +6659,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
 
     int32_t f = pExpr->base.functionId;
     if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) ||
-        f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ARITHM || f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_DIFF || f == TSDB_FUNC_SCALAR_EXPR || f == TSDB_FUNC_DERIVATIVE ||
         f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
         f == TSDB_FUNC_CEIL || f == TSDB_FUNC_FLOOR || f == TSDB_FUNC_ROUND)
     {
@@ -7362,7 +7291,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   
     int16_t functionId = pExpr->base.functionId;
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS ||
-        functionId == TSDB_FUNC_ARITHM || functionId == TSDB_FUNC_TS_DUMMY) {
+        functionId == TSDB_FUNC_SCALAR_EXPR || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 

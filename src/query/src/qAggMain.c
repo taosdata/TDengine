@@ -202,25 +202,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if (TSDB_FUNC_IS_SCALAR(functionId)) {
-    switch (functionId) {
-      case TSDB_FUNC_SCALAR_POW: {
-        *type = TSDB_DATA_TYPE_DOUBLE;
-        *bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-        break;
-      }
-      case TSDB_FUNC_SCALAR_LOG: {
-        *type = TSDB_DATA_TYPE_DOUBLE;
-        *bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-        break;
-      }
-      default: {
-        qError("Illegal function id: %d", functionId);
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-    }
-    return TSDB_CODE_SUCCESS;
-  }
+  assert(!TSDB_FUNC_IS_SCALAR(functionId));
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
@@ -261,7 +243,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_SUCCESS;
   }
   
-  if (functionId == TSDB_FUNC_ARITHM) {
+  if (functionId == TSDB_FUNC_SCALAR_EXPR) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
     *interBytes = 0;
@@ -3402,8 +3384,8 @@ static void diff_function(SQLFunctionCtx *pCtx) {
   }
 }
 
-char *getArithColumnData(void *param, const char* name, int32_t colId) {
-  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
+char *getScalarExprColumnData(void *param, const char* name, int32_t colId) {
+  SScalarExprSupport *pSupport = (SScalarExprSupport *)param;
   
   int32_t index = -1;
   for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
@@ -3417,12 +3399,12 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
-static void arithmetic_function(SQLFunctionCtx *pCtx) {
+static void scalar_expr_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-  SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
+  SScalarExprSupport *sas = (SScalarExprSupport *)pCtx->param[1].pz;
   tExprOperandInfo output;
   output.data = pCtx->pOutput;
-  exprTreeNodeTraverse(sas->pExprInfo->pExpr, pCtx->size, &output, sas, pCtx->order, getArithColumnData);
+  exprTreeNodeTraverse(sas->pExprInfo->pExpr, pCtx->size, &output, sas, pCtx->order, getScalarExprColumnData);
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \
@@ -5380,11 +5362,11 @@ SAggFunctionInfo aAggs[] = {{
                           {
                               // 23
                               "arithmetic",
-                              TSDB_FUNC_ARITHM,
-                              TSDB_FUNC_ARITHM,
+                              TSDB_FUNC_SCALAR_EXPR,
+                              TSDB_FUNC_SCALAR_EXPR,
                               TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               function_setup,
-                              arithmetic_function,
+                              scalar_expr_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,

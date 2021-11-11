@@ -57,7 +57,7 @@ extern "C" {
 #define TSDB_FUNC_PRJ          21
 
 #define TSDB_FUNC_TAGPRJ       22
-#define TSDB_FUNC_ARITHM       23
+#define TSDB_FUNC_SCALAR_EXPR  23
 #define TSDB_FUNC_DIFF         24
 
 #define TSDB_FUNC_FIRST_DST    25
@@ -129,14 +129,14 @@ enum {
 #define QUERY_IS_PROJECTION_QUERY(type)  (((type)&TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0)
 #define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
 
-typedef struct SArithmeticSupport {
+typedef struct SScalarExprSupport {
   SExprInfo   *pExprInfo;
   int32_t      numOfCols;
   SColumnInfo *colList;
   void        *exprList;   // client side used
   int32_t      offset;
   char**       data;
-} SArithmeticSupport;
+} SScalarExprSupport;
 
 typedef struct SQLPreAggVal {
   bool        isSet;             // statistics info set or not

@@ -304,7 +304,7 @@ typedef struct SQueryRuntimeEnv {
   STSCursor             cur;
 
   char*                 tagVal;           // tag value of current data block
-  SArithmeticSupport   *sasArray;
+  SScalarExprSupport*sasArray;
 
   SSDataBlock          *outputBuf;
   STableGroupInfo       tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure

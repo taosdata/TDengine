@@ -266,7 +266,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_TAGPRJ &&
         functionId != TSDB_FUNC_TAG &&
         functionId != TSDB_FUNC_TS &&
-        functionId != TSDB_FUNC_ARITHM &&
+        functionId != TSDB_FUNC_SCALAR_EXPR &&
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_DIFF &&
         functionId != TSDB_FUNC_DERIVATIVE &&
@@ -314,7 +314,7 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
     }
 
     if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
-        f != TSDB_FUNC_TS && f != TSDB_FUNC_ARITHM && f != TSDB_FUNC_DIFF &&
+        f != TSDB_FUNC_TS && f != TSDB_FUNC_SCALAR_EXPR && f != TSDB_FUNC_DIFF &&
         f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f)) {
       return false;
     }
@@ -4815,7 +4815,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
     strncpy(pse->aliasName, pSource->base.aliasName, tListLen(pse->aliasName));
     strncpy(pse->token, pSource->base.token, tListLen(pse->token));
 
-    if (pSource->base.functionId != TSDB_FUNC_ARITHM) {  // this should be switched to projection query
+    if (pSource->base.functionId != TSDB_FUNC_SCALAR_EXPR) {  // this should be switched to projection query
       pse->numOfParams = 0;      // no params for projection query
       pse->functionId  = TSDB_FUNC_PRJ;
       pse->colInfo.colId = pSource->base.resColId;
@@ -5059,7 +5059,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     tscExprAssign(&pQueryAttr->pExpr1[i], pExpr);
 
-    if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_ARITHM) {
+    if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
       for (int32_t j = 0; j < pQueryAttr->pExpr1[i].base.numOfParams; ++j) {
         buildArithmeticExprFromMsg(&pQueryAttr->pExpr1[i], NULL);
       }

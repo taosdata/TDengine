@@ -713,7 +713,7 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
   char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
   size_t size = tscNumOfFields(pQueryInfo);
-  SArithmeticSupport arithSup = {0};
+  SScalarExprSupport arithSup = {0};
 
   // todo refactor
   arithSup.offset     = 0;
@@ -736,7 +736,8 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
       arithSup.pExprInfo = pSup->pExpr;
       tExprOperandInfo output;
       output.data = pbuf + pOutput->num*offset;
-      exprTreeNodeTraverse(arithSup.pExprInfo->pExpr, (int32_t) pOutput->num, &output, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
+      exprTreeNodeTraverse(arithSup.pExprInfo->pExpr, (int32_t)pOutput->num, &output, &arithSup, TSDB_ORDER_ASC,
+                           getScalarExprInputSrc);
     } else {
       SExprInfo* pExpr = pSup->pExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->base.offset * pOutput->num + pOutput->data, (size_t)(pExpr->base.resBytes * pOutput->num));
