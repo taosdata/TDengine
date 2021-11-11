@@ -275,8 +275,7 @@ static void *monThreadFunc(void *param) {
 
     if (tsMonitor.conn == NULL) {
       tsMonitor.state = MON_STATE_NOT_INIT;
-      //tsMonitor.conn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
-      tsMonitor.conn = taos_connect(NULL, "root", "taosdata", "", 0);
+      tsMonitor.conn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
       if (tsMonitor.conn == NULL) {
         monError("failed to connect to database, reason:%s", tstrerror(terrno));
         continue;
