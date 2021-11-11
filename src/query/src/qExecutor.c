@@ -5958,6 +5958,7 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
   int32_t gidx = pRuntimeEnv->current->groupIndex;
+  SQLFunctionCtx* pCtx = NULL;
 
   *needApply = false;
   
@@ -5967,8 +5968,6 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
 
   assert(pOperatorInfo->numOfOutput > 1);
   
-  SQLFunctionCtx* pCtx = NULL;
-
   for (int32_t i = 1; i < pOperatorInfo->numOfOutput; ++i) {
     assert(pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_INTERP 
         || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TS_DUMMY
@@ -6171,10 +6170,12 @@ group_finished_exit:
   
   pEveryInfo->groupDone = true;
 
-  pCtx->startTs = INT64_MIN;
-  pCtx->start.key = INT64_MIN;
-  pCtx->end.key = INT64_MIN;
-
+  if (pCtx) {
+    pCtx->startTs = INT64_MIN;
+    pCtx->start.key = INT64_MIN;
+    pCtx->end.key = INT64_MIN;
+  }
+  
   return true;
 }
 
