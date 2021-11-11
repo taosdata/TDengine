@@ -523,9 +523,8 @@ function install_taosadapter_service() {
     if ((${service_mod}==0)); then
         [ -f ${binary_dir}/test/cfg/taosadapter.service ] &&\
             ${csudo} cp ${binary_dir}/test/cfg/taosadapter.service\
-	    ${service_config_dir}/ || :
-    else
-        kill_taosadapter
+            ${service_config_dir}/ || :
+        ${csudo} systemctl daemon-reload
     fi
 }
 
