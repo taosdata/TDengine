@@ -41,7 +41,7 @@ SSdbRaw *trnActionEncode(STrans *pTrans) {
 
   SSdbRaw *pRaw = calloc(1, rawDataLen + sizeof(SSdbRaw));
   if (pRaw == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -67,7 +67,7 @@ STrans *trnActionDecode(SSdbRaw *pRaw) {
 
   STrans *pTrans = NULL;
   if (pTrans == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -92,14 +92,14 @@ STrans *trnActionDecode(SSdbRaw *pRaw) {
     if (code == 0 && pTmp->dataLen > 0) {
       SSdbRaw *pRead = malloc(sizeof(SSdbRaw) + pTmp->dataLen);
       if (pRead == NULL) {
-        code = TSDB_CODE_MND_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       memcpy(pRead, pTmp, sizeof(SSdbRaw));
       SDB_GET_BINARY_VAL(pData, dataLen, pRead->data, pRead->dataLen, code);
       void *ret = taosArrayPush(pTrans->redoLogs, &pRead);
       if (ret == NULL) {
-        code = TSDB_CODE_MND_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
     }
@@ -151,7 +151,7 @@ int32_t trnGenerateTransId() { return 1; }
 STrans *trnCreate(ETrnPolicy policy) {
   STrans *pTrans = calloc(1, sizeof(STrans));
   if (pTrans == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -166,7 +166,7 @@ STrans *trnCreate(ETrnPolicy policy) {
 
   if (pTrans->redoLogs == NULL || pTrans->undoLogs == NULL || pTrans->commitLogs == NULL ||
       pTrans->redoActions == NULL || pTrans->undoActions == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -195,13 +195,13 @@ void trnSetRpcHandle(STrans *pTrans, void *rpcHandle) { pTrans->rpcHandle = rpcH
 
 static int32_t trnAppendArray(SArray *pArray, SSdbRaw *pRaw) {
   if (pArray == NULL || pRaw == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   void *ptr = taosArrayPush(pArray, &pRaw);
   if (ptr == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 

@@ -77,18 +77,17 @@ extern "C" {
 typedef enum {
   SDB_START = 0,
   SDB_TRANS = 1,
-  SDB_VERSION = 2,
-  SDB_CLUSTER = 3,
-  SDB_DNODE = 4,
-  SDB_MNODE = 5,
-  SDB_ACCT = 6,
-  SDB_AUTH = 7,
-  SDB_USER = 8,
-  SDB_DB = 9,
-  SDB_VGROUP = 10,
-  SDB_STABLE = 11,
-  SDB_FUNC = 12,
-  SDB_MAX = 13
+  SDB_CLUSTER = 2,
+  SDB_DNODE = 3,
+  SDB_MNODE = 4,
+  SDB_ACCT = 5,
+  SDB_AUTH = 6,
+  SDB_USER = 7,
+  SDB_DB = 8,
+  SDB_VGROUP = 9,
+  SDB_STABLE = 10,
+  SDB_FUNC = 11,
+  SDB_MAX = 12
 } ESdbType;
 
 typedef enum { SDB_ACTION_INSERT = 1, SDB_ACTION_UPDATE = 2, SDB_ACTION_DELETE = 3 } ESdbAction;

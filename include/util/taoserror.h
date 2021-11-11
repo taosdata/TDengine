@@ -60,17 +60,19 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RPC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0016)  //"Invalid app version")
 
 //common & util
-#define TSDB_CODE_COM_OPS_NOT_SUPPORT           TAOS_DEF_ERROR_CODE(0, 0x0100)  //"Operation not supported")
-#define TSDB_CODE_COM_MEMORY_CORRUPTED          TAOS_DEF_ERROR_CODE(0, 0x0101)  //"Memory corrupted")
-#define TSDB_CODE_COM_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0102)  //"Out of memory")
-#define TSDB_CODE_COM_INVALID_CFG_MSG           TAOS_DEF_ERROR_CODE(0, 0x0103)  //"Invalid config message")
-#define TSDB_CODE_COM_FILE_CORRUPTED            TAOS_DEF_ERROR_CODE(0, 0x0104)  //"Data file corrupted")
-#define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0105)  //"Ref out of memory")
-#define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0106)  //"too many Ref Objs")
-#define TSDB_CODE_REF_ID_REMOVED                TAOS_DEF_ERROR_CODE(0, 0x0107)  //"Ref ID is removed")
-#define TSDB_CODE_REF_INVALID_ID                TAOS_DEF_ERROR_CODE(0, 0x0108)  //"Invalid Ref ID")
-#define TSDB_CODE_REF_ALREADY_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0109)  //"Ref is already there")
-#define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A)  //"Ref is not there")
+#define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
+#define TSDB_CODE_OUT_OF_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0101)
+#define TSDB_CODE_OUT_OF_RANGE                  TAOS_DEF_ERROR_CODE(0, 0x0102)
+#define TSDB_CODE_INVALID_PTR                   TAOS_DEF_ERROR_CODE(0, 0x0103)
+#define TSDB_CODE_MEMORY_CORRUPTED              TAOS_DEF_ERROR_CODE(0, 0x0104)
+#define TSDB_CODE_FILE_CORRUPTED                TAOS_DEF_ERROR_CODE(0, 0x0106)
+#define TSDB_CODE_INVALID_MSG                   TAOS_DEF_ERROR_CODE(0, 0x0107)
+#define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0108)
+#define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0109)
+#define TSDB_CODE_REF_ID_REMOVED                TAOS_DEF_ERROR_CODE(0, 0x010A)
+#define TSDB_CODE_REF_INVALID_ID                TAOS_DEF_ERROR_CODE(0, 0x010B)
+#define TSDB_CODE_REF_ALREADY_EXIST             TAOS_DEF_ERROR_CODE(0, 0x010C)
+#define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010D)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid Operation")
@@ -121,7 +123,6 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_MSG_LEN           TAOS_DEF_ERROR_CODE(0, 0x0307)  //"Invalid message length")
 #define TSDB_CODE_MND_INVALID_MSG_TYPE          TAOS_DEF_ERROR_CODE(0, 0x0308)  //"Invalid message type")
 #define TSDB_CODE_MND_TOO_MANY_SHELL_CONNS      TAOS_DEF_ERROR_CODE(0, 0x0309)  //"Too many connections")
-#define TSDB_CODE_MND_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x030A)  //"Out of memory in mnode")
 #define TSDB_CODE_MND_INVALID_SHOWOBJ           TAOS_DEF_ERROR_CODE(0, 0x030B)  //"Data expired")
 #define TSDB_CODE_MND_INVALID_QUERY_ID          TAOS_DEF_ERROR_CODE(0, 0x030C)  //"Invalid query id")
 #define TSDB_CODE_MND_INVALID_STREAM_ID         TAOS_DEF_ERROR_CODE(0, 0x030D)  //"Invalid stream id")
@@ -131,6 +132,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_FAILED_TO_START_SYNC      TAOS_DEF_ERROR_CODE(0, 0x0312)  //"failed to start sync")
 #define TSDB_CODE_MND_FAILED_TO_CREATE_DIR      TAOS_DEF_ERROR_CODE(0, 0x0313)  //"failed to create mnode dir")
 #define TSDB_CODE_MND_FAILED_TO_INIT_STEP       TAOS_DEF_ERROR_CODE(0, 0x0314)  //"failed to init components")
+
 
 #define TSDB_CODE_SDB_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x0320)
 #define TSDB_CODE_SDB_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0321)

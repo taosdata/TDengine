@@ -57,7 +57,6 @@ typedef struct SVgObj SVgObj;
 typedef struct SSTableObj SSTableObj;
 typedef struct SFuncObj SFuncObj; 
 typedef struct SOperObj SOperObj;
-typedef struct SMnMsg SMnMsg;
 
 typedef enum {
   MN_AUTH_ACCT_START = 0,
@@ -265,9 +264,9 @@ typedef struct {
   void   *rsp;
 } SMnRsp;
 
-typedef struct SMnMsg {
-  void (*fp)(SMnMsg *pMsg, int32_t code);
-  char      user[TSDB_USER_LEN];
+typedef struct SMnodeMsg {
+  void (*fp)(SMnodeMsg *pMsg, int32_t code);
+  SRpcConnInfo conn;
   SUserObj *pUser;
   int16_t   received;
   int16_t   successed;
@@ -278,7 +277,7 @@ typedef struct SMnMsg {
   SMnRsp    rpcRsp;
   SRpcMsg   rpcMsg;
   char      pCont[];
-} SMnReq;
+} SMnodeMsg;
 
 #ifdef __cplusplus
 }

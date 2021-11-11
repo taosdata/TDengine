@@ -24,7 +24,7 @@
 static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
   SSdbRaw *pRaw = calloc(1, sizeof(SUserObj) + sizeof(SSdbRaw));
   if (pRaw == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -51,7 +51,7 @@ static SUserObj *mnodeUserActionDecode(SSdbRaw *pRaw) {
 
   SUserObj *pUser = calloc(1, sizeof(SUserObj));
   if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -77,7 +77,7 @@ static SUserObj *mnodeUserActionDecode(SSdbRaw *pRaw) {
 static int32_t mnodeUserActionInsert(SUserObj *pUser) {
   pUser->prohibitDbHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->prohibitDbHash == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -145,7 +145,7 @@ static int32_t mnodeCreateDefaultUsers() {
   return 0;
 }
 
-static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnMsg *pMsg) {
+static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pMsg) {
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -192,7 +192,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnMsg *pMsg)
   return 0;
 }
 
-static int32_t mnodeProcessCreateUserMsg(SMnMsg *pMsg) {
+static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (pCreate->user[0] == 0) {
@@ -215,7 +215,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pOperUser = sdbAcquire(SDB_USER, pMsg->user);
+  SUserObj *pOperUser = sdbAcquire(SDB_USER, pMsg->conn.user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());

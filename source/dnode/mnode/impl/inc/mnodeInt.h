@@ -24,16 +24,17 @@
 extern "C" {
 #endif
 
-typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
+typedef void (*MnodeRpcFp[TSDB_MSG_TYPE_MAX])(SMnodeMsg *pMsg);
 
-tmr_h     mnodeGetTimer();
-int32_t   mnodeGetDnodeId();
-int64_t   mnodeGetClusterId();
-EMnStatus mnodeGetStatus();
+tmr_h   mnodeGetTimer();
+int32_t mnodeGetDnodeId();
+int64_t mnodeGetClusterId();
 
 void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
 void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
+
+void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp);
 
 #ifdef __cplusplus
 }

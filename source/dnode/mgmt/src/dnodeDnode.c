@@ -302,6 +302,13 @@ PRASE_DNODE_OVER:
     return -1;
   }
 
+  if (tsDnode.dnodeEps == NULL) {
+    tsDnode.dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
+    tsDnode.dnodeEps->dnodeNum = 1;
+    tsDnode.dnodeEps->dnodeEps[0].dnodePort = tsServerPort;
+    tstrncpy(tsDnode.dnodeEps->dnodeEps[0].dnodeFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  }
+
   dnodeResetDnodes(tsDnode.dnodeEps);
 
   terrno = 0;

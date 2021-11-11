@@ -21,7 +21,7 @@
 static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
   SSdbRaw *pRaw = calloc(1, sizeof(SAcctObj) + sizeof(SSdbRaw));
   if (pRaw == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -53,7 +53,7 @@ static SAcctObj *mnodeAcctActionDecode(SSdbRaw *pRaw) {
 
   SAcctObj *pAcct = calloc(1, sizeof(SAcctObj));
   if (pAcct == NULL) {
-    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

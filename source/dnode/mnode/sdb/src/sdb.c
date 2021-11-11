@@ -87,7 +87,7 @@ static int32_t sdbReadDataFile() {
 
   SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
   if (pRaw == NULL) {
-    return TSDB_CODE_MND_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   char file[PATH_MAX] = {0};
@@ -241,7 +241,7 @@ int32_t sdbInit() {
   tsSdb.tmpDir = strdup(path);
 
   if (tsSdb.currDir == NULL || tsSdb.currDir == NULL || tsSdb.currDir == NULL) {
-    return TSDB_CODE_MND_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int32_t i = 0; i < SDB_MAX; ++i) {
@@ -256,7 +256,7 @@ int32_t sdbInit() {
 
     SHashObj *hash = taosHashInit(128, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
     if (hash == NULL) {
-      return TSDB_CODE_MND_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     tsSdb.hashObjs[i] = hash;

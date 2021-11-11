@@ -70,17 +70,20 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQD
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
 
 //common & util
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          "Operation not supported")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_MEMORY_CORRUPTED,         "Memory corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_OUT_OF_MEMORY,            "Out of memory")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_INVALID_CFG_MSG,          "Invalid config message")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_FILE_CORRUPTED,           "Data file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,              "Operation not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_MEMORY,                "Out of Memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RANGE,                 "Out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PTR,                  "Invalid pointer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,             "Memory corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,               "Data file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                  "Invalid config message")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               "Ref ID is removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               "Invalid Ref ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
+
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -131,7 +134,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_VERSION,      "Incompatible protocol
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_LEN,          "Invalid message length")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_TYPE,         "Invalid message type")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_SHELL_CONNS,     "Too many connections")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_OUT_OF_MEMORY,            "Out of memory in mnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         "Invalid query id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        "Invalid stream id")
