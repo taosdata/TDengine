@@ -611,7 +611,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         try {
             this.tagValueLength += value.getBytes(charset).length;
         } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -786,7 +786,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                                 b = val.getBytes(charset);
                             }
                         } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
+                            throw new RuntimeException(e.getMessage());
                         }
 
                         tagDataList.put(b);
@@ -921,7 +921,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                                     b = val.getBytes(charset);
                                 }
                             } catch (UnsupportedEncodingException e) {
-                                e.printStackTrace();
+                                throw new RuntimeException(e.getMessage());
                             }
 
                             if (val.length() > col1.bytes) {

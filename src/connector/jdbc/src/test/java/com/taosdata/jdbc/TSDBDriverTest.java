@@ -33,7 +33,6 @@ public class TSDBDriverTest {
             conn = DriverManager.getConnection(url);
             assertNotNull("failure - connection should not be null", conn);
         } catch (SQLException e) {
-            e.printStackTrace();
             fail("failure - should not throw Exception");
         }
     }
@@ -49,7 +48,6 @@ public class TSDBDriverTest {
             conn = DriverManager.getConnection(jdbcUrl, connProps);
             assertNotNull("failure - connection should not be null", conn);
         } catch (SQLException e) {
-            e.printStackTrace();
             fail("failure - should not throw Exception");
         }
     }
@@ -65,7 +63,6 @@ public class TSDBDriverTest {
             conn = DriverManager.getConnection(jdbcUrl, connProps);
             assertNotNull("failure - connection should not be null", conn);
         } catch (SQLException e) {
-            e.printStackTrace();
             fail("failure - should not throw Exception");
         }
     }
@@ -157,16 +154,8 @@ public class TSDBDriverTest {
     }
 
     @Test
-    public void getParentLogger() throws SQLFeatureNotSupportedException {
+    public void getParentLogger() {
         assertNull(new TSDBDriver().getParentLogger());
     }
 
-    @BeforeClass
-    public static void before() {
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-    }
 }
