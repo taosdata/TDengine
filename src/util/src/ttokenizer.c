@@ -634,7 +634,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     }
     if (str[*i] == 0) {
       t0.n = 0;
-      return t0;
+      break;
     }
     t0.n = tGetToken(&str[*i], &t0.type);
     break;
