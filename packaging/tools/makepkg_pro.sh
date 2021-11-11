@@ -62,7 +62,7 @@ else
 fi
 cp ${build_dir}/bin/taos          ${install_dir}/bin/prodbc
 cp ${build_dir}/bin/taosd         ${install_dir}/bin/prodbs
-cp ${build_dir}/bin/blm3          ${install_dir}/bin/blm3 ||:
+cp ${build_dir}/bin/taosadapter          ${install_dir}/bin/taosadapter ||:
 cp ${script_dir}/remove_pro.sh  ${install_dir}/bin
 chmod a+x ${install_dir}/bin/* || :
 

@@ -43,8 +43,8 @@ else
     service_mod=2
 fi
 
-function kill_blm3() {
-  pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
+function kill_taosadapter() {
+  pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -58,10 +58,10 @@ function kill_taosd() {
 }
 
 function clean_service_on_systemd() {
-    blm3_service_config="${service_config_dir}/blm3.service"
-    if systemctl is-active --quiet blm3; then
-        echo "blm3 is running, stopping it..."
-        ${csudo} systemctl stop blm3 &> /dev/null || echo &> /dev/null
+    taosadapter_service_config="${service_config_dir}/taosadapter.service"
+    if systemctl is-active --quiet taosadapter; then
+        echo "taosadapter is running, stopping it..."
+        ${csudo} systemctl stop taosadapter &> /dev/null || echo &> /dev/null
     fi
 
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
@@ -74,7 +74,7 @@ function clean_service_on_systemd() {
 
     ${csudo} rm -f ${taosd_service_config}
 
-    [ -f ${blm3_service_config} ] && ${csudo} rm -f ${blm3_service_config}
+    [ -f ${taosadapter_service_config} ] && ${csudo} rm -f ${taosadapter_service_config}
 
 }
 
@@ -109,7 +109,7 @@ function clean_service() {
         clean_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_blm3
+        kill_taosadapter
         kill_taosd
     fi
 }
@@ -120,7 +120,7 @@ clean_service
 # Remove all links
 ${csudo} rm -f ${bin_link_dir}/taos       || :
 ${csudo} rm -f ${bin_link_dir}/taosd      || :
-${csudo} rm -f ${bin_link_dir}/blm3       || :
+${csudo} rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
 ${csudo} rm -f ${bin_link_dir}/taosdump   || :
 ${csudo} rm -f ${bin_link_dir}/set_core   || :
@@ -134,7 +134,7 @@ ${csudo} rm -f ${log_link_dir}            || :
 ${csudo} rm -f ${data_link_dir}           || :
 
 if ((${service_mod}==2)); then
-    kill_blm3
+    kill_taosadapter
     kill_taosd
 fi
 

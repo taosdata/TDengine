@@ -233,7 +233,7 @@ static int64_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
   int32_t    once = 0;  // last WAL has once ever been processed
   int64_t    offset = 0;
   uint64_t   fversion = 0;
-  char       fname[TSDB_FILENAME_LEN * 2] = {0};  // full path to wal file
+  char       fname[TSDB_FILENAME_LEN * 3] = {0};  // full path to wal file
 
   // get full path to wal file
   snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);

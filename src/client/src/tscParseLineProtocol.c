@@ -1512,9 +1512,9 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char *str, SSmlLinesInfo* info
   errno = 0;
   uint8_t type = pVal->type;
   int16_t length = pVal->length;
-  int64_t val_s;
-  uint64_t val_u;
-  double val_d;
+  int64_t val_s = 0;
+  uint64_t val_u = 0;
+  double val_d = 0.0;
 
   strntolower_s(str, str, (int32_t)strlen(str));
   if (IS_FLOAT_TYPE(type)) {
@@ -1814,7 +1814,7 @@ static int32_t getTimeStampValue(char *value, uint16_t len,
 int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
                             uint16_t len, SSmlLinesInfo* info) {
   int32_t ret;
-  SMLTimeStampType type;
+  SMLTimeStampType type = SML_TIME_STAMP_NOW;
   int64_t tsVal;
 
   ret = isTimeStamp(value, len, &type, info);
@@ -2413,7 +2413,7 @@ static SSqlObj* createSmlQueryObj(TAOS* taos, int32_t affected_rows, int32_t cod
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
   int code = TSDB_CODE_SUCCESS;
   int affected_rows = 0;
-  SMLTimeStampType tsType;
+  SMLTimeStampType tsType = SML_TIME_STAMP_NOW;
 
   if (protocol == TSDB_SML_LINE_PROTOCOL) {
     code = convertPrecisionType(precision, &tsType);
