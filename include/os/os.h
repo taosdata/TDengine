@@ -45,6 +45,8 @@ extern "C" {
 #include <float.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "osAtomic.h"
 #include "osDef.h"

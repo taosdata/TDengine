@@ -680,12 +680,12 @@ TEST(testCase, generateAST_test) {
   msgBuf.buf = msg;
   msgBuf.len = 128;
 
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
   ASSERT_EQ(code, 0);
 
   SSqlInfo info2 = doGenerateAST("select * from abc where ts<now+2");
-  SSqlNode* pNode2 = (SSqlNode*) taosArrayGetP(((SArray*)info2.list), 0);
+  SSqlNode* pNode2 = (SSqlNode*) taosArrayGetP(((SArray*)info2.sub.node), 0);
   code = evaluateSqlNode(pNode2, TSDB_TIME_PRECISION_MILLI, &msgBuf);
   ASSERT_NE(code, 0);
 
@@ -703,7 +703,7 @@ TEST(testCase, evaluateAST_test) {
   msgBuf.buf = msg;
   msgBuf.len = 128;
 
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &msgBuf);
   ASSERT_EQ(code, 0);
   destroySqlInfo(&info1);

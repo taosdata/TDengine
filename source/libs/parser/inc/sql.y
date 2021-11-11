@@ -30,7 +30,6 @@
 #include "tmsgtype.h"
 #include "ttoken.h"
 #include "ttokendef.h"
-//#include "tutil.h"
 #include "tvariant.h"
 }
 
@@ -488,11 +487,11 @@ select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_option(K) sl
 
 select(A) ::= LP select(B) RP. {A = B;}
 
-%type union {SArray*}
+%type union {SSubclause*}
 %destructor union {destroyAllSqlNode($$);}
 union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
-union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
-
+union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, SQL_TYPE_UNIONALL, X);  }
+union(Y) ::= union(Z) UNION select(X).     { Y = appendSelectClause(Z, SQL_TYPE_UNION, X);  }
 cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 
 // Support for the SQL exprssion without from & where subclauses, e.g.,
@@ -784,10 +783,8 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
 
 cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     X.n += F.n;
-
     toTSDBType(A.type);
     SArray* K = tListItemAppendToken(NULL, &A, -1);
-
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }

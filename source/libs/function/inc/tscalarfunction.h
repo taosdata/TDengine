@@ -21,14 +21,28 @@ extern "C" {
 
 #include "function.h"
 
-extern struct SScalarFunctionInfo scalarFunc[1];
+typedef struct SScalarFuncParam {
+  void*   data;
+  int32_t num;
+  int32_t type;
+  int32_t bytes;
+} SScalarFuncParam;
 
-#define FUNCTION_CEIL         38
-#define FUNCTION_FLOOR        39
-#define FUNCTION_ROUND        40
-#define FUNCTION_MAVG         41
-#define FUNCTION_CSUM         42
-#define FUNCCTION_CONCAT      43
+typedef struct SScalarFunctionSupport {
+  struct SExprInfo   *pExprInfo;
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+  void        *exprList;   // client side used
+  int32_t      offset;
+  char**       data;
+} SScalarFunctionSupport;
+
+extern struct SScalarFunctionInfo scalarFunc[8];
+
+int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput,
+                          void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
+
+
 
 #ifdef __cplusplus
 }

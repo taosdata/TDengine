@@ -72,11 +72,11 @@ SArray *tListItemAppendToken(SArray *pList, SToken *pAliasToken, uint8_t sortOrd
 SRelationInfo *setTableNameList(SRelationInfo *pRelationInfo, SToken *pName, SToken *pAlias) {
   if (pRelationInfo == NULL) {
     pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElement));
   }
 
-  pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
-  SRelElementPair p = {.tableName = *pName};
+  pRelationInfo->type = SQL_FROM_NODE_TABLES;
+  SRelElement p = {.tableName = *pName};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -92,12 +92,12 @@ void *destroyRelationInfo(SRelationInfo *pRelationInfo) {
     return NULL;
   }
 
-  if (pRelationInfo->type == SQL_NODE_FROM_TABLELIST) {
+  if (pRelationInfo->type == SQL_FROM_NODE_TABLES) {
     taosArrayDestroy(pRelationInfo->list);
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
     for(int32_t i = 0; i < size; ++i) {
-      SArray* pa = taosArrayGetP(pRelationInfo->list, i);
+      SSubclause* pa = taosArrayGetP(pRelationInfo->list, i);
       destroyAllSqlNode(pa);
     }
     taosArrayDestroy(pRelationInfo->list);
@@ -107,15 +107,15 @@ void *destroyRelationInfo(SRelationInfo *pRelationInfo) {
   return NULL;
 }
 
-SRelationInfo *addSubquery(SRelationInfo *pRelationInfo, SArray *pSub, SToken *pAlias) {
+SRelationInfo *addSubquery(SRelationInfo *pRelationInfo, SSubclause *pSub, SToken *pAlias) {
   if (pRelationInfo == NULL) {
     pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElement));
   }
 
-  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+  pRelationInfo->type = SQL_FROM_NODE_SUBQUERY;
 
-  SRelElementPair p = {.pSubquery = pSub};
+  SRelElement p = {.pSubquery = pSub};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -641,18 +641,18 @@ SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames,
   return info;
 }
 
-void destroyAllSqlNode(SArray *pList) {
-  if (pList == NULL) {
+void destroyAllSqlNode(struct SSubclause *pSub) {
+  if (pSub->node == NULL) {
     return;
   }
 
-  size_t size = taosArrayGetSize(pList);
+  size_t size = taosArrayGetSize(pSub->node);
   for(int32_t i = 0; i < size; ++i) {
-    SSqlNode *pNode = taosArrayGetP(pList, i);
+    SSqlNode *pNode = taosArrayGetP(pSub->node, i);
     destroySqlNode(pNode);
   }
 
-  taosArrayDestroy(pList);
+  taosArrayDestroy(pSub->node);
 }
 
 static void freeItem(void *pItem) {
@@ -698,7 +698,8 @@ SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, in
   pInfo->type = type;
 
   if (type == TSDB_SQL_SELECT) {
-    pInfo->list = (SArray*) pSqlExprInfo;
+    pInfo->sub = *(SSubclause*) pSqlExprInfo;
+    tfree(pSqlExprInfo);
   } else {
     pInfo->pCreateTableInfo = pSqlExprInfo;
   }
@@ -710,18 +711,25 @@ SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, in
   return pInfo;
 }
 
-SArray* setSubclause(SArray* pList, void *pSqlNode) {
-  if (pList == NULL) {
-    pList = taosArrayInit(1, POINTER_BYTES);
+SSubclause* setSubclause(SSubclause* pSub, void *pSqlNode) {
+  if (pSub == NULL) {
+    pSub = malloc(sizeof(SSubclause));
+
+    pSub->unionType = SQL_TYPE_UNIONALL;
+    pSub->node = taosArrayInit(1, POINTER_BYTES);
   }
 
-  taosArrayPush(pList, &pSqlNode);
-  return pList;
+  taosArrayPush(pSub->node, &pSqlNode);
+  return pSub;
 }
 
-SArray* appendSelectClause(SArray *pList, void *pSubclause) {
-  taosArrayPush(pList, &pSubclause);
-  return pList;
+SSubclause* appendSelectClause(SSubclause *pSub, int32_t type, void *pSubclause) {
+  taosArrayPush(pSub->node, &pSubclause);
+  if (type == SQL_TYPE_UNION) {
+    pSub->unionType = type;
+  }
+
+  return pSub;
 }
 
 void setCreatedTableName(SSqlInfo *pInfo, SToken *pTableNameToken, SToken *pIfNotExists) {
@@ -776,7 +784,7 @@ void destroySqlInfo(SSqlInfo *pInfo) {
 
   taosArrayDestroy(pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
-    destroyAllSqlNode(pInfo->list);
+    destroyAllSqlNode(&pInfo->sub);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
@@ -785,7 +793,7 @@ void destroySqlInfo(SSqlInfo *pInfo) {
     tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
   } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
-    tSqlExprListDestroy(pInfo->list);
+    tSqlExprListDestroy(pInfo->sub.node);
   } else {
     if (pInfo->pMiscInfo != NULL) {
       taosArrayDestroy(pInfo->pMiscInfo->a);
@@ -935,7 +943,7 @@ void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SToken *pName, SToken* pPwd,
 
 void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
   pInfo->type = type;
-  pInfo->list = pParam;
+  pInfo->sub.node = pParam;
 }
 
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {

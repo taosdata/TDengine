@@ -16,6 +16,8 @@
 #ifndef TDENGINE_TNAME_H
 #define TDENGINE_TNAME_H
 
+#include "taosmsg.h"
+
 #define TSDB_DB_NAME_T     1
 #define TSDB_TABLE_NAME_T  2
 
@@ -51,6 +53,8 @@ void tNameAssign(SName* dst, const SName* src);
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 
 int32_t tNameSetAcctId(SName* dst, const char* acct);
+
+SSchema* tGetTbnameColumnSchema();
 
 #if 0
 int32_t tNameSetDbName(SName* dst, const char* acct, SToken* dbToken);

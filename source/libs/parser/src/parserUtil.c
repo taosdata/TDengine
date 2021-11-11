@@ -1,6 +1,5 @@
 #include "taosmsg.h"
 #include "parser.h"
-#include "parserUtil.h"
 #include "taoserror.h"
 #include "tutil.h"
 #include "ttypes.h"
@@ -514,6 +513,58 @@ SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* nam
   return s;
 }
 
+void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema) {
+  pColumn->uid  = uid;
+  pColumn->flag = flag;
+  pColumn->info.colId = pSchema->colId;
+  pColumn->info.bytes = pSchema->bytes;
+  pColumn->info.type  = pSchema->type;
+
+  if (tableName != NULL) {
+    snprintf(pColumn->name, tListLen(pColumn->name), "%s.%s", tableName, pSchema->name);
+  } else {
+    tstrncpy(pColumn->name, pSchema->name, tListLen(pColumn->name));
+  }
+}
+
+SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema) {
+  SColumn c;
+  c.uid = uid;
+  c.flag = flag;
+  c.info.colId = pSchema->colId;
+  c.info.bytes = pSchema->bytes;
+  c.info.type = pSchema->type;
+
+  if (tableName != NULL) {
+    snprintf(c.name, tListLen(c.name), "%s.%s", tableName, pSchema->name);
+  } else {
+    tstrncpy(c.name, pSchema->name, tListLen(c.name));
+  }
+
+  return c;
+}
+
+void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn) {
+  assert(pSourceParam != NULL);
+  pSourceParam->num += 1;
+
+  if (pSourceParam->pExprNodeList != NULL) {
+    assert(pNode != NULL && pColumn == NULL);
+    if (pSourceParam->pExprNodeList == NULL) {
+      pSourceParam->pExprNodeList = taosArrayInit(4, POINTER_BYTES);
+    }
+
+    taosArrayPush(pSourceParam->pExprNodeList, &pNode);
+  } else {
+    assert(pColumn != NULL);
+    if (pSourceParam->pColumnList == NULL) {
+      pSourceParam->pColumnList = taosArrayInit(4, POINTER_BYTES);
+    }
+
+    taosArrayPush(pSourceParam->pColumnList, &pColumn);
+  }
+}
+
 int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
 }
@@ -558,8 +609,9 @@ void fieldInfoUpdateOffset(SQueryStmtInfo* pQueryInfo) {
   int32_t offset = 0;
   size_t numOfExprs = getNumOfExprs(pQueryInfo);
 
+  SArray* pList = getCurrentExprList(pQueryInfo);
   for (int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* p = taosArrayGetP(pQueryInfo->exprList, i);
+    SExprInfo* p = taosArrayGetP(pList, i);
 
 //    p->base.offset = offset;
     offset += p->base.resSchema.bytes;
@@ -702,7 +754,7 @@ int32_t columnExists(SArray* pColumnList, int32_t columnId, uint64_t uid) {
   int32_t i = 0;
   while (i < numOfCols) {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if ((pCol->info.colId != columnId) || (pCol->tableUid != uid)) {
+    if ((pCol->info.colId != columnId) || (pCol->uid != uid)) {
       ++i;
       continue;
     } else {
@@ -717,64 +769,62 @@ int32_t columnExists(SArray* pColumnList, int32_t columnId, uint64_t uid) {
   return i;
 }
 
-SColumn* columnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema) {
+static int32_t doFindPosition(const SArray* pColumnList, uint64_t uid, const SSchema* pSchema) {
+  int32_t i = 0;
+
+  size_t numOfCols = taosArrayGetSize(pColumnList);
+  while (i < numOfCols) {
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+    if (pCol->uid < uid) {
+      i++;
+      continue;
+    }
+
+    if (pCol->info.colId < pSchema->colId) {
+      i++;
+      continue;
+    }
+
+    break;
+  }
+
+  return i;
+}
+
+SColumn* columnListInsert(SArray* pColumnList, uint64_t uid, SSchema* pSchema, int32_t flag) {
   // ignore the tbname columnIndex to be inserted into source list
-  if (columnIndex < 0) {
+  assert(pSchema != NULL && pColumnList != NULL);
+
+  int32_t  i = doFindPosition(pColumnList, uid, pSchema);
+  size_t size = taosArrayGetSize(pColumnList);
+  if (size > 0 && i < size) {
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+    if (pCol->uid == uid && pCol->info.colId == pSchema->colId) {
+      return pCol;
+    }
+  }
+
+  SColumn* b = calloc(1, sizeof(SColumn));
+  if (b == NULL) {
     return NULL;
   }
 
-  size_t numOfCols = taosArrayGetSize(pColumnList);
+  b->uid        = uid;
+  b->flag       = flag;
+  b->info.colId = pSchema->colId;
+  b->info.bytes = pSchema->bytes;
+  b->info.type  = pSchema->type;
+  tstrncpy(b->name, pSchema->name, tListLen(b->name));
+  taosArrayInsert(pColumnList, i, &b);
 
-  int32_t i = 0;
-  while (i < numOfCols) {
-    SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if (pCol->columnIndex < columnIndex) {
-      i++;
-    } else if (pCol->tableUid < uid) {
-      i++;
-    } else {
-      break;
-    }
-  }
-
-  if (i >= numOfCols || numOfCols == 0) {
-    SColumn* b = calloc(1, sizeof(SColumn));
-    if (b == NULL) {
-      return NULL;
-    }
-
-    b->columnIndex = columnIndex;
-    b->tableUid    = uid;
-    b->info.colId  = pSchema->colId;
-    b->info.bytes  = pSchema->bytes;
-    b->info.type   = pSchema->type;
-
-    taosArrayInsert(pColumnList, i, &b);
-  } else {
-    SColumn* pCol = taosArrayGetP(pColumnList, i);
-
-    if (i < numOfCols && (pCol->columnIndex > columnIndex || pCol->tableUid != uid)) {
-      SColumn* b = calloc(1, sizeof(SColumn));
-      if (b == NULL) {
-        return NULL;
-      }
-
-      b->columnIndex = columnIndex;
-      b->tableUid    = uid;
-      b->info.colId = pSchema->colId;
-      b->info.bytes = pSchema->bytes;
-      b->info.type  = pSchema->type;
-
-      taosArrayInsert(pColumnList, i, &b);
-    }
-  }
-
-  return taosArrayGetP(pColumnList, i);
+  return b;
 }
 
-SColumn* insertPrimaryTsColumn(SArray* pColumnList, uint64_t tableUid) {
+SColumn* insertPrimaryTsColumn(SArray* pColumnList, const char* colName, uint64_t tableUid) {
   SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_ID};
-  return columnListInsert(pColumnList, PRIMARYKEY_TIMESTAMP_COL_ID, tableUid, &s);
+  strncpy(s.name, colName, tListLen(s.name));
+
+  return columnListInsert(pColumnList, tableUid, &s, TSDB_COL_NORMAL);
 }
 
 void columnCopy(SColumn* pDest, const SColumn* pSrc);
@@ -818,8 +868,7 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
 void columnCopy(SColumn* pDest, const SColumn* pSrc) {
   destroyFilterInfo(&pDest->info.flist);
 
-  pDest->columnIndex       = pSrc->columnIndex;
-  pDest->tableUid          = pSrc->tableUid;
+  pDest->uid = pSrc->uid;
   pDest->info.flist.numOfFilters = pSrc->info.flist.numOfFilters;
   pDest->info.flist.filterInfo   = tFilterInfoDup(pSrc->info.flist.filterInfo, pSrc->info.flist.numOfFilters);
   pDest->info.type        = pSrc->info.type;
@@ -845,7 +894,7 @@ void columnListCopy(SArray* dst, const SArray* src, uint64_t uid) {
   for (int32_t i = 0; i < num; ++i) {
     SColumn* pCol = taosArrayGetP(src, i);
 
-    if (pCol->tableUid == uid) {
+    if (pCol->uid == uid) {
       SColumn* p = columnClone(pCol);
       taosArrayPush(dst, &p);
     }
@@ -1170,21 +1219,13 @@ int32_t queryInfoCopy(SQueryStmtInfo* pQueryInfo, const SQueryStmtInfo* pSrc) {
     memcpy(pQueryInfo->fillVal, pSrc->fillVal, pSrc->fieldsInfo.numOfOutput * sizeof(int64_t));
   }
 
-  if (copyAllExprInfo(pQueryInfo->exprList, pSrc->exprList, true) != 0) {
+  if (copyAllExprInfo(pQueryInfo->exprList[0], pSrc->exprList[0], true) != 0) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
 
-//  if (pQueryInfo->arithmeticOnAgg) {
-//    pQueryInfo->exprList1 = taosArrayInit(4, POINTER_BYTES);
-//    if (copyAllExprInfo(pQueryInfo->exprList1, pSrc->exprList1, true) != 0) {
-//      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//      goto _error;
-//    }
-//  }
-
   columnListCopyAll(pQueryInfo->colList, pSrc->colList);
-  copyFieldInfo(&pQueryInfo->fieldsInfo, &pSrc->fieldsInfo, pQueryInfo->exprList);
+  copyFieldInfo(&pQueryInfo->fieldsInfo, &pSrc->fieldsInfo, pQueryInfo->exprList[0]);
 
   for(int32_t i = 0; i < pSrc->numOfTables; ++i) {
     STableMetaInfo* p1 = getMetaInfo((SQueryStmtInfo*) pSrc, i);
@@ -1490,82 +1531,6 @@ int32_t getNumOfOutput(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
 }
 
-// todo move to planner module
-int32_t createProjectionExpr(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num) {
-//  if (!pQueryInfo->arithmeticOnAgg) {
-//    return TSDB_CODE_SUCCESS;
-//  }
-#if 0
-  *num = getNumOfOutput(pQueryInfo);
-  *pExpr = calloc(*(num), POINTER_BYTES);
-  if ((*pExpr) == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  for (int32_t i = 0; i < (*num); ++i) {
-    SInternalField* pField = getInternalFieldInfo(&pQueryInfo->fieldsInfo, i);
-    SExprInfo* pSource = pField->pExpr;
-
-    SExprInfo* px = calloc(1, sizeof(SExprInfo));
-    (*pExpr)[i] = px;
-
-    SSqlExpr *pse = &px->base;
-    pse->uid      = pTableMetaInfo->pTableMeta->uid;
-    memcpy(&pse->resSchema, &pSource->base.resSchema, sizeof(SSchema));
-
-    if (pSource->base.functionId != FUNCTION_ARITHM) {  // this should be switched to projection query
-      pse->numOfParams = 0;      // no params for projection query
-      pse->functionId  = FUNCTION_PRJ;
-      pse->colInfo.colId = pSource->base.resSchema.colId;
-
-      int32_t numOfOutput = (int32_t) taosArrayGetSize(pQueryInfo->exprList);
-      for (int32_t j = 0; j < numOfOutput; ++j) {
-        SExprInfo* p = taosArrayGetP(pQueryInfo->exprList, j);
-        if (p->base.resSchema.colId == pse->colInfo.colId) {
-          pse->colInfo.colIndex = j;
-          break;
-        }
-      }
-
-      pse->colInfo.flag = TSDB_COL_NORMAL;
-      strncpy(pse->colInfo.name, pSource->base.resSchema.name, tListLen(pse->colInfo.name));
-
-      // TODO restore refactor
-      int32_t functionId = pSource->base.functionId;
-      if (pSource->base.functionId == FUNCTION_FIRST_DST) {
-        functionId = FUNCTION_FIRST;
-      } else if (pSource->base.functionId == FUNCTION_LAST_DST) {
-        functionId = FUNCTION_LAST;
-      } else if (pSource->base.functionId == FUNCTION_STDDEV_DST) {
-        functionId = FUNCTION_STDDEV;
-      }
-
-      int32_t inter = 0;
-      getResultDataInfo(pSource->base.colType, pSource->base.colBytes, functionId, 0, &pse->resSchema.type,
-                        &pse->resSchema.bytes, &inter, 0, false/*, NULL*/);
-      pse->colType  = pse->resSchema.type;
-      pse->colBytes = pse->resSchema.bytes;
-
-    } else {  // arithmetic expression
-      pse->colInfo.colId = pSource->base.colInfo.colId;
-      pse->colType  = pSource->base.colType;
-      pse->colBytes = pSource->base.colBytes;
-      pse->resSchema.bytes = sizeof(double);
-      pse->resSchema.type  = TSDB_DATA_TYPE_DOUBLE;
-
-      pse->functionId = pSource->base.functionId;
-      pse->numOfParams = pSource->base.numOfParams;
-
-      for (int32_t j = 0; j < pSource->base.numOfParams; ++j) {
-        taosVariantAssign(&pse->param[j], &pSource->base.param[j]);
-//        buildArithmeticExprFromMsg(px, NULL);
-      }
-    }
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t getColFilterSerializeLen(SQueryStmtInfo* pQueryInfo) {
   int16_t numOfCols = (int16_t)taosArrayGetSize(pQueryInfo->colList);
   int32_t len = 0;
@@ -1615,9 +1580,9 @@ uint32_t convertRelationalOperator(SToken *pToken) {
       return TSDB_RELATION_OR;
     case TK_EQ:
       return TSDB_RELATION_EQUAL;
+
     case TK_PLUS:
       return TSDB_BINARY_OP_ADD;
-
     case TK_MINUS:
       return TSDB_BINARY_OP_SUBTRACT;
     case TK_STAR:

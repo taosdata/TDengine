@@ -425,7 +425,7 @@ static bool function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo
   }
   
   memset(pCtx->pOutput, 0, (size_t)pCtx->outputBytes);
-  initResultInfo(pResultInfo, pCtx->interBufBytes);
+  initResultRowEntry(pResultInfo, pCtx->interBufBytes);
   return true;
 }
 

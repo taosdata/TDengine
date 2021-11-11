@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "taosdef.h"
+#include "tdef.h"
 #include "tvariant.h"
 
 #define MEM_BUF_SIZE (1 << 20)
