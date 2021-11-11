@@ -148,6 +148,78 @@ int32_t trnActionUpdate(STrans *pSrcTrans, STrans *pDstTrans) { return 0; }
 
 int32_t trnGenerateTransId() { return 1; }
 
+STrans *trnCreate(ETrnPolicy policy) {
+  STrans *pTrans = calloc(1, sizeof(STrans));
+  if (pTrans == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pTrans->id = trnGenerateTransId();
+  pTrans->stage = TRN_STAGE_PREPARE;
+  pTrans->policy = policy;
+  pTrans->redoLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+  pTrans->undoLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+  pTrans->commitLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+  pTrans->redoActions = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+  pTrans->undoActions = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+
+  if (pTrans->redoLogs == NULL || pTrans->undoLogs == NULL || pTrans->commitLogs == NULL ||
+      pTrans->redoActions == NULL || pTrans->undoActions == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  return pTrans;
+}
+
+static void trnDropArray(SArray *pArray) {
+  for (int32_t index = 0; index < pArray->size; ++index) {
+    SSdbRaw *pRaw = taosArrayGetP(pArray, index);
+    tfree(pRaw);
+  }
+
+  taosArrayDestroy(pArray);
+}
+
+void trnDrop(STrans *pTrans) {
+  trnDropArray(pTrans->redoLogs);
+  trnDropArray(pTrans->undoLogs);
+  trnDropArray(pTrans->commitLogs);
+  trnDropArray(pTrans->redoActions);
+  trnDropArray(pTrans->undoActions);
+  tfree(pTrans);
+}
+
+static int32_t trnAppendArray(SArray *pArray, SSdbRaw *pRaw) {
+  if (pArray == NULL || pRaw == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void *ptr = taosArrayPush(pArray, &pRaw);
+  if (ptr == NULL) {
+    terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t trnAppendRedoLog(STrans *pTrans, SSdbRaw *pRaw) { return trnAppendArray(pTrans->redoLogs, pRaw); }
+
+int32_t trnAppendUndoLog(STrans *pTrans, SSdbRaw *pRaw) { return trnAppendArray(pTrans->undoLogs, pRaw); }
+
+int32_t trnAppendCommitLog(STrans *pTrans, SSdbRaw *pRaw) { return trnAppendArray(pTrans->commitLogs, pRaw); }
+
+int32_t trnAppendRedoAction(STrans *pTrans, SEpSet *pEpSet, void *pMsg) {
+  return trnAppendArray(pTrans->redoActions, pMsg);
+}
+
+int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, void *pMsg) {
+  return trnAppendArray(pTrans->undoActions, pMsg);
+}
+
 int32_t trnInit() {
   SSdbDesc desc = {.sdbType = SDB_TRANS,
                    .keyType = SDB_KEY_INT32,
