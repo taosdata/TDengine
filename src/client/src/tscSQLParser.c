@@ -4403,6 +4403,12 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
     free(childrenTypes);
 
+  } else {
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
+      *type = SQLEXPR_TYPE_SCALAR;
+    } else {
+      *type = SQLEXPR_TYPE_AGG;
+    }
   }
 
   if (!TSDB_FUNC_IS_SCALAR(functionId)) {
