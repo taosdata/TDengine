@@ -784,7 +784,7 @@ int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t d
 
 
 int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type, SFilterFieldId *fid, int32_t dataLen, bool freeIfExists) {
-  int64_t idx = -1;
+  int32_t idx = -1;
   uint32_t *num;
 
   num = &info->fields[type].num;
