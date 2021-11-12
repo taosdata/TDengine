@@ -134,10 +134,11 @@ static int32_t mnodeAllocInitSteps() {
 }
 
 static int32_t mnodeAllocStartSteps() {
-  struct SSteps *steps = taosStepInit(7, NULL);
+  struct SSteps *steps = taosStepInit(8, NULL);
   if (steps == NULL) return -1;
 
   taosStepAdd(steps, "mnode-timer", mnodeInitTimer, NULL);
+  taosStepAdd(steps, "mnode-sdb-file", sdbRead, (CleanupFp)sdbCommit);
   taosStepAdd(steps, "mnode-balance", mnodeInitBalance, mnodeCleanupBalance);
   taosStepAdd(steps, "mnode-profile", mnodeInitProfile, mnodeCleanupProfile);
   taosStepAdd(steps, "mnode-show", mnodeInitShow, mnodeCleanUpShow);
@@ -170,7 +171,7 @@ int32_t mnodeInit(SMnodePara para) {
 
 void mnodeCleanup() { taosStepCleanup(tsMint.pInitSteps); }
 
-int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg) {
+int32_t mnodeDeploy(SMnodeCfg *pCfg) {
   if (tsMint.para.dnodeId <= 0 && tsMint.para.clusterId <= 0) {
     if (sdbDeploy() != 0) {
       mError("failed to deploy sdb since %s", terrstr());
@@ -182,9 +183,9 @@ int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg) {
   return 0;
 }
 
-void mnodeUnDeploy(char *path) { sdbUnDeploy(); }
+void mnodeUnDeploy() { sdbUnDeploy(); }
 
-int32_t mnodeStart(char *path, SMnodeCfg *pCfg) { return taosStepExec(tsMint.pStartSteps); }
+int32_t mnodeStart(SMnodeCfg *pCfg) { return taosStepExec(tsMint.pStartSteps); }
 
 int32_t mnodeAlter(SMnodeCfg *pCfg) { return 0; }
 

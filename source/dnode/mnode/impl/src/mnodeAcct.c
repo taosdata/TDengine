@@ -73,7 +73,9 @@ static int32_t mnodeAcctActionInsert(SAcctObj *pAcct) { return 0; }
 static int32_t mnodeAcctActionDelete(SAcctObj *pAcct) { return 0; }
 
 static int32_t mnodeAcctActionUpdate(SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
-  memcpy(pDstAcct, pSrcAcct, (int32_t)((char *)&pDstAcct->info - (char *)&pDstAcct));
+  SAcctObj tObj;
+  int32_t  len = (int32_t)((int8_t *)&tObj.info - (int8_t *)&tObj);
+  memcpy(pDstAcct, pSrcAcct, len);
   return 0;
 }
 

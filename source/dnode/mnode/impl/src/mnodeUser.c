@@ -28,7 +28,7 @@ static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN)
   SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_KEY_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_KEY_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
   SDB_SET_INT8(pRaw, dataPos, pUser->rootAuth)
@@ -46,7 +46,7 @@ static SSdbRow *mnodeUserActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  SSdbRow  *pRow = sdbAllocRow(sizeof(SAcctObj));
+  SSdbRow  *pRow = sdbAllocRow(sizeof(SUserObj));
   SUserObj *pUser = sdbGetRowObj(pRow);
   if (pUser == NULL) return NULL;
 
@@ -92,7 +92,9 @@ static int32_t mnodeUserActionDelete(SUserObj *pUser) {
 }
 
 static int32_t mnodeUserActionUpdate(SUserObj *pSrcUser, SUserObj *pDstUser) {
-  memcpy(pDstUser, pSrcUser, (int32_t)((char *)&pDstUser->prohibitDbHash - (char *)&pDstUser));
+  SUserObj tObj;
+  int32_t  len = (int32_t)((int8_t *)tObj.prohibitDbHash - (int8_t *)&tObj);
+  memcpy(pDstUser, pSrcUser, len);
   return 0;
 }
 

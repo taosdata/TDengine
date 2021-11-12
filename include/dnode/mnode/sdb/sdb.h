@@ -157,8 +157,8 @@ void    sdbUnDeploy();
 
 void   *sdbAcquire(ESdbType sdb, void *pKey);
 void    sdbRelease(void *pObj);
-void   *sdbFetch(ESdbType sdb, void *pIter);
-void    sdbCancelFetch(ESdbType sdb, void *pIter);
+void   *sdbFetch(ESdbType sdb, void *pIter, void **ppObj);
+void    sdbCancelFetch(void *pIter);
 int32_t sdbGetSize(ESdbType sdb);
 
 SSdbRaw *sdbAllocRaw(ESdbType sdb, int8_t sver, int32_t dataLen);

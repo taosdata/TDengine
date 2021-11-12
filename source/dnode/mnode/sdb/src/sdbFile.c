@@ -66,7 +66,7 @@ static int32_t sdbReadDataFile() {
 
   char file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%ssdb.data", tsSdb.currDir);
-  FileFd fd = taosOpenFileCreateWrite(file);
+  FileFd fd = taosOpenFileRead(file);
   if (fd <= 0) {
     free(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -76,9 +76,12 @@ static int32_t sdbReadDataFile() {
 
   int64_t offset = 0;
   int32_t code = 0;
+  int32_t readLen = 0;
+  int64_t ret = 0;
 
   while (1) {
-    int64_t ret = taosReadFile(fd, pRaw, sizeof(SSdbRaw));
+    readLen = sizeof(SSdbRaw);
+    ret = taosReadFile(fd, pRaw, readLen);
     if (ret == 0) break;
 
     if (ret < 0) {
@@ -87,33 +90,34 @@ static int32_t sdbReadDataFile() {
       break;
     }
 
-    if (ret < sizeof(SSdbRaw)) {
+    if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
     }
 
-    ret = taosReadFile(fd, pRaw->pData, pRaw->dataLen + sizeof(int32_t));
+    readLen = pRaw->dataLen + sizeof(int32_t);
+    ret = taosReadFile(fd, pRaw->pData, readLen);
     if (ret < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
     }
 
-    if (ret < pRaw->dataLen + sizeof(int32_t)) {
+    if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
     }
 
-    uint32_t cksum = *(int32_t *)(pRaw->pData + pRaw->dataLen);
-    if (!taosCheckChecksumWhole(pRaw, sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t)) != 0) {
+    int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
+    if (!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen) != 0) {
       code = TSDB_CODE_CHECKSUM_ERROR;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
     }
 
-    code = sdbWrite(pRaw);
+    code = sdbWriteImp(pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
       goto PARSE_SDB_DATA_ERROR;
@@ -150,38 +154,46 @@ static int32_t sdbWriteDataFile() {
     SRWLatch *pLock = &tsSdb.locks[i];
     taosWLockLatch(pLock);
 
-    SSdbRow *pRow = taosHashIterate(hash, NULL);
-    while (pRow != NULL) {
-      if (pRow->status != SDB_STATUS_READY) continue;
+    SSdbRow **ppRow = taosHashIterate(hash, NULL);
+    while (ppRow != NULL) {
+      SSdbRow *pRow = *ppRow;
+      if (pRow == NULL || pRow->status != SDB_STATUS_READY) {
+        ppRow = taosHashIterate(hash, ppRow);
+        continue;
+      }
 
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {
+        pRaw->status = pRow->status;
         int32_t writeLen = sizeof(SSdbRaw) + pRaw->dataLen;
         if (taosWriteFile(fd, pRaw, writeLen) != writeLen) {
           code = TAOS_SYSTEM_ERROR(terrno);
+          taosHashCancelIterate(hash, ppRow);
           break;
         }
-        int32_t cksum = taosCalcChecksum(0, pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
+
+        int32_t cksum = taosCalcChecksum(0, (const uint8_t *)pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
         if (taosWriteFile(fd, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
           code = TAOS_SYSTEM_ERROR(terrno);
+          taosHashCancelIterate(hash, ppRow);
           break;
         }
       } else {
-        taosHashCancelIterate(hash, pRow);
         code = TSDB_CODE_SDB_APP_ERROR;
+        taosHashCancelIterate(hash, ppRow);
         break;
       }
 
-      pRow = taosHashIterate(hash, pRow);
+      ppRow = taosHashIterate(hash, ppRow);
     }
     taosWUnLockLatch(pLock);
   }
 
-  taosCloseFile(fd);
-
   if (code == 0) {
     code = taosFsyncFile(fd);
   }
+
+  taosCloseFile(fd);
 
   if (code == 0) {
     char curfile[PATH_MAX] = {0};
@@ -210,13 +222,11 @@ int32_t sdbRead() {
 }
 
 int32_t sdbCommit() {
-  mDebug("start to commit mnode file");
+  mDebug("start to write mnode file");
   return sdbWriteDataFile();
 }
 
 int32_t sdbDeploy() {
-  mDebug("start to deploy mnode");
-
   if (sdbCreateDir() != 0) {
     return -1;
   }

@@ -55,9 +55,9 @@ typedef struct {
 int32_t mnodeInit(SMnodePara para);
 void    mnodeCleanup();
 
-int32_t mnodeDeploy(char *path, SMnodeCfg *pCfg);
-void    mnodeUnDeploy(char *path);
-int32_t mnodeStart(char *path, SMnodeCfg *pCfg);
+int32_t mnodeDeploy(SMnodeCfg *pCfg);
+void    mnodeUnDeploy();
+int32_t mnodeStart(SMnodeCfg *pCfg);
 int32_t mnodeAlter(SMnodeCfg *pCfg);
 void    mnodeStop();
 

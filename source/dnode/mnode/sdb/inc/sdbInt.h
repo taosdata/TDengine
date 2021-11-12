@@ -71,6 +71,8 @@ typedef struct {
 
 extern SSdbMgr tsSdb;
 
+int32_t sdbWriteImp(SSdbRaw *pRaw);
+
 #ifdef __cplusplus
 }
 #endif
