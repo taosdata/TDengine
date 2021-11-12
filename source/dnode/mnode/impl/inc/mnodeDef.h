@@ -57,27 +57,6 @@ typedef struct SVgObj SVgObj;
 typedef struct SSTableObj SSTableObj;
 typedef struct SFuncObj SFuncObj; 
 typedef struct SOperObj SOperObj;
-typedef struct SMnMsg SMnMsg;
-
-typedef enum {
-  MN_SDB_START = 0,
-  MN_SDB_CLUSTER = 1,
-  MN_SDB_DNODE = 2,
-  MN_SDB_MNODE = 3,
-  MN_SDB_ACCT = 4,
-  MN_SDB_AUTH = 5,
-  MN_SDB_USER = 6,
-  MN_SDB_DB = 7,
-  MN_SDB_VGROUP = 8,
-  MN_SDB_STABLE = 9,
-  MN_SDB_FUNC = 10,
-  MN_SDB_OPER = 11,
-  MN_SDB_MAX = 12
-} EMnSdb;
-
-typedef enum { MN_OP_START = 0, MN_OP_INSERT = 1, MN_OP_UPDATE = 2, MN_OP_DELETE = 3, MN_OP_MAX = 4 } EMnOp;
-
-typedef enum { MN_KEY_START = 0, MN_KEY_BINARY = 1, MN_KEY_INT32 = 2, MN_KEY_INT64 = 3, MN_KEY_MAX } EMnKey;
 
 typedef enum {
   MN_AUTH_ACCT_START = 0,
@@ -97,16 +76,9 @@ typedef enum {
   MN_AUTH_MAX
 } EMnAuthOp;
 
-typedef enum { MN_SDB_STAT_AVAIL = 0, MN_SDB_STAT_DROPPED = 1 } EMnSdbStat;
 
-typedef struct {
-  int8_t type;
-  int8_t status;
-  int8_t align[6];
-} SdbHead;
 
 typedef struct SClusterObj {
-  SdbHead head;
   int64_t id;
   char    uid[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
@@ -114,7 +86,6 @@ typedef struct SClusterObj {
 } SClusterObj;
 
 typedef struct SDnodeObj {
-  SdbHead  head;
   int32_t  id;
   int32_t  vnodes;
   int64_t  createdTime;
@@ -131,7 +102,6 @@ typedef struct SDnodeObj {
 } SDnodeObj;
 
 typedef struct SMnodeObj {
-  SdbHead    head;
   int32_t    id;
   int8_t     status;
   int8_t     role;
@@ -147,8 +117,8 @@ typedef struct {
   int32_t maxDbs;
   int32_t maxTimeSeries;
   int32_t maxStreams;
-  int64_t maxStorage;    // In unit of GB
-  int8_t  accessState;  // Configured only by command
+  int64_t maxStorage;   // In unit of GB
+  int32_t accessState;  // Configured only by command
 } SAcctCfg;
 
 typedef struct {
@@ -161,18 +131,16 @@ typedef struct {
 } SAcctInfo;
 
 typedef struct SAcctObj {
-  SdbHead   head;
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
   int32_t   acctId;
-  int8_t    status;
+  int32_t   status;
   SAcctCfg  cfg;
   SAcctInfo info;
 } SAcctObj;
 
 typedef struct SUserObj {
-  SdbHead   head;
   char      user[TSDB_USER_LEN];
   char      pass[TSDB_KEY_LEN];
   char      acct[TSDB_USER_LEN];
@@ -207,7 +175,6 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
-  SdbHead   head;
   char      name[TSDB_FULL_DB_NAME_LEN];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -251,7 +218,6 @@ typedef struct SVgObj {
 } SVgObj;
 
 typedef struct SSTableObj {
-  SdbHead    head;
   char       tableId[TSDB_TABLE_NAME_LEN];
   uint64_t   uid;
   int64_t    createdTime;
@@ -262,7 +228,6 @@ typedef struct SSTableObj {
 } SSTableObj;
 
 typedef struct SFuncObj {
-  SdbHead head;
   char    name[TSDB_FUNC_NAME_LEN];
   char    path[128];
   int32_t contLen;
@@ -299,8 +264,9 @@ typedef struct {
   void   *rsp;
 } SMnRsp;
 
-typedef struct SMnMsg {
-  void (*fp)(SMnMsg *pMsg, int32_t code);
+typedef struct SMnodeMsg {
+  void (*fp)(SMnodeMsg *pMsg, int32_t code);
+  SRpcConnInfo conn;
   SUserObj *pUser;
   int16_t   received;
   int16_t   successed;
@@ -311,7 +277,7 @@ typedef struct SMnMsg {
   SMnRsp    rpcRsp;
   SRpcMsg   rpcMsg;
   char      pCont[];
-} SMnReq;
+} SMnodeMsg;
 
 #ifdef __cplusplus
 }

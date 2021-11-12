@@ -13,28 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_INT_H_
-#define _TD_MNODE_INT_H_
+#ifndef _TD_MNODE_SYNC_H_
+#define _TD_MNODE_SYNC_H_
 
-#include "mnodeDef.h"
+#include "mnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum { MN_STATUS_UNINIT = 0, MN_STATUS_INIT = 1, MN_STATUS_READY = 2, MN_STATUS_CLOSING = 3 } EMnStatus;
+int32_t mnodeInitSync();
+void    mnodeCleanUpSync();
+int32_t mnodeSyncPropose(SSdbRaw *pRaw, void *pData);
 
-tmr_h     mnodeGetTimer();
-int32_t   mnodeGetDnodeId();
-int64_t   mnodeGetClusterId();
-EMnStatus mnodeGetStatus();
-
-void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
+bool mnodeIsMaster();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MNODE_INT_H_*/
+#endif /*_TD_MNODE_SYNC_H_*/

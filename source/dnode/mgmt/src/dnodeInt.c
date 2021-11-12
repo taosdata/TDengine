@@ -135,7 +135,7 @@ static int32_t dnodeInitMain() {
 
   dnodeInitDir();
 
-  return -1;
+  return 0;
 }
 
 static void dnodeCleanupMain() {
@@ -145,14 +145,14 @@ static void dnodeCleanupMain() {
 }
 
 int32_t dnodeInit() {
-  SSteps *steps = taosStepInit(24, dnodeReportStartup);
+  SSteps *steps = taosStepInit(10, dnodeReportStartup);
   if (steps == NULL) return -1;
 
   taosStepAdd(steps, "dnode-main", dnodeInitMain, dnodeCleanupMain);
   taosStepAdd(steps, "dnode-rpc", rpcInit, rpcCleanup);
   taosStepAdd(steps, "dnode-tfs", NULL, NULL);
   taosStepAdd(steps, "dnode-wal", walInit, walCleanUp);
-  taosStepAdd(steps, "dnode-sync", syncInit, syncCleanUp);
+  //taosStepAdd(steps, "dnode-sync", syncInit, syncCleanUp);
   taosStepAdd(steps, "dnode-dnode", dnodeInitDnode, dnodeCleanupDnode);
   taosStepAdd(steps, "dnode-vnodes", dnodeInitVnodes, dnodeCleanupVnodes);
   taosStepAdd(steps, "dnode-mnode", dnodeInitMnode, dnodeCleanupMnode);

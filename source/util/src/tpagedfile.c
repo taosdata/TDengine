@@ -12,7 +12,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
 
   SDiskbasedResultBuf* pResBuf = *pResultBuf;
   if (pResBuf == NULL) {
-    return TSDB_CODE_COM_OUT_OF_MEMORY;  
+    return TSDB_CODE_OUT_OF_MEMORY;  
   }
 
   pResBuf->pageSize     = pagesize;

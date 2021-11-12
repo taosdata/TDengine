@@ -13,22 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_SYNC_H_
-#define _TD_MNODE_SYNC_H_
-
-#include "mnodeInt.h"
+#ifndef _TD_TSDB_MEM_TABLE_H_
+#define _TD_TSDB_MEM_TABLE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mnodeInitSync();
-void    mnodeCleanUpSync();
-
-bool mnodeIsMaster();
+typedef struct SMemTable SMemTable;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MNODE_SYNC_H_*/
+#endif /*_TD_TSDB_MEM_TABLE_H_*/

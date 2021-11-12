@@ -13,11 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "os.h"
-#include "mnodeInt.h"
+#ifndef _TD_MNODE_INT_H_
+#define _TD_MNODE_INT_H_
 
-int32_t mnodeInitSync() { return 0; }
-void    mnodeCleanUpSync() {}
+#include "mnodeDef.h"
+#include "sdb.h"
+#include "trn.h"
 
-bool mnodeIsMaster() { return true; }
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef void (*MnodeRpcFp)(SMnodeMsg *pMsg);
+
+tmr_h   mnodeGetTimer();
+int32_t mnodeGetDnodeId();
+int64_t mnodeGetClusterId();
+
+void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
+void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
+
+void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MNODE_INT_H_*/

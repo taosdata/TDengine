@@ -64,8 +64,7 @@ void    mnodeStop();
 int32_t mnodeGetLoad(SMnodeLoad *pLoad);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-SMnodeMsg *mnodeInitMsg(int32_t msgNum);
-int32_t    mnodeAppendMsg(SMnodeMsg *pMsg, SRpcMsg *pRpcMsg);
+SMnodeMsg *mnodeInitMsg(SRpcMsg *pRpcMsg);
 void       mnodeCleanupMsg(SMnodeMsg *pMsg);
 void       mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType);
 

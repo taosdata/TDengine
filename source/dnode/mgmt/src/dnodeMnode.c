@@ -335,12 +335,9 @@ static int32_t dnodeWriteMnodeMsgToQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
   if (pQueue == NULL) {
     code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
   } else {
-    SMnodeMsg *pMsg = mnodeInitMsg(1);
+    SMnodeMsg *pMsg = mnodeInitMsg(pRpcMsg);
     if (pMsg == NULL) {
-      code = TSDB_CODE_DND_OUT_OF_MEMORY;
-    } else {
-      mnodeAppendMsg(pMsg, pRpcMsg);
-      code = taosWriteQitem(pQueue, pMsg);
+      code = terrno;
     }
   }
 

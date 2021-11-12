@@ -11,6 +11,6 @@ target_link_libraries(
 )
 target_include_directories(
     taosd
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/server/dnode"
+    PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode"
     private "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )

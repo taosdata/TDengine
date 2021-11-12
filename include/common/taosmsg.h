@@ -399,8 +399,6 @@ typedef struct {
 typedef struct {
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_KEY_LEN];
-  int8_t privilege;
-  int8_t flag;
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {

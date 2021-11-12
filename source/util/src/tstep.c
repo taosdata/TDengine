@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "ulog.h"
+#include "taoserror.h"
 #include "tstep.h"
 
 typedef struct {
@@ -33,7 +34,10 @@ typedef struct SSteps {
 
 SSteps *taosStepInit(int32_t maxsize, ReportFp fp) {
   SSteps *steps = calloc(1, sizeof(SSteps));
-  if (steps == NULL) return NULL;
+  if (steps == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   steps->maxsize = maxsize;
   steps->cursize = 0;
@@ -44,9 +48,14 @@ SSteps *taosStepInit(int32_t maxsize, ReportFp fp) {
 }
 
 int32_t taosStepAdd(struct SSteps *steps, char *name, InitFp initFp, CleanupFp cleanupFp) {
-  if (steps == NULL) return -1;
+  if (steps == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
+
   if (steps->cursize >= steps->maxsize) {
     uError("failed to add step since up to the maxsize");
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -66,7 +75,10 @@ static void taosStepCleanupImp(SSteps *steps, int32_t pos) {
 }
 
 int32_t taosStepExec(SSteps *steps) {
-  if (steps == NULL) return -1;
+  if (steps == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
 
   for (int32_t s = 0; s < steps->cursize; s++) {
     SStep *step = steps->steps + s;

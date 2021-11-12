@@ -13,22 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_WORKER_H_
-#define _TD_MNODE_WORKER_H_
-
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "mnodeInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int32_t mnodeInitSync() { return 0; }
+void    mnodeCleanUpSync() {}
 
-int32_t mnodeInitWorker();
-void    mnodeCleanupWorker();
-void    mnodeSendRsp(SMnMsg *pMsg, int32_t code);
-void    mnodeReDispatchToWriteQueue(SMnMsg *pMsg);
-
-#ifdef __cplusplus
+int32_t mnodeSyncPropose(SSdbRaw *pRaw, void *pData) {
+  trnApply(pRaw, pData, 0);
+  free(pRaw);
+  return 0;
 }
-#endif
 
-#endif /*_TD_MNODE_WORKER_H_*/
+bool mnodeIsMaster() { return true; }
