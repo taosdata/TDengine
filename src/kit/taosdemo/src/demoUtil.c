@@ -202,8 +202,14 @@ int getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
 
     TAOS_RES *res;
     TAOS_ROW  row = NULL;
-
-    char *childTblName = *childTblNameOfSuperTbl;
+    int64_t   childTblCount = (limit < 0) ? DEFAULT_CHILDTABLES : limit;
+    int64_t   count = 0;
+    char *    childTblName = *childTblNameOfSuperTbl;
+    char *    pTblName = childTblName;
+    if (childTblName == NULL) {
+        childTblName = (char *)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
+        assert(childTblName);
+    }
 
     snprintf(limitBuf, 100, " limit %" PRId64 " offset %" PRIu64 "", limit,
              offset);
@@ -219,31 +225,16 @@ int getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
     if (code != 0) {
         taos_free_result(res);
         taos_close(taos);
-        errorPrint("%s() LN%d, failed to run command %s, reason: %s\n",
-                   __func__, __LINE__, command, taos_errstr(res));
+        errorPrint("failed to run command %s, reason: %s\n", command,
+                   taos_errstr(res));
         exit(EXIT_FAILURE);
     }
 
-    int64_t childTblCount = (limit < 0) ? DEFAULT_CHILDTABLES : limit;
-    int64_t count = 0;
-    if (childTblName == NULL) {
-        childTblName = (char *)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
-        if (NULL == childTblName) {
-            taos_free_result(res);
-            taos_close(taos);
-            errorPrint("%s() LN%d, failed to allocate memory!\n", __func__,
-                       __LINE__);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    char *pTblName = childTblName;
     while ((row = taos_fetch_row(res)) != NULL) {
         int32_t *len = taos_fetch_lengths(res);
 
         if (0 == strlen((char *)row[0])) {
-            errorPrint("%s() LN%d, No.%" PRId64 " table return empty name\n",
-                       __func__, __LINE__, count);
+            errorPrint("No.%" PRId64 " table return empty name\n", count);
             exit(EXIT_FAILURE);
         }
 
@@ -577,8 +568,7 @@ int postProceSql(char *host, uint16_t port, char *sqlstr,
     free(request_buf);
 
     if (NULL == strstr(response_buf, resHttpOk)) {
-        errorPrint("%s() LN%d, Response:\n%s\n", __func__, __LINE__,
-                   response_buf);
+        errorPrint("Response:\n%s\n", response_buf);
         return -1;
     }
     return 0;

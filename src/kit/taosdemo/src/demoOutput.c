@@ -115,8 +115,8 @@ int getDbFromServer(TAOS *taos, SDbInfo **dbInfos) {
 
         count++;
         if (count > MAX_DATABASE_COUNT) {
-            errorPrint("%s() LN%d, The database count overflow than %d\n",
-                       __func__, __LINE__, MAX_DATABASE_COUNT);
+            errorPrint("The database count overflow than %d\n",
+                       MAX_DATABASE_COUNT);
             break;
         }
     }
@@ -202,8 +202,7 @@ int xDumpResultToFile(const char *fname, TAOS_RES *tres) {
 
     FILE *fp = fopen(fname, "at");
     if (fp == NULL) {
-        errorPrint("%s() LN%d, failed to open file: %s\n", __func__, __LINE__,
-                   fname);
+        errorPrint("failed to open file: %s\n", fname);
         return -1;
     }
 
@@ -983,11 +982,7 @@ void printfQuerySystemInfo(TAOS *taos) {
     res = taos_query(taos, "show databases;");
     SDbInfo **dbInfos =
         (SDbInfo **)calloc(MAX_DATABASE_COUNT, sizeof(SDbInfo *));
-    if (dbInfos == NULL) {
-        errorPrint("%s() LN%d, failed to allocate memory\n", __func__,
-                   __LINE__);
-        return;
-    }
+    assert(dbInfos);
     int dbCount = getDbFromServer(taos, dbInfos);
     if (dbCount <= 0) {
         free(dbInfos);

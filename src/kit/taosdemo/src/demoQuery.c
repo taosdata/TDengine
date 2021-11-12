@@ -19,8 +19,8 @@ void selectAndGetResult(threadInfo *pThreadInfo, char *command) {
     if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
         TAOS_RES *res = taos_query(pThreadInfo->taos, command);
         if (res == NULL || taos_errno(res) != 0) {
-            errorPrint("%s() LN%d, failed to execute sql:%s, reason:%s\n",
-                       __func__, __LINE__, command, taos_errstr(res));
+            errorPrint("failed to execute sql:%s, reason:%s\n", command,
+                       taos_errstr(res));
             taos_free_result(res);
             return;
         }
@@ -38,8 +38,7 @@ void selectAndGetResult(threadInfo *pThreadInfo, char *command) {
         }
 
     } else {
-        errorPrint("%s() LN%d, unknown query mode: %s\n", __func__, __LINE__,
-                   g_queryInfo.queryMode);
+        errorPrint("unknown query mode: %s\n", g_queryInfo.queryMode);
     }
 }
 

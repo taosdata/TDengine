@@ -446,8 +446,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
     } else if (!prepareRand) {
         g_args.prepared_rand = DEFAULT_PREPARED_RAND;
     } else {
-        errorPrint("%s() LN%d, failed to read json, prepared_rand not found\n",
-                   __func__, __LINE__);
+        errorPrint("%s", "failed to read json, prepared_rand not found\n");
         goto PARSE_OVER;
     }
 
@@ -1222,7 +1221,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
     cJSON *gQueryTimes = cJSON_GetObjectItem(root, "query_times");
     if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
         if (gQueryTimes->valueint <= 0) {
-            errorPrint("%s()",
+            errorPrint("%s",
                        "failed to read json, query_times input mistake\n");
             goto PARSE_OVER;
         }
@@ -1740,8 +1739,7 @@ int testMetaFile() {
         }
         return subscribeTestProcess();
     } else {
-        errorPrint("%s() LN%d, unsupport test mode (%d)\n", __func__, __LINE__,
-                   g_args.test_mode);
+        errorPrint("unsupport test mode (%d)\n", g_args.test_mode);
         return -1;
     }
     return 0;

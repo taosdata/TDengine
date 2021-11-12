@@ -380,22 +380,19 @@ int subscribeTestProcess() {
                    __LINE__, g_queryInfo.specifiedQueryInfo.sqlCount);
     } else {
         if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-            errorPrint("%s() LN%d, specified query sqlCount %d.\n", __func__,
-                       __LINE__, g_queryInfo.specifiedQueryInfo.sqlCount);
+            errorPrint("specified query sqlCount %d.\n",
+                       g_queryInfo.specifiedQueryInfo.sqlCount);
             exit(EXIT_FAILURE);
         }
 
         pids = calloc(1, g_queryInfo.specifiedQueryInfo.sqlCount *
                              g_queryInfo.specifiedQueryInfo.concurrent *
                              sizeof(pthread_t));
+        assert(pids);
         infos = calloc(1, g_queryInfo.specifiedQueryInfo.sqlCount *
                               g_queryInfo.specifiedQueryInfo.concurrent *
                               sizeof(threadInfo));
-        if ((NULL == pids) || (NULL == infos)) {
-            errorPrint("%s() LN%d, malloc failed for create threads\n",
-                       __func__, __LINE__);
-            exit(EXIT_FAILURE);
-        }
+        assert(infos);
 
         for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
             for (int j = 0; j < g_queryInfo.specifiedQueryInfo.concurrent;
@@ -423,15 +420,11 @@ int subscribeTestProcess() {
             pidsOfStable = calloc(1, g_queryInfo.superQueryInfo.sqlCount *
                                          g_queryInfo.superQueryInfo.threadCnt *
                                          sizeof(pthread_t));
+            assert(pidsOfStable);
             infosOfStable = calloc(1, g_queryInfo.superQueryInfo.sqlCount *
                                           g_queryInfo.superQueryInfo.threadCnt *
                                           sizeof(threadInfo));
-            if ((NULL == pidsOfStable) || (NULL == infosOfStable)) {
-                errorPrint("%s() LN%d, malloc failed for create threads\n",
-                           __func__, __LINE__);
-                // taos_close(taos);
-                exit(EXIT_FAILURE);
-            }
+            assert(infosOfStable);
 
             int64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
             int     threads = g_queryInfo.superQueryInfo.threadCnt;

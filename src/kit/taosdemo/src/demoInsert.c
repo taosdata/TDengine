@@ -16,134 +16,111 @@
 #include "demo.h"
 #include "demoData.h"
 
-static char *getTagValueFromTagSample(SSuperTable *stbInfo, int tagUsePos) {
-    char *dataBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
-    if (NULL == dataBuf) {
-        errorPrint("%s() LN%d, calloc failed! size:%d\n", __func__, __LINE__,
-                   TSDB_MAX_SQL_LEN + 1);
-        return NULL;
-    }
-
-    int dataLen = 0;
-    dataLen +=
-        snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, "(%s)",
-                 stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow * tagUsePos);
-
-    return dataBuf;
-}
-
-static char *generateBinaryNCharTagValues(int64_t tableSeq, uint32_t len) {
-    char *buf = (char *)calloc(len, 1);
-    if (NULL == buf) {
-        printf("calloc failed! size:%d\n", len);
-        return NULL;
-    }
-
+static void generateBinaryNCharTagValues(int64_t tableSeq, uint32_t len,
+                                         char *buf) {
     if (tableSeq % 2) {
         tstrncpy(buf, "beijing", len);
     } else {
         tstrncpy(buf, "shanghai", len);
     }
     // rand_string(buf, stbInfo->tags[i].dataLen);
-
-    return buf;
 }
 
-static char *generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq) {
-    char *dataBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
-    if (NULL == dataBuf) {
-        printf("calloc failed! size:%d\n", TSDB_MAX_SQL_LEN + 1);
-        return NULL;
-    }
-
+static int generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq,
+                                   char *tagsValBuf) {
     int dataLen = 0;
-    dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, "(");
+    dataLen += snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, "(");
     for (int i = 0; i < stbInfo->tagCount; i++) {
         if ((0 == strncasecmp(stbInfo->tags[i].dataType, "binary",
                               strlen("binary"))) ||
             (0 == strncasecmp(stbInfo->tags[i].dataType, "nchar",
                               strlen("nchar")))) {
             if (stbInfo->tags[i].dataLen > TSDB_MAX_BINARY_LEN) {
-                printf("binary or nchar length overflow, max size:%u\n",
-                       (uint32_t)TSDB_MAX_BINARY_LEN);
-                tmfree(dataBuf);
-                return NULL;
+                errorPrint("binary or nchar length overflow, max size:%u\n",
+                           (uint32_t)TSDB_MAX_BINARY_LEN);
+                return -1;
             }
 
             int32_t tagBufLen = stbInfo->tags[i].dataLen + 1;
-            char *  buf = generateBinaryNCharTagValues(tableSeq, tagBufLen);
-            if (NULL == buf) {
-                tmfree(dataBuf);
-                return NULL;
-            }
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "\'%s\',", buf);
+            char *  buf = (char *)calloc(tagBufLen, 1);
+            assert(buf);
+            generateBinaryNCharTagValues(tableSeq, tagBufLen, buf);
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_SQL_LEN - dataLen, "\'%s\',", buf);
             tmfree(buf);
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "int",
                                     strlen("int"))) {
             if ((g_args.demo_mode) && (i == 0)) {
                 dataLen +=
-                    snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
                              "%" PRId64 ",", (tableSeq % 10) + 1);
             } else {
                 dataLen +=
-                    snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                    snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
                              "%" PRId64 ",", tableSeq);
             }
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "bigint",
                                     strlen("bigint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%" PRId64 ",", rand_bigint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%" PRId64 ",", rand_bigint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "float",
                                     strlen("float"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%f,", rand_float());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%f,", rand_float());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "double",
                                     strlen("double"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%f,", rand_double());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%f,", rand_double());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "smallint",
                                     strlen("smallint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%d,", rand_smallint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%d,", rand_smallint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "tinyint",
                                     strlen("tinyint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%d,", rand_tinyint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%d,", rand_tinyint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "bool",
                                     strlen("bool"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%d,", rand_bool());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_SQL_LEN - dataLen, "%d,", rand_bool());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "timestamp",
                                     strlen("timestamp"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%" PRId64 ",", rand_ubigint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%" PRId64 ",", rand_ubigint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "utinyint",
                                     strlen("utinyint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%d,", rand_utinyint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%d,", rand_utinyint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "usmallint",
                                     strlen("usmallint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%d,", rand_usmallint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%d,", rand_usmallint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "uint",
                                     strlen("uint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%d,", rand_uint());
+            dataLen += snprintf(tagsValBuf + dataLen,
+                                TSDB_MAX_SQL_LEN - dataLen, "%d,", rand_uint());
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType, "ubigint",
                                     strlen("ubigint"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                                "%" PRId64 ",", rand_ubigint());
+            dataLen +=
+                snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+                         "%" PRId64 ",", rand_ubigint());
         } else {
-            errorPrint("No support data type: %s\n", stbInfo->tags[i].dataType);
-            tmfree(dataBuf);
-            return NULL;
+            errorPrint("unsupport data type: %s\n", stbInfo->tags[i].dataType);
+            return -1;
         }
     }
 
     dataLen -= 1;
-    dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, ")");
-    return dataBuf;
+    dataLen += snprintf(tagsValBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, ")");
+    return 0;
 }
 
 static int calcRowLen(SSuperTable *superTbls) {
@@ -511,38 +488,18 @@ static int getSuperTableFromServer(TAOS *taos, char *dbName,
     taos_free_result(res);
 
     calcRowLen(superTbls);
-
-    /*
-       if (TBL_ALREADY_EXISTS == superTbls->childTblExists) {
-    //get all child table name use cmd: select tbname from superTblName;
-    int childTblCount = 10000;
-    superTbls->childTblName = (char*)calloc(1, childTblCount *
-    TSDB_TABLE_NAME_LEN); if (superTbls->childTblName == NULL) {
-    errorPrint("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
-    return -1;
-    }
-    getAllChildNameOfSuperTable(taos, dbName,
-    superTbls->stbName,
-    &superTbls->childTblName,
-    &superTbls->childTblCount);
-    }
-    */
     return 0;
 }
 
-static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl) {
-    char *command = calloc(1, BUFFER_SIZE);
-    assert(command);
-
+static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl,
+                            char *command) {
     char cols[COL_BUFFER_LEN] = "\0";
     int  len = 0;
 
     int lenOfOneRow = 0;
 
     if (superTbl->columnCount == 0) {
-        errorPrint("%s() LN%d, super table column count is %d\n", __func__,
-                   __LINE__, superTbl->columnCount);
-        free(command);
+        errorPrint("super table column count is %d\n", superTbl->columnCount);
         return -1;
     }
 
@@ -652,10 +609,9 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl) {
 
             default:
                 taos_close(taos);
-                free(command);
-                errorPrint("%s() LN%d, config error data type : %s\n", __func__,
-                           __LINE__, superTbl->columns[colIndex].dataType);
-                exit(EXIT_FAILURE);
+                errorPrint("config error data type : %s\n",
+                           superTbl->columns[colIndex].dataType);
+                return -1;
         }
     }
 
@@ -666,10 +622,8 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl) {
         (char *)calloc(len + TIMESTAMP_BUFF_LEN, 1);
     if (NULL == superTbl->colsOfCreateChildTable) {
         taos_close(taos);
-        free(command);
-        errorPrint("%s() LN%d, Failed when calloc, size:%d", __func__, __LINE__,
-                   len + 1);
-        exit(EXIT_FAILURE);
+        errorPrint("Failed when calloc, size:%d", len + 1);
+        return -1;
     }
 
     snprintf(superTbl->colsOfCreateChildTable, len + TIMESTAMP_BUFF_LEN,
@@ -678,9 +632,7 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl) {
                  superTbl->colsOfCreateChildTable);
 
     if (superTbl->tagCount == 0) {
-        errorPrint("%s() LN%d, super table tag count is %d\n", __func__,
-                   __LINE__, superTbl->tagCount);
-        free(command);
+        errorPrint("super table tag count is %d\n", superTbl->tagCount);
         return -1;
     }
 
@@ -774,10 +726,8 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl) {
                 superTbl->tags[tagIndex].dataLen + TIMESTAMP_BUFF_LEN;
         } else {
             taos_close(taos);
-            free(command);
-            errorPrint("%s() LN%d, config error tag type : %s\n", __func__,
-                       __LINE__, dataType);
-            exit(EXIT_FAILURE);
+            errorPrint("config error tag type : %s\n", dataType);
+            return -1;
         }
     }
 
@@ -793,12 +743,10 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl) {
              dbName, superTbl->stbName, cols, tags);
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         errorPrint("create supertable %s failed!\n\n", superTbl->stbName);
-        free(command);
         return -1;
     }
 
     debugPrint("create supertable %s success!\n\n", superTbl->stbName);
-    free(command);
     return 0;
 }
 
@@ -916,8 +864,11 @@ int createDatabasesAndStables(char *command) {
             ret = queryDbExec(taos, command, NO_INSERT_TYPE, true);
 
             if ((ret != 0) || (g_Dbs.db[i].drop)) {
+                char *cmd = calloc(1, BUFFER_SIZE);
+                assert(cmd);
                 ret = createSuperTable(taos, g_Dbs.db[i].dbName,
-                                       &g_Dbs.db[i].superTbls[j]);
+                                       &g_Dbs.db[i].superTbls[j], cmd);
+                tmfree(cmd);
 
                 if (0 != ret) {
                     errorPrint("create super table %" PRIu64 " failed!\n\n", j);
@@ -954,10 +905,7 @@ static void *createTable(void *sarg) {
     int buff_len = BUFFER_SIZE;
 
     pThreadInfo->buffer = calloc(buff_len, 1);
-    if (pThreadInfo->buffer == NULL) {
-        errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
-        exit(EXIT_FAILURE);
-    }
+    assert(pThreadInfo->buffer);
 
     int len = 0;
     int batchNum = 0;
@@ -991,22 +939,19 @@ static void *createTable(void *sarg) {
                                     "CREATE TABLE ");
                 }
 
-                char *tagsValBuf = NULL;
+                char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+                assert(tagsValBuf);
                 if (0 == stbInfo->tagSource) {
-                    tagsValBuf = generateTagValuesForStb(stbInfo, i);
-                } else {
-                    if (0 == stbInfo->tagSampleCount) {
-                        free(pThreadInfo->buffer);
-                        ERROR_EXIT(
-                            "use sample file for tag, but has no content!\n");
+                    if (generateTagValuesForStb(stbInfo, i, tagsValBuf)) {
+                        tmfree(tagsValBuf);
+                        tmfree(pThreadInfo->buffer);
+                        exit(EXIT_FAILURE);
                     }
-                    tagsValBuf = getTagValueFromTagSample(
-                        stbInfo, i % stbInfo->tagSampleCount);
-                }
-
-                if (NULL == tagsValBuf) {
-                    free(pThreadInfo->buffer);
-                    ERROR_EXIT("use metric, but tag buffer is NULL\n");
+                } else {
+                    snprintf(tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                             stbInfo->tagDataBuf +
+                                 stbInfo->lenOfTagOfOneRow *
+                                     (i % stbInfo->tagSampleCount));
                 }
                 len += snprintf(
                     pThreadInfo->buffer + len, buff_len - len,
@@ -1016,7 +961,7 @@ static void *createTable(void *sarg) {
                                           " using %s.%s tags %s ",
                     pThreadInfo->db_name, stbInfo->childTblPrefix, i,
                     pThreadInfo->db_name, stbInfo->stbName, tagsValBuf);
-                free(tagsValBuf);
+                tmfree(tagsValBuf);
                 batchNum++;
                 if ((batchNum < stbInfo->batchCreateTableNum) &&
                     ((buff_len - len) >=
@@ -1088,8 +1033,8 @@ int startMultiThreadCreateChildTable(char *cols, int threads,
         pThreadInfo->taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password,
                                          db_name, g_Dbs.port);
         if (pThreadInfo->taos == NULL) {
-            errorPrint("%s() LN%d, Failed to connect to TDengine, reason:%s\n",
-                       __func__, __LINE__, taos_errstr(NULL));
+            errorPrint("failed to connect to TDengine, reason:%s\n",
+                       taos_errstr(NULL));
             free(pids);
             free(infos);
             return -1;
@@ -1683,24 +1628,9 @@ static int64_t generateData(char *recBuf, char *data_type, int64_t timestamp,
                 break;
 
             case TSDB_DATA_TYPE_BINARY:
-                s = malloc(lenOfBinary + 1);
-                if (s == NULL) {
-                    errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
-                               __func__, __LINE__, lenOfBinary + 1);
-                    exit(EXIT_FAILURE);
-                }
-                rand_string(s, lenOfBinary);
-                pstr += sprintf(pstr, ",\"%s\"", s);
-                free(s);
-                break;
-
             case TSDB_DATA_TYPE_NCHAR:
                 s = malloc(lenOfBinary + 1);
-                if (s == NULL) {
-                    errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
-                               __func__, __LINE__, lenOfBinary + 1);
-                    exit(EXIT_FAILURE);
-                }
+                assert(s);
                 rand_string(s, lenOfBinary);
                 pstr += sprintf(pstr, ",\"%s\"", s);
                 free(s);
@@ -1726,8 +1656,7 @@ static int64_t generateData(char *recBuf, char *data_type, int64_t timestamp,
                 break;
 
             default:
-                errorPrint("%s() LN%d, Unknown data type %d\n", __func__,
-                           __LINE__, data_type[i]);
+                errorPrint("Unknown data type %d\n", data_type[i]);
                 exit(EXIT_FAILURE);
         }
 
@@ -1749,11 +1678,7 @@ static int generateSampleFromRand(char *sampleDataBuf, uint64_t lenOfOneRow,
     memset(data, 0, MAX_DATA_SIZE);
 
     char *buff = malloc(lenOfOneRow);
-    if (NULL == buff) {
-        errorPrint("%s() LN%d, memory allocation %" PRIu64 " bytes failed\n",
-                   __func__, __LINE__, lenOfOneRow);
-        exit(EXIT_FAILURE);
-    }
+    assert(buff);
 
     for (int i = 0; i < MAX_SAMPLES; i++) {
         uint64_t pos = 0;
@@ -1872,24 +1797,14 @@ static int generateSampleFromRandForStb(SSuperTable *stbInfo) {
 
 static int prepareSampleForNtb() {
     g_sampleDataBuf = calloc(g_args.lenOfOneRow * MAX_SAMPLES, 1);
-    if (NULL == g_sampleDataBuf) {
-        errorPrint("%s() LN%d, Failed to calloc %" PRIu64 " Bytes, reason:%s\n",
-                   __func__, __LINE__, g_args.lenOfOneRow * MAX_SAMPLES,
-                   strerror(errno));
-        return -1;
-    }
+    assert(g_sampleDataBuf);
 
     return generateSampleFromRandForNtb();
 }
 
 static int prepareSampleForStb(SSuperTable *stbInfo) {
     stbInfo->sampleDataBuf = calloc(stbInfo->lenOfOneRow * MAX_SAMPLES, 1);
-    if (NULL == stbInfo->sampleDataBuf) {
-        errorPrint("%s() LN%d, Failed to calloc %" PRIu64 " Bytes, reason:%s\n",
-                   __func__, __LINE__, stbInfo->lenOfOneRow * MAX_SAMPLES,
-                   strerror(errno));
-        return -1;
-    }
+    assert(stbInfo->sampleDataBuf);
 
     int ret;
     if (0 == strncasecmp(stbInfo->dataSource, "sample", strlen("sample"))) {
@@ -1902,8 +1817,7 @@ static int prepareSampleForStb(SSuperTable *stbInfo) {
     }
 
     if (0 != ret) {
-        errorPrint("%s() LN%d, read sample from csv file failed.\n", __func__,
-                   __LINE__);
+        errorPrint("read sample from %s file failed.\n", stbInfo->sampleFile);
         tmfree(stbInfo->sampleDataBuf);
         stbInfo->sampleDataBuf = NULL;
         return -1;
@@ -1985,8 +1899,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k) {
             }
             break;
         default:
-            errorPrint("%s() LN%d: unknown insert mode: %d\n", __func__,
-                       __LINE__, stbInfo->iface);
+            errorPrint("Unknown insert mode: %d\n", stbInfo->iface);
             affectedRows = 0;
     }
 
@@ -2188,17 +2101,18 @@ static int generateStbSQLHead(SSuperTable *stbInfo, char *tableName,
     char headBuf[HEAD_BUFF_LEN];
 
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
-        char *tagsValBuf = NULL;
+        char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+        assert(tagsValBuf);
         if (0 == stbInfo->tagSource) {
-            tagsValBuf = generateTagValuesForStb(stbInfo, tableSeq);
+            if (generateTagValuesForStb(stbInfo, tableSeq, tagsValBuf)) {
+                tmfree(tagsValBuf);
+                return -1;
+            }
         } else {
-            tagsValBuf = getTagValueFromTagSample(
-                stbInfo, tableSeq % stbInfo->tagSampleCount);
-        }
-        if (NULL == tagsValBuf) {
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
-                       __func__, __LINE__);
-            return -1;
+            snprintf(
+                tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow *
+                                          (tableSeq % stbInfo->tagSampleCount));
         }
 
         len =
@@ -2598,7 +2512,7 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind, char data_type,
 
         default:
             errorPrint("Not support data type: %d\n", data_type);
-            exit(EXIT_FAILURE);
+            return -1;
     }
 
     return 0;
@@ -2959,15 +2873,15 @@ static int32_t prepareStmtWithoutStb(threadInfo *pThreadInfo, char *tableName,
                 return -1;
             }
         }
-        if (0 != taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
-            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
+            errorPrint("taos_stmt_bind_param() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             break;
         }
         // if msg > 3MB, break
-        if (0 != taos_stmt_add_batch(stmt)) {
-            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_add_batch(stmt)) {
+            errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             break;
         }
 
@@ -2988,9 +2902,9 @@ static int32_t prepareStbStmtBindTag(char *bindArray, SSuperTable *stbInfo,
 
     for (int t = 0; t < stbInfo->tagCount; t++) {
         tag = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * t));
-        if (-1 == prepareStmtBindArrayByType(tag, stbInfo->tags[t].data_type,
-                                             stbInfo->tags[t].dataLen, timePrec,
-                                             NULL)) {
+        if (prepareStmtBindArrayByType(tag, stbInfo->tags[t].data_type,
+                                       stbInfo->tags[t].dataLen, timePrec,
+                                       NULL)) {
             return -1;
         }
     }
@@ -3042,92 +2956,74 @@ static int32_t prepareStbStmtBindRand(int64_t *ts, char *bindArray,
 UNUSED_FUNC static int32_t prepareStbStmtRand(
     threadInfo *pThreadInfo, char *tableName, int64_t tableSeq, uint32_t batch,
     uint64_t insertRows, uint64_t recordFrom, int64_t startTime) {
-    int          ret;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     TAOS_STMT *  stmt = pThreadInfo->stmt;
 
+    char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+    assert(tagsValBuf);
+    char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
+    assert(tagsArray);
+    char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
+    assert(bindArray);
+
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
-        char *tagsValBuf = NULL;
-
         if (0 == stbInfo->tagSource) {
-            tagsValBuf = generateTagValuesForStb(stbInfo, tableSeq);
+            if (generateTagValuesForStb(stbInfo, tableSeq, tagsValBuf)) {
+                tmfree(tagsValBuf);
+                return -1;
+            }
         } else {
-            tagsValBuf = getTagValueFromTagSample(
-                stbInfo, tableSeq % stbInfo->tagSampleCount);
+            snprintf(
+                tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow *
+                                          (tableSeq % stbInfo->tagSampleCount));
         }
 
-        if (NULL == tagsValBuf) {
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
-                       __func__, __LINE__);
-            return -1;
-        }
-
-        char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
-        if (NULL == tagsArray) {
-            tmfree(tagsValBuf);
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
-                       __func__, __LINE__);
-            return -1;
-        }
-
-        if (-1 == prepareStbStmtBindTag(tagsArray, stbInfo, tagsValBuf,
-                                        pThreadInfo->time_precision
-                                        /* is tag */)) {
+        if (prepareStbStmtBindTag(
+                tagsArray, stbInfo, tagsValBuf, pThreadInfo->time_precision
+                /* is tag */)) {
             tmfree(tagsValBuf);
             tmfree(tagsArray);
             return -1;
         }
 
-        ret =
-            taos_stmt_set_tbname_tags(stmt, tableName, (TAOS_BIND *)tagsArray);
-
         tmfree(tagsValBuf);
         tmfree(tagsArray);
 
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_set_tbname_tags(stmt, tableName,
+                                      (TAOS_BIND *)tagsArray)) {
+            errorPrint("taos_stmt_set_tbname_tags() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             return -1;
         }
     } else {
-        ret = taos_stmt_set_tbname(stmt, tableName);
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_set_tbname(stmt, tableName)) {
+            errorPrint("taos_stmt_set_tbname() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             return -1;
         }
-    }
-
-    char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
-    if (bindArray == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind params\n", __func__,
-                   __LINE__, (stbInfo->columnCount + 1));
-        return -1;
     }
 
     uint32_t k;
     for (k = 0; k < batch;) {
         /* columnCount + 1 (ts) */
-        if (-1 == prepareStbStmtBindRand(pThreadInfo->bind_ts, bindArray,
-                                         stbInfo, startTime, k,
-                                         pThreadInfo->time_precision
-                                         /* is column */)) {
-            free(bindArray);
+        if (prepareStbStmtBindRand(pThreadInfo->bind_ts, bindArray, stbInfo,
+                                   startTime, k, pThreadInfo->time_precision)) {
+            tmfree(bindArray);
             return -1;
         }
-        ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
-            free(bindArray);
+
+        if (taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
+            errorPrint("taos_stmt_bind_param() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
+            tmfree(bindArray);
             return -1;
         }
         // if msg > 3MB, break
-        ret = taos_stmt_add_batch(stmt);
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
-            free(bindArray);
+        if (taos_stmt_add_batch(stmt)) {
+            errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
+            tmfree(bindArray);
             return -1;
         }
 
@@ -3139,7 +3035,7 @@ UNUSED_FUNC static int32_t prepareStbStmtRand(
         }
     }
 
-    free(bindArray);
+    tmfree(bindArray);
     return k;
 }
 
@@ -3148,7 +3044,6 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, char *tableName,
                                  int64_t tableSeq, uint32_t batch,
                                  uint64_t insertRows, uint64_t recordFrom,
                                  int64_t startTime, int64_t *pSamplePos) {
-    int        ret;
     TAOS_STMT *stmt = pThreadInfo->stmt;
 
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
@@ -3315,9 +3210,8 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, char *tableName,
                     break;
 
                 default:
-                    errorPrint("%s() LN%d, wrong data type: %d\n", __func__,
-                               __LINE__, data_type);
-                    exit(EXIT_FAILURE);
+                    errorPrint("wrong data type: %d\n", data_type);
+                    return -1;
             }
         }
 
@@ -3365,11 +3259,10 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, char *tableName,
         }
     }
 
-    ret = taos_stmt_bind_param_batch(
-        stmt, (TAOS_MULTI_BIND *)pThreadInfo->bindParams);
-    if (0 != ret) {
-        errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
-                   __func__, __LINE__, taos_stmt_errstr(stmt));
+    if (taos_stmt_bind_param_batch(
+            stmt, (TAOS_MULTI_BIND *)pThreadInfo->bindParams)) {
+        errorPrint("taos_stmt_bind_param_batch() failed! reason: %s\n",
+                   taos_stmt_errstr(stmt));
         return -1;
     }
 
@@ -3381,10 +3274,9 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, char *tableName,
     }
 
     // if msg > 3MB, break
-    ret = taos_stmt_add_batch(stmt);
-    if (0 != ret) {
-        errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n", __func__,
-                   __LINE__, taos_stmt_errstr(stmt));
+    if (taos_stmt_add_batch(stmt)) {
+        errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
+                   taos_stmt_errstr(stmt));
         return -1;
     }
     return k;
@@ -3512,11 +3404,7 @@ static int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
             }
 
             char *tmpStr = calloc(1, index + 1);
-            if (NULL == tmpStr) {
-                errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
-                           __func__, __LINE__, index + 1);
-                return -1;
-            }
+            assert(tmpStr);
 
             strncpy(tmpStr, restStr, index);
             cursor += index + 1;  // skip ',' too
@@ -3641,12 +3529,7 @@ static int parseSampleToStmt(threadInfo *pThreadInfo, SSuperTable *stbInfo,
                              uint32_t timePrec) {
     pThreadInfo->sampleBindArray =
         (char *)calloc(1, sizeof(char *) * MAX_SAMPLES);
-    if (pThreadInfo->sampleBindArray == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %" PRIu64
-                   " bind array buffer\n",
-                   __func__, __LINE__, (uint64_t)sizeof(char *) * MAX_SAMPLES);
-        return -1;
-    }
+    assert(pThreadInfo->sampleBindArray);
 
     int32_t columnCount = (stbInfo) ? stbInfo->columnCount : g_args.columnCount;
     char *sampleDataBuf = (stbInfo) ? stbInfo->sampleDataBuf : g_sampleDataBuf;
@@ -3654,11 +3537,7 @@ static int parseSampleToStmt(threadInfo *pThreadInfo, SSuperTable *stbInfo,
 
     for (int i = 0; i < MAX_SAMPLES; i++) {
         char *bindArray = calloc(1, sizeof(TAOS_BIND) * (columnCount + 1));
-        if (bindArray == NULL) {
-            errorPrint("%s() LN%d, Failed to allocate %d bind params\n",
-                       __func__, __LINE__, (columnCount + 1));
-            return -1;
-        }
+        assert(bindArray);
 
         TAOS_BIND *bind;
         int        cursor = 0;
@@ -3688,11 +3567,7 @@ static int parseSampleToStmt(threadInfo *pThreadInfo, SSuperTable *stbInfo,
                 }
 
                 char *bindBuffer = calloc(1, index + 1);
-                if (bindBuffer == NULL) {
-                    errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
-                               __func__, __LINE__, index + 1);
-                    return -1;
-                }
+                assert(bindBuffer);
 
                 strncpy(bindBuffer, restStr, index);
                 cursor += index + 1;  // skip ',' too
@@ -3771,17 +3646,15 @@ static uint32_t execBindParam(threadInfo *pThreadInfo, char *tableName,
                                               /* is column */)) {
             return -1;
         }
-        ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
+            errorPrint("taos_stmt_bind_param() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             return -1;
         }
         // if msg > 3MB, break
-        ret = taos_stmt_add_batch(stmt);
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_add_batch(stmt)) {
+            errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             return -1;
         }
 
@@ -3806,58 +3679,45 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, char *tableName,
                        int64_t tableSeq, uint32_t batch, uint64_t insertRows,
                        uint64_t recordFrom, int64_t startTime,
                        int64_t *pSamplePos) {
-    int          ret;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     TAOS_STMT *  stmt = pThreadInfo->stmt;
 
+    char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
+    assert(tagsValBuf);
+    char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
+    assert(tagsArray);
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
-        char *tagsValBuf = NULL;
-
         if (0 == stbInfo->tagSource) {
-            tagsValBuf = generateTagValuesForStb(stbInfo, tableSeq);
+            if (generateTagValuesForStb(stbInfo, tableSeq, tagsValBuf)) {
+                tmfree(tagsValBuf);
+                return -1;
+            }
         } else {
-            tagsValBuf = getTagValueFromTagSample(
-                stbInfo, tableSeq % stbInfo->tagSampleCount);
+            snprintf(
+                tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
+                stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow *
+                                          (tableSeq % stbInfo->tagSampleCount));
         }
 
-        if (NULL == tagsValBuf) {
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
-                       __func__, __LINE__);
-            return -1;
-        }
-
-        char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
-        if (NULL == tagsArray) {
-            tmfree(tagsValBuf);
-            errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
-                       __func__, __LINE__);
-            return -1;
-        }
-
-        if (-1 == prepareStbStmtBindTag(tagsArray, stbInfo, tagsValBuf,
-                                        pThreadInfo->time_precision
-                                        /* is tag */)) {
+        if (prepareStbStmtBindTag(tagsArray, stbInfo, tagsValBuf,
+                                  pThreadInfo->time_precision)) {
             tmfree(tagsValBuf);
             tmfree(tagsArray);
             return -1;
         }
 
-        ret =
-            taos_stmt_set_tbname_tags(stmt, tableName, (TAOS_BIND *)tagsArray);
-
-        tmfree(tagsValBuf);
-        tmfree(tagsArray);
-
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_set_tbname_tags(stmt, tableName,
+                                      (TAOS_BIND *)tagsArray)) {
+            errorPrint("taos_stmt_set_tbname_tags() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             return -1;
         }
+        tmfree(tagsValBuf);
+        tmfree(tagsArray);
     } else {
-        ret = taos_stmt_set_tbname(stmt, tableName);
-        if (0 != ret) {
-            errorPrint("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
-                       __func__, __LINE__, taos_stmt_errstr(stmt));
+        if (taos_stmt_set_tbname(stmt, tableName)) {
+            errorPrint("taos_stmt_set_tbname() failed! reason: %s\n",
+                       taos_stmt_errstr(stmt));
             return -1;
         }
     }
@@ -4410,11 +4270,7 @@ void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     }
 #endif
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
-    if (NULL == pThreadInfo->buffer) {
-        errorPrint("%s() LN%d, Failed to alloc %" PRIu64 " Bytes, reason:%s\n",
-                   __func__, __LINE__, maxSqlLen, strerror(errno));
-        return NULL;
-    }
+    assert(pThreadInfo->buffer);
 
     pThreadInfo->totalInsertRows = 0;
     pThreadInfo->totalAffectedRows = 0;
@@ -4697,8 +4553,7 @@ void *syncWriteProgressiveStmt(threadInfo *pThreadInfo) {
             pThreadInfo->totalDelay += delay;
 
             if (affectedRows < 0) {
-                errorPrint("%s() LN%d, affected rows: %d\n", __func__, __LINE__,
-                           affectedRows);
+                errorPrint("affected rows: %d\n", affectedRows);
                 goto free_of_stmt_progressive;
             }
 
@@ -4860,8 +4715,7 @@ void *syncWriteProgressive(threadInfo *pThreadInfo) {
             pThreadInfo->totalDelay += delay;
 
             if (affectedRows < 0) {
-                errorPrint("%s() LN%d, affected rows: %d\n", __func__, __LINE__,
-                           affectedRows);
+                errorPrint("affected rows: %d\n", affectedRows);
                 goto free_of_progressive;
             }
 
@@ -5072,17 +4926,15 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
         ret = prepareSampleForNtb();
     }
 
-    if (0 != ret) {
-        errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
-                   __func__, __LINE__);
+    if (ret) {
+        errorPrint("%s", "prepare sample data for stable failed!\n");
         return -1;
     }
 
     TAOS *taos0 = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, db_name,
                                g_Dbs.port);
     if (NULL == taos0) {
-        errorPrint("%s() LN%d, connect to server fail , reason: %s\n", __func__,
-                   __LINE__, taos_errstr(NULL));
+        errorPrint("connect to taosd fail , reason: %s\n", taos_errstr(NULL));
         return -1;
     }
 
@@ -5146,12 +4998,7 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
 
             stbInfo->childTblName =
                 (char *)calloc(1, limit * TSDB_TABLE_NAME_LEN);
-            if (stbInfo->childTblName == NULL) {
-                taos_close(taos0);
-                errorPrint("%s() LN%d, alloc memory failed!\n", __func__,
-                           __LINE__);
-                return -1;
-            }
+            assert(stbInfo->childTblName);
 
             int64_t childTblCount;
             getChildNameOfSuperTableWithLimitAndOffset(
@@ -5275,8 +5122,8 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
                 if (NULL == pThreadInfo->stmt) {
                     free(pids);
                     free(infos);
-                    errorPrint("%s() LN%d, failed init stmt, reason: %s\n",
-                               __func__, __LINE__, taos_errstr(NULL));
+                    errorPrint("taos_stmt_init() failed, reason: %s\n",
+                               taos_errstr(NULL));
                     return -1;
                 }
 
@@ -5511,16 +5358,13 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
 int insertTestProcess() {
     int32_t code = printfInsertMeta();
     if (code) {
-        errorPrint("%s() LN%d, printfInsertMeta() failed\n", __func__,
-                   __LINE__);
         return code;
     }
 
     debugPrint("%d result file: %s\n", __LINE__, g_Dbs.resultFile);
     g_fpOfInsertResult = fopen(g_Dbs.resultFile, "a");
     if (NULL == g_fpOfInsertResult) {
-        errorPrint("%s() LN%d, failed to open %s for save result\n", __func__,
-                   __LINE__, g_Dbs.resultFile);
+        errorPrint("failed to open %s for save result\n", g_Dbs.resultFile);
         return -1;
     }
 

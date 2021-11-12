@@ -1471,7 +1471,7 @@ void setParaFromArg() {
                     TSDB_DATA_TYPE_INT;
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, "INT",
                          min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
-                g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;
+                g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(int32_t);
                 g_Dbs.db[0].superTbls[0].columnCount++;
             }
         }
@@ -1479,7 +1479,7 @@ void setParaFromArg() {
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[0].dataType, "INT",
                  min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
         g_Dbs.db[0].superTbls[0].tags[0].data_type = TSDB_DATA_TYPE_INT;
-        g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;
+        g_Dbs.db[0].superTbls[0].tags[0].dataLen = sizeof(int32_t);
 
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType, "BINARY",
                  min(DATATYPE_BUFF_LEN, strlen("BINARY") + 1));
@@ -1524,8 +1524,7 @@ void querySqlFile(TAOS *taos, char *sqlFile) {
 
         memcpy(cmd + cmd_len, line, read_len);
         if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE, false)) {
-            errorPrint("%s() LN%d, queryDbExec %s failed!\n", __func__,
-                       __LINE__, cmd);
+            errorPrint("queryDbExec %s failed!\n", cmd);
             tmfree(cmd);
             tmfree(line);
             tmfclose(fp);
