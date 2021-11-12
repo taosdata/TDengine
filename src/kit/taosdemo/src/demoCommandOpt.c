@@ -1677,7 +1677,7 @@ void *queryNtableAggrFunc(void *sarg) {
             sprintf(command, "SELECT %s FROM %s%" PRId64 " WHERE ts>= %" PRIu64,
                     aggreFunc[j], tb_prefix, i, startTime);
 
-            double t = static_cast<double> taosGetTimestampUs();
+            double t = (double)taosGetTimestampUs();
             debugPrint("%s() LN%d, sql command: %s\n", __func__, __LINE__,
                        command);
             TAOS_RES *pSql = taos_query(taos, command);
