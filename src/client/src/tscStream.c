@@ -265,9 +265,162 @@ static void tscStreamFillTimeGap(SSqlStream* pStream, TSKEY ts) {
 #endif
 }
 
+// callback send values
+void cbSendValues(void *param, TAOS_RES *res, int code) {
+  printf(" send values return code =%d \n", code);
+}
+
+// append values
+size_t appendValues(TAOS_FIELD* fields, int32_t numCols, TAOS_ROW row, char* pBuf, size_t bufLen, size_t curLen, bool *full) {
+  // calc buf is full
+  size_t needLen = 0;
+  size_t rowLen  = 0;
+  int i;
+  for(i = 0; i < numCols; i++) {
+    needLen += fields[i].bytes;
+  }
+
+  // estimate length for use
+  needLen += numCols * 5 + 20;
+  if(needLen >= bufLen - curLen) {
+    *full = true;
+    return 0;
+  }
+
+  // row append to values
+  char* strRow = tmalloc(needLen); 
+  char *value = pBuf + curLen;
+
+  strcpy(value, "(");
+  rowLen += taos_print_row_ex(strRow, row, fields, numCols, ',', true);
+  strcat(value, strRow);
+  strcat(value, ")");
+  rowLen +=2;
+
+  tfree(strRow);
+  return rowLen;
+}
+
+// send one table all rows for once
+bool sendChildTalbe(STscObj *pTscObj, char *superName, char *tableName, TAOS_FIELD *fields, int32_t numCols, SArray *arr) {
+  int32_t bufLen = TSDB_MAX_SQL_LEN; 
+  size_t numRows = taosArrayGetSize(arr);
+  if(numRows == 0)
+    return false;
+  if(numRows < 50)
+    bufLen /= 20;
+  else if(numRows < 500)
+    bufLen /= 5;
+  else
+    bufLen /= 2;
+
+  char dbName[TSDB_DB_NAME_LEN] = "";
+  char fullTable[TSDB_TABLE_FNAME_LEN];
+  // obtain dbname
+  char * p = strstr(superName, ".");
+  if(p) { // if have db prefix , under this db create table
+    int32_t len = p - superName;
+    strncpy(dbName, superName, len);
+    dbName[len] = 0; // append str end
+    sprintf(fullTable, "%s.%s", dbName, tableName);
+  } else {
+    // no db prefix
+    strcpy(fullTable, tableName);
+  }
+
+  char *pBuf = (char *)tmalloc(bufLen);
+  sprintf(pBuf, "insert into %s using %s tags(0) values ", fullTable, superName);
+  size_t curLen = strlen(pBuf);
+  TAOS_ROW row ;
+  bool full = false;
+
+  for(size_t i = 0; i < numRows; i++) {
+    row = (TAOS_ROW)taosArrayGetP(arr, i);
+    if(row == NULL)
+      continue;
+    curLen += appendValues(fields, numCols, row, pBuf, bufLen - 100, curLen, &full);
+    if(full || i == numRows - 1) { // need send
+      // send current
+      strcat(pBuf, ";");
+      taos_query_a(pTscObj, pBuf, cbSendValues, NULL);
+
+      // reset for next
+      if(full) {
+        sprintf(pBuf, "insert into %s.%s using %s tags(0) values ", dbName, tableName, superName);
+        curLen = strlen(pBuf);
+        // retry append. if full is true again, ignore this row
+        curLen += appendValues(fields, numCols, row, pBuf, bufLen - 100, curLen, &full);
+        full = false; // reset to false
+      }
+    }
+    tfree(row);
+  }
+
+  tfree(pBuf);
+  return true;
+}
+
+// write cq result to another table
+bool toAnotherTable(STscObj *pTscObj, char *superName, TAOS_FIELD *fields, int32_t numCols, SHashObj *tbHash) {
+  void *pIter = taosHashIterate(tbHash, NULL);
+  while(pIter) {
+    SArray *arr = *(SArray**)pIter;
+    if(arr) {
+      // get key as tableName
+      SHashNode *pNode = (SHashNode *)GET_HASH_PNODE(pIter);
+      char *data = (char *)GET_HASH_NODE_KEY(pNode);
+      uint32_t len = pNode->keyLen;
+      char *key = tmalloc(len + 1);
+      memcpy(key, data, len);
+      key[len] = 0; // string end '\0'
+
+      // send all this table rows
+      sendChildTalbe(pTscObj, superName, key, fields, numCols, arr);
+      // release SArray
+      taosArrayDestroy(arr);
+      tfree(key);
+    }
+    pIter = taosHashIterate(tbHash, pIter);
+  }
+
+  return true;
+}
+
+// add row to hash to group by tbname
+bool tbHashAdd(SHashObj *tbHash, TAOS_ROW row, TAOS_FIELD* fields, int32_t idx, int32_t numCols) {
+  void *v = row[idx];
+  VarDataLenT len = varDataLen((char*)v - VARSTR_HEADER_SIZE);
+  char *key = v;
+
+  // get array point from hash 
+  SArray *arr = NULL;
+  // get arr from hash
+  void* pdata = taosHashGet(tbHash, key, len);
+  if(pdata) {
+    arr = *(SArray **)pdata;
+  }
+  // get arr from new
+  if(arr == NULL) {
+    arr = (SArray *)taosArrayInit(10, sizeof(TAOS_ROW));
+    if(arr == NULL) {
+      tscError("tbHashAdd tbHash:%p, taosArrayInit(10,sizeof(TAOS_ROW) return NULL.", tbHash);
+      return false;
+    }
+    taosHashPut(tbHash, key, len, &arr, sizeof(SArray *));
+  }
+
+  // add to array
+  int32_t new_len = sizeof(void*) * numCols;
+  TAOS_ROW new_row = (TAOS_ROW)tmalloc(new_len);
+  memcpy(new_row, row, new_len);
+  taosArrayPush(arr, &new_row);
+  return true;
+}
+
 static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOfRows) {
   SSqlStream *    pStream = (SSqlStream *)param;
   SSqlObj *       pSql = (SSqlObj *)res;
+  bool toAnother = pStream->to != NULL;
 
   if (pSql == NULL || numOfRows < 0) {
     int64_t retryDelayTime = tscGetRetryDelayTime(pStream, pStream->interval.sliding, pStream->precision);
@@ -281,18 +434,57 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
   STableMetaInfo *pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
   if (numOfRows > 0) { // when reaching here the first execution of stream computing is successful.
+    // init hash
+    SHashObj* tbHash = NULL;
+    int32_t colIdx = 1;
+    TAOS_FIELD *fields = NULL;
+    int32_t dstColsNum = pStream->dstCols;
+    int32_t fieldsNum = 0;
+
+    if(toAnother) {
+      //init hash
+      tbHash = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+      fields = taos_fetch_fields(res);
+      fieldsNum = tscNumOfFields(pQueryInfo);
+      if(dstColsNum == -1) 
+         dstColsNum = fieldsNum;
+      //search split column
+      char *split = "tbname"; // default
+      if(pStream->split)
+         split = pStream->split;
+      for(int32_t i = 1; i < fieldsNum; i++ ) {
+        if(strcasecmp(fields[i].name, split) == 0 ) {
+          colIdx = i;
+          break;
+        }
+      }
+    }
+
+    // save rows
     for(int32_t i = 0; i < numOfRows; ++i) {
       TAOS_ROW row = taos_fetch_row(res);
       if (row != NULL) {
         tscDebug("0x%"PRIx64" stream:%p fetch result", pSql->self, pStream);
         tscStreamFillTimeGap(pStream, *(TSKEY*)row[0]);
         pStream->stime = *(TSKEY *)row[0];
-        // user callback function
-        (*pStream->fp)(pStream->param, res, row);
+        // write to another table if true
+        if(toAnother) {
+          tbHashAdd(tbHash, row, fields, colIdx, dstColsNum);
+          if(i == numOfRows - 1) //write last row to record last query time avoid query from begin for each
+            (*pStream->fp)(pStream->param, res, row); 
+        } else {
+          (*pStream->fp)(pStream->param, res, row);
+        }
         pStream->numOfRes++;
       }
     }
-
+    
+    // write Another
+    if(toAnother) {
+      toAnotherTable(pSql->pTscObj, pStream->to, fields, dstColsNum, tbHash);
+      taosHashCleanup(tbHash);
+    }
+      
     if (!pStream->isProject) {
       pStream->stime = taosTimeAdd(pStream->stime, pStream->interval.sliding, pStream->interval.slidingUnit, pStream->precision);
     }
@@ -662,7 +854,50 @@ void cbParseSql(void* param, TAOS_RES* res, int code) {
   return ;
 }
 
-TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+void splitStreamSql(const char *str, char **sql, char **to, char **split) {
+  // OLD FORMAT only sql  
+  if(strncmp(str, LABEL_SQL, LABEL_SQL_LEN) != 0) {
+    *sql = tmalloc(strlen(str) + 1);
+    if(*sql == NULL)
+       return ;
+    strcpy(*sql, str);
+    return ;
+  }
+
+  // NEW FORMAT sql:...to:...split:...
+  char *p1 = strstr(str + LABEL_SQL_LEN, LABEL_TO);
+  if(p1 == NULL) {
+    char *p = (char *)str + LABEL_SQL_LEN;
+    *sql = (char *)tmalloc(strlen(p) + 1);
+    strcpy(*sql, p);
+    return ;
+  }
+  // SQL value
+  int32_t len = p1 - str - LABEL_SQL_LEN;
+  *sql = (char *)tmalloc(len + 1);
+  strncpy(*sql, str + LABEL_SQL_LEN, len);
+  sql[len] = 0;  // str end 
+
+  // TO value
+  char *p2 = strstr(p1 + LABEL_TO_LEN, LABEL_SPLIT);
+  if(p2 == NULL) {
+    char *p = p1 + LABEL_TO_LEN;
+    *to = (char *)tmalloc(strlen(p) + 1);
+    strcpy(*to, p);
+    return ;
+  }
+  len = p2 - p1 - LABEL_TO_LEN;
+  *to = (char *)tmalloc(len + 1);
+  strncpy(*to, p1 + LABEL_TO_LEN, len);
+  to[len] = 0;  // str end 
+
+  // SPLIT value
+  char *p = p2 + LABEL_SPLIT_LEN; 
+  *split = (char *)tmalloc(strlen(p) + 1);
+  strcpy(*split, p);
+}
+
+TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, int32_t dstCols, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *), void* cqhandle) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) return NULL;
@@ -698,6 +933,9 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pStream->param = param;
   pStream->pSql = pSql;
   pStream->cqhandle = cqhandle;
+  pStream->dstCols = dstCols;
+  pStream->to = NULL;
+  pStream->split = NULL; 
   pSql->pStream = pStream;
   pSql->param = pStream;
   pSql->maxRetry = TSDB_MAX_REPLICA;
@@ -706,7 +944,9 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pSql->pStream  = pStream;
   pSql->param    = pStream;
   pSql->maxRetry = TSDB_MAX_REPLICA;
-  pSql->sqlstr   = calloc(1, strlen(sqlstr) + 1);
+  
+  // split stream sqlstr to sql,to,split
+  splitStreamSql(sqlstr, &pSql->sqlstr, &pStream->to, &pStream->split);
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
@@ -714,7 +954,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
     return NULL;
   }
 
-  strtolower(pSql->sqlstr, sqlstr);
+  strtolower(pSql->sqlstr, pSql->sqlstr);
   pSql->fp      = tscCreateStream;
   pSql->fetchFp = tscCreateStream;
   pSql->cmd.resColumnId = TSDB_RES_COL_ID;
@@ -746,7 +986,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {  
-  return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback, NULL);
+  return taos_open_stream_withname(taos, "", -1, sqlstr, fp, stime, param, callback, NULL);
 }
 
 void taos_close_stream(TAOS_STREAM *handle) {
@@ -772,6 +1012,16 @@ void taos_close_stream(TAOS_STREAM *handle) {
     pStream->fp(pStream->param, NULL, NULL);
 
     taos_free_result(pSql);
+
+    // free malloc
+    if(pStream->to) {
+      tfree(pStream->to);
+      pStream->to = NULL;
+    }
+    if(pStream->split) {
+      tfree(pStream->split);
+      pStream->split = NULL;
+    }
     tfree(pStream);
   }
 }

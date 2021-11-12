@@ -1002,6 +1002,11 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
 
+void setCreatedStreamOpt(SSqlInfo *pInfo, SStrToken *pTo, SStrToken *pSplit) {
+  pInfo->pCreateTableInfo->to = *pTo;
+  pInfo->pCreateTableInfo->split = *pSplit;
+}
+
 void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   pInfo->type = type;
   if (nParam == 0) {

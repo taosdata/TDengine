@@ -772,11 +772,15 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+  return taos_print_row_ex(str, row, fields, num_fields, ' ', false);
+}
+
+int taos_print_row_ex(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields, char split, bool addQuota) {
   int len = 0;
 
   for (int i = 0; i < num_fields; ++i) {
     if (i > 0) {
-      str[len++] = ' ';
+      str[len++] = split;
     }
 
     if (row[i] == NULL) {
@@ -837,9 +841,23 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         } else {
           assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
         }
+        
+        // add pre quotaion if require
+        if(addQuota) {
+          *(str + len) = '\'';
+          len += 1;
+        }
 
+        // copy content
         memcpy(str + len, row[i], charLen);
         len += charLen;
+
+        // add end quotaion if require
+        if(addQuota) {
+          *(str + len)= '\'';
+          len += 1;
+        }
+
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
