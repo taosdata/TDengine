@@ -45,7 +45,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
 /**
  * @brief Close a VNODE
  *
- * @param pVnode The vnode object
+ * @param pVnode The vnode object to close
  */
 void vnodeClose(SVnode *pVnode);
 

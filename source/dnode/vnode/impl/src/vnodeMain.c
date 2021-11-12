@@ -87,6 +87,11 @@ static void vnodeFree(SVnode *pVnode) {
 static int vnodeOpenImpl(SVnode *pVnode) {
   char dir[TSDB_FILENAME_LEN];
 
+  if (vnodeOpenBufPool(pVnode) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
   pVnode->pMeta = metaOpen(dir, &(pVnode->options.metaOptions));
@@ -111,7 +116,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
 static void vnodeCloseImpl(SVnode *pVnode) {
   if (pVnode) {
-    // TODO: Close TQ
+    vnodeCloseBufPool(pVnode);
     tsdbClose(pVnode->pTsdb);
     metaClose(pVnode->pMeta);
   }

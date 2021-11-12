@@ -25,6 +25,7 @@ extern "C" {
 typedef struct SMemAllocator SMemAllocator;
 
 struct SMemAllocator {
+  char  name[16];
   void *impl;
   void *(*malloc)(SMemAllocator *, uint64_t size);
   void *(*calloc)(SMemAllocator *, uint64_t nmemb, uint64_t size);
