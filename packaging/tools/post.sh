@@ -467,7 +467,12 @@ function install_service_on_systemd() {
 }
 
 function install_taosadapter_service() {
-    [ -f ${cfg_dir}/taosadapter.service ] && ${csudo} cp ${cfg_dir}/taosadapter.service ${service_config_dir}
+    if ((${service_mod}==0)); then
+        [ -f ${script_dir}/cfg/taosadapter.service ] &&\
+            ${csudo} cp ${script_dir}/cfg/taosadapter.service \
+            ${service_config_dir}/ || :
+        ${csudo} systemctl daemon-reload
+    fi
 }
 
 function install_service() {
