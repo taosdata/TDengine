@@ -463,8 +463,12 @@ class TDTestCase:
         tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now,-0.9) ")
         tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now,-1.9) ")
         # tdSql.execute("CREATE TABLE if not exists jsons7_3 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":4569\"tea\":false}') ")
-        tdSql.execute("select ts,ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
-        tdSql.execute("select ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.query("select ts,ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.query("select ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.query("select ts,floor(dataint),floor(datafloat),floor(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.query("select floor(dataint),floor(datafloat),floor(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.query("select ts,round(dataint),round(datafloat),round(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.query("select round(dataint),round(datafloat),round(datadouble) from jsons7 where jtag?'tea';")
 
         
         # test join
