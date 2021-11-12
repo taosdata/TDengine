@@ -227,6 +227,8 @@ typedef struct {
     int64_t   rowsOfDumpOut;
     int64_t   count;
     int64_t   from;
+    int64_t   success;
+    int64_t   failed;
 } threadInfo;
 
 typedef struct {
@@ -1651,7 +1653,7 @@ static int convertTbDesToJson(
             + 17                                /* type: record */
             + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
             + 10                                /* fields section */
-            + (TSDB_COL_NAME_LEN + 11 + 16) * colCount + 4);    /* fields section */
+            + (TSDB_COL_NAME_LEN + 40) * colCount + 4);    /* fields section */
     if (*jsonSchema == NULL) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         return -1;
@@ -1659,46 +1661,45 @@ static int convertTbDesToJson(
 
     char *pstr = *jsonSchema;
     pstr += sprintf(pstr,
-            "{\"type\":\"record\", \"name\":\"%s.%s\", \"fields\":[",
+            "{\"type\":\"record\",\"name\":\"%s.%s\",\"fields\":[",
             dbName, tbName);
     for (int i = 0; i < colCount; i ++) {
         if (0 == i) {
             pstr += sprintf(pstr,
-                    "{\"name\":\"%s\", \"type\":\"%s\"",
+                    "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field, "long");
         } else {
             if (strcasecmp(tableDes->cols[i].type, "binary") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\":\"%s\", \"type\":[\"null\",\"%s\"]",
-// CBD                    "{\"name\": \"%s\", \"type\": [\"null\", \"%s\"]",
+                    "{\"name\":\"%s\",\"type\":[\"null\",\"%s\"]",
                     tableDes->cols[i].field, "string");
             } else if (strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\",\"type\":[\"null\",\"%s\"]",
                     tableDes->cols[i].field, "bytes");
             } else if (strcasecmp(tableDes->cols[i].type, "bool") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field, "boolean");
             } else if (strcasecmp(tableDes->cols[i].type, "tinyint") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field, "int");
             } else if (strcasecmp(tableDes->cols[i].type, "smallint") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\", \"type\":\"%s\"",
                     tableDes->cols[i].field, "int");
             } else if (strcasecmp(tableDes->cols[i].type, "bigint") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field, "long");
             } else if (strcasecmp(tableDes->cols[i].type, "timestamp") == 0) {
                 pstr += sprintf(pstr,
-                    "{\"name\":\"%s\", \"type\":\"%s\"",
+                    "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field, "long");
             } else {
                 pstr += sprintf(pstr,
-                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field,
                     strtolower(tableDes->cols[i].type, tableDes->cols[i].type));
             }
@@ -2539,7 +2540,7 @@ static void* dumpInAvroWorkThreadFp(void *arg)
     return NULL;
 }
 
-static int64_t dumpInAvroWorkThreads()
+static int dumpInAvroWorkThreads()
 {
     int32_t threads = g_args.thread_num;
 
@@ -2600,11 +2601,7 @@ static int64_t dumpInAvroWorkThreads()
 
     freeFileList(g_tsDumpInAvroFiles, avroFileCount);
 
-    if (g_totalDumpInFailed < 0) {
-        return g_totalDumpInFailed;
-    }
-
-    return g_totalDumpInSuccess;
+    return 0;
 }
 
 #endif /* AVRO_SUPPORT */
@@ -3227,8 +3224,7 @@ _exit_no_charset:
 }
 
 // ========  dumpIn support multi threads functions ================================//
-
-static int dumpInOneSqlFile(TAOS* taos, FILE* fp, char* fcharset,
+static int64_t dumpInOneSqlFile(TAOS* taos, FILE* fp, char* fcharset,
         char* encode, char* fileName) {
     int       read_len = 0;
     char *    cmd      = NULL;
@@ -3244,7 +3240,9 @@ static int dumpInOneSqlFile(TAOS* taos, FILE* fp, char* fcharset,
     }
 
     int lastRowsPrint = 5000000;
-    int lineNo = 0;
+    int64_t lineNo = 0;
+    int64_t success = 0;
+    int64_t failed = 0;
     while ((read_len = getline(&line, &line_len, fp)) != -1) {
         ++lineNo;
         if (read_len >= TSDB_MAX_ALLOWED_SQL_LEN) continue;
@@ -3264,24 +3262,35 @@ static int dumpInOneSqlFile(TAOS* taos, FILE* fp, char* fcharset,
 
         memcpy(cmd + cmd_len, line, read_len);
         cmd[read_len + cmd_len]= '\0';
+        bool isRows = (0 == strncmp(cmd, "INSERT ", strlen("INSERT ")));
+
         if (queryDbImpl(taos, cmd)) {
-            errorPrint("%s() LN%d, error sql: lineno:%d, file:%s\n",
+            errorPrint("%s() LN%d, error sql: lineno:%"PRId64", file:%s\n",
                     __func__, __LINE__, lineNo, fileName);
-            fprintf(g_fpOfResult, "error sql: lineno:%d, file:%s\n", lineNo, fileName);
+            fprintf(g_fpOfResult, "error sql: lineno:%"PRId64", file:%s\n",
+                    lineNo, fileName);
+            if (isRows)
+                failed ++;
+        } else {
+            if (isRows)
+                success ++;
         }
 
         memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
         cmd_len = 0;
 
         if (lineNo >= lastRowsPrint) {
-            printf(" %d lines already be executed from file %s\n", lineNo, fileName);
+            printf(" %"PRId64" lines already be executed from file %s\n", lineNo, fileName);
             lastRowsPrint += 5000000;
         }
     }
 
     tfree(cmd);
     tfree(line);
-    return 0;
+
+    if (success > 0)
+        return success;
+    return failed;
 }
 
 static void* dumpInSqlWorkThreadFp(void *arg)
@@ -3302,10 +3311,16 @@ static void* dumpInSqlWorkThreadFp(void *arg)
             continue;
         }
 
-        if (0 == dumpInOneSqlFile(pThread->taos, fp, g_tsCharset, g_args.encode,
-                    sqlFile)) {
-            okPrint("[%d] Success dump in file: %s\n",
-                    pThread->threadIndex, sqlFile);
+        int64_t rows = dumpInOneSqlFile(pThread->taos, fp, g_tsCharset, g_args.encode,
+                    sqlFile);
+        if (rows > 0) {
+            pThread->success += rows;
+            okPrint("[%d] Total %"PRId64" rows be successfully dumped in file: %s\n",
+                    pThread->threadIndex, rows, sqlFile);
+        } else {
+            pThread->failed += rows;
+            errorPrint("[%d] Total %"PRId64" rows failed to dump in file: %s\n",
+                    pThread->threadIndex, rows, sqlFile);
         }
         fclose(fp);
     }
@@ -3349,6 +3364,8 @@ static int dumpInSqlWorkThreads()
     for (int32_t t = 0; t < threads; ++t) {
         pThread = infos + t;
         pThread->threadIndex = t;
+        pThread->success = 0;
+        pThread->failed = 0;
 
         pThread->from = from;
         pThread->count = t<b?a+1:a;
@@ -3379,6 +3396,8 @@ static int dumpInSqlWorkThreads()
     }
 
     for (int t = 0; t < threads; ++t) {
+        g_totalDumpInSuccess += infos[t].success;
+        g_totalDumpInFailed += infos[t].failed;
         taos_close(infos[t].taos);
     }
     free(infos);
@@ -3413,20 +3432,26 @@ static int dumpInDbs()
     debugPrint("Success Open input file: %s\n", dbsSql);
     loadFileCharset(fp, g_tsCharset);
 
-    if(0 == dumpInOneSqlFile(taos, fp, g_tsCharset, g_args.encode, dbsSql)) {
-        okPrint("Success dump in file: %s !\n", dbsSql);
+    int64_t rows = dumpInOneSqlFile(
+            taos, fp, g_tsCharset, g_args.encode, dbsSql);
+    if(rows > 0) {
+        okPrint("Total %"PRId64" lines be successfully dumped in file: %s!\n",
+                rows, dbsSql);
+    } else {
+        errorPrint("Total %"PRId64" lines failed to dump in file: %s!\n",
+                rows, dbsSql);
     }
 
     fclose(fp);
     taos_close(taos);
 
-    return 0;
+    return (rows < 0)?rows:0;
 }
 
-static int64_t dumpIn() {
+static int dumpIn() {
     assert(g_args.isDumpIn);
 
-    int64_t ret = 0;
+    int ret = 0;
     if (dumpInDbs()) {
         errorPrint("%s", "Failed to dump dbs in!\n");
         exit(EXIT_FAILURE);
@@ -4103,12 +4128,21 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "# DumpIn start time:                   %d-%02d-%02d %02d:%02d:%02d\n",
                 tm.tm_year + 1900, tm.tm_mon + 1,
                 tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        int64_t rows = dumpIn();
-        if (rows < 0) {
+        int dumpInRet = dumpIn();
+        if (dumpInRet) {
             errorPrint("%s\n", "dumpIn() failed!");
+            okPrint("%"PRId64" dumped in!\n", g_totalDumpInSuccess);
+            errorPrint("%"PRId64" failed to dump in!\n", g_totalDumpInFailed);
             ret = -1;
         } else {
-            okPrint("%"PRId64" dumped in!\n", rows);
+            if (g_totalDumpInFailed < 0) {
+                if (g_totalDumpInSuccess > 0) {
+                    okPrint("%"PRId64" dumped in!\n", g_totalDumpInSuccess);
+                }
+                errorPrint("%"PRId64" failed to dump in!\n", g_totalDumpInFailed);
+            } else {
+                okPrint("%"PRId64" dumped in!\n", g_totalDumpInSuccess);
+            }
             ret = 0;
         }
     } else {
