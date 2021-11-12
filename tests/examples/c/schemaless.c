@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_THREAD_LINE_BATCHES 1024
+bool verbose = false;
 
 void printThreadId(pthread_t id, char* buf)
 {
@@ -31,7 +31,7 @@ typedef struct {
 typedef struct  {
   TAOS* taos;
   int numBatches;
-  SThreadLinesBatch batches[MAX_THREAD_LINE_BATCHES];
+  SThreadLinesBatch *batches;
   int64_t costTime;
 } SThreadInsertArgs;
 
@@ -41,12 +41,12 @@ static void* insertLines(void* args) {
   printThreadId(pthread_self(), tidBuf);
   for (int i = 0; i < insertArgs->numBatches; ++i) {
     SThreadLinesBatch* batch = insertArgs->batches + i;
-    printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
+    if (verbose) printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
     int64_t begin = getTimeInUs();
     int32_t code = taos_insert_lines(insertArgs->taos, batch->lines, batch->numLines);
     int64_t end = getTimeInUs();
     insertArgs->costTime += end - begin;
-    printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);
+    if (verbose) printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);
   }
   return NULL;
 }
@@ -88,6 +88,7 @@ int32_t getLineTemplate(char* lineTemplate, int templateLen, int numFields) {
 
 int main(int argc, char* argv[]) {
   int numThreads = 8;
+  int maxBatchesPerThread = 1024;	
 
   int numSuperTables = 1;
   int numChildTables = 256;
@@ -97,7 +98,7 @@ int main(int argc, char* argv[]) {
   int maxLinesPerBatch = 16384;
 
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:h")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:hv")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
@@ -114,15 +115,18 @@ int main(int argc, char* argv[]) {
       case 't':
         numThreads = atoi(optarg);
         break;
-      case 'm':
+      case 'b':
         maxLinesPerBatch = atoi(optarg);
         break;
+      case 'v':
+        verbose = true;
+        break;
       case 'h':
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
                 argv[0]);
         exit(0);
       default: /* '?' */
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
                 argv[0]);
         exit(-1);
     }
@@ -140,10 +144,7 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  if (numThreads * MAX_THREAD_LINE_BATCHES* maxLinesPerBatch < numSuperTables*numChildTables*numRowsPerChildTable) {
-    printf("too many rows to be handle by threads with %d batches", MAX_THREAD_LINE_BATCHES);
-    exit(2);
-  }
+  maxBatchesPerThread = (numSuperTables*numChildTables*numRowsPerChildTable)/(numThreads * maxLinesPerBatch) + 1;
 
   char* info = taos_get_server_info(taos);
   printf("server info: %s\n", info);
@@ -175,10 +176,12 @@ int main(int argc, char* argv[]) {
       linesStb[i] = lineStb;
     }
     SThreadInsertArgs args = {0};
+    args.batches = calloc(maxBatchesPerThread, sizeof(maxBatchesPerThread));
     args.taos = taos;
     args.batches[0].lines = linesStb;
     args.batches[0].numLines = numSuperTables;
     insertLines(&args);
+    free(args.batches);
     for (int i = 0; i < numSuperTables; ++i) {
       free(linesStb[i]);
     }
@@ -189,6 +192,7 @@ int main(int argc, char* argv[]) {
   pthread_t* tids = calloc(numThreads, sizeof(pthread_t));
   SThreadInsertArgs* argsThread = calloc(numThreads, sizeof(SThreadInsertArgs));
   for (int i = 0; i < numThreads; ++i) {
+    argsThread[i].batches = calloc(maxBatchesPerThread, sizeof(SThreadLinesBatch));	  
     argsThread[i].taos = taos;
     argsThread[i].numBatches = 0;
   }
@@ -248,6 +252,9 @@ int main(int argc, char* argv[]) {
   }
   free(allBatches);
 
+  for (int i = 0; i < numThreads; i++) {
+    free(argsThread[i].batches);
+  }    
   free(argsThread);
   free(tids);
 
