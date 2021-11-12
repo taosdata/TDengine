@@ -45,7 +45,10 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_COS:
     case TSDB_FUNC_SCALAR_SIN:
     case TSDB_FUNC_SCALAR_TAN:
-    case TSDB_FUNC_SCALAR_SQRT:{
+    case TSDB_FUNC_SCALAR_SQRT:
+    case TSDB_FUNC_SCALAR_CEIL:
+    case TSDB_FUNC_SCALAR_FLOOR:
+    case TSDB_FUNC_SCALAR_ROUND: {
       return exprValidateMathNode(pExpr);
     }
     case TSDB_FUNC_SCALAR_CONCAT: {
@@ -1002,7 +1005,7 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_ATAN:
     case TSDB_FUNC_SCALAR_SIN:
     case TSDB_FUNC_SCALAR_COS:
-    case TSDB_FUNC_SCALAR_TAN:{
+    case TSDB_FUNC_SCALAR_TAN: {
       if (pExpr->_func.numChildren != 1) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -1015,6 +1018,20 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
       break;
     }
 
+    case TSDB_FUNC_SCALAR_CEIL:
+    case TSDB_FUNC_SCALAR_FLOOR:
+    case TSDB_FUNC_SCALAR_ROUND: {
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode* child = pExpr->_func.pChildren[0];
+      if (!IS_NUMERIC_TYPE(child->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->resultType = child->resultType;
+      pExpr->resultBytes = child->resultBytes;
+      break;
+    }
     default: {
       assert(false);
       break;
@@ -1227,6 +1244,68 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numIn
           SET_TYPED_DATA(outputData, pOutput->type, result);
           break;
         }
+
+        case TSDB_FUNC_SCALAR_CEIL: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+          if (IS_UNSIGNED_NUMERIC_TYPE(pInputs[0].type) || IS_SIGNED_NUMERIC_TYPE(pInputs[0].type)) {
+            memcpy(outputData, inputData[0], pInputs[0].bytes);
+          } else {
+            if (pInputs[0].type == TSDB_DATA_TYPE_FLOAT) {
+              float v = 0;
+              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              float result = ceilf(v);
+              SET_TYPED_DATA(outputData, pOutput->type, result);
+            } else if (pInputs[0].type == TSDB_DATA_TYPE_DOUBLE) {
+              double v = 0;
+              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              double result = ceil(v);
+              SET_TYPED_DATA(outputData, pOutput->type, result);
+            }
+          }
+          break;
+        }
+        case TSDB_FUNC_SCALAR_FLOOR: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+          if (IS_UNSIGNED_NUMERIC_TYPE(pInputs[0].type) || IS_SIGNED_NUMERIC_TYPE(pInputs[0].type)) {
+            memcpy(outputData, inputData[0], pInputs[0].bytes);
+          } else {
+            if (pInputs[0].type == TSDB_DATA_TYPE_FLOAT) {
+              float v = 0;
+              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              float result = floorf(v);
+              SET_TYPED_DATA(outputData, pOutput->type, result);
+            } else if (pInputs[0].type == TSDB_DATA_TYPE_DOUBLE) {
+              double v = 0;
+              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              double result = floor(v);
+              SET_TYPED_DATA(outputData, pOutput->type, result);
+            }
+          }
+          break;
+        }
+
+        case TSDB_FUNC_SCALAR_ROUND: {
+          assert(numInputs == 1);
+          assert(IS_NUMERIC_TYPE(pInputs[0].type));
+          if (IS_UNSIGNED_NUMERIC_TYPE(pInputs[0].type) || IS_SIGNED_NUMERIC_TYPE(pInputs[0].type)) {
+            memcpy(outputData, inputData[0], pInputs[0].bytes);
+          } else {
+            if (pInputs[0].type == TSDB_DATA_TYPE_FLOAT) {
+              float v = 0;
+              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              float result = roundf(v);
+              SET_TYPED_DATA(outputData, pOutput->type, result);
+            } else if (pInputs[0].type == TSDB_DATA_TYPE_DOUBLE) {
+              double v = 0;
+              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              double result = round(v);
+              SET_TYPED_DATA(outputData, pOutput->type, result);
+            }
+          }
+          break;
+        }
         default: {
           assert(false);
           break;
@@ -1294,6 +1373,21 @@ tScalarFunctionInfo aScalarFunctions[] = {
         TSDB_FUNC_SCALAR_SQRT,
         "sqrt",
         vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_CEIL,
+        "ceil",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_FLOOR,
+        "flooor",
+        vectorMathFunc,
+    },
+    {
+        TSDB_FUNC_SCALAR_ROUND,
+        "round",
+        vectorMathFunc
     },
     {
         TSDB_FUNC_SCALAR_CONCAT,

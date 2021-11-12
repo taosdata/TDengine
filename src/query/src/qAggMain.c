@@ -469,16 +469,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
-  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
-    int32_t nameLen = (int32_t) strlen(aAggs[i].name);
-    if (len != nameLen) {
-      continue;
-    }
-
-    if (strncasecmp(aAggs[i].name, name, len) == 0) {
-      return i;
-    }
-  }
 
   for (int32_t i = 0; i < TSDB_FUNC_SCALAR_MAX_NUM; ++i) {
     int32_t nameLen = (int32_t) strlen(aScalarFunctions[i].name);
@@ -490,7 +480,17 @@ int32_t isValidFunction(const char* name, int32_t len) {
       return aScalarFunctions[i].functionId;
     }
   }
+  
+  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
+    int32_t nameLen = (int32_t) strlen(aAggs[i].name);
+    if (len != nameLen) {
+      continue;
+    }
 
+    if (strncasecmp(aAggs[i].name, name, len) == 0) {
+      return i;
+    }
+  }
   return -1;
 }
 
