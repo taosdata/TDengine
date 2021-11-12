@@ -22,7 +22,7 @@
  * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
  * quorum of no has been reached).
  **/
-ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncCluster* config, const ESyncRaftVoteResult* votes) {
+ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncCluster* config, const ESyncRaftVoteType* votes) {
   if (config->replica == 0) {
     return SYNC_RAFT_VOTE_WON;
   }

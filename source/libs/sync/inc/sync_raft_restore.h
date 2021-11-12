@@ -13,19 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_RAFT_QUORUM_MAJORITY_H
-#define _TD_LIBS_SYNC_RAFT_QUORUM_MAJORITY_H
+#ifndef TD_SYNC_RAFT_RESTORE_H
+#define TD_SYNC_RAFT_RESTORE_H
 
-#include "sync.h"
 #include "sync_type.h"
-#include "sync_raft_quorum.h"
+#include "sync_raft_proto.h"
 
-/**
- * syncRaftMajorityVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
- * a result indicating whether the vote is pending (i.e. neither a quorum of
- * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
- * quorum of no has been reached).
- **/
-ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncCluster* config, const ESyncRaftVoteType* votes);
+int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
+                          SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
-#endif /* _TD_LIBS_SYNC_RAFT_QUORUM_MAJORITY_H */
+#endif /* TD_SYNC_RAFT_RESTORE_H */

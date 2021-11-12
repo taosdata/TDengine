@@ -149,6 +149,10 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
   progress->pendingSnapshotIndex = snapshotIndex;
 }
 
+void syncRaftProgressCopy(const SSyncRaftProgress* progress, SSyncRaftProgress* out) {
+
+}
+
 /**
  * ResetState moves the Progress into the specified State, resetting ProbeSent,
  * PendingSnapshot, and Inflights.

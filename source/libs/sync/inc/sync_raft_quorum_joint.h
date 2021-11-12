@@ -25,14 +25,34 @@
  * majority configurations. Decisions require the support of both majorities.
  **/
 typedef struct SSyncRaftQuorumJointConfig {
-  SSyncCluster majorityConfig[2];
-}SSyncRaftQuorumJointConfig;
+  SSyncCluster outgoing;
+  SSyncCluster incoming;
+} SSyncRaftQuorumJointConfig;
 
 /**
  * syncRaftVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-ESyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteResult* votes);
+ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes);
+
+static FORCE_INLINE bool syncRaftJointConfigInCluster(const SSyncCluster* cluster, SyncNodeId id) {
+  int i;
+  for (i = 0; i < cluster->replica; ++i) {
+    if (cluster->nodeInfo[i].nodeId == id) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static FORCE_INLINE bool syncRaftJointConfigInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  return syncRaftJointConfigInCluster(&config->outgoing, id);
+}
+
+static FORCE_INLINE bool syncRaftJointConfigInIncoming(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  return syncRaftJointConfigInCluster(&config->incoming, id);
+}
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

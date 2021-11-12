@@ -25,13 +25,13 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
 }
 
 void syncRaftResetVotes(SSyncRaftProgressTracker* tracker) {
-  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(ESyncRaftVoteResult) * TSDB_MAX_REPLICA);
+  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(ESyncRaftVoteType) * TSDB_MAX_REPLICA);
 }
 
 void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp visit, void* arg) {
   int i;
   for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SSyncRaftProgress* progress = &(tracker->progressMap[i]);
+    SSyncRaftProgress* progress = &(tracker->progressMap.progress[i]);
     visit(i, progress, arg);
   }
 }
@@ -44,6 +44,10 @@ void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant) {
   tracker->votes[i] = grant ? SYNC_RAFT_VOTE_RESP_GRANT : SYNC_RAFT_VOTE_RESP_REJECT;
 }
 
+void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to) {
+
+}
+
 /** 
  * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
  * election outcome is known.
@@ -54,7 +58,7 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
   int r, g;
 
   for (i = 0, r = 0, g = 0; i < TSDB_MAX_REPLICA; ++i) {
-    progress = &(tracker->progressMap[i]);
+    progress = &(tracker->progressMap.progress[i]);
     if (progress->id == SYNC_NON_NODE_ID) {
       continue;
     }

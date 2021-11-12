@@ -17,6 +17,7 @@
 #define _TD_LIBS_SYNC_TYPE_H
 
 #include <stdint.h>
+#include "sync.h"
 #include "osMath.h"
 
 #define SYNC_NON_NODE_ID -1
@@ -28,9 +29,12 @@ typedef uint32_t SyncTick;
 typedef struct SSyncRaft SSyncRaft;
 
 typedef struct SSyncRaftProgress SSyncRaftProgress;
+typedef struct SSyncRaftProgressMap SSyncRaftProgressMap;
 typedef struct SSyncRaftProgressTrackerConfig SSyncRaftProgressTrackerConfig;
 
 typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
+
+typedef struct SSyncRaftChanger SSyncRaftChanger;
 
 typedef struct SSyncRaftLog SSyncRaftLog;
 
@@ -45,6 +49,11 @@ typedef struct SSyncRaftEntry SSyncRaftEntry;
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #endif
 #endif
+
+typedef struct {
+  int32_t   replica;
+  SyncNodeId nodeId[TSDB_MAX_REPLICA];
+} SSyncRaftNodeMap;
 
 typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
@@ -61,6 +70,6 @@ typedef enum {
 
   //reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
-} ESyncRaftVoteResult;
+} ESyncRaftVoteType;
 
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

@@ -243,7 +243,7 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
 
   syncRaftLogAppend(pRaft->log, entries, n);
 
-  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap[pRaft->cluster.selfIndex]);
+  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap.progress[pRaft->cluster.selfIndex]);
   syncRaftProgressMaybeUpdate(progress, lastIndex);
   // Regardless of maybeCommit's return, our caller will call bcastAppend.
   maybeCommit(pRaft);

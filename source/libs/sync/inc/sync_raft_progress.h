@@ -129,6 +129,10 @@ struct SSyncRaftProgress {
   bool isLearner;
 };
 
+struct SSyncRaftProgressMap {
+	SSyncRaftProgress progress[TSDB_MAX_REPLICA];
+};
+
 void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
 /**
@@ -210,7 +214,9 @@ bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
 void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snapshotIndex);
 
+void syncRaftProgressCopy(const SSyncRaftProgress* from, SSyncRaftProgress* to);
 
+void syncRaftProgressMapCopy(const SSyncRaftProgressMap* from, SSyncRaftProgressMap* to);
 
 #if 0
 
