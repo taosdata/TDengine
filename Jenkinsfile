@@ -455,17 +455,18 @@ pipeline {
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
               node test1970.js
-	      cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-	      npm install td2.0-connector > /dev/null 2>&1
+              cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+              npm install td2.0-connector > /dev/null 2>&1
               node nanosecondTest.js
 
               '''
-
-              sh '''
-              cd ${WKC}/tests/examples/C#/taosdemo
-              mcs -out:taosdemo *.cs > /dev/null 2>&1
-              echo '' |./taosdemo -c /etc/taos
-              '''
+              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                  cd ${WKC}/tests/examples/C#/taosdemo
+                  mcs -out:taosdemo *.cs > /dev/null 2>&1
+                  echo '' |./taosdemo -c /etc/taos
+                '''
+              } 
               sh '''
                 cd ${WKC}/tests/gotest
                 bash batchtest.sh
