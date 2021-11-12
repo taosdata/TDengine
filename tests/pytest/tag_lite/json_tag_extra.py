@@ -29,17 +29,15 @@ class TDTestCase:
         tdSql.prepare()
 
         print("==============step1 tag format =======")
-        tdLog.info("create database two stables and   ")
-        tdSql.execute("create database db_json_tag_test")
-        tdSql.execute("use db_json_tag_test")    
+        tdLog.info("create database   ")
+        tdSql.execute("create database db_json")
+        tdSql.execute("use db_json")    
         # test  tag format 
         tdSql.execute("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(128))")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64),jtag1 json(100))")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64),dataBool bool)")
         
         tdSql.execute("CREATE TABLE if not exists  jsons1_1 using  jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
-        tdSql.execute("use db_json_tag_test")
-
 
         # two stables: jsons1 jsons2 ,test  tag's value  and  key  
         tdSql.execute("insert into  jsons1_1(ts,dataInt)  using  jsons1 tags('{\"loc+\":\"fff\",\"id\":5}') values (now,12)")
@@ -293,6 +291,7 @@ class TDTestCase:
         tdSql.query("select tbname,jtag->'tbname' from  jsons1 where jtag->'tbname'='tt'")
         tdSql.checkRows(1)
 
+        # test  filter : and /or / in/ like
         tdSql.query("select * from jsons1 where jtag->'num' is not null or jtag?'class' and jtag?'databool'")
         tdSql.checkRows(2)
 
@@ -300,15 +299,20 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 4)
 
-        # tdSql.query("select * from jsons1 where jtag->'num' is not null or jtag?'class' and jtag?'databool' and jtag->'k1' match '中' or  jtag->'location' in ('beijing')  and  jtag->'location' like 'bei%'")
+        tdSql.query("select * from jsons1 where jtag->'num' is not null or jtag?'class' and jtag?'databool' and jtag->'k1' match '中' or  jtag->'location' in ('beijing')  and  jtag->'location' like 'bei%'")
+        tdSql.checkRows(3)
 
-        # tdSql.query("select * from jsons1 where datastr like '你就会' and ( jtag->'num' is not null or jtag?'class' and jtag?'databool' )")
+        tdSql.query("select * from jsons1 where datastr like '你就会' and ( jtag->'num' is not null or jtag?'tbname' and jtag?'databool' )")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 4)
+
+        tdSql.error("select * from jsons1 where datastr like '你就会' and jtag->'num' is not null or jtag?'class' and jtag?'databool'")
 
 
         tdSql.error("select * from jsons1 where datastr like '你就会' or jtag->'num' is not null or jtag?'class' and jtag?'databool' and jtag->'k1' match '中' or  jtag->'location' in ('beijing')  and  jtag->'location' like 'bei%' ")
 
-        # tdSql.query("select * from jsons1 where datastr like '你就会' and (jtag->'num' is not null or jtag?'class' and jtag?'databool' and jtag->'k1' match '中' or  jtag->'location' in ('beijing')  and  jtag->'location' like 'bei%' )")
-        # tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where datastr like '你就会' and (jtag->'num' is not null or jtag?'class' and jtag?'databool' and jtag->'k1' match '中' or  jtag->'location' in ('beijing')  and  jtag->'location' like 'bei%' )")
+        tdSql.checkRows(0)
       
         tdSql.error("select *,tbname,jtag from  jsons1 where dataBool=true")
 
@@ -319,14 +323,14 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists  jsons1_13 using  jsons1 tags('{\"试试\":\"fff\",\";id\":5}')")
         tdSql.error("insert into  jsons1_13 using  jsons1 tags(3)")
 
-        # test  query normal column
+        # test  query  normal column,tag and tbname 
         tdSql.execute("create stable if not exists  jsons3(ts timestamp, dataInt3 int(100), dataBool3  bool, dataStr3 nchar(50)) tags(jtag3 json)")
         tdSql.execute("create table jsons3_2 using  jsons3 tags('{\"t\":true,\"t123\":123,\"\":\"true\"}')")
         
-        tdSql.execute("create table jsons3_3 using  jsons3 tags('{\"t\":true,\"t123\":456,\"k1\":true}')")
+        tdSql.execute("create table jsons3_3 using  jsons3 tags('{\"t\":true,\"t123\":456,\"k1\":true,\"str1\":\"111\"}')")
         tdSql.execute("insert into jsons3_3 values(now, 4, true, 'test')")
 
-        tdSql.execute("insert into jsons3_4 using  jsons3 tags('{\"t\":true,\"t123\":789,\"k1\":false,\"s\":null}')  values(now, 5, true, 'test')")
+        tdSql.execute("insert into jsons3_4 using  jsons3 tags('{\"t\":true,\"t123\":789,\"k1\":false,\"s\":null,\"str1\":\"112\"}')  values(now, 5, true, 'test')")
         tdSql.query("select * from  jsons3 where jtag3->'k1'=true")
         tdSql.checkRows(1)
         tdSql.error("select  jtag3->k1 from  jsons3 ")
@@ -341,7 +345,7 @@ class TDTestCase:
         tdSql.query("select jtag3 from jsons3 where jtag3->'t123'=12 or jtag3?'k1'")
         tdSql.checkRows(4)
         tdSql.query("select distinct jtag3 from jsons3 where jtag3->'t123'=12 or jtag3?'k1'")
-        tdSql.checkRows(3)
+        tdSql.checkRows(4)
 
 
         tdSql.execute("INSERT INTO  jsons1_14 using  jsons1 tags('{\"tbname\":\"tt\",\"location\":\"tianjing\",\"dataStr\":\"是是是\"}') values(now,5, \"你就会\")")
@@ -349,7 +353,17 @@ class TDTestCase:
         tdSql.query("select ts,jtag->'tbname',tbname from  jsons1 where dataint>=1 and jtag->'location' in ('tianjing','123') and jtag?'tbname'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'tt')
-               
+
+        tdSql.query("select ts,jtag->'tbname',tbname from  jsons1 where dataint between 1 and 5 and jtag->'location' in ('tianjing','123')")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, 'jsons1_14')
+
+        tdSql.query("select ts,jtag3->'tbname', jtag3->'str1',tbname from  jsons3 where jtag3->'t123'  between 456 and 789 and jtag3->'str1' like '11%' ")
+        tdSql.checkRows(2)
+        for i in range(1):
+            if tdSql.queryResult[i][1] == 'jsons3_3':
+                tdSql.checkData(i, 2, 111) 
+
         tdSql.query("select  jtag3->'',dataint3 from  jsons3")
         tdSql.checkRows(4)
         for i in range(4):
@@ -357,25 +371,102 @@ class TDTestCase:
                 tdSql.checkData(i, 0, None) 
         tdSql.query("select tbname,dataint3,jtag3->'k1' from jsons3;")
         tdSql.checkRows(4)
-        for i in range(4):
+        for i in range(3):
             if tdSql.queryResult[i][1] == 4:
                 tdSql.checkData(i, 2, 'true') 
-        # group by and order by 
-        tdSql.query("select  avg(dataInt)  from jsons1 group by jtag->'location';")
-        # tdSql.checkRows(3)
-        # tdSql.query("select  count(dataint)  from jsons1 group by jtag->'location'")
 
-        # tdSql.query("select  avg(dataInt) as 123  from jsons1 group by jtag->'location' order by 123")
-        # tdSql.query("select  avg(dataInt)   from jsons1 group by jtag->'location' order by ts;")
-        # tdSql.query("select  avg(dataInt)   from jsons1 group by jtag->'location' order by tbname;")
-        # tdSql.error("select  avg(dataInt)   from jsons1 group by jtag->'location' order by dataInt;")
-        # tdSql.error("select  avg(dataInt),tbname   from jsons1 group by jtag->'location' order by tbname;")
+        # Select_exprs is SQL function -Aggregation function  , tests includes group by and order by 
+ 
+        tdSql.query("select  avg(dataInt),count(dataint),sum(dataint) from jsons1 group by jtag->'location' order by jtag->'location';")
+        tdSql.checkData(2, 3, 'tianjing')        
+        tdSql.checkRows(3)
+        for i in range(2):
+            if tdSql.queryResult[i][3] == 'beijing':
+                tdSql.checkData(i, 0, 1) 
+                tdSql.checkData(i, 1, 3) 
+        # tdSql.query("select  avg(dataInt) as 123 ,count(dataint),sum(dataint)  from jsons1 group by jtag->'location' order by 123")
+        # tdSql.query("select  avg(dataInt) as avgdata ,count(dataint),sum(dataint)  from jsons1 group by jtag->'location' order by  avgdata ;")
+        tdSql.query("select  avg(dataInt),count(dataint),sum(dataint)   from jsons1 group by jtag->'location' order by ts;")
+        tdSql.checkRows(3)
+        tdSql.query("select  avg(dataInt),count(dataint),sum(dataint)   from jsons1 group by jtag->'age' order by tbname;")
+        tdSql.checkRows(2)
+        tdSql.error("select  avg(dataInt)   from jsons1 group by jtag->'location' order by dataInt;")
+        tdSql.error("select  avg(dataInt),tbname   from jsons1 group by jtag->'location' order by tbname;")
+        tdSql.execute("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"tbname\":\"tt\",\"location\":\"beijing\"}')")
+        tdSql.execute("insert into  jsons1_15 values(now+1s, 2, 'json1')")
+        tdSql.error("select twa(dataint) from jsons1 group by jtag->'location' order by jtag->'location';")
+        tdSql.error("select  irate(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        # tdSql.query(" select stddev(dataint) from jsons1 group by jtag->'location';")
+        # tdSql.checkRows(2)
+        tdSql.query(" select stddev(dataint) from jsons1  where  jtag->'location'='beijing';")
+        tdSql.checkRows(1)
+        tdSql.error(" select LEASTSQUARES(dataint,1,2) from jsons1_1 where  jtag->'location' ='beijing' ;")
+
+        # Select_exprs is SQL function -Selection function
+
+        tdSql.query(" select  min(dataint),jtag from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(" select  max(dataint),jtag from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
+        tdSql.query(" select  first(*) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.query(" select  last(*) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.error(" select  last(*),jtag from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.query(" select  last_row(*) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.query(" select  apercentile(dataint,0) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.query(" select  apercentile(dataint,50) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)     
+        tdSql.query(" select  apercentile(dataint,90) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)    
+        tdSql.query(" select  apercentile(dataint,100) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)   
+        tdSql.query(" select  apercentile(dataint,0,'t-digest') from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)
+        tdSql.query(" select  apercentile(dataint,50,'t-digest') from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1) 
+        tdSql.query(" select  apercentile(dataint,100,'t-digest') from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkRows(1)   
+        tdSql.query(" select  interp(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing')  and ts >= '2021-11-10 20:58:25.007' and ts<= '2021-11-12 20:58:32.000'  every(2a) ;")
+        # tdSql.checkData(0,0,1)  
+        # tdSql.checkRows(1)   
         # tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location';")
         # tdSql.query("select  top(dataint,100)  from jsons1 group by jtag->'location';")
         # tdSql.query("select  bottom(dataint,1)  from jsons1 group by jtag->'location';")
         # tdSql.query("select  bottom(dataint,100)  from jsons1 group by jtag->'location';")
 
+        #  Select_exprs is SQL function -Calculation  function
 
+        tdSql.error(" select  diff(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.error(" select  Derivative(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.query(" select  SPREAD(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.checkData(0, 0, 11) 
+        tdSql.query(" select  ceil(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.query(" select  floor(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        tdSql.query(" select  round(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
+        #need insert new data --data type is double or float and tests ceil floor round .
+        tdSql.execute("create table if not exists jsons7(ts timestamp, dataInt int, dataBool bool, datafloat float, datadouble double,dataStr nchar(50)) tags(jtag json)")
+        tdSql.execute("insert into jsons7_1 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\" \":123,\"tea\":false}') values (now,2,'true',0.9,0.1,'123')")
+        tdSql.query("select * from jsons7 where jtag->'tea'=0 ;")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons7 where jtag->'tea'=3;")
+        # tdSql.checkRows(0)
+        tdSql.execute("insert into jsons7_1 values (now,3,'true',-4.8,-5.5,'123') ")
+        tdSql.execute("insert into jsons7_1 values (now,4,'true',1.9998,2.00001,'123') ")
+        tdSql.execute("insert into jsons7_2 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":123,\"tea\":false}') values (now,5,'true',4.01,2.2,'123') ")
+        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now,-0.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now,-2.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now,-0.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now,-1.9) ")
+        # tdSql.execute("CREATE TABLE if not exists jsons7_3 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":4569\"tea\":false}') ")
+        tdSql.execute("select ts,ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
+        tdSql.execute("select ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
+
+        
         # test join
         tdSql.execute("create table if not exists jsons6(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
         tdSql.execute("create table if not exists jsons5(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
@@ -387,9 +478,9 @@ class TDTestCase:
         tdSql.execute("insert into jsons5_2 using jsons5 tags('{\"loc\":\"fff\",\"id\":5,\"location\":\"beijing\"}') values ('2020-04-18 15:00:01.000', 2, true, 'json2')")
 
         tdSql.error("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
-        tdSql.query("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'id'=b.jtag->'id'")
-        tdSql.checkData(0, 0, "sss")
-        tdSql.checkData(0, 2, "ffc")
+        # tdSql.query("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'id'=b.jtag->'id'")
+        # tdSql.checkData(0, 0, "sss")
+        # tdSql.checkData(0, 2, "ffc")
 
 
         # query  child table 
