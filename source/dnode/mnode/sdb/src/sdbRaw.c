@@ -116,16 +116,6 @@ int32_t sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status) {
   return 0;
 }
 
-int32_t sdbSetRawAction(SSdbRaw *pRaw, ESdbAction action) {
-  if (pRaw == NULL) {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
-
-  pRaw->action = action;
-  return 0;
-}
-
 int32_t sdbGetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t *val) {
   if (pRaw == NULL) {
     terrno = TSDB_CODE_INVALID_PTR;

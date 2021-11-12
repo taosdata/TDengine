@@ -94,6 +94,7 @@ static int32_t mnodeCreateDefaultAcct() {
 
   SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   return sdbWrite(pRaw);
 }

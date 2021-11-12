@@ -95,10 +95,20 @@ extern "C" {
 #define SDB_SET_DATALEN(pRaw, dataLen)          \
   {                                             \
     if (sdbSetRawDataLen(pRaw, dataLen) != 0) { \
-      sdbFreeRaw(pRaw);                            \
+      sdbFreeRaw(pRaw);                         \
       return NULL;                              \
     };                                          \
   }
+
+typedef struct SSdbRaw SSdbRaw;
+typedef struct SSdbRow SSdbRow;
+typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
+typedef enum {
+  SDB_STATUS_CREATING = 1,
+  SDB_STATUS_READY = 2,
+  SDB_STATUS_DROPPING = 3,
+  SDB_STATUS_DROPPED = 4
+} ESdbStatus;
 
 typedef enum {
   SDB_START = 0,
@@ -115,12 +125,6 @@ typedef enum {
   SDB_FUNC = 11,
   SDB_MAX = 12
 } ESdbType;
-
-typedef enum { SDB_ACTION_INSERT = 1, SDB_ACTION_UPDATE = 2, SDB_ACTION_DELETE = 3 } ESdbAction;
-typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
-typedef enum { SDB_STATUS_CREATING = 1, SDB_STATUS_READY = 2, SDB_STATUS_DROPPING = 3 } ESdbStatus;
-typedef struct SSdbRaw SSdbRaw;
-typedef struct SSdbRow SSdbRow;
 
 typedef int32_t (*SdbInsertFp)(void *pObj);
 typedef int32_t (*SdbUpdateFp)(void *pSrcObj, void *pDstObj);
@@ -165,7 +169,6 @@ int32_t  sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val);
 int32_t  sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_t valLen);
 int32_t  sdbSetRawDataLen(SSdbRaw *pRaw, int32_t dataLen);
 int32_t  sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status);
-int32_t  sdbSetRawAction(SSdbRaw *pRaw, ESdbAction action);
 int32_t  sdbGetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t *val);
 int32_t  sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val);
 int32_t  sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val);

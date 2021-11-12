@@ -45,7 +45,7 @@ int32_t sdbInit() {
       type = TSDB_DATA_TYPE_BINARY;
     }
 
-    SHashObj *hash = taosHashInit(128, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
+    SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
     if (hash == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

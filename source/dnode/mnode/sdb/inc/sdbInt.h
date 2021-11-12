@@ -40,14 +40,14 @@ typedef struct SSdbRaw {
   int8_t  sdb;
   int8_t  sver;
   int8_t  status;
-  int8_t  action;
-  int8_t  reserved[4];
+  int8_t  reserved;
   int32_t cksum;
   int32_t dataLen;
   char    pData[];
 } SSdbRaw;
 
 typedef struct SSdbRow {
+  ESdbType   sdb;
   ESdbStatus status;
   int32_t    refCount;
   char       pObj[];

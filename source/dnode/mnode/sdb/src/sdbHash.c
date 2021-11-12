@@ -32,25 +32,49 @@ static SHashObj *sdbGetHash(int32_t sdb) {
   return hash;
 }
 
+static int32_t sdbGetkeySize(ESdbType sdb, void *pKey) {
+  int32_t  keySize;
+  EKeyType keyType = tsSdb.keyTypes[sdb];
+
+  if (keyType == SDB_KEY_INT32) {
+    keySize = sizeof(int32_t);
+  } else if (keyType == SDB_KEY_BINARY) {
+    keySize = strlen(pKey) + 1;
+  } else {
+    keySize = sizeof(int64_t);
+  }
+
+  return keySize;
+}
+
 static int32_t sdbInsertRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  SSdbRow *pDstRow = NULL;
+  SRWLatch *pLock = &tsSdb.locks[pRow->sdb];
+  taosWLockLatch(pLock);
+
+  SSdbRow *pDstRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pDstRow != NULL) {
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
+    taosWUnLockLatch(pLock);
     return -1;
   }
 
-  pRow->refCount = 0;
+  pRow->refCount = 1;
   pRow->status = pRaw->status;
 
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosWUnLockLatch(pLock);
     return -1;
   }
 
-  SdbInsertFp insertFp = tsSdb.insertFps[pRaw->sdb];
+  taosWUnLockLatch(pLock);
+
+  SdbInsertFp insertFp = tsSdb.insertFps[pRow->sdb];
   if (insertFp != NULL) {
     if ((*insertFp)(pRow->pObj) != 0) {
+      taosWLockLatch(pLock);
       taosHashRemove(hash, pRow->pObj, keySize);
+      taosWUnLockLatch(pLock);
       return -1;
     }
   }
@@ -59,13 +83,20 @@ static int32_t sdbInsertRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
 }
 
 static int32_t sdbUpdateRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  SSdbRow *pDstRow = NULL;
+  SRWLatch *pLock = &tsSdb.locks[pRow->sdb];
+  taosRLockLatch(pLock);
+
+  SSdbRow *pDstRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pDstRow == NULL) {
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    taosRUnLockLatch(pLock);
     return -1;
   }
 
-  SdbUpdateFp updateFp = tsSdb.updateFps[pRaw->sdb];
+  pRow->status = pRaw->status;
+  taosRUnLockLatch(pLock);
+
+  SdbUpdateFp updateFp = tsSdb.updateFps[pRow->sdb];
   if (updateFp != NULL) {
     if ((*updateFp)(pRow->pObj, pDstRow->pObj) != 0) {
       return -1;
@@ -76,20 +107,28 @@ static int32_t sdbUpdateRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
 }
 
 static int32_t sdbDeleteRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  SSdbRow *pDstRow = NULL;
+  SRWLatch *pLock = &tsSdb.locks[pRow->sdb];
+  taosWLockLatch(pLock);
+
+  SSdbRow *pDstRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pDstRow == NULL) {
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    taosWUnLockLatch(pLock);
     return -1;
   }
 
-  SdbDeleteFp deleteFp = tsSdb.deleteFps[pRaw->sdb];
+  pRow->status = pRaw->status;
+  taosHashRemove(hash, pRow->pObj, keySize);
+  taosWUnLockLatch(pLock);
+
+  SdbDeleteFp deleteFp = tsSdb.deleteFps[pRow->sdb];
   if (deleteFp != NULL) {
     if ((*deleteFp)(pRow->pObj) != 0) {
       return -1;
     }
   }
 
-  taosHashRemove(hash, pRow->pObj, keySize);
+  sdbRelease(pRow->pObj);
   return 0;
 }
 
@@ -104,73 +143,87 @@ int32_t sdbWrite(SSdbRaw *pRaw) {
     return -1;
   }
 
-  int32_t  keySize;
-  EKeyType keyType = tsSdb.keyTypes[pRaw->sdb];
-  if (keyType == SDB_KEY_INT32) {
-    keySize = sizeof(int32_t);
-  } else if (keyType == SDB_KEY_BINARY) {
-    keySize = strlen(pRow->pObj) + 1;
-  } else {
-    keySize = sizeof(int64_t);
-  }
+  pRow->sdb = pRaw->sdb;
 
+  int32_t keySize = sdbGetkeySize(pRow->sdb, pRow->pObj);
   int32_t code = -1;
-  if (pRaw->action == SDB_ACTION_INSERT) {
-    code = sdbInsertRow(hash, pRaw, pRow, keySize);
-  } else if (pRaw->action == SDB_ACTION_UPDATE) {
-    code = sdbUpdateRow(hash, pRaw, pRow, keySize);
-  } else if (pRaw->action == SDB_ACTION_DELETE) {
-    code = sdbDeleteRow(hash, pRaw, pRow, keySize);
-  } else {
-    terrno = TSDB_CODE_SDB_INVALID_ACTION_TYPE;
+
+  switch (pRaw->status) {
+    case SDB_STATUS_CREATING:
+      code = sdbInsertRow(hash, pRaw, pRow, keySize);
+      break;
+    case SDB_STATUS_READY:
+    case SDB_STATUS_DROPPING:
+      code = sdbUpdateRow(hash, pRaw, pRow, keySize);
+      break;
+    case SDB_STATUS_DROPPED:
+      code = sdbDeleteRow(hash, pRaw, pRow, keySize);
+      break;
+    default:
+      terrno = TSDB_CODE_SDB_INVALID_ACTION_TYPE;
+      break;
   }
 
   if (code != 0) {
     sdbFreeRow(pRow);
   }
+
   return 0;
 }
 
 void *sdbAcquire(ESdbType sdb, void *pKey) {
-  terrno = 0;
-
   SHashObj *hash = sdbGetHash(sdb);
-  if (hash == NULL) {
+  if (hash == NULL) return NULL;
+
+  void   *pRet = NULL;
+  int32_t keySize = sdbGetkeySize(sdb, pKey);
+
+  SRWLatch *pLock = &tsSdb.locks[sdb];
+  taosRLockLatch(pLock);
+
+  SSdbRow **ppRow = taosHashGet(hash, pKey, keySize);
+  if (ppRow == NULL || *ppRow) {
+    terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    taosRUnLockLatch(pLock);
     return NULL;
   }
 
-  int32_t  keySize;
-  EKeyType keyType = tsSdb.keyTypes[sdb];
-
-  switch (keyType) {
-    case SDB_KEY_INT32:
-      keySize = sizeof(int32_t);
+  SSdbRow *pRow = *ppRow;
+  switch (pRow->status) {
+    case SDB_STATUS_READY:
+      atomic_add_fetch_32(&pRow->refCount, 1);
+      pRet = pRow->pObj;
       break;
-    case SDB_KEY_INT64:
-      keySize = sizeof(int64_t);
+    case SDB_STATUS_CREATING:
+      terrno = TSDB_CODE_SDB_OBJ_CREATING;
       break;
-    case SDB_KEY_BINARY:
-      keySize = strlen(pKey) + 1;
+    case SDB_STATUS_DROPPING:
+      terrno = TSDB_CODE_SDB_OBJ_DROPPING;
       break;
     default:
-      keySize = sizeof(int32_t);
+      terrno = TSDB_CODE_SDB_APP_ERROR;
+      break;
   }
 
-  SSdbRow *pRow = taosHashGet(hash, pKey, keySize);
-  if (pRow == NULL) return NULL;
-
-  if (pRow->status == SDB_STATUS_READY) {
-    atomic_add_fetch_32(&pRow->refCount, 1);
-    return pRow->pObj;
-  } else {
-    terrno = -1;  // todo
-    return NULL;
-  }
+  taosRUnLockLatch(pLock);
+  return pRet;
 }
 
 void sdbRelease(void *pObj) {
+  if (pObj == NULL) return;
+
   SSdbRow *pRow = (SSdbRow *)((char *)pObj - sizeof(SSdbRow));
-  atomic_sub_fetch_32(&pRow->refCount, 1);
+  if (pRow->sdb >= SDB_MAX || pRow->sdb <= SDB_START) return;
+
+  SRWLatch *pLock = &tsSdb.locks[pRow->sdb];
+  taosRLockLatch(pLock);
+
+  int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
+  if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
+    sdbFreeRow(pRow);
+  }
+
+  taosRUnLockLatch(pLock);
 }
 
 void *sdbFetchRow(ESdbType sdb, void *pIter) {
@@ -179,7 +232,12 @@ void *sdbFetchRow(ESdbType sdb, void *pIter) {
     return NULL;
   }
 
-  return taosHashIterate(hash, pIter);
+  SRWLatch *pLock = &tsSdb.locks[sdb];
+  taosRLockLatch(pLock);
+  void *pRet = taosHashIterate(hash, pIter);
+  taosRUnLockLatch(pLock);
+
+  return pRet;
 }
 
 void sdbCancelFetch(ESdbType sdb, void *pIter) {
@@ -187,7 +245,11 @@ void sdbCancelFetch(ESdbType sdb, void *pIter) {
   if (hash == NULL) {
     return;
   }
+
+  SRWLatch *pLock = &tsSdb.locks[sdb];
+  taosRLockLatch(pLock);
   taosHashCancelIterate(hash, pIter);
+  taosRUnLockLatch(pLock);
 }
 
 int32_t sdbGetSize(ESdbType sdb) {
@@ -195,5 +257,11 @@ int32_t sdbGetSize(ESdbType sdb) {
   if (hash == NULL) {
     return 0;
   }
-  return taosHashGetSize(hash);
+
+  SRWLatch *pLock = &tsSdb.locks[sdb];
+  taosRLockLatch(pLock);
+  int32_t size = taosHashGetSize(hash);
+  taosRUnLockLatch(pLock);
+
+  return size;
 }

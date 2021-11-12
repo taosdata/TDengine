@@ -110,6 +110,7 @@ static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
 
   SSdbRaw *pRaw = mnodeUserActionEncode(&userObj);
   if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   return sdbWrite(pRaw);
 }
@@ -149,15 +150,13 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
     return -1;
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
-  sdbSetRawAction(pRedoRaw, SDB_ACTION_INSERT);
 
   SSdbRaw *pUndoRaw = mnodeUserActionEncode(&userObj);
   if (pUndoRaw == NULL || trnAppendUndoLog(pTrans, pUndoRaw) != 0) {
     trnDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPING);
-  sdbSetRawAction(pUndoRaw, SDB_ACTION_DELETE);
+  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
   SSdbRaw *pCommitRaw = mnodeUserActionEncode(&userObj);
   if (pCommitRaw == NULL || trnAppendCommitLog(pTrans, pCommitRaw) != 0) {
@@ -165,7 +164,6 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
     return -1;
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  sdbSetRawAction(pCommitRaw, SDB_ACTION_UPDATE);
 
   if (trnPrepare(pTrans, mnodeSyncPropose) != 0) {
     trnDrop(pTrans);
