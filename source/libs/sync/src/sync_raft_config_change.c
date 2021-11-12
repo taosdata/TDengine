@@ -25,6 +25,7 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
 static bool hasJointConfig(const SSyncRaftProgressTrackerConfig* config);
 static int applyConfig(SSyncRaftChanger* changer, const SSyncRaftProgressTrackerConfig* config,
                         const SSyncRaftProgressMap* progressMap, const SSyncConfChangeSingleArray* css);
+static int symDiff(const SSyncCluster* l, const SSyncCluster* r);
 
 // Simple carries out a series of configuration changes that (in aggregate)
 // mutates the incoming majority config Voters[0] by at most one. This method
@@ -49,7 +50,32 @@ int syncRaftChangerSimpleConfig(SSyncRaftChanger* changer, const SSyncConfChange
     return ret;
   }
 
+  int n = symDiff(syncRaftJointConfigIncoming(&changer->tracker->config.voters),
+                  syncRaftJointConfigIncoming(&config->voters));
+  if (n > 1) {
+    syncError("more than one voter changed without entering joint config");
+    return -1;
+  }
+
   return checkAndReturn(config, progressMap); 
+}
+
+// EnterJoint verifies that the outgoing (=right) majority config of the joint
+// config is empty and initializes it with a copy of the incoming (=left)
+// majority config. That is, it transitions from
+//
+//     (1 2 3)&&()
+// to
+//     (1 2 3)&&(1 2 3).
+//
+// The supplied changes are then applied to the incoming majority config,
+// resulting in a joint configuration that in terms of the Raft thesis[1]
+// (Section 4.3) corresponds to `C_{new,old}`.
+//
+// [1]: https://github.com/ongardie/dissertation/blob/master/online-trim.pdf
+int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, const SSyncConfChangeSingleArray* css,
+                            SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+
 }
 
 // checkAndCopy copies the tracker's config and progress map (deeply enough for
@@ -63,7 +89,7 @@ static int checkAndCopy(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfi
     if (progress->id == SYNC_NON_NODE_ID) {
       continue;
     }
-    syncRaftProgressCopy(progress, &(progressMap->progress[i]));
+    syncRaftCopyProgress(progress, &(progressMap->progress[i]));
   }
   return checkAndReturn(config, progressMap);
 }
@@ -151,4 +177,36 @@ static int applyConfig(SSyncRaftChanger* changer, const SSyncRaftProgressTracker
   }
 
   return 0;
+}
+
+// symdiff returns the count of the symmetric difference between the sets of
+// uint64s, i.e. len( (l - r) \union (r - l)).
+static int symDiff(const SSyncCluster* l, const SSyncCluster* r) {
+  int n;
+  int i;
+  int j0, j1;
+  const SSyncCluster* pairs[2][2] = {
+    {l, r}, // count elems in l but not in r
+    {r, l}, // count elems in r but not in l
+  };
+
+  for (n = 0, i = 0; i < 2; ++i) {
+    const SSyncCluster** pp = pairs[i];
+
+    const SSyncCluster* p0 = pp[0];
+    const SSyncCluster* p1 = pp[1];
+    for (j0 = 0; j0 < p0->replica; ++j0) {
+      SyncNodeId id = p0->nodeInfo[j0].nodeId;
+      if (id == SYNC_NON_NODE_ID) {
+        continue;
+      }
+      for (j1 = 0; j1 < p1->replica; ++j1) {
+        if (p1->nodeInfo[j1].nodeId != SYNC_NON_NODE_ID && p1->nodeInfo[j1].nodeId != id) {
+          n+=1;
+        }
+      }
+    }
+  }
+
+  return n;
 }

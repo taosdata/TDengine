@@ -19,7 +19,14 @@
 #include "sync_type.h"
 #include "sync_raft_proto.h"
 
-int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
-                          SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
+// Restore takes a Changer (which must represent an empty configuration), and
+// runs a sequence of changes enacting the configuration described in the
+// ConfState.
+//
+// TODO(tbg) it's silly that this takes a Changer. Unravel this by making sure
+// the Changer only needs a ProgressMap (not a whole Tracker) at which point
+// this can just take LastIndex and MaxInflight directly instead and cook up
+// the results from that alone.
+int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs);
 
 #endif /* TD_SYNC_RAFT_RESTORE_H */

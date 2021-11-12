@@ -214,7 +214,7 @@ bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
 void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snapshotIndex);
 
-void syncRaftProgressCopy(const SSyncRaftProgress* from, SSyncRaftProgress* to);
+void syncRaftCopyProgress(const SSyncRaftProgress* from, SSyncRaftProgress* to);
 
 void syncRaftProgressMapCopy(const SSyncRaftProgressMap* from, SSyncRaftProgressMap* to);
 

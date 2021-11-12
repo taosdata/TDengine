@@ -55,4 +55,12 @@ static FORCE_INLINE bool syncRaftJointConfigInIncoming(const SSyncRaftQuorumJoin
   return syncRaftJointConfigInCluster(&config->incoming, id);
 }
 
+static FORCE_INLINE const SSyncCluster* syncRaftJointConfigIncoming(const SSyncRaftQuorumJointConfig* config) {
+  return &config->incoming;
+}
+
+static FORCE_INLINE const SSyncCluster* syncRaftJointConfigOutgoing(const SSyncRaftQuorumJointConfig* config) {
+  return &config->outgoing;
+}
+
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

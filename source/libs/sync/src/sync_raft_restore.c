@@ -19,11 +19,21 @@
 
 static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleArray* out, SSyncConfChangeSingleArray* in);
 
-int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
-                          SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+// Restore takes a Changer (which must represent an empty configuration), and
+// runs a sequence of changes enacting the configuration described in the
+// ConfState.
+//
+// TODO(tbg) it's silly that this takes a Changer. Unravel this by making sure
+// the Changer only needs a ProgressMap (not a whole Tracker) at which point
+// this can just take LastIndex and MaxInflight directly instead and cook up
+// the results from that alone.
+int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs) {
   SSyncConfChangeSingleArray outgoing;
   SSyncConfChangeSingleArray incoming;
   SSyncConfChangeSingleArray css;
+  SSyncRaftProgressTracker* tracker = changer->tracker;
+  SSyncRaftProgressTrackerConfig* config = &tracker->config;
+  SSyncRaftProgressMap* progressMap = &tracker->progressMap;
   int i, ret;
 
   ret = toConfChangeSingle(cs, &outgoing, &incoming);
@@ -38,12 +48,10 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
         .n = 1,
         .changes = &incoming.changes[i],
       };
-      ret = syncRaftChangerSimpleConfig(changer, &css, config, progressMap);
+      ret = syncRaftChangerSimpleConfig(changer, &css, &config, &progressMap);
       if (ret != 0) {
         goto out;
       }
-      syncRaftCloneTrackerConfig(config, &changer->tracker->config);
-      syncRaftProgressMapCopy(progressMap, &changer->tracker->progressMap);
     }
   } else {
 		// The ConfState describes a joint configuration.
@@ -60,16 +68,12 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
       if (ret != 0) {
         goto out;
       }
-      syncRaftCloneTrackerConfig(config, &changer->tracker->config);
-      syncRaftProgressMapCopy(progressMap, &changer->tracker->progressMap);
     }
 
     ret = syncRaftChangerEnterJoint(changer, &incoming, config, progressMap);
     if (ret != 0) {
       goto out;
     }
-    syncRaftCloneTrackerConfig(config, &changer->tracker->config);
-    syncRaftProgressMapCopy(progressMap, &changer->tracker->progressMap);
   }
 
 out:

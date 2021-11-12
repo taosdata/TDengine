@@ -149,7 +149,7 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
   progress->pendingSnapshotIndex = snapshotIndex;
 }
 
-void syncRaftProgressCopy(const SSyncRaftProgress* progress, SSyncRaftProgress* out) {
+void syncRaftCopyProgress(const SSyncRaftProgress* progress, SSyncRaftProgress* out) {
 
 }
 
