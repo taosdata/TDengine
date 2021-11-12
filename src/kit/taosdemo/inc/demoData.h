@@ -18,10 +18,8 @@
 #include "demo.h"
 /***** Global variables ******/
 
-extern char *g_sampleDataBuf;
-#if STMT_BIND_PARAM_BATCH == 1
-extern char *g_sampleBindBatchArray;
-#endif
+extern char *    g_sampleDataBuf;
+extern char *    g_sampleBindBatchArray;
 extern int32_t * g_randint;
 extern uint32_t *g_randuint;
 extern int64_t * g_randbigint;
@@ -43,7 +41,7 @@ extern char *    g_rand_current_buff;
 extern char *    g_rand_phase_buff;
 extern char *    g_randdouble_buff;
 /***** Declare functions *****/
-void                init_rand_data();
+int                 init_rand_data();
 char *              rand_bool_str();
 int32_t             rand_bool();
 char *              rand_tinyint_str();

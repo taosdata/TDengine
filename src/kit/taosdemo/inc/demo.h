@@ -383,10 +383,8 @@ typedef struct SSuperTable_S {
     uint32_t tagSampleCount;
     uint32_t tagUsePos;
 
-#if STMT_BIND_PARAM_BATCH == 1
     // bind param batch
     char *sampleBindBatchArray;
-#endif
     // statistics
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
@@ -525,13 +523,9 @@ typedef struct SThreadInfo_S {
     TAOS_STMT *stmt;
     int64_t *  bind_ts;
 
-#if STMT_BIND_PARAM_BATCH == 1
     int64_t *bind_ts_array;
     char *   bindParams;
     char *   is_null;
-#else
-    char *sampleBindArray;
-#endif
 
     int          threadID;
     char         db_name[TSDB_DB_NAME_LEN];
@@ -579,7 +573,6 @@ typedef struct SThreadInfo_S {
 } threadInfo;
 
 /* ************ Global variables ************  */
-extern char *         g_dupstr;
 extern char *         g_aggreFuncDemo[];
 extern char *         g_aggreFunc[];
 extern SArguments     g_args;

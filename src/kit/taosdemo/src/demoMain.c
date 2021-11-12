@@ -95,8 +95,6 @@ int main(int argc, char *argv[]) {
         } else {
             testCmdLine();
         }
-
-        if (g_dupstr) free(g_dupstr);
     }
     postFreeResource();
 
