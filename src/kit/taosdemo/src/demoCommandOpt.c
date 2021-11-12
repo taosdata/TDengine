@@ -1470,7 +1470,7 @@ void querySqlFile(TAOS *taos, char *sqlFile) {
     char * line = NULL;
     size_t line_len = 0;
 
-    double t = taosGetTimestampMs();
+    double t = (double)taosGetTimestampMs();
 
     while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
         if (read_len >= TSDB_MAX_BYTES_PER_ROW) continue;
@@ -1501,7 +1501,7 @@ void querySqlFile(TAOS *taos, char *sqlFile) {
     }
 
     t = taosGetTimestampMs() - t;
-    printf("run %s took %.6f second(s)\n\n", sqlFile, t);
+    printf("run %s took %.6f second(s)\n\n", sqlFile, t / 1000000);
 
     tmfree(cmd);
     tmfree(line);
@@ -1583,7 +1583,7 @@ void *queryStableAggrFunc(void *sarg) {
                        command);
             fprintf(fp, "%s\n", command);
 
-            double t = taosGetTimestampUs();
+            double t = (double)taosGetTimestampUs();
 
             TAOS_RES *pSql = taos_query(taos, command);
             int32_t   code = taos_errno(pSql);
@@ -1677,7 +1677,7 @@ void *queryNtableAggrFunc(void *sarg) {
             sprintf(command, "SELECT %s FROM %s%" PRId64 " WHERE ts>= %" PRIu64,
                     aggreFunc[j], tb_prefix, i, startTime);
 
-            double t = taosGetTimestampUs();
+            double t = static_cast<double> taosGetTimestampUs();
             debugPrint("%s() LN%d, sql command: %s\n", __func__, __LINE__,
                        command);
             TAOS_RES *pSql = taos_query(taos, command);

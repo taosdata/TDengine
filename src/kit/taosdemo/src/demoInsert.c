@@ -3415,7 +3415,7 @@ static int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
         switch (data_type) {
             case TSDB_DATA_TYPE_INT:
             case TSDB_DATA_TYPE_UINT:
-                tmpP = calloc(1, sizeof(int) * MAX_SAMPLES);
+                tmpP = calloc(1, sizeof(int32_t) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t *)(sampleBindBatchArray + sizeof(uintptr_t *) * c) =
                     (uintptr_t)tmpP;
@@ -3423,7 +3423,7 @@ static int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
 
             case TSDB_DATA_TYPE_TINYINT:
             case TSDB_DATA_TYPE_UTINYINT:
-                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
+                tmpP = calloc(1, sizeof(char) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t *)(sampleBindBatchArray + sizeof(uintptr_t *) * c) =
                     (uintptr_t)tmpP;
@@ -3446,7 +3446,7 @@ static int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
                 break;
 
             case TSDB_DATA_TYPE_BOOL:
-                tmpP = calloc(1, sizeof(int8_t) * MAX_SAMPLES);
+                tmpP = calloc(1, sizeof(char) * MAX_SAMPLES);
                 assert(tmpP);
                 *(uintptr_t *)(sampleBindBatchArray + sizeof(uintptr_t *) * c) =
                     (uintptr_t)tmpP;
