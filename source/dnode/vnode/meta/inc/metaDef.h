@@ -16,6 +16,8 @@
 #ifndef _TD_META_DEF_H_
 #define _TD_META_DEF_H_
 
+#include "mallocator.h"
+
 #include "meta.h"
 #include "metaCache.h"
 #include "metaDB.h"
@@ -30,12 +32,13 @@ extern "C" {
 #endif
 
 struct SMeta {
-  char*           path;     // path of current meta
-  SMetaOptions    options;  // meta option
-  meta_db_t*      pDB;      // raw data db
-  meta_index_t*   pIdx;     // tag index
-  meta_cache_t*   pCache;   // LRU cache
-  STbUidGenerator uidGnrt;  // meta table UID generator
+  char*                 path;
+  SMetaOptions          options;
+  meta_db_t*            pDB;
+  meta_index_t*         pIdx;
+  meta_cache_t*         pCache;
+  STbUidGenerator       uidGnrt;
+  SMemAllocatorFactory* pmaf;
 };
 
 #ifdef __cplusplus

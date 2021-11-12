@@ -27,9 +27,9 @@ extern "C" {
 #endif
 
 struct STsdb {
-  char *             path;
-  STsdbOptions       options;
-  STsdbMemAllocator *pTMA;
+  char *                path;
+  STsdbOptions          options;
+  SMemAllocatorFactory *pmaf;
 };
 
 #ifdef __cplusplus
