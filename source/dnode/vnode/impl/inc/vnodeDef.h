@@ -22,7 +22,7 @@
 #include "wal.h"
 
 #include "vnode.h"
-#include "vnodeAllocatorPool.h"
+#include "vnodeBufferPool.h"
 #include "vnodeCommit.h"
 #include "vnodeFileSystem.h"
 #include "vnodeOptions.h"
@@ -34,17 +34,16 @@ extern "C" {
 #endif
 
 struct SVnode {
-  char*            path;
-  SVnodeOptions    options;
-  SVState          state;
-  SVAllocatorPool* pool;
-  SMemAllocator*   inuse;
-  SMeta*           pMeta;
-  STsdb*           pTsdb;
-  STQ*             pTq;
-  SWal*            pWal;
-  SVnodeSync*      pSync;
-  SVnodeFS*        pFs;
+  char*         path;
+  SVnodeOptions options;
+  SVState       state;
+  SVBufPool*    pBufPool;
+  SMeta*        pMeta;
+  STsdb*        pTsdb;
+  STQ*          pTq;
+  SWal*         pWal;
+  SVnodeSync*   pSync;
+  SVnodeFS*     pFs;
 };
 
 #ifdef __cplusplus

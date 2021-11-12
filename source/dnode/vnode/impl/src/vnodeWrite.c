@@ -21,6 +21,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+#if 0
   int      reqType;        /* TODO */
   size_t   reqSize;        /* TODO */
   uint64_t reqVersion = 0; /* TODO */
@@ -45,7 +46,9 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TSDB_MSG_TYPE_DROP_TABLE:
       code = metaDropTable(pVnode->pMeta, 0 /* TODO */);
       break;
+    case TSDB_MSG_TYPE_SUBMIT:
       /* TODO */
+      break;
     default:
       break;
   }
@@ -57,6 +60,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   }
 
   return code;
+#endif
+  return 0;
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */

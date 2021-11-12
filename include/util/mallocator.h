@@ -25,20 +25,14 @@ extern "C" {
 typedef struct SMemAllocator SMemAllocator;
 
 #define MALLOCATOR_APIS                                        \
+  void *impl;                                                  \
   void *(*malloc)(SMemAllocator *, size_t size);               \
   void *(*calloc)(SMemAllocator *, size_t nmemb, size_t size); \
   void *(*realloc)(SMemAllocator *, void *ptr, size_t size);   \
   void (*free)(SMemAllocator *, void *ptr);                    \
   size_t (*usage)(SMemAllocator *);
 
-// Interfaces to implement
-typedef struct {
-  MALLOCATOR_APIS
-} SMemAllocatorIf;
-
 struct SMemAllocator {
-  void * impl;
-  size_t usize;
   MALLOCATOR_APIS
 };
 

@@ -70,6 +70,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
+ * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
