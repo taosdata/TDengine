@@ -36,7 +36,7 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     return 0;
   }
 
-  SSyncRaftVoteResult result = syncRaftPollVote(pRaft, pMsg->from, 
+  ESyncRaftVoteResult result = syncRaftPollVote(pRaft, pMsg->from, 
                                 pMsg->voteResp.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION,
                                 !pMsg->voteResp.rejected, &rejected, &granted);
 

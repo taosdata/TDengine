@@ -50,7 +50,7 @@ typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
   SYNC_RAFT_CAMPAIGN_ELECTION     = 1,
   SYNC_RAFT_CAMPAIGN_TRANSFER     = 2,
-} SyncRaftElectionType;
+} ESyncRaftElectionType;
 
 typedef enum {
   // the init vote resp status
@@ -61,6 +61,6 @@ typedef enum {
 
   //reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
-} SyncRaftVoteResult;
+} ESyncRaftVoteResult;
 
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

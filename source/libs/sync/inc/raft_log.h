@@ -19,16 +19,16 @@
 #include "sync.h"
 #include "sync_type.h"
 
-typedef enum SyncEntryType {
+typedef enum ESyncRaftEntryType {
   SYNC_ENTRY_TYPE_LOG = 1,
-}SyncEntryType;
+} ESyncRaftEntryType;
 
 struct SSyncRaftEntry {
   SyncTerm term;
 
   SyncIndex index;
 
-  SyncEntryType type;
+  ESyncRaftEntryType type;
 
   SSyncBuffer buffer;
 };

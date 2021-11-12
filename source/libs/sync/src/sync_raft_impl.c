@@ -127,7 +127,7 @@ int syncRaftQuorum(SSyncRaft* pRaft) {
   return pRaft->cluster.replica / 2 + 1;
 }
 
-SSyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
+ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                       bool preVote, bool grant, 
                                       int* rejected, int *granted) {
   int voterIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
@@ -186,7 +186,7 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 	 * StateCandidate, we may get stale MsgPreVoteResp messages in this term from
 	 * our pre-candidate state).
    **/
-  RaftMessageType msgType = pMsg->msgType;
+  ESyncRaftMessageType msgType = pMsg->msgType;
 
   if (msgType == RAFT_MSG_INTERNAL_PROP) {
     return 0;

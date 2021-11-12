@@ -26,7 +26,7 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft);
 void syncRaftBecomeCandidate(SSyncRaft* pRaft);
 void syncRaftBecomeLeader(SSyncRaft* pRaft);
 
-void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType);
+void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 
 void syncRaftTriggerHeartbeat(SSyncRaft* pRaft);
 
@@ -35,7 +35,7 @@ bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
 int  syncRaftQuorum(SSyncRaft* pRaft);
 
-SSyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
+ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                     bool preVote, bool accept, 
                                     int* rejectNum, int *granted);
 

@@ -20,13 +20,13 @@
 #include "sync.h"
 #include "syncInt.h"
 
-static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state);
+static void resetProgressState(SSyncRaftProgress* progress, ESyncRaftProgressState state);
 static void probeAcked(SSyncRaftProgress* progress);
 
 static void resumeProgress(SSyncRaftProgress* progress);
 
 void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress) {
-  SSyncRaftInflights* inflights = syncRaftOpenInflights(pRaft->tracker->maxInflight);
+  SSyncRaftInflights* inflights = syncRaftOpenInflights(pRaft->tracker->maxInflightMsgs);
   if (inflights == NULL) {
     return;
   }
@@ -153,7 +153,7 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
  * ResetState moves the Progress into the specified State, resetting ProbeSent,
  * PendingSnapshot, and Inflights.
  **/
-static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state) {
+static void resetProgressState(SSyncRaftProgress* progress, ESyncRaftProgressState state) {
   progress->probeSent = false;
   progress->pendingSnapshotIndex = 0;
   progress->state = state;
@@ -233,7 +233,7 @@ void syncRaftProgressAbortSnapshot(SSyncRaft* pRaft, int i) {
   progress->state = PROGRESS_STATE_PROBE;
 }
 
-RaftProgressState syncRaftProgressState(SSyncRaft* pRaft, int i) {
+ESyncRaftProgressState syncRaftProgressState(SSyncRaft* pRaft, int i) {
   return pRaft->leaderState.progress[i].state;
 }
 

@@ -22,9 +22,9 @@
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const SyncRaftVoteResult* votes) {
-  SyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->majorityConfig[0]), votes);
-  SyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->majorityConfig[1]), votes);
+ESyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteResult* votes) {
+  ESyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->majorityConfig[0]), votes);
+  ESyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->majorityConfig[1]), votes);
 
   if (r1 == r2) {
     // If they agree, return the agreed state.

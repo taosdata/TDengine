@@ -33,6 +33,6 @@ typedef struct SSyncRaftQuorumJointConfig {
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const SyncRaftVoteResult* votes);
+ESyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteResult* votes);
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

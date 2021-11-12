@@ -87,8 +87,8 @@ struct SSyncRaftProgressTracker {
 
   SSyncRaftProgress progressMap[TSDB_MAX_REPLICA];
 
-	SyncRaftVoteResult votes[TSDB_MAX_REPLICA];
-  int maxInflight;
+	ESyncRaftVoteResult votes[TSDB_MAX_REPLICA];
+  int maxInflightMsgs;
 };
 
 SSyncRaftProgressTracker* syncRaftOpenProgressTracker();
@@ -108,6 +108,6 @@ void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant);
  * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
  * election outcome is known.
  **/
-SyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted);
+ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_PROGRESS_TRACKER_H */

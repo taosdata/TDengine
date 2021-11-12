@@ -34,7 +34,7 @@
  * 
  * PROGRESS_STATE_PROBE is the initial state.
  **/
-typedef enum RaftProgressState {
+typedef enum ESyncRaftProgressState {
   /**
 	* StateProbe indicates a follower whose last index isn't known. Such a
 	* follower is "probed" (i.e. an append sent periodically) to narrow down
@@ -56,7 +56,7 @@ typedef enum RaftProgressState {
 	* return to StateReplicate.
   **/
   PROGRESS_STATE_SNAPSHOT,
-} RaftProgressState;
+} ESyncRaftProgressState;
 
 /**
  * Progress represents a follower’s progress in the view of the leader. Leader maintains
@@ -82,7 +82,7 @@ struct SSyncRaftProgress {
 	* When in StateSnapshot, leader should have sent out snapshot
 	* before and stops sending any replication message.
   **/
-  RaftProgressState state;
+  ESyncRaftProgressState state;
 
 	/** 
    * pendingSnapshotIndex is used in PROGRESS_STATE_SNAPSHOT.
@@ -187,15 +187,15 @@ static FORCE_INLINE SyncIndex syncRaftProgressNextIndex(SSyncRaftProgress* progr
   return progress->nextIndex;
 }
 
-static FORCE_INLINE RaftProgressState syncRaftProgressInReplicate(SSyncRaftProgress* progress) {
+static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInReplicate(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_STATE_REPLICATE;
 }
 
-static FORCE_INLINE RaftProgressState syncRaftProgressInSnapshot(SSyncRaftProgress* progress) {
+static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInSnapshot(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_STATE_SNAPSHOT;
 }
 
-static FORCE_INLINE RaftProgressState syncRaftProgressInProbe(SSyncRaftProgress* progress) {
+static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInProbe(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_STATE_PROBE;
 }
 

@@ -101,7 +101,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     return 0;
   }
 
-  RaftMessageType msgType = pMsg->msgType;
+  ESyncRaftMessageType msgType = pMsg->msgType;
   if (msgType == RAFT_MSG_INTERNAL_ELECTION) {
     syncRaftHandleElectionMessage(pRaft, pMsg);
   } else if (msgType == RAFT_MSG_VOTE) {
@@ -140,7 +140,7 @@ static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   SyncNodeId leaderId = pMsg->from;
-  RaftMessageType msgType = pMsg->msgType;
+  ESyncRaftMessageType msgType = pMsg->msgType;
 
   if (msgType == RAFT_MSG_VOTE) {
     // TODO

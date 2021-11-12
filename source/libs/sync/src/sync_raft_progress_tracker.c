@@ -25,7 +25,7 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
 }
 
 void syncRaftResetVotes(SSyncRaftProgressTracker* tracker) {
-  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(SyncRaftVoteResult) * TSDB_MAX_REPLICA);
+  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(ESyncRaftVoteResult) * TSDB_MAX_REPLICA);
 }
 
 void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp visit, void* arg) {
@@ -48,7 +48,7 @@ void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant) {
  * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
  * election outcome is known.
  **/
-SyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted) {
+ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted) {
   int i;
   SSyncRaftProgress* progress;
   int r, g;

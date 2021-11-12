@@ -25,6 +25,6 @@
  * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
  * quorum of no has been reached).
  **/
-SyncRaftVoteResult syncRaftMajorityVoteResult(SSyncCluster* config, const SyncRaftVoteResult* votes);
+ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncCluster* config, const ESyncRaftVoteResult* votes);
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_MAJORITY_H */
