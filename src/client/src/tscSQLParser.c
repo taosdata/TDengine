@@ -1837,19 +1837,30 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   char aliasName[TSDB_COL_NAME_LEN] = {0};
   getColumnName(pItem, aliasName, rawName, TSDB_COL_NAME_LEN);
 
+  tExprNode *pExpr = NULL;
+  uint64_t uid = 0;
+  int32_t ret = exprTreeFromSqlExpr(pCmd, &pExpr, pItem->pNode, pQueryInfo, NULL, &uid);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tExprTreeDestroy(pExpr, NULL);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
+  }
+
+  ret = exprTreeValidateTree(pExpr);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tExprTreeDestroy(pExpr, NULL);
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
   // the expr associated with the result field will become exprList1 in SQueryInfo, then pExpr2 in SQueryAttr
-  insertResultField(pQueryInfo, exprIndex, columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, aliasName, NULL);
+  insertResultField(pQueryInfo, exprIndex, columnList, pExpr->resultBytes, (int8_t)pExpr->resultType, aliasName, NULL);
 
   int32_t slot = tscNumOfFields(pQueryInfo) - 1;
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
   assert(pInfo->pExpr == NULL);
-
   SExprInfo* pExprInfo = calloc(1, sizeof(SExprInfo));
-
   // arithmetic expression always return result in the format of double float
-  pExprInfo->base.resBytes   = sizeof(double);
+  pExprInfo->base.resBytes   = pExpr->resultBytes;
   pExprInfo->base.interBytes = 0;
-  pExprInfo->base.resType    = TSDB_DATA_TYPE_DOUBLE;
+  pExprInfo->base.resType    = pExpr->resultType;
 
   pExprInfo->base.functionId = TSDB_FUNC_SCALAR_EXPR;
   pExprInfo->base.numOfParams = 1;
@@ -1857,19 +1868,9 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   strncpy(pExprInfo->base.aliasName, aliasName, tListLen(pExprInfo->base.aliasName));
   strncpy(pExprInfo->base.token, rawName, tListLen(pExprInfo->base.token));
 
-  int32_t ret = exprTreeFromSqlExpr(pCmd, &pExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &(pExprInfo->base.uid));
-  if (ret != TSDB_CODE_SUCCESS) {
-    tExprTreeDestroy(pExprInfo->pExpr, NULL);
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
-  }
-
+  pExprInfo->pExpr = pExpr;
+  pExprInfo->base.uid = uid;
   pInfo->pExpr = pExprInfo;
-  ret = exprTreeValidateTree(pExprInfo->pExpr);
-  if (ret != TSDB_CODE_SUCCESS) {
-    tExprTreeDestroy(pExprInfo->pExpr, NULL);
-    pExprInfo->pExpr = NULL;
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-  }
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
 
@@ -2608,9 +2609,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_DIFF:
     case TSDB_FUNC_DERIVATIVE:
     case TSDB_FUNC_CSUM:
-    case TSDB_FUNC_CEIL:
-    case TSDB_FUNC_FLOOR:
-    case TSDB_FUNC_ROUND:
     case TSDB_FUNC_STDDEV:
     case TSDB_FUNC_LEASTSQR: {
       // 1. valid the number of parameters
@@ -3683,10 +3681,6 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
 
     if (functionId == TSDB_FUNC_PRJ) {
       ++prjNum;
-    }
-
-    if (functionId == TSDB_FUNC_CEIL || functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND) {
-      ++scalarFuncNum;
     }
 
     if (TSDB_FUNC_IS_SCALAR(functionId)) {
@@ -6662,8 +6656,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     int32_t f = pExpr->base.functionId;
     if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) ||
         f == TSDB_FUNC_DIFF || f == TSDB_FUNC_SCALAR_EXPR || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
-        f == TSDB_FUNC_CEIL || f == TSDB_FUNC_FLOOR || f == TSDB_FUNC_ROUND)
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG)
     {
       isProjectionFunction = true;
       break;

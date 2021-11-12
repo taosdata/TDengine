@@ -70,15 +70,11 @@ extern "C" {
 #define TSDB_FUNC_TID_TAG      31
 #define TSDB_FUNC_DERIVATIVE   32
 
-#define TSDB_FUNC_CEIL         33
-#define TSDB_FUNC_FLOOR        34
-#define TSDB_FUNC_ROUND        35
+#define TSDB_FUNC_CSUM         33
+#define TSDB_FUNC_MAVG         34
+#define TSDB_FUNC_SAMPLE       35
 
-#define TSDB_FUNC_CSUM         36
-#define TSDB_FUNC_MAVG         37
-#define TSDB_FUNC_SAMPLE       38
-
-#define TSDB_FUNC_BLKINFO      39
+#define TSDB_FUNC_BLKINFO      36
 
 ///////////////////////////////////////////
 // the following functions is not implemented.

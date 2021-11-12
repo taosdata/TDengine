@@ -63,6 +63,7 @@ struct SSchema;
 #define TSDB_FUNC_SCALAR_CONCAT       (TSDB_FUNC_FLAG_SCALAR | 0x000D)
 #define TSDB_FUNC_SCALAR_LENGTH       (TSDB_FUNC_FLAG_SCALAR | 0x000E)
 #define TSDB_FUNC_SCALAR_MAX_NUM      15
+
 #define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
 
 typedef struct {

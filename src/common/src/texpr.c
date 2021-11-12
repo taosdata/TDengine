@@ -1258,7 +1258,7 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numIn
               SET_TYPED_DATA(outputData, pOutput->type, result);
             } else if (pInputs[0].type == TSDB_DATA_TYPE_DOUBLE) {
               double v = 0;
-              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              GET_TYPED_DATA(v, double, pInputs[0].type, inputData[0]);
               double result = ceil(v);
               SET_TYPED_DATA(outputData, pOutput->type, result);
             }
@@ -1278,7 +1278,7 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numIn
               SET_TYPED_DATA(outputData, pOutput->type, result);
             } else if (pInputs[0].type == TSDB_DATA_TYPE_DOUBLE) {
               double v = 0;
-              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              GET_TYPED_DATA(v, double, pInputs[0].type, inputData[0]);
               double result = floor(v);
               SET_TYPED_DATA(outputData, pOutput->type, result);
             }
@@ -1299,7 +1299,7 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numIn
               SET_TYPED_DATA(outputData, pOutput->type, result);
             } else if (pInputs[0].type == TSDB_DATA_TYPE_DOUBLE) {
               double v = 0;
-              GET_TYPED_DATA(v, float, pInputs[0].type, inputData[0]);
+              GET_TYPED_DATA(v, double, pInputs[0].type, inputData[0]);
               double result = round(v);
               SET_TYPED_DATA(outputData, pOutput->type, result);
             }
@@ -1310,9 +1310,9 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numIn
           assert(false);
           break;
         }
-      }
-    }
-  }
+      } // end switch function(id)
+    } // end can produce value, all child has value
+  } // end for each row
   free(inputData);
 }
 
@@ -1381,7 +1381,7 @@ tScalarFunctionInfo aScalarFunctions[] = {
     },
     {
         TSDB_FUNC_SCALAR_FLOOR,
-        "flooor",
+        "floor",
         vectorMathFunc,
     },
     {
