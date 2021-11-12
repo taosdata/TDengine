@@ -24,8 +24,7 @@
 一个典型的 DevOps 应用场景的系统整体的架构如下图（图1） 所示。
 
 ![IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](../../images/IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.jpg)
-
-$$图1. DevOps场景中典型架构$$
+<div align = center>图1. DevOps场景中典型架构</div>
 
 在该应用场景中，包含了部署在应用环境中负责收集机器度量（Metrics）、网络度量（Metrics）以及应用度量（Metrics）的 Agent 工具、汇聚agent收集信息的数据收集器，数据持久化存储和管理的系统以及监控数据可视化工具（例如：Grafana等）。
 
@@ -83,7 +82,7 @@ sudo systemctl start grafana-server
 
 ![](../../images/IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.jpg)
 
-<center>**图2. 导入Grafana模板**</center>
+<div align = center>图2. 导入Grafana模板</div>
 
 操作完以上步骤后，就完成了将OpenTSDB替换成为TDengine的迁移工作。可以看到整个流程非常简单，不需要写代码，只需要对某些配置文件进行调整即可完成全部的迁移工作。
 
@@ -97,7 +96,7 @@ sudo systemctl start grafana-server
 
 ![IT-DevOps-Solutions-Immigrate-TDengine-Arch](../../images/IT-DevOps-Solutions-Immigrate-TDengine-Arch.jpg)
 
-<center>**图3. 迁移完成后的系统架构**</center>
+<div align = center>图3. 迁移完成后的系统架构</div>
 
 ## 其他场景的迁移评估与策略
 
