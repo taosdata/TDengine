@@ -1,4 +1,4 @@
-# TDengine的运营与运维
+# TDengine的运营与维护
 
 ## <a class="anchor" id="planning"></a>容量规划
 
