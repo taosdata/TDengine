@@ -16,69 +16,56 @@
 #define _DEFAULT_SOURCE
 #include "mnodeInt.h"
 
-#define ACCT_VER 1
+#define SDB_ACCT_VER 1
 
 static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
-  SSdbRaw *pRaw = calloc(1, sizeof(SAcctObj) + sizeof(SSdbRaw));
-  if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, SDB_ACCT_VER, sizeof(SAcctObj));
+  if (pRaw == NULL) return NULL;
 
-  int32_t dataLen = 0;
-  char   *pData = pRaw->data;
-  SDB_SET_BINARY_VAL(pData, dataLen, pAcct->acct, TSDB_USER_LEN)
-  SDB_SET_INT64_VAL(pData, dataLen, pAcct->createdTime)
-  SDB_SET_INT64_VAL(pData, dataLen, pAcct->updateTime)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->acctId)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->status)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxUsers)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxDbs)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxTimeSeries)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.maxStreams)
-  SDB_SET_INT64_VAL(pData, dataLen, pAcct->cfg.maxStorage)
-  SDB_SET_INT32_VAL(pData, dataLen, pAcct->cfg.accessState)
+  int32_t dataPos = 0;
+  SDB_SET_BINARY(pRaw, dataPos, pAcct->acct, TSDB_USER_LEN)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->createdTime)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->updateTime)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->acctId)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->status)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxUsers)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxDbs)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTimeSeries)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams)
+  SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState)
+  SDB_SET_DATALEN(pRaw, dataPos);
 
-  pRaw->dataLen = dataLen;
-  pRaw->type = SDB_ACCT;
-  pRaw->sver = ACCT_VER;
   return pRaw;
 }
 
-static SAcctObj *mnodeAcctActionDecode(SSdbRaw *pRaw) {
-  if (pRaw->sver != ACCT_VER) {
+static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+
+  if (sver != SDB_ACCT_VER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
 
-  SAcctObj *pAcct = calloc(1, sizeof(SAcctObj));
-  if (pAcct == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSdbRow *pRow = sdbAllocRow(sizeof(SAcctObj));
+  SAcctObj *pAcct = sdbGetRowObj(pRow);
+  if (pAcct == NULL) return NULL;
+  
+  int32_t dataPos = 0;
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pAcct->acct, TSDB_USER_LEN)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pAcct->createdTime)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pAcct->updateTime)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->acctId)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->status)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.maxUsers)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.maxDbs)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.maxTimeSeries)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.maxStreams)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pAcct->cfg.maxStorage)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.accessState)
 
-  int32_t code = 0;
-  int32_t dataLen = pRaw->dataLen;
-  char   *pData = pRaw->data;
-  SDB_GET_BINARY_VAL(pData, dataLen, pAcct->acct, TSDB_USER_LEN, code)
-  SDB_GET_INT64_VAL(pData, dataLen, pAcct->createdTime, code)
-  SDB_GET_INT64_VAL(pData, dataLen, pAcct->updateTime, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->acctId, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->status, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxUsers, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxDbs, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxTimeSeries, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.maxStreams, code)
-  SDB_GET_INT64_VAL(pData, dataLen, pAcct->cfg.maxStorage, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pAcct->cfg.accessState, code)
-
-  if (code != 0) {
-    tfree(pAcct);
-    terrno = code;
-    return NULL;
-  }
-
-  return pAcct;
+  return pRow;
 }
 
 static int32_t mnodeAcctActionInsert(SAcctObj *pAcct) { return 0; }
@@ -106,9 +93,7 @@ static int32_t mnodeCreateDefaultAcct() {
                            .accessState = TSDB_VN_ALL_ACCCESS};
 
   SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
-  if (pRaw == NULL) {
-    return -1;
-  }
+  if (pRaw == NULL) return -1;
 
   return sdbWrite(pRaw);
 }

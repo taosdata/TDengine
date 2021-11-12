@@ -14,16 +14,25 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mnodeInt.h"
+#include "sdbInt.h"
 
-int32_t mnodeInitSync() { return 0; }
-void    mnodeCleanUpSync() {}
+SSdbRow *sdbAllocRow(int32_t objSize) {
+  SSdbRow *pRow = calloc(1, objSize + sizeof(SSdbRow));
+  if (pRow == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
-int32_t mnodeSyncPropose(SSdbRaw *pRaw, void *pData) {
-  trnApply(pData, pData, 0);
-  free(pData);
-  return 0;
+  return pRow;
 }
 
-bool mnodeIsMaster() { return true; }
+void *sdbGetRowObj(SSdbRow *pRow) {
+  if (pRow == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  return pRow->pObj;
+}
+
+void sdbFreeRow(SSdbRow *pRow) { free(pRow); }
