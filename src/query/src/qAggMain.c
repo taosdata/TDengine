@@ -28,6 +28,7 @@
 #include "qTsbuf.h"
 #include "queryLog.h"
 #include "qUdf.h"
+#include "tcompare.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
@@ -3937,18 +3938,28 @@ static void interp_function(SQLFunctionCtx *pCtx) {
         goto interp_exit;
       }
 
-      GET_TYPED_DATA(pCtx->start.val, double, pCtx->inputType, &pCtx->start.val);
-      GET_TYPED_DATA(pCtx->end.val, double, pCtx->inputType, &pCtx->end.val);
+      double v1 = -1, v2 = -1;
+      GET_TYPED_DATA(v1, double, pCtx->inputType, &pCtx->start.val);
+      GET_TYPED_DATA(v2, double, pCtx->inputType, &pCtx->end.val);
       
-      SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
-      SPoint point2 = {.key = pCtx->end.key, .val = &pCtx->end.val};
+      SPoint point1 = {.key = pCtx->start.key, .val = &v1};
+      SPoint point2 = {.key = pCtx->end.key, .val = &v2};
       SPoint point  = {.key = pCtx->startTs, .val = pCtx->pOutput};
 
       int32_t srcType = pCtx->inputType;
       if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
         setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
       } else {
-        taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+        bool exceedMax = false;
+        taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, &exceedMax);
+        if (exceedMax) {
+          __compar_fn_t func = getComparFunc((int32_t)pCtx->inputType, 0);
+          if (func(&pCtx->start.val, &pCtx->end.val) <= 0) {        
+            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->start.val);
+          } else {
+            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->end.val);
+          }
+        }
       }
       break;
 
