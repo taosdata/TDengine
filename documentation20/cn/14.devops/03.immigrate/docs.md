@@ -25,7 +25,7 @@
 
 ![IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](../../images/IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.jpg)
 
-<center>**图1. DevOps场景中典型架构**</center>
+$$图1. DevOps场景中典型架构$$
 
 在该应用场景中，包含了部署在应用环境中负责收集机器度量（Metrics）、网络度量（Metrics）以及应用度量（Metrics）的 Agent 工具、汇聚agent收集信息的数据收集器，数据持久化存储和管理的系统以及监控数据可视化工具（例如：Grafana等）。
 
