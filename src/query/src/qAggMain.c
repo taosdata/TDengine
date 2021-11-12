@@ -3950,14 +3950,14 @@ static void interp_function(SQLFunctionCtx *pCtx) {
       if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
         setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
       } else {
-        bool exceedMax = false;
-        taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, &exceedMax);
-        if (exceedMax) {
+        bool exceedMax = false, exceedMin = false;
+        taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, &exceedMax, &exceedMin);
+        if (exceedMax || exceedMin) {
           __compar_fn_t func = getComparFunc((int32_t)pCtx->inputType, 0);
           if (func(&pCtx->start.val, &pCtx->end.val) <= 0) {        
-            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->start.val);
+            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, exceedMax ? &pCtx->start.val : &pCtx->end.val);
           } else {
-            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->end.val);
+            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, exceedMax ? &pCtx->end.val : &pCtx->start.val);
           }
         }
       }

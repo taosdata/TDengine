@@ -1303,8 +1303,8 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
       SPoint point2 = (SPoint){.key = curTs,     .val = &v2};
       SPoint point  = (SPoint){.key = windowKey, .val = &v };
 
-      bool exceedMax = false;
-      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, &exceedMax);
+      bool exceedMax = false, exceedMin = false;
+      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, &exceedMax, &exceedMin);
 
       if (type == RESULT_ROW_START_INTERP) {
         pCtx[k].start.key = point.key;
