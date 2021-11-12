@@ -3470,7 +3470,8 @@ static int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
             case TSDB_DATA_TYPE_NCHAR:
                 tmpP = calloc(
                     1, MAX_SAMPLES * (((stbInfo) ? stbInfo->columns[c].dataLen
-                                                 : g_args.binwidth)));
+                                                 : g_args.binwidth) +
+                                      1));
                 assert(tmpP);
                 *(uintptr_t *)(sampleBindBatchArray + sizeof(uintptr_t *) * c) =
                     (uintptr_t)tmpP;
