@@ -66,26 +66,17 @@ SArguments     g_args = {
 };
 
 int main(int argc, char *argv[]) {
-    int32_t code = parse_args(argc, argv, &g_args);
-    if (code) {
-        errorPrint("%s() LN%d, parse_args() failed\n", __func__, __LINE__);
+    if (parse_args(argc, argv, &g_args)) {
         exit(EXIT_FAILURE);
     }
     debugPrint("meta file: %s\n", g_args.metaFile);
 
     if (g_args.metaFile) {
         g_totalChildTables = 0;
-
-        code = getInfoFromJsonFile(g_args.metaFile);
-        if (code) {
-            errorPrint("%s() LN%d, getInfoFromJsonFile(%s) failed\n", __func__,
-                       __LINE__, g_args.metaFile);
+        if (getInfoFromJsonFile(g_args.metaFile)) {
             exit(EXIT_FAILURE);
         }
-        code = testMetaFile();
-        if (code) {
-            errorPrint("%s() LN%d, testMetaFile() failed\n", __func__,
-                       __LINE__);
+        if (testMetaFile()) {
             exit(EXIT_FAILURE);
         }
     } else {
@@ -101,7 +92,6 @@ int main(int argc, char *argv[]) {
                                        g_Dbs.db[0].dbName, g_Dbs.port);
             querySqlFile(qtaos, g_args.sqlFile);
             taos_close(qtaos);
-
         } else {
             testCmdLine();
         }

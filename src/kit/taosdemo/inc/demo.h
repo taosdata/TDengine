@@ -183,11 +183,12 @@ extern char configDir[];
             fprintf(stderr, "PERF: " fmt, __VA_ARGS__); \
     } while (0)
 
-#define errorPrint(fmt, ...)                         \
-    do {                                             \
-        fprintf(stderr, " \033[31m");                \
-        fprintf(stderr, "ERROR: " fmt, __VA_ARGS__); \
-        fprintf(stderr, " \033[0m");                 \
+#define errorPrint(fmt, ...)                            \
+    do {                                                \
+        fprintf(stderr, "\033[31m");                    \
+        fprintf(stderr, "%s(%d) ", __FILE__, __LINE__); \
+        fprintf(stderr, "ERROR: " fmt, __VA_ARGS__);    \
+        fprintf(stderr, "\033[0m");                     \
     } while (0)
 
 enum TEST_MODE {

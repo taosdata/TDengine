@@ -674,7 +674,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         } else if (!quorum) {
             g_Dbs.db[i].dbCfg.quorum = 1;
         } else {
-            printf("failed to read json, quorum input mistake");
+            errorPrint("%s", "failed to read json, quorum input mistake");
             goto PARSE_OVER;
         }
 
@@ -1144,9 +1144,8 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                 goto PARSE_OVER;
             }
 
-            int retVal = getColumnAndTagTypeFromInsertJsonFile(
-                stbInfo, &g_Dbs.db[i].superTbls[j]);
-            if (false == retVal) {
+            if (getColumnAndTagTypeFromInsertJsonFile(
+                    stbInfo, &g_Dbs.db[i].superTbls[j])) {
                 goto PARSE_OVER;
             }
         }
@@ -1705,21 +1704,10 @@ int getInfoFromJsonFile(char *file) {
         memset(&g_Dbs, 0, sizeof(SDbs));
         g_Dbs.use_metric = g_args.use_metric;
         code = getMetaFromInsertJsonFile(root);
-        if (code) {
-            errorPrint("%s() LN%d, getMetaFromInsertJsonFile() failed\n",
-                       __func__, __LINE__);
-            goto PARSE_OVER;
-        }
-
     } else if ((QUERY_TEST == g_args.test_mode) ||
                (SUBSCRIBE_TEST == g_args.test_mode)) {
         memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
         code = getMetaFromQueryJsonFile(root);
-        if (code) {
-            errorPrint("%s() LN%d, getMetaFromQueryJsonFile() failed\n",
-                       __func__, __LINE__);
-            goto PARSE_OVER;
-        }
     } else {
         errorPrint("%s",
                    "input json file type error! please input correct file "

@@ -5534,26 +5534,17 @@ int insertTestProcess() {
     // create database and super tables
     char *cmdBuffer = calloc(1, BUFFER_SIZE);
     assert(cmdBuffer);
-    code = createDatabasesAndStables(cmdBuffer);
-    if (code) {
-        errorPrint("%s() LN%d, createDatabasesAndStables() failed\n", __func__,
-                   __LINE__);
+    if (createDatabasesAndStables(cmdBuffer)) {
         goto end_insert_process;
     }
 
     // pretreatment
-    code = prepareSampleData();
-    if (code) {
-        errorPrint("%s() LN%d, prepareSampleData() failed\n", __func__,
-                   __LINE__);
+    if (prepareSampleData()) {
         goto end_insert_process;
     }
 
     if (g_args.iface != SML_IFACE && g_totalChildTables > 0) {
-        code = createChildTables();
-        if (code) {
-            errorPrint("%s() LN%d, createChildTables() failed\n", __func__,
-                       __LINE__);
+        if (createChildTables()) {
             goto end_insert_process;
         }
     }
@@ -5566,14 +5557,9 @@ int insertTestProcess() {
                     SSuperTable *stbInfo = &g_Dbs.db[i].superTbls[j];
 
                     if (stbInfo && (stbInfo->insertRows > 0)) {
-                        code = startMultiThreadInsertData(
-                            g_Dbs.threadCount, g_Dbs.db[i].dbName,
-                            g_Dbs.db[i].dbCfg.precision, stbInfo);
-                        if (code) {
-                            errorPrint(
-                                "%s() LN%d, startMultiThreadInsertData failed "
-                                "for db %d stb %" PRIu64 "\n",
-                                __func__, __LINE__, i, j);
+                        if (startMultiThreadInsertData(
+                                g_Dbs.threadCount, g_Dbs.db[i].dbName,
+                                g_Dbs.db[i].dbCfg.precision, stbInfo)) {
                             goto end_insert_process;
                         }
                     }
@@ -5585,12 +5571,9 @@ int insertTestProcess() {
                 errorPrint("%s\n", "Schemaless insertion must include stable");
                 goto end_insert_process;
             } else {
-                code = startMultiThreadInsertData(
-                    g_Dbs.threadCount, g_Dbs.db[i].dbName,
-                    g_Dbs.db[i].dbCfg.precision, NULL);
-                if (code) {
-                    errorPrint("%s() LN%d, startMultiThreadInsertData failed\n",
-                               __func__, __LINE__);
+                if (startMultiThreadInsertData(
+                        g_Dbs.threadCount, g_Dbs.db[i].dbName,
+                        g_Dbs.db[i].dbCfg.precision, NULL)) {
                     goto end_insert_process;
                 }
             }
@@ -5598,8 +5581,5 @@ int insertTestProcess() {
     }
 end_insert_process:
     tmfree(cmdBuffer);
-    if (g_fpOfInsertResult) {
-        fclose(g_fpOfInsertResult);
-    }
     return code;
 }
