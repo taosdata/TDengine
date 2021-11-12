@@ -129,7 +129,7 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-Note TDengine 2.3.0.0 and later use a component named 'blm3' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The blm3 is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull blm3 source code. Please install go language 1.14 or above for compiling blm3. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
+Note TDengine 2.3.x.0 and later use a component named 'taosadapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosadapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosadapter source code. Please install go language 1.14 or above for compiling taosadapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct

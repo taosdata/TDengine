@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 #
 # Modified from original source: Elastic Search
 # https://github.com/elasticsearch/elasticsearch
@@ -25,7 +25,7 @@ GROUP="root"
 DAEMON="/usr/local/taos/bin/taosd"
 DAEMON_OPTS=""
 
-HTTPD_NAME="blm3"
+HTTPD_NAME="taosadapter"
 DAEMON_HTTPD_NAME=$HTTPD_NAME
 DAEMON_HTTPD="/usr/local/taos/bin/$HTTPD_NAME"
 

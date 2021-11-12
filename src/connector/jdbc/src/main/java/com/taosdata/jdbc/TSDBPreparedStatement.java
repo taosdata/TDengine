@@ -36,15 +36,15 @@ import java.util.regex.Pattern;
  * compatibility needs.
  */
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
+    // for jdbc preparedStatement interface
     private String rawSql;
     private Object[] parameters;
-
-    private ArrayList<ColumnInfo> colData;
+    // for parameter binding
+    private long nativeStmtHandle = 0;
+    private String tableName;
     private ArrayList<TableTagInfo> tableTags;
     private int tagValueLength;
-
-    private String tableName;
-    private long nativeStmtHandle = 0;
+    private ArrayList<ColumnInfo> colData;
 
     TSDBPreparedStatement(TSDBConnection connection, String sql) {
         super(connection);
@@ -71,10 +71,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         this.rawSql = sql;
         preprocessSql();
     }
-
-    /*
-     *
-     */
 
     /**
      * Some of the SQLs sent by other popular frameworks or tools like Spark, contains syntax that cannot be parsed by
@@ -250,13 +246,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isClosed()) {
+        if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        }
-
-        if (parameterIndex < 1 && parameterIndex >= parameters.length) {
+        if (parameterIndex < 1 && parameterIndex >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
-        }
         parameters[parameterIndex - 1] = x;
     }
 
@@ -335,7 +328,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        // TODO：
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -419,7 +411,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO:
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -477,7 +468,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-
     }
 
     @Override
@@ -496,7 +486,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     ///////////////////////////////////////////////////////////////////////
     // NOTE: the following APIs are not JDBC compatible
-    // set the bind table name
+    // parameter binding
     private static class ColumnInfo {
         @SuppressWarnings("rawtypes")
         private ArrayList data;
@@ -539,7 +529,11 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         }
     }
 
-    public void setTableName(String name) {
+    public void setTableName(String name) throws SQLException {
+        if (this.tableName != null) {
+            this.columnDataExecuteBatch();
+            this.columnDataClearBatchInternal();
+        }
         this.tableName = name;
     }
 
@@ -960,16 +954,21 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void columnDataExecuteBatch() throws SQLException {
         TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
         connector.executeBatch(this.nativeStmtHandle);
-        this.columnDataClearBatch();
+        this.columnDataClearBatchInternal();
     }
 
+    @Deprecated
     public void columnDataClearBatch() {
+        columnDataClearBatchInternal();
+    }
+
+    private void columnDataClearBatchInternal() {
         int size = this.colData.size();
         this.colData.clear();
-
         this.colData.addAll(Collections.nCopies(size, null));
         this.tableName = null;   // clear the table name
     }
+
 
     public void columnDataCloseBatch() throws SQLException {
         TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
@@ -977,5 +976,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
         this.nativeStmtHandle = 0L;
         this.tableName = null;
+    }
+
+    @Override
+    public void close() throws SQLException {
+        this.columnDataClearBatchInternal();
+        this.columnDataCloseBatch();
+        super.close();
     }
 }

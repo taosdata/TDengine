@@ -781,6 +781,16 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
   return isNull(((char*) pSql->res.urow[col]) + row * pInfo->field.bytes, pInfo->field.type);
 }
 
+bool taos_is_update_query(TAOS_RES *res) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_RESET_CACHE == pCmd->command || TSDB_SQL_USE_DB == pCmd->command);
+}
+
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int len = 0;
 
@@ -909,7 +919,6 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   strtolower(pSql->sqlstr, sql);
 
-//  pCmd->curSql = NULL;
   if (NULL != pCmd->insertParam.pTableBlockHashList) {
     taosHashCleanup(pCmd->insertParam.pTableBlockHashList);
     pCmd->insertParam.pTableBlockHashList = NULL;
@@ -932,6 +941,17 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   taos_free_result(pSql);
   return code;
+}
+
+void taos_reset_current_db(TAOS *taos) {
+  STscObj* pObj = (STscObj*) taos;
+  if (pObj == NULL || pObj->signature != pObj) {
+    return;
+  }
+
+  pthread_mutex_lock(&pObj->mutex);
+  memset(pObj->db, 0, tListLen(pObj->db));
+  pthread_mutex_unlock(&pObj->mutex);
 }
 
 void loadMultiTableMetaCallback(void *param, TAOS_RES *res, int code) {

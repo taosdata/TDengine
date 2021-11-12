@@ -123,7 +123,7 @@ HttpContext *httpCreateContext(SOCKET fd) {
 
   TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pContext;
   HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pContext,
-                                         sizeof(TSDB_CACHE_PTR_TYPE), 3000);
+                                         sizeof(TSDB_CACHE_PTR_TYPE), tsHttpKeepAlive);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 

@@ -2460,7 +2460,7 @@ bool isQueryKilled(SQInfo *pQInfo) {
 
   // query has been executed more than tsShellActivityTimer, and the retrieve has not arrived
   // abort current query execution.
-  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->startExecTs/1000) > getMaximumIdleDurationSec()) &&
+  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->lastRetrieveTs/1000) > getMaximumIdleDurationSec()) &&
       (!needBuildResAfterQueryComplete(pQInfo))) {
 
     assert(pQInfo->startExecTs != 0);
@@ -4254,7 +4254,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
   int32_t start = 0;
   int32_t step = -1;
 
-  qDebug("QInfo:0x%"PRIx64" start to copy data from windowResInfo to output buf", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" start to copy data from resultrowInfo to output buf", GET_QID(pRuntimeEnv));
   assert(orderType == TSDB_ORDER_ASC || orderType == TSDB_ORDER_DESC);
 
   if (orderType == TSDB_ORDER_ASC) {
@@ -4370,31 +4370,16 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     compSizes = tcalloc(numOfCols, sizeof(int32_t));
   }
 
-  if (pQueryAttr->pExpr2 == NULL) {
-    for (int32_t col = 0; col < numOfCols; ++col) {
-      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      if (compressed) {
-        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, data, compressed);
-        data += compSizes[col];
-        *compLen += compSizes[col];
-        compSizes[col] = htonl(compSizes[col]);
-      } else {
-        memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
-        data += pColRes->info.bytes * pRes->info.rows;
-      }
-    }
-  } else {
-    for (int32_t col = 0; col < numOfCols; ++col) {
-      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      if (compressed) {
-        compSizes[col] = htonl(compressQueryColData(pColRes, numOfRows, data, compressed));
-        data += compSizes[col];
-        *compLen += compSizes[col];
-        compSizes[col] = htonl(compSizes[col]);
-      } else {
-        memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
-        data += pColRes->info.bytes * numOfRows;
-      }
+  for (int32_t col = 0; col < numOfCols; ++col) {
+    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
+    if (compressed) {
+      compSizes[col] = compressQueryColData(pColRes, numOfRows, data, compressed);
+      data += compSizes[col];
+      *compLen += compSizes[col];
+      compSizes[col] = htonl(compSizes[col]);
+    } else {
+      memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
+      data += pColRes->info.bytes * numOfRows;
     }
   }
 
@@ -5258,7 +5243,6 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
   pInfo->reverseTimes = 0;
   pInfo->order        = pRuntimeEnv->pQueryAttr->order.order;
   pInfo->current      = 0;
-//  pInfo->prevGroupId  = -1;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableScanOperator";

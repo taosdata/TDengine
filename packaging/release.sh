@@ -151,7 +151,7 @@ function vercomp () {
 }
 
 # 1. check version information
-if (( ! is_valid_version $verNumber ) || ( ! is_valid_version $verNumberComp ) || [[ "$(vercomp $verNumber $verNumberComp)" == '2' ]]); then
+if ( ( ! is_valid_version $verNumber ) || ( ! is_valid_version $verNumberComp ) || [[ "$(vercomp $verNumber $verNumberComp)" == '2' ]] ); then
   echo "please enter correct version"
   exit 0
 fi
@@ -213,7 +213,7 @@ else
   exit 1
 fi
 
-make -j8
+make -j8 && ${csudo} make install
 
 cd ${curr_dir}
 
