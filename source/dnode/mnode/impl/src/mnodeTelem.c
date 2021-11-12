@@ -17,6 +17,7 @@
 #include "mnodeTelem.h"
 #include "tbuffer.h"
 #include "tglobal.h"
+#include "mnodeSync.h"
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT 80
@@ -255,7 +256,7 @@ static void* mnodeTelemThreadFp(void* param) {
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
-    if (mnodeGetStatus() == MN_STATUS_READY) {
+    if (mnodeIsMaster()) {
       mnodeSendTelemetryReport();
     }
     end.tv_sec += REPORT_INTERVAL;
