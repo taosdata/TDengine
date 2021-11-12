@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 #include "tglobal.h"
+#include "tchecksum.h"
 
 static int32_t sdbCreateDir() {
   mDebug("start to create mnode at %s", tsMnodeDir);
@@ -56,10 +57,6 @@ static int32_t sdbRunDeployFp() {
   return 0;
 }
 
-static int32_t sdbWriteVersion(FileFd fd) { return 0; }
-
-static int32_t sdbReadVersion(FileFd fd) { return 0; }
-
 static int32_t sdbReadDataFile() {
   SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
   if (pRaw == NULL) {
@@ -71,6 +68,7 @@ static int32_t sdbReadDataFile() {
   snprintf(file, sizeof(file), "%ssdb.data", tsSdb.currDir);
   FileFd fd = taosOpenFileCreateWrite(file);
   if (fd <= 0) {
+    free(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to open file:%s for read since %s", file, terrstr());
     return -1;
@@ -90,7 +88,27 @@ static int32_t sdbReadDataFile() {
     }
 
     if (ret < sizeof(SSdbRaw)) {
-      code = TSDB_CODE_SDB_APP_ERROR;
+      code = TSDB_CODE_FILE_CORRUPTED;
+      mError("failed to read file:%s since %s", file, tstrerror(code));
+      break;
+    }
+
+    ret = taosReadFile(fd, pRaw->pData, pRaw->dataLen + sizeof(int32_t));
+    if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      mError("failed to read file:%s since %s", file, tstrerror(code));
+      break;
+    }
+
+    if (ret < pRaw->dataLen + sizeof(int32_t)) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      mError("failed to read file:%s since %s", file, tstrerror(code));
+      break;
+    }
+
+    uint32_t cksum = *(int32_t *)(pRaw->pData + pRaw->dataLen);
+    if (!taosCheckChecksumWhole(pRaw, sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t)) != 0) {
+      code = TSDB_CODE_CHECKSUM_ERROR;
       mError("failed to read file:%s since %s", file, tstrerror(code));
       break;
     }
@@ -106,6 +124,7 @@ static int32_t sdbReadDataFile() {
 
 PARSE_SDB_DATA_ERROR:
   taosCloseFile(fd);
+  sdbFreeRaw(pRaw);
   terrno = code;
   return code;
 }
@@ -134,10 +153,19 @@ static int32_t sdbWriteDataFile() {
     SSdbRow *pRow = taosHashIterate(hash, NULL);
     while (pRow != NULL) {
       if (pRow->status != SDB_STATUS_READY) continue;
-      
+
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {
-        taosWriteFile(fd, pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
+        int32_t writeLen = sizeof(SSdbRaw) + pRaw->dataLen;
+        if (taosWriteFile(fd, pRaw, writeLen) != writeLen) {
+          code = TAOS_SYSTEM_ERROR(terrno);
+          break;
+        }
+        int32_t cksum = taosCalcChecksum(0, pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
+        if (taosWriteFile(fd, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
+          code = TAOS_SYSTEM_ERROR(terrno);
+          break;
+        }
       } else {
         taosHashCancelIterate(hash, pRow);
         code = TSDB_CODE_SDB_APP_ERROR;
@@ -147,10 +175,6 @@ static int32_t sdbWriteDataFile() {
       pRow = taosHashIterate(hash, pRow);
     }
     taosWUnLockLatch(pLock);
-  }
-
-  if (code == 0) {
-    code = sdbWriteVersion(fd);
   }
 
   taosCloseFile(fd);

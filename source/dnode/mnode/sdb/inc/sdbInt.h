@@ -41,7 +41,6 @@ typedef struct SSdbRaw {
   int8_t  sver;
   int8_t  status;
   int8_t  reserved;
-  int32_t cksum;
   int32_t dataLen;
   char    pData[];
 } SSdbRaw;
