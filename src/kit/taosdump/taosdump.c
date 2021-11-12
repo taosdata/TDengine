@@ -48,7 +48,6 @@ static void print_json_aux(json_t *element, int indent);
 #define MAX_PATH_LEN            4096            // max path length on linux is 4095
 #define COMMAND_SIZE            65536
 #define MAX_RECORDS_PER_REQ     32766
-//#define DEFAULT_DUMP_FILE "taosdump.sql"
 
 // for strncpy buffer overflow
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -1701,7 +1700,8 @@ static int convertTbDesToJson(
                 pstr += sprintf(pstr,
                     "{\"name\":\"%s\",\"type\":\"%s\"",
                     tableDes->cols[i].field,
-                    strtolower(tableDes->cols[i].type, tableDes->cols[i].type));
+                    strtolower(tableDes->cols[i].type,
+                        tableDes->cols[i].type));
             }
         }
         if ((i != (colCount -1))
@@ -1715,7 +1715,8 @@ static int convertTbDesToJson(
 
     pstr += sprintf(pstr, "]}");
 
-    debugPrint("%s() LN%d, jsonSchema:\n %s\n", __func__, __LINE__, *jsonSchema);
+    debugPrint("%s() LN%d, jsonSchema:\n %s\n",
+            __func__, __LINE__, *jsonSchema);
 
     return 0;
 }
@@ -1992,7 +1993,6 @@ static int64_t writeResultToAvro(
         TAOS_RES *res)
 {
     avro_schema_t schema;
-//    if (avro_schema_from_json_literal(jsonSchema, &schema)) {
     if (avro_schema_from_json_length(jsonSchema, strlen(jsonSchema), &schema)) {
         errorPrint("%s() LN%d, Unable to parse:\n%s \nto schema\nerror message: %s\n",
                 __func__, __LINE__, jsonSchema, avro_strerror());
@@ -2000,7 +2000,7 @@ static int64_t writeResultToAvro(
     }
 
     json_t *json_root = load_json(jsonSchema);
-    debugPrint("\n%s() LN%d\n *** Schema parsed:\n", __func__, __LINE__);
+    debugPrint("\n%s() LN%d\n === Schema parsed:\n", __func__, __LINE__);
 
     RecordSchema *recordSchema;
     if (json_root) {
@@ -2114,7 +2114,6 @@ static int64_t writeResultToAvro(
                     break;
 
                 case TSDB_DATA_TYPE_BINARY:
-
                     if (NULL != row[col]) {
                         avro_value_set_branch(&value, 1, &branch);
                         avro_value_set_string(&branch, (char *)row[col]);
@@ -2126,11 +2125,12 @@ static int64_t writeResultToAvro(
 
                 case TSDB_DATA_TYPE_NCHAR:
                     if (NULL == row[col]) {
-                        avro_value_set_bytes(&value,
-                                (void*)TSDB_DATA_NCHAR_NULL,0);
+                        avro_value_set_branch(&value, 0, &branch);
+                        avro_value_set_null(&branch);
                     } else {
+                        avro_value_set_branch(&value, 1, &branch);
                         len = strlen((char*)row[col]);
-                        avro_value_set_bytes(&value, (void*)(row[col]),len);
+                        avro_value_set_bytes(&branch, (void*)(row[col]),len);
                     }
                     break;
 
@@ -2212,7 +2212,7 @@ static int64_t dumpInOneAvroFile(char* fcharset,
     debugPrint("Schema:\n  %s\n", jsonbuf);
 
     json_t *json_root = load_json(jsonbuf);
-    debugPrint("\n%s() LN%d\n *** Schema parsed:\n", __func__, __LINE__);
+    debugPrint("\n%s() LN%d\n === Schema parsed:\n", __func__, __LINE__);
     if (g_args.debug_print) {
         print_json(json_root);
     }
@@ -2434,8 +2434,11 @@ static int64_t dumpInOneAvroFile(char* fcharset,
                     size_t bytessize;
                     void *bytesbuf = NULL;
 
-                    avro_value_get_bytes(&field_value, (const void **)&bytesbuf, &bytessize);
-                    if ((void *)TSDB_DATA_NCHAR_NULL == bytesbuf) {
+                    avro_value_t nchar_branch;
+                    avro_value_get_current_branch(&field_value, &nchar_branch);
+
+                    avro_value_get_bytes(&nchar_branch, (const void **)&bytesbuf, &bytessize);
+                    if (NULL == bytesbuf) {
                         debugPrint("%s | ", "NULL");
                         bind->is_null = &is_null;
                     } else {
@@ -3049,12 +3052,7 @@ static int checkParam() {
             return -1;
         }
     }
-    /*
-       if (g_args.isDumpIn && (strcmp(g_args.outpath, DEFAULT_DUMP_FILE) != 0)) {
-       fprintf(stderr, "duplicate parameter input and output file path\n");
-       return -1;
-       }
-       */
+
     if (!g_args.isDumpIn && g_args.encode != NULL) {
         fprintf(stderr, "invalid option in dump out\n");
         return -1;
@@ -3317,7 +3315,7 @@ static void* dumpInSqlWorkThreadFp(void *arg)
             pThread->success += rows;
             okPrint("[%d] Total %"PRId64" rows be successfully dumped in file: %s\n",
                     pThread->threadIndex, rows, sqlFile);
-        } else {
+        } else if (rows < 0) {
             pThread->failed += rows;
             errorPrint("[%d] Total %"PRId64" rows failed to dump in file: %s\n",
                     pThread->threadIndex, rows, sqlFile);
@@ -3437,7 +3435,7 @@ static int dumpInDbs()
     if(rows > 0) {
         okPrint("Total %"PRId64" lines be successfully dumped in file: %s!\n",
                 rows, dbsSql);
-    } else {
+    } else if (rows < 0) {
         errorPrint("Total %"PRId64" lines failed to dump in file: %s!\n",
                 rows, dbsSql);
     }
@@ -3809,8 +3807,6 @@ static int dumpOut() {
     }
 
     /* --------------------------------- Main Code -------------------------------- */
-    /* if (g_args.databases || g_args.all_databases) { // dump part of databases or all databases */
-    /*  */
     dumpCharset(fp);
 
     sprintf(command, "show databases");
@@ -3826,20 +3822,19 @@ static int dumpOut() {
     TAOS_FIELD *fields = taos_fetch_fields(result);
 
     while ((row = taos_fetch_row(result)) != NULL) {
-        // sys database name : 'log', but subsequent version changed to 'log'
         if ((strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
                         fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
                 && (!g_args.allow_sys)) {
             continue;
         }
 
-        if (g_args.databases) {  // input multi dbs
+        if (g_args.databases) {
             if (inDatabasesSeq(
                         (char *)row[TSDB_SHOW_DB_NAME_INDEX],
                         fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0) {
                 continue;
             }
-        } else if (!g_args.all_databases) {  // only input one db
+        } else if (!g_args.all_databases) {
             if (strncasecmp(g_args.arg_list[0],
                         (char *)row[TSDB_SHOW_DB_NAME_INDEX],
                         fields[TSDB_SHOW_DB_NAME_INDEX].bytes) != 0)
@@ -3872,9 +3867,7 @@ static int dumpOut() {
             tstrncpy(g_dbInfos[count]->keeplist,
                     (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
                     min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes + 1));
-            //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
-            //g_dbInfos[count]->daysToKeep1;
-            //g_dbInfos[count]->daysToKeep2;
+
             g_dbInfos[count]->cache =
                 *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
             g_dbInfos[count]->blocks =
@@ -3914,7 +3907,8 @@ static int dumpOut() {
         goto _exit_failure;
     }
 
-    if (g_args.databases || g_args.all_databases) { // case: taosdump --databases dbx,dby ...   OR  taosdump --all-databases
+    // case: taosdump --databases dbx,dby ...   OR  taosdump --all-databases
+    if (g_args.databases || g_args.all_databases) {
         for (int i = 0; i < count; i++) {
             int64_t records = 0;
             records = dumpWholeDatabase(g_dbInfos[i], fp);
@@ -4006,7 +4000,6 @@ int main(int argc, char *argv[]) {
     /* Parse our arguments; every option seen by parse_opt will be
        reflected in arguments. */
     if (argc > 1) {
-//        parse_precision_first(argc, argv, &g_args);
         parse_timestamp(argc, argv, &g_args);
         parse_args(argc, argv, &g_args);
     }
@@ -4174,3 +4167,4 @@ int main(int argc, char *argv[]) {
 
     return ret;
 }
+
