@@ -16,11 +16,16 @@
 #ifndef _TD_TSDB_MEM_TABLE_H_
 #define _TD_TSDB_MEM_TABLE_H_
 
+#include "tsdb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SMemTable SMemTable;
+typedef struct SMemTable {
+  /* TODO */
+  SMemAllocator *pma;
+} SMemTable;
 
 #ifdef __cplusplus
 }
