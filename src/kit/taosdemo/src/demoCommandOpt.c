@@ -1419,7 +1419,42 @@ void setParaFromArg() {
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, type,
                          min(DATATYPE_BUFF_LEN, strlen(type) + 1));
             } else {
-                g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
+                switch (g_Dbs.db[0].superTbls[0].columns[i].data_type) {
+                    case TSDB_DATA_TYPE_BOOL:
+                    case TSDB_DATA_TYPE_UTINYINT:
+                    case TSDB_DATA_TYPE_TINYINT:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            sizeof(char);
+                        break;
+                    case TSDB_DATA_TYPE_SMALLINT:
+                    case TSDB_DATA_TYPE_USMALLINT:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            sizeof(int16_t);
+                        break;
+                    case TSDB_DATA_TYPE_INT:
+                    case TSDB_DATA_TYPE_UINT:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            sizeof(int32_t);
+                        break;
+                    case TSDB_DATA_TYPE_TIMESTAMP:
+                    case TSDB_DATA_TYPE_BIGINT:
+                    case TSDB_DATA_TYPE_UBIGINT:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            sizeof(int64_t);
+                        break;
+                    case TSDB_DATA_TYPE_FLOAT:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            sizeof(float);
+                        break;
+                    case TSDB_DATA_TYPE_DOUBLE:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            sizeof(double);
+                        break;
+                    default:
+                        g_Dbs.db[0].superTbls[0].columns[i].dataLen =
+                            g_args.binwidth;
+                        break;
+                }
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                          dataType[i],
                          min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
