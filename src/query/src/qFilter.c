@@ -1996,6 +1996,10 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint32_t colI
       filterAddUnitRange(info, u, ctx, TSDB_RELATION_AND);
       CHK_JMP(MR_EMPTY_RES(ctx));
     }
+    if(FILTER_UNIT_OPTR(u) == TSDB_RELATION_EQUAL && !FILTER_NO_MERGE_DATA_TYPE(FILTER_UNIT_DATA_TYPE(u))){
+      gRes->colInfo[colIdx].optr = TSDB_RELATION_EQUAL;
+      SIMPLE_COPY_VALUES(&gRes->colInfo[colIdx].value, FILTER_UNIT_VAL_DATA(info, u));
+    }
   }
 
   taosArrayDestroy(colArray);
@@ -2110,6 +2114,15 @@ void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool
       if (FILTER_NO_MERGE_DATA_TYPE(gRes1->colInfo[idx1].dataType)) {
         *conflict = true;
         return;
+      }
+
+      // for long in operation
+      if (gRes1->colInfo[idx1].optr == TSDB_RELATION_EQUAL && gRes2->colInfo[idx2].optr == TSDB_RELATION_EQUAL) {
+        SFilterRangeCtx* ctx = gRes1->colInfo[idx1].info;
+        if (ctx->pCompareFunc(&gRes1->colInfo[idx1].value, &gRes2->colInfo[idx2].value)){
+          *conflict = true;
+          return;
+        }
       }
       
       ++n;
