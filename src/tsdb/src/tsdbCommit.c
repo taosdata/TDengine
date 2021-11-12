@@ -229,7 +229,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   SBlockIdx *pBlkIdx;
   size_t     nidx = taosArrayGetSize(pIdxA);
   int        tlen = 0, size;
-  int64_t    offset;
+  int64_t    offset = 0;
 
   if (nidx <= 0) {
     // All data are deleted
@@ -1186,7 +1186,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
     return -1;
   }
 
-  uint32_t aggrStatus = ((nColsNotAllNull > 0) && (rowsToWrite > 8)) ? 1 : 0;  // TODO: How to make the decision?
+  uint32_t aggrStatus = nColsNotAllNull > 0 ? 1 : 0;
   if (aggrStatus > 0) {
 
     taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);

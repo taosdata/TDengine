@@ -41,7 +41,7 @@ ELSE ()
         COMMAND     git clean -f -d
     BUILD_COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -ldflags "-s -w -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
     INSTALL_COMMAND
-        COMMAND curl -sL https://github.com/upx/upx/releases/download/v3.96/upx-3.96-amd64_linux.tar.xz -o upx.tar.xz && tar xvJf upx.tar.xz --strip-components 1 && ./upx taosadapter
+        COMMAND curl -sL https://github.com/upx/upx/releases/download/v3.96/upx-3.96-amd64_linux.tar.xz -o upx.tar.xz && tar xvJf upx.tar.xz --strip-components 1 > /dev/null && ./upx taosadapter || :
         COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
         COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
         COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
