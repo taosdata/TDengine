@@ -166,7 +166,7 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_TID_TAG) {
+    if (functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_TID_TAG && functId != TSDB_FUNC_BLKINFO) {
       return false;
     }
   }
