@@ -375,7 +375,7 @@ for any corresponding short options.\n\
 Report bugs to <support@taosdata.com>.\n");
 }
 
-int printfInsertMeta() {
+void printfInsertMeta() {
     setupForAnsiEscape();
     SHOW_PARSE_RESULT_START();
 
@@ -481,7 +481,6 @@ int printfInsertMeta() {
             } else {
                 printf("\033[1m\033[40;31m  precision error:       %s\033[0m\n",
                        g_Dbs.db[i].dbCfg.precision);
-                return -1;
             }
         }
 
@@ -635,7 +634,6 @@ int printfInsertMeta() {
 
     SHOW_PARSE_RESULT_END();
     resetAfterAnsiEscape();
-    return 0;
 }
 
 void printfInsertMetaToFile(FILE *fp) {

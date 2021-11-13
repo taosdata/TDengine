@@ -591,7 +591,7 @@ void  setupForAnsiEscape(void);
 int   taosRandom();
 int   testMetaFile();
 int   insertTestProcess();
-int   printfInsertMeta();
+void  printfInsertMeta();
 void  printfInsertMetaToFile(FILE *fp);
 void  prompt();
 void  postFreeResource();

@@ -2808,8 +2808,7 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, char *tableName,
         param->buffer_type = data_type;
         param->length = calloc(1, sizeof(int32_t) * thisBatch);
         if (param->length == NULL) {
-            errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                       sizeof(int32_t) * thisBatch);
+            errorPrint("%s", "failed to allocate memory\n");
             return -1;
         }
 
@@ -4542,9 +4541,13 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
 
 int insertTestProcess() {
     int32_t code = -1;
-    if (printfInsertMeta()) {
+    char *  cmdBuffer = calloc(1, BUFFER_SIZE);
+    if (NULL == cmdBuffer) {
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_insert_process;
     }
+
+    printfInsertMeta();
 
     debugPrint("%d result file: %s\n", __LINE__, g_Dbs.resultFile);
     g_fpOfInsertResult = fopen(g_Dbs.resultFile, "a");
@@ -4564,11 +4567,7 @@ int insertTestProcess() {
     }
 
     // create database and super tables
-    char *cmdBuffer = calloc(1, BUFFER_SIZE);
-    if (NULL == cmdBuffer) {
-        errorPrint("%s", "failed to allocate memory\n");
-        goto end_insert_process;
-    }
+
     if (createDatabasesAndStables(cmdBuffer)) {
         goto end_insert_process;
     }
