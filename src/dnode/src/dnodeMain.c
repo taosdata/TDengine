@@ -54,7 +54,7 @@ void    moduleStop() {}
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
-static int32_t tsDnodeErrors;
+static int32_t tsDnodeErrors = 0;
 
 static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();

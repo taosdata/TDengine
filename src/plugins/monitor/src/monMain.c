@@ -641,6 +641,10 @@ static int32_t monBuildMonIntervalSql(char *sql) {
 static int32_t monBuildDnodesTotalSql(char *sql) {
   int32_t totalDnodes = 0, totalDnodesAlive = 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show dnodes");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show dnodes, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -666,6 +670,10 @@ static int32_t monBuildDnodesTotalSql(char *sql) {
 static int32_t monBuildMnodesTotalSql(char *sql) {
   int32_t totalMnodes = 0, totalMnodesAlive= 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show mnodes");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show mnodes, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW row;
   int32_t     num_fields = taos_num_fields(result);
@@ -696,6 +704,10 @@ static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
   memset(subsql, 0, sizeof(subsql));
   sprintf(subsql, "show %s.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show %s.vgroups, reason:%s", dbName, tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -720,6 +732,10 @@ static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
 static int32_t monBuildVgroupsTotalSql(char *sql) {
   int32_t totalVgroups = 0, totalVgroupsAlive = 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show databases");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show databases, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -745,6 +761,10 @@ static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
   memset(subsql, 0, sizeof(subsql));
   sprintf(subsql, "show vnodes \"%s\"", ep);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show vnodes \"%s\", reason:%s", ep, tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -770,6 +790,10 @@ static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
 static int32_t monBuildVnodesTotalSql(char *sql) {
   int32_t totalVnodes = 0, totalVnodesAlive = 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show dnodes");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show dnodes, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -793,6 +817,11 @@ static int32_t monBuildConnsTotalSql(char *sql) {
   int32_t totalConns = 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show connections");
   TAOS_ROW    row;
+
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show connections, reason:%s", tstrerror(code));
+  }
 
   while ((row = taos_fetch_row(result))) {
     totalConns++;
