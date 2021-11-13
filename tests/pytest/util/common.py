@@ -33,13 +33,21 @@ class TDCom:
     def restApiPost(self, sql):
         requests.post(self.preDefine()[1], sql.encode("utf-8"), headers = self.preDefine()[0])
 
-    def createDb(self, dbname="test", db_update_tag=0):
-        if db_update_tag == 0:
-            self.restApiPost(f"drop database if exists {dbname}")
-            self.restApiPost(f"create database if not exists {dbname} precision 'us'")
-        else:
-            self.restApiPost(f"drop database if exists {dbname}")
-            self.restApiPost(f"create database if not exists {dbname} precision 'us' update 1")
+    def createDb(self, dbname="test", db_update_tag=0, api_type="taosc"):
+        if api_type == "taosc":
+            if db_update_tag == 0:
+                tdSql.execute(f"drop database if exists {dbname}")
+                tdSql.execute(f"create database if not exists {dbname} precision 'us'")
+            else:
+                tdSql.execute(f"drop database if exists {dbname}")
+                tdSql.execute(f"create database if not exists {dbname} precision 'us' update 1")
+        elif api_type == "restful":
+            if db_update_tag == 0:
+                self.restApiPost(f"drop database if exists {dbname}")
+                self.restApiPost(f"create database if not exists {dbname} precision 'us'")
+            else:
+                self.restApiPost(f"drop database if exists {dbname}")
+                self.restApiPost(f"create database if not exists {dbname} precision 'us' update 1")
         tdSql.execute(f'use {dbname}')
 
     def genUrl(self, url_type, dbname, precision):
@@ -58,7 +66,7 @@ class TDCom:
         if url_type == "influxdb":
             url = self.genUrl(url_type, dbname, precision)
         elif url_type == "telnet":
-            url = self.genUrl(url_type, dbname)
+            url = self.genUrl(url_type, dbname, precision)
         res = requests.post(url, sql.encode("utf-8"), headers = self.preDefine()[0])
         return res
 
