@@ -55,6 +55,7 @@ static int32_t sdbInsertRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
   if (pDstRow != NULL) {
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
     taosWUnLockLatch(pLock);
+    sdbFreeRow(pRow);
     return -1;
   }
 
@@ -64,6 +65,7 @@ static int32_t sdbInsertRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosWUnLockLatch(pLock);
+    sdbFreeRow(pRow);
     return -1;
   }
 
@@ -75,6 +77,7 @@ static int32_t sdbInsertRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
       taosWLockLatch(pLock);
       taosHashRemove(hash, pRow->pObj, keySize);
       taosWUnLockLatch(pLock);
+      sdbFreeRow(pRow);
       return -1;
     }
   }
@@ -98,11 +101,10 @@ static int32_t sdbUpdateRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
 
   SdbUpdateFp updateFp = tsSdb.updateFps[pRow->sdb];
   if (updateFp != NULL) {
-    if ((*updateFp)(pRow->pObj, pDstRow->pObj) != 0) {
-      return -1;
-    }
+    (*updateFp)(pRow->pObj, pDstRow->pObj);
   }
 
+  sdbFreeRow(pRow);
   return 0;
 }
 
@@ -111,23 +113,25 @@ static int32_t sdbDeleteRow(SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_
   taosWLockLatch(pLock);
 
   SSdbRow **ppDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (ppDstRow == NULL || *ppDstRow) {
+  if (ppDstRow == NULL || *ppDstRow == NULL) {
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
     taosWUnLockLatch(pLock);
+    sdbFreeRow(pRow);
     return -1;
   }
   SSdbRow *pDstRow = *ppDstRow;
 
-  pRow->status = pRaw->status;
-  taosHashRemove(hash, pRow->pObj, keySize);
+  pDstRow->status = pRaw->status;
+  taosHashRemove(hash, pDstRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
-  SdbDeleteFp deleteFp = tsSdb.deleteFps[pRow->sdb];
+  SdbDeleteFp deleteFp = tsSdb.deleteFps[pDstRow->sdb];
   if (deleteFp != NULL) {
-    (void)(*deleteFp)(pRow->pObj);
+    (void)(*deleteFp)(pDstRow->pObj);
   }
 
-  sdbRelease(pRow->pObj);
+  sdbRelease(pDstRow->pObj);
+  sdbFreeRow(pRow);
   return 0;
 }
 
@@ -163,11 +167,7 @@ int32_t sdbWriteImp(SSdbRaw *pRaw) {
       break;
   }
 
-  if (code != 0) {
-    sdbFreeRow(pRow);
-  }
-
-  return 0;
+  return code;
 }
 
 int32_t sdbWrite(SSdbRaw *pRaw) {

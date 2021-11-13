@@ -138,7 +138,7 @@ static int32_t mnodeAllocStartSteps() {
   if (steps == NULL) return -1;
 
   taosStepAdd(steps, "mnode-timer", mnodeInitTimer, NULL);
-  taosStepAdd(steps, "mnode-sdb-file", sdbRead, (CleanupFp)sdbCommit);
+  taosStepAdd(steps, "mnode-sdb-file", sdbOpen, sdbClose);
   taosStepAdd(steps, "mnode-balance", mnodeInitBalance, mnodeCleanupBalance);
   taosStepAdd(steps, "mnode-profile", mnodeInitProfile, mnodeCleanupProfile);
   taosStepAdd(steps, "mnode-show", mnodeInitShow, mnodeCleanUpShow);

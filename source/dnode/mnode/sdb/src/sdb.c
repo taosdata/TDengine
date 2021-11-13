@@ -58,10 +58,6 @@ int32_t sdbInit() {
 }
 
 void sdbCleanup() {
-  if (tsSdb.curVer != tsSdb.lastCommitVer) {
-    sdbCommit();
-  }
-
   if (tsSdb.currDir != NULL) {
     tfree(tsSdb.currDir);
   }

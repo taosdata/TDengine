@@ -211,7 +211,7 @@ static int32_t sdbWriteDataFile() {
   return code;
 }
 
-int32_t sdbRead() {
+int32_t sdbOpen() {
   mDebug("start to read mnode file");
 
   if (sdbReadDataFile() != 0) {
@@ -221,9 +221,18 @@ int32_t sdbRead() {
   return 0;
 }
 
-int32_t sdbCommit() {
-  mDebug("start to write mnode file");
-  return sdbWriteDataFile();
+void sdbClose() {
+  if (tsSdb.curVer != tsSdb.lastCommitVer) {
+    mDebug("start to write mnode file");
+    sdbWriteDataFile();
+  }
+
+  for (int32_t i = 0; i < SDB_MAX; ++i) {
+    SHashObj *hash = tsSdb.hashObjs[i];
+    if (hash != NULL) {
+      taosHashClear(hash);
+    }
+  }
 }
 
 int32_t sdbDeploy() {
@@ -235,10 +244,11 @@ int32_t sdbDeploy() {
     return -1;
   }
 
-  if (sdbCommit() != 0) {
+  if (sdbWriteDataFile() != 0) {
     return -1;
   }
 
+  sdbClose();
   return 0;
 }
 

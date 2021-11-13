@@ -116,9 +116,9 @@ typedef enum {
   SDB_CLUSTER = 2,
   SDB_DNODE = 3,
   SDB_MNODE = 4,
-  SDB_ACCT = 5,
+  SDB_USER = 5,
   SDB_AUTH = 6,
-  SDB_USER = 7,
+  SDB_ACCT = 7,
   SDB_DB = 8,
   SDB_VGROUP = 9,
   SDB_STABLE = 10,
@@ -148,9 +148,9 @@ int32_t sdbInit();
 void    sdbCleanup();
 void    sdbSetTable(SSdbTable table);
 
-int32_t sdbRead();
+int32_t sdbOpen();
+void    sdbClose();
 int32_t sdbWrite(SSdbRaw *pRaw);
-int32_t sdbCommit();
 
 int32_t sdbDeploy();
 void    sdbUnDeploy();

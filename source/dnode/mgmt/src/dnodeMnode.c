@@ -536,7 +536,7 @@ static int32_t dnodeOpenMnode() {
     SMnodeCfg cfg = {.replica = 1};
     cfg.replicas[0].port = tsServerPort;
     tstrncpy(cfg.replicas[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-    return dnodeDeployMnode(&cfg);
+    code = dnodeDeployMnode(&cfg);
   } else {
     dInfo("start to open mnode");
     return dnodeStartMnode();
