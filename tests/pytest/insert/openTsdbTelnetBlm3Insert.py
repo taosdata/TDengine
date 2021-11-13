@@ -1352,7 +1352,7 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
         self.spellCheckCase()
         self.pointTransCheckCase()
         self.defaultTypeCheckCase()
-        #! bug
+        #!bug
         # self.tbnameTagsColsNameCheckCase()
         # # MultiThreads
         self.stbInsertMultiThreadCheckCase()
