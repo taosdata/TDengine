@@ -44,7 +44,7 @@ static int generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq,
             int32_t tagBufLen = stbInfo->tags[i].dataLen + 1;
             char *  buf = (char *)calloc(1, tagBufLen);
             if (NULL == buf) {
-                errorPrint("failed to allocate %d size memory\n", tagBufLen);
+                errorPrint("%s", "failed to allocate memory\n");
                 return -1;
             }
             generateBinaryNCharTagValues(tableSeq, tagBufLen, buf);
@@ -625,7 +625,7 @@ static int createSuperTable(TAOS *taos, char *dbName, SSuperTable *superTbl,
         (char *)calloc(len + TIMESTAMP_BUFF_LEN, 1);
     if (NULL == superTbl->colsOfCreateChildTable) {
         taos_close(taos);
-        errorPrint("Failed when calloc, size:%d", len + 1);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
@@ -869,8 +869,7 @@ int createDatabasesAndStables(char *command) {
             if ((ret != 0) || (g_Dbs.db[i].drop)) {
                 char *cmd = calloc(1, BUFFER_SIZE);
                 if (NULL == cmd) {
-                    errorPrint("failed to allocate %d size memory\n",
-                               BUFFER_SIZE);
+                    errorPrint("%s", "failed to allocate memory\n");
                     return -1;
                 }
 
@@ -914,7 +913,7 @@ static void *createTable(void *sarg) {
 
     pThreadInfo->buffer = calloc(1, buff_len);
     if (NULL == pThreadInfo->buffer) {
-        errorPrint("failed to allocate %d size memory\n", buff_len);
+        errorPrint("%s", "failed to allocate memory\n");
         return NULL;
     }
 
@@ -952,8 +951,7 @@ static void *createTable(void *sarg) {
 
                 char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
                 if (NULL == tagsValBuf) {
-                    errorPrint("failed to allocate %d size memory\n",
-                               TSDB_MAX_SQL_LEN + 1);
+                    errorPrint("%s", "failed to allocate memory\n");
                     return NULL;
                 }
 
@@ -1023,14 +1021,12 @@ int startMultiThreadCreateChildTable(char *cols, int threads,
                                      char *db_name, SSuperTable *stbInfo) {
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
     if (NULL == pids) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   threads * sizeof(pthread_t));
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
     threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
     if (NULL == infos) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   threads * sizeof(threadInfo));
+        errorPrint("%s", "failed to allocate memory\n");
         tmfree(pids);
         return -1;
     }
@@ -1271,9 +1267,14 @@ static void getAndSetRowsFromCsvFile(SSuperTable *stbInfo) {
     if (fp == NULL) {
         errorPrint("Failed to open sample file: %s, reason:%s\n",
                    stbInfo->sampleFile, strerror(errno));
-        exit(EXIT_FAILURE);
+        return;
     }
     char *buf = calloc(1, stbInfo->maxSqlLen);
+    if (buf == NULL) {
+        errorPrint("%s", "failed to allocate memory\n");
+        return;
+    }
+
     while (fgets(buf, stbInfo->maxSqlLen, fp)) {
         line_count++;
     }
@@ -1466,8 +1467,7 @@ static int64_t generateStbRowData(SSuperTable *stbInfo, char *recBuf,
             }
             char *buf = (char *)calloc(stbInfo->columns[i].dataLen + 1, 1);
             if (NULL == buf) {
-                errorPrint("calloc failed! size:%d\n",
-                           stbInfo->columns[i].dataLen);
+                errorPrint("%s", "failed to allocate memory\n");
                 return -1;
             }
             rand_string(buf, stbInfo->columns[i].dataLen);
@@ -1648,8 +1648,7 @@ static int64_t generateData(char *recBuf, char *data_type, int64_t timestamp,
             case TSDB_DATA_TYPE_NCHAR:
                 s = calloc(1, lenOfBinary + 1);
                 if (NULL == s) {
-                    errorPrint("failed to allocate %d size memory\n",
-                               lenOfBinary + 1);
+                    errorPrint("%s", "failed to allocate memory\n");
                     return -1;
                 }
 
@@ -1702,7 +1701,7 @@ static int generateSampleFromRand(char *sampleDataBuf, uint64_t lenOfOneRow,
 
     char *buff = calloc(lenOfOneRow, 1);
     if (NULL == buff) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n", lenOfOneRow);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
@@ -1824,8 +1823,7 @@ static int generateSampleFromRandForStb(SSuperTable *stbInfo) {
 static int prepareSampleForNtb() {
     g_sampleDataBuf = calloc(g_args.lenOfOneRow * MAX_SAMPLES, 1);
     if (NULL == g_sampleDataBuf) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   g_args.lenOfOneRow * MAX_SAMPLES);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
@@ -1835,8 +1833,7 @@ static int prepareSampleForNtb() {
 static int prepareSampleForStb(SSuperTable *stbInfo) {
     stbInfo->sampleDataBuf = calloc(stbInfo->lenOfOneRow * MAX_SAMPLES, 1);
     if (NULL == stbInfo->sampleDataBuf) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   stbInfo->lenOfOneRow * MAX_SAMPLES);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
@@ -2137,8 +2134,7 @@ static int generateStbSQLHead(SSuperTable *stbInfo, char *tableName,
     if (AUTO_CREATE_SUBTBL == stbInfo->autoCreateTable) {
         char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
         if (NULL == tagsValBuf) {
-            errorPrint("failed to allocate %d size memory\n",
-                       TSDB_MAX_SQL_LEN + 1);
+            errorPrint("%s", "failed to allocate memory\n");
             return -1;
         }
 
@@ -2811,7 +2807,7 @@ static int execStbBindParamBatch(threadInfo *pThreadInfo, char *tableName,
 
         param->buffer_type = data_type;
         param->length = calloc(1, sizeof(int32_t) * thisBatch);
-        if (param->length) {
+        if (param->length == NULL) {
             errorPrint("failed to allocate %" PRIu64 " size memory\n",
                        sizeof(int32_t) * thisBatch);
             return -1;
@@ -2993,7 +2989,7 @@ static int parseSamplefileToStmtBatch(SSuperTable *stbInfo) {
 
             char *tmpStr = calloc(1, index + 1);
             if (NULL == tmpStr) {
-                errorPrint("failed to allocate %d size memory\n", index + 1);
+                errorPrint("%s", "failed to allocate memory\n");
                 return -1;
             }
 
@@ -3090,22 +3086,20 @@ static int parseSampleToStmtBatchForThread(threadInfo * pThreadInfo,
 
     pThreadInfo->bind_ts_array = calloc(1, sizeof(int64_t) * batch);
     if (NULL == pThreadInfo->bind_ts_array) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   sizeof(int64_t) * batch);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
     pThreadInfo->bindParams =
         calloc(1, sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
     if (NULL == pThreadInfo->bindParams) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   sizeof(TAOS_MULTI_BIND) * (columnCount + 1));
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
     pThreadInfo->is_null = calloc(1, batch);
     if (NULL == pThreadInfo->is_null) {
-        errorPrint("failed to allocate %d size memory\n", batch);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
 
@@ -3135,8 +3129,7 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, char *tableName,
 
     char *tagsArray = calloc(1, sizeof(TAOS_BIND) * stbInfo->tagCount);
     if (NULL == tagsArray) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n",
-                   sizeof(TAOS_BIND) * stbInfo->tagCount);
+        errorPrint("%s", "failed to allocate memory\n");
         return -1;
     }
     char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
@@ -3167,8 +3160,7 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, char *tableName,
                        taos_stmt_errstr(stmt));
             return -1;
         }
-        tmfree(tagsValBuf);
-        tmfree(tagsArray);
+
     } else {
         if (taos_stmt_set_tbname(stmt, tableName)) {
             errorPrint("taos_stmt_set_tbname() failed! reason: %s\n",
@@ -3176,7 +3168,8 @@ int32_t prepareStbStmt(threadInfo *pThreadInfo, char *tableName,
             return -1;
         }
     }
-
+    tmfree(tagsValBuf);
+    tmfree(tagsArray);
     return execStbBindParamBatch(pThreadInfo, tableName, tableSeq, batch,
                                  insertRows, recordFrom, startTime, pSamplePos);
 }
@@ -3468,7 +3461,7 @@ void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
                " insertRows=%" PRIu64 "\n",
                pThreadInfo->threadID, __func__, __LINE__,
                pThreadInfo->start_table_from, pThreadInfo->ntables, insertRows);
-#if 1
+
     if (interlaceRows > g_args.reqPerReq) interlaceRows = g_args.reqPerReq;
 
     uint32_t batchPerTbl = interlaceRows;
@@ -3479,24 +3472,9 @@ void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     } else {
         batchPerTblTimes = 1;
     }
-#else
-    uint32_t batchPerTbl;
-    if (interlaceRows > g_args.reqPerReq)
-        batchPerTbl = g_args.reqPerReq;
-    else
-        batchPerTbl = interlaceRows;
-
-    uint32_t batchPerTblTimes;
-
-    if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
-        batchPerTblTimes = interlaceRows / batchPerTbl;
-    } else {
-        batchPerTblTimes = 1;
-    }
-#endif
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
-        errorPrint("failed to allocate %" PRIu64 " size memory\n", maxSqlLen);
+        errorPrint("%s", "failed to allocate memory\n");
         return NULL;
     }
 
@@ -3837,8 +3815,7 @@ void *syncWriteProgressive(threadInfo *pThreadInfo) {
 
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
-        errorPrint("Failed to alloc %" PRIu64 " bytes, reason:%s\n", maxSqlLen,
-                   strerror(errno));
+        errorPrint("%s", "failed to allocate memory\n");
         return NULL;
     }
 
@@ -4223,8 +4200,7 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
             stbInfo->childTblName =
                 (char *)calloc(1, limit * TSDB_TABLE_NAME_LEN);
             if (NULL == stbInfo->childTblName) {
-                errorPrint("failed to allocate %" PRId64 " size memory\n",
-                           limit * TSDB_TABLE_NAME_LEN);
+                errorPrint("%s", "failed to allocate memory\n");
                 return -1;
             }
 
@@ -4263,13 +4239,25 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
         }
     }
 
-    pthread_t * pids = calloc(1, threads * sizeof(pthread_t));
+    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+    if (pids == NULL) {
+        errorPrint("%s", "failed to allocate memory\n");
+        return -1;
+    }
     threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
-    assert(pids != NULL);
-    assert(infos != NULL);
+    if (infos == NULL) {
+        errorPrint("%s", "failed to allocate memory\n");
+        tmfree(pids);
+        return -1;
+    }
 
     char *stmtBuffer = calloc(1, BUFFER_SIZE);
-    assert(stmtBuffer);
+    if (stmtBuffer == NULL) {
+        errorPrint("%s", "failed to allocate memory\n");
+        tmfree(pids);
+        tmfree(infos);
+        return -1;
+    }
 
     uint32_t interlaceRows = 0;
     uint32_t batch;
@@ -4333,9 +4321,9 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
             if (NULL == pThreadInfo->taos) {
                 free(infos);
                 errorPrint(
-                    "%s() LN%d, connect to server fail from insert sub thread, "
-                    "reason: %s\n",
-                    __func__, __LINE__, taos_errstr(NULL));
+                    "connect to server fail from insert sub "
+                    "thread,reason:%s\n ",
+                    taos_errstr(NULL));
                 return -1;
             }
 
@@ -4578,7 +4566,7 @@ int insertTestProcess() {
     // create database and super tables
     char *cmdBuffer = calloc(1, BUFFER_SIZE);
     if (NULL == cmdBuffer) {
-        errorPrint("failed to allocate %d size memory\n", BUFFER_SIZE);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_insert_process;
     }
     if (createDatabasesAndStables(cmdBuffer)) {

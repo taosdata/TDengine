@@ -29,7 +29,7 @@ char *g_aggreFunc[] = {"*",       "count(*)", "avg(C0)",   "sum(C0)",
 
 int parse_args(int argc, char *argv[], SArguments *arguments) {
     int32_t code = -1;
-    char *  g_dupstr;
+    char *  g_dupstr = NULL;
     for (int i = 1; i < argc; i++) {
         if ((0 == strncmp(argv[i], "-f", strlen("-f"))) ||
             (0 == strncmp(argv[i], "--file", strlen("--file")))) {
@@ -1501,8 +1501,12 @@ void querySqlFile(TAOS *taos, char *sqlFile) {
         return;
     }
 
-    int    read_len = 0;
-    char * cmd = calloc(1, TSDB_MAX_BYTES_PER_ROW);
+    int   read_len = 0;
+    char *cmd = calloc(1, TSDB_MAX_BYTES_PER_ROW);
+    if (cmd == NULL) {
+        errorPrint("%s", "failde to allocate memory\n");
+        return;
+    }
     size_t cmd_len = 0;
     char * line = NULL;
     size_t line_len = 0;
@@ -1551,7 +1555,7 @@ void *queryStableAggrFunc(void *sarg) {
     setThreadName("queryStableAggrFunc");
     char *command = calloc(1, BUFFER_SIZE);
     if (NULL == command) {
-        errorPrint("failed to allocate %d size memory\n", BUFFER_SIZE);
+        errorPrint("%s", "failed to allocate memory\n");
         return NULL;
     }
 
@@ -1662,7 +1666,7 @@ void *queryNtableAggrFunc(void *sarg) {
     setThreadName("queryNtableAggrFunc");
     char *command = calloc(1, BUFFER_SIZE);
     if (NULL == command) {
-        errorPrint("failed to allocate %d size memory\n", BUFFER_SIZE);
+        errorPrint("%s", "failed to allocate memory\n");
         return NULL;
     }
 
@@ -1761,7 +1765,11 @@ void queryAggrFunc() {
 
     pthread_t   read_id;
     threadInfo *pThreadInfo = calloc(1, sizeof(threadInfo));
-    assert(pThreadInfo);
+    if (pThreadInfo == NULL) {
+        errorPrint("%s", "failde to allocate memory\n");
+        return;
+    }
+
     pThreadInfo->start_time = DEFAULT_START_TIME;  // 2017-07-14 10:40:00.000
     pThreadInfo->start_table_from = 0;
 

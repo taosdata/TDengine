@@ -269,122 +269,102 @@ int init_rand_data() {
     int32_t code = -1;
     g_randint_buff = calloc(1, INT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   INT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_rand_voltage_buff = calloc(1, INT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   INT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randbigint_buff = calloc(1, BIGINT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randbigint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   BIGINT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randsmallint_buff = calloc(1, SMALLINT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randsmallint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   SMALLINT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randtinyint_buff = calloc(1, TINYINT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randtinyint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   TINYINT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randbool_buff = calloc(1, BOOL_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randbool_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   BOOL_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randfloat_buff = calloc(1, FLOAT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randfloat_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   FLOAT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_rand_current_buff = calloc(1, FLOAT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_rand_current_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   FLOAT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_rand_phase_buff = calloc(1, FLOAT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_rand_phase_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   FLOAT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randdouble_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   DOUBLE_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randuint_buff = calloc(1, INT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randuint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   INT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randutinyint_buff = calloc(1, TINYINT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randutinyint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   TINYINT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randusmallint_buff = calloc(1, SMALLINT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randusmallint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   SMALLINT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randubigint_buff = calloc(1, BIGINT_BUFF_LEN * g_args.prepared_rand);
     if (NULL == g_randubigint_buff) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   BIGINT_BUFF_LEN * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randint = calloc(1, sizeof(int32_t) * g_args.prepared_rand);
     if (NULL == g_randint) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   sizeof(int32_t) * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randuint = calloc(1, sizeof(uint32_t) * g_args.prepared_rand);
     if (NULL == g_randuint) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   sizeof(uint32_t) * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randbigint = calloc(1, sizeof(int64_t) * g_args.prepared_rand);
     if (NULL == g_randbigint) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   sizeof(int64_t) * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randubigint = calloc(1, sizeof(uint64_t) * g_args.prepared_rand);
     if (NULL == g_randubigint) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   sizeof(uint64_t) * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randfloat = calloc(1, sizeof(float) * g_args.prepared_rand);
     if (NULL == g_randfloat) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   sizeof(float) * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
     g_randdouble = calloc(1, sizeof(double) * g_args.prepared_rand);
     if (NULL == g_randdouble) {
-        errorPrint("failed to allocate %" PRId64 " size memory\n",
-                   sizeof(double) * g_args.prepared_rand);
+        errorPrint("%s", "failed to allocate memory\n");
         goto end_init_rand_data;
     }
 

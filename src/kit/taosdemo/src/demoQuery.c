@@ -123,7 +123,10 @@ void *specifiedTableQuery(void *sarg) {
 
 void *superTableQuery(void *sarg) {
     char *sqlstr = calloc(1, BUFFER_SIZE);
-    assert(sqlstr);
+    if (NULL == sqlstr) {
+        errorPrint("%s", "failed to allocate memory\n");
+        return NULL;
+    }
 
     threadInfo *pThreadInfo = (threadInfo *)sarg;
 

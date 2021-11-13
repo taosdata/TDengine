@@ -82,9 +82,15 @@ int main(int argc, char *argv[]) {
     } else {
         memset(&g_Dbs, 0, sizeof(SDbs));
         g_Dbs.db = calloc(1, sizeof(SDataBase));
-        assert(g_Dbs.db);
+        if (NULL == g_Dbs.db) {
+            errorPrint("%s", "failed to allocate memory\n");
+        }
+
         g_Dbs.db[0].superTbls = calloc(1, sizeof(SSuperTable));
-        assert(g_Dbs.db[0].superTbls);
+        if (NULL == g_Dbs.db[0].superTbls) {
+            errorPrint("%s", "failed to allocate memory\n");
+        }
+
         setParaFromArg();
 
         if (NULL != g_args.sqlFile) {

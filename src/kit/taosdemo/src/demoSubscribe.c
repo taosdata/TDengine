@@ -184,7 +184,9 @@ void *specifiedSubscribe(void *sarg) {
 static void *superSubscribe(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     char *      subSqlStr = calloc(1, BUFFER_SIZE);
-    assert(subSqlStr);
+    if (NULL == subSqlStr) {
+        errorPrint("%s", "failed to allocate memory\n");
+    }
 
     TAOS_SUB *tsub[MAX_QUERY_SQL_COUNT] = {0};
     uint64_t  tsubSeq;
@@ -388,11 +390,17 @@ int subscribeTestProcess() {
         pids = calloc(1, g_queryInfo.specifiedQueryInfo.sqlCount *
                              g_queryInfo.specifiedQueryInfo.concurrent *
                              sizeof(pthread_t));
-        assert(pids);
+        if (pids == NULL) {
+            errorPrint("%s", "failed to allocate memory\n");
+        }
+
         infos = calloc(1, g_queryInfo.specifiedQueryInfo.sqlCount *
                               g_queryInfo.specifiedQueryInfo.concurrent *
                               sizeof(threadInfo));
-        assert(infos);
+
+        if (infos == NULL) {
+            errorPrint("%s", "failed to allocate memory\n");
+        }
 
         for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
             for (int j = 0; j < g_queryInfo.specifiedQueryInfo.concurrent;
@@ -420,11 +428,18 @@ int subscribeTestProcess() {
             pidsOfStable = calloc(1, g_queryInfo.superQueryInfo.sqlCount *
                                          g_queryInfo.superQueryInfo.threadCnt *
                                          sizeof(pthread_t));
-            assert(pidsOfStable);
+
+            if (pidsOfStable) {
+                errorPrint("%s", "failed to allocate memory\n");
+            }
+
             infosOfStable = calloc(1, g_queryInfo.superQueryInfo.sqlCount *
                                           g_queryInfo.superQueryInfo.threadCnt *
                                           sizeof(threadInfo));
-            assert(infosOfStable);
+
+            if (infosOfStable) {
+                errorPrint("%s", "failed to allocate memmory\n");
+            }
 
             int64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
             int     threads = g_queryInfo.superQueryInfo.threadCnt;
