@@ -415,7 +415,7 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", req_select int, req_select_rate float"
              ", req_insert int, req_insert_success int, req_insert_rate float"
              ", req_insert_batch int, req_insert_batch_success int, req_insert_batch_rate float"
-             ", errors int"
+             ", errors bigint"
              ", vnodes_num int"
              ", masters int"
              ", has_mnode bool"
@@ -910,8 +910,8 @@ static int32_t monBuildDnodeReqSql(char *sql) {
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {
-  int32_t dnode_err = dnodeGetDnodeError();
-  return sprintf(sql, ", %d", dnode_err);
+  int64_t dnode_err = dnodeGetDnodeError();
+  return sprintf(sql, ", %"PRId64, dnode_err);
 }
 
 static int32_t monBuildDnodeVnodesSql(char *sql) {
