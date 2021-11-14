@@ -294,7 +294,10 @@ SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSe
 SAlterTableInfo * tSetAlterTableInfo(SToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType);
 SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames, SArray *pTagVals, SToken *pToken,
                                           SToken *igExists);
-
+/*!
+ * test
+ * @param pSqlNode
+ */
 void destroyAllSqlNode(struct SSubclause *pSqlNode);
 void destroySqlNode(SSqlNode *pSql);
 void freeCreateTableInfo(void* p);

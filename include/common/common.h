@@ -58,6 +58,7 @@ typedef struct SDataBlockInfo {
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
   SArray         *pDataBlock;   // SArray<SColumnInfoData>
+  SArray         *pTagsList;    // SArray<SVariant> for tag value
   SDataBlockInfo info;
 } SSDataBlock;
 

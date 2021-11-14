@@ -182,25 +182,14 @@ bool isArithmeticQueryOnAggResult(SArray* pFunctionIdList) {
   return false;
 }
 
-bool isGroupbyColumn(SArray* pFunctionIdList) {
-//  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-//  int32_t         numOfCols = getNumOfColumns(pTableMetaInfo->pTableMeta);
-//
-//  SGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
-//  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
-//    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
-//    if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < numOfCols) {  // group by normal columns
-//      return true;
-//    }
-//  }
-
-  return false;
+bool isGroupbyColumn(SGroupbyExpr* pGroupby) {
+  return !pGroupby->groupbyTag;
 }
 
 bool isTopBotQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
-    int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
+    char* f = *(char**) taosArrayGet(pFunctionIdList, i);
     if (f == FUNCTION_TS) {
       continue;
     }
@@ -432,7 +421,6 @@ bool hasTagValOutput(SArray* pFunctionIdList) {
 void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc) {
   assert(pFunctionIdList != NULL);
 
-
   pDesc->blockDistribution = isBlockDistQuery(pFunctionIdList);
   if (pDesc->blockDistribution) {
     return;
@@ -441,4 +429,5 @@ void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc) {
   pDesc->projectionQuery = isProjectionQuery(pFunctionIdList);
   pDesc->onlyTagQuery    = isTagsQuery(pFunctionIdList);
   pDesc->interpQuery     = isInterpQuery(pFunctionIdList);
+  pDesc->topbotQuery     = isTopBotQuery(pFunctionIdList);
 }

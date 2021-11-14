@@ -1607,6 +1607,30 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
     if (pQueryInfo->fillType != TSDB_FILL_NONE) {
       return buildInvalidOperationMsg(pMsgBuf, msg4);
     }
+
+    // select top(col, k), count(*) from table_name
+    int32_t num = 0;
+    SExprInfo* pMain = NULL;
+    size_t size = getNumOfExprs(pQueryInfo);
+    for (int32_t i = 0; i < size; ++i) {
+      SExprInfo* pExpr = getExprInfo(pQueryInfo, i);
+      const char* functionName = pExpr->pExpr->_function.functionName;
+
+      if (strcmp(functionName, "top") != 0 && strcmp(functionName, "bottom") != 0) {
+        if (qIsAggregateFunction(functionName)) {
+          return buildInvalidOperationMsg(pMsgBuf, "invalid expression in select clause");
+        }
+
+        // the primary key is valid
+        if (pExpr->pExpr->nodeType == TEXPR_COL_NODE) {
+          if (pExpr->pExpr->pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            continue;
+          }
+        }
+
+        continue;
+      }
+    }
   }
 
   /*
@@ -2628,35 +2652,51 @@ static int32_t validateScalarFunctionParamNum(tSqlExpr* pSqlExpr, int32_t functi
   return code;
 }
 
-SExprInfo* doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SColumnIndex* pColIndex, const char* aliasName, int32_t colId) {
+int32_t doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SColumnIndex* pColIndex,
+                        const char* aliasName, int32_t colId, SMsgBuf* pMsgBuf) {
   STableMeta* pTableMeta = getMetaInfo(pQueryInfo, pColIndex->tableIndex)->pTableMeta;
 
   SSchema* pSchema = getOneColumnSchema(pTableMeta, pColIndex->columnIndex);
-  SColumnIndex index = *pColIndex;
-
-  char* funcName = NULL;
-  if (TSDB_COL_IS_TAG(index.type)) {
-    int32_t numOfCols = getNumOfColumns(pTableMeta);
-    index.columnIndex = pColIndex->columnIndex - numOfCols;
-    funcName = "project_tag";
-  } else {
-    index.columnIndex = pColIndex->columnIndex;
-    funcName = "project_col";
-  }
 
   const char* name = (aliasName == NULL)? pSchema->name:aliasName;
   SSchema s = createSchema(pSchema->type, pSchema->bytes, colId, name);
 
-  STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
-  SColumn c = createColumn(pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, index.type, pSchema);
+  tExprNode *pNode = NULL;
+  bool keepTableCols = true;
+  SArray* pColumnList = taosArrayInit(4, sizeof(SColumn));
 
-  SSourceParam param = {0};
-  addIntoSourceParam(&param, NULL, &c);
+  tSqlExpr sqlNode = {0};
+  sqlNode.type = SQL_NODE_TABLE_COLUMN;
 
-  return doAddOneExprInfo(pQueryInfo, funcName, &param, outputColIndex, pTableMetaInfo, &s, 0, s.name, true);
+  SToken colNameToken = {.z = pSchema->name, .n = strlen(pSchema->name)};
+  sqlNode.columnName = colNameToken;
+
+  int32_t ret = sqlExprToExprNode(&pNode, &sqlNode, pQueryInfo, pColumnList, &keepTableCols, pMsgBuf);
+  if (ret != TSDB_CODE_SUCCESS) {
+    tExprTreeDestroy(pNode, NULL);
+    return buildInvalidOperationMsg(pMsgBuf, "invalid expression in select clause");
+  }
+
+  SExprInfo* pExpr = createBinaryExprInfo(pNode, &s);
+  tstrncpy(pExpr->base.resSchema.name, name, tListLen(pExpr->base.resSchema.name));
+  tstrncpy(pExpr->base.token, name, tListLen(pExpr->base.token));
+
+  SArray*    pExprList = getCurrentExprList(pQueryInfo);
+  addExprInfo(pExprList, outputColIndex, pExpr, pQueryInfo->exprListLevelIndex);
+
+  // extract columns according to the tExprNode tree
+  size_t num = taosArrayGetSize(pColumnList);
+  pExpr->base.pColumns = calloc(num, sizeof(SColumn));
+  for (int32_t i = 0; i < num; ++i) {
+    SColumn* pCol = taosArrayGet(pColumnList, i);
+    pExpr->base.pColumns[i] = *pCol;
+  }
+
+  pExpr->base.numOfCols = num;
+  return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* pIndex, int32_t startPos) {
+static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* pIndex, int32_t startPos, SMsgBuf* pMsgBuf) {
   STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2669,7 +2709,7 @@ static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColu
 
   for (int32_t j = 0; j < numOfTotalColumns; ++j) {
     pIndex->columnIndex = j;
-    doAddProjectCol(pQueryInfo, startPos + j, pIndex, NULL, getNewResColId());
+    doAddProjectCol(pQueryInfo, startPos + j, pIndex, NULL, getNewResColId(), pMsgBuf);
   }
 
   return numOfTotalColumns;
@@ -2778,11 +2818,11 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
     if (index.tableIndex == COLUMN_INDEX_INITIAL_VAL) {  // all table columns are required.
       for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
         index.tableIndex = i;
-        int32_t inc = doAddProjectionExprAndResColumn(pQueryInfo, &index, startPos);
+        int32_t inc = doAddProjectionExprAndResColumn(pQueryInfo, &index, startPos, pMsgBuf);
         startPos += inc;
       }
     } else {
-      doAddProjectionExprAndResColumn(pQueryInfo, &index, startPos);
+      doAddProjectionExprAndResColumn(pQueryInfo, &index, startPos, pMsgBuf);
     }
 
     // add the primary timestamp column even though it is not required by user
@@ -2821,7 +2861,7 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
         return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
-      doAddProjectCol(pQueryInfo, startPos, &index, pItem->aliasName, getNewResColId());
+      doAddProjectCol(pQueryInfo, startPos, &index, pItem->aliasName, getNewResColId(), pMsgBuf);
     }
 
     // add the primary timestamp column even though it is not required by user
@@ -2920,12 +2960,12 @@ static tExprNode* doCreateColumnNode(SQueryStmtInfo* pQueryInfo, SColumnIndex* p
 
 static int32_t validateSqlExpr(const tSqlExpr* pSqlExpr, SQueryStmtInfo *pQueryInfo, SMsgBuf* pMsgBuf);
 
-static int32_t doProcessFunctionLeafNodeParam(SQueryStmtInfo* pQueryInfo, int32_t* num, tExprNode** p, SArray* pCols,
+static int32_t doProcessFunctionLeafNodeParam(SQueryStmtInfo* pQueryInfo, int32_t* num, tExprNode*** p, SArray* pCols,
                                               bool* keepTableCols, const tSqlExpr* pSqlExpr, SMsgBuf* pMsgBuf) {
   SArray* pParamList = pSqlExpr->Expr.paramList;
   if (pParamList != NULL) {
     *num = taosArrayGetSize(pParamList);
-    p = calloc((*num), POINTER_BYTES);
+    (*p) = calloc((*num), POINTER_BYTES);
 
     for (int32_t i = 0; i < (*num); ++i) {
       tSqlExprItem* pItem = taosArrayGet(pParamList, i);
@@ -2935,7 +2975,7 @@ static int32_t doProcessFunctionLeafNodeParam(SQueryStmtInfo* pQueryInfo, int32_
         return ret;
       }
 
-      int32_t code = sqlExprToExprNode(&p[i], pItem->pNode, pQueryInfo, pCols, keepTableCols, pMsgBuf);
+      int32_t code = sqlExprToExprNode(&(*p)[i], pItem->pNode, pQueryInfo, pCols, keepTableCols, pMsgBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -2946,10 +2986,10 @@ static int32_t doProcessFunctionLeafNodeParam(SQueryStmtInfo* pQueryInfo, int32_
     }
 
     *num = 1;
-    p = calloc(*num, POINTER_BYTES);
+    (*p) = calloc(*num, POINTER_BYTES);
 
     SColumnIndex index = {.type = TSDB_COL_NORMAL, .tableIndex = 0, .columnIndex = 0};
-    p[0] = doCreateColumnNode(pQueryInfo, &index, *keepTableCols, pCols);
+    (*p)[0] = doCreateColumnNode(pQueryInfo, &index, *keepTableCols, pCols);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3037,7 +3077,7 @@ int32_t validateSqlExpr(const tSqlExpr* pSqlExpr, SQueryStmtInfo *pQueryInfo, SM
 
     // do check the parameter number for scalar function
     if (scalar) {
-      int32_t ret = validateScalarFunctionParamNum(pSqlExpr, functionId, pMsgBuf);
+      int32_t ret = validateScalarFunctionParamNum((tSqlExpr*) pSqlExpr, functionId, pMsgBuf);
       if (ret != TSDB_CODE_SUCCESS) {
         return buildInvalidOperationMsg(pMsgBuf, "invalid number of function parameters");
       }
@@ -3087,7 +3127,7 @@ int32_t sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryStm
 
     int32_t num = 0;
     tExprNode** p = NULL;
-    int32_t code = doProcessFunctionLeafNodeParam(pQueryInfo, &num, p, pCols, keepTableCols, pSqlExpr, pMsgBuf);
+    int32_t code = doProcessFunctionLeafNodeParam(pQueryInfo, &num, &p, pCols, keepTableCols, pSqlExpr, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3146,6 +3186,9 @@ int32_t sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryStm
       (*pExpr)->nodeType = TEXPR_COL_NODE;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
       strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
+
+      // it must be the aggregate function
+      assert(qIsAggregateFunction((*pExpr)->pSchema->name));
 
       uint64_t uid = findTmpSourceColumnInNextLevel(pQueryInfo, *pExpr);
       if (!(*keepTableCols)) {
@@ -3345,7 +3388,8 @@ int32_t validateSelectNodeList(SQueryStmtInfo* pQueryInfo, SArray* pSelNodeList,
       }
     } else if (type == SQL_NODE_TABLE_COLUMN || type == SQL_NODE_VALUE) {
       // use the dynamic array list to decide if the function is valid or not
-      // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
+      // select table_name1.field_name1, table_name2.field_name2 from table_name1, table_name2
+      // todo refacto to remove this function
       if ((code = addProjectionExprAndResColumn(pQueryInfo, pItem, outerQuery, pMsgBuf)) != TSDB_CODE_SUCCESS) {
         return code;
       }

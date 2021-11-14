@@ -398,6 +398,7 @@ TEST(testCase, function_Test5) {
 TEST(testCase, function_Test10) {
   sqlCheck("select c from `t.1abc`", true);
   sqlCheck("select length(c) from `t.1abc`", true);
+  sqlCheck("select length(sum(col)) from `t.1abc`", true);
   sqlCheck("select sum(length(a+b)) from `t.1abc`", true);
   sqlCheck("select sum(sum(a+b)) from `t.1abc`", false);
   sqlCheck("select sum(length(a) + length(b)) from `t.1abc`", true);
@@ -405,6 +406,8 @@ TEST(testCase, function_Test10) {
   sqlCheck("select sum(length(sum(a))) from `t.1abc`", true);
   sqlCheck("select cov(a, b) from `t.1abc`", true);
   sqlCheck("select sum(length(a) + count(b)) from `t.1abc`", false);
+
+  sqlCheck("select concat(sum(a), count(b)) from `t.1abc`", true);
 
   sqlCheck("select concat(concat(a,b), concat(a,b)) from `t.1abc`", true);
   sqlCheck("select length(length(length(a))) from `t.1abc`", true);
@@ -415,13 +418,16 @@ TEST(testCase, function_Test10) {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   sqlCheck("select length119(a,b) from `t.1abc`", false);
-  sqlCheck("select length(a,b) from `t.1abc`", false);
-  sqlCheck("select block_dist() + 20 from `t.1abc`", false);
-  sqlCheck("select top(a, 20), count(b) from `t.1abc`", false);
+  sqlCheck("select length(a, b) from `t.1abc`", false);
+  sqlCheck("select block_dist() + 20 from `t.1abc`", true);
   sqlCheck("select count(b), c from `t.1abc`", false);
-  sqlCheck("select last_row(*), count(b) from `t.1abc`", false);
-  sqlCheck("select last_row(a, b) + 20 from `t.1abc`", false);
-  sqlCheck("select last_row(count(*)) from `t.1abc`", false);
+  sqlCheck("select top(a, 20), count(b) from `t.1abc`", false);
+//  sqlCheck("select top(a, 20), b from `t.1abc`", false);
+//  sqlCheck("select top(a, 20), a+20 from `t.1abc`", true);
+//  sqlCheck("select top(a, 20), bottom(a, 10) from `t.1abc`", false);
+//  sqlCheck("select last_row(*), count(b) from `t.1abc`", false);
+//  sqlCheck("select last_row(a, b) + 20 from `t.1abc`", false);
+//  sqlCheck("select last_row(count(*)) from `t.1abc`", false);
 }
 
 TEST(testCase, function_Test6) {

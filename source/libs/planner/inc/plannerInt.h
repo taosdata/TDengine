@@ -26,18 +26,26 @@ extern "C" {
 #include "taosmsg.h"
 
 typedef struct SQueryNodeBasicInfo {
-  int32_t   type;
-  char     *name;
+  int32_t   type;          // operator type
+  char     *name;          // operator name
 } SQueryNodeBasicInfo;
 
+typedef struct SQueryDistPlanNodeInfo {
+  bool      stableQuery;   // super table query or not
+  int32_t   phase;         // merge|partial
+  int32_t   type;          // operator type
+  char     *name;          // operator name
+  SEpSet   *sourceEp;      // data source epset
+} SQueryDistPlanNodeInfo;
+
 typedef struct SQueryTableInfo {
-  char     *tableName;
-  uint64_t  uid;
+  char       *tableName;
+  uint64_t    uid;
+  STimeWindow window;
 } SQueryTableInfo;
 
 typedef struct SQueryPlanNode {
   SQueryNodeBasicInfo info;
-  SQueryTableInfo     tableInfo;
   SSchema            *pSchema;      // the schema of the input SSDatablock
   int32_t             numOfCols;    // number of input columns
   SArray             *pExpr;        // the query functions or sql aggregations
@@ -51,8 +59,48 @@ typedef struct SQueryPlanNode {
 
 typedef struct SQueryDistPlanNode {
   SQueryNodeBasicInfo info;
+  SSchema            *pSchema;      // the schema of the input SSDatablock
+  int32_t             numOfCols;    // number of input columns
+  SArray             *pExpr;        // the query functions or sql aggregations
+  int32_t             numOfExpr;    // number of result columns, which is also the number of pExprs
+  void               *pExtInfo;     // additional information
 
+  // previous operator to generated result for current node to process
+  // in case of join, multiple prev nodes exist.
+  SArray             *pPrevNodes;   // upstream nodes, or exchange operator to load data from multiple sources.
 } SQueryDistPlanNode;
+
+typedef struct SQueryCostSummary {
+  int64_t startTs;      // Object created and added into the message queue
+  int64_t endTs;        // the timestamp when the task is completed
+  int64_t cputime;      // total cpu cost, not execute elapsed time
+
+  int64_t loadRemoteDataDuration;       // remote io time
+  int64_t loadNativeDataDuration;       // native disk io time
+
+  uint64_t loadNativeData; // blocks + SMA + header files
+  uint64_t loadRemoteData; // remote data acquired by exchange operator.
+
+  uint64_t waitDuration; // the time to waiting to be scheduled in queue does matter, so we need to record it
+  int64_t  addQTs;       // the time to be added into the message queue, used to calculate the waiting duration in queue.
+
+  uint64_t totalRows;
+  uint64_t loadRows;
+  uint32_t totalBlocks;
+  uint32_t loadBlocks;
+  uint32_t loadBlockAgg;
+  uint32_t skipBlocks;
+  uint64_t resultSize;   // generated result size in Kb.
+} SQueryCostSummary;
+
+typedef struct SQueryTask {
+  uint64_t            queryId; // query id
+  uint64_t            taskId;  // task id
+  SQueryDistPlanNode *pNode;   // operator tree
+  uint64_t            status;  // task status
+  SQueryCostSummary   summary; // task execution summary
+  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
+} SQueryTask;
 
 #ifdef __cplusplus
 }
