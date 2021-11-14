@@ -67,7 +67,7 @@ static int32_t setBoundingBox(MinMaxEntry* range, int16_t type, double minval, d
 
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
     range->i64MinVal = (int64_t) minval;
-    if (maxval > INT64_MAX || (int64_t)maxval == INT64_MIN) {
+    if ((int64_t)maxval > INT64_MAX || (int64_t)maxval == INT64_MIN) {
       range->i64MaxVal = INT64_MAX;
     } else {
       range->i64MaxVal = (int64_t) maxval; 
@@ -146,7 +146,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
 }
 
 int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
-  int64_t v = 0;
+  uint64_t v = 0;
   GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
   int32_t index = -1;
