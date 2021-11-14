@@ -834,6 +834,10 @@ static int32_t monBuildConnsTotalSql(char *sql) {
 static int32_t monBuildDnodeUptimeSql(char *sql) {
   int64_t dnodeUptime = 0;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show dnodes");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show dnodes, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW row;
   int32_t  num_fields = taos_num_fields(result);
@@ -932,6 +936,10 @@ static int32_t monBuildDnodeVnodesSql(char *sql) {
 static int32_t monBuildDnodeMnodeSql(char *sql) {
   bool has_mnode = false, has_mnode_row;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show mnodes");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show mnodes, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
