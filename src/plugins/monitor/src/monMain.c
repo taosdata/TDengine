@@ -528,7 +528,7 @@ static int32_t monBuildMemorySql(char *sql) {
     monDebug("failed to get proc memory info");
   }
 
-  return sprintf(sql, ", %f, %f, %d", procMemoryUsedMB, sysMemoryUsedMB, tsTotalMemoryMB);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f, %d", procMemoryUsedMB, sysMemoryUsedMB, tsTotalMemoryMB);
 }
 
 // unit is %
@@ -543,12 +543,12 @@ static int32_t monBuildCpuSql(char *sql) {
     sysCpuUsage = procCpuUsage + 0.1f;
   }
 
-  return sprintf(sql, ", %f, %f, %d", procCpuUsage, sysCpuUsage, tsNumOfCores);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f, %d", procCpuUsage, sysCpuUsage, tsNumOfCores);
 }
 
 // unit is GB
 static int32_t monBuildDiskSql(char *sql) {
-  return sprintf(sql, ", %f, %d", tsUsedDataDirGB, (int32_t)tsTotalDataDirGB);
+  return snprintf(sql, SQL_LENGTH, ", %f, %d", tsUsedDataDirGB, (int32_t)tsTotalDataDirGB);
 }
 
 // unit is Kb
@@ -559,12 +559,12 @@ static int32_t monBuildBandSql(char *sql) {
     monDebug("failed to get bandwidth speed");
   }
 
-  return sprintf(sql, ", %f", bandSpeedKb);
+  return snprintf(sql, SQL_LENGTH, ", %f", bandSpeedKb);
 }
 
 static int32_t monBuildReqSql(char *sql) {
   SDnodeStatisInfo info = tsMonStat.dInfo;
-  return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
+  return snprintf(sql, SQL_LENGTH, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
 static int32_t monBuildIoSql(char *sql) {
@@ -572,7 +572,7 @@ static int32_t monBuildIoSql(char *sql) {
   readKB = tsMonStat.io_read;
   writeKB = tsMonStat.io_write;
 
-  return sprintf(sql, ", %f, %f", readKB, writeKB);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f", readKB, writeKB);
 }
 
 static void monSaveSystemInfo() {
@@ -611,11 +611,11 @@ static int32_t monGetRowElemCharLen(TAOS_FIELD field, char *rowElem) {
 }
 
 static int32_t monBuildFirstEpSql(char *sql) {
-  return sprintf(sql, ", \"%s\"", tsFirst);
+  return snprintf(sql, SQL_LENGTH, ", \"%s\"", tsFirst);
 }
 
 static int32_t monBuildVersionSql(char *sql) {
-  return sprintf(sql, ", \"%s\"", version);
+  return snprintf(sql, SQL_LENGTH, ", \"%s\"", version);
 }
 
 static int32_t monBuildMasterUptimeSql(char *sql) {
@@ -640,11 +640,11 @@ static int32_t monBuildMasterUptimeSql(char *sql) {
 
   taos_free_result(result);
 
-  return sprintf(sql, ", %" PRId64, masterUptime);
+  return snprintf(sql, SQL_LENGTH, ", %" PRId64, masterUptime);
 }
 
 static int32_t monBuildMonIntervalSql(char *sql) {
-  return sprintf(sql, ", %d", tsMonitorInterval);
+  return snprintf(sql, SQL_LENGTH, ", %d", tsMonitorInterval);
 }
 
 static int32_t monBuildDnodesTotalSql(char *sql) {
@@ -673,7 +673,7 @@ static int32_t monBuildDnodesTotalSql(char *sql) {
 
   taos_free_result(result);
 
-  return sprintf(sql, ", %d, %d", totalDnodes, totalDnodesAlive);
+  return snprintf(sql, SQL_LENGTH, ", %d, %d", totalDnodes, totalDnodesAlive);
 }
 
 static int32_t monBuildMnodesTotalSql(char *sql) {
@@ -703,7 +703,7 @@ static int32_t monBuildMnodesTotalSql(char *sql) {
 
   taos_free_result(result);
 
-  return sprintf(sql, ", %d, %d", totalMnodes, totalMnodesAlive);
+  return snprintf(sql, SQL_LENGTH, ", %d, %d", totalMnodes, totalMnodesAlive);
 }
 
 
@@ -711,7 +711,7 @@ static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
                                            int32_t *totalVgroupsAlive) {
   char subsql[TSDB_DB_NAME_LEN + 14];
   memset(subsql, 0, sizeof(subsql));
-  sprintf(subsql, "show %s.vgroups", dbName);
+  snprintf(subsql, TSDB_DB_NAME_LEN + 13, "show %s.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
@@ -761,14 +761,14 @@ static int32_t monBuildVgroupsTotalSql(char *sql) {
 
   taos_free_result(result);
 
-  return sprintf(sql, ", %d, %d", totalVgroups, totalVgroupsAlive);
+  return snprintf(sql, SQL_LENGTH, ", %d, %d", totalVgroups, totalVgroupsAlive);
 }
 
 static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
                                            int32_t *totalVnodesAlive) {
   char subsql[TSDB_EP_LEN + 15];
   memset(subsql, 0, sizeof(subsql));
-  sprintf(subsql, "show vnodes \"%s\"", ep);
+  snprintf(subsql, TSDB_EP_LEN, "show vnodes \"%s\"", ep);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
@@ -819,7 +819,7 @@ static int32_t monBuildVnodesTotalSql(char *sql) {
 
   taos_free_result(result);
 
-  return sprintf(sql, ", %d, %d", totalVnodes, totalVnodesAlive);
+  return snprintf(sql, SQL_LENGTH, ", %d, %d", totalVnodes, totalVnodesAlive);
 }
 
 static int32_t monBuildConnsTotalSql(char *sql) {
@@ -837,7 +837,7 @@ static int32_t monBuildConnsTotalSql(char *sql) {
   }
 
   taos_free_result(result);
-  return sprintf(sql, ", %d)", totalConns);
+  return snprintf(sql, SQL_LENGTH, ", %d)", totalConns);
 }
 
 static int32_t monBuildDnodeUptimeSql(char *sql) {
@@ -864,7 +864,7 @@ static int32_t monBuildDnodeUptimeSql(char *sql) {
 
   taos_free_result(result);
 
-  return sprintf(sql, ", %" PRId64, dnodeUptime);
+  return snprintf(sql, SQL_LENGTH, ", %" PRId64, dnodeUptime);
 }
 
 static int32_t monBuildDnodeIoSql(char *sql) {
@@ -875,8 +875,8 @@ static int32_t monBuildDnodeIoSql(char *sql) {
   rbyteKB = tsMonStat.io_read_disk;
   wbyteKB = tsMonStat.io_write_disk;
 
-  return sprintf(sql, ", %f, %f, %f, %f", rcharKB/tsMonitorInterval, wcharKB/tsMonitorInterval,
-                                          rbyteKB/tsMonitorInterval, wbyteKB/tsMonitorInterval);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f, %f, %f", rcharKB/tsMonitorInterval, wcharKB/tsMonitorInterval,
+                                                       rbyteKB/tsMonitorInterval, wbyteKB/tsMonitorInterval);
 }
 
 static int32_t monBuildNetworkIOSql(char *sql) {
@@ -886,8 +886,8 @@ static int32_t monBuildNetworkIOSql(char *sql) {
     monDebug("failed to get network I/O info");
   }
 
-  return sprintf(sql, ", %f, %f", netInKb/tsMonitorInterval,
-                                  netOutKb/tsMonitorInterval);
+  return snprintf(sql, SQL_LENGTH,  ", %f, %f", netInKb/tsMonitorInterval,
+                                                netOutKb/tsMonitorInterval);
 }
 
 static int32_t monBuildDnodeReqSql(char *sql) {
@@ -903,22 +903,22 @@ static int32_t monBuildDnodeReqSql(char *sql) {
   float submitReqRate = submitReqNum / interval;
   float submitRowRate = submitRowNum / interval;
 
-  return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", tsMonStat.dInfo.httpReqNum, httpReqRate,
-                                                                  queryReqNum, queryReqRate,
-                                                                  submitRowNum, submitRowSucNum, submitRowRate,
-                                                                  submitReqNum, submitReqSucNum, submitReqRate);
+  return snprintf(sql, SQL_LENGTH, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", tsMonStat.dInfo.httpReqNum, httpReqRate,
+                                                                               queryReqNum, queryReqRate,
+                                                                               submitRowNum, submitRowSucNum, submitRowRate,
+                                                                               submitReqNum, submitReqSucNum, submitReqRate);
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {
   int64_t dnode_err = dnodeGetDnodeError();
-  return sprintf(sql, ", %"PRId64, dnode_err);
+  return snprintf(sql, SQL_LENGTH, ", %"PRId64, dnode_err);
 }
 
 static int32_t monBuildDnodeVnodesSql(char *sql) {
   int32_t vnodeNum = 0, masterNum = 0;
   char sqlStr[TSDB_EP_LEN + 15];
   memset(sqlStr, 0, sizeof(sqlStr));
-  sprintf(sqlStr, "show vnodes \"%s\"", tsLocalEp);
+  snprintf(sqlStr, TSDB_EP_LEN + 14, "show vnodes \"%s\"", tsLocalEp);
   TAOS_RES *result = taos_query(tsMonitor.conn, sqlStr);
 
   TAOS_ROW    row;
@@ -938,7 +938,7 @@ static int32_t monBuildDnodeVnodesSql(char *sql) {
   }
   taos_free_result(result);
 
-  return sprintf(sql, ", %d, %d", vnodeNum, masterNum);
+  return snprintf(sql, SQL_LENGTH, ", %d, %d", vnodeNum, masterNum);
 }
 
 static int32_t monBuildDnodeMnodeSql(char *sql) {
@@ -974,12 +974,12 @@ static int32_t monBuildDnodeMnodeSql(char *sql) {
   }
   taos_free_result(result);
 
-  return sprintf(sql, ", %s)", has_mnode ? "true" : "false");
+  return snprintf(sql, SQL_LENGTH, ", %s)", has_mnode ? "true" : "false");
 }
 
 static int32_t monBuildDnodeDiskSql(char *sql) {
   float taosdDataDirGB = 0;
-  return sprintf(sql, ", %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f, %f", taosdDataDirGB, tsUsedDataDirGB, tsTotalDataDirGB);
 }
 
 static int32_t monBuildDiskTierSql(char *sql) {
@@ -991,9 +991,9 @@ static int32_t monBuildDiskTierSql(char *sql) {
   int32_t pos = 0;
 
   for (int i = 0; i < numTiers; ++i) {
-    pos += sprintf(sql + pos, ", %f, %f", (float)(tierMetas[i].used / unit), (float)(tierMetas[i].size / unit));
+    pos += snprintf(sql + pos, SQL_LENGTH, ", %f, %f", (float)(tierMetas[i].used / unit), (float)(tierMetas[i].size / unit));
   }
-  pos += sprintf(sql + pos, ")");
+  pos += snprintf(sql + pos, SQL_LENGTH, ")");
 
   free(tierMetas);
 
@@ -1066,7 +1066,7 @@ static int32_t checkCreateVgroupTable(int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   memset(subsql, 0, sizeof(subsql));
-  sprintf(subsql, "describe %s.vgroup_%d", tsMonitorDbName, vgId);
+  snprintf(subsql, 255, "describe %s.vgroup_%d", tsMonitorDbName, vgId);
 
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   code = taos_errno(result);
@@ -1092,7 +1092,7 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
   int64_t ts = taosGetTimestampUs();
 
   memset(sql, 0, SQL_LENGTH + 1);
-  sprintf(sql, "show %s.vgroups", dbName);
+  snprintf(sql, SQL_LENGTH, "show %s.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, sql);
 
   TAOS_ROW    row;
@@ -1341,7 +1341,7 @@ void monSaveAcctLog(SAcctMonitorObj *pMon) {
   if (tsMonitor.state != MON_STATE_INITED) return;
 
   char sql[1024] = {0};
-  sprintf(sql,
+  snprintf(sql, 1023,
           "insert into %s.acct_%s using %s.acct tags('%s') values(now"
           ", %" PRId64 ", %" PRId64
           ", %" PRId64 ", %" PRId64
@@ -1385,7 +1385,7 @@ void monSaveLog(int32_t level, const char *const format, ...) {
   va_end(argpointer);
   if (len > max_length) len = max_length;
 
-  len += sprintf(sql + len, "', '%s')", tsLocalEp);
+  len += snprintf(sql + len, SQL_LENGTH, "', '%s')", tsLocalEp);
   sql[len++] = 0;
 
   monDebug("save log, sql: %s", sql);
@@ -1406,7 +1406,7 @@ void monSaveDnodeLog(int32_t level, const char *const format, ...) {
   va_end(argpointer);
   if (len > max_length) len = max_length;
 
-  len += sprintf(sql + len, "')");
+  len += snprintf(sql + len, SQL_LENGTH, "')");
   sql[len++] = 0;
 
   monDebug("save dnode log, sql: %s", sql);
