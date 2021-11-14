@@ -243,21 +243,11 @@ SDnodeStatisInfo dnodeGetStatisInfo() {
 #ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();
 #endif
-    info.queryReqNum  = atomic_load_32(&tsQueryReqNum);
-    info.submitReqNum = atomic_load_32(&tsSubmitReqNum);
+    info.queryReqNum  = atomic_exchange_32(&tsQueryReqNum, 0);
+    info.submitReqNum = atomic_exchange_32(&tsSubmitReqNum, 0);
   }
 
   return info;
-}
-
-void dnodeClearStatisInfo() {
-  if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
-#ifdef HTTP_EMBEDDED
-    httpClearReqCount();
-#endif
-    atomic_exchange_32(&tsQueryReqNum, 0);
-    atomic_exchange_32(&tsSubmitReqNum, 0);
-  }
 }
 
 int32_t dnodeGetHttpStatusInfo(int32_t index) {

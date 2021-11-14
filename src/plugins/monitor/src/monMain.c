@@ -149,10 +149,14 @@ typedef struct {
 } SMonConn;
 
 typedef struct {
+  SDnodeStatisInfo dInfo;
+  SVnodeStatisInfo vInfo;
   float io_read;
   float io_write;
   float io_read_disk;
   float io_write_disk;
+  int32_t monQueryReqCnt;
+  int32_t monSubmitReqCnt;
 } SMonStat;
 
 static void *monHttpStatusHashTable;
@@ -170,7 +174,6 @@ static void  monSaveSlowQueryInfo();
 static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void  monSaveHttpReqInfo();
-static void  monClearStatisInfo();
 static void  monGetSysStats();
 static void *monThreadFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
@@ -503,6 +506,12 @@ static void monGetSysStats() {
   if (!suc) {
     monDebug("failed to get io info");
   }
+
+  tsMonStat.dInfo = dnodeGetStatisInfo();
+  tsMonStat.vInfo = vnodeGetStatisInfo();
+
+  tsMonStat.monQueryReqCnt = monFetchQueryReqCnt();
+  tsMonStat.monSubmitReqCnt = monFetchSubmitReqCnt();
 }
 
 // unit is MB
@@ -554,7 +563,7 @@ static int32_t monBuildBandSql(char *sql) {
 }
 
 static int32_t monBuildReqSql(char *sql) {
-  SDnodeStatisInfo info = dnodeGetStatisInfo();
+  SDnodeStatisInfo info = tsMonStat.dInfo;
   return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
@@ -882,23 +891,22 @@ static int32_t monBuildNetworkIOSql(char *sql) {
 }
 
 static int32_t monBuildDnodeReqSql(char *sql) {
-  SDnodeStatisInfo dInfo = dnodeGetStatisInfo();
-  SVnodeStatisInfo vInfo = vnodeGetStatisInfo();
-
-  int32_t monQueryReqCnt = monFetchQueryReqCnt();
-  int32_t monSubmitReqCnt = monFetchSubmitReqCnt();
+  int32_t queryReqNum = tsMonStat.dInfo.queryReqNum - tsMonStat.monQueryReqCnt;
+  int32_t submitReqNum = tsMonStat.dInfo.submitReqNum - tsMonStat.monSubmitReqCnt;
+  int32_t submitRowNum = tsMonStat.vInfo.submitRowNum - tsMonStat.monSubmitReqCnt;
+  int32_t submitReqSucNum = tsMonStat.vInfo.submitReqSucNum - tsMonStat.monSubmitReqCnt;
+  int32_t submitRowSucNum = tsMonStat.vInfo.submitRowSucNum - tsMonStat.monSubmitReqCnt;
 
   float interval = (float)(tsMonitorInterval * 1.0);
-  float httpReqRate = dInfo.httpReqNum / interval;
-  float queryReqRate = (dInfo.queryReqNum - monQueryReqCnt)/ interval;
-  float submitReqRate = (dInfo.submitReqNum - monSubmitReqCnt) / interval;
-  float submitRowRate = (vInfo.submitRowNum - monSubmitReqCnt) / interval;
-  monClearStatisInfo();
+  float httpReqRate = tsMonStat.dInfo.httpReqNum / interval;
+  float queryReqRate = queryReqNum / interval;
+  float submitReqRate = submitReqNum / interval;
+  float submitRowRate = submitRowNum / interval;
 
-  return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", dInfo.httpReqNum, httpReqRate,
-                                                                  dInfo.queryReqNum - monQueryReqCnt, queryReqRate,
-                                                                  vInfo.submitRowNum - monSubmitReqCnt, vInfo.submitRowSucNum - monSubmitReqCnt, submitRowRate,
-                                                                  dInfo.submitReqNum - monSubmitReqCnt, vInfo.submitReqSucNum - monSubmitReqCnt, submitReqRate);
+  return sprintf(sql, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", tsMonStat.dInfo.httpReqNum, httpReqRate,
+                                                                  queryReqNum, queryReqRate,
+                                                                  submitRowNum, submitRowSucNum, submitRowRate,
+                                                                  submitReqNum, submitReqSucNum, submitReqRate);
 }
 
 static int32_t monBuildDnodeErrorsSql(char *sql) {
@@ -1314,11 +1322,6 @@ static void monSaveHttpReqInfo() {
     monIncSubmitReqCnt();
     monDebug("successfully to save restful_%d info, sql:%s", dnodeGetDnodeId(), tsMonitor.sql);
   }
-}
-
-static void monClearStatisInfo() {
-  dnodeClearStatisInfo();
-  vnodeClearStatisInfo();
 }
 
 static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {

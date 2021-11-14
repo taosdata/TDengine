@@ -31,7 +31,6 @@ typedef struct {
 } SDnodeStatisInfo;
 
 SDnodeStatisInfo dnodeGetStatisInfo();
-void             dnodeClearStatisInfo();
 int32_t          dnodeGetHttpStatusInfo(int32_t index);
 void             dnodeClearHttpStatusInfo();
 

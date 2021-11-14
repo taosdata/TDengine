@@ -441,15 +441,9 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
 
 SVnodeStatisInfo vnodeGetStatisInfo() {
   SVnodeStatisInfo info = {0};
-  info.submitReqSucNum = atomic_load_32(&tsSubmitReqSucNum);
-  info.submitRowNum = atomic_load_32(&tsSubmitRowNum);
-  info.submitRowSucNum = atomic_load_32(&tsSubmitRowSucNum);
+  info.submitReqSucNum = atomic_exchange_32(&tsSubmitReqSucNum, 0);
+  info.submitRowNum = atomic_exchange_32(&tsSubmitRowNum, 0);
+  info.submitRowSucNum = atomic_exchange_32(&tsSubmitRowSucNum, 0);
 
   return info;
-}
-
-void vnodeClearStatisInfo() {
-  atomic_exchange_32(&tsSubmitReqSucNum, 0);
-  atomic_exchange_32(&tsSubmitRowNum, 0);
-  atomic_exchange_32(&tsSubmitRowSucNum, 0);
 }

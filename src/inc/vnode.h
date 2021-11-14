@@ -87,7 +87,6 @@ void    vnodeFreeFromWQueue(void *pVnode, SVWriteMsg *pWrite);
 int32_t vnodeProcessWrite(void *pVnode, void *pHead, int32_t qtype, void *pRspRet);
 
 SVnodeStatisInfo vnodeGetStatisInfo();
-void    vnodeClearStatisInfo();
 
 // vnodeSync
 void    vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool force);
