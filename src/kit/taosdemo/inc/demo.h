@@ -58,7 +58,7 @@
 extern char configDir[];
 
 #define STR_INSERT_INTO "INSERT INTO "
-#define _WINSOCK_DEPRECATED_NO_WARNINGS 1
+
 #define MAX_RECORDS_PER_REQ 32766
 
 #define HEAD_BUFF_LEN \

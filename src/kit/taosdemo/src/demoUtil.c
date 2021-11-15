@@ -74,7 +74,8 @@ void ERROR_EXIT(const char *msg) {
 
 #ifdef WINDOWS
 #define _CRT_RAND_S
-
+#define _WINSOCK_DEPRECATED_NO_WARNINGS 1
+#include <stdlib.h>
 #include <windows.h>
 #include <winsock2.h>
 
