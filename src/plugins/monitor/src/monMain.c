@@ -355,7 +355,7 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", disk_used float, disk_total int"
              ", band_speed float"
              ", io_read float, io_write float"
-             ", req_http int, req_select int, req_insert int"
+             ", req_http bigint, req_select bigint, req_insert bigint"
              ") tags (dnodeid int, fqdn binary(%d))",
              tsMonitorDbName, TSDB_FQDN_LEN);
   } else if (cmd == MON_CMD_CREATE_TB_DN) {
@@ -411,10 +411,10 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", net_in float, net_out float"
              ", io_read float, io_write float"
              ", io_read_disk float, io_write_disk float"
-             ", req_http int, req_http_rate float"
-             ", req_select int, req_select_rate float"
-             ", req_insert int, req_insert_success int, req_insert_rate float"
-             ", req_insert_batch int, req_insert_batch_success int, req_insert_batch_rate float"
+             ", req_http bigint, req_http_rate float"
+             ", req_select bigint, req_select_rate float"
+             ", req_insert bigint, req_insert_success bigint, req_insert_rate float"
+             ", req_insert_batch bigint, req_insert_batch_success bigint, req_insert_batch_rate float"
              ", errors bigint"
              ", vnodes_num int"
              ", masters int"
@@ -564,7 +564,7 @@ static int32_t monBuildBandSql(char *sql) {
 
 static int32_t monBuildReqSql(char *sql) {
   SDnodeStatisInfo info = tsMonStat.dInfo;
-  return snprintf(sql, SQL_LENGTH, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
+  return snprintf(sql, SQL_LENGTH, ", %"PRId64", %"PRId64", %"PRId64")", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
 static int32_t monBuildIoSql(char *sql) {
@@ -891,11 +891,11 @@ static int32_t monBuildNetworkIOSql(char *sql) {
 }
 
 static int32_t monBuildDnodeReqSql(char *sql) {
-  int32_t queryReqNum = tsMonStat.dInfo.queryReqNum - tsMonStat.monQueryReqCnt;
-  int32_t submitReqNum = tsMonStat.dInfo.submitReqNum;
-  int32_t submitRowNum = tsMonStat.vInfo.submitRowNum;
-  int32_t submitReqSucNum = tsMonStat.vInfo.submitReqSucNum;
-  int32_t submitRowSucNum = tsMonStat.vInfo.submitRowSucNum;
+  int64_t queryReqNum = tsMonStat.dInfo.queryReqNum - tsMonStat.monQueryReqCnt;
+  int64_t submitReqNum = tsMonStat.dInfo.submitReqNum;
+  int64_t submitRowNum = tsMonStat.vInfo.submitRowNum;
+  int64_t submitReqSucNum = tsMonStat.vInfo.submitReqSucNum;
+  int64_t submitRowSucNum = tsMonStat.vInfo.submitRowSucNum;
 
   float interval = (float)(tsMonitorInterval * 1.0);
   float httpReqRate = tsMonStat.dInfo.httpReqNum / interval;
@@ -903,7 +903,8 @@ static int32_t monBuildDnodeReqSql(char *sql) {
   float submitReqRate = submitReqNum / interval;
   float submitRowRate = submitRowNum / interval;
 
-  return snprintf(sql, SQL_LENGTH, ", %d, %f, %d, %f, %d, %d, %f, %d, %d, %f", tsMonStat.dInfo.httpReqNum, httpReqRate,
+  return snprintf(sql, SQL_LENGTH, ", %"PRId64", %f, %"PRId64", %f, %"PRId64", %"PRId64", %f, %"PRId64", %"PRId64", %f",
+                                                                               tsMonStat.dInfo.httpReqNum, httpReqRate,
                                                                                queryReqNum, queryReqRate,
                                                                                submitRowNum, submitRowSucNum, submitRowRate,
                                                                                submitReqNum, submitReqSucNum, submitReqRate);

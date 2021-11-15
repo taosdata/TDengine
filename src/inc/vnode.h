@@ -23,9 +23,9 @@ extern "C" {
 #include "twal.h"
 
 typedef struct {
-  int32_t submitReqSucNum;
-  int32_t submitRowNum;
-  int32_t submitRowSucNum;
+  int64_t submitReqSucNum;
+  int64_t submitRowNum;
+  int64_t submitRowSucNum;
 } SVnodeStatisInfo;
 
 typedef struct {

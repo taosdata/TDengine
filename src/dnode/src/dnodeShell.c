@@ -28,8 +28,8 @@ static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *);
 static int     dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void  * tsShellRpc = NULL;
-static int32_t tsQueryReqNum  = 0;
-static int32_t tsSubmitReqNum = 0;
+static int64_t tsQueryReqNum  = 0;
+static int64_t tsSubmitReqNum = 0;
 
 int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVWriteQueue;
@@ -136,9 +136,9 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 
   if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
-    atomic_fetch_add_32(&tsQueryReqNum, 1);
+    atomic_fetch_add_64(&tsQueryReqNum, 1);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
-    atomic_fetch_add_32(&tsSubmitReqNum, 1);
+    atomic_fetch_add_64(&tsSubmitReqNum, 1);
   } else {}
 
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
@@ -243,8 +243,8 @@ SDnodeStatisInfo dnodeGetStatisInfo() {
 #ifdef HTTP_EMBEDDED
     info.httpReqNum   = httpGetReqCount();
 #endif
-    info.queryReqNum  = atomic_exchange_32(&tsQueryReqNum, 0);
-    info.submitReqNum = atomic_exchange_32(&tsSubmitReqNum, 0);
+    info.queryReqNum  = atomic_exchange_64(&tsQueryReqNum, 0);
+    info.submitReqNum = atomic_exchange_64(&tsSubmitReqNum, 0);
   }
 
   return info;

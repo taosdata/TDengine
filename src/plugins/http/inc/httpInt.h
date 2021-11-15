@@ -188,7 +188,7 @@ typedef struct HttpServer {
   SOCKET            fd;
   int32_t           numOfThreads;
   int32_t           methodScannerLen;
-  int32_t           requestNum;
+  int64_t           requestNum;
   int32_t           status;
   int32_t           statusCodeErrs[HTTP_STATUS_CODE_NUM];
   pthread_t         thread;

@@ -25,9 +25,9 @@ extern "C" {
 
 #define MAX_HTTP_STATUS_CODE_NUM 63
 typedef struct {
-  int32_t queryReqNum;
-  int32_t submitReqNum;
-  int32_t httpReqNum;
+  int64_t queryReqNum;
+  int64_t submitReqNum;
+  int64_t httpReqNum;
 } SDnodeStatisInfo;
 
 SDnodeStatisInfo dnodeGetStatisInfo();
