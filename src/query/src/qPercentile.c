@@ -74,7 +74,7 @@ static int32_t setBoundingBox(MinMaxEntry* range, int16_t type, double minval, d
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)){
     range->u64MinVal = (uint64_t) minval;
-    if (maxval > UINT64_MAX) {
+    if ((uint64_t)maxval > UINT64_MAX) {
       range->u64MaxVal = UINT64_MAX;
     } else {
       range->u64MaxVal = (uint64_t) maxval;
