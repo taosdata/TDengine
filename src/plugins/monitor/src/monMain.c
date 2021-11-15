@@ -162,7 +162,7 @@ typedef struct {
 static void *monHttpStatusHashTable;
 
 static SMonConn tsMonitor = {0};
-static SMonStat tsMonStat = {0};
+static SMonStat tsMonStat = {{0}};
 static int32_t  monQueryReqNum = 0, monSubmitReqNum = 0;
 static bool     monHasMnodeMaster = false;
 
