@@ -2144,7 +2144,8 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
                 if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
                     cJSON *tag = cJSON_Duplicate(
                         cJSON_GetArrayItem(
-                            tagsList, tableSeq - pThreadInfo->start_table_from),
+                            tagsList,
+                            (int)(tableSeq - pThreadInfo->start_table_from)),
                         true);
                     code = generateSmlJsonCols(jsonArray, tag, stbInfo,
                                                pThreadInfo, timestamp);
@@ -2188,7 +2189,7 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
 
                 int64_t remainRows = insertRows - generatedRecPerTbl;
                 if ((remainRows > 0) && (batchPerTbl > remainRows)) {
-                    batchPerTbl = remainRows;
+                    batchPerTbl = (uint32_t)remainRows;
                 }
 
                 if (pThreadInfo->ntables * batchPerTbl < g_args.reqPerReq) {
@@ -2261,7 +2262,8 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
 
         pThreadInfo->totalAffectedRows += affectedRows;
 
-        int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+        int currentPercent =
+            (int)(pThreadInfo->totalAffectedRows * 100 / totalRows);
         if (currentPercent > percentComplete) {
             printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
             percentComplete = currentPercent;
@@ -2283,7 +2285,7 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
                 performancePrint("%s() LN%d sleep: %" PRId64
                                  " ms for insert interval\n",
                                  __func__, __LINE__, sleepTime);
-                taosMsleep(sleepTime);  // ms
+                taosMsleep((int32_t)sleepTime);  // ms
                 sleepTimeTotal += insert_interval;
             }
         }
@@ -2626,7 +2628,7 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     cJSON *jsonArray;
 
     if (insertRows < g_args.reqPerReq) {
-        g_args.reqPerReq = insertRows;
+        g_args.reqPerReq = (uint32_t)insertRows;
     }
 
     if (stbInfo->lineProtocol == TSDB_SML_LINE_PROTOCOL ||
@@ -2686,8 +2688,8 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         for (uint64_t j = 0; j < insertRows;) {
             for (int k = 0; k < g_args.reqPerReq; k++) {
                 if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
-                    cJSON *tag =
-                        cJSON_Duplicate(cJSON_GetArrayItem(tagsList, i), true);
+                    cJSON *tag = cJSON_Duplicate(
+                        cJSON_GetArrayItem(tagsList, (int)i), true);
                     code = generateSmlJsonCols(jsonArray, tag, stbInfo,
                                                pThreadInfo, timestamp);
                     if (code) {
@@ -2737,8 +2739,8 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
 
             pThreadInfo->totalAffectedRows += affectedRows;
             pThreadInfo->totalInsertRows += g_args.reqPerReq;
-            currentPercent = pThreadInfo->totalAffectedRows * 100 /
-                             (insertRows * pThreadInfo->ntables);
+            currentPercent = (int)(pThreadInfo->totalAffectedRows * 100 /
+                                   (insertRows * pThreadInfo->ntables));
             if (currentPercent > percentComplete) {
                 printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
                 percentComplete = currentPercent;
