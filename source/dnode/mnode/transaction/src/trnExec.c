@@ -52,7 +52,7 @@ int32_t trnApply(SSdbRaw *pRaw, void *pData, int32_t code) {
     return 0;
   }
 
-  if (sdbWrite(pRaw) != 0) {
+  if (sdbWrite(pData) != 0) {
     code = terrno;
     trnSendRpcRsp(pData, code);
     terrno = code;

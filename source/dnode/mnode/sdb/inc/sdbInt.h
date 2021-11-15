@@ -36,6 +36,22 @@ extern "C" {
 
 #define SDB_MAX_SIZE (32 * 1024)
 
+typedef struct SSdbRaw {
+  int8_t  sdb;
+  int8_t  sver;
+  int8_t  status;
+  int8_t  reserved;
+  int32_t dataLen;
+  char    pData[];
+} SSdbRaw;
+
+typedef struct SSdbRow {
+  ESdbType   sdb;
+  ESdbStatus status;
+  int32_t    refCount;
+  char       pObj[];
+} SSdbRow;
+
 typedef struct {
   char       *currDir;
   char       *syncDir;
@@ -53,12 +69,9 @@ typedef struct {
   SdbDecodeFp decodeFps[SDB_MAX];
 } SSdbMgr;
 
-typedef struct {
-  ESdbStatus status;
-  int32_t    refCount;
-  int32_t    dataLen;
-  char       pData[];
-} SSdbRow;
+extern SSdbMgr tsSdb;
+
+int32_t sdbWriteImp(SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

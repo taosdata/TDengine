@@ -136,8 +136,8 @@ static int32_t dnodeWriteMnodeFile() {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": \"%d\",\n", tsMnode.dropped);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\",\n", tsMnode.dropped);
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": \"%d\",\n", tsMnode.deployed);
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\"\n", tsMnode.dropped);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
@@ -180,7 +180,7 @@ static int32_t dnodeStartMnode() {
   tsMnode.deployed = 1;
   taosWUnLockLatch(&tsMnode.latch);
 
-  return code;
+  return mnodeStart(NULL);
 }
 
 static void dnodeStopMnode() {
@@ -212,14 +212,14 @@ static int32_t dnodeUnDeployMnode() {
   }
 
   dnodeStopMnode();
-  mnodeUnDeploy(tsMnodeDir);
+  mnodeUnDeploy();
   dnodeWriteMnodeFile();
 
   return code;
 }
 
 static int32_t dnodeDeployMnode(SMnodeCfg *pCfg) {
-  int32_t code = mnodeDeploy(tsMnodeDir, pCfg);
+  int32_t code = mnodeDeploy(pCfg);
   if (code != 0) {
     dError("failed to deploy mnode since %s", tstrerror(code));
     return code;
@@ -536,7 +536,7 @@ static int32_t dnodeOpenMnode() {
     SMnodeCfg cfg = {.replica = 1};
     cfg.replicas[0].port = tsServerPort;
     tstrncpy(cfg.replicas[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-    return dnodeDeployMnode(&cfg);
+    code = dnodeDeployMnode(&cfg);
   } else {
     dInfo("start to open mnode");
     return dnodeStartMnode();

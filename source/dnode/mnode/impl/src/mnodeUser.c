@@ -19,59 +19,46 @@
 #include "tglobal.h"
 #include "tkey.h"
 
-#define USER_VER 1
+#define SDB_USER_VER 1
 
 static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
-  SSdbRaw *pRaw = calloc(1, sizeof(SUserObj) + sizeof(SSdbRaw));
-  if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SAcctObj));
+  if (pRaw == NULL) return NULL;
 
-  int32_t dataLen = 0;
-  char   *pData = pRaw->data;
-  SDB_SET_BINARY_VAL(pData, dataLen, pUser->user, TSDB_USER_LEN)
-  SDB_SET_BINARY_VAL(pData, dataLen, pUser->pass, TSDB_KEY_LEN)
-  SDB_SET_BINARY_VAL(pData, dataLen, pUser->acct, TSDB_KEY_LEN)
-  SDB_SET_INT64_VAL(pData, dataLen, pUser->createdTime)
-  SDB_SET_INT64_VAL(pData, dataLen, pUser->updateTime)
-  SDB_SET_INT32_VAL(pData, dataLen, pUser->rootAuth)
+  int32_t dataPos = 0;
+  SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_KEY_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
+  SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
+  SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
+  SDB_SET_INT8(pRaw, dataPos, pUser->rootAuth)
+  SDB_SET_DATALEN(pRaw, dataPos);
 
-  pRaw->dataLen = dataLen;
-  pRaw->type = SDB_USER;
-  pRaw->sver = USER_VER;
   return pRaw;
 }
 
-static SUserObj *mnodeUserActionDecode(SSdbRaw *pRaw) {
-  if (pRaw->sver != USER_VER) {
+static SSdbRow *mnodeUserActionDecode(SSdbRaw *pRaw) {
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+
+  if (sver != SDB_USER_VER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
 
-  SUserObj *pUser = calloc(1, sizeof(SUserObj));
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSdbRow  *pRow = sdbAllocRow(sizeof(SUserObj));
+  SUserObj *pUser = sdbGetRowObj(pRow);
+  if (pUser == NULL) return NULL;
 
-  int32_t code = 0;
-  int32_t dataLen = pRaw->dataLen;
-  char   *pData = pRaw->data;
-  SDB_GET_BINARY_VAL(pData, dataLen, pUser->user, TSDB_USER_LEN, code)
-  SDB_GET_BINARY_VAL(pData, dataLen, pUser->pass, TSDB_KEY_LEN, code)
-  SDB_GET_BINARY_VAL(pData, dataLen, pUser->acct, TSDB_USER_LEN, code)
-  SDB_GET_INT64_VAL(pData, dataLen, pUser->createdTime, code)
-  SDB_GET_INT64_VAL(pData, dataLen, pUser->updateTime, code)
-  SDB_GET_INT32_VAL(pData, dataLen, pUser->rootAuth, code)
+  int32_t dataPos = 0;
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->user, TSDB_USER_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->pass, TSDB_KEY_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->acct, TSDB_USER_LEN)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->rootAuth)
 
-  if (code != 0) {
-    tfree(pUser);
-    terrno = code;
-    return NULL;
-  }
-
-  return pUser;
+  return pRow;
 }
 
 static int32_t mnodeUserActionInsert(SUserObj *pUser) {
@@ -105,7 +92,9 @@ static int32_t mnodeUserActionDelete(SUserObj *pUser) {
 }
 
 static int32_t mnodeUserActionUpdate(SUserObj *pSrcUser, SUserObj *pDstUser) {
-  memcpy(pDstUser, pSrcUser, (int32_t)((char *)&pDstUser->prohibitDbHash - (char *)&pDstUser));
+  SUserObj tObj;
+  int32_t  len = (int32_t)((int8_t *)tObj.prohibitDbHash - (int8_t *)&tObj);
+  memcpy(pDstUser, pSrcUser, len);
   return 0;
 }
 
@@ -122,9 +111,8 @@ static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
   }
 
   SSdbRaw *pRaw = mnodeUserActionEncode(&userObj);
-  if (pRaw == NULL) {
-    return -1;
-  }
+  if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   return sdbWrite(pRaw);
 }
@@ -156,32 +144,28 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
 
   STrans *pTrans = trnCreate(TRN_POLICY_ROLLBACK);
   if (pTrans == NULL) return -1;
+  trnSetRpcHandle(pTrans, pMsg->rpcMsg.handle);
 
   SSdbRaw *pRedoRaw = mnodeUserActionEncode(&userObj);
   if (pRedoRaw == NULL || trnAppendRedoLog(pTrans, pRedoRaw) != 0) {
     trnDrop(pTrans);
     return -1;
   }
-  pRedoRaw->status = SDB_STATUS_CREATING;
-  pRedoRaw->action = SDB_ACTION_INSERT;
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
 
   SSdbRaw *pUndoRaw = mnodeUserActionEncode(&userObj);
   if (pUndoRaw == NULL || trnAppendUndoLog(pTrans, pUndoRaw) != 0) {
     trnDrop(pTrans);
     return -1;
   }
-  pUndoRaw->status = SDB_STATUS_DROPPING;
-  pUndoRaw->action = SDB_ACTION_DELETE;
+  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
   SSdbRaw *pCommitRaw = mnodeUserActionEncode(&userObj);
   if (pCommitRaw == NULL || trnAppendCommitLog(pTrans, pCommitRaw) != 0) {
     trnDrop(pTrans);
     return -1;
   }
-  pCommitRaw->status = SDB_STATUS_READY;
-  pCommitRaw->action = SDB_ACTION_UPDATE;
-
-  trnSetRpcHandle(pTrans, pMsg->rpcMsg.handle);
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (trnPrepare(pTrans, mnodeSyncPropose) != 0) {
     trnDrop(pTrans);

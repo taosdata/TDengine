@@ -45,15 +45,15 @@ typedef enum {
 } ETrnStage;
 
 typedef struct STrans {
-  int32_t    id;
-  ETrnStage  stage;
-  ETrnPolicy policy;
-  void      *rpcHandle;
-  SArray    *redoLogs;
-  SArray    *undoLogs;
-  SArray    *commitLogs;
-  SArray    *redoActions;
-  SArray    *undoActions;
+  int32_t id;
+  int8_t  stage;
+  int8_t  policy;
+  void   *rpcHandle;
+  SArray *redoLogs;
+  SArray *undoLogs;
+  SArray *commitLogs;
+  SArray *redoActions;
+  SArray *undoActions;
 } STrans;
 
 SSdbRaw *trnActionEncode(STrans *pTrans);
