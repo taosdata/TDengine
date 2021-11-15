@@ -168,8 +168,9 @@ void *superTableQuery(void *sarg) {
         for (int i = (int)pThreadInfo->start_table_from;
              i <= pThreadInfo->end_table_to; i++) {
             for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
-                memset(sqlstr, 0, BUFFER_SIZE) replaceChildTblName(
-                    g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
+                memset(sqlstr, 0, BUFFER_SIZE);
+                replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr,
+                                    i);
                 if (g_queryInfo.superQueryInfo.result[j][0] != '\0') {
                     sprintf(pThreadInfo->filePath, "%s-%d",
                             g_queryInfo.superQueryInfo.result[j],
