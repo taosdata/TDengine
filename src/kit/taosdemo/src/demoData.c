@@ -2381,7 +2381,7 @@ int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo,
                 cJSON_AddStringToObject(tag, "type", "int");
                 break;
             case TSDB_DATA_TYPE_BIGINT:
-                cJSON_AddNumberToObject(tag, "value", rand_bigint());
+                cJSON_AddNumberToObject(tag, "value", (double)rand_bigint());
                 cJSON_AddStringToObject(tag, "type", "bigint");
                 break;
             case TSDB_DATA_TYPE_FLOAT:
@@ -2432,7 +2432,7 @@ int32_t generateSmlJsonCols(cJSON *array, cJSON *tag, SSuperTable *stbInfo,
                             threadInfo *pThreadInfo, int64_t timestamp) {
     cJSON *record = cJSON_CreateObject();
     cJSON *ts = cJSON_CreateObject();
-    cJSON_AddNumberToObject(ts, "value", timestamp);
+    cJSON_AddNumberToObject(ts, "value", (double)timestamp);
     if (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MILLI) {
         cJSON_AddStringToObject(ts, "type", "ms");
     } else if (pThreadInfo->time_precision == TSDB_TIME_PRECISION_MICRO) {
@@ -2463,7 +2463,7 @@ int32_t generateSmlJsonCols(cJSON *array, cJSON *tag, SSuperTable *stbInfo,
             cJSON_AddStringToObject(value, "type", "int");
             break;
         case TSDB_DATA_TYPE_BIGINT:
-            cJSON_AddNumberToObject(value, "value", rand_bigint());
+            cJSON_AddNumberToObject(value, "value", (double)rand_bigint());
             cJSON_AddStringToObject(value, "type", "bigint");
             break;
         case TSDB_DATA_TYPE_FLOAT:

@@ -3274,7 +3274,7 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
     uint64_t totalDelay = 0;
     uint64_t maxDelay = 0;
     uint64_t minDelay = UINT64_MAX;
-    uint64_t cntDelay = 1;
+    uint64_t cntDelay = 0;
     double   avgDelay = 0;
 
     for (int i = 0; i < threads; i++) {
