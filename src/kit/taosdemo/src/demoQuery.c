@@ -87,8 +87,8 @@ void *specifiedTableQuery(void *sarg) {
     while (queryTimes--) {
         if (g_queryInfo.specifiedQueryInfo.queryInterval &&
             (et - st) < (int64_t)g_queryInfo.specifiedQueryInfo.queryInterval) {
-            taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval -
-                       (et - st));  // ms
+            taosMsleep((int32_t)(g_queryInfo.specifiedQueryInfo.queryInterval -
+                                 (et - st)));  // ms
         }
 
         st = taosGetTimestampMs();
@@ -157,20 +157,19 @@ void *superTableQuery(void *sarg) {
     while (queryTimes--) {
         if (g_queryInfo.superQueryInfo.queryInterval &&
             (et - st) < (int64_t)g_queryInfo.superQueryInfo.queryInterval) {
-            taosMsleep(g_queryInfo.superQueryInfo.queryInterval -
-                       (et - st));  // ms
+            taosMsleep((int32_t)(g_queryInfo.superQueryInfo.queryInterval -
+                                 (et - st)));  // ms
             // printf("========sleep duration:%"PRId64 "========inserted
             // rows:%d, table range:%d - %d\n", (1000 - (et - st)), i,
             // pThreadInfo->start_table_from, pThreadInfo->end_table_to);
         }
 
         st = taosGetTimestampMs();
-        for (int i = pThreadInfo->start_table_from;
+        for (int i = (int)pThreadInfo->start_table_from;
              i <= pThreadInfo->end_table_to; i++) {
             for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
-                memset(sqlstr, 0, BUFFER_SIZE);
-                replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr,
-                                    i);
+                memset(sqlstr, 0, BUFFER_SIZE) replaceChildTblName(
+                    g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
                 if (g_queryInfo.superQueryInfo.result[j][0] != '\0') {
                     sprintf(pThreadInfo->filePath, "%s-%d",
                             g_queryInfo.superQueryInfo.result[j],
@@ -257,7 +256,7 @@ int queryTestProcess() {
             for (int j = 0; j < nConcurrent; j++) {
                 uint64_t    seq = i * nConcurrent + j;
                 threadInfo *pThreadInfo = infos + seq;
-                pThreadInfo->threadID = seq;
+                pThreadInfo->threadID = (int)seq;
                 pThreadInfo->querySeq = i;
 
                 if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
@@ -337,7 +336,7 @@ int queryTestProcess() {
 
         int64_t a = ntables / threads;
         if (a < 1) {
-            threads = ntables;
+            threads = (int)ntables;
             a = 1;
         }
 
