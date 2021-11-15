@@ -892,10 +892,10 @@ static int32_t monBuildNetworkIOSql(char *sql) {
 
 static int32_t monBuildDnodeReqSql(char *sql) {
   int32_t queryReqNum = tsMonStat.dInfo.queryReqNum - tsMonStat.monQueryReqCnt;
-  int32_t submitReqNum = tsMonStat.dInfo.submitReqNum - tsMonStat.monSubmitReqCnt;
-  int32_t submitRowNum = tsMonStat.vInfo.submitRowNum - tsMonStat.monSubmitReqCnt;
-  int32_t submitReqSucNum = tsMonStat.vInfo.submitReqSucNum - tsMonStat.monSubmitReqCnt;
-  int32_t submitRowSucNum = tsMonStat.vInfo.submitRowSucNum - tsMonStat.monSubmitReqCnt;
+  int32_t submitReqNum = tsMonStat.dInfo.submitReqNum;
+  int32_t submitRowNum = tsMonStat.vInfo.submitRowNum;
+  int32_t submitReqSucNum = tsMonStat.vInfo.submitReqSucNum;
+  int32_t submitRowSucNum = tsMonStat.vInfo.submitRowSucNum;
 
   float interval = (float)(tsMonitorInterval * 1.0);
   float httpReqRate = tsMonStat.dInfo.httpReqNum / interval;
