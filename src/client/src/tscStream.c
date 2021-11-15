@@ -267,7 +267,9 @@ static void tscStreamFillTimeGap(SSqlStream* pStream, TSKEY ts) {
 
 // callback send values
 void cbSendValues(void *param, TAOS_RES *res, int code) {
-  printf(" send values return code =%d \n", code);
+  if(code < 0) {
+    tscError("CQ=%p insert another table error 0x%x", param, code);
+  }
 }
 
 // append values
