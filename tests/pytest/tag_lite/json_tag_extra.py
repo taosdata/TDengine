@@ -431,13 +431,30 @@ class TDTestCase:
         tdSql.checkRows(1) 
         tdSql.query(" select  apercentile(dataint,100,'t-digest') from jsons1 where jtag->'location' in ('beijing','tianjing') or jtag?'num' or jtag->'age'=35 ;")
         tdSql.checkRows(1)   
-        tdSql.query(" select  interp(dataint) from jsons1 where jtag->'location' in ('beijing','tianjing')  and ts >= '2021-11-10 20:58:25.007' and ts<= '2021-11-12 20:58:32.000'  every(2a) ;")
-        # tdSql.checkData(0,0,1)  
-        # tdSql.checkRows(1)   
-        # tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location';")
+        tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location';")
+        tdSql.query("select  tbname,top(dataint,1)  from jsons1 group by jtag->'location' order by tbname asc;")
+        tdSql.query("select  tbname,top(dataint,1)  from jsons1 group by jtag->'location' order by tbname desc")
+        tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location' order by  jtag->'location' asc;")
+        tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location' order by  jtag->'location' desc;")
+        tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location' order by  ts desc;")
+        tdSql.query("select  top(dataint,1)  from jsons1 group by jtag->'location' order by  ts asc;")
+
         # tdSql.query("select  top(dataint,100)  from jsons1 group by jtag->'location';")
         # tdSql.query("select  bottom(dataint,1)  from jsons1 group by jtag->'location';")
         # tdSql.query("select  bottom(dataint,100)  from jsons1 group by jtag->'location';")
+
+        tdSql.execute("create table if not exists jsons_interp(ts timestamp, dataInt int, dataBool bool, datafloat float, datadouble double,dataStr nchar(50)) tags(jtag json)")
+        tdSql.execute("insert into jsons_interp_1 using jsons_interp tags('{\"nv\":null,\"tea\":true,\"\":false,\"rate\":456,\"tea\":false}') values ('2021-07-25 02:19:54.119',2,'true',0.9,0.1,'123')")
+        tdSql.execute("insert into jsons_interp_1 values ('2021-07-25 02:19:54.219',3,'true',-4.8,-5.5,'123') ")
+        tdSql.execute("insert into jsons_interp_2 using jsons_interp tags('{\"nv\":null,\"tea\":true,\"level\":\"123456\",\"rate\":123,\"tea\":false}') values ('2021-07-25 02:19:54.319',4,'true',0.9,0.1,'123')")
+        tdSql.execute("insert into jsons_interp_2 values ('2021-07-25 02:19:54.419',5,'true',-5.1,1.3,'123') ")
+        tdSql.query(" select  interp(dataint) from jsons_interp where jtag->'rate' in (123,456)  and ts >= '2021-07-25 02:19:53.19' and ts<= '2021-07-25 02:19:54.519'  every(100a) ;")
+        tdSql.query(" select  interp(dataint) from jsons_interp where jtag->'rate'=123  and ts >= '2021-07-25 02:19:53.19' and ts<= '2021-07-25 02:19:54.519'  every(100a) ;")
+        tdSql.query(" select  interp(dataint) from jsons_interp where ts >= '2021-07-25 02:19:53.19' and ts<= '2021-07-25 02:19:54.519'  every(100a) ;")
+
+
+        # tdSql.checkData(0,0,1)  
+        # tdSql.checkRows(1)   
 
         #  Select_exprs is SQL function -Calculation  function
 
@@ -489,6 +506,8 @@ class TDTestCase:
 
         #nested query 
         tdSql.query("select jtag->'tag' from (select tbname,jtag,ts,ceil(dataint) as cdata,ceil(datafloat) ,ceil(datadouble) from jsons7 where jtag?'tea') where cdata=3 ")
+        # tdSql.query("select * from (select tbname,jtag,ts,ceil(dataint) as cdata,ceil(datafloat) ,ceil(datadouble) from jsons7 where jtag?'tea') where cdata=3 ")
+        # tdSql.query("select jtag from (select tbname,jtag,ts,ceil(dataint) as cdata,ceil(datafloat) ,ceil(datadouble) from jsons7 where jtag?'tea') where jtag->'tag'=123 ")
 
         # query  child table 
         # tdSql.error("select * from  jsons3_2 where jtag3->'k1'=true;")
