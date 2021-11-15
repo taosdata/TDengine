@@ -46,17 +46,19 @@ TAOS_SUB *subscribeImpl(QUERY_CLASS class, threadInfo *pThreadInfo, char *sql,
 
     if ((SPECIFIED_CLASS == class) &&
         (ASYNC_MODE == g_queryInfo.specifiedQueryInfo.asyncMode)) {
-        tsub = taos_subscribe(pThreadInfo->taos, restart, topic, sql,
-                              specified_sub_callback, (void *)pThreadInfo,
-                              g_queryInfo.specifiedQueryInfo.subscribeInterval);
+        tsub = taos_subscribe(
+            pThreadInfo->taos, restart, topic, sql, specified_sub_callback,
+            (void *)pThreadInfo,
+            (int)g_queryInfo.specifiedQueryInfo.subscribeInterval);
     } else if ((STABLE_CLASS == class) &&
                (ASYNC_MODE == g_queryInfo.superQueryInfo.asyncMode)) {
-        tsub = taos_subscribe(pThreadInfo->taos, restart, topic, sql,
-                              stable_sub_callback, (void *)pThreadInfo,
-                              g_queryInfo.superQueryInfo.subscribeInterval);
+        tsub =
+            taos_subscribe(pThreadInfo->taos, restart, topic, sql,
+                           stable_sub_callback, (void *)pThreadInfo,
+                           (int)g_queryInfo.superQueryInfo.subscribeInterval);
     } else {
         tsub = taos_subscribe(pThreadInfo->taos, restart, topic, sql, NULL,
-                              NULL, interval);
+                              NULL, (int)interval);
     }
 
     if (tsub == NULL) {
@@ -236,7 +238,7 @@ static void *superSubscribe(void *sarg) {
         memset(subSqlStr, 0, BUFFER_SIZE);
         replaceChildTblName(
             g_queryInfo.superQueryInfo.sql[pThreadInfo->querySeq], subSqlStr,
-            i);
+            (int)i);
         if (g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
             sprintf(pThreadInfo->filePath, "%s-%d",
                     g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq],
@@ -408,7 +410,7 @@ int subscribeTestProcess() {
                 uint64_t seq =
                     i * g_queryInfo.specifiedQueryInfo.concurrent + j;
                 threadInfo *pThreadInfo = infos + seq;
-                pThreadInfo->threadID = seq;
+                pThreadInfo->threadID = (int)seq;
                 pThreadInfo->querySeq = i;
                 pThreadInfo->taos =
                     NULL;  // workaround to use separate taos connection;
@@ -446,7 +448,7 @@ int subscribeTestProcess() {
 
             int64_t a = ntables / threads;
             if (a < 1) {
-                threads = ntables;
+                threads = (int)ntables;
                 a = 1;
             }
 
@@ -460,7 +462,7 @@ int subscribeTestProcess() {
                 for (int j = 0; j < threads; j++) {
                     uint64_t    seq = i * threads + j;
                     threadInfo *pThreadInfo = infosOfStable + seq;
-                    pThreadInfo->threadID = seq;
+                    pThreadInfo->threadID = (int)seq;
                     pThreadInfo->querySeq = i;
 
                     pThreadInfo->start_table_from = tableFrom;
