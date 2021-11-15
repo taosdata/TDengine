@@ -27,7 +27,7 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-
+        tdSql.execute("drop database if exists db_json;")
         print("==============step1 tag format =======")
         tdLog.info("create database   ")
         tdSql.execute("create database db_json")
@@ -455,13 +455,13 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select * from jsons7 where jtag->'tea'=3;")
         # tdSql.checkRows(0)
-        tdSql.execute("insert into jsons7_1 values (now,3,'true',-4.8,-5.5,'123') ")
-        tdSql.execute("insert into jsons7_1 values (now,4,'true',1.9998,2.00001,'123') ")
+        tdSql.execute("insert into jsons7_1 values (now+1s,3,'true',-4.8,-5.5,'123') ")
+        tdSql.execute("insert into jsons7_1 values (now+2s,4,'true',1.9998,2.00001,'123') ")
         tdSql.execute("insert into jsons7_2 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":123,\"tea\":false}') values (now,5,'true',4.01,2.2,'123') ")
-        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now,-0.9) ")
-        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now,-2.9) ")
-        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now,-0.9) ")
-        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now,-1.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now+3s,-0.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now+4s,-2.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now+1s,-0.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now+2s,-1.9) ")
         # tdSql.execute("CREATE TABLE if not exists jsons7_3 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":4569\"tea\":false}') ")
         tdSql.query("select ts,ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
         tdSql.query("select ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7 where jtag?'tea';")
@@ -474,7 +474,7 @@ class TDTestCase:
         # test join
         tdSql.execute("create table if not exists jsons6(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
         tdSql.execute("create table if not exists jsons5(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
-        tdSql.execute("CREATE TABLE if not exists jsons6_1 using jsons6 tags('{\"loc\":\"fff\",\"id\":6}')")
+        tdSql.execute("CREATE TABLE if not exists jsons6_1 using jsons6 tags('{\"loc\":\"fff\",\"id\":6,\"user\":\"ffc\"}')")
         tdSql.execute("CREATE TABLE if not exists jsons6_2 using jsons6 tags('{\"loc\":\"ffc\",\"id\":5}')")
         tdSql.execute("insert into jsons6_1 values ('2020-04-18 15:00:00.000', 1, false, 'json1')")
         tdSql.execute("insert into jsons6_2 values ('2020-04-18 15:00:01.000', 2, false, 'json1')")
@@ -482,10 +482,13 @@ class TDTestCase:
         tdSql.execute("insert into jsons5_2 using jsons5 tags('{\"loc\":\"fff\",\"id\":5,\"location\":\"beijing\"}') values ('2020-04-18 15:00:01.000', 2, true, 'json2')")
 
         tdSql.error("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
-        # tdSql.query("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'id'=b.jtag->'id'")
-        # tdSql.checkData(0, 0, "sss")
-        # tdSql.checkData(0, 2, "ffc")
+        tdSql.error("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'user'=b.jtag->'loc';")
+        tdSql.query("select 'sss',33,a.jtag->'loc' from jsons6 a,jsons5 b where a.ts=b.ts and a.jtag->'id'=b.jtag->'id'")
+        tdSql.checkData(0, 0, "sss")
+        tdSql.checkData(0, 2, "ffc")
 
+        #nested query 
+        tdSql.query("select jtag->'tag' from (select tbname,jtag,ts,ceil(dataint) as cdata,ceil(datafloat) ,ceil(datadouble) from jsons7 where jtag?'tea') where cdata=3 ")
 
         # query  child table 
         # tdSql.error("select * from  jsons3_2 where jtag3->'k1'=true;")
@@ -499,7 +502,7 @@ class TDTestCase:
         # tdSql.execute("drop stable jsons1")
         # tdSql.execute("drop stable jsons3")
         # tdSql.execute("drop stable jsons2")
-        # tdSql.execute("drop database db_json_tag_test")
+        # tdSql.execute("drop database db_json")
 
 
 
