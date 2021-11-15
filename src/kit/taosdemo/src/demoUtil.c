@@ -142,7 +142,7 @@ int taosRandom() { return rand(); }
 #endif
 
 bool isStringNumber(char *input) {
-    int len = strlen(input);
+    int len = (int)strlen(input);
     if (0 == len) {
         return false;
     }
@@ -244,9 +244,9 @@ int getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
         // printf("==== sub table name: %s\n", pTblName);
         count++;
         if (count >= childTblCount - 1) {
-            char *tmp =
-                realloc(childTblName,
-                        (size_t)childTblCount * 1.5 * TSDB_TABLE_NAME_LEN + 1);
+            char *tmp = realloc(
+                childTblName,
+                (size_t)(childTblCount * 1.5 * TSDB_TABLE_NAME_LEN + 1));
             if (tmp != NULL) {
                 childTblName = tmp;
                 childTblCount = (int)(childTblCount * 1.5);
@@ -408,7 +408,7 @@ int postProceSql(char *host, uint16_t port, char *sqlstr,
     char     response_buf[RESP_BUF_LEN];
     uint16_t rest_port = port + TSDB_PORT_HTTP;
 
-    int req_buf_len = strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
+    int req_buf_len = (int)strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
 
     request_buf = malloc(req_buf_len);
     if (NULL == request_buf) {
@@ -471,7 +471,7 @@ int postProceSql(char *host, uint16_t port, char *sqlstr,
     }
     verbosePrint("%s() LN%d: Request:\n%s\n", __func__, __LINE__, request_buf);
 
-    req_str_len = strlen(request_buf);
+    req_str_len = (int)strlen(request_buf);
     sent = 0;
     do {
 #ifdef WINDOWS
