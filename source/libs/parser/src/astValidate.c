@@ -2652,12 +2652,8 @@ static int32_t validateScalarFunctionParamNum(tSqlExpr* pSqlExpr, int32_t functi
   return code;
 }
 
-int32_t doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SColumnIndex* pColIndex,
-                        const char* aliasName, int32_t colId, SMsgBuf* pMsgBuf) {
-  STableMeta* pTableMeta = getMetaInfo(pQueryInfo, pColIndex->tableIndex)->pTableMeta;
-
-  SSchema* pSchema = getOneColumnSchema(pTableMeta, pColIndex->columnIndex);
-
+int32_t doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SSchema* pSchema, const char* aliasName,
+                        int32_t colId, SMsgBuf* pMsgBuf) {
   const char* name = (aliasName == NULL)? pSchema->name:aliasName;
   SSchema s = createSchema(pSchema->type, pSchema->bytes, colId, name);
 
@@ -2708,8 +2704,8 @@ static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColu
   }
 
   for (int32_t j = 0; j < numOfTotalColumns; ++j) {
-    pIndex->columnIndex = j;
-    doAddProjectCol(pQueryInfo, startPos + j, pIndex, NULL, getNewResColId(), pMsgBuf);
+    SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, j);
+    doAddProjectCol(pQueryInfo, startPos + j, pSchema, NULL, getNewResColId(), pMsgBuf);
   }
 
   return numOfTotalColumns;
@@ -2748,11 +2744,9 @@ static SSchema createConstantColumnSchema(SVariant* pVal, const SToken* exprStr,
 }
 
 static int32_t handleTbnameProjection(SQueryStmtInfo* pQueryInfo, tSqlExprItem* pItem, SColumnIndex* pIndex, int32_t startPos, bool outerQuery, SMsgBuf* pMsgBuf) {
-  const char* msg3 = "tbname not allowed in outer query";
+  const char* msg1 = "tbname not allowed in outer query";
 
   SSchema colSchema = {0};
-  char* funcName = NULL;
-
   if (outerQuery) {  // todo??
     STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
 
@@ -2769,36 +2763,20 @@ static int32_t handleTbnameProjection(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
     }
 
     if (!existed) {
-      return buildInvalidOperationMsg(pMsgBuf, msg3);
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
     colSchema = pSchema[pIndex->columnIndex];
-    funcName = "project_col";
   } else {
     colSchema = *getTbnameColumnSchema();
-    funcName = "project_tag";
   }
 
-  SSchema resultSchema = colSchema;
-  resultSchema.colId = getNewResColId();
-
-  char rawName[TSDB_COL_NAME_LEN] = {0};
-  setTokenAndResColumnName(pItem, resultSchema.name, rawName, sizeof(colSchema.name) - 1);
-
-  STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
-  SColumn c = createColumn(pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, pIndex->type, &colSchema);
-
-  SSourceParam param = {0};
-  addIntoSourceParam(&param, NULL, &c);
-
-  doAddOneExprInfo(pQueryInfo, "project_tag", &param, startPos, pTableMetaInfo, &colSchema, 0, rawName, true);
-  return TSDB_CODE_SUCCESS;
+  return doAddProjectCol(pQueryInfo, startPos, &colSchema, pItem->aliasName, getNewResColId(), pMsgBuf);
 }
 
 int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery, SMsgBuf* pMsgBuf) {
   const char* msg1 = "tag for normal table query is not allowed";
   const char* msg2 = "invalid column name";
-  const char* msg3 = "tbname not allowed in outer query";
 
   if (checkForAliasName(pMsgBuf, pItem->aliasName) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -2861,7 +2839,8 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
         return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
-      doAddProjectCol(pQueryInfo, startPos, &index, pItem->aliasName, getNewResColId(), pMsgBuf);
+      SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+      doAddProjectCol(pQueryInfo, startPos, pSchema, pItem->aliasName, getNewResColId(), pMsgBuf);
     }
 
     // add the primary timestamp column even though it is not required by user

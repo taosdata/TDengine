@@ -330,7 +330,7 @@ SArray* extractFunctionList(SArray* pExprInfoList) {
     if (pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
       taosArrayPush(p, &pExprInfo->pExpr->_function.functionName);
     } else {
-      taosArrayPush(p, "");
+      taosArrayPush(p, "project");
     }
   }
 
