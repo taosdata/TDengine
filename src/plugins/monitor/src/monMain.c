@@ -875,8 +875,8 @@ static int32_t monBuildDnodeIoSql(char *sql) {
   rbyteKB = tsMonStat.io_read_disk;
   wbyteKB = tsMonStat.io_write_disk;
 
-  return snprintf(sql, SQL_LENGTH, ", %f, %f, %f, %f", rcharKB/tsMonitorInterval, wcharKB/tsMonitorInterval,
-                                                       rbyteKB/tsMonitorInterval, wbyteKB/tsMonitorInterval);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f, %f, %f", (rcharKB / 1024) / tsMonitorInterval, (wcharKB / 1024) / tsMonitorInterval,
+                                                       (rbyteKB / 1024) / tsMonitorInterval, (wbyteKB / 1024) / tsMonitorInterval);
 }
 
 static int32_t monBuildNetworkIOSql(char *sql) {
@@ -886,8 +886,8 @@ static int32_t monBuildNetworkIOSql(char *sql) {
     monDebug("failed to get network I/O info");
   }
 
-  return snprintf(sql, SQL_LENGTH,  ", %f, %f", netInKb/tsMonitorInterval,
-                                                netOutKb/tsMonitorInterval);
+  return snprintf(sql, SQL_LENGTH,  ", %f, %f", netInKb / 1024,
+                                                netOutKb / 1024);
 }
 
 static int32_t monBuildDnodeReqSql(char *sql) {
