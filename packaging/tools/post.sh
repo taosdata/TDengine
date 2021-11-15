@@ -2,7 +2,7 @@
 #
 # This file is used to install tdengine rpm package on centos systems. The operating system
 # is required to use systemd to manage services at boot
-#set -x
+# set -x
 
 iplist=""
 serverFqdn=""
@@ -64,9 +64,9 @@ else
     service_mod=2
 fi
 
-function kill_blm3() {
-#  ${csudo} pkill -f blm3 || :
-  pid=$(ps -ef | grep "blm3" | grep -v "grep" | awk '{print $2}')
+function kill_taosadapter() {
+#  ${csudo} pkill -f taosadapter || :
+  pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -86,6 +86,24 @@ function install_include() {
     ${csudo} ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+function install_avro_lib() {
+    ${csudo} rm -f ${lib_link_dir}/libavro* || :
+    ${csudo} rm -f ${lib64_link_dir}/libavro* || :
+
+    if [[ -f ${lib_dir}/libavro.so.23.0.0 ]]; then
+        ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23.0.0
+        ${csudo} ln -s ${lib_link_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23
+        ${csudo} ln -s ${lib_link_dir}/libavro.so.23 ${lib_link_dir}/libavro.so
+
+        if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libavro.so ]]; then
+            ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23.0.0           || :
+            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23   || :
+            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23 ${lib64_link_dir}/libavro.so   || :
+        fi
+    fi
+
+    ${csudo} ldconfig
+}
 function install_lib() {
     ${csudo} rm -f ${lib_link_dir}/libtaos* || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos* || :
@@ -97,13 +115,15 @@ function install_lib() {
       ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
     fi
+
+    ${csudo} ldconfig
 }
 
 function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/blm3     || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
@@ -114,7 +134,7 @@ function install_bin() {
     #Make link
     [ -x ${bin_dir}/taos ] && ${csudo} ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo} ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
-    [ -x ${bin_dir}/blm3 ] && ${csudo} ln -s ${bin_dir}/blm3 ${bin_link_dir}/blm3             || :
+    [ -x ${bin_dir}/taosadapter ] && ${csudo} ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter             || :
     [ -x ${bin_dir}/taosdemo ] && ${csudo} ln -s ${bin_dir}/taosdemo ${bin_link_dir}/taosdemo || :
     [ -x ${bin_dir}/taosdump ] && ${csudo} ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/set_core.sh ] && ${csudo} ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
@@ -127,7 +147,7 @@ function add_newHostname_to_hosts() {
   iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
   arr=($iphost)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
     if [[ "$s" == "$localIp" ]]; then
       return
@@ -182,7 +202,7 @@ function is_correct_ipaddr() {
   IFS=" "
   arr=($iplist)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
    if [[ "$s" == "$newIp" ]]; then
      return 0
@@ -271,20 +291,20 @@ function local_fqdn_check() {
   fi
 }
 
-function install_blm3_config() {
-    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+function install_taosadapter_config() {
+    if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
         [ ! -d %{cfg_install_dir} ] &&
             ${csudo} ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${cfg_dir}/blm.toml ] && ${csudo} cp ${cfg_dir}/blm.toml ${cfg_install_dir}
-        [ -f ${cfg_install_dir}/blm.toml ] &&
-            ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+        [ -f ${cfg_dir}/taosadapter.toml ] && ${csudo} cp ${cfg_dir}/taosadapter.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/taosadapter.toml ] &&
+            ${csudo} chmod 644 ${cfg_install_dir}/taosadapter.toml
     fi
 
-    [ -f ${cfg_dir}/blm.toml ] &&
-        ${csudo} mv ${cfg_dir}/blm.toml ${cfg_dir}/blm.toml.org
+    [ -f ${cfg_dir}/taosadapter.toml ] &&
+        ${csudo} mv ${cfg_dir}/taosadapter.toml ${cfg_dir}/taosadapter.toml.new
 
-    [ -f ${cfg_install_dir}/blm.toml ] &&
-        ${csudo} ln -s ${cfg_install_dir}/blm.toml ${cfg_dir}
+    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
+        ${csudo} ln -s ${cfg_install_dir}/taosadapter.toml ${cfg_dir}
 }
 
 function install_config() {
@@ -302,7 +322,7 @@ function install_config() {
     # restore the backup standard input, and turn off 6
     exec 0<&6 6<&-
 
-    ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
+    ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.new
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
     #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
     #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
@@ -424,8 +444,8 @@ function install_service_on_systemd() {
 
     ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target taosadapter.service'        >> ${taosd_service_config}"
     ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
@@ -446,6 +466,15 @@ function install_service_on_systemd() {
     ${csudo} systemctl enable taosd
 }
 
+function install_taosadapter_service() {
+    if ((${service_mod}==0)); then
+        [ -f ${script_dir}/cfg/taosadapter.service ] &&\
+            ${csudo} cp ${script_dir}/cfg/taosadapter.service \
+            ${service_config_dir}/ || :
+        ${csudo} systemctl daemon-reload
+    fi
+}
+
 function install_service() {
     if ((${service_mod}==0)); then
         install_service_on_systemd
@@ -453,7 +482,7 @@ function install_service() {
         install_service_on_sysvinit
     else
         # manual start taosd
-        kill_blm3
+        kill_taosadapter
         kill_taosd
     fi
 }
@@ -474,10 +503,12 @@ function install_TDengine() {
     # Install include, lib, binary and service
     install_include
     install_lib
+    install_avro_lib
     install_bin
-    install_service
     install_config
-    install_blm3_config
+    install_taosadapter_config
+    install_taosadapter_service
+    install_service
 
     # Ask if to start the service
     #echo

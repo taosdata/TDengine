@@ -227,6 +227,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
       if (skipped) {
         slot = 0;
         stackidx = 0;
+        tVariantDestroy(&tag);
         continue;
       }
 
@@ -334,6 +335,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
       }
 
       if (mergeDone) {
+        tVariantDestroy(&tag);
         break;
       }
 
@@ -341,6 +343,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
       stackidx = 0;
 
       skipRemainValue(mainCtx->p->pTSBuf, &tag);
+      tVariantDestroy(&tag);
     }
 
     stackidx = 0;

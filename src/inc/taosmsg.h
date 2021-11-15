@@ -400,7 +400,7 @@ typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
+  char     name[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + 1];
 } SColIndex;
 
 typedef struct SColumnFilterInfo {
