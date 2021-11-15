@@ -63,7 +63,7 @@ typedef struct SConvertFunc {
   int32_t execFuncId;
 } SConvertFunc;
 
-static SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int32_t tableIndex, int32_t colId);
+static SExprInfo* doAddOneProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int32_t tableIndex, int32_t colId);
 
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
@@ -1890,7 +1890,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
 }
 
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSqlExprItem* pItem, int32_t colId) {
-  SExprInfo* pExpr = doAddProjectCol(pQueryInfo, pIndex->columnIndex, pIndex->tableIndex, colId);
+  SExprInfo* pExpr = doAddOneProjectCol(pQueryInfo, pIndex->columnIndex, pIndex->tableIndex, colId);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2157,7 +2157,7 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
   return TSDB_CODE_SUCCESS;
 }
 
-SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int32_t tableIndex, int32_t colId) {
+SExprInfo* doAddOneProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int32_t tableIndex, int32_t colId) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
   int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
@@ -2218,7 +2218,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   }
 
   for (int32_t j = 0; j < numOfTotalColumns; ++j) {
-    SExprInfo* pExpr = doAddProjectCol(pQueryInfo, j, pIndex->tableIndex, getNewResColId(pCmd));
+    SExprInfo* pExpr = doAddOneProjectCol(pQueryInfo, j, pIndex->tableIndex, getNewResColId(pCmd));
     tstrncpy(pExpr->base.aliasName, pSchema[j].name, sizeof(pExpr->base.aliasName));
 
     pIndex->columnIndex = j;

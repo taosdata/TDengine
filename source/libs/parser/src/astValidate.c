@@ -2652,19 +2652,19 @@ static int32_t validateScalarFunctionParamNum(tSqlExpr* pSqlExpr, int32_t functi
   return code;
 }
 
-int32_t doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SSchema* pSchema, const char* aliasName,
+int32_t doAddOneProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SSchema* pSchema, const char* aliasName,
                         int32_t colId, SMsgBuf* pMsgBuf) {
   const char* name = (aliasName == NULL)? pSchema->name:aliasName;
   SSchema s = createSchema(pSchema->type, pSchema->bytes, colId, name);
 
   tExprNode *pNode = NULL;
   bool keepTableCols = true;
+
   SArray* pColumnList = taosArrayInit(4, sizeof(SColumn));
+  SToken colNameToken = {.z = pSchema->name, .n = strlen(pSchema->name)};
 
   tSqlExpr sqlNode = {0};
   sqlNode.type = SQL_NODE_TABLE_COLUMN;
-
-  SToken colNameToken = {.z = pSchema->name, .n = strlen(pSchema->name)};
   sqlNode.columnName = colNameToken;
 
   int32_t ret = sqlExprToExprNode(&pNode, &sqlNode, pQueryInfo, pColumnList, &keepTableCols, pMsgBuf);
@@ -2692,7 +2692,7 @@ int32_t doAddProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SSch
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColumnIndex* pIndex, int32_t startPos, SMsgBuf* pMsgBuf) {
+static int32_t doAddMultipleProjectExprAndResColumns(SQueryStmtInfo* pQueryInfo, SColumnIndex* pIndex, int32_t startPos, SMsgBuf* pMsgBuf) {
   STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, pIndex->tableIndex);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2705,7 +2705,7 @@ static int32_t doAddProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, SColu
 
   for (int32_t j = 0; j < numOfTotalColumns; ++j) {
     SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, j);
-    doAddProjectCol(pQueryInfo, startPos + j, pSchema, NULL, getNewResColId(), pMsgBuf);
+    doAddOneProjectCol(pQueryInfo, startPos + j, pSchema, NULL, getNewResColId(), pMsgBuf);
   }
 
   return numOfTotalColumns;
@@ -2771,7 +2771,7 @@ static int32_t handleTbnameProjection(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
     colSchema = *getTbnameColumnSchema();
   }
 
-  return doAddProjectCol(pQueryInfo, startPos, &colSchema, pItem->aliasName, getNewResColId(), pMsgBuf);
+  return doAddOneProjectCol(pQueryInfo, startPos, &colSchema, pItem->aliasName, getNewResColId(), pMsgBuf);
 }
 
 int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery, SMsgBuf* pMsgBuf) {
@@ -2796,11 +2796,11 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
     if (index.tableIndex == COLUMN_INDEX_INITIAL_VAL) {  // all table columns are required.
       for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
         index.tableIndex = i;
-        int32_t inc = doAddProjectionExprAndResColumn(pQueryInfo, &index, startPos, pMsgBuf);
+        int32_t inc = doAddMultipleProjectExprAndResColumns(pQueryInfo, &index, startPos, pMsgBuf);
         startPos += inc;
       }
     } else {
-      doAddProjectionExprAndResColumn(pQueryInfo, &index, startPos, pMsgBuf);
+      doAddMultipleProjectExprAndResColumns(pQueryInfo, &index, startPos, pMsgBuf);
     }
 
     // add the primary timestamp column even though it is not required by user
@@ -2840,7 +2840,7 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
       }
 
       SSchema* pSchema = getOneColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
-      doAddProjectCol(pQueryInfo, startPos, pSchema, pItem->aliasName, getNewResColId(), pMsgBuf);
+      doAddOneProjectCol(pQueryInfo, startPos, pSchema, pItem->aliasName, getNewResColId(), pMsgBuf);
     }
 
     // add the primary timestamp column even though it is not required by user
