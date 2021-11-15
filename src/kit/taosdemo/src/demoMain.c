@@ -20,34 +20,35 @@ FILE *         g_fpOfInsertResult = NULL;
 char *         g_dupstr = NULL;
 SDbs           g_Dbs;
 SQueryMetaInfo g_queryInfo;
-SArguments     g_args = {
-    DEFAULT_METAFILE,     // metaFile
-    DEFAULT_TEST_MODE,    // test_mode
-    DEFAULT_HOST,         // host
-    DEFAULT_PORT,         // port
-    DEFAULT_IFACE,        // iface
-    TSDB_DEFAULT_USER,    // user
-    TSDB_DEFAULT_PASS,    // password
-    DEFAULT_DATABASE,     // database
-    DEFAULT_REPLICA,      // replica
-    DEFAULT_TB_PREFIX,    // tb_prefix
-    DEFAULT_ESCAPE_CHAR,  // escapeChar
-    DEFAULT_SQLFILE,      // sqlFile
-    DEFAULT_USE_METRIC,   // use_metric
-    DEFAULT_DROP_DB,      // drop_database
-    DEFAULT_AGGR_FUNC,    // aggr_func
-    DEFAULT_DEBUG,        // debug_print
-    DEFAULT_VERBOSE,      // verbose_print
-    DEFAULT_PERF_STAT,    // performance statistic print
-    DEFAULT_ANS_YES,      // answer_yes;
-    DEFAULT_OUTPUT,       // output_file
-    DEFAULT_SYNC_MODE,    // mode : sync or async
-    DEFAULT_DATA_TYPE,    // data_type
-    DEFAULT_DATATYPE,     // dataType
-    DEFAULT_BINWIDTH,     // binwidth
-    DEFAULT_COL_COUNT,    // columnCount, timestamp + float + int + float
-    DEFAULT_LEN_ONE_ROW,  // lenOfOneRow
-    DEFAULT_NTHREADS,     // nthreads
+
+SArguments g_args = {
+    DEFAULT_METAFILE,          // metaFile
+    DEFAULT_TEST_MODE,         // test_mode
+    DEFAULT_HOST,              // host
+    DEFAULT_PORT,              // port
+    DEFAULT_IFACE,             // iface
+    TSDB_DEFAULT_USER,         // user
+    TSDB_DEFAULT_PASS,         // password
+    DEFAULT_DATABASE,          // database
+    DEFAULT_REPLICA,           // replica
+    DEFAULT_TB_PREFIX,         // tb_prefix
+    DEFAULT_ESCAPE_CHAR,       // escapeChar
+    DEFAULT_SQLFILE,           // sqlFile
+    DEFAULT_USE_METRIC,        // use_metric
+    DEFAULT_DROP_DB,           // drop_database
+    DEFAULT_AGGR_FUNC,         // aggr_func
+    DEFAULT_DEBUG,             // debug_print
+    DEFAULT_VERBOSE,           // verbose_print
+    DEFAULT_PERF_STAT,         // performance statistic print
+    DEFAULT_ANS_YES,           // answer_yes;
+    DEFAULT_OUTPUT,            // output_file
+    DEFAULT_SYNC_MODE,         // mode : sync or async
+    DEFAULT_DATA_TYPE,         // data_type
+    DEFAULT_DATATYPE,          // dataType
+    DEFAULT_BINWIDTH,          // binwidth
+    DEFAULT_COL_COUNT,         // columnCount, timestamp + float + int + float
+    DEFAULT_LEN_ONE_ROW,       // lenOfOneRow
+    DEFAULT_NTHREADS,          // nthreads
     DEFAULT_INSERT_INTERVAL,   // insert_interval
     DEFAULT_TIMESTAMP_STEP,    // timestamp_step
     DEFAULT_QUERY_TIME,        // query_times

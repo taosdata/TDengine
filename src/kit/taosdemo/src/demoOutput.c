@@ -301,7 +301,8 @@ void printHelp() {
     printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
            "The TCP/IP port number to use for the connection.");
     printf("%s%s%s%s\n", indent, "-I, --interface=INTERFACE", "\t",
-           "The interface (taosc, rest, and stmt) taosdemo uses. By default "
+           "The interface (taosc, rest, stmt, and sml(line protocol)) taosdemo "
+           "uses. By default "
            "use 'taosc'.");
     printf("%s%s%s%s\n", indent, "-d, --database=DATABASE", "\t",
            "Destination database. By default is 'test'.");
@@ -374,6 +375,7 @@ void printHelp() {
 for any corresponding short options.\n\
 \n\
 Report bugs to <support@taosdata.com>.\n");
+    exit(EXIT_SUCCESS);
 }
 
 void printfInsertMeta() {
@@ -531,6 +533,17 @@ void printfInsertMeta() {
                        : (g_Dbs.db[i].superTbls[j].iface == STMT_IFACE)
                            ? "stmt"
                            : "sml");
+                if (g_Dbs.db[i].superTbls[j].iface == SML_IFACE) {
+                    printf("      lineProtocol:      \033[33m%s\033[0m\n",
+                           (g_Dbs.db[i].superTbls[j].lineProtocol ==
+                            TSDB_SML_LINE_PROTOCOL)
+                               ? "line"
+                           : (g_Dbs.db[i].superTbls[j].lineProtocol ==
+                              TSDB_SML_TELNET_PROTOCOL)
+                               ? "telnet"
+                               : "json");
+                }
+
                 if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
                     printf("      childTblLimit:     \033[33m%" PRId64
                            "\033[0m\n",
@@ -1009,4 +1022,31 @@ void printfQuerySystemInfo(TAOS *taos) {
 
     free(dbInfos);
     resetAfterAnsiEscape();
+}
+
+void printStatPerThread(threadInfo *pThreadInfo) {
+    if (0 == pThreadInfo->totalDelay) pThreadInfo->totalDelay = 1;
+
+    fprintf(stderr,
+            "====thread[%d] completed total inserted rows: %" PRIu64
+            ", total affected rows: %" PRIu64 ". %.2f records/second====\n",
+            pThreadInfo->threadID, pThreadInfo->totalInsertRows,
+            pThreadInfo->totalAffectedRows,
+            (double)(pThreadInfo->totalAffectedRows /
+                     ((double)pThreadInfo->totalDelay / 1000000.0)));
+}
+
+void appendResultBufToFile(char *resultBuf, threadInfo *pThreadInfo) {
+    pThreadInfo->fp = fopen(pThreadInfo->filePath, "at");
+    if (pThreadInfo->fp == NULL) {
+        errorPrint(
+            "%s() LN%d, failed to open result file: %s, result will not save "
+            "to file\n",
+            __func__, __LINE__, pThreadInfo->filePath);
+        return;
+    }
+
+    fprintf(pThreadInfo->fp, "%s", resultBuf);
+    tmfclose(pThreadInfo->fp);
+    pThreadInfo->fp = NULL;
 }

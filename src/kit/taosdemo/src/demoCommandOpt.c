@@ -458,12 +458,12 @@ int parse_args(int argc, char *argv[]) {
                     errorPrintReqArg2(argv[0], "S");
                     goto end_parse_command;
                 }
-                g_args.async_mode = atoi(argv[++i]);
+                g_args.timestamp_step = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i],
                                     "--time-step=", strlen("--time-step="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--time-step=")))) {
-                    g_args.async_mode =
+                    g_args.timestamp_step =
                         atoi((char *)(argv[i] + strlen("--time-step=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--time-step");
@@ -471,7 +471,8 @@ int parse_args(int argc, char *argv[]) {
                 }
             } else if (0 == strncmp(argv[i], "-S", strlen("-S"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-S")))) {
-                    g_args.async_mode = atoi((char *)(argv[i] + strlen("-S")));
+                    g_args.timestamp_step =
+                        atoi((char *)(argv[i] + strlen("-S")));
                 } else {
                     errorPrintReqArg2(argv[0], "-S");
                     goto end_parse_command;
@@ -484,7 +485,7 @@ int parse_args(int argc, char *argv[]) {
                     errorPrintReqArg2(argv[0], "--time-step");
                     goto end_parse_command;
                 }
-                g_args.async_mode = atoi(argv[++i]);
+                g_args.timestamp_step = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -1142,11 +1143,9 @@ int parse_args(int argc, char *argv[]) {
         } else if ((strcmp(argv[i], "--version") == 0) ||
                    (strcmp(argv[i], "-V") == 0)) {
             printVersion();
-            return 0;
         } else if ((strcmp(argv[i], "--help") == 0) ||
                    (strcmp(argv[i], "-?") == 0)) {
             printHelp();
-            return 0;
         } else if (strcmp(argv[i], "--usage") == 0) {
             printf(
                 "    Usage: taosdemo [-f JSONFILE] [-u USER] [-p PASSWORD] [-c CONFIG_DIR]\n\
@@ -1156,7 +1155,7 @@ int parse_args(int argc, char *argv[]) {
                     [-i SLEEPTIME] [-S TIME_STEP] [-B INTERLACE_ROWS] [-t TABLES]\n\
                     [-n RECORDS] [-M] [-x] [-y] [-O ORDERMODE] [-R RANGE] [-a REPLIcA][-g]\n\
                     [--help] [--usage] [--version]\n");
-            return 0;
+            exit(EXIT_SUCCESS);
         } else {
             // to simulate argp_option output
             if (strlen(argv[i]) > 2) {
@@ -1374,6 +1373,8 @@ void setParaFromArg() {
         } else {
             g_Dbs.db[0].superTbls[0].iface = g_args.iface;
         }
+        g_Dbs.db[0].superTbls[0].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+        g_Dbs.db[0].superTbls[0].tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
         tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
                  "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
         g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;

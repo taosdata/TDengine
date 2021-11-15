@@ -500,9 +500,8 @@ typedef struct SuperQueryInfo_S {
     int  resubAfterConsume;
     int  endAfterConsume;
     TAOS_SUB *tsub[MAX_QUERY_SQL_COUNT];
-
-    char *   childTblName;
-    uint64_t totalQueried;
+    char *    childTblName;
+    uint64_t  totalQueried;
 } SuperQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
@@ -514,21 +513,18 @@ typedef struct SQueryMetaInfo_S {
     char               password[SHELL_MAX_PASSWORD_LEN];
     char               dbName[TSDB_DB_NAME_LEN];
     char               queryMode[SMALL_BUFF_LEN];  // taosc, rest
-
     SpecifiedQueryInfo specifiedQueryInfo;
     SuperQueryInfo     superQueryInfo;
     uint64_t           totalQueried;
 } SQueryMetaInfo;
 
 typedef struct SThreadInfo_S {
-    TAOS *     taos;
-    TAOS_STMT *stmt;
-    int64_t *  bind_ts;
-
-    int64_t *bind_ts_array;
-    char *   bindParams;
-    char *   is_null;
-
+    TAOS *       taos;
+    TAOS_STMT *  stmt;
+    int64_t *    bind_ts;
+    int64_t *    bind_ts_array;
+    char *       bindParams;
+    char *       is_null;
     int          threadID;
     char         db_name[TSDB_DB_NAME_LEN];
     uint32_t     time_precision;
@@ -588,54 +584,61 @@ extern FILE *         g_fpOfInsertResult;
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
 /* ************ Function declares ************  */
-int   parse_args(int argc, char *argv[]);
-int   getInfoFromJsonFile(char *file);
+/* demoCommandOpt.c */
+int  parse_args(int argc, char *argv[]);
+void setParaFromArg();
+void querySqlFile(TAOS *taos, char *sqlFile);
+void testCmdLine();
+/* demoJsonOpt.c */
+int getInfoFromJsonFile(char *file);
+int testMetaFile();
+/* demoUtil.c */
+int   isCommentLine(char *line);
+void  replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 void  setupForAnsiEscape(void);
+void  resetAfterAnsiEscape(void);
 int   taosRandom();
-int   testMetaFile();
-int   insertTestProcess();
-void  printfInsertMeta();
-void  printfInsertMetaToFile(FILE *fp);
-void  prompt();
-void  postFreeResource();
-void  setParaFromArg();
-void  printStatPerThread(threadInfo *pThreadInfo);
 void  tmfree(void *buf);
 void  tmfclose(FILE *fp);
 void  fetchResult(TAOS_RES *res, threadInfo *pThreadInfo);
+void  prompt();
+void  ERROR_EXIT(const char *msg);
 int   postProceSql(char *host, uint16_t port, char *sqlstr,
                    threadInfo *pThreadInfo);
-void  appendResultBufToFile(char *resultBuf, threadInfo *pThreadInfo);
 int   queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
 int   regexMatch(const char *s, const char *reg, int cflags);
 int   convertHostToServAddr(char *host, uint16_t port,
                             struct sockaddr_in *serv_addr);
 char *formatTimestamp(char *buf, int64_t val, int precision);
-int   getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
-                                                 char *   stbName,
-                                                 char **  childTblNameOfSuperTbl,
-                                                 int64_t *childTblCountOfSuperTbl,
-                                                 int64_t limit, uint64_t offset,
-                                                 bool escapChar);
 void  errorWrongValue(char *program, char *wrong_arg, char *wrong_value);
 void  errorUnrecognized(char *program, char *wrong_arg);
 void  errorPrintReqArg(char *program, char *wrong_arg);
 void  errorPrintReqArg2(char *program, char *wrong_arg);
 void  errorPrintReqArg3(char *program, char *wrong_arg);
 bool  isStringNumber(char *input);
-void  printHelp();
-int   queryTestProcess();
-void  ERROR_EXIT(const char *msg);
-void  querySqlFile(TAOS *taos, char *sqlFile);
-void  printVersion();
-int   subscribeTestProcess();
-void  testCmdLine();
-int   isCommentLine(char *line);
-void  replaceChildTblName(char *inSql, char *outSql, int tblIndex);
-void  printfQueryMeta();
 int   getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                   char **  childTblNameOfSuperTbl,
                                   int64_t *childTblCountOfSuperTbl);
-void  resetAfterAnsiEscape(void);
-void  printfQuerySystemInfo(TAOS *taos);
+int   getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
+                                                 char *   stbName,
+                                                 char **  childTblNameOfSuperTbl,
+                                                 int64_t *childTblCountOfSuperTbl,
+                                                 int64_t limit, uint64_t offset,
+                                                 bool escapChar);
+/* demoInsert.c */
+int  insertTestProcess();
+void postFreeResource();
+/* demoOutput.c */
+void printVersion();
+void printfInsertMeta();
+void printfInsertMetaToFile(FILE *fp);
+void printStatPerThread(threadInfo *pThreadInfo);
+void appendResultBufToFile(char *resultBuf, threadInfo *pThreadInfo);
+void printfQueryMeta();
+void printHelp();
+void printfQuerySystemInfo(TAOS *taos);
+/* demoQuery.c */
+int queryTestProcess();
+/* demoSubscribe.c */
+int subscribeTestProcess();
 #endif

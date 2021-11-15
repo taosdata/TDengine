@@ -15,6 +15,7 @@
 
 #ifndef __DEMODATA__
 #define __DEMODATA__
+#include "cJSON.h"
 #include "demo.h"
 /***** Global variables ******/
 
@@ -71,4 +72,52 @@ float UNUSED_FUNC   demo_phase_float();
 void                rand_string(char *str, int size);
 char *              rand_double_str();
 double              rand_double();
+
+int     generateTagValuesForStb(SSuperTable *stbInfo, int64_t tableSeq,
+                                char *tagsValBuf);
+int64_t getTSRandTail(int64_t timeStampStep, int32_t seq, int disorderRatio,
+                      int disorderRange);
+int32_t prepareStbStmtBindTag(char *bindArray, SSuperTable *stbInfo,
+                              char *tagsVal, int32_t timePrec);
+int32_t prepareStmtWithoutStb(threadInfo *pThreadInfo, char *tableName,
+                              uint32_t batch, int64_t insertRows,
+                              int64_t recordFrom, int64_t startTime);
+int32_t generateStbInterlaceData(threadInfo *pThreadInfo, char *tableName,
+                                 uint32_t batchPerTbl, uint64_t i,
+                                 uint32_t batchPerTblTimes, uint64_t tableSeq,
+                                 char *buffer, int64_t insertRows,
+                                 int64_t startTime, uint64_t *pRemainderBufLen);
+int64_t generateInterlaceDataWithoutStb(char *tableName, uint32_t batch,
+                                        uint64_t tableSeq, char *dbName,
+                                        char *buffer, int64_t insertRows,
+                                        int64_t   startTime,
+                                        uint64_t *pRemainderBufLen);
+int32_t generateStbProgressiveData(SSuperTable *stbInfo, char *tableName,
+                                   int64_t tableSeq, char *dbName, char *buffer,
+                                   int64_t insertRows, uint64_t recordFrom,
+                                   int64_t startTime, int64_t *pSamplePos,
+                                   int64_t *pRemainderBufLen);
+int32_t generateProgressiveDataWithoutStb(
+    char *tableName, threadInfo *pThreadInfo, char *buffer, int64_t insertRows,
+    uint64_t recordFrom, int64_t startTime, int64_t *pRemainderBufLen);
+int64_t generateStbRowData(SSuperTable *stbInfo, char *recBuf,
+                           int64_t remainderBufLen, int64_t timestamp);
+int     prepareSampleForStb(SSuperTable *stbInfo);
+int     prepareSampleForNtb();
+int     parseSamplefileToStmtBatch(SSuperTable *stbInfo);
+int     parseStbSampleToStmtBatchForThread(threadInfo * pThreadInfo,
+                                           SSuperTable *stbInfo, uint32_t timePrec,
+                                           uint32_t batch);
+int     parseNtbSampleToStmtBatchForThread(threadInfo *pThreadInfo,
+                                           uint32_t timePrec, uint32_t batch);
+int     prepareSampleData();
+int32_t generateSmlConstPart(char *sml, SSuperTable *stbInfo,
+                             threadInfo *pThreadInfo, int tbSeq);
+
+int32_t generateSmlMutablePart(char *line, char *sml, SSuperTable *stbInfo,
+                               threadInfo *pThreadInfo, int64_t timestamp);
+int32_t generateSmlJsonTags(cJSON *tagsList, SSuperTable *stbInfo,
+                            threadInfo *pThreadInfo, int tbSeq);
+int32_t generateSmlJsonCols(cJSON *array, cJSON *tag, SSuperTable *stbInfo,
+                            threadInfo *pThreadInfo, int64_t timestamp);
 #endif

@@ -282,18 +282,6 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         -1, 0, false);
 }
 
-void printStatPerThread(threadInfo *pThreadInfo) {
-    if (0 == pThreadInfo->totalDelay) pThreadInfo->totalDelay = 1;
-
-    fprintf(stderr,
-            "====thread[%d] completed total inserted rows: %" PRIu64
-            ", total affected rows: %" PRIu64 ". %.2f records/second====\n",
-            pThreadInfo->threadID, pThreadInfo->totalInsertRows,
-            pThreadInfo->totalAffectedRows,
-            (double)(pThreadInfo->totalAffectedRows /
-                     ((double)pThreadInfo->totalDelay / 1000000.0)));
-}
-
 int convertHostToServAddr(char *host, uint16_t port,
                           struct sockaddr_in *serv_addr) {
     uint16_t        rest_port = port + TSDB_PORT_HTTP;
@@ -404,21 +392,6 @@ int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
 
     taos_free_result(res);
     return 0;
-}
-
-void appendResultBufToFile(char *resultBuf, threadInfo *pThreadInfo) {
-    pThreadInfo->fp = fopen(pThreadInfo->filePath, "at");
-    if (pThreadInfo->fp == NULL) {
-        errorPrint(
-            "%s() LN%d, failed to open result file: %s, result will not save "
-            "to file\n",
-            __func__, __LINE__, pThreadInfo->filePath);
-        return;
-    }
-
-    fprintf(pThreadInfo->fp, "%s", resultBuf);
-    tmfclose(pThreadInfo->fp);
-    pThreadInfo->fp = NULL;
 }
 
 int postProceSql(char *host, uint16_t port, char *sqlstr,
