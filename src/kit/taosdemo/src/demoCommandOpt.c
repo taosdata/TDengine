@@ -27,30 +27,29 @@ char *g_aggreFuncDemo[] = {"*",
 char *g_aggreFunc[] = {"*",       "count(*)", "avg(C0)",   "sum(C0)",
                        "max(C0)", "min(C0)",  "first(C0)", "last(C0)"};
 
-int parse_args(int argc, char *argv[], SArguments *arguments) {
+int parse_args(int argc, char *argv[]) {
     int32_t code = -1;
-    char *  g_dupstr = NULL;
     for (int i = 1; i < argc; i++) {
         if ((0 == strncmp(argv[i], "-f", strlen("-f"))) ||
             (0 == strncmp(argv[i], "--file", strlen("--file")))) {
-            arguments->demo_mode = false;
+            g_args.demo_mode = false;
 
             if (2 == strlen(argv[i])) {
                 if (i + 1 == argc) {
                     errorPrintReqArg(argv[0], "f");
                     goto end_parse_command;
                 }
-                arguments->metaFile = argv[++i];
+                g_args.metaFile = argv[++i];
             } else if (0 == strncmp(argv[i], "-f", strlen("-f"))) {
-                arguments->metaFile = (char *)(argv[i] + strlen("-f"));
+                g_args.metaFile = (char *)(argv[i] + strlen("-f"));
             } else if (strlen("--file") == strlen(argv[i])) {
                 if (i + 1 == argc) {
                     errorPrintReqArg3(argv[0], "--file");
                     goto end_parse_command;
                 }
-                arguments->metaFile = argv[++i];
+                g_args.metaFile = argv[++i];
             } else if (0 == strncmp(argv[i], "--file=", strlen("--file="))) {
-                arguments->metaFile = (char *)(argv[i] + strlen("--file="));
+                g_args.metaFile = (char *)(argv[i] + strlen("--file="));
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -88,23 +87,23 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg(argv[0], "h");
                     goto end_parse_command;
                 }
-                arguments->host = argv[++i];
+                g_args.host = argv[++i];
             } else if (0 == strncmp(argv[i], "-h", strlen("-h"))) {
-                arguments->host = (char *)(argv[i] + strlen("-h"));
+                g_args.host = (char *)(argv[i] + strlen("-h"));
             } else if (strlen("--host") == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg3(argv[0], "--host");
                     goto end_parse_command;
                 }
-                arguments->host = argv[++i];
+                g_args.host = argv[++i];
             } else if (0 == strncmp(argv[i], "--host=", strlen("--host="))) {
-                arguments->host = (char *)(argv[i] + strlen("--host="));
+                g_args.host = (char *)(argv[i] + strlen("--host="));
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
             }
         } else if (strcmp(argv[i], "-PP") == 0) {
-            arguments->performance_print = true;
+            g_args.performance_print = true;
         } else if ((0 == strncmp(argv[i], "-P", strlen("-P"))) ||
                    (0 == strncmp(argv[i], "--port", strlen("--port")))) {
             uint64_t port;
@@ -156,7 +155,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorWrongValue("taosdump", "-P or --port", strPort);
                 goto end_parse_command;
             }
-            arguments->port = (uint16_t)port;
+            g_args.port = (uint16_t)port;
 
         } else if ((0 == strncmp(argv[i], "-I", strlen("-I"))) ||
                    (0 ==
@@ -167,13 +166,13 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     goto end_parse_command;
                 }
                 if (0 == strcasecmp(argv[i + 1], "taosc")) {
-                    arguments->iface = TAOSC_IFACE;
+                    g_args.iface = TAOSC_IFACE;
                 } else if (0 == strcasecmp(argv[i + 1], "rest")) {
-                    arguments->iface = REST_IFACE;
+                    g_args.iface = REST_IFACE;
                 } else if (0 == strcasecmp(argv[i + 1], "stmt")) {
-                    arguments->iface = STMT_IFACE;
+                    g_args.iface = STMT_IFACE;
                 } else if (0 == strcasecmp(argv[i + 1], "sml")) {
-                    arguments->iface = SML_IFACE;
+                    g_args.iface = SML_IFACE;
                 } else {
                     errorWrongValue(argv[0], "-I", argv[i + 1]);
                     goto end_parse_command;
@@ -183,19 +182,19 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                                     "--interface=", strlen("--interface="))) {
                 if (0 == strcasecmp((char *)(argv[i] + strlen("--interface=")),
                                     "taosc")) {
-                    arguments->iface = TAOSC_IFACE;
+                    g_args.iface = TAOSC_IFACE;
                 } else if (0 == strcasecmp(
                                     (char *)(argv[i] + strlen("--interface=")),
                                     "rest")) {
-                    arguments->iface = REST_IFACE;
+                    g_args.iface = REST_IFACE;
                 } else if (0 == strcasecmp(
                                     (char *)(argv[i] + strlen("--interface=")),
                                     "stmt")) {
-                    arguments->iface = STMT_IFACE;
+                    g_args.iface = STMT_IFACE;
                 } else if (0 == strcasecmp(
                                     (char *)(argv[i] + strlen("--interface=")),
                                     "sml")) {
-                    arguments->iface = SML_IFACE;
+                    g_args.iface = SML_IFACE;
                 } else {
                     errorPrintReqArg3(argv[0], "--interface");
                     goto end_parse_command;
@@ -203,16 +202,16 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
             } else if (0 == strncmp(argv[i], "-I", strlen("-I"))) {
                 if (0 ==
                     strcasecmp((char *)(argv[i] + strlen("-I")), "taosc")) {
-                    arguments->iface = TAOSC_IFACE;
+                    g_args.iface = TAOSC_IFACE;
                 } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")),
                                            "rest")) {
-                    arguments->iface = REST_IFACE;
+                    g_args.iface = REST_IFACE;
                 } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")),
                                            "stmt")) {
-                    arguments->iface = STMT_IFACE;
+                    g_args.iface = STMT_IFACE;
                 } else if (0 == strcasecmp((char *)(argv[i] + strlen("-I")),
                                            "sml")) {
-                    arguments->iface = SML_IFACE;
+                    g_args.iface = SML_IFACE;
                 } else {
                     errorWrongValue(argv[0], "-I",
                                     (char *)(argv[i] + strlen("-I")));
@@ -224,13 +223,13 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     goto end_parse_command;
                 }
                 if (0 == strcasecmp(argv[i + 1], "taosc")) {
-                    arguments->iface = TAOSC_IFACE;
+                    g_args.iface = TAOSC_IFACE;
                 } else if (0 == strcasecmp(argv[i + 1], "rest")) {
-                    arguments->iface = REST_IFACE;
+                    g_args.iface = REST_IFACE;
                 } else if (0 == strcasecmp(argv[i + 1], "stmt")) {
-                    arguments->iface = STMT_IFACE;
+                    g_args.iface = STMT_IFACE;
                 } else if (0 == strcasecmp(argv[i + 1], "sml")) {
-                    arguments->iface = SML_IFACE;
+                    g_args.iface = SML_IFACE;
                 } else {
                     errorWrongValue(argv[0], "--interface", argv[i + 1]);
                     goto end_parse_command;
@@ -247,17 +246,17 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg(argv[0], "u");
                     goto end_parse_command;
                 }
-                arguments->user = argv[++i];
+                g_args.user = argv[++i];
             } else if (0 == strncmp(argv[i], "-u", strlen("-u"))) {
-                arguments->user = (char *)(argv[i++] + strlen("-u"));
+                g_args.user = (char *)(argv[i++] + strlen("-u"));
             } else if (0 == strncmp(argv[i], "--user=", strlen("--user="))) {
-                arguments->user = (char *)(argv[i++] + strlen("--user="));
+                g_args.user = (char *)(argv[i++] + strlen("--user="));
             } else if (strlen("--user") == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg3(argv[0], "--user");
                     goto end_parse_command;
                 }
-                arguments->user = argv[++i];
+                g_args.user = argv[++i];
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -268,12 +267,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 (0 == strcmp(argv[i], "--password"))) {
                 printf("Enter password: ");
                 taosSetConsoleEcho(false);
-                if (scanf("%s", arguments->password) > 1) {
+                if (scanf("%s", g_args.password) > 1) {
                     fprintf(stderr, "password read error!\n");
                 }
                 taosSetConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2),
+                tstrncpy(g_args.password, (char *)(argv[i] + 2),
                          SHELL_MAX_PASSWORD_LEN);
             }
         } else if ((0 == strncmp(argv[i], "-o", strlen("-o"))) ||
@@ -283,19 +282,18 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg3(argv[0], "--output");
                     goto end_parse_command;
                 }
-                arguments->output_file = argv[++i];
+                g_args.output_file = argv[++i];
             } else if (0 ==
                        strncmp(argv[i], "--output=", strlen("--output="))) {
-                arguments->output_file =
-                    (char *)(argv[i++] + strlen("--output="));
+                g_args.output_file = (char *)(argv[i++] + strlen("--output="));
             } else if (0 == strncmp(argv[i], "-o", strlen("-o"))) {
-                arguments->output_file = (char *)(argv[i++] + strlen("-o"));
+                g_args.output_file = (char *)(argv[i++] + strlen("-o"));
             } else if (strlen("--output") == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg3(argv[0], "--output");
                     goto end_parse_command;
                 }
-                arguments->output_file = argv[++i];
+                g_args.output_file = argv[++i];
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -308,19 +306,18 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg(argv[0], "s");
                     goto end_parse_command;
                 }
-                arguments->sqlFile = argv[++i];
+                g_args.sqlFile = argv[++i];
             } else if (0 ==
                        strncmp(argv[i], "--sql-file=", strlen("--sql-file="))) {
-                arguments->sqlFile =
-                    (char *)(argv[i++] + strlen("--sql-file="));
+                g_args.sqlFile = (char *)(argv[i++] + strlen("--sql-file="));
             } else if (0 == strncmp(argv[i], "-s", strlen("-s"))) {
-                arguments->sqlFile = (char *)(argv[i++] + strlen("-s"));
+                g_args.sqlFile = (char *)(argv[i++] + strlen("-s"));
             } else if (strlen("--sql-file") == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg3(argv[0], "--sql-file");
                     goto end_parse_command;
                 }
-                arguments->sqlFile = argv[++i];
+                g_args.sqlFile = argv[++i];
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -336,12 +333,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "q");
                     goto end_parse_command;
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                g_args.async_mode = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i],
                                     "--query-mode=", strlen("--query-mode="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--query-mode=")))) {
-                    arguments->async_mode =
+                    g_args.async_mode =
                         atoi((char *)(argv[i] + strlen("--query-mode=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--query-mode");
@@ -349,8 +346,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-q", strlen("-q"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-q")))) {
-                    arguments->async_mode =
-                        atoi((char *)(argv[i] + strlen("-q")));
+                    g_args.async_mode = atoi((char *)(argv[i] + strlen("-q")));
                 } else {
                     errorPrintReqArg2(argv[0], "-q");
                     goto end_parse_command;
@@ -363,7 +359,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--query-mode");
                     goto end_parse_command;
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                g_args.async_mode = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -378,11 +374,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "T");
                     goto end_parse_command;
                 }
-                arguments->nthreads = atoi(argv[++i]);
+                g_args.nthreads = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--threads=", strlen("--threads="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--threads=")))) {
-                    arguments->nthreads =
+                    g_args.nthreads =
                         atoi((char *)(argv[i] + strlen("--threads=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--threads");
@@ -390,8 +386,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-T", strlen("-T"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-T")))) {
-                    arguments->nthreads =
-                        atoi((char *)(argv[i] + strlen("-T")));
+                    g_args.nthreads = atoi((char *)(argv[i] + strlen("-T")));
                 } else {
                     errorPrintReqArg2(argv[0], "-T");
                     goto end_parse_command;
@@ -404,7 +399,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--threads");
                     goto end_parse_command;
                 }
-                arguments->nthreads = atoi(argv[++i]);
+                g_args.nthreads = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -420,12 +415,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "i");
                     goto end_parse_command;
                 }
-                arguments->insert_interval = atoi(argv[++i]);
+                g_args.insert_interval = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--insert-interval=",
                                     strlen("--insert-interval="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--insert-interval=")))) {
-                    arguments->insert_interval =
+                    g_args.insert_interval =
                         atoi((char *)(argv[i] + strlen("--insert-interval=")));
                 } else {
                     errorPrintReqArg3(argv[0], "--insert-innterval");
@@ -433,7 +428,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-i", strlen("-i"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-i")))) {
-                    arguments->insert_interval =
+                    g_args.insert_interval =
                         atoi((char *)(argv[i] + strlen("-i")));
                 } else {
                     errorPrintReqArg3(argv[0], "-i");
@@ -447,7 +442,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--insert-interval");
                     goto end_parse_command;
                 }
-                arguments->insert_interval = atoi(argv[++i]);
+                g_args.insert_interval = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -463,12 +458,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "S");
                     goto end_parse_command;
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                g_args.async_mode = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i],
                                     "--time-step=", strlen("--time-step="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--time-step=")))) {
-                    arguments->async_mode =
+                    g_args.async_mode =
                         atoi((char *)(argv[i] + strlen("--time-step=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--time-step");
@@ -476,8 +471,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-S", strlen("-S"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-S")))) {
-                    arguments->async_mode =
-                        atoi((char *)(argv[i] + strlen("-S")));
+                    g_args.async_mode = atoi((char *)(argv[i] + strlen("-S")));
                 } else {
                     errorPrintReqArg2(argv[0], "-S");
                     goto end_parse_command;
@@ -490,7 +484,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--time-step");
                     goto end_parse_command;
                 }
-                arguments->async_mode = atoi(argv[++i]);
+                g_args.async_mode = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -501,7 +495,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 errorPrint("%s", "\n\t-qt need a number following!\n");
                 goto end_parse_command;
             }
-            arguments->query_times = atoi(argv[++i]);
+            g_args.query_times = atoi(argv[++i]);
         } else if ((0 == strncmp(argv[i], "-B", strlen("-B"))) ||
                    (0 == strncmp(argv[i], "--interlace-rows",
                                  strlen("--interlace-rows")))) {
@@ -513,12 +507,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "B");
                     goto end_parse_command;
                 }
-                arguments->interlaceRows = atoi(argv[++i]);
+                g_args.interlaceRows = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--interlace-rows=",
                                     strlen("--interlace-rows="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--interlace-rows=")))) {
-                    arguments->interlaceRows =
+                    g_args.interlaceRows =
                         atoi((char *)(argv[i] + strlen("--interlace-rows=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--interlace-rows");
@@ -526,7 +520,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-B", strlen("-B"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-B")))) {
-                    arguments->interlaceRows =
+                    g_args.interlaceRows =
                         atoi((char *)(argv[i] + strlen("-B")));
                 } else {
                     errorPrintReqArg2(argv[0], "-B");
@@ -540,7 +534,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--interlace-rows");
                     goto end_parse_command;
                 }
-                arguments->interlaceRows = atoi(argv[++i]);
+                g_args.interlaceRows = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -555,12 +549,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "r");
                     goto end_parse_command;
                 }
-                arguments->reqPerReq = atoi(argv[++i]);
+                g_args.reqPerReq = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--rec-per-req=",
                                     strlen("--rec-per-req="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--rec-per-req=")))) {
-                    arguments->reqPerReq =
+                    g_args.reqPerReq =
                         atoi((char *)(argv[i] + strlen("--rec-per-req=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--rec-per-req");
@@ -568,8 +562,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-r", strlen("-r"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-r")))) {
-                    arguments->reqPerReq =
-                        atoi((char *)(argv[i] + strlen("-r")));
+                    g_args.reqPerReq = atoi((char *)(argv[i] + strlen("-r")));
                 } else {
                     errorPrintReqArg2(argv[0], "-r");
                     goto end_parse_command;
@@ -582,7 +575,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--rec-per-req");
                     goto end_parse_command;
                 }
-                arguments->reqPerReq = atoi(argv[++i]);
+                g_args.reqPerReq = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -597,11 +590,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "t");
                     goto end_parse_command;
                 }
-                arguments->ntables = atoi(argv[++i]);
+                g_args.ntables = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--tables=", strlen("--tables="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--tables=")))) {
-                    arguments->ntables =
+                    g_args.ntables =
                         atoi((char *)(argv[i] + strlen("--tables=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--tables");
@@ -609,7 +602,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-t", strlen("-t"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-t")))) {
-                    arguments->ntables = atoi((char *)(argv[i] + strlen("-t")));
+                    g_args.ntables = atoi((char *)(argv[i] + strlen("-t")));
                 } else {
                     errorPrintReqArg2(argv[0], "-t");
                     goto end_parse_command;
@@ -622,13 +615,13 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--tables");
                     goto end_parse_command;
                 }
-                arguments->ntables = atoi(argv[++i]);
+                g_args.ntables = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
             }
 
-            g_totalChildTables = arguments->ntables;
+            g_totalChildTables = g_args.ntables;
         } else if ((0 == strncmp(argv[i], "-n", strlen("-n"))) ||
                    (0 == strncmp(argv[i], "--records", strlen("--records")))) {
             if (2 == strlen(argv[i])) {
@@ -639,11 +632,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "n");
                     goto end_parse_command;
                 }
-                arguments->insertRows = atoi(argv[++i]);
+                g_args.insertRows = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--records=", strlen("--records="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--records=")))) {
-                    arguments->insertRows =
+                    g_args.insertRows =
                         atoi((char *)(argv[i] + strlen("--records=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--records");
@@ -651,8 +644,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-n", strlen("-n"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-n")))) {
-                    arguments->insertRows =
-                        atoi((char *)(argv[i] + strlen("-n")));
+                    g_args.insertRows = atoi((char *)(argv[i] + strlen("-n")));
                 } else {
                     errorPrintReqArg2(argv[0], "-n");
                     goto end_parse_command;
@@ -665,7 +657,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--records");
                     goto end_parse_command;
                 }
-                arguments->insertRows = atoi(argv[++i]);
+                g_args.insertRows = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -678,26 +670,25 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg(argv[0], "d");
                     goto end_parse_command;
                 }
-                arguments->database = argv[++i];
+                g_args.database = argv[++i];
             } else if (0 ==
                        strncmp(argv[i], "--database=", strlen("--database="))) {
-                arguments->output_file =
-                    (char *)(argv[i] + strlen("--database="));
+                g_args.output_file = (char *)(argv[i] + strlen("--database="));
             } else if (0 == strncmp(argv[i], "-d", strlen("-d"))) {
-                arguments->output_file = (char *)(argv[i] + strlen("-d"));
+                g_args.output_file = (char *)(argv[i] + strlen("-d"));
             } else if (strlen("--database") == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg3(argv[0], "--database");
                     goto end_parse_command;
                 }
-                arguments->database = argv[++i];
+                g_args.database = argv[++i];
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
             }
         } else if ((0 == strncmp(argv[i], "-l", strlen("-l"))) ||
                    (0 == strncmp(argv[i], "--columns", strlen("--columns")))) {
-            arguments->demo_mode = false;
+            g_args.demo_mode = false;
             if (2 == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg(argv[0], "l");
@@ -706,11 +697,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "l");
                     goto end_parse_command;
                 }
-                arguments->columnCount = atoi(argv[++i]);
+                g_args.columnCount = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--columns=", strlen("--columns="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--columns=")))) {
-                    arguments->columnCount =
+                    g_args.columnCount =
                         atoi((char *)(argv[i] + strlen("--columns=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--columns");
@@ -718,8 +709,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-l", strlen("-l"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-l")))) {
-                    arguments->columnCount =
-                        atoi((char *)(argv[i] + strlen("-l")));
+                    g_args.columnCount = atoi((char *)(argv[i] + strlen("-l")));
                 } else {
                     errorPrintReqArg2(argv[0], "-l");
                     goto end_parse_command;
@@ -732,33 +722,32 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--columns");
                     goto end_parse_command;
                 }
-                arguments->columnCount = atoi(argv[++i]);
+                g_args.columnCount = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
             }
 
-            if (arguments->columnCount > MAX_NUM_COLUMNS) {
+            if (g_args.columnCount > MAX_NUM_COLUMNS) {
                 printf("WARNING: max acceptable columns count is %d\n",
                        MAX_NUM_COLUMNS);
                 prompt();
-                arguments->columnCount = MAX_NUM_COLUMNS;
+                g_args.columnCount = MAX_NUM_COLUMNS;
             }
 
-            for (int col = DEFAULT_DATATYPE_NUM; col < arguments->columnCount;
+            for (int col = DEFAULT_DATATYPE_NUM; col < g_args.columnCount;
                  col++) {
-                arguments->dataType[col] = "INT";
-                arguments->data_type[col] = TSDB_DATA_TYPE_INT;
+                g_args.dataType[col] = "INT";
+                g_args.data_type[col] = TSDB_DATA_TYPE_INT;
             }
-            for (int col = arguments->columnCount; col < MAX_NUM_COLUMNS;
-                 col++) {
-                arguments->dataType[col] = NULL;
-                arguments->data_type[col] = TSDB_DATA_TYPE_NULL;
+            for (int col = g_args.columnCount; col < MAX_NUM_COLUMNS; col++) {
+                g_args.dataType[col] = NULL;
+                g_args.data_type[col] = TSDB_DATA_TYPE_NULL;
             }
         } else if ((0 == strncmp(argv[i], "-b", strlen("-b"))) ||
                    (0 ==
                     strncmp(argv[i], "--data-type", strlen("--data-type")))) {
-            arguments->demo_mode = false;
+            g_args.demo_mode = false;
 
             char *dataType;
             if (2 == strlen(argv[i])) {
@@ -804,44 +793,44 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrint("%s", "-b: Invalid data_type!\n");
                     goto end_parse_command;
                 }
-                arguments->dataType[0] = dataType;
                 if (0 == strcasecmp(dataType, "INT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_INT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_INT;
                 } else if (0 == strcasecmp(dataType, "TINYINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_TINYINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_TINYINT;
                 } else if (0 == strcasecmp(dataType, "SMALLINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_SMALLINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_SMALLINT;
                 } else if (0 == strcasecmp(dataType, "BIGINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_BIGINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_BIGINT;
                 } else if (0 == strcasecmp(dataType, "FLOAT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_FLOAT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_FLOAT;
                 } else if (0 == strcasecmp(dataType, "DOUBLE")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_DOUBLE;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_DOUBLE;
                 } else if (1 == regexMatch(dataType,
                                            "^BINARY(\\([1-9][0-9]*\\))?$",
                                            REG_ICASE | REG_EXTENDED)) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_BINARY;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_BINARY;
                 } else if (1 == regexMatch(dataType,
                                            "^NCHAR(\\([1-9][0-9]*\\))?$",
                                            REG_ICASE | REG_EXTENDED)) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_NCHAR;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_NCHAR;
                 } else if (0 == strcasecmp(dataType, "BOOL")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_BOOL;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_BOOL;
                 } else if (0 == strcasecmp(dataType, "TIMESTAMP")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_TIMESTAMP;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_TIMESTAMP;
                 } else if (0 == strcasecmp(dataType, "UTINYINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_UTINYINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_UTINYINT;
                 } else if (0 == strcasecmp(dataType, "USMALLINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_USMALLINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_USMALLINT;
                 } else if (0 == strcasecmp(dataType, "UINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_UINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_UINT;
                 } else if (0 == strcasecmp(dataType, "UBIGINT")) {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_UBIGINT;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_UBIGINT;
                 } else {
-                    arguments->data_type[0] = TSDB_DATA_TYPE_NULL;
+                    g_args.data_type[0] = TSDB_DATA_TYPE_NULL;
                 }
-                arguments->dataType[1] = NULL;
-                arguments->data_type[1] = TSDB_DATA_TYPE_NULL;
+                g_args.dataType[0] = dataType;
+                g_args.dataType[1] = NULL;
+                g_args.data_type[1] = TSDB_DATA_TYPE_NULL;
             } else {
                 // more than one col
                 int index = 0;
@@ -870,47 +859,47 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     }
 
                     if (0 == strcasecmp(token, "INT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_INT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_INT;
                     } else if (0 == strcasecmp(token, "FLOAT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_FLOAT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_FLOAT;
                     } else if (0 == strcasecmp(token, "SMALLINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_SMALLINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_SMALLINT;
                     } else if (0 == strcasecmp(token, "BIGINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_BIGINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_BIGINT;
                     } else if (0 == strcasecmp(token, "DOUBLE")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_DOUBLE;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_DOUBLE;
                     } else if (0 == strcasecmp(token, "TINYINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_TINYINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_TINYINT;
                     } else if (1 == regexMatch(token,
                                                "^BINARY(\\([1-9][0-9]*\\))?$",
                                                REG_ICASE | REG_EXTENDED)) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_BINARY;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_BINARY;
                     } else if (1 == regexMatch(token,
                                                "^NCHAR(\\([1-9][0-9]*\\))?$",
                                                REG_ICASE | REG_EXTENDED)) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_NCHAR;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_NCHAR;
                     } else if (0 == strcasecmp(token, "BOOL")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_BOOL;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_BOOL;
                     } else if (0 == strcasecmp(token, "TIMESTAMP")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_TIMESTAMP;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_TIMESTAMP;
                     } else if (0 == strcasecmp(token, "UTINYINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_UTINYINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_UTINYINT;
                     } else if (0 == strcasecmp(token, "USMALLINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_USMALLINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_USMALLINT;
                     } else if (0 == strcasecmp(token, "UINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_UINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_UINT;
                     } else if (0 == strcasecmp(token, "UBIGINT")) {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_UBIGINT;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_UBIGINT;
                     } else {
-                        arguments->data_type[index] = TSDB_DATA_TYPE_NULL;
+                        g_args.data_type[index] = TSDB_DATA_TYPE_NULL;
                     }
-                    arguments->dataType[index] = token;
+                    g_args.dataType[index] = token;
                     index++;
                     token = strsep(&running, ",");
                     if (index >= MAX_NUM_COLUMNS) break;
                 }
-                arguments->dataType[index] = NULL;
-                arguments->data_type[index] = TSDB_DATA_TYPE_NULL;
+                g_args.dataType[index] = NULL;
+                g_args.data_type[index] = TSDB_DATA_TYPE_NULL;
             }
         } else if ((0 == strncmp(argv[i], "-w", strlen("-w"))) ||
                    (0 ==
@@ -923,11 +912,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "w");
                     goto end_parse_command;
                 }
-                arguments->binwidth = atoi(argv[++i]);
+                g_args.binwidth = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--binwidth=", strlen("--binwidth="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--binwidth=")))) {
-                    arguments->binwidth =
+                    g_args.binwidth =
                         atoi((char *)(argv[i] + strlen("--binwidth=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--binwidth");
@@ -935,8 +924,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-w", strlen("-w"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-w")))) {
-                    arguments->binwidth =
-                        atoi((char *)(argv[i] + strlen("-w")));
+                    g_args.binwidth = atoi((char *)(argv[i] + strlen("-w")));
                 } else {
                     errorPrintReqArg2(argv[0], "-w");
                     goto end_parse_command;
@@ -949,7 +937,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--binwidth");
                     goto end_parse_command;
                 }
-                arguments->binwidth = atoi(argv[++i]);
+                g_args.binwidth = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -962,19 +950,19 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg(argv[0], "m");
                     goto end_parse_command;
                 }
-                arguments->tb_prefix = argv[++i];
+                g_args.tb_prefix = argv[++i];
             } else if (0 == strncmp(argv[i], "--table-prefix=",
                                     strlen("--table-prefix="))) {
-                arguments->tb_prefix =
+                g_args.tb_prefix =
                     (char *)(argv[i] + strlen("--table-prefix="));
             } else if (0 == strncmp(argv[i], "-m", strlen("-m"))) {
-                arguments->tb_prefix = (char *)(argv[i] + strlen("-m"));
+                g_args.tb_prefix = (char *)(argv[i] + strlen("-m"));
             } else if (strlen("--table-prefix") == strlen(argv[i])) {
                 if (argc == i + 1) {
                     errorPrintReqArg3(argv[0], "--table-prefix");
                     goto end_parse_command;
                 }
-                arguments->tb_prefix = argv[++i];
+                g_args.tb_prefix = argv[++i];
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -982,25 +970,25 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
         } else if ((0 == strncmp(argv[i], "-E", strlen("-E"))) ||
                    (0 == strncmp(argv[i], "--escape-character",
                                  strlen("--escape-character")))) {
-            arguments->escapeChar = true;
+            g_args.escapeChar = true;
         } else if ((strcmp(argv[i], "-N") == 0) ||
                    (0 == strcmp(argv[i], "--normal-table"))) {
-            arguments->demo_mode = false;
-            arguments->use_metric = false;
+            g_args.demo_mode = false;
+            g_args.use_metric = false;
         } else if ((strcmp(argv[i], "-M") == 0) ||
                    (0 == strcmp(argv[i], "--random"))) {
-            arguments->demo_mode = false;
+            g_args.demo_mode = false;
         } else if ((strcmp(argv[i], "-x") == 0) ||
                    (0 == strcmp(argv[i], "--aggr-func"))) {
-            arguments->aggr_func = true;
+            g_args.aggr_func = true;
         } else if ((strcmp(argv[i], "-y") == 0) ||
                    (0 == strcmp(argv[i], "--answer-yes"))) {
-            arguments->answer_yes = true;
+            g_args.answer_yes = true;
         } else if ((strcmp(argv[i], "-g") == 0) ||
                    (0 == strcmp(argv[i], "--debug"))) {
-            arguments->debug_print = true;
+            g_args.debug_print = true;
         } else if (strcmp(argv[i], "-gg") == 0) {
-            arguments->verbose_print = true;
+            g_args.verbose_print = true;
         } else if ((0 == strncmp(argv[i], "-R", strlen("-R"))) ||
                    (0 == strncmp(argv[i], "--disorder-range",
                                  strlen("--disorder-range")))) {
@@ -1012,12 +1000,12 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "R");
                     goto end_parse_command;
                 }
-                arguments->disorderRange = atoi(argv[++i]);
+                g_args.disorderRange = atoi(argv[++i]);
             } else if (0 == strncmp(argv[i], "--disorder-range=",
                                     strlen("--disorder-range="))) {
                 if (isStringNumber(
                         (char *)(argv[i] + strlen("--disorder-range=")))) {
-                    arguments->disorderRange =
+                    g_args.disorderRange =
                         atoi((char *)(argv[i] + strlen("--disorder-range=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--disorder-range");
@@ -1025,17 +1013,17 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-R", strlen("-R"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-R")))) {
-                    arguments->disorderRange =
+                    g_args.disorderRange =
                         atoi((char *)(argv[i] + strlen("-R")));
                 } else {
                     errorPrintReqArg2(argv[0], "-R");
                     goto end_parse_command;
                 }
 
-                if (arguments->disorderRange < 0) {
+                if (g_args.disorderRange < 0) {
                     errorPrint("Invalid disorder range %d, will be set to %d\n",
-                               arguments->disorderRange, 1000);
-                    arguments->disorderRange = 1000;
+                               g_args.disorderRange, 1000);
+                    g_args.disorderRange = 1000;
                 }
             } else if (strlen("--disorder-range") == strlen(argv[i])) {
                 if (argc == i + 1) {
@@ -1045,7 +1033,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--disorder-range");
                     goto end_parse_command;
                 }
-                arguments->disorderRange = atoi(argv[++i]);
+                g_args.disorderRange = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
@@ -1061,11 +1049,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "O");
                     goto end_parse_command;
                 }
-                arguments->disorderRatio = atoi(argv[++i]);
+                g_args.disorderRatio = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--disorder=", strlen("--disorder="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--disorder=")))) {
-                    arguments->disorderRatio =
+                    g_args.disorderRatio =
                         atoi((char *)(argv[i] + strlen("--disorder=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--disorder");
@@ -1073,7 +1061,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-O", strlen("-O"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-O")))) {
-                    arguments->disorderRatio =
+                    g_args.disorderRatio =
                         atoi((char *)(argv[i] + strlen("-O")));
                 } else {
                     errorPrintReqArg2(argv[0], "-O");
@@ -1087,16 +1075,16 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--disorder");
                     goto end_parse_command;
                 }
-                arguments->disorderRatio = atoi(argv[++i]);
+                g_args.disorderRatio = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
             }
 
-            if (arguments->disorderRatio > 50) {
+            if (g_args.disorderRatio > 50) {
                 errorPrint("Invalid disorder ratio %d, will be set to %d\n",
-                           arguments->disorderRatio, 50);
-                arguments->disorderRatio = 50;
+                           g_args.disorderRatio, 50);
+                g_args.disorderRatio = 50;
             }
         } else if ((0 == strncmp(argv[i], "-a", strlen("-a"))) ||
                    (0 == strncmp(argv[i], "--replica", strlen("--replica")))) {
@@ -1108,11 +1096,11 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "a");
                     goto end_parse_command;
                 }
-                arguments->replica = atoi(argv[++i]);
+                g_args.replica = atoi(argv[++i]);
             } else if (0 ==
                        strncmp(argv[i], "--replica=", strlen("--replica="))) {
                 if (isStringNumber((char *)(argv[i] + strlen("--replica=")))) {
-                    arguments->replica =
+                    g_args.replica =
                         atoi((char *)(argv[i] + strlen("--replica=")));
                 } else {
                     errorPrintReqArg2(argv[0], "--replica");
@@ -1120,7 +1108,7 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
             } else if (0 == strncmp(argv[i], "-a", strlen("-a"))) {
                 if (isStringNumber((char *)(argv[i] + strlen("-a")))) {
-                    arguments->replica = atoi((char *)(argv[i] + strlen("-a")));
+                    g_args.replica = atoi((char *)(argv[i] + strlen("-a")));
                 } else {
                     errorPrintReqArg2(argv[0], "-a");
                     goto end_parse_command;
@@ -1133,20 +1121,20 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
                     errorPrintReqArg2(argv[0], "--replica");
                     goto end_parse_command;
                 }
-                arguments->replica = atoi(argv[++i]);
+                g_args.replica = atoi(argv[++i]);
             } else {
                 errorUnrecognized(argv[0], argv[i]);
                 goto end_parse_command;
             }
 
-            if (arguments->replica > 3 || arguments->replica < 1) {
+            if (g_args.replica > 3 || g_args.replica < 1) {
                 errorPrint("Invalid replica value %d, will be set to %d\n",
-                           arguments->replica, 1);
-                arguments->replica = 1;
+                           g_args.replica, 1);
+                g_args.replica = 1;
             }
         } else if (strcmp(argv[i], "-D") == 0) {
-            arguments->method_of_delete = atoi(argv[++i]);
-            if (arguments->method_of_delete > 3) {
+            g_args.method_of_delete = atoi(argv[++i]);
+            if (g_args.method_of_delete > 3) {
                 errorPrint("%s",
                            "\n\t-D need a value (0~3) number following!\n");
                 goto end_parse_command;
@@ -1260,62 +1248,52 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
         }
     }
 
-    if (((arguments->debug_print) && (NULL != arguments->metaFile)) ||
-        arguments->verbose_print) {
+    if (((g_args.debug_print) && (NULL != g_args.metaFile)) ||
+        g_args.verbose_print) {
         printf(
             "##################################################################"
             "#\n");
-        printf("# meta file:                         %s\n",
-               arguments->metaFile);
+        printf("# meta file:                         %s\n", g_args.metaFile);
         printf("# Server IP:                         %s:%hu\n",
-               arguments->host == NULL ? "localhost" : arguments->host,
-               arguments->port);
-        printf("# User:                              %s\n", arguments->user);
-        printf("# Password:                          %s\n",
-               arguments->password);
+               g_args.host == NULL ? "localhost" : g_args.host, g_args.port);
+        printf("# User:                              %s\n", g_args.user);
+        printf("# Password:                          %s\n", g_args.password);
         printf("# Use metric:                        %s\n",
-               arguments->use_metric ? "true" : "false");
-        if (*(arguments->dataType)) {
+               g_args.use_metric ? "true" : "false");
+        if (*(g_args.dataType)) {
             printf("# Specified data type:               ");
             for (int c = 0; c < MAX_NUM_COLUMNS; c++)
-                if (arguments->dataType[c])
-                    printf("%s,", arguments->dataType[c]);
+                if (g_args.dataType[c])
+                    printf("%s,", g_args.dataType[c]);
                 else
                     break;
             printf("\n");
         }
         printf("# Insertion interval:                %" PRIu64 "\n",
-               arguments->insert_interval);
-        printf("# Number of records per req:         %u\n",
-               arguments->reqPerReq);
+               g_args.insert_interval);
+        printf("# Number of records per req:         %u\n", g_args.reqPerReq);
         printf("# Max SQL length:                    %" PRIu64 "\n",
-               arguments->max_sql_len);
-        printf("# Length of Binary:                  %d\n",
-               arguments->binwidth);
-        printf("# Number of Threads:                 %d\n",
-               arguments->nthreads);
+               g_args.max_sql_len);
+        printf("# Length of Binary:                  %d\n", g_args.binwidth);
+        printf("# Number of Threads:                 %d\n", g_args.nthreads);
         printf("# Number of Tables:                  %" PRId64 "\n",
-               arguments->ntables);
+               g_args.ntables);
         printf("# Number of Data per Table:          %" PRId64 "\n",
-               arguments->insertRows);
-        printf("# Database name:                     %s\n",
-               arguments->database);
-        printf("# Table prefix:                      %s\n",
-               arguments->tb_prefix);
-        if (arguments->disorderRatio) {
+               g_args.insertRows);
+        printf("# Database name:                     %s\n", g_args.database);
+        printf("# Table prefix:                      %s\n", g_args.tb_prefix);
+        if (g_args.disorderRatio) {
             printf("# Data order:                        %d\n",
-                   arguments->disorderRatio);
+                   g_args.disorderRatio);
             printf("# Data out of order rate:            %d\n",
-                   arguments->disorderRange);
+                   g_args.disorderRange);
         }
         printf("# Delete method:                     %d\n",
-               arguments->method_of_delete);
-        printf("# Answer yes when prompt:            %d\n",
-               arguments->answer_yes);
-        printf("# Print debug info:                  %d\n",
-               arguments->debug_print);
+               g_args.method_of_delete);
+        printf("# Answer yes when prompt:            %d\n", g_args.answer_yes);
+        printf("# Print debug info:                  %d\n", g_args.debug_print);
         printf("# Print verbose info:                %d\n",
-               arguments->verbose_print);
+               g_args.verbose_print);
         printf(
             "##################################################################"
             "#\n");
@@ -1324,7 +1302,6 @@ int parse_args(int argc, char *argv[], SArguments *arguments) {
     }
     code = 0;
 end_parse_command:
-    tmfree(g_dupstr);
     return code;
 }
 void setParaFromArg() {

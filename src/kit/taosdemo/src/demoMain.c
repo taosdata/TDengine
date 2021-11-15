@@ -17,6 +17,7 @@
 int64_t        g_totalChildTables = DEFAULT_CHILDTABLES;
 int64_t        g_actualChildTables = 0;
 FILE *         g_fpOfInsertResult = NULL;
+char *         g_dupstr = NULL;
 SDbs           g_Dbs;
 SQueryMetaInfo g_queryInfo;
 SArguments     g_args = {
@@ -66,7 +67,7 @@ SArguments     g_args = {
 };
 
 int main(int argc, char *argv[]) {
-    if (parse_args(argc, argv, &g_args)) {
+    if (parse_args(argc, argv)) {
         exit(EXIT_FAILURE);
     }
     debugPrint("meta file: %s\n", g_args.metaFile);

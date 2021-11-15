@@ -854,7 +854,6 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                     g_Dbs.db[i].superTbls[j].iface = STMT_IFACE;
                 } else if (0 == strcasecmp(stbIface->valuestring, "sml")) {
                     g_Dbs.db[i].superTbls[j].iface = SML_IFACE;
-                    g_args.iface = SML_IFACE;
                 } else {
                     errorPrint(
                         "failed to read json, insert_mode %s not recognized\n",
@@ -866,6 +865,36 @@ int getMetaFromInsertJsonFile(cJSON *root) {
             } else {
                 errorPrint("%s",
                            "failed to read json, insert_mode not found\n");
+                goto PARSE_OVER;
+            }
+
+            cJSON *stbLineProtocol =
+                cJSON_GetObjectItem(stbInfo, "line_protocol");
+            if (stbLineProtocol && stbLineProtocol->type == cJSON_String &&
+                stbLineProtocol->valuestring != NULL) {
+                if (0 == strcasecmp(stbLineProtocol->valuestring, "line")) {
+                    g_Dbs.db[i].superTbls[j].lineProtocol =
+                        TSDB_SML_LINE_PROTOCOL;
+                } else if (0 ==
+                           strcasecmp(stbLineProtocol->valuestring, "telnet")) {
+                    g_Dbs.db[i].superTbls[j].lineProtocol =
+                        TSDB_SML_TELNET_PROTOCOL;
+                } else if (0 ==
+                           strcasecmp(stbLineProtocol->valuestring, "json")) {
+                    g_Dbs.db[i].superTbls[j].lineProtocol =
+                        TSDB_SML_JSON_PROTOCOL;
+                } else {
+                    errorPrint(
+                        "failed to read json, line_protocol %s not "
+                        "recognized\n",
+                        stbLineProtocol->valuestring);
+                    goto PARSE_OVER;
+                }
+            } else if (!stbLineProtocol) {
+                g_Dbs.db[i].superTbls[j].lineProtocol = TSDB_SML_LINE_PROTOCOL;
+            } else {
+                errorPrint("%s",
+                           "failed to read json, line_protocol not found\n");
                 goto PARSE_OVER;
             }
 

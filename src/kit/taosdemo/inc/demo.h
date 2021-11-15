@@ -160,7 +160,7 @@ extern char configDir[];
 #define DEFAULT_SUB_INTERVAL 10000
 #define DEFAULT_QUERY_INTERVAL 10000
 
-#define STMT_BIND_PARAM_BATCH 1
+#define SML_LINE_SQL_SYNTAX_OFFSET 7
 
 #if _MSC_VER <= 1900
 #define __func__ __FUNCTION__
@@ -346,6 +346,7 @@ typedef struct SSuperTable_S {
                                    // one sql
     uint8_t  autoCreateTable;  // 0: create sub table, 1: auto create sub table
     uint16_t iface;            // 0: taosc, 1: rest, 2: stmt
+    uint16_t lineProtocol;
     int64_t  childTblLimit;
     uint64_t childTblOffset;
 
@@ -359,6 +360,7 @@ typedef struct SSuperTable_S {
                               // interval
     int64_t insertRows;
     int64_t timeStampStep;
+    int     tsPrecision;
     char    startTimestamp[MAX_TB_NAME_SIZE];
     char    sampleFormat[SMALL_BUFF_LEN];  // csv, json
     char    sampleFile[MAX_FILE_NAME_LEN];
@@ -577,6 +579,7 @@ extern char *         g_aggreFuncDemo[];
 extern char *         g_aggreFunc[];
 extern SArguments     g_args;
 extern SDbs           g_Dbs;
+extern char *         g_dupstr;
 extern int64_t        g_totalChildTables;
 extern int64_t        g_actualChildTables;
 extern SQueryMetaInfo g_queryInfo;
@@ -585,7 +588,7 @@ extern FILE *         g_fpOfInsertResult;
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
 /* ************ Function declares ************  */
-int   parse_args(int argc, char *argv[], SArguments *arguments);
+int   parse_args(int argc, char *argv[]);
 int   getInfoFromJsonFile(char *file);
 void  setupForAnsiEscape(void);
 int   taosRandom();

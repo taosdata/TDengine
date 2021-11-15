@@ -182,6 +182,9 @@ static int calcRowLen(SSuperTable *superTbls) {
                 errorPrint("get error data type : %s\n", dataType);
                 exit(EXIT_FAILURE);
         }
+        if (superTbls->iface == SML_IFACE) {
+            lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
+        }
     }
 
     superTbls->lenOfOneRow = lenOfOneRow + TIMESTAMP_BUFF_LEN;  // timestamp
@@ -233,6 +236,15 @@ static int calcRowLen(SSuperTable *superTbls) {
                 errorPrint("get error tag type : %s\n", dataType);
                 exit(EXIT_FAILURE);
         }
+        if (superTbls->iface == SML_IFACE) {
+            lenOfOneRow += SML_LINE_SQL_SYNTAX_OFFSET;
+        }
+    }
+
+    if (superTbls->iface == SML_IFACE) {
+        lenOfTagOfOneRow +=
+            2 * TSDB_TABLE_NAME_LEN * 2 + SML_LINE_SQL_SYNTAX_OFFSET;
+        superTbls->lenOfOneRow += lenOfTagOfOneRow;
     }
 
     superTbls->lenOfTagOfOneRow = lenOfTagOfOneRow;
@@ -1357,7 +1369,7 @@ static int prepareSampleData() {
 
 void postFreeResource() {
     tmfclose(g_fpOfInsertResult);
-
+    tmfree(g_dupstr);
     for (int i = 0; i < g_Dbs.dbCount; i++) {
         for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
             if (0 != g_Dbs.db[i].superTbls[j].colsOfCreateChildTable) {
@@ -1918,8 +1930,10 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k) {
             affectedRows = k;
             break;
         case SML_IFACE:
-            res = taos_schemaless_insert(pThreadInfo->taos, pThreadInfo->lines,
-                                         k, 0, pThreadInfo->time_precision);
+            res = taos_schemaless_insert(
+                pThreadInfo->taos, pThreadInfo->lines,
+                stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL ? 0 : k,
+                stbInfo->lineProtocol, stbInfo->tsPrecision);
             code = taos_errno(res);
             affectedRows = taos_affected_rows(res);
             if (code != TSDB_CODE_SUCCESS) {
