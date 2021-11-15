@@ -112,6 +112,44 @@ bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
   }
 }
 
+int syncRaftFindProgressIndexByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  int i;
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (progressMap->progress[i].id == id) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  int i, j;
+
+  for (i = 0, j = -1; i < TSDB_MAX_REPLICA; ++i) {
+    if (progressMap->progress[i].id == id) {
+      return i;
+    }
+    if (j == -1 && progressMap->progress[i].id == SYNC_NON_NODE_ID) {
+      j = i;
+    }
+  }
+
+  assert(j != -1);
+
+  progressMap->progress[i].id = id;
+}
+
+void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  int i;
+
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (progressMap->progress[i].id == id) {
+      progressMap->progress[i].id = SYNC_NON_NODE_ID;
+      break;
+    }
+  }
+}
+
 bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
   return syncRaftLogLastIndex(pRaft->log) + 1 == progress->nextIndex;
 }

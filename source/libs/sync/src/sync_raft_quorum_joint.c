@@ -39,3 +39,34 @@ ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const E
   // One side won, the other one is pending, so the whole outcome is.
   return SYNC_RAFT_VOTE_PENDING;
 }
+
+void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  int i, min;
+
+  for (i = 0, min = -1; i < TSDB_MAX_REPLICA; ++i) {
+    if (config->incoming.nodeInfo[i].nodeId == id) {
+      return;
+    }
+    if (min == -1 && config->incoming.nodeInfo[i].nodeId == SYNC_NON_NODE_ID) {
+      min = i;
+    }
+  }
+
+  assert(min != -1);
+  config->incoming.nodeInfo[min].nodeId = id;
+  config->incoming.replica += 1;
+}
+
+void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  int i;
+
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (config->incoming.nodeInfo[i].nodeId == id) {
+      config->incoming.replica  -= 1;
+      config->incoming.nodeInfo[i].nodeId = SYNC_NON_NODE_ID;
+      break;
+    }
+  }
+
+  assert(config->incoming.replica >= 0);
+}

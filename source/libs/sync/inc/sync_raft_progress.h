@@ -207,6 +207,12 @@ static FORCE_INLINE bool syncRaftProgressRecentActive(SSyncRaftProgress* progres
   return progress->recentActive;
 }
 
+int syncRaftFindProgressIndexByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id);
+
+int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
+
+void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
+
 /** 
  * return true if progress's log is up-todate
  **/

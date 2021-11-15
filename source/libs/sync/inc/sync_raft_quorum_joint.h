@@ -55,12 +55,20 @@ static FORCE_INLINE bool syncRaftJointConfigInIncoming(const SSyncRaftQuorumJoin
   return syncRaftJointConfigInCluster(&config->incoming, id);
 }
 
+void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id);
+
+void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id);
+
 static FORCE_INLINE const SSyncCluster* syncRaftJointConfigIncoming(const SSyncRaftQuorumJointConfig* config) {
   return &config->incoming;
 }
 
 static FORCE_INLINE const SSyncCluster* syncRaftJointConfigOutgoing(const SSyncRaftQuorumJointConfig* config) {
   return &config->outgoing;
+}
+
+static FORCE_INLINE void syncRaftJointConfigClearOutgoing(SSyncRaftQuorumJointConfig* config) {
+  memset(&config->outgoing, 0, sizeof(SSyncCluster));
 }
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

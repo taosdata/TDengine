@@ -22,7 +22,7 @@ typedef enum ESyncRaftConfChangeType {
 	SYNC_RAFT_Conf_AddNode = 0,
   SYNC_RAFT_Conf_RemoveNode = 1,
   SYNC_RAFT_Conf_UpdateNode = 2,
-  SYNC_RAFT_Conf_AddLearnerNode = 2,
+  SYNC_RAFT_Conf_AddLearnerNode = 3,
 } ESyncRaftConfChangeType;
 
 // ConfChangeSingle is an individual configuration change operation. Multiple
