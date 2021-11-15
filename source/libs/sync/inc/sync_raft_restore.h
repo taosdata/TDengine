@@ -19,7 +19,7 @@
 #include "sync_type.h"
 #include "sync_raft_proto.h"
 
-// Restore takes a Changer (which must represent an empty configuration), and
+// syncRaftRestoreConfig takes a Changer (which must represent an empty configuration), and
 // runs a sequence of changes enacting the configuration described in the
 // ConfState.
 //

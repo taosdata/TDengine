@@ -22,6 +22,9 @@
 
 #define RAFT_READ_LOG_MAX_NUM 100
 
+static int deserializeServerStateFromBuffer(SSyncServerState* server, const char* buffer, int n);
+static int deserializeClusterConfigFromBuffer(SSyncClusterConfig* cluster, const char* buffer, int n);
+
 static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
@@ -35,7 +38,9 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SyncIndex initIndex = pInfo->snapshotIndex;
   SSyncBuffer buffer[RAFT_READ_LOG_MAX_NUM];
   int nBuf, limit, i;
-  
+  char* buf;
+  int n;
+
   memset(pRaft, 0, sizeof(SSyncRaft));
 
   memcpy(&pRaft->fsm, &pInfo->fsm, sizeof(SSyncFSM));
@@ -57,10 +62,15 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
     return -1;
   }
   // read server state
-  if (stateManager->readServerState(stateManager, &serverState) != 0) {
+  if (stateManager->readServerState(stateManager, &buf, &n) != 0) {
     syncError("readServerState for vgid %d fail", pInfo->vgId);
     return -1;
   }
+  if (deserializeServerStateFromBuffer(&serverState, buf, n) != 0) {
+    syncError("deserializeServerStateFromBuffer for vgid %d fail", pInfo->vgId);
+    return -1;
+  }
+
   assert(initIndex <= serverState.commitIndex);
 
   // restore fsm state from snapshot index + 1 until commitIndex
@@ -116,6 +126,14 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
 int32_t syncRaftTick(SSyncRaft* pRaft) {
   pRaft->currentTick += 1;
+  return 0;
+}
+
+static int deserializeServerStateFromBuffer(SSyncServerState* server, const char* buffer, int n) {
+  return 0;
+}
+
+static int deserializeClusterConfigFromBuffer(SSyncClusterConfig* cluster, const char* buffer, int n) {
   return 0;
 }
 

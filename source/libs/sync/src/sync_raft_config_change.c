@@ -17,6 +17,7 @@
 #include "sync_raft_config_change.h"
 #include "sync_raft_progress.h"
 #include "sync_raft_progress_tracker.h"
+#include "sync_raft_quorum_joint.h"
 
 static int checkAndCopy(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 static int checkAndReturn(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
@@ -38,8 +39,8 @@ static void makeVoter(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig*
                        SSyncRaftProgressMap* progressMap, SyncNodeId id);
 static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id);
-static void remove(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
-                       SSyncRaftProgressMap* progressMap, SyncNodeId id);                       
+static void removeNodeId(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
+                       SSyncRaftProgressMap* progressMap, SyncNodeId id);              
 // syncRaftChangerSimpleConfig carries out a series of configuration changes that (in aggregate)
 // mutates the incoming majority config Voters[0] by at most one. This method
 // will return an error if that is not the case, if the resulting quorum is
@@ -87,7 +88,7 @@ int syncRaftChangerSimpleConfig(SSyncRaftChanger* changer, const SSyncConfChange
 // (Section 4.3) corresponds to `C_{new,old}`.
 //
 // [1]: https://github.com/ongardie/dissertation/blob/master/online-trim.pdf
-int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, const SSyncConfChangeSingleArray* css,
+int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, bool autoLeave, const SSyncConfChangeSingleArray* css,
                             SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
   int ret;
 
@@ -108,9 +109,18 @@ int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, const SSyncConfChangeSi
   }
 
   // Clear the outgoing config.
-  syncRaftJointConfigClearOutgoing(config);
+  syncRaftJointConfigClearOutgoing(&config->voters);
 
   // Copy incoming to outgoing.
+  memcpy(&config->voters.outgoing, &config->voters.incoming, sizeof(SSyncCluster));
+
+  ret = applyConfig(changer, config, progressMap, css);
+  if (ret != 0) {
+    return ret;
+  }
+
+  config->autoLeave = autoLeave;
+  return checkAndReturn(config, progressMap);
 }
 
 // checkAndCopy copies the tracker's config and progress map (deeply enough for
@@ -210,7 +220,7 @@ static int applyConfig(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig
         makeLearner(changer, config, progressMap, cs->nodeId);
         break;
       case SYNC_RAFT_Conf_RemoveNode:
-        remove(changer, config, progressMap, cs->nodeId);
+        removeNodeId(changer, config, progressMap, cs->nodeId);
         break;
       case SYNC_RAFT_Conf_UpdateNode:
         break;
@@ -309,7 +319,7 @@ static void makeVoter(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig*
   progress->isLearner = false;
   nilAwareDelete(&config->learners, id);
   nilAwareDelete(&config->learnersNext, id);
-  syncRaftJointConfigAddToIncoming(config, id);
+  syncRaftJointConfigAddToIncoming(&config->voters, id);
 }
 
 // makeLearner makes the given ID a learner or stages it to be a learner once
@@ -339,7 +349,7 @@ static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfi
     return;
   }
   // Remove any existing voter in the incoming config...
-  remove(changer, config, progressMap, id);
+  removeNodeId(changer, config, progressMap, id);
   
   // ... but save the Progress.
   syncRaftAddToProgressMap(progressMap, id);
@@ -358,8 +368,8 @@ static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfi
   }
 }
 
-// remove this peer as a voter or learner from the incoming config.
-static void remove(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
+// removeNodeId this peer as a voter or learner from the incoming config.
+static void removeNodeId(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id) {
   int i = syncRaftFindProgressIndexByNodeId(progressMap, id);
   if (i == -1) {

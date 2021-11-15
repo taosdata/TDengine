@@ -36,7 +36,7 @@ typedef int (*configChangeFp)(SSyncRaftChanger* changer, const SSyncConfChangeSi
 int syncRaftChangerSimpleConfig(SSyncRaftChanger* changer, const SSyncConfChangeSingleArray* css,
                             SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
-int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, const SSyncConfChangeSingleArray* css,
+int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, bool autoLeave, const SSyncConfChangeSingleArray* css,
                             SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
 #endif /* TD_SYNC_RAFT_CONFIG_CHANGE_H */

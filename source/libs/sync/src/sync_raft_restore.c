@@ -19,7 +19,7 @@
 
 static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleArray* out, SSyncConfChangeSingleArray* in);
 
-// Restore takes a Changer (which must represent an empty configuration), and
+// syncRaftRestoreConfig takes a Changer (which must represent an empty configuration), and
 // runs a sequence of changes enacting the configuration described in the
 // ConfState.
 //
@@ -70,7 +70,7 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs)
       }
     }
 
-    ret = syncRaftChangerEnterJoint(changer, &incoming, config, progressMap);
+    ret = syncRaftChangerEnterJoint(changer, cs->autoLeave, &incoming, config, progressMap);
     if (ret != 0) {
       goto out;
     }
