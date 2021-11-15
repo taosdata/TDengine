@@ -262,6 +262,7 @@ void printVersion() {
         printf("taosdemo version %s-%s, status:%s\n", tdengine_ver,
                taosdemo_ver, taosdemo_status);
     }
+    exit(EXIT_SUCCESS);
 }
 
 void printHelp() {

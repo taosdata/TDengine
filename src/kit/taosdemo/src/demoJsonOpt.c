@@ -52,7 +52,7 @@ int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
         count = 1;
         cJSON *countObj = cJSON_GetObjectItem(column, "count");
         if (countObj && countObj->type == cJSON_Number) {
-            count = countObj->valueint;
+            count = (int)countObj->valueint;
         } else if (countObj && countObj->type != cJSON_Number) {
             errorPrint("%s", "failed to read json, column count not found\n");
             goto PARSE_OVER;
@@ -75,7 +75,7 @@ int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
 
         cJSON *dataLen = cJSON_GetObjectItem(column, "len");
         if (dataLen && dataLen->type == cJSON_Number) {
-            columnCase.dataLen = dataLen->valueint;
+            columnCase.dataLen = (uint32_t)dataLen->valueint;
         } else if (dataLen && dataLen->type != cJSON_Number) {
             debugPrint("%s() LN%d: failed to read json, column len not found\n",
                        __func__, __LINE__);
@@ -176,7 +176,7 @@ int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
         count = 1;
         cJSON *countObj = cJSON_GetObjectItem(tag, "count");
         if (countObj && countObj->type == cJSON_Number) {
-            count = countObj->valueint;
+            count = (int)countObj->valueint;
         } else if (countObj && countObj->type != cJSON_Number) {
             errorPrint("%s", "failed to read json, column count not found\n");
             goto PARSE_OVER;
@@ -197,7 +197,7 @@ int getColumnAndTagTypeFromInsertJsonFile(cJSON *      stbInfo,
 
         cJSON *dataLen = cJSON_GetObjectItem(tag, "len");
         if (dataLen && dataLen->type == cJSON_Number) {
-            columnCase.dataLen = dataLen->valueint;
+            columnCase.dataLen = (uint32_t)dataLen->valueint;
         } else if (dataLen && dataLen->type != cJSON_Number) {
             errorPrint("%s", "failed to read json, column len not found\n");
             goto PARSE_OVER;
@@ -304,7 +304,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
     cJSON *port = cJSON_GetObjectItem(root, "port");
     if (port && port->type == cJSON_Number) {
-        g_Dbs.port = port->valueint;
+        g_Dbs.port = (uint16_t)port->valueint;
     } else if (!port) {
         g_Dbs.port = DEFAULT_PORT;
     }
@@ -334,7 +334,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
     cJSON *threads = cJSON_GetObjectItem(root, "thread_count");
     if (threads && threads->type == cJSON_Number) {
-        g_Dbs.threadCount = threads->valueint;
+        g_Dbs.threadCount = (uint32_t)threads->valueint;
     } else if (!threads) {
         g_Dbs.threadCount = DEFAULT_NTHREADS;
     } else {
@@ -344,7 +344,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
     cJSON *threads2 = cJSON_GetObjectItem(root, "thread_count_create_tbl");
     if (threads2 && threads2->type == cJSON_Number) {
-        g_Dbs.threadCountForCreateTbl = threads2->valueint;
+        g_Dbs.threadCountForCreateTbl = (uint32_t)threads2->valueint;
     } else if (!threads2) {
         g_Dbs.threadCountForCreateTbl = DEFAULT_NTHREADS;
     } else {
@@ -375,7 +375,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                        "failed to read json, interlaceRows input mistake\n");
             goto PARSE_OVER;
         }
-        g_args.interlaceRows = interlaceRows->valueint;
+        g_args.interlaceRows = (uint32_t)interlaceRows->valueint;
     } else if (!interlaceRows) {
         g_args.interlaceRows =
             DEFAULT_INTERLACE_ROWS;  // 0 means progressive mode, > 0 mean
@@ -423,7 +423,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
             prompt();
             numRecPerReq->valueint = MAX_RECORDS_PER_REQ;
         }
-        g_args.reqPerReq = numRecPerReq->valueint;
+        g_args.reqPerReq = (uint32_t)numRecPerReq->valueint;
     } else if (!numRecPerReq) {
         g_args.reqPerReq = MAX_RECORDS_PER_REQ;
     } else {
@@ -547,7 +547,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *update = cJSON_GetObjectItem(dbinfo, "update");
         if (update && update->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.update = update->valueint;
+            g_Dbs.db[i].dbCfg.update = (int)update->valueint;
         } else if (!update) {
             g_Dbs.db[i].dbCfg.update = -1;
         } else {
@@ -557,7 +557,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *replica = cJSON_GetObjectItem(dbinfo, "replica");
         if (replica && replica->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.replica = replica->valueint;
+            g_Dbs.db[i].dbCfg.replica = (int)replica->valueint;
         } else if (!replica) {
             g_Dbs.db[i].dbCfg.replica = -1;
         } else {
@@ -567,7 +567,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *keep = cJSON_GetObjectItem(dbinfo, "keep");
         if (keep && keep->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.keep = keep->valueint;
+            g_Dbs.db[i].dbCfg.keep = (int)keep->valueint;
         } else if (!keep) {
             g_Dbs.db[i].dbCfg.keep = -1;
         } else {
@@ -577,7 +577,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *days = cJSON_GetObjectItem(dbinfo, "days");
         if (days && days->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.days = days->valueint;
+            g_Dbs.db[i].dbCfg.days = (int)days->valueint;
         } else if (!days) {
             g_Dbs.db[i].dbCfg.days = -1;
         } else {
@@ -587,7 +587,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *cache = cJSON_GetObjectItem(dbinfo, "cache");
         if (cache && cache->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.cache = cache->valueint;
+            g_Dbs.db[i].dbCfg.cache = (int)cache->valueint;
         } else if (!cache) {
             g_Dbs.db[i].dbCfg.cache = -1;
         } else {
@@ -597,7 +597,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *blocks = cJSON_GetObjectItem(dbinfo, "blocks");
         if (blocks && blocks->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.blocks = blocks->valueint;
+            g_Dbs.db[i].dbCfg.blocks = (int)blocks->valueint;
         } else if (!blocks) {
             g_Dbs.db[i].dbCfg.blocks = -1;
         } else {
@@ -619,7 +619,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *minRows = cJSON_GetObjectItem(dbinfo, "minRows");
         if (minRows && minRows->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.minRows = minRows->valueint;
+            g_Dbs.db[i].dbCfg.minRows = (uint32_t)minRows->valueint;
         } else if (!minRows) {
             g_Dbs.db[i].dbCfg.minRows = 0;  // 0 means default
         } else {
@@ -629,7 +629,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *maxRows = cJSON_GetObjectItem(dbinfo, "maxRows");
         if (maxRows && maxRows->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.maxRows = maxRows->valueint;
+            g_Dbs.db[i].dbCfg.maxRows = (uint32_t)maxRows->valueint;
         } else if (!maxRows) {
             g_Dbs.db[i].dbCfg.maxRows = 0;  // 0 means default
         } else {
@@ -639,7 +639,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *comp = cJSON_GetObjectItem(dbinfo, "comp");
         if (comp && comp->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.comp = comp->valueint;
+            g_Dbs.db[i].dbCfg.comp = (int)comp->valueint;
         } else if (!comp) {
             g_Dbs.db[i].dbCfg.comp = -1;
         } else {
@@ -649,7 +649,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *walLevel = cJSON_GetObjectItem(dbinfo, "walLevel");
         if (walLevel && walLevel->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.walLevel = walLevel->valueint;
+            g_Dbs.db[i].dbCfg.walLevel = (int)walLevel->valueint;
         } else if (!walLevel) {
             g_Dbs.db[i].dbCfg.walLevel = -1;
         } else {
@@ -659,7 +659,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *cacheLast = cJSON_GetObjectItem(dbinfo, "cachelast");
         if (cacheLast && cacheLast->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.cacheLast = cacheLast->valueint;
+            g_Dbs.db[i].dbCfg.cacheLast = (int)cacheLast->valueint;
         } else if (!cacheLast) {
             g_Dbs.db[i].dbCfg.cacheLast = -1;
         } else {
@@ -669,7 +669,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *quorum = cJSON_GetObjectItem(dbinfo, "quorum");
         if (quorum && quorum->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.quorum = quorum->valueint;
+            g_Dbs.db[i].dbCfg.quorum = (int)quorum->valueint;
         } else if (!quorum) {
             g_Dbs.db[i].dbCfg.quorum = 1;
         } else {
@@ -679,7 +679,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
         cJSON *fsync = cJSON_GetObjectItem(dbinfo, "fsync");
         if (fsync && fsync->type == cJSON_Number) {
-            g_Dbs.db[i].dbCfg.fsync = fsync->valueint;
+            g_Dbs.db[i].dbCfg.fsync = (int)fsync->valueint;
         } else if (!fsync) {
             g_Dbs.db[i].dbCfg.fsync = -1;
         } else {
@@ -1030,7 +1030,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
 
             cJSON *stbMaxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
             if (stbMaxSqlLen && stbMaxSqlLen->type == cJSON_Number) {
-                int32_t len = stbMaxSqlLen->valueint;
+                int32_t len = (int32_t)stbMaxSqlLen->valueint;
                 if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
                     len = TSDB_MAX_ALLOWED_SQL_LEN;
                 } else if (len < 5) {
@@ -1088,7 +1088,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                     goto PARSE_OVER;
                 }
                 g_Dbs.db[i].superTbls[j].interlaceRows =
-                    stbInterlaceRows->valueint;
+                    (uint32_t)stbInterlaceRows->valueint;
 
                 if (g_Dbs.db[i].superTbls[j].interlaceRows >
                     g_Dbs.db[i].superTbls[j].insertRows) {
@@ -1103,7 +1103,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                         g_Dbs.db[i].superTbls[j].insertRows);
                     prompt();
                     g_Dbs.db[i].superTbls[j].interlaceRows =
-                        g_Dbs.db[i].superTbls[j].insertRows;
+                        (uint32_t)g_Dbs.db[i].superTbls[j].insertRows;
                 }
             } else if (!stbInterlaceRows) {
                 g_Dbs.db[i].superTbls[j].interlaceRows =
@@ -1125,7 +1125,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                 if (disorderRatio->valueint < 0) disorderRatio->valueint = 0;
 
                 g_Dbs.db[i].superTbls[j].disorderRatio =
-                    disorderRatio->valueint;
+                    (int)disorderRatio->valueint;
             } else if (!disorderRatio) {
                 g_Dbs.db[i].superTbls[j].disorderRatio = 0;
             } else {
@@ -1138,7 +1138,7 @@ int getMetaFromInsertJsonFile(cJSON *root) {
                 cJSON_GetObjectItem(stbInfo, "disorder_range");
             if (disorderRange && disorderRange->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].disorderRange =
-                    disorderRange->valueint;
+                    (int)disorderRange->valueint;
             } else if (!disorderRange) {
                 g_Dbs.db[i].superTbls[j].disorderRange = DEFAULT_DISORDER_RANGE;
             } else {
@@ -1204,7 +1204,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
 
     cJSON *port = cJSON_GetObjectItem(root, "port");
     if (port && port->type == cJSON_Number) {
-        g_queryInfo.port = port->valueint;
+        g_queryInfo.port = (uint16_t)port->valueint;
     } else if (!port) {
         g_queryInfo.port = DEFAULT_PORT;
     }
@@ -1330,7 +1330,8 @@ int getMetaFromQueryJsonFile(cJSON *root) {
                     g_queryInfo.specifiedQueryInfo.concurrent);
                 goto PARSE_OVER;
             }
-            g_queryInfo.specifiedQueryInfo.concurrent = concurrent->valueint;
+            g_queryInfo.specifiedQueryInfo.concurrent =
+                (uint32_t)concurrent->valueint;
         } else if (!concurrent) {
             g_queryInfo.specifiedQueryInfo.concurrent = 1;
         }
@@ -1435,7 +1436,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
                     cJSON_GetObjectItem(specifiedQuery, "endAfterConsume");
                 if (endAfterConsume && endAfterConsume->type == cJSON_Number) {
                     g_queryInfo.specifiedQueryInfo.endAfterConsume[j] =
-                        endAfterConsume->valueint;
+                        (int)endAfterConsume->valueint;
                 }
                 if (g_queryInfo.specifiedQueryInfo.endAfterConsume[j] < -1)
                     g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
@@ -1447,7 +1448,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
                     (resubAfterConsume->type == cJSON_Number) &&
                     (resubAfterConsume->valueint >= 0)) {
                     g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] =
-                        resubAfterConsume->valueint;
+                        (int)resubAfterConsume->valueint;
                 }
 
                 if (g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] < -1)
@@ -1512,7 +1513,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
                            "failed to read json, threads input mistake\n");
                 goto PARSE_OVER;
             }
-            g_queryInfo.superQueryInfo.threadCnt = threads->valueint;
+            g_queryInfo.superQueryInfo.threadCnt = (uint32_t)threads->valueint;
         } else if (!threads) {
             g_queryInfo.superQueryInfo.threadCnt = DEFAULT_NTHREADS;
         }
@@ -1610,7 +1611,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
         if (superEndAfterConsume &&
             superEndAfterConsume->type == cJSON_Number) {
             g_queryInfo.superQueryInfo.endAfterConsume =
-                superEndAfterConsume->valueint;
+                (int)superEndAfterConsume->valueint;
         }
         if (g_queryInfo.superQueryInfo.endAfterConsume < -1)
             g_queryInfo.superQueryInfo.endAfterConsume = -1;
@@ -1623,7 +1624,7 @@ int getMetaFromQueryJsonFile(cJSON *root) {
             (superResubAfterConsume->type == cJSON_Number) &&
             (superResubAfterConsume->valueint >= 0)) {
             g_queryInfo.superQueryInfo.resubAfterConsume =
-                superResubAfterConsume->valueint;
+                (int)superResubAfterConsume->valueint;
         }
         if (g_queryInfo.superQueryInfo.resubAfterConsume < -1)
             g_queryInfo.superQueryInfo.resubAfterConsume = -1;
@@ -1693,7 +1694,7 @@ int getInfoFromJsonFile(char *file) {
 
     int   maxLen = MAX_JSON_BUFF;
     char *content = calloc(1, maxLen + 1);
-    int   len = fread(content, 1, maxLen, fp);
+    int   len = (int)fread(content, 1, maxLen, fp);
     if (len <= 0) {
         free(content);
         fclose(fp);
