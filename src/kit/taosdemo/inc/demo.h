@@ -569,7 +569,7 @@ typedef struct SThreadInfo_S {
     TAOS_SUB *tsub;
 
     char **lines;
-    int    sockfd;
+    SOCKET sockfd;
 } threadInfo;
 
 /* ************ Global variables ************  */
