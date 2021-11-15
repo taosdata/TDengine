@@ -16,8 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "trnInt.h"
 
+#define SDB_TRANS_VER 1
+
 SSdbRaw *trnActionEncode(STrans *pTrans) {
-  int32_t rawDataLen = 5 * sizeof(int32_t);
+  int32_t rawDataLen = 10 * sizeof(int32_t);
   int32_t redoLogNum = taosArrayGetSize(pTrans->redoLogs);
   int32_t undoLogNum = taosArrayGetSize(pTrans->undoLogs);
   int32_t commitLogNum = taosArrayGetSize(pTrans->commitLogs);
@@ -25,91 +27,84 @@ SSdbRaw *trnActionEncode(STrans *pTrans) {
   int32_t undoActionNum = taosArrayGetSize(pTrans->undoActions);
 
   for (int32_t index = 0; index < redoLogNum; ++index) {
-    SSdbRaw *pRawData = taosArrayGet(pTrans->redoLogs, index);
-    rawDataLen += (sizeof(SSdbRaw) + pRawData->dataLen);
+    SSdbRaw *pRaw = taosArrayGet(pTrans->redoLogs, index);
+    rawDataLen += sdbGetRawTotalSize(pRaw);
   }
 
   for (int32_t index = 0; index < undoLogNum; ++index) {
-    SSdbRaw *pRawData = taosArrayGet(pTrans->undoLogs, index);
-    rawDataLen += (sizeof(SSdbRaw) + pRawData->dataLen);
+    SSdbRaw *pRaw = taosArrayGet(pTrans->undoLogs, index);
+    rawDataLen += sdbGetRawTotalSize(pRaw);
   }
 
   for (int32_t index = 0; index < commitLogNum; ++index) {
-    SSdbRaw *pRawData = taosArrayGet(pTrans->commitLogs, index);
-    rawDataLen += (sizeof(SSdbRaw) + pRawData->dataLen);
+    SSdbRaw *pRaw = taosArrayGet(pTrans->commitLogs, index);
+    rawDataLen += sdbGetRawTotalSize(pRaw);
   }
 
-  SSdbRaw *pRaw = calloc(1, rawDataLen + sizeof(SSdbRaw));
-  if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_TRANS, SDB_TRANS_VER, rawDataLen);
+  if (pRaw == NULL) return NULL;
 
-  int32_t dataLen = 0;
-  char   *pData = pRaw->data;
-  SDB_SET_INT32_VAL(pData, dataLen, redoLogNum)
-  SDB_SET_INT32_VAL(pData, dataLen, undoLogNum)
-  SDB_SET_INT32_VAL(pData, dataLen, commitLogNum)
-  SDB_SET_INT32_VAL(pData, dataLen, redoActionNum)
-  SDB_SET_INT32_VAL(pData, dataLen, undoActionNum)
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pData, dataPos, pTrans->id)
+  SDB_SET_INT8(pData, dataPos, pTrans->stage)
+  SDB_SET_INT8(pData, dataPos, pTrans->policy)
+  SDB_SET_INT32(pData, dataPos, redoLogNum)
+  SDB_SET_INT32(pData, dataPos, undoLogNum)
+  SDB_SET_INT32(pData, dataPos, commitLogNum)
+  SDB_SET_INT32(pData, dataPos, redoActionNum)
+  SDB_SET_INT32(pData, dataPos, undoActionNum)
+  SDB_SET_DATALEN(pRaw, dataPos);
 
-  pRaw->dataLen = dataLen;
-  pRaw->type = SDB_TRANS;
-  pRaw->sver = TRN_VER;
   return pRaw;
 }
 
 STrans *trnActionDecode(SSdbRaw *pRaw) {
-  if (pRaw->sver != TRN_VER) {
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+
+  if (sver != SDB_TRANS_VER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
 
-  STrans *pTrans = NULL;
-  if (pTrans == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSdbRow *pRow = sdbAllocRow(sizeof(STrans));
+  STrans  *pTrans = sdbGetRowObj(pRow);
+  if (pTrans == NULL) return NULL;
 
   int32_t  redoLogNum = 0;
   int32_t  undoLogNum = 0;
   int32_t  commitLogNum = 0;
   int32_t  redoActionNum = 0;
   int32_t  undoActionNum = 0;
-  SSdbRaw *pTmp = malloc(sizeof(SSdbRaw));
 
-  int32_t code = 0;
-  int32_t dataLen = pRaw->dataLen;
-  char   *pData = pRaw->data;
-  SDB_GET_INT32_VAL(pData, dataLen, redoLogNum, code)
-  SDB_GET_INT32_VAL(pData, dataLen, undoLogNum, code)
-  SDB_GET_INT32_VAL(pData, dataLen, commitLogNum, code)
-  SDB_GET_INT32_VAL(pData, dataLen, redoActionNum, code)
-  SDB_GET_INT32_VAL(pData, dataLen, undoActionNum, code)
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pTrans->id)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pTrans->stage)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pTrans->policy)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &redoLogNum)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &undoLogNum)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &commitLogNum)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &redoActionNum)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &undoActionNum)
 
   for (int32_t index = 0; index < redoLogNum; ++index) {
-    SDB_GET_BINARY_VAL(pData, dataLen, pTmp, sizeof(SSdbRaw), code);
-    if (code == 0 && pTmp->dataLen > 0) {
-      SSdbRaw *pRead = malloc(sizeof(SSdbRaw) + pTmp->dataLen);
-      if (pRead == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
-      memcpy(pRead, pTmp, sizeof(SSdbRaw));
-      SDB_GET_BINARY_VAL(pData, dataLen, pRead->data, pRead->dataLen, code);
-      void *ret = taosArrayPush(pTrans->redoLogs, &pRead);
-      if (ret == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
+    int32_t dataLen = 0;
+    SDB_GET_INT32(pRaw, pRow, dataPos, &dataLen)
+
+    char *pData = malloc(dataLen);
+    SDB_GET_BINARY(pRaw, pRow, dataPos, pData, dataLen);
+    void *ret = taosArrayPush(pTrans->redoLogs, pData);
+    if (ret == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      break;
     }
   }
 
-  if (code != 0) {
-    trnDrop(pTrans);
-    terrno = code;
-    return NULL;
-  }
+  // if (code != 0) {
+  //   trnDrop(pTrans);
+  //   terrno = code;
+  //   return NULL;
+  // }
 
   return pTrans;
 }
