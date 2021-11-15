@@ -50,6 +50,24 @@ typedef struct SSyncRaftEntry SSyncRaftEntry;
 #endif
 #endif
 
+
+typedef struct SSyncServerState {
+  SyncNodeId voteFor;
+  SyncTerm  term;
+  SyncIndex  commitIndex;
+} SSyncServerState;
+
+typedef struct SSyncClusterConfig {
+  // Log index number of current cluster config.
+  SyncIndex index;
+
+  // Log index number of previous cluster config.
+  SyncIndex prevIndex;
+
+  // current cluster
+  const SSyncCluster* cluster;
+} SSyncClusterConfig;
+
 typedef struct {
   int32_t   replica;
   SyncNodeId nodeId[TSDB_MAX_REPLICA];
