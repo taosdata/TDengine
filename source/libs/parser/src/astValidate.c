@@ -2652,13 +2652,11 @@ static int32_t validateScalarFunctionParamNum(tSqlExpr* pSqlExpr, int32_t functi
   return code;
 }
 
+// todo merge with the addScalarExprAndResColumn
 int32_t doAddOneProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, SSchema* pSchema, const char* aliasName,
                         int32_t colId, SMsgBuf* pMsgBuf) {
   const char* name = (aliasName == NULL)? pSchema->name:aliasName;
   SSchema s = createSchema(pSchema->type, pSchema->bytes, colId, name);
-
-  tExprNode *pNode = NULL;
-  bool keepTableCols = true;
 
   SArray* pColumnList = taosArrayInit(4, sizeof(SColumn));
   SToken colNameToken = {.z = pSchema->name, .n = strlen(pSchema->name)};
@@ -2667,7 +2665,9 @@ int32_t doAddOneProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, S
   sqlNode.type = SQL_NODE_TABLE_COLUMN;
   sqlNode.columnName = colNameToken;
 
-  int32_t ret = sqlExprToExprNode(&pNode, &sqlNode, pQueryInfo, pColumnList, &keepTableCols, pMsgBuf);
+  tExprNode* pNode = NULL;
+  bool       keepTableCols = true;
+  int32_t    ret = sqlExprToExprNode(&pNode, &sqlNode, pQueryInfo, pColumnList, &keepTableCols, pMsgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     tExprTreeDestroy(pNode, NULL);
     return buildInvalidOperationMsg(pMsgBuf, "invalid expression in select clause");
@@ -2689,6 +2689,12 @@ int32_t doAddOneProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, S
   }
 
   pExpr->base.numOfCols = num;
+
+  if (pQueryInfo->exprListLevelIndex == 0) {
+    int32_t exists = getNumOfFields(&pQueryInfo->fieldsInfo);
+    addResColumnInfo(pQueryInfo, exists, &pExpr->base.resSchema, pExpr);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2923,17 +2929,29 @@ static tExprNode* doCreateColumnNode(SQueryStmtInfo* pQueryInfo, SColumnIndex* p
   pExpr->nodeType = TEXPR_COL_NODE;
 
   pExpr->pSchema = calloc(1, sizeof(SSchema));
-  SSchema* pSchema = getOneColumnSchema(pTableMeta, pIndex->columnIndex);
+
+  SSchema* pSchema = NULL;
+  if (pIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    pSchema = getTbnameColumnSchema();
+  } else {
+    pSchema = getOneColumnSchema(pTableMeta, pIndex->columnIndex);
+  }
+
   *(SSchema*)(pExpr->pSchema) = *pSchema;
 
-  if (keepTableCols) {
+  if (keepTableCols && TSDB_COL_IS_NORMAL_COL(pIndex->type)) {
     SColumn c = createColumn(pTableMeta->uid, pTableMetaInfo->aliasName, pIndex->type, pExpr->pSchema);
     taosArrayPush(pCols, &c);
   }
 
-  columnListInsert(pQueryInfo->colList, pTableMeta->uid, pSchema, TSDB_COL_NORMAL);
-  SSchema* pTsSchema = getOneColumnSchema(pTableMeta, 0);
-  insertPrimaryTsColumn(pQueryInfo->colList, pTsSchema->name, pTableMeta->uid);
+  if (TSDB_COL_IS_NORMAL_COL(pIndex->type)) {
+    columnListInsert(pQueryInfo->colList, pTableMeta->uid, pSchema, TSDB_COL_NORMAL);
+    SSchema* pTsSchema = getOneColumnSchema(pTableMeta, 0);
+    insertPrimaryTsColumn(pQueryInfo->colList, pTsSchema->name, pTableMeta->uid);
+  } else {
+    columnListInsert(pTableMetaInfo->tagColList, pTableMeta->uid, pSchema, TSDB_COL_TAG);
+  }
+
   return pExpr;
 }
 
@@ -3228,26 +3246,6 @@ int32_t sqlExprToExprNode(tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryStm
 
     assert((*pExpr)->_node.optr != 0);
   }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t multiColumnListInsert(SQueryStmtInfo* pQueryInfo, SArray* pColumnList, SMsgBuf* pMsgBuf) {
-  const char* msg1 = "tag can not be used in expression";
-
-  SColumn* p1 = taosArrayGet(pColumnList, 0);
-
-  size_t numOfNode = taosArrayGetSize(pColumnList);
-  for(int32_t k = 0; k < numOfNode; ++k) {
-    SColumn* p = taosArrayGet(pColumnList, k);
-    if (TSDB_COL_IS_TAG(p->flag)) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
-
-    SSchema s = createSchema(p->info.type, p->info.bytes, p->info.colId, p->name);
-    columnListInsert(pQueryInfo->colList, p->uid, &s, p->flag);
-  }
-
-  insertPrimaryTsColumn(pQueryInfo->colList, NULL, p1->uid);
   return TSDB_CODE_SUCCESS;
 }
 
