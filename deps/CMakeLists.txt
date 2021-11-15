@@ -50,8 +50,11 @@ endif(${BUILD_WITH_LEVELDB})
 # rocksdb
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
+    option(WITH_TOOLS "" OFF)
+    option(WITH_LIBURING "" OFF)
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
     add_subdirectory(rocksdb)
     target_include_directories(
