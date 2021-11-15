@@ -12,15 +12,13 @@ public class NullValueInResultSetJNITest {
     Connection conn;
 
     @Test
-    public void test() {
+    public void test() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from weather");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
             }
 
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
@@ -42,18 +40,12 @@ public class NullValueInResultSetJNITest {
             stmt.executeUpdate("insert into weather(ts, f7) values(now+7s, true)");
             stmt.executeUpdate("insert into weather(ts, f8) values(now+8s, 'hello')");
             stmt.executeUpdate("insert into weather(ts, f9) values(now+9s, '涛思数据')");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @After
-    public void after() {
-        try {
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void after() throws SQLException {
+        if (conn != null)
+            conn.close();
     }
 }
