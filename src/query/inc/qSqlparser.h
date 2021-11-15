@@ -40,8 +40,8 @@ enum SQL_NODE_TYPE {
 };
 
 enum SQL_NODE_FROM_TYPE {
-  SQL_NODE_FROM_SUBQUERY   = 1,
-  SQL_NODE_FROM_TABLELIST  = 2,
+  SQL_FROM_NODE_SUBQUERY   = 1,
+  SQL_FROM_NODE_TABLES  = 2,
 };
 
 enum SQL_EXPR_FLAG {
@@ -113,18 +113,18 @@ typedef struct SSqlNode {
   struct tSqlExpr   *pHaving;      // having clause [optional]
 } SSqlNode;
 
-typedef struct SRelElementPair {
+typedef struct SRelElement {
   union {
     SStrToken  tableName;
     SArray    *pSubquery;
   };
 
   SStrToken aliasName;
-} SRelElementPair;
+} SRelElement;
 
 typedef struct SRelationInfo {
   int32_t       type;        // nested query|table name list
-  SArray       *list;        // SArray<SRelElementPair>
+  SArray       *list;        // SArray<SRelElement>
 } SRelationInfo;
 
 typedef struct SCreatedTableInfo {

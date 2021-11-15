@@ -376,7 +376,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
 
     char path[PATH_MAX + 20] = {0};
     snprintf(path, sizeof(path),"%s/vnode%d", tsVnodeDir, pVnode->vgId);
-    SVnode *pImpl = vnodeOpen(pVnode->vgId, path);
+    SVnode *pImpl = vnodeOpen(path, NULL);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pVnode->vgId, pThread->threadIndex);
       pThread->failed++;

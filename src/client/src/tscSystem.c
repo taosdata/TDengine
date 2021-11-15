@@ -15,17 +15,17 @@
 
 #include "os.h"
 #include "taosmsg.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tnote.h"
-#include "ttimer.h"
-#include "tsched.h"
 #include "tscLog.h"
+#include "tsched.h"
 #include "tsclient.h"
-#include "tglobal.h"
-#include "tconfig.h"
+#include "tscript.h"
+#include "ttimer.h"
 #include "ttimezone.h"
-#include "qScript.h"
 
 // global, not configurable
 #define TSC_VAR_NOT_RELEASE 1

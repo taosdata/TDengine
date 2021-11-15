@@ -1582,7 +1582,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
     code = htonl(pHead->code);
     if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE ||
         code == TSDB_CODE_RPC_INVALID_VERSION ||
-        code == TSDB_CODE_RPC_AUTH_REQUIRED || code == TSDB_CODE_MND_INVALID_USER || code == TSDB_CODE_RPC_NOT_READY) {
+        code == TSDB_CODE_RPC_AUTH_REQUIRED || code == TSDB_CODE_MND_USER_NOT_EXIST || code == TSDB_CODE_RPC_NOT_READY) {
       pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
       // tTrace("%s, dont check authentication since code is:0x%x", pConn->info, code);
       return 0;

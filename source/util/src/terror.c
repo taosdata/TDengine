@@ -70,17 +70,21 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQD
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
 
 //common & util
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          "Operation not supported")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_MEMORY_CORRUPTED,         "Memory corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_OUT_OF_MEMORY,            "Out of memory")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_INVALID_CFG_MSG,          "Invalid config message")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_FILE_CORRUPTED,           "Data file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,              "Operation not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_MEMORY,                "Out of Memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RANGE,                 "Out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PTR,                  "Invalid pointer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MEMORY_CORRUPTED,             "Memory corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_FILE_CORRUPTED,               "Data file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_CHECKSUM_ERROR,               "Checksum error")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                  "Invalid config message")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               "Ref ID is removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               "Invalid Ref ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
+
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -131,7 +135,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_VERSION,      "Incompatible protocol
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_LEN,          "Invalid message length")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MSG_TYPE,         "Invalid message type")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_SHELL_CONNS,     "Too many connections")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_OUT_OF_MEMORY,            "Out of memory in mnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         "Invalid query id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        "Invalid stream id")
@@ -142,12 +145,18 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_FAILED_TO_START_SYNC,     "failed to start sync"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FAILED_TO_CREATE_DIR,     "failed to create mnode dir")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FAILED_TO_INIT_STEP,      "failed to init components")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE,    "Object already there")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_ERROR,                "Unexpected generic error in sdb")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE,   "Invalid table type")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_NOT_THERE,        "Object not there")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_INVAID_META_ROW,      "Invalid meta row")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_INVAID_KEY_TYPE,      "Invalid key type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_APP_ERROR,                "Unexpected generic error in sdb")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_ALREADY_THERE,        "Object already there")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_NOT_THERE,            "Object not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_CREATING,             "Object is creating")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_DROPPING,             "Object is dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_TABLE_TYPE,       "Invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_KEY_TYPE,         "Invalid key type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_ACTION_TYPE,      "Invalid action type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_STATUS_TYPE,      "Invalid status type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_DATA_VER,         "Invalid raw data version")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_DATA_LEN,         "Invalid raw data len")
+TAOS_DEFINE_ERROR(TSDB_CODE_SDB_INVALID_DATA_CONTENT,     "Invalid raw data content")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      "DNode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          "DNode does not exist")
@@ -166,12 +175,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED,  "Dnode Id not configur
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED,  "Dnode Ep not configured")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       "Account already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             "Invalid account")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_NOT_EXIST,           "Invalid account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT_OPTION,      "Invalid account options")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_EXPIRED,             "Account authorization has expired")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_ALREADY_EXIST,       "User already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_USER,             "Invalid user")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_NOT_EXIST,           "Invalid user")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_USER_FORMAT,      "Invalid user format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PASS_FORMAT,      "Invalid password format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        "Can not get user from conn")
@@ -521,3 +530,5 @@ const char* tstrerror(int32_t err) {
 
   return "";
 }
+
+const char* terrstr() { return tstrerror(terrno); }

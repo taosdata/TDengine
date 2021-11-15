@@ -13,112 +13,88 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeMemAllocator.h"
+#include "vnodeDef.h"
 
-#define VMA_IS_FULL(pvma) \
-  (((pvma)->inuse != &((pvma)->node)) || ((pvma)->inuse->tsize - (pvma)->inuse->used < (pvma)->threshold))
+#define VNODE_HEAP_ALLOCATOR 0
+#define VNODE_ARENA_ALLOCATOR 1
 
-static SVMANode *VMANodeNew(size_t size);
-static void      VMANodeFree(SVMANode *node);
+typedef struct {
+  uint64_t tsize;
+  uint64_t used;
+} SVHeapAllocator;
 
-SVnodeMemAllocator *VMACreate(size_t size, size_t ssize, size_t threshold) {
-  SVnodeMemAllocator *pvma = NULL;
+typedef struct SVArenaNode {
+  struct SVArenaNode *prev;
+  void *              nptr;
+  char                data[];
+} SVArenaNode;
 
-  if (size < threshold) {
+typedef struct {
+  SVArenaNode *inuse;
+  SVArenaNode  node;
+} SVArenaAllocator;
+
+typedef struct {
+  int8_t   type;
+  uint64_t tsize;
+  T_REF_DECLARE()
+  union {
+    SVHeapAllocator  vha;
+    SVArenaAllocator vaa;
+  };
+} SVMemAllocator;
+
+SMemAllocator *vnodeCreateMemAllocator(int8_t type, uint64_t tsize, uint64_t ssize /* step size only for arena */) {
+  SMemAllocator * pma;
+  uint64_t        msize;
+  SVMemAllocator *pva;
+
+  msize = sizeof(*pma) + sizeof(SVMemAllocator);
+  if (type == VNODE_ARENA_ALLOCATOR) {
+    msize += tsize;
+  }
+
+  pma = (SMemAllocator *)calloc(1, msize);
+  if (pma == NULL) {
     return NULL;
   }
 
-  pvma = (SVnodeMemAllocator *)malloc(sizeof(*pvma) + size);
-  if (pvma) {
-    pvma->full = false;
-    pvma->threshold = threshold;
-    pvma->ssize = ssize;
-    pvma->inuse = &(pvma->node);
+  pma->impl = POINTER_SHIFT(pma, sizeof(*pma));
+  pva = (SVMemAllocator *)(pma->impl);
+  pva->type = type;
+  pva->tsize = tsize;
 
-    pvma->inuse->prev = NULL;
-    pvma->inuse->tsize = size;
-    pvma->inuse->used = 0;
+  if (type == VNODE_HEAP_ALLOCATOR) {
+    pma->malloc = NULL;
+    pma->calloc = NULL;
+    pma->realloc = NULL;
+    pma->free = NULL;
+    pma->usage = NULL;
+  } else if (type == VNODE_ARENA_ALLOCATOR) {
+    pma->malloc = NULL;
+    pma->calloc = NULL;
+    pma->realloc = NULL;
+    pma->free = NULL;
+    pma->usage = NULL;
+  } else {
+    ASSERT(0);
   }
 
-  return pvma;
+  return pma;
 }
 
-void VMADestroy(SVnodeMemAllocator *pvma) {
-  if (pvma) {
-    VMAReset(pvma);
-    free(pvma);
-  }
+void vnodeDestroyMemAllocator(SMemAllocator *pma) {
+  // TODO
 }
 
-void VMAReset(SVnodeMemAllocator *pvma) {
-  while (pvma->inuse != &(pvma->node)) {
-    SVMANode *node = pvma->inuse;
-    pvma->inuse = node->prev;
-    VMANodeFree(node);
-  }
-
-  pvma->inuse->used = 0;
-  pvma->full = false;
+void vnodeRefMemAllocator(SMemAllocator *pma) {
+  // TODO
 }
 
-void *VMAMalloc(SVnodeMemAllocator *pvma, size_t size) {
-  void * ptr = NULL;
-  size_t tsize = size + sizeof(size_t);
-
-  if (pvma->inuse->tsize - pvma->inuse->used < tsize) {
-    SVMANode *pNode = VMANodeNew(MAX(pvma->ssize, tsize));
-    if (pNode == NULL) {
-      return NULL;
-    }
-
-    pNode->prev = pvma->inuse;
-    pvma->inuse = pNode;
-  }
-
-  ptr = pvma->inuse->data + pvma->inuse->used;
-  pvma->inuse->used += tsize;
-  *(size_t *)ptr = size;
-  ptr = POINTER_SHIFT(ptr, sizeof(size_t));
-
-  pvma->full = VMA_IS_FULL(pvma);
-
-  return ptr;
+void vnodeUnrefMemAllocator(SMemAllocator *pma) {
+  // TODO
 }
 
-void VMAFree(SVnodeMemAllocator *pvma, void *ptr) {
-  if (ptr) {
-    size_t size = *(size_t *)POINTER_SHIFT(ptr, -sizeof(size_t));
-    if (POINTER_SHIFT(ptr, size) == pvma->inuse->data + pvma->inuse->used) {
-      pvma->inuse->used -= (size + sizeof(size_t));
+/* ------------------------ Heap Allocator IMPL ------------------------ */
 
-      if ((pvma->inuse->used == 0) && (pvma->inuse != &(pvma->node))) {
-        SVMANode *node = pvma->inuse;
-        pvma->inuse = node->prev;
-        VMANodeFree(node);
-      }
-
-      pvma->full = VMA_IS_FULL(pvma);
-    }
-  }
-}
-
-bool VMAIsFull(SVnodeMemAllocator *pvma) { return pvma->full; }
-
-static SVMANode *VMANodeNew(size_t size) {
-  SVMANode *node = NULL;
-
-  node = (SVMANode *)malloc(sizeof(*node) + size);
-  if (node) {
-    node->prev = NULL;
-    node->tsize = size;
-    node->used = 0;
-  }
-
-  return node;
-}
-
-static void VMANodeFree(SVMANode *node) {
-  if (node) {
-    free(node);
-  }
-}
+/* ------------------------ Arena Allocator IMPL ------------------------ */

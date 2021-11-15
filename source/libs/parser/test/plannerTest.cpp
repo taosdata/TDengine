@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <function.h>
 #include <gtest/gtest.h>
 #include <iostream>
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -64,10 +65,9 @@ void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq *req) {
   setSchema(&pSchema[3], TSDB_DATA_TYPE_DOUBLE, 8, "col", 3);
 
 }
-}
 
-TEST(testCase, planner_test) {
-  SSqlInfo info1 = doGenerateAST("select top(a*b / 99, 20) from `t.1abc` interval(10s, 1s)");
+void generateLogicplan(const char* sql) {
+  SSqlInfo info1 = doGenerateAST(sql);
   ASSERT_EQ(info1.valid, true);
 
   char    msg[128] = {0};
@@ -75,7 +75,7 @@ TEST(testCase, planner_test) {
   buf.len = 128;
   buf.buf = msg;
 
-  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.list), 0);
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
@@ -87,33 +87,68 @@ TEST(testCase, planner_test) {
   SQueryStmtInfo* pQueryInfo = createQueryInfo();
   setTableMetaInfo(pQueryInfo, &req);
 
-  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.list, 0);
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
   ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
   ASSERT_EQ(ret, 0);
 
-  SArray* pExprList = pQueryInfo->exprList;
+  struct SQueryPlanNode* n = nullptr;
+  code = qCreateQueryPlan(pQueryInfo, &n);
+
+  char* str = NULL;
+  qQueryPlanToString(n, &str);
+
+  printf("--------SQL:%s\n", sql);
+  printf("%s\n", str);
+
+  destroyQueryInfo(pQueryInfo);
+  qParserClearupMetaRequestInfo(&req);
+  destroySqlInfo(&info1);
+}
+}
+
+TEST(testCase, planner_test) {
+  SSqlInfo info1 = doGenerateAST("select top(a*b / 99, 20) from `t.1abc` interval(10s, 1s)");
+  ASSERT_EQ(info1.valid, true);
+
+  char    msg[128] = {0};
+  SMsgBuf buf;
+  buf.len = 128;
+  buf.buf = msg;
+
+  SSqlNode* pNode = (SSqlNode*) taosArrayGetP(((SArray*)info1.sub.node), 0);
+  int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
+  ASSERT_EQ(code, 0);
+
+  SMetaReq req = {0};
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
+
+  SQueryStmtInfo* pQueryInfo = createQueryInfo();
+  setTableMetaInfo(pQueryInfo, &req);
+
+  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
+  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+  ASSERT_EQ(ret, 0);
+
+  SArray* pExprList = pQueryInfo->exprList[0];
   ASSERT_EQ(taosArrayGetSize(pExprList), 2);
 
   SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 1);
-  ASSERT_EQ(p1->base.uid, 110);
+  ASSERT_EQ(p1->base.pColumns->uid, 110);
   ASSERT_EQ(p1->base.numOfParams, 1);
   ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_STRCASEEQ(p1->base.resSchema.name, "top(a*b / 99, 20)");
-  ASSERT_EQ(p1->base.colInfo.flag, TSDB_COL_NORMAL);
+  ASSERT_EQ(p1->base.pColumns->flag, TSDB_COL_TMP);
   ASSERT_STRCASEEQ(p1->base.token, "top(a*b / 99, 20)");
   ASSERT_EQ(p1->base.interBytes, 16);
 
-  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_UNARYEXPR_NODE);
-  ASSERT_EQ(p1->pExpr->_node.functionId, FUNCTION_TOP);
-  ASSERT_TRUE(p1->pExpr->_node.pRight == NULL);
+  ASSERT_EQ(p1->pExpr->nodeType, TEXPR_FUNCTION_NODE);
+  ASSERT_STREQ(p1->pExpr->_function.functionName, "top");
 
-  tExprNode* pParam = p1->pExpr->_node.pLeft;
+  tExprNode* pParam = p1->pExpr->_function.pChild[0];
 
-  ASSERT_EQ(pParam->nodeType, TEXPR_BINARYEXPR_NODE);
-  ASSERT_EQ(pParam->_node.optr, TSDB_BINARY_OP_DIVIDE);
-  ASSERT_EQ(pParam->_node.pLeft->nodeType, TEXPR_BINARYEXPR_NODE);
-  ASSERT_EQ(pParam->_node.pRight->nodeType, TEXPR_VALUE_NODE);
-
+  ASSERT_EQ(pParam->nodeType, TEXPR_COL_NODE);
   ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 
@@ -127,4 +162,35 @@ TEST(testCase, planner_test) {
   destroyQueryInfo(pQueryInfo);
   qParserClearupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
+}
+
+TEST(testCase, displayPlan) {
+  generateLogicplan("select count(*) from `t.1abc`");
+  generateLogicplan("select count(*)+ 22 from `t.1abc`");
+  generateLogicplan("select count(*)+ 22 from `t.1abc` interval(1h, 20s) sliding(10m) limit 20,30");
+  generateLogicplan("select count(*) from `t.1abc` group by a");
+  generateLogicplan("select count(A+B) from `t.1abc` group by a");
+  generateLogicplan("select count(length(a)+b) from `t.1abc` group by a");
+  generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s)");
+  generateLogicplan("select count(*),sum(a),avg(b),min(a+b)+99 from `t.1abc`");
+  generateLogicplan("select count(*), min(a) + 99 from `t.1abc`");
+  generateLogicplan("select count(length(count(*) + 22)) from `t.1abc`");
+  generateLogicplan("select concat(concat(a,b), concat(a,b)) from `t.1abc` limit 20");
+  generateLogicplan("select count(*), first(a), last(b) from `t.1abc` state_window(a)");
+  generateLogicplan("select count(*), first(a), last(b) from `t.1abc` session(ts, 20s)");
+
+  // order by + group by column + limit offset + fill
+
+
+  // join
+
+
+  // union
+
+
+  // Aggregate(count(*) [count(*) #5056], sum(a) [sum(a) #5057], avg(b) [avg(b) #5058], min(a+b) [min(a+b) #5060])
+  // Projection(cols: [a+b #5059]) filters:(nil)
+  //  Projection(cols: [ts #0], [a #1], [b #2]) filters:(nil)
+  //   TableScan(t.1abc #110) time_range: -9223372036854775808 - 9223372036854775807
+
 }

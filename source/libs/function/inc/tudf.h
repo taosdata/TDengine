@@ -16,6 +16,13 @@
 #ifndef TDENGINE_TUDF_H
 #define TDENGINE_TUDF_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "os.h"
+#include "taoserror.h"
+
 enum {
   TSDB_UDF_FUNC_NORMAL = 0,
   TSDB_UDF_FUNC_INIT,
@@ -75,5 +82,9 @@ typedef int32_t (*udfInitFunc)(SUdfInit* data);
 typedef void (*udfFinalizeFunc)(char* dataOutput, char* interBuf, int32_t* numOfOutput, SUdfInit* buf);
 typedef void (*udfMergeFunc)(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
 typedef void (*udfDestroyFunc)(SUdfInit* buf);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_TUDF_H

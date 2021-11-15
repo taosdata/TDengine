@@ -18,6 +18,7 @@
 #include "tsched.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "taoserror.h"
 
 extern int8_t tscEmbedded;
 
@@ -547,6 +548,7 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
 
   if (ctrl == NULL) {
     tmrError("%s too many timer controllers, failed to create timer controller.", label);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

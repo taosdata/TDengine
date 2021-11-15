@@ -50,6 +50,11 @@ if(${BUILD_WITH_LUCENE})
     cat("${CMAKE_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${DEPS_TMP_FILE})
 endif(${BUILD_WITH_LUCENE})
 
+## NuRaft
+if(${BUILD_WITH_NURAFT})
+    cat("${CMAKE_SUPPORT_DIR}/nuraft_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+endif(${BUILD_WITH_NURAFT})
+
 ## download dependencies
 configure_file(${DEPS_TMP_FILE} "${CMAKE_SOURCE_DIR}/deps/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -68,5 +73,8 @@ target_include_directories(api INTERFACE "include/client")
 
 # src
 add_subdirectory(source)
+
+# docs 
+add_subdirectory(docs)
 
 # tests (TODO)
