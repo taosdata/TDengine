@@ -213,7 +213,12 @@ else
   exit 1
 fi
 
-make -j8 && ${csudo} make install
+if [[ "$allocator" == "jemalloc" ]]; then
+    # jemalloc need compile first, so disable parallel build
+    make V=1 && ${csudo} make install
+else
+    make -j8 && ${csudo} make install
+fi
 
 cd ${curr_dir}
 
