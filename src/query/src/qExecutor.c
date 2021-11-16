@@ -4857,7 +4857,6 @@ static SSDataBlock* doArithmeticOperation(void* param) {
       setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
       break;
     }
-
     // todo dynamic set tags
     setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
 
