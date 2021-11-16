@@ -146,7 +146,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
 }
 
 int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
-  int64_t v = 0;
+  uint64_t v = 0;
   GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
   int32_t index = -1;
