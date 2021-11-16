@@ -110,11 +110,11 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // TODO: Open TQ
   sprintf(dir, "%s/wal", pVnode->path);
-  pVnode->pTq = tqOpen(dir, NULL /* TODO */);
-  if (pVnode->pTq == NULL) {
-    // TODO: handle error
-    return -1;
-  }
+  // pVnode->pTq = tqOpen(dir, NULL /* TODO */);
+  // if (pVnode->pTq == NULL) {
+  //   // TODO: handle error
+  //   return -1;
+  // }
 
   // Open WAL
   sprintf(dir, "%s/wal", pVnode->path);
