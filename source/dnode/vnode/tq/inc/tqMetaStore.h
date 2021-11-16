@@ -17,7 +17,6 @@
 #define _TQ_META_STORE_H_
 
 #include "os.h"
-#include "tq.h"
 
 
 #ifdef __cplusplus

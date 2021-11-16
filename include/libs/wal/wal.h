@@ -75,9 +75,9 @@ int32_t walRead(SWal *, SWalHead **, int64_t ver);
 int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
 
 // lifecycle check
-int32_t walFirstVer(SWal *);
-int32_t walPersistedVer(SWal *);
-int32_t walLastVer(SWal *);
+int64_t walGetFirstVer(SWal *);
+int64_t walGetSnapshotVer(SWal *);
+int64_t walGetLastVer(SWal *);
 // int32_t  walDataCorrupted(SWal*);
 
 #ifdef __cplusplus
