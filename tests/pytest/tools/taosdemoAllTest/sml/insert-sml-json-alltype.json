@@ -165,7 +165,7 @@
         {
             "name": "stb6",
             "child_table_exists":"no",
-            "childtable_count": 20,
+            "childtable_count": 15,
             "childtable_prefix": "stb06_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 100,
@@ -191,7 +191,7 @@
         {
             "name": "stb7",
             "child_table_exists":"no",
-            "childtable_count": 30,
+            "childtable_count": 10,
             "childtable_prefix": "stb07_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 100,
@@ -217,7 +217,7 @@
         {
             "name": "stb8",
             "child_table_exists":"no",
-            "childtable_count": 60,
+            "childtable_count": 20,
             "childtable_prefix": "stb08_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 100,
