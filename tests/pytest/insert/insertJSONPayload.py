@@ -841,7 +841,6 @@ class TDTestCase:
         #tdSql.query("select * from `key`")
         #tdSql.checkRows(1)
 
-
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
