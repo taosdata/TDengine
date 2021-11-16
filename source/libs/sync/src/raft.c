@@ -30,6 +30,8 @@ static int deserializeClusterStateFromBuffer(SSyncConfigState* cluster, const ch
 static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfig* config, 
                           const SSyncRaftProgressMap* progressMap, SSyncConfigState* cs);
 
+static void abortLeaderTransfer(SSyncRaft* pRaft);
+
 static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
@@ -108,38 +110,6 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
 
   syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
-
-
-#if 0
-
-
-
-
-
-  // restore fsm state from snapshot index + 1 until commitIndex
-  ++initIndex;
-  while (initIndex <= serverState.commitIndex) {
-    limit = MIN(RAFT_READ_LOG_MAX_NUM, serverState.commitIndex - initIndex + 1);
-
-    if (logStore->logRead(logStore, initIndex, limit, buffer, &nBuf) != 0) {
-      return -1;
-    }
-    assert(limit == nBuf);
-  
-    for (i = 0; i < limit; ++i) {
-      fsm->applyLog(fsm, initIndex + i, &(buffer[i]), NULL);
-      free(buffer[i].data);
-    }
-    initIndex += nBuf;
-  }
-  assert(initIndex == serverState.commitIndex);
-
-  //pRaft->heartbeatTimeoutTick = 1;
-
-  syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
-
-  pRaft->selfIndex = pRaft->cluster.selfIndex;
-#endif
 
   syncInfo("[%d:%d] restore vgid %d state: snapshot index success", 
     pRaft->selfGroupId, pRaft->selfId, pInfo->vgId);
@@ -242,10 +212,14 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
 
     // If the the leadTransferee was removed or demoted, abort the leadership transfer.
     SyncNodeId leadTransferee = pRaft->leadTransferee;
-    if (leadTransferee != SYNC_NON_NODE_ID) {
-
+    if (leadTransferee != SYNC_NON_NODE_ID && !syncRaftIsInNodeMap(&pRaft->tracker->config.voters, leadTransferee)) {
+      abortLeaderTransfer(pRaft);
     }
   }
+}
+
+static void abortLeaderTransfer(SSyncRaft* pRaft) {
+  pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
 
 /**

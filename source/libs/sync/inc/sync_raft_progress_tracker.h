@@ -112,4 +112,6 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
 
 void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs);
 
+bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
+
 #endif  /* _TD_LIBS_SYNC_RAFT_PROGRESS_TRACKER_H */
