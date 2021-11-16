@@ -87,8 +87,7 @@ static void vnodeFree(SVnode *pVnode) {
 static int vnodeOpenImpl(SVnode *pVnode) {
   char dir[TSDB_FILENAME_LEN];
 
-  // Open allocator pool
-  if (vnodeOpenAllocatorPool(pVnode) < 0) {
+  if (vnodeOpenBufPool(pVnode) < 0) {
     // TODO: handle error
     return -1;
   }
@@ -132,8 +131,6 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 static void vnodeCloseImpl(SVnode *pVnode) {
   if (pVnode) {
     vnodeCloseBufPool(pVnode);
-    walClose(pVnode->pWal);
-    tqClose(pVnode->pTq);
     tsdbClose(pVnode->pTsdb);
     metaClose(pVnode->pMeta);
   }

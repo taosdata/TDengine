@@ -28,24 +28,24 @@ typedef struct SMetaOptions SMetaOptions;
 typedef struct STbOptions   STbOptions;
 
 // SMeta operations
-SMeta *metaOpen(const char *path, const SMetaOptions *);
-void   metaClose(SMeta *);
+SMeta *metaOpen(const char *path, const SMetaOptions *pOptions);
+void   metaClose(SMeta *pMeta);
 void   metaRemove(const char *path);
-int    metaCreateTable(SMeta *pMeta, const STbOptions *);
+int    metaCreateTable(SMeta *pMeta, const STbOptions *pTbOptions);
 int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
-int    metaCommit(SMeta *);
+int    metaCommit(SMeta *pMeta);
 
 // Options
-void metaOptionsInit(SMetaOptions *);
-void metaOptionsClear(SMetaOptions *);
+void metaOptionsInit(SMetaOptions *pOptions);
+void metaOptionsClear(SMetaOptions *pOptions);
 
 // STableOpts
 #define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}
-void metaNormalTableOptsInit(STbOptions *, const char *name, const STSchema *pSchema);
-void metaSuperTableOptsInit(STbOptions *, const char *name, tb_uid_t uid, const STSchema *pSchema,
+void metaNormalTableOptsInit(STbOptions *pTbOptions, const char *name, const STSchema *pSchema);
+void metaSuperTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t uid, const STSchema *pSchema,
                             const STSchema *pTagSchema);
-void metaChildTableOptsInit(STbOptions *, const char *name, tb_uid_t suid, const SKVRow tags);
-void metaTableOptsClear(STbOptions *);
+void metaChildTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t suid, const SKVRow tags);
+void metaTableOptsClear(STbOptions *pTbOptions);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,10 @@
 #ifndef _TD_TSDB_DEF_H_
 #define _TD_TSDB_DEF_H_
 
+#include "mallocator.h"
+
 #include "tsdb.h"
+#include "tsdbMemTable.h"
 #include "tsdbOptions.h"
 
 #ifdef __cplusplus
@@ -24,8 +27,9 @@ extern "C" {
 #endif
 
 struct STsdb {
-  char *       path;
-  STsdbOptions options;
+  char *                path;
+  STsdbOptions          options;
+  SMemAllocatorFactory *pmaf;
 };
 
 #ifdef __cplusplus

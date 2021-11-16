@@ -16,9 +16,15 @@
 #ifndef _TD_VNODE_MEM_ALLOCATOR_H_
 #define _TD_VNODE_MEM_ALLOCATOR_H_
 
+#include "mallocator.h"
+#include "vnode.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+SMemAllocator *vnodeCreateMemAllocator(SVnode *pVnode);
+void           vnodeDestroyMemAllocator(SMemAllocator *pma);
 
 #ifdef __cplusplus
 }

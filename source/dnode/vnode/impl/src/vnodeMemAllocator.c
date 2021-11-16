@@ -15,6 +15,17 @@
 
 #include "vnodeDef.h"
 
+SMemAllocator *vnodeCreateMemAllocator(SVnode *pVnode) {
+  SMemAllocator *pma = NULL;
+  /* TODO */
+  return pma;
+}
+
+void vnodeDestroyMemAllocator(SMemAllocator *pma) {
+  // TODO
+}
+
+#if 0
 #define VNODE_HEAP_ALLOCATOR 0
 #define VNODE_ARENA_ALLOCATOR 1
 
@@ -98,3 +109,5 @@ void vnodeUnrefMemAllocator(SMemAllocator *pma) {
 /* ------------------------ Heap Allocator IMPL ------------------------ */
 
 /* ------------------------ Arena Allocator IMPL ------------------------ */
+
+#endif

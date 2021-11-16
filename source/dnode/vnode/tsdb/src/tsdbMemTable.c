@@ -12,28 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_VNODE_ALLOCATOR_POOL_H_
-#define _TD_VNODE_ALLOCATOR_POOL_H_
-
-#include "vnode.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct {
-  int            nexta;
-  int            enda;
-  SMemAllocator *free[3];
-  SMemAllocator *used[3];
-} SVAllocatorPool;
-
-int  vnodeOpenAllocatorPool(SVnode *pVnode);
-void vnodeCloseAllocatorPool(SVnode *pVnode);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_VNODE_ALLOCATOR_POOL_H_*/

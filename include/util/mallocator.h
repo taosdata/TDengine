@@ -24,37 +24,21 @@ extern "C" {
 
 typedef struct SMemAllocator SMemAllocator;
 
-#define MALLOCATOR_APIS                                        \
-  void *(*malloc)(SMemAllocator *, size_t size);               \
-  void *(*calloc)(SMemAllocator *, size_t nmemb, size_t size); \
-  void *(*realloc)(SMemAllocator *, void *ptr, size_t size);   \
-  void (*free)(SMemAllocator *, void *ptr);                    \
-  size_t (*usage)(SMemAllocator *);
-
-// Interfaces to implement
-typedef struct {
-  MALLOCATOR_APIS
-} SMemAllocatorIf;
-
 struct SMemAllocator {
-  void * impl;
-  size_t usize;
-  MALLOCATOR_APIS
+  char  name[16];
+  void *impl;
+  void *(*malloc)(SMemAllocator *, uint64_t size);
+  void *(*calloc)(SMemAllocator *, uint64_t nmemb, uint64_t size);
+  void *(*realloc)(SMemAllocator *, void *ptr, uint64_t size);
+  void (*free)(SMemAllocator *, void *ptr);
+  uint64_t (*usage)(SMemAllocator *);
 };
 
-// heap allocator
-SMemAllocator *tdCreateHeapAllocator();
-void           tdDestroyHeapAllocator(SMemAllocator *pMemAllocator);
-
-// arena allocator
-SMemAllocator *tdCreateArenaAllocator(size_t size);
-void           tdDestroyArenaAllocator(SMemAllocator *);
-
-#define mMalloc(pMemAllocator, size) (*(pMemAllocator->malloc))(pMemAllocator, size)
-#define mCalloc(pMemAllocator, nmemb, size) (*(pMemAllocator->calloc))(pMemAllocator, nmemb, size)
-#define mRealloc(pMemAllocator, ptr, size) (*(pMemAllocator->realloc))(pMemAllocator, ptr, size)
-#define mFree(pMemAllocator, ptr) (*(pMemAllocator->free))(pMemAllocator, ptr)
-#define mUsage(pMemAllocator) (*(pMemAllocator->usage))(pMemAllocator)
+typedef struct {
+  void *impl;
+  SMemAllocator *(*create)();
+  void (*destroy)(SMemAllocator *);
+} SMemAllocatorFactory;
 
 #ifdef __cplusplus
 }

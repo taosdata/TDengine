@@ -20,6 +20,20 @@
 extern "C" {
 #endif
 
+typedef struct SVnodeReq SVnodeReq;
+typedef struct SVnodeRsp SVnodeRsp;
+
+typedef enum {
+} EVReqT;
+
+struct SVnodeReq {
+  /* TODO */
+};
+
+struct SVnodeRsp {
+  /* TODO */
+};
+
 #ifdef __cplusplus
 }
 #endif

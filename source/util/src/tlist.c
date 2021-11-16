@@ -13,16 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "tlist.h"
+#include "os.h"
+
+void tdListInit(SList *list, int eleSize) {
+  list->eleSize = eleSize;
+  list->numOfEles = 0;
+  list->head = list->tail = NULL;
+}
 
 SList *tdListNew(int eleSize) {
   SList *list = (SList *)malloc(sizeof(SList));
   if (list == NULL) return NULL;
 
-  list->eleSize = eleSize;
-  list->numOfEles = 0;
-  list->head = list->tail = NULL;
+  tdListInit(list, eleSize);
   return list;
 }
 

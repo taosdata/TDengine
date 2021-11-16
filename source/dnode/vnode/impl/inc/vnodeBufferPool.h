@@ -13,25 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
+#ifndef _TD_VNODE_BUFFER_POOL_H_
+#define _TD_VNODE_BUFFER_POOL_H_
 
-int vnodeOpenAllocatorPool(SVnode *pVnode) {
-  // TODO
-  return 0;
-}
+#include "tlist.h"
+#include "vnode.h"
 
-void vnodeCloseAllocatorPool(SVnode *pVnode) {
-  if (pVnode->pool) {
-  }
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* ------------------------ STATIC METHODS ------------------------ */
-static SVAllocatorPool *vapCreate() {
-  SVAllocatorPool *pPool = NULL;
-  /* TODO */
-  return pPool;
-}
+typedef struct SVBufPool SVBufPool;
 
-static void vapDestroy() {
-  // TODO
+int  vnodeOpenBufPool(SVnode *pVnode);
+void vnodeCloseBufPool(SVnode *pVnode);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_VNODE_BUFFER_POOL_H_*/

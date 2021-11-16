@@ -46,9 +46,10 @@ typedef struct {
 #define isListEmpty(l) ((l)->numOfEles == 0)
 #define listNodeFree(n) free(n)
 
+void       tdListInit(SList *list, int eleSize);
+void       tdListEmpty(SList *list);
 SList *    tdListNew(int eleSize);
 void *     tdListFree(SList *list);
-void       tdListEmpty(SList *list);
 void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);
 int        tdListPrepend(SList *list, void *data);

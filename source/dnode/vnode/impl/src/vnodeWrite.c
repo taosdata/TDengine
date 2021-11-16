@@ -15,24 +15,25 @@
 
 #include "vnodeDef.h"
 
-int vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch) {
+int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   /* TODO */
   return 0;
 }
 
-int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
+int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+#if 0
   int      reqType;        /* TODO */
   size_t   reqSize;        /* TODO */
   uint64_t reqVersion = 0; /* TODO */
   int      code = 0;
 
   // Copy the request to vnode buffer
-  SRequest *pReq = mMalloc(pVnode->inuse, reqSize);
+  void *pReq = mMalloc(pVnode->inuse, reqSize);
   if (pReq == NULL) {
     // TODO: handle error
   }
 
-  memcpy(pReq, pRequest, reqSize);
+  memcpy(pReq, pMsg, reqSize);
 
   // Push the request to TQ so consumers can consume
   tqPushMsg(pVnode->pTq, pReq, 0);
@@ -45,7 +46,9 @@ int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
     case TSDB_MSG_TYPE_DROP_TABLE:
       code = metaDropTable(pVnode->pMeta, 0 /* TODO */);
       break;
+    case TSDB_MSG_TYPE_SUBMIT:
       /* TODO */
+      break;
     default:
       break;
   }
@@ -57,6 +60,8 @@ int vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest) {
   }
 
   return code;
+#endif
+  return 0;
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */

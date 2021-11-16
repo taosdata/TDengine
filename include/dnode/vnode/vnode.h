@@ -17,9 +17,10 @@
 #define _TD_VNODE_H_
 
 #include "os.h"
-#include "trequest.h"
+#include "trpc.h"
 
 #include "meta.h"
+#include "tarray.h"
 #include "tq.h"
 #include "tsdb.h"
 
@@ -32,17 +33,72 @@ typedef struct SVnode        SVnode;
 typedef struct SVnodeOptions SVnodeOptions;
 
 /* ------------------------ SVnode ------------------------ */
+/**
+ * @brief Open a VNODE.
+ *
+ * @param path path of the vnode
+ * @param pVnodeOptions options of the vnode
+ * @return SVnode* The vnode object
+ */
 SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
-void    vnodeClose(SVnode *pVnode);
-void    vnodeDestroy(const char *path);
-int     vnodeProcessWriteReqs(SVnode *pVnode, SReqBatch *pReqBatch);
-int     vnodeApplyWriteRequest(SVnode *pVnode, const SRequest *pRequest);
-int     vnodeProcessReadReq(SVnode *pVnode, SRequest *pReq);
-int     vnodeProcessSyncReq(SVnode *pVnode, SRequest *pReq);
+
+/**
+ * @brief Close a VNODE
+ *
+ * @param pVnode The vnode object to close
+ */
+void vnodeClose(SVnode *pVnode);
+
+/**
+ * @brief Destroy a VNODE.
+ *
+ * @param path Path of the VNODE.
+ */
+void vnodeDestroy(const char *path);
+
+/**
+ * @brief Process an array of write messages.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsgs The array of SRpcMsg
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
+
+/**
+ * @brief Apply a write request message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Process the sync request
+ *
+ * @param pVnode
+ * @param pMsg
+ * @param pRsp
+ * @return int
+ */
+int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /* ------------------------ SVnodeOptions ------------------------ */
-void vnodeOptionsInit(SVnodeOptions *);
-void vnodeOptionsClear(SVnodeOptions *);
+/**
+ * @brief Initialize VNODE options.
+ *
+ * @param pOptions The options object to be initialized. It should not be NULL.
+ */
+void vnodeOptionsInit(SVnodeOptions *pOptions);
+
+/**
+ * @brief Clear VNODE options.
+ *
+ * @param pOptions Options to clear.
+ */
+void vnodeOptionsClear(SVnodeOptions *pOptions);
 
 /* ------------------------ STRUCT DEFINITIONS ------------------------ */
 struct SVnodeOptions {

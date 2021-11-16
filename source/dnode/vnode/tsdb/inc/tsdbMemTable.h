@@ -13,15 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LRU_INT_H_
-#define _TD_LRU_INT_H_
+#ifndef _TD_TSDB_MEM_TABLE_H_
+#define _TD_TSDB_MEM_TABLE_H_
+
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct SMemTable {
+  /* TODO */
+  SMemAllocator *pma;
+} SMemTable;
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LRU_INT_H_*/
+#endif /*_TD_TSDB_MEM_TABLE_H_*/
