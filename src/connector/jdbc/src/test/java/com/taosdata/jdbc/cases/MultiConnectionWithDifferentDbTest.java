@@ -9,8 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class MultiConnectionWithDifferentDbTest {
 
@@ -26,16 +25,17 @@ public class MultiConnectionWithDifferentDbTest {
             @Override
             public void run() {
                 for (int j = 0; j < 10; j++) {
-                    queryDb();
                     try {
+                        queryDb();
                         TimeUnit.SECONDS.sleep(1);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                    } catch (InterruptedException ignored) {
+                    } catch (SQLException throwables) {
+                        fail();
                     }
                 }
             }
 
-            private void queryDb() {
+            private void queryDb() throws SQLException {
                 String url = "jdbc:TAOS-RS://" + host + ":6041/db" + i + "?user=root&password=taosdata";
                 try (Connection connection = DriverManager.getConnection(url)) {
                     Statement stmt = connection.createStatement();
@@ -54,8 +54,6 @@ public class MultiConnectionWithDifferentDbTest {
                     assertEquals(loc, loc_actual);
 
                     stmt.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
                 }
             }
         }, "thread-" + i)).collect(Collectors.toList());
@@ -73,12 +71,10 @@ public class MultiConnectionWithDifferentDbTest {
     }
 
     @Before
-    public void before() {
+    public void before() throws SQLException {
         ts = System.currentTimeMillis();
 
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
-
+        try (Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata")) {
             Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists " + db1);
             stmt.execute("create database if not exists " + db1);
@@ -91,10 +87,6 @@ public class MultiConnectionWithDifferentDbTest {
             stmt.execute("use " + db2);
             stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
             stmt.execute("insert into t1 using weather tags('shanghai') values(" + ts + ", 2)");
-
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 

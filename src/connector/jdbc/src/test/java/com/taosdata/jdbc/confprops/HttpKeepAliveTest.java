@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.rs;
+package com.taosdata.jdbc.confprops;
 
 import org.junit.Assert;
 import org.junit.Test;

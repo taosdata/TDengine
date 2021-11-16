@@ -57,44 +57,31 @@ public class AuthenticationTest {
 
     @Ignore
     @Test
-    public void test() {
+    public void test() throws SQLException {
         // change password
-        try {
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=taosdata");
-            Statement stmt = conn.createStatement();
+        String url = "jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=taosdata";
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement();) {
             stmt.execute("alter user " + user + " pass '" + password + "'");
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
+
         // use new to login and execute query
-        try {
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password);
-            Statement stmt = conn.createStatement();
+        url = "jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password;
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement()) {
             stmt.execute("show databases");
             ResultSet rs = stmt.getResultSet();
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.print(meta.getColumnLabel(i) + ":" + rs.getString(i) + "\t");
-                }
-                System.out.println();
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        // change password back
-        try {
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password);
-            Statement stmt = conn.createStatement();
-            stmt.execute("alter user " + user + " pass 'taosdata'");
-            stmt.close();
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
+        // change password back
+        url = "jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password;
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("alter user " + user + " pass 'taosdata'");
+        }
     }
 
     @Before

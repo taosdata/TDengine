@@ -16,6 +16,7 @@ package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.NullType;
 
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -378,8 +379,8 @@ public class TSDBResultSetRowData {
         //  this setByteArr(int, byte[]) to handle NCHAR value, we need to build a String with charsetEncoding by TaosGlobalConfig
         try {
             data.set(col, new String(value, TaosGlobalConfig.getCharset()));
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e.getMessage());
         }
     }
 
