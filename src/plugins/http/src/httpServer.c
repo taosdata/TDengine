@@ -400,7 +400,7 @@ static bool httpReadData(HttpContext *pContext) {
     } else if (nread < 0) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
-        continue;  // later again
+        return false;
       } else {
         httpError("context:%p, fd:%d, read from socket error:%d, close connect", pContext, pContext->fd, errno);
         taosCloseSocket(pContext->fd);
