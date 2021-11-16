@@ -62,12 +62,14 @@ NC='\033[0m'
 
 csudo=""
 
+service_mod=2
+os_type=0
+
 if [ "$osType" != "Darwin" ]; then
     if command -v sudo > /dev/null; then
     csudo="sudo"
     fi
     initd_mod=0
-    service_mod=2
     if pidof systemd &> /dev/null; then
         service_mod=0
     elif $(which service &> /dev/null); then
@@ -91,7 +93,6 @@ if [ "$osType" != "Darwin" ]; then
     #osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
     osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
     #echo "osinfo: ${osinfo}"
-    os_type=0
     if echo $osinfo | grep -qwi "ubuntu" ; then
         echo "this is ubuntu system"
         os_type=1
@@ -122,7 +123,8 @@ function kill_taosadapter() {
 }
 
 function kill_taosd() {
-    pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+    ps -ef | grep "taosd"
+    pid=$(ps -ef | grep -w "taosd" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
         ${csudo} kill -9 $pid   || :
     fi
@@ -454,11 +456,11 @@ function install_service_on_sysvinit() {
 
     # Install taosd service
     if ((${os_type}==1)); then
-    ${csudo} cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
-    ${csudo} cp    ${script_dir}/../deb/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
+        ${csudo} cp    ${script_dir}/../deb/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     elif ((${os_type}==2)); then
-    ${csudo} cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
-    ${csudo} cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
+        ${csudo} cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     fi
 
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
@@ -542,7 +544,6 @@ function update_TDengine() {
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
 
-    if [ "$osType" != "Darwin" ]; then
       if pidof taosd &> /dev/null; then
         if ((${service_mod}==0)); then
             ${csudo} systemctl stop taosd || :
@@ -554,7 +555,6 @@ function update_TDengine() {
         fi
         sleep 1
       fi
-    fi
 
     install_main_path
 
@@ -565,50 +565,35 @@ function update_TDengine() {
     install_examples
     install_bin
 
-    if [ "$osType" != "Darwin" ]; then
-        install_service
-        install_taosadapter_service
-    fi
+    install_service
+    install_taosadapter_service
 
     install_config
     install_taosadapter_config
 
-    if [ "$osType" != "Darwin" ]; then
-        echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
-        echo
+    echo
+    echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+    echo
 
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-        echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
-        if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-        elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
-        else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
-        fi
-
-        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+    elif ((${service_mod}==1)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
     else
-        echo
-        echo -e "\033[44;32;1mTDengine Client is updated successfully!${NC}"
-        echo
-
-        echo -e "${GREEN_DARK}To access TDengine Client   ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine Client is updated successfully!${NC}"
+        echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
     fi
+
+    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    echo
+    echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
 }
 
 function install_TDengine() {
     # Start to install
-    if [ "$osType" != "Darwin" ]; then
-        echo -e "${GREEN}Start to install TDEngine...${NC}"
-    else
-        echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
-    fi
+    echo -e "${GREEN}Start to install TDengine...${NC}"
 
     install_main_path
 
@@ -620,37 +605,29 @@ function install_TDengine() {
     install_examples
     install_bin
 
-    if [ "$osType" != "Darwin" ]; then
-        install_service
-        install_taosadapter_service
-    fi
+    install_service
+    install_taosadapter_service
 
     install_config
     install_taosadapter_config
 
-    if [ "$osType" != "Darwin" ]; then
-        # Ask if to start the service
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
-        echo
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-        echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
-        if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-        elif ((${service_mod}==1)); then
-                echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
-        else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
-        fi
-
-        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    # Ask if to start the service
+    echo
+    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    echo
+    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+    elif ((${service_mod}==1)); then
+        echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
     else
-        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine Client is installed successfully!${NC}"
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
     fi
+
+    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    echo
+    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }
 
 ## ==============================Main program starts from here============================
