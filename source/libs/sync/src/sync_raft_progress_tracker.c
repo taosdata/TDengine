@@ -49,6 +49,10 @@ void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyn
 
 }
 
+int syncRaftCheckProgress(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+  return 0;
+}
+
 /** 
  * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
  * election outcome is known.

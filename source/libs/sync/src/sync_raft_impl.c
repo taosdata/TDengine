@@ -234,9 +234,7 @@ static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   return 0;
 }
 
-/**
- *  tickElection is run by followers and candidates per tick.
- **/
+// tickElection is run by followers and candidates after r.electionTimeout.
 static void tickElection(SSyncRaft* pRaft) {
   pRaft->electionElapsed += 1;
 
@@ -254,6 +252,7 @@ static void tickElection(SSyncRaft* pRaft) {
   syncRaftStep(pRaft, syncInitElectionMsg(&msg, pRaft->selfId));
 }
 
+// tickHeartbeat is run by leaders to send a MsgBeat after r.heartbeatTimeout.
 static void tickHeartbeat(SSyncRaft* pRaft) {
 
 }

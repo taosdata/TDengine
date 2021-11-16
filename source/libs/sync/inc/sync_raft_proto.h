@@ -17,6 +17,7 @@
 #define TD_SYNC_RAFT_PROTO_H
 
 #include "sync_type.h"
+#include "sync_raft_node_map.h"
 
 typedef enum ESyncRaftConfChangeType {
 	SYNC_RAFT_Conf_AddNode = 0,

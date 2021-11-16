@@ -15,6 +15,7 @@
 
 #include "sync_raft_quorum.h"
 #include "sync_raft_quorum_majority.h"
+#include "sync_raft_node_map.h"
 
 /**
  * syncRaftMajorityVoteResult takes a mapping of voters to yes/no (true/false) votes and returns

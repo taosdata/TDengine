@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "sync_raft_node_map.h"
 #include "sync_raft_quorum_majority.h"
 #include "sync_raft_quorum_joint.h"
 #include "sync_raft_quorum.h"
@@ -71,15 +72,10 @@ void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, S
   assert(config->incoming.replica >= 0);
 }
 
+void syncRaftJointConfigIDS(const SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap) {
+  int i, j, m;
 
-bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
-  int i;
+  syncRaftCopyNodeMap(&config->incoming, nodeMap);
 
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (nodeId == nodeMap->nodeId[i]) {
-      return true;
-    }
-  }
-
-  return false;
+  syncRaftUnionNodeMap(&config->outgoing, nodeMap);
 }

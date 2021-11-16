@@ -13,17 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncInt.h"
-#include "raft.h"
-#include "raft_log.h"
-#include "raft_message.h"
+#ifndef _TD_LIBS_SYNC_RAFT_NODE_MAP_H
+#define _TD_LIBS_SYNC_RAFT_NODE_MAP_H
 
-int syncRaftHandleElectionMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (pRaft->preVote) {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_PRE_ELECTION);
-  } else {
-    syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
-  }
+#include "sync.h"
+#include "sync_type.h"
 
-  return 0;
-}
+// TODO: is TSDB_MAX_REPLICA enough?
+struct SSyncRaftNodeMap {
+  int32_t   replica;
+  SyncNodeId nodeId[TSDB_MAX_REPLICA];
+};
+
+bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
+
+void syncRaftCopyNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to);
+
+void syncRaftUnionNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to);
+
+void syncRaftAddToNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
+
+#endif /* _TD_LIBS_SYNC_RAFT_NODE_MAP_H */

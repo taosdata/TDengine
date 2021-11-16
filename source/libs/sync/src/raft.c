@@ -140,6 +140,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
 int32_t syncRaftTick(SSyncRaft* pRaft) {
   pRaft->currentTick += 1;
+  pRaft->tickFp(pRaft);
   return 0;
 }
 
@@ -212,8 +213,11 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
 
     // If the the leadTransferee was removed or demoted, abort the leadership transfer.
     SyncNodeId leadTransferee = pRaft->leadTransferee;
-    if (leadTransferee != SYNC_NON_NODE_ID && !syncRaftIsInNodeMap(&pRaft->tracker->config.voters, leadTransferee)) {
-      abortLeaderTransfer(pRaft);
+    if (leadTransferee != SYNC_NON_NODE_ID) {
+      if (!syncRaftIsInNodeMap(&pRaft->tracker->config.voters.incoming, leadTransferee) &&
+          !syncRaftIsInNodeMap(&pRaft->tracker->config.voters.outgoing, leadTransferee)) {
+        abortLeaderTransfer(pRaft);
+      }      
     }
   }
 }

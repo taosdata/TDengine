@@ -19,6 +19,7 @@
 #include "taosdef.h"
 #include "sync.h"
 #include "sync_type.h"
+#include "sync_raft_node_map.h"
 
 /**
  * SSyncRaftQuorumJointConfig is a configuration of two groups of (possibly overlapping)
@@ -35,8 +36,6 @@ typedef struct SSyncRaftQuorumJointConfig {
  * requires both majority quorums to vote in favor.
  **/
 ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes);
-
-bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
 
 static FORCE_INLINE bool syncRaftJointConfigInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
   return syncRaftIsInNodeMap(&config->outgoing, id);
@@ -59,7 +58,9 @@ static FORCE_INLINE const SSyncRaftNodeMap* syncRaftJointConfigOutgoing(const SS
 }
 
 static FORCE_INLINE void syncRaftJointConfigClearOutgoing(SSyncRaftQuorumJointConfig* config) {
-  memset(&config->outgoing, 0, sizeof(SSyncCluster));
+  memset(&config->outgoing, 0, sizeof(SSyncRaftNodeMap));
 }
+
+void syncRaftJointConfigIDS(const SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap);
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

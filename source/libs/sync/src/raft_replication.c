@@ -22,7 +22,7 @@
 static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
-                              const SSyncRaftEntry *entries, int nEntry);
+                              SSyncRaftEntry *entries, int nEntry);
 
 // syncRaftReplicate sends an append RPC with new entries to the given peer,
 // if necessary. Returns true if a message was sent. The sendIfEmpty
@@ -68,7 +68,7 @@ static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
 
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
-                              const SSyncRaftEntry *entries, int nEntry) {
+                              SSyncRaftEntry *entries, int nEntry) {
   SyncIndex lastIndex;
   SyncTerm logTerm = prevTerm;
   SNodeInfo* pNode = &(pRaft->cluster.nodeInfo[progress->selfIndex]);
@@ -87,7 +87,7 @@ static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
     case PROGRESS_STATE_REPLICATE:
       lastIndex = entries[nEntry - 1].index;
       syncRaftProgressOptimisticNextIndex(progress, lastIndex);
-      syncRaftInflightAdd(&progress->inflights, lastIndex);
+      syncRaftInflightAdd(progress->inflights, lastIndex);
       break;
     case PROGRESS_STATE_PROBE:
       progress->probeSent = true;

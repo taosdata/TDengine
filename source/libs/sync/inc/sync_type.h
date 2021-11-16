@@ -32,6 +32,8 @@ typedef struct SSyncRaftProgress SSyncRaftProgress;
 typedef struct SSyncRaftProgressMap SSyncRaftProgressMap;
 typedef struct SSyncRaftProgressTrackerConfig SSyncRaftProgressTrackerConfig;
 
+typedef struct SSyncRaftNodeMap SSyncRaftNodeMap;
+
 typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
 
 typedef struct SSyncRaftChanger SSyncRaftChanger;
@@ -67,11 +69,6 @@ typedef struct SSyncClusterConfig {
   // current cluster
   const SSyncCluster* cluster;
 } SSyncClusterConfig;
-
-typedef struct {
-  int32_t   replica;
-  SyncNodeId nodeId[TSDB_MAX_REPLICA];
-} SSyncRaftNodeMap;
 
 typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,

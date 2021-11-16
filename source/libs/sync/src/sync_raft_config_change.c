@@ -359,7 +359,7 @@ static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfi
 	// be turned into a learner in LeaveJoint().
 	//
 	// Otherwise, add a regular learner right away.
-  bool inOutgoing = syncRaftJointConfigInCluster(&config->voters.outgoing, id);
+  bool inOutgoing = syncRaftIsInNodeMap(&config->voters.outgoing, id);
   if (inOutgoing) {
     nilAwareAdd(&config->learnersNext, id);
   } else {
@@ -381,7 +381,7 @@ static void removeNodeId(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConf
   nilAwareDelete(&config->learnersNext, id);
 
   // If the peer is still a voter in the outgoing config, keep the Progress.
-  bool inOutgoing = syncRaftJointConfigInCluster(&config->voters.outgoing, id);
+  bool inOutgoing = syncRaftIsInNodeMap(&config->voters.outgoing, id);
   if (!inOutgoing) {
     syncRaftRemoveFromProgressMap(progressMap, id);
   }

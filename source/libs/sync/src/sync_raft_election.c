@@ -17,15 +17,42 @@
 #include "raft.h"
 #include "raft_log.h"
 #include "raft_message.h"
+#include "sync_raft_progress_tracker.h"
+
+static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 
 void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
-  SyncTerm term;
+  if (pRaft->state == TAOS_SYNC_STATE_LEADER) {
+    syncDebug("[%d:%d] ignoring RAFT_MSG_INTERNAL_ELECTION because already leader", pRaft->selfGroupId, pRaft->selfId);
+    return;
+  }
+
+  if (!syncRaftIsPromotable(pRaft)) {
+    syncWarn("[%d:%d] is unpromotable and can not campaign", pRaft->selfGroupId, pRaft->selfId);
+    return;
+  }
+
+  // if there is pending uncommitted config,cannot start election
+  if (syncRaftLogNumOfPendingConf(pRaft->log) > 0 && syncRaftHasUnappliedLog(pRaft->log)) {
+    syncWarn("[%d:%d] cannot syncRaftStartElection at term %" PRId64 " since there are still pending configuration changes to apply",
+      pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+    return;
+  }
+
+  syncInfo("[%d:%d] is starting a new election at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+
+  campaign(pRaft, cType);
+}
+
+// campaign transitions the raft instance to candidate state. This must only be
+// called after verifying that this is a legitimate transition.
+static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   bool preVote;
-  ESyncRaftMessageType voteMsgType;
+  SyncTerm term;
 
   if (syncRaftIsPromotable(pRaft)) {
     syncDebug("[%d:%d] is unpromotable; campaign() should have been called", pRaft->selfGroupId, pRaft->selfId);
-    return 0;
+    return;
   }
 
   if (cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
@@ -35,7 +62,6 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
     term = pRaft->term + 1;
   } else {
     syncRaftBecomeCandidate(pRaft);
-    voteMsgType = RAFT_MSG_VOTE;
     term = pRaft->term;
     preVote = false;
   }
@@ -43,10 +69,8 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   int quorum = syncRaftQuorum(pRaft);
   ESyncRaftVoteResult result = syncRaftPollVote(pRaft, pRaft->selfId, preVote, true, NULL, NULL);
   if (result == SYNC_RAFT_VOTE_WON) {
-		/**
-     * We won the election after voting for ourselves (which must mean that
-		 * this is a single-node cluster). Advance to the next state.
-     **/
+		// We won the election after voting for ourselves (which must mean that
+		// this is a single-node cluster). Advance to the next state.
     if (cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION) {
       syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
     } else {
@@ -59,12 +83,17 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   int i;
   SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
   SyncTerm lastTerm = syncRaftLogLastTerm(pRaft->log);
-  for (i = 0; i < pRaft->cluster.replica; ++i) {
-    if (i == pRaft->cluster.selfIndex) {
+  SSyncRaftNodeMap nodeMap;
+  syncRaftJointConfigIDS(&pRaft->tracker->config.voters, &nodeMap);
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    SyncNodeId nodeId = nodeMap.nodeId[i];
+    if (nodeId == SYNC_NON_NODE_ID) {
       continue;
     }
 
-    SyncNodeId nodeId = pRaft->cluster.nodeInfo[i].nodeId;
+    if (nodeId == pRaft->selfId) {
+      continue;
+    }
 
     SSyncMessage* pMsg = syncNewVoteMsg(pRaft->selfGroupId, pRaft->selfId, 
                                         term, cType, lastIndex, lastTerm);
@@ -72,9 +101,9 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       continue;
     }
 
-    syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %" PRId64 "] sent %d request to %d at term %" PRId64 "", 
+    syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %" PRId64 "] sent vote request to %d at term %" PRId64 "", 
       pRaft->selfGroupId, pRaft->selfId, lastTerm, 
-      lastIndex, voteMsgType, nodeId, pRaft->term);
+      lastIndex, nodeId, pRaft->term);
 
     pRaft->io.send(pMsg, &(pRaft->cluster.nodeInfo[i]));
   }
