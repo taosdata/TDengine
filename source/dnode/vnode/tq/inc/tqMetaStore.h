@@ -44,6 +44,21 @@ extern "C" {
 
 #define TQ_SVER              0
 
+//TODO: inplace mode is not implemented
+#define TQ_UPDATE_INPLACE    0
+#define TQ_UPDATE_APPEND     1
+
+#define TQ_DUP_INTXN_REWRITE 0
+#define TQ_DUP_INTXN_REJECT  2
+
+static inline bool TqUpdateAppend(int32_t tqConfigFlag) {
+  return tqConfigFlag & TQ_UPDATE_APPEND;
+}
+
+static inline bool TqDupIntxnReject(int32_t tqConfigFlag) {
+  return tqConfigFlag & TQ_DUP_INTXN_REJECT;
+}
+
 static const int8_t TQ_CONST_DELETE = TQ_ACTION_CONST;
 #define TQ_DELETE_TOKEN  (void*)&TQ_CONST_DELETE
 
@@ -79,6 +94,7 @@ typedef struct TqMetaStore {
   int fileFd; //TODO:temporaral use, to be replaced by unified tfile
   int idxFd;  //TODO:temporaral use, to be replaced by unified tfile
   char* dirPath;
+  int32_t tqConfigFlag;
   int (*serializer)(const void* pObj, TqSerializedHead** ppHead);
   const void* (*deserializer)(const TqSerializedHead* pHead, void** ppObj);
   void  (*deleter)(void*);
@@ -87,7 +103,9 @@ typedef struct TqMetaStore {
 TqMetaStore*  tqStoreOpen(const char* path,
     int serializer(const void* pObj, TqSerializedHead** ppHead),
     const void* deserializer(const TqSerializedHead* pHead, void** ppObj),
-    void deleter(void* pObj));
+    void deleter(void* pObj),
+    int32_t tqConfigFlag
+  );
 int32_t       tqStoreClose(TqMetaStore*);
 //int32_t       tqStoreDelete(TqMetaStore*);
 //int32_t       TqStoreCommitAll(TqMetaStore*);
@@ -96,6 +114,8 @@ int32_t       tqStorePersist(TqMetaStore*);
 int32_t       tqStoreCompact(TqMetaStore*);
 
 void*   tqHandleGet(TqMetaStore*, int64_t key);
+//make it unpersist
+void*   tqHandleTouchGet(TqMetaStore*, int64_t key);
 int32_t tqHandleMovePut(TqMetaStore*, int64_t key, void* value);
 int32_t tqHandleCopyPut(TqMetaStore*, int64_t key, void* value, size_t vsize);
 //delete committed kv pair
