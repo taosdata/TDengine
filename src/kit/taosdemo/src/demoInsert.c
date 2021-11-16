@@ -2914,36 +2914,47 @@ void *asyncWrite(void *sarg) {
 int startMultiThreadInsertData(int threads, char *db_name, char *precision,
                                SSuperTable *stbInfo) {
     int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
-    stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
+    if (stbInfo) {
+        stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
+    }
+
     if (0 != precision[0]) {
         if (0 == strncasecmp(precision, "ms", 2)) {
             timePrec = TSDB_TIME_PRECISION_MILLI;
-            stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
+            if (stbInfo) {
+                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
+            }
         } else if (0 == strncasecmp(precision, "us", 2)) {
             timePrec = TSDB_TIME_PRECISION_MICRO;
-            stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MICRO_SECONDS;
+            if (stbInfo) {
+                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_MICRO_SECONDS;
+            }
         } else if (0 == strncasecmp(precision, "ns", 2)) {
             timePrec = TSDB_TIME_PRECISION_NANO;
-            stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+            if (stbInfo) {
+                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+            }
         } else {
             errorPrint("Not support precision: %s\n", precision);
             return -1;
         }
     }
-
-    if (stbInfo->iface == SML_IFACE) {
-        if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
-            if (stbInfo->columnCount != 1) {
-                errorPrint(
-                    "Schemaless telnet/json protocol can only have 1 column "
-                    "instead of %d\n",
-                    stbInfo->columnCount);
-                return -1;
+    if (stbInfo) {
+        if (stbInfo->iface == SML_IFACE) {
+            if (stbInfo->lineProtocol != TSDB_SML_LINE_PROTOCOL) {
+                if (stbInfo->columnCount != 1) {
+                    errorPrint(
+                        "Schemaless telnet/json protocol can only have 1 "
+                        "column "
+                        "instead of %d\n",
+                        stbInfo->columnCount);
+                    return -1;
+                }
+                stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
             }
-            stbInfo->tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
-        }
-        if (stbInfo->lineProtocol != TSDB_SML_JSON_PROTOCOL) {
-            calcRowLen(stbInfo);
+            if (stbInfo->lineProtocol != TSDB_SML_JSON_PROTOCOL) {
+                calcRowLen(stbInfo);
+            }
         }
     }
 
