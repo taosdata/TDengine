@@ -150,13 +150,13 @@ if $data00 != 0.00150 then
   print expect 0.00150, actual: $data00
   return -1
 endi
-sql create table st_float_15_0 using mt_float tags (3.40282347e+38)
-sql select tagname from  st_float_15_0
+#sql create table st_float_15_0 using mt_float tags (3.40282347e+38)
+#sql select tagname from  st_float_15_0
 #if $data00 != 0.001500 then
 #  return -1
 #endi
-sql create table st_float_16_0 using mt_float tags (-3.40282347e+38)
-sql select tagname from  st_float_16_0
+#sql create table st_float_16_0 using mt_float tags (-3.40282347e+38)
+#sql select tagname from  st_float_16_0
 #if $data00 != 0.001500 then
 #  return -1
 #endi

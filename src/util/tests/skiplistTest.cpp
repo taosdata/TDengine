@@ -70,7 +70,7 @@ void doubleSkipListTest() {
 }
 
 void randKeyTest() {
-  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_INT, sizeof(int32_t), getKeyComparFunc(TSDB_DATA_TYPE_INT),
+  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_INT, sizeof(int32_t), getKeyComparFunc(TSDB_DATA_TYPE_INT, TSDB_ORDER_ASC),
       false, getkey);
 
   int32_t size = 200000;

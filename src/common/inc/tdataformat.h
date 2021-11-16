@@ -547,8 +547,9 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, void *value) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
-    pBuilder->pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
-    if (pBuilder->pColIdx == NULL) return -1;
+    SColIdx* pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+    if (pColIdx == NULL) return -1;
+    pBuilder->pColIdx = pColIdx;
   }
 
   pBuilder->pColIdx[pBuilder->nCols].colId = colId;
@@ -561,8 +562,9 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;
     }
-    pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
-    if (pBuilder->buf == NULL) return -1;
+    void* buf = realloc(pBuilder->buf, pBuilder->alloc);
+    if (buf == NULL) return -1;
+    pBuilder->buf = buf;
   }
 
   memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);

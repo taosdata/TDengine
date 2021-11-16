@@ -1,22 +1,22 @@
 # Efficient Data Writing
 
-TDengine supports multiple interfaces to write data, including SQL, Prometheus, Telegraf, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in a single piece or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, nonsequential data insertion, and also historical data insertion.
+TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
 
-## <a class="anchor" id="sql"></a> SQL Writing
+## <a class="anchor" id="sql"></a> Data Writing via SQL 
 
-Applications insert data by executing SQL insert statements through C/C++, JDBC, GO, or Python Connector, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
+Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js Connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
-TDengine supports writing multiple records at a time. For example, the following command writes two records to table d1001:
+TDengine supports writing multiple records in a single statement. For example, the following command writes two records to table d1001:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
 ```
 
-TDengine also supports writing data to multiple tables at a time. For example, the following command writes two records to d1001 and one record to d1002:
+TDengine also supports writing data to multiple tables in a single statement. For example, the following command writes two records to d1001 and one record to d1002:
 
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
@@ -26,22 +26,22 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 
 **Tips:**
 
-- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record cannot exceed 16K, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
-- TDengine supports multi-thread parallel writing. To further improve writing speed, a client needs to open more than 20 threads to write parallelly. However, after the number of threads reaches a certain threshold, it cannot be increased or even become decreased, because too much frequent thread switching brings extra overhead.
-- For a same table, if the timestamp of a newly inserted record already exists, (no database was created using UPDATE 1) the new record will be discarded as default, that is, the timestamp must be unique in a table. If an application automatically generates records, it is very likely that the generated timestamps will be the same, so the number of records successfully inserted will be smaller than the number of records the application try to insert. If you use UPDATE 1 option when creating a database, inserting a new record with the same timestamp will overwrite the original record.
+- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 16K, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
+- TDengine supports multi-thread parallel writing. To further improve writing speed, a client needs to open more than 20 threads to write parallelly. However, after the number of threads reaches a certain threshold, it cannot be increased or even become decreased, because too much thread switching brings extra overhead.
+- For the same table, if the timestamp of a newly inserted record already exists, the new record will be discarded as default (database option update = 0), that is, the timestamp must be unique in a table. If an application automatically generates records, it is very likely that the generated timestamps will be the same, so the number of records successfully inserted will be smaller than the number of records the application try to insert. If you use UPDATE 1 option when creating a database, inserting a new record with the same timestamp will overwrite the original record.
 - The timestamp of written data must be greater than the current time minus the time of configuration parameter keep. If keep is configured for 3650 days, data older than 3650 days cannot be written. The timestamp for writing data cannot be greater than the current time plus configuration parameter days. If days is configured to 2, data 2 days later than the current time cannot be written.
 
-## <a class="anchor" id="prometheus"></a> Direct Writing of Prometheus
+## <a class="anchor" id="prometheus"></a> Data Writing via Prometheus
 
 As a graduate project of Cloud Native Computing Foundation, [Prometheus](https://www.prometheus.io/) is widely used in the field of performance monitoring and K8S performance monitoring. TDengine provides a simple tool [Bailongma](https://github.com/taosdata/Bailongma), which only needs to be simply configured in Prometheus without any code, and can directly write the data collected by Prometheus into TDengine, then automatically create databases and related table entries in TDengine according to rules. Blog post [Use Docker Container to Quickly Build a Devops Monitoring Demo](https://www.taosdata.com/blog/2020/02/03/1189.html), which is an example of using bailongma to write Prometheus and Telegraf data into TDengine.
 
 ### Compile blm_prometheus From Source
 
-Users need to download the source code of [Bailongma](https://github.com/taosdata/Bailongma) from github, then compile and generate an executable file using Golang language compiler. Before you start compiling, you need to complete following prepares:
+Users need to download the source code of [Bailongma](https://github.com/taosdata/Bailongma) from github, then compile and generate an executable file using Golang language compiler. Before you start compiling, you need to prepare:
 
 - A server running Linux OS
 - Golang version 1.10 and higher installed
-- An appropriated TDengine version. Because the client dynamic link library of TDengine is used, it is necessary to install the same version of TDengine as the server-side; for example, if the server version is TDengine 2.0. 0, ensure install the same version on the linux server where bailongma is located (can be on the same server as TDengine, or on a different server)
+- Since the client dynamic link library of TDengine is used, it is necessary to install the same version of TDengine as the server-side. For example, if the server version is TDengine 2.0. 0, ensure install the same version on the linux server where bailongma is located (can be on the same server as TDengine, or on a different server)
 
 Bailongma project has a folder, blm_prometheus, which holds the prometheus writing API. The compiling process is as follows:
 
@@ -134,7 +134,7 @@ The format of generated data by Prometheus is as follows:
 }
 ```
 
-Where apiserver_request_latencies_bucket is the name of the time-series data collected by prometheus, and the tag of the time-series data is in the following {}. blm_prometheus automatically creates a STable in TDengine with the name of the time series data, and converts the tag in {} into the tag value of TDengine, with Timestamp as the timestamp and value as the value of the time-series data. Therefore, in the client of TDEngine, you can check whether this data was successfully written through the following instruction.
+Where apiserver_request_latencies_bucket is the name of the time-series data collected by prometheus, and the tag of the time-series data is in the following {}. blm_prometheus automatically creates a STable in TDengine with the name of the time series data, and converts the tag in {} into the tag value of TDengine, with Timestamp as the timestamp and value as the value of the time-series data. Therefore, in the client of TDengine, you can check whether this data was successfully written through the following instruction.
 
 ```mysql
 use prometheus;
@@ -144,7 +144,7 @@ select * from apiserver_request_latencies_bucket;
 
 
 
-## <a class="anchor" id="telegraf"></a> Direct Writing of Telegraf
+## <a class="anchor" id="telegraf"></a> Data Writing via Telegraf
 
 [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/) is a popular open source tool for IT operation data collection. TDengine provides a simple tool [Bailongma](https://github.com/taosdata/Bailongma), which only needs to be simply configured in Telegraf without any code, and can directly write the data collected by Telegraf into TDengine, then automatically create databases and related table entries in TDengine according to rules. Blog post [Use Docker Container to Quickly Build a Devops Monitoring Demo](https://www.taosdata.com/blog/2020/02/03/1189.html), which is an example of using bailongma to write Prometheus and Telegraf data into TDengine.
 
@@ -271,12 +271,12 @@ select * from cpu;
 
 MQTT is a popular data transmission protocol in the IoT. TDengine can easily access the data received by MQTT Broker and write it to TDengine.
 
-## <a class="anchor" id="emq"></a> Direct Writing of EMQ Broker
+## <a class="anchor" id="emq"></a> Data Writing via EMQ Broker
 
 [EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQ X supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
 
 
 
-## <a class="anchor" id="hivemq"></a> Direct Writing of HiveMQ Broker
+## <a class="anchor" id="hivemq"></a> Data Writing via HiveMQ Broker
 
 [HiveMQ](https://www.hivemq.com/) is an MQTT agent that provides Free Personal and Enterprise Edition versions. It is mainly used for enterprises, emerging machine-to-machine(M2M) communication and internal transmission to meet scalability, easy management and security features. HiveMQ provides an open source plug-in development kit. You can store data to TDengine via HiveMQ extension-TDengine. Refer to the [HiveMQ extension-TDengine documentation](https://github.com/huskar-t/hivemq-tdengine-extension/blob/b62a26ecc164a310104df57691691b237e091c89/README.md) for more details.

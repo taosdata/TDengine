@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
 #if defined(WINDOWS) 
 int main(int argc, char *argv[]) {
   printf("welcome to use taospack tools v1.3 for windows.\n");
@@ -148,7 +149,10 @@ float* read_float(const char* inFile, int* pcount){
     //printf(" buff=%s float=%.50f \n ", buf, floats[fi]);
     if ( ++fi == malloc_cnt ) {
       malloc_cnt += 100000;
-      floats = realloc(floats, malloc_cnt*sizeof(float));
+      float* floats1 = realloc(floats, malloc_cnt*sizeof(float));
+      if(floats1 == NULL)
+         break;
+      floats = floats1;   
     }
     memset(buf, 0, sizeof(buf));
   }
@@ -601,7 +605,6 @@ void test_threadsafe_double(int thread_count){
   
 }
 
-
 void unitTestFloat() {
 
   float ft1 [] = {1.11, 2.22, 3.333};
@@ -662,7 +665,50 @@ void unitTestFloat() {
   free(ft2);
   free(buff);
   free(output); 
- 
+}
+
+void leakFloat() {
+
+  int cnt = sizeof(g_ft1)/sizeof(float);
+  float* floats = g_ft1;
+  int algorithm = 2;
+
+  // compress
+  const char* input = (const char*)floats;
+  int input_len = cnt * sizeof(float);
+  int output_len = input_len + 1024;
+  char* output = (char*) malloc(output_len);
+  char* buff = (char*) malloc(input_len);
+  int buff_len = input_len;
+
+  int ret_len = 0;
+  ret_len = tsCompressFloatLossy(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+
+  if(ret_len == 0) {
+    printf(" compress float error.\n");
+    free(buff);
+    free(output); 
+    return ;
+  }
+  
+  float* ft2 = (float*)malloc(input_len); 
+  ret_len = tsDecompressFloatLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  if(ret_len == 0) {
+    printf(" decompress float error.\n");
+  }
+  
+  free(ft2);
+  free(buff);
+  free(output); 
+}
+
+
+void leakTest(){
+  for(int i=0; i< 90000000000000; i++){
+    if(i%10000==0)
+        printf(" ---------- %d ---------------- \n", i);
+    leakFloat();
+  }
 }
 
 #define DB_CNT 500
@@ -689,7 +735,7 @@ extern char Compressor [];
 //   -----------------  main ----------------------
 //
 int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.3\n");
+  printf("welcome to use taospack tools v1.6\n");
 
   //printf(" sizeof(int)=%d\n",  (int)sizeof(int));
   //printf(" sizeof(long)=%d\n", (int)sizeof(long));
@@ -753,6 +799,9 @@ int main(int argc, char *argv[]) {
     if(strcmp(argv[1], "-mem") == 0) {
       memTest();
     } 
+    else if(strcmp(argv[1], "-leak") == 0) {
+      leakTest();
+    }
   }
   else{
     unitTestFloat();

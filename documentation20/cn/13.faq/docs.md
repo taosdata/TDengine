@@ -26,15 +26,15 @@
 
 ## 2. Windows平台下JDBCDriver找不到动态链接库，怎么办？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
 
 ## 3. 创建数据表时提示more dnodes are needed
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)。
 
 ## 4. 如何让TDengine crash时生成core文件？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)。
 
 ## 5. 遇到错误“Unable to establish connection”, 我怎么办？
 
@@ -49,7 +49,7 @@
 
 3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
 
-4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得)）,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name —— 可在服务器上执行Linux命令hostname -f获得），FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 
 5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件。如果部署的是TDengine集群，客户端需要能ping通所有集群节点的FQDN。
 
@@ -74,16 +74,16 @@
 
 产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
 
-1. 请检查连接的服务器的FQDN是否正确,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
-2. 如果网络配置有DNS server, 请检查是否正常工作
-3. 如果网络没有配置DNS server, 请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址。
+1. 请检查连接的服务器的FQDN是否正确，FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
+2. 如果网络配置有DNS server，请检查是否正常工作
+3. 如果网络没有配置DNS server，请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址
 4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法连接服务器的
 
 ## 7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误
 
 如果你确认语法正确，2.0之前版本，请检查SQL语句长度是否超过64K。如果超过，也会返回这个错误。
 
-## 8. 是否支持validation queries?
+## 8. 是否支持validation queries？
 
 TDengine还没有一组专用的validation queries。然而建议你使用系统监测的数据库”log"来做。
 
@@ -96,9 +96,11 @@ TDengine 目前尚不支持删除功能，未来根据用户需求可能会支�
 
 另需注意，在 UPDATE 设置为 0 时，后发送的相同时间戳的数据会被直接丢弃，但并不会报错，而且仍然会被计入 affected rows （所以不能利用 INSERT 指令的返回信息进行时间戳查重）。这样设计的主要原因是，TDengine 把写入的数据看做一个数据流，无论时间戳是否出现冲突，TDengine 都认为产生数据的原始设备真实地产生了这样的数据。UPDATE 参数只是控制这样的流数据在进行持久化时要怎样处理——UPDATE 为 0 时，表示先写入的数据覆盖后写入的数据；而 UPDATE 为 1 时，表示后写入的数据覆盖先写入的数据。这种覆盖关系如何选择，取决于对数据的后续使用和统计中，希望以先还是后生成的数据为准。
 
+此外，从 2.1.7.0 版本开始，支持将 UPDATE 参数设为 2，表示“支持部分列更新”。也即，当 UPDATE 设为 1 时，如果更新一个数据行，其中某些列没有提供取值，那么这些列会被设为 NULL；而当 UPDATE 设为 2 时，如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值。
+
 ## 10. 我怎么创建超过1024列的表？
 
-使用2.0及其以上版本，默认支持1024列；2.0之前的版本，TDengine最大允许创建250列的表。但是如果确实超过限值，建议按照数据特性，逻辑地将这个宽表分解成几个小表。
+使用 2.0 及其以上版本，默认支持 1024 列；2.0 之前的版本，TDengine 最大允许创建 250 列的表。但是如果确实超过限值，建议按照数据特性，逻辑地将这个宽表分解成几个小表。（从 2.1.7.0 版本开始，表的最大列数增加到了 4096 列。）
 
 ## 11. 最有效的写入数据的方法是什么？
 
@@ -137,7 +139,7 @@ Connection = DriverManager.getConnection(url, properties);
 
 TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
 
-- 2.0.0.0 至 2.0.6.x 的版本，重新配置机器B的hostname为机器A的hostname
+- 2.0.0.0 至 2.0.6.x 的版本，重新配置机器B的hostname为机器A的hostname。
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 

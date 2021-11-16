@@ -19,6 +19,7 @@
 #include "httpLog.h"
 #include "httpRestHandle.h"
 #include "httpRestJson.h"
+#include "tglobal.h"
 
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};
@@ -62,11 +63,11 @@ void restInitHandle(HttpServer* pServer) {
 
 bool restGetUserFromUrl(HttpContext* pContext) {
   HttpParser* pParser = pContext->parser;
-  if (pParser->path[REST_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[REST_USER_URL_POS].pos <= 0) {
+  if (pParser->path[REST_USER_USEDB_URL_POS].pos >= TSDB_USER_LEN || pParser->path[REST_USER_USEDB_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->user, pParser->path[REST_USER_URL_POS].str, TSDB_USER_LEN);
+  tstrncpy(pContext->user, pParser->path[REST_USER_USEDB_URL_POS].str, TSDB_USER_LEN);
   return true;
 }
 
@@ -106,6 +107,24 @@ bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
 
   HttpSqlCmd* cmd = &(pContext->singleCmd);
   cmd->nativSql = sql;
+
+  /* find if there is db_name in url */
+  pContext->db[0] = '\0';
+
+  HttpString *path = &pContext->parser->path[REST_USER_USEDB_URL_POS];
+  if (tsHttpDbNameMandatory) {
+    if (path->pos == 0) {
+      httpError("context:%p, fd:%d, user:%s, database name is mandatory", pContext, pContext->fd, pContext->user);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVALID_URL);
+      return false;
+    }
+  }
+
+  if (path->pos > 0 && !(strlen(sql) > 4 && (sql[0] == 'u' || sql[0] == 'U') &&
+      (sql[1] == 's' || sql[1] == 'S') && (sql[2] == 'e' || sql[2] == 'E') && sql[3] == ' '))
+  {
+    snprintf(pContext->db, /*TSDB_ACCT_ID_LEN + */TSDB_DB_NAME_LEN, "%s", path->str);
+  }
 
   pContext->reqType = HTTP_REQTYPE_SINGLE_SQL;
   if (timestampFmt == REST_TIMESTAMP_FMT_LOCAL_STRING) {

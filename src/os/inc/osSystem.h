@@ -24,6 +24,8 @@ void* taosLoadDll(const char *filename);
 void* taosLoadSym(void* handle, char* name);
 void taosCloseDll(void *handle);
 
+int taosSetConsoleEcho(bool on);
+
 #ifdef __cplusplus
 }
 #endif

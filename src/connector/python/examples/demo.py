@@ -2,7 +2,7 @@ import taos
 
 conn = taos.connect(host='127.0.0.1',
                     user='root',
-                    passworkd='taodata',
+                    password='taosdata',
                     database='log')
 cursor = conn.cursor()
 

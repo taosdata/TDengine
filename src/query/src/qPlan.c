@@ -645,6 +645,12 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     } else {
       op = OP_Project;
       taosArrayPush(plan, &op);
+
+      if (pQueryAttr->pExpr2 != NULL) {
+        op = OP_Project;
+        taosArrayPush(plan, &op);
+      }
+
       if (pQueryAttr->distinct) {
         op = OP_Distinct;
         taosArrayPush(plan, &op);
@@ -698,7 +704,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
   }
 
   // fill operator
-  if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
+  if (pQueryAttr->fillType != TSDB_FILL_NONE && pQueryAttr->interval.interval > 0) {
     op = OP_Fill;
     taosArrayPush(plan, &op);
   }

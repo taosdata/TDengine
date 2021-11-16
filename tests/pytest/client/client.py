@@ -67,7 +67,7 @@ class TDTestCase:
         tdSql.execute('create table ct1 using st tags(1)');
         tdSql.execute('create table ct2 using st tags(2)');
 
-        time.sleep(1)
+        time.sleep(3)
 
         ret = tdSql.query('show vnodes "{}"'.format(dnodeEndpoint))
         tdSql.checkRows(1)

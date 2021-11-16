@@ -22,8 +22,8 @@ If there is plenty of memory, the configuration of Blocks can be increased so th
 
 CPU requirements depend on the following two aspects:
 
-- **Data insertion** TDengine single core can handle at least 10,000 insertion requests per second. Each insertion request can take multiple records, and inserting one record at a time is almost the same as inserting 10 records in computing resources consuming. Therefore, the larger the number of inserts, the higher the insertion efficiency. If an insert request has more than 200 records, a single core can insert 1 million records per second. However, the faster the insertion speed, the higher the requirement for front-end data collection, because records need to be cached and then inserted in batches.
-- **Query requirements** TDengine to provide efficient queries, but the queries in each scenario vary greatly and the query frequency too, making it difficult to give objective figures. Users need to write some query statements for their own scenes to determine.
+- **Data insertion**: TDengine single core can handle at least 10,000 insertion requests per second. Each insertion request can take multiple records, and inserting one record at a time is almost the same as inserting 10 records in computing resources consuming. Therefore, the larger the number of records per insert, the higher the insertion efficiency. If an insert request has more than 200 records, a single core can insert 1 million records per second. However, the faster the insertion speed, the higher the requirement for front-end data collection, because records need to be cached and then inserted in batches.
+- **Query**: TDengine provides efficient queries, but the queries in each scenario vary greatly and the query frequency too, making it difficult to give objective figures. Users need to write some query statements for their own scenes to estimate.
 
 Therefore, only for data insertion, CPU can be estimated, but the computing resources consumed by query cannot be that clear. In the actual operation, it is not recommended to make CPU utilization rate over 50%. After that, new nodes need to be added to bring more computing resources.
 
@@ -78,7 +78,7 @@ When the nodes in TDengine cluster are deployed on different physical machines a
 
 ## <a class="anchor" id="config"></a> Server-side Configuration
 
-The background service of TDengine system is provided by taosd, and the configuration parameters can be modified in the configuration file taos.cfg to meet the requirements of different scenarios. The default location of the configuration file is the /etc/taos directory, which can be specified by executing the parameter -c from the taosd command line. Such as taosd-c/home/user, to specify that the configuration file is located in the /home/user directory.
+The background service of TDengine system is provided by taosd, and the configuration parameters can be modified in the configuration file taos.cfg to meet the requirements of different scenarios. The default location of the configuration file is the /etc/taos directory, which can be specified by executing the parameter `-c` from the taosd command line. Such as `taosd -c /home/user`, to specify that the configuration file is located in the /home/user directory.
 
 You can also use “-C” to show the current server configuration parameters:
 
@@ -88,14 +88,14 @@ taosd -C
 
 Only some important configuration parameters are listed below. For more parameters, please refer to the instructions in the configuration file. Please refer to the previous chapters for detailed introduction and function of each parameter, and the default of these parameters is working and generally does not need to be set. **Note: After the configuration is modified, \*taosd service\* needs to be restarted to take effect.**
 
-- firstEp: end point of the first dnode in the actively connected cluster when taosd starts, the default value is localhost: 6030.
-- fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you are accustomed to IP address access, you can set it to the IP address of the node.
+- firstEp: end point of the first dnode which will be connected in the cluster when taosd starts, the default value is localhost: 6030.
+- fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
 - httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041.
 - dataDir: the data file directory to which all data files will be written. [Default:/var/lib/taos](http://default/var/lib/taos).
 - logDir: the log file directory to which the running log files of the client and server will be written. [Default:/var/log/taos](http://default/var/log/taos).
-- arbitrator: the end point of the arbiter in the system; the default value is null.
-- role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; caannot be an mnode, only vnode can be allocated
+- arbitrator: the end point of the arbitrator in the system; the default value is null.
+- role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; cannot be an mnode, only vnode can be allocated
 - debugFlage: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
 - numOfLogLines: the maximum number of lines allowed for a single log file. Default: 10,000,000 lines.
 - logKeepDays: the maximum retention time of the log file. When it is greater than 0, the log file will be renamed to taosdlog.xxx, where xxx is the timestamp of the last modification of the log file in seconds. Default: 0 days.
@@ -161,18 +161,18 @@ For example:
 
 ## <a class="anchor" id="client"></a> Client Configuration
 
-The foreground interactive client application of TDengine system is taos and application driver, which shares the same configuration file taos.cfg with taosd. When running taos, use the parameter -c to specify the configuration file directory, such as taos-c/home/cfg, which means using the parameters in the taos.cfg configuration file under the /home/cfg/ directory. The default directory is /etc/taos. For more information on how to use taos, see the help information taos --help. This section mainly describes the parameters used by the taos client application in the configuration file taos.cfg.
+The foreground interactive client application of TDengine system is taos and application driver, which shares the same configuration file taos.cfg with taosd. When running taos, use the parameter `-c` to specify the configuration file directory, such as `taos -c /home/cfg`, which means using the parameters in the taos.cfg configuration file under the /home/cfg/ directory. The default directory is /etc/taos. For more information on how to use taos, see the help information `taos --help`. This section mainly describes the parameters used by the taos client application in the configuration file taos.cfg.
 
 **Versions after 2.0. 10.0 support the following parameters on command line to display the current client configuration parameters**
 
 ```bash
-taos -C  或  taos --dump-config
+taos -C  or  taos --dump-config
 ```
 
 Client configuration parameters:
 
 - firstEp: end point of the first taosd instance in the actively connected cluster when taos is started, the default value is localhost: 6030.
-- secondEp: when taos starts, if not impossible to connect to firstEp, it will try to connect to secondEp.
+- secondEp: when taos starts, if unable to connect to firstEp, it will try to connect to secondEp.
 - locale
     Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
     

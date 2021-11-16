@@ -99,17 +99,22 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     STsdbBufPool *pBufPool = pRepo->pPool;
 
     SListNode *pNode = NULL;
-    bool recycleBlocks = pBufPool->nRecycleBlocks > 0;
+    bool addNew = false;
     if (tsdbLockRepo(pRepo) < 0) return -1;
     while ((pNode = tdListPopHead(pMemTable->bufBlockList)) != NULL) {
       if (pBufPool->nRecycleBlocks > 0) {
-        tsdbRecycleBufferBlock(pBufPool, pNode);
+        tsdbRecycleBufferBlock(pBufPool, pNode, false);
         pBufPool->nRecycleBlocks -= 1;
       } else {
-        tdListAppendNode(pBufPool->bufBlockList, pNode);
+        if(pBufPool->nElasticBlocks > 0 && listNEles(pBufPool->bufBlockList) > 2) {
+          tsdbRecycleBufferBlock(pBufPool, pNode, true);
+        } else {
+          tdListAppendNode(pBufPool->bufBlockList, pNode);
+          addNew = true;
+        }
       }      
     }
-    if (!recycleBlocks) {
+    if (addNew) {
       int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
       if (code != 0) {
         if (tsdbUnlockRepo(pRepo) < 0) return -1;

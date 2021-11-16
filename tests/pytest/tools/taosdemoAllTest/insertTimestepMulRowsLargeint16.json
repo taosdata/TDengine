@@ -14,7 +14,8 @@
         {
             "dbinfo": {
                 "name": "blf",
-                "drop": "yes"
+                "drop": "yes",
+                "keep": 36500
             },
             "super_tables": [
                 {

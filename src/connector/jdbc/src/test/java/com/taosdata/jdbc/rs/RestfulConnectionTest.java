@@ -9,6 +9,8 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
+import static org.junit.Assert.assertEquals;
+
 public class RestfulConnectionTest {
 
     private static final String host = "127.0.0.1";
@@ -26,7 +28,7 @@ public class RestfulConnectionTest {
             ResultSet rs = stmt.executeQuery("select server_status()");
             rs.next();
             int status = rs.getInt("server_status()");
-            Assert.assertEquals(1, status);
+            assertEquals(1, status);
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -38,7 +40,7 @@ public class RestfulConnectionTest {
         ResultSet rs = pstmt.executeQuery();
         rs.next();
         int status = rs.getInt("server_status()");
-        Assert.assertEquals(1, status);
+        assertEquals(1, status);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -49,7 +51,7 @@ public class RestfulConnectionTest {
     @Test
     public void nativeSQL() throws SQLException {
         String nativeSQL = conn.nativeSQL("select * from log.log");
-        Assert.assertEquals("select * from log.log", nativeSQL);
+        assertEquals("select * from log.log", nativeSQL);
     }
 
     @Test
@@ -87,7 +89,7 @@ public class RestfulConnectionTest {
     public void getMetaData() throws SQLException {
         DatabaseMetaData meta = conn.getMetaData();
         Assert.assertNotNull(meta);
-        Assert.assertEquals("com.taosdata.jdbc.rs.RestfulDriver", meta.getDriverName());
+        assertEquals("com.taosdata.jdbc.rs.RestfulDriver", meta.getDriverName());
     }
 
     @Test
@@ -103,25 +105,25 @@ public class RestfulConnectionTest {
     @Test
     public void setCatalog() throws SQLException {
         conn.setCatalog("test");
-        Assert.assertEquals("test", conn.getCatalog());
+        assertEquals("test", conn.getCatalog());
     }
 
     @Test
     public void getCatalog() throws SQLException {
         conn.setCatalog("log");
-        Assert.assertEquals("log", conn.getCatalog());
+        assertEquals("log", conn.getCatalog());
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void setTransactionIsolation() throws SQLException {
         conn.setTransactionIsolation(Connection.TRANSACTION_NONE);
-        Assert.assertEquals(Connection.TRANSACTION_NONE, conn.getTransactionIsolation());
+        assertEquals(Connection.TRANSACTION_NONE, conn.getTransactionIsolation());
         conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
     }
 
     @Test
     public void getTransactionIsolation() throws SQLException {
-        Assert.assertEquals(Connection.TRANSACTION_NONE, conn.getTransactionIsolation());
+        assertEquals(Connection.TRANSACTION_NONE, conn.getTransactionIsolation());
     }
 
     @Test
@@ -140,7 +142,7 @@ public class RestfulConnectionTest {
         ResultSet rs = stmt.executeQuery("select server_status()");
         rs.next();
         int status = rs.getInt("server_status()");
-        Assert.assertEquals(1, status);
+        assertEquals(1, status);
 
         conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
     }
@@ -152,7 +154,7 @@ public class RestfulConnectionTest {
         ResultSet rs = pstmt.executeQuery();
         rs.next();
         int status = rs.getInt("server_status()");
-        Assert.assertEquals(1, status);
+        assertEquals(1, status);
 
         conn.prepareStatement("select server_status", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
     }
@@ -175,13 +177,13 @@ public class RestfulConnectionTest {
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void setHoldability() throws SQLException {
         conn.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
-        Assert.assertEquals(ResultSet.HOLD_CURSORS_OVER_COMMIT, conn.getHoldability());
+        assertEquals(ResultSet.HOLD_CURSORS_OVER_COMMIT, conn.getHoldability());
         conn.setHoldability(ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @Test
     public void getHoldability() throws SQLException {
-        Assert.assertEquals(ResultSet.HOLD_CURSORS_OVER_COMMIT, conn.getHoldability());
+        assertEquals(ResultSet.HOLD_CURSORS_OVER_COMMIT, conn.getHoldability());
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -210,7 +212,7 @@ public class RestfulConnectionTest {
         ResultSet rs = stmt.executeQuery("select server_status()");
         rs.next();
         int status = rs.getInt("server_status()");
-        Assert.assertEquals(1, status);
+        assertEquals(1, status);
 
         conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
@@ -222,7 +224,7 @@ public class RestfulConnectionTest {
         ResultSet rs = pstmt.executeQuery();
         rs.next();
         int status = rs.getInt("server_status()");
-        Assert.assertEquals(1, status);
+        assertEquals(1, status);
 
         conn.prepareStatement("select server_status", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
@@ -299,11 +301,11 @@ public class RestfulConnectionTest {
 
         Properties info = conn.getClientInfo();
         String charset = info.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
-        Assert.assertEquals("UTF-8", charset);
+        assertEquals("UTF-8", charset);
         String locale = info.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
-        Assert.assertEquals("en_US.UTF-8", locale);
+        assertEquals("en_US.UTF-8", locale);
         String timezone = info.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
-        Assert.assertEquals("UTC-8", timezone);
+        assertEquals("UTC-8", timezone);
     }
 
     @Test
@@ -313,11 +315,11 @@ public class RestfulConnectionTest {
         conn.setClientInfo(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
         String charset = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET);
-        Assert.assertEquals("UTF-8", charset);
+        assertEquals("UTF-8", charset);
         String locale = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_LOCALE);
-        Assert.assertEquals("en_US.UTF-8", locale);
+        assertEquals("en_US.UTF-8", locale);
         String timezone = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
-        Assert.assertEquals("UTC-8", timezone);
+        assertEquals("UTC-8", timezone);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -345,14 +347,15 @@ public class RestfulConnectionTest {
         conn.abort(null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setNetworkTimeout() throws SQLException {
         conn.setNetworkTimeout(null, 1000);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getNetworkTimeout() throws SQLException {
-        conn.getNetworkTimeout();
+        int timeout = conn.getNetworkTimeout();
+        assertEquals(0, timeout);
     }
 
     @Test

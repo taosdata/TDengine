@@ -220,6 +220,8 @@ tOrderDescriptor *tOrderDesCreate(const int32_t *orderColIdx, int32_t numOfOrder
 
 void tOrderDescDestroy(tOrderDescriptor *pDesc);
 
+void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOfRows, int32_t index, __compar_fn_t compareFn);
+
 void tColModelAppend(SColumnModel *dstModel, tFilePage *dstPage, void *srcData, int32_t srcStartRows,
                      int32_t numOfRowsToWrite, int32_t srcCapacity);
 

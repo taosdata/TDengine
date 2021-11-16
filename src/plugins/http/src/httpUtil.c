@@ -21,12 +21,24 @@
 #include "httpResp.h"
 #include "httpSql.h"
 #include "httpUtil.h"
+#include "ttoken.h"
 
 bool httpCheckUsedbSql(char *sql) {
   if (strstr(sql, "use ") != NULL) {
     return true;
   }
   return false;
+}
+
+bool httpCheckAlterSql(char *sql) {
+  int32_t index = 0;
+
+  do {
+    SStrToken t0 = tStrGetToken(sql, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_ALTER;
+    }
+  } while (1);
 }
 
 void httpTimeToString(int32_t t, char *buf, int32_t buflen) {

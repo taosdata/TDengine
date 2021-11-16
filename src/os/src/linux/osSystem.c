@@ -51,4 +51,28 @@ void taosCloseDll(void *handle) {
   }
 }
 
+int taosSetConsoleEcho(bool on)
+{
+#define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
+    int err;
+    struct termios term;
+
+    if (tcgetattr(STDIN_FILENO, &term) == -1) {
+        perror("Cannot get the attribution of the terminal");
+        return -1;
+    }
+
+    if (on)
+        term.c_lflag |= ECHOFLAGS;
+    else
+        term.c_lflag &= ~ECHOFLAGS;
+
+    err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
+    if (err == -1 || err == EINTR) {
+        perror("Cannot set the attribution of the terminal");
+        return -1;
+    }
+
+    return 0;
+}
 

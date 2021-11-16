@@ -405,7 +405,6 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {
 
   if (pContext->session == NULL) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_SESSION_FULL);
-    httpCloseContextByApp(pContext);
   } else {
     httpExecCmd(pContext);
   }
@@ -419,6 +418,11 @@ void httpProcessRequest(HttpContext *pContext) {
                    &(pContext->taos));
     httpDebug("context:%p, fd:%d, user:%s, try connect tdengine, taos:%p", pContext, pContext->fd, pContext->user,
               pContext->taos);
+
+    if (pContext->taos != NULL) {
+      STscObj *pObj = pContext->taos;
+      pObj->from = TAOS_REQ_FROM_HTTP;
+    }
   } else {
     httpExecCmd(pContext);
   }

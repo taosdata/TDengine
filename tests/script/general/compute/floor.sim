@@ -1,0 +1,288 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$tbNum = 2
+$rowNum = 10000
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  $y = 0
+
+  $v0 = 5000.0
+  $v1 = -5000.1
+  $v2 = 5000.2
+  $v3 = -5000.3
+  $v4 = 5000.4
+  $v5 = -5000.5
+  $v6 = 5000.6
+  $v7 = -5000.7
+  $v8 = 5000.8
+  $v9 = -5000.9
+
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    $val = $v0
+
+    if $y == 0 then
+      $val = $v0
+    endi
+
+    if $y == 1 then
+      $val = $v1
+    endi
+
+    if $y == 2 then
+      $val = $v2
+    endi
+
+    if $y == 3 then
+      $val = $v3
+    endi
+
+    if $y == 4 then
+      $val = $v4
+    endi
+
+    if $y == 5 then
+      $val = $v5
+    endi
+
+    if $y == 6 then
+      $val = $v6
+    endi
+
+    if $y == 7 then
+      $val = $v7
+    endi
+
+    if $y == 8 then
+      $val = $v8
+    endi
+
+    if $y == 9 then
+      $val = $v9
+    endi
+
+    $tinyint = $x / 128
+    sql insert into $tb values ($ms , $x , $val , $x , $x , $tinyint , $x , $x , $x , $x ) 
+    $x = $x + 1
+    $y = $y + 1
+    if $y == 10 then
+      $y = 0
+    endi
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select floor(c2) from $tb
+print ===> $data00
+if $data00 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data10
+if $data10 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data20
+if $data20 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data30
+if $data30 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data40
+if $data40 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data50
+if $data50 != -5001.00000 then 
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data60
+if $data60 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data70
+if $data70 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data80
+if $data80 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb
+print ===> $data90
+if $data90 != -5001.00000 then
+  return -1
+endi
+
+sql select floor(c5) from $tb
+print ===> $data10
+if $data10 != 0 then 
+  return -1
+endi
+sql select ts, floor(c2) from $tb
+sql select c2, floor(c2) from $tb
+sql select c2, c3, floor(c2) from $tb
+sql select ts, c2, c3, floor(c2) from $tb
+
+sql select floor(c2), floor(c6) from $tb
+
+sql select ts, floor(c2), floor(c6) from $tb
+sql select c2, floor(c2), floor(c6) from $tb
+sql select c2, c3, floor(c2), floor(c6) from $tb
+sql select ts, c2, c3, floor(c2), floor(c6) from $tb
+
+sql select ceil(c2), floor(c2), round(c2) from $tb
+
+sql select ts, ceil(c2), floor(c2), round(c2) from $tb
+sql select c2, ceil(c2), floor(c2), round(c2) from $tb
+sql select c2, c3, ceil(c2), floor(c2), round(c2) from $tb
+sql select ts, c2, c3, ceil(c2), floor(c2), round(c2) from $tb
+
+sql select ts, floor(c2) from $mt
+sql select c2, floor(c2) from $mt
+sql select c2, c3, floor(c2) from $mt
+sql select ts, c2, c3, floor(c2) from $mt
+
+sql select floor(c2), floor(c6) from $mt
+
+sql select ts, floor(c2), floor(c6) from $mt
+sql select c2, floor(c2), floor(c6) from $mt
+sql select c2, c3, floor(c2), floor(c6) from $mt
+sql select ts, c2, c3, floor(c2), floor(c6) from $mt
+
+sql select ceil(c2), floor(c2), round(c2) from $mt
+
+sql select ts, ceil(c2), floor(c2), round(c2) from $mt
+sql select c2, ceil(c2), floor(c2), round(c2) from $mt
+sql select c2, c3, ceil(c2), floor(c2), round(c2) from $mt
+sql select ts, c2, c3, ceil(c2), floor(c2), round(c2) from $mt
+
+sql_error select floor(c7) from $tb
+sql_error select floor(c8) from $tb
+sql_error select floor(c9) from $tb
+sql_error select floor(ts) from $tb
+sql_error select floor(c2+2) from $tb
+sql_error select floor(c2) from $tb where ts > 0 and ts < now + 100m interval(10m)
+sql_error select floor(floor(c2)) from $tb
+sql_error select floor(c2) from m_di_tb1 where c2 like '2%'
+
+print =============== step3
+sql select floor(c2) from $tb where c2 <= 5001.00000
+print ===> $data00
+if $data00 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 <= 5001.00000
+print ===> $data10
+if $data10 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 <= 5001.00000
+print ===> $data20
+if $data20 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 <= 5001.00000
+print ===> $data70
+if $data70 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 <= 5001.00000
+print ===> $data80
+if $data80 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 <= 5001.00000
+print ===> $data90
+if $data90 != -5001.00000 then
+  return -1
+endi
+
+print =============== step4
+sql select floor(c2) from $tb where c2 >= -5001.00000
+print ===> $data00
+if $data00 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 >= -5001.00000
+print ===> $data10
+if $data10 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 >= -5001.00000
+print ===> $data20
+if $data20 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 >= -5001.00000
+print ===> $data70
+if $data70 != -5001.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 >= -5001.00000
+print ===> $data80
+if $data80 != 5000.00000 then
+  return -1
+endi
+sql select floor(c2) from $tb where c2 >= -5001.00000
+print ===> $data90
+if $data90 != -5001.00000 then
+  return -1
+endi
+
+print =============== step5
+sql select floor(c1) as b from $tb interval(1m) -x step5
+  return -1
+step5:
+
+print =============== step6
+sql select floor(c1) as b from $tb where ts < now + 4m interval(1m) -x step6
+  return -1
+step6:
+
+print =============== clear
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

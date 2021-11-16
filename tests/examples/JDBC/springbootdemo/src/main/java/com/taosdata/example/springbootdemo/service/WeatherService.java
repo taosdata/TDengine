@@ -29,6 +29,7 @@ public class WeatherService {
             Weather weather = new Weather(new Timestamp(ts + (thirtySec * i)), 30 * random.nextFloat(), random.nextInt(100));
             weather.setLocation(locations[random.nextInt(locations.length)]);
             weather.setGroupId(i % locations.length);
+            weather.setNote("note-" + i);
             weatherMapper.createTable(weather);
             count += weatherMapper.insert(weather);
         }
@@ -57,5 +58,22 @@ public class WeatherService {
 
     public List<Weather> avg() {
         return weatherMapper.avg();
+    }
+
+    public Weather lastOne() {
+        Map<String, Object> result = weatherMapper.lastOne();
+
+        long ts = (long) result.get("ts");
+        float temperature = (float) result.get("temperature");
+        float humidity = (float) result.get("humidity");
+        String note = (String) result.get("note");
+        int groupId = (int) result.get("groupid");
+        String location = (String) result.get("location");
+
+        Weather weather = new Weather(new Timestamp(ts), temperature, humidity);
+        weather.setNote(note);
+        weather.setGroupId(groupId);
+        weather.setLocation(location);
+        return weather;
     }
 }

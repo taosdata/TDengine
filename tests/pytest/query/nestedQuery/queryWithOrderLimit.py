@@ -29,7 +29,6 @@ class TDTestCase:
         self.tables = 10
         self.rowsPerTable = 100
 
-
     def run(self):
         # tdSql.execute("drop database db ")
         tdSql.prepare()

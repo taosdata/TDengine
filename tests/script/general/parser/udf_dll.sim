@@ -489,6 +489,7 @@ sql_error select ts,sum_double(f1),f1 from tb1;
 sql_error select add_one(f1),count(f1) from tb1;
 sql_error select sum_double(f1),count(f1) from tb1;
 sql_error select add_one(f1),top(f1,3) from tb1;
+sql_error select add_one(f1),sample(f1,3) from tb1;
 sql_error select add_one(f1) from tb1 interval(10a);
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

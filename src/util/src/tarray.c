@@ -24,11 +24,12 @@ void* taosArrayInit(size_t size, size_t elemSize) {
     size = TARRAY_MIN_SIZE;
   }
 
-  SArray* pArray = calloc(1, sizeof(SArray));
+  SArray* pArray = malloc(sizeof(SArray));
   if (pArray == NULL) {
     return NULL;
   }
 
+  pArray->size = 0;
   pArray->pData = calloc(size, elemSize);
   if (pArray->pData == NULL) {
     free(pArray);
@@ -112,14 +113,15 @@ void taosArrayRemoveBatch(SArray *pArray, const int32_t* pData, int32_t numOfEle
     i += 1;
   }
 
-  assert(i == pData[numOfElems - 1] + 1);
+  assert(i == pData[numOfElems - 1] + 1 && i <= size);
 
-  int32_t dstIndex = pData[numOfElems - 1] - numOfElems + 1;
   int32_t srcIndex = pData[numOfElems - 1] + 1;
-
-  char* dst = TARRAY_GET_ELEM(pArray, dstIndex);
-  char* src = TARRAY_GET_ELEM(pArray, srcIndex);
-  memmove(dst, src, pArray->elemSize * (pArray->size - numOfElems));
+  int32_t dstIndex = pData[numOfElems - 1] - numOfElems + 1;
+  if (pArray->size - srcIndex > 0) {
+    char* dst = TARRAY_GET_ELEM(pArray, dstIndex);
+    char* src = TARRAY_GET_ELEM(pArray, srcIndex);
+    memmove(dst, src, pArray->elemSize * (pArray->size - srcIndex));
+  }
 
   pArray->size -= numOfElems;
 }

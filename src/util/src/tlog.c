@@ -85,6 +85,8 @@ int64_t dbgWSize = 0;
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 #elif (_TD_TQ_ == true)
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
+#elif (_TD_PRO_ == true)
+char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/ProDB";
 #else
 char    tsLogDir[PATH_MAX] = "/var/log/taos";
 #endif

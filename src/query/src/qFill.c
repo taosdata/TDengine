@@ -430,7 +430,7 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
     pFillInfo->pData[i] = pColData->pData;
 
-    if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
+    if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??

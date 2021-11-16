@@ -38,12 +38,12 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
 
   switch (token->type) {
     case TSDB_DATA_TYPE_BOOL: {
-      int32_t k = strncasecmp(token->z, "true", 4);
-      if (k == 0) {
+      if (strncasecmp(token->z, "true", 4) == 0) {
         pVar->i64 = TSDB_TRUE;
-      } else {
-        assert(strncasecmp(token->z, "false", 5) == 0);
+      } else if (strncasecmp(token->z, "false", 5) == 0) {
         pVar->i64 = TSDB_FALSE;
+      } else {
+        return;
       }
 
       break;
@@ -81,7 +81,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
 
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(token->z, token->n);
-      pVar->nLen = strRmquote(pVar->pz, token->n);
+      pVar->nLen = strRmquoteEscape(pVar->pz, token->n);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {

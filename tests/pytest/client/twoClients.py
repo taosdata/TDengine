@@ -17,6 +17,7 @@ sys.path.insert(0, os.getcwd())
 from util.log import *
 from util.sql import *
 from util.dnodes import *
+import multiprocessing as mp
 import taos
 
 
@@ -25,7 +26,6 @@ class TwoClients:
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
-        self.config = "/home/xp/git/TDengine/sim/dnode1/cfg"        
     
     def run(self):
         tdDnodes.init("")
@@ -37,7 +37,7 @@ class TwoClients:
         tdDnodes.start(1)
         
         # first client create a stable and insert data
-        conn1 = taos.connect(self.host, self.user, self.password, self.config)
+        conn1 = taos.connect(host=self.host, user=self.user, password=self.password, config=tdDnodes.getSimCfgPath())
         cursor1 = conn1.cursor()
         cursor1.execute("drop database if exists db")
         cursor1.execute("create database db")
@@ -46,7 +46,7 @@ class TwoClients:
         cursor1.execute("insert into t0 using tb tags('beijing') values(now, 1)")
 
         # second client alter the table created by cleint
-        conn2 = taos.connect(self.host, self.user, self.password, self.config)
+        conn2 = taos.connect(host=self.host, user=self.user, password=self.password, config=tdDnodes.getSimCfgPath())
         cursor2 = conn2.cursor() 
         cursor2.execute("use db")       
         cursor2.execute("alter table tb add column name nchar(30)")

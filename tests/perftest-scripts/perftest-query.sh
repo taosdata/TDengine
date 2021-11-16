@@ -21,7 +21,8 @@ fi
 
 today=`date +"%Y%m%d"`
 WORK_DIR=/root/pxiao
-PERFORMANCE_TEST_REPORT=$WORK_DIR/TDengine/tests/performance-report-$branch-$type-$today.log
+name=`echo $branch | cut -d '/' -f2`
+PERFORMANCE_TEST_REPORT=$WORK_DIR/TDinternal/community/tests/performance-report-$name-$type-$today.log
 
 # Coloured Echoes                                                                                                       #
 function red_echo      { echo -e "\033[31m$@\033[0m";   }                                                               #
@@ -54,11 +55,12 @@ function stopTaosd {
 }
 
 function buildTDengine {
-	echoInfo "Build TDengine"
-	cd $WORK_DIR/TDengine
+	echoInfo "Build TDinternal"
+	cd $WORK_DIR/TDinternal
 
 	git remote update > /dev/null
 	git reset --hard HEAD
+	git fetch
 	git checkout $branch
 	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
 	LOCAL_COMMIT=`git rev-parse --short @`
@@ -69,13 +71,22 @@ function buildTDengine {
 		echo "repo up-to-date"
 	fi
 
+    cd community
+    git reset --hard HEAD
+    cd ..	
+	echo "git submodule update --init --recursive"
+	git submodule update --init --recursive
+	
 	git pull > /dev/null 2>&1
-	if [ $type = "jemalloc" ];then
-		echo "git submodule update --init --recursive"
-		git submodule update --init --recursive
-	fi
+	
+	cd community
+	git remote update > /dev/null
+	git reset --hard HEAD
+	git fetch
+	git checkout $branch
+	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
 	LOCAL_COMMIT=`git rev-parse --short @`
-	cd debug
+	cd ../debug
 	rm -rf *
 	if [ $type = "jemalloc" ];then
 		echo "cmake .. -DJEMALLOC_ENABLED=true > /dev/null"
@@ -83,6 +94,10 @@ function buildTDengine {
 	else
 		cmake .. > /dev/null
 	fi
+	#cp $WORK_DIR/taosdemoPerformance.py $WORK_DIR/TDinternal/community/tests/pytest/tools/
+    #cp $WORK_DIR/insertFromCSVPerformance.py $WORK_DIR/TDinternal/community/tests/pytest/insert/
+	#cp $WORK_DIR/queryPerformance.py $WORK_DIR/TDinternal/community/tests/pytest/query/
+	rm -rf $WORK_DIR/TDinternal/community/tests/pytest/query/operator.py	
 	make > /dev/null 2>&1	
 	make install > /dev/null 2>&1
 	echo "Build TDengine on remote server"	
@@ -91,24 +106,24 @@ function buildTDengine {
 
 function runQueryPerfTest {
 	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
-	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/perf/ > /dev/null 2>&1 &
+	nohup $WORK_DIR/TDinternal/debug/build/bin/taosd -c /etc/perf/ > /dev/null 2>&1 &
 	echoInfo "Wait TDengine to start"
 	sleep 60
 	echoInfo "Run Performance Test"	
-	cd $WORK_DIR/TDengine/tests/pytest	
+	cd $WORK_DIR/TDinternal/community/tests/pytest	
 
-	python3 query/queryPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
+	python3 query/queryPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -d perf2 | tee -a $PERFORMANCE_TEST_REPORT
 
 	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 	
 	echo "=========== taosdemo performance: 4 int columns, 10000 tables, 100000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
 	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 
-	echo "=========== taosdemo performance: 400 int columns, 400 double columns, 200 binary(128) columns, 10000 tables, 1000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
-	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 400 -D 400 -B 200 -t 10000 -r 100 | tee -a $PERFORMANCE_TEST_REPORT
+	echo "=========== taosdemo performance: 400 int columns, 400 double columns, 200 binary(128) columns, 10000 tables, 10 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 400 -D 400 -B 200 -t 10000 -r 10 | tee -a $PERFORMANCE_TEST_REPORT
 
-	echo "=========== taosdemo performance: 1900 int columns, 1900 double columns, 200 binary(128) columns, 10000 tables, 1000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
-	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 1900 -D 1900 -B 200 -t 10000 -r 100 | tee -a $PERFORMANCE_TEST_REPORT
+	echo "=========== taosdemo performance: 1900 int columns, 1900 double columns, 200 binary(128) columns, 10000 tables, 10 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 1900 -D 1900 -B 200 -t 10000 -r 10 | tee -a $PERFORMANCE_TEST_REPORT
 }
 
 
@@ -121,7 +136,7 @@ function sendReport {
 
 	sed -i 's/\x1b\[[0-9;]*m//g' $PERFORMANCE_TEST_REPORT
 	BODY_CONTENT=`cat $PERFORMANCE_TEST_REPORT`
-	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${branch} ${jemalloc} commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${branch} ${type} commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
 	(cat - && uuencode $PERFORMANCE_TEST_REPORT performance-test-report-$today.log) | \
 	/usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
 }

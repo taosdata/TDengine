@@ -1,4 +1,5 @@
 build/
+.ycm_extra_conf.py
 .vscode/
 .idea/
 cmake-build-debug/

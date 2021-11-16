@@ -492,7 +492,6 @@ typedef struct {
   SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
   uint16_t    colCondLen;       // column length in current query
-  uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -502,7 +501,6 @@ typedef struct {
   int64_t     offset;
   uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
-  int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
   int16_t     fillType;         // interpolate type
   uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
@@ -767,12 +765,6 @@ typedef struct SSTableVgroupMsg {
 } SSTableVgroupMsg, SSTableVgroupRspMsg;
 
 typedef struct {
-  int32_t       vgId;
-  int8_t        numOfEps;
-  SEpAddr1      epAddr[TSDB_MAX_REPLICA];
-} SVgroupInfo;
-
-typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
@@ -780,19 +772,15 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  SVgroupInfo vgroups[];
-} SVgroupsInfo;
-
-typedef struct {
-  int32_t numOfVgroups;
   SVgroupMsg vgroups[];
-} SVgroupsMsg;
+} SVgroupsMsg, SVgroupsInfo;
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableFname[TSDB_TABLE_FNAME_LEN];   // table id
   uint8_t       numOfTags;
   uint8_t       precision;
+  uint8_t       update;
   uint8_t       tableType;
   int16_t       numOfColumns;
   int16_t       sversion;

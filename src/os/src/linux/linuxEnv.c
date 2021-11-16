@@ -32,6 +32,13 @@ void osInit() {
 	strcpy(tsDataDir, "/var/lib/tq");
 	strcpy(tsLogDir, "/var/log/tq");
 	strcpy(tsScriptDir, "/etc/tq");
+#elif (_TD_PRO_ == true)
+	if (configDir[0] == 0) {
+	  strcpy(configDir, "/etc/ProDB");
+	}
+	strcpy(tsDataDir, "/var/lib/ProDB");
+	strcpy(tsLogDir, "/var/log/ProDB");
+	strcpy(tsScriptDir, "/etc/ProDB");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");
@@ -50,14 +57,20 @@ void osInit() {
 char* taosGetCmdlineByPID(int pid) {
   static char cmdline[1024];
   sprintf(cmdline, "/proc/%d/cmdline", pid);
-  FILE* f = fopen(cmdline, "r");
-  if (f) {
-    size_t size;
-    size = fread(cmdline, sizeof(char), 1024, f);
-    if (size > 0) {
-      if ('\n' == cmdline[size - 1]) cmdline[size - 1] = '\0';
-    }
-    fclose(f);
+
+  int fd = open(cmdline, O_RDONLY);
+  if (fd >= 0) {
+    int n = read(fd, cmdline, sizeof(cmdline) - 1);
+    if (n < 0) n = 0;
+
+    if (n > 0 && cmdline[n - 1] == '\n') --n;
+
+    cmdline[n] = 0;
+
+    close(fd);
+  } else {
+    cmdline[0] = 0;
   }
+
   return cmdline;
 }

@@ -8,6 +8,8 @@ import java.util.Map;
 
 public interface WeatherMapper {
 
+    Map<String, Object> lastOne();
+
     void dropDB();
 
     void createDB();

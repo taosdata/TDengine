@@ -355,6 +355,25 @@ sql select top(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then
   return -1
 endi
+sql select sample(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from (select ts, sample(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1)
+
+sql select ts,sample(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1
+if $rows != 3 then
+  return -1
+endi
+print select ts,sample(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+
+print ========> TD-6017
+sql select * from (select ts, top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1)
+
 sql select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1
 print select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1
 print $data00 $data01
@@ -456,6 +475,35 @@ if $data10 != @18-09-17 10:30:00.000@ then
   return -1
 endi
 if $data11 != 1 then
+  return -1
+endi
+
+sql select mavg(c1,3) from $tb where c1 > 5 limit 2 offset 1
+print $rows , $data00 , $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 10:30:00.000@ then
+  return -1
+endi
+if $data01 != 8.000000000 then
+  return -1
+endi
+
+sql select csum(c1) from $tb where c1 > 5 limit 2 offset 1
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @18-09-17 10:10:00.000@ then
+  return -1
+endi
+if $data01 != 13 then
+  return -1
+endi
+if $data10 != @18-09-17 10:20:00.000@ then
+  return -1
+endi
+if $data11 != 21 then
   return -1
 endi
 

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define TSDB_CFG_MAX_NUM    116  // 110 + 6 with lossy option
+#define TSDB_CFG_MAX_NUM    124
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
@@ -81,7 +81,6 @@ typedef struct {
 extern SGlobalCfg tsGlobalConfig[];
 extern int32_t    tsGlobalConfigNum;
 extern char *     tsCfgStatusStr[];
-extern bool       tsdbForceKeepFile;
 
 void taosReadGlobalLogCfg();
 bool taosReadGlobalCfg();
@@ -90,6 +89,7 @@ void taosDumpGlobalCfg();
 
 void taosInitConfigOption(SGlobalCfg cfg);
 SGlobalCfg * taosGetConfigOption(const char *option);
+bool taosReadConfigOption(const char *option, char *value, char *value2, char *value3, int8_t cfgStatus, int8_t sourceType);
 
 #ifdef __cplusplus
 }

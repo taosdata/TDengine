@@ -45,6 +45,10 @@ IF (TD_TQ)
   ADD_DEFINITIONS(-D_TD_TQ_)
 ENDIF ()
 
+IF (TD_PRO)
+  ADD_DEFINITIONS(-D_TD_PRO_)
+ENDIF ()
+
 IF (TD_MEM_CHECK)
   ADD_DEFINITIONS(-DTAOS_MEM_CHECK)
 ENDIF ()
@@ -120,6 +124,10 @@ IF (TD_APLHINE)
   MESSAGE(STATUS "aplhine is defined")
 ENDIF ()
 
+IF (TD_BUILD_HTTP)
+  ADD_DEFINITIONS(-DHTTP_EMBEDDED)
+ENDIF ()
+
 IF (TD_LINUX)
   ADD_DEFINITIONS(-DLINUX)
   ADD_DEFINITIONS(-D_LINUX)
@@ -133,8 +141,10 @@ IF (TD_LINUX)
 
   IF (TD_MEMORY_SANITIZER)
     SET(DEBUG_FLAGS "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment -static-libasan -O0 -g3 -DDEBUG")
+    MESSAGE(STATUS "memory sanitizer detected as true")
   ELSE ()
     SET(DEBUG_FLAGS "-O0 -g3 -DDEBUG")
+    MESSAGE(STATUS "memory sanitizer detected as false")
   ENDIF ()
   SET(RELEASE_FLAGS "-O3 -Wno-error")
 

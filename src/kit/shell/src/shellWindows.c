@@ -55,7 +55,7 @@ void printHelp() {
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-n");
-  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync.");
+  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn.");
   printf("%s%s\n", indent, "-l");
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
   printf("%s%s\n", indent, "-N");
@@ -68,7 +68,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-char g_password[MAX_PASSWORD_SIZE];
+char g_password[SHELL_MAX_PASSWORD_LEN];
 
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   for (int i = 1; i < argc; i++) {
@@ -82,20 +82,26 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
     // for password
-    else if (strncmp(argv[i], "-p", 2) == 0) {
+    else if ((strncmp(argv[i], "-p", 2) == 0)
+            || (strncmp(argv[i], "--password", 10) == 0)) {
         arguments->is_use_passwd = true;
         strcpy(tsOsName, "Windows");
         printf(WINCLIENT_VERSION, tsOsName, taos_get_client_info());
-        if (strlen(argv[i]) == 2) {
+        if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
+            taosSetConsoleEcho(false);
             if (scanf("%s", g_password) > 1) {
                 fprintf(stderr, "password read error!\n");
             }
+            taosSetConsoleEcho(true);
             getchar();
         } else {
-            tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+            tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
         }
         arguments->password = g_password;
+        strcpy(argv[i], "");
+        argc -= 1;
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {

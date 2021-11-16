@@ -80,6 +80,7 @@ typedef struct tVariantListItem {
 } tVariantListItem;
 
 typedef struct SIntervalVal {
+  int32_t            token;
   SStrToken          interval;
   SStrToken          offset;
 } SIntervalVal;

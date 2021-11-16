@@ -19,21 +19,28 @@ TDengine 的 Grafana 插件在安装包的 /usr/local/taos/connector/grafanaplug
 sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
 ```
 
+Grafana 8.x 版本会对插件进行签名检查，因此还需要在 grafana.ini 文件中增加如下行，才能正确使用插件：
+```
+[plugins]
+enable_alpha = true
+allow_loading_unsigned_plugins = taosdata-tdengine-datasource
+```
+
 ### 使用 Grafana
 
 #### 配置数据源
 
 用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
-![img](page://images/connections/add_datasource1.jpg)
+![img](../images/connections/add_datasource1.jpg)
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine 可选择添加，如下图所示：
 
-![img](page://images/connections/add_datasource2.jpg)
+![img](../images/connections/add_datasource2.jpg)
 
 进入数据源配置页面，按照默认提示修改相应配置即可：
 
-![img](page://images/connections/add_datasource3.jpg)
+![img](../images/connections/add_datasource3.jpg)
 
 * Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041 。
 * User：TDengine 用户名。
@@ -41,13 +48,13 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
-![img](page://images/connections/add_datasource4.jpg)
+![img](../images/connections/add_datasource4.jpg)
 
 #### 创建 Dashboard
 
 回到主界面创建 Dashboard，点击 Add Query 进入面板查询页面：
 
-![img](page://images/connections/create_dashboard1.jpg)
+![img](../images/connections/create_dashboard1.jpg)
 
 如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 sql 进行查询，具体说明如下：
 
@@ -58,7 +65,7 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
-![img](page://images/connections/create_dashboard2.jpg)
+![img](../images/connections/create_dashboard2.jpg)
 
 > 关于如何使用Grafana创建相应的监测界面以及更多有关使用Grafana的信息，请参考Grafana官方的[文档](https://grafana.com/docs/)。
 
@@ -68,11 +75,11 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 点击左侧 `Import` 按钮，并上传 `tdengine-grafana.json` 文件：
 
-![img](page://images/connections/import_dashboard1.jpg)
+![img](../images/connections/import_dashboard1.jpg)
 
 导入完成之后可看到如下效果：
 
-![img](page://images/connections/import_dashboard2.jpg)
+![img](../images/connections/import_dashboard2.jpg)
 
 
 ## <a class="anchor" id="matlab"></a>MATLAB

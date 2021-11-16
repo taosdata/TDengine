@@ -26,7 +26,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.numberOfTables = 10
+        self.numberOfTables = 8
         self.numberOfRecords = 1000000
 
     def getBuildPath(self):
@@ -86,7 +86,7 @@ class TDTestCase:
             while True:
                 print("query started")
                 try:
-                    tdSql.query("select * from test.t9")
+                    tdSql.query("select * from test.t7")
                 except Exception as e:
                     tdLog.info("select * test failed")
                     time.sleep(2)
@@ -100,8 +100,8 @@ class TDTestCase:
 
             print("alter table test.meters add column c10 int")
             tdSql.execute("alter table test.meters add column c10 int")
-            print("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
-            tdSql.execute("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
+            print("insert into test.t7 values (now, 1, 2, 3, 4, 0)")
+            tdSql.execute("insert into test.t7 values (now, 1, 2, 3, 4, 0)")
 
     def run(self):
         tdSql.prepare()

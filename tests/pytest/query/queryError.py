@@ -65,6 +65,10 @@ class TDTestCase:
         # TD-2208
         tdSql.error("select diff(tagtype),top(tagtype,1) from dev_001")
 
+        # TD-6006
+        tdSql.error("select * from dev_001 where 'name' is not null")
+        tdSql.error("select * from dev_001 where \"name\" = 'first'")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

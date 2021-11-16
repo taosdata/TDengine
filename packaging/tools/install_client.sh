@@ -128,8 +128,12 @@ function install_lib() {
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
-
-    ${csudo} ldconfig
+    
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ldconfig
+    else
+        ${csudo} update_dyld_shared_cache
+    fi
 }
 
 function install_header() {

@@ -3,6 +3,9 @@
 """Constants in TDengine python
 """
 
+import ctypes, struct
+
+
 class FieldType(object):
     """TDengine Field Types"""
 
@@ -33,8 +36,8 @@ class FieldType(object):
     C_INT_UNSIGNED_NULL = 4294967295
     C_BIGINT_NULL = -9223372036854775808
     C_BIGINT_UNSIGNED_NULL = 18446744073709551615
-    C_FLOAT_NULL = float("nan")
-    C_DOUBLE_NULL = float("nan")
+    C_FLOAT_NULL = ctypes.c_float(struct.unpack("<f", b"\x00\x00\xf0\x7f")[0])
+    C_DOUBLE_NULL = ctypes.c_double(struct.unpack("<d", b"\x00\x00\x00\x00\x00\xff\xff\x7f")[0])
     C_BINARY_NULL = bytearray([int("0xff", 16)])
     # Timestamp precision definition
     C_TIMESTAMP_MILLI = 0

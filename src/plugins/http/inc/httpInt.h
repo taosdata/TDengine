@@ -147,9 +147,11 @@ typedef struct HttpContext {
   int32_t      state;
   uint8_t      reqType;
   uint8_t      parsed;
+  uint8_t      error;
   char         ipstr[22];
   char         user[TSDB_USER_LEN];  // parsed from auth token or login message
   char         pass[HTTP_PASSWORD_LEN];
+  char         db[/*TSDB_ACCT_ID_LEN + */TSDB_DB_NAME_LEN];
   TAOS *       taos;
   void *       ppContext;
   HttpSession *session;

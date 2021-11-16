@@ -55,7 +55,7 @@ class TDTestCase:
         tdSql.execute('''drop database if exists test_updata_0 ;''')  
         # update 0 不更新 ; update 1 覆盖更新 ;update 2 合并更新
         tdLog.info("========== test database updata = 0 ==========") 
-        tdSql.execute('''create database test_updata_0 update 0 minrows 10 maxrows 200 ;''')   
+        tdSql.execute('''create database test_updata_0 update 0 minrows 10 maxrows 200 keep 36500;''')   
         tdSql.execute('''use test_updata_0;''')   
         tdSql.execute('''create stable stable_1
                     (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint, 

@@ -766,7 +766,7 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   pSqlNode->pSortOrder  = pSortOrder;
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
-  pSqlNode->pHaving = pHaving;
+  pSqlNode->pHaving     = pHaving;
 
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;

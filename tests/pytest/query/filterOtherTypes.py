@@ -80,10 +80,12 @@ class TDTestCase:
         tdSql.error("select * from st where tbcol1 like '____'")
 
         # > for nchar type on column
-        tdSql.error("select * from st where tbcol2 > 'taosdata'")
+        tdSql.query("select * from st where tbcol2 > 'taosdata'")
+        tdSql.checkRows(10)
 
         # >= for nchar type on column
-        tdSql.error("select * from st where tbcol2 >= 'taosdata'")
+        tdSql.query("select * from st where tbcol2 >= 'taosdata'")
+        tdSql.checkRows(10)
 
         # = for nchar type on column
         tdSql.query("select * from st where tbcol2 = 'taosdata1'")
@@ -98,10 +100,12 @@ class TDTestCase:
         tdSql.checkRows(9)
 
         # > for nchar type on column
-        tdSql.error("select * from st where tbcol2 < 'taodata'")
+        tdSql.query("select * from st where tbcol2 < 'taodata'")
+        tdSql.checkRows(0)
 
         # >= for nchar type on column
-        tdSql.error("select * from st where tbcol2 <= 'taodata'")
+        tdSql.query("select * from st where tbcol2 <= 'taodata'")
+        tdSql.checkRows(0)
 
         # % for nchar type on column case 1
         tdSql.query("select * from st where tbcol2 like '%'")
@@ -140,10 +144,12 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # > for binary type on column
-        tdSql.error("select * from st where tbcol3 > '涛思数据'")
+        tdSql.query("select * from st where tbcol3 > '涛思数据'")
+        tdSql.checkRows(10)
 
         # >= for binary type on column
-        tdSql.error("select * from st where tbcol3 >= '涛思数据'")
+        tdSql.query("select * from st where tbcol3 >= '涛思数据'")
+        tdSql.checkRows(10)
 
         # = for binary type on column
         tdSql.query("select * from st where tbcol3 = '涛思数据1'")
@@ -158,10 +164,12 @@ class TDTestCase:
         tdSql.checkRows(9)
 
         # > for binary type on column
-        tdSql.error("select * from st where tbcol3 < '涛思数据'")
+        tdSql.query("select * from st where tbcol3 < '涛思数据'")
+        tdSql.checkRows(0)
 
         # >= for binary type on column
-        tdSql.error("select * from st where tbcol3 <= '涛思数据'")
+        tdSql.query("select * from st where tbcol3 <= '涛思数据'")
+        tdSql.checkRows(0)
 
         # % for binary type on column case 1
         tdSql.query("select * from st where tbcol3 like '%'")

@@ -7,6 +7,7 @@
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 English | [简体中文](./README-CN.md) 
+We are hiring, check [here](https://www.taosdata.com/en/careers/)
 
 # What is TDengine？
 
@@ -99,6 +100,12 @@ The connectors for go & grafana have been moved to separated repositories,
 so you should run this command in the TDengine directory to install them:
 ```bash
 git submodule update --init --recursive
+```
+
+You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
+```
+[url "git@github.com:"]
+    insteadOf = https://github.com/
 ```
 
 ## Build TDengine
@@ -194,6 +201,19 @@ taos
 ```
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+## Install TDengine by apt-get
+
+If you use Debian or Ubuntu system, you can use 'apt-get' command to intall TDengine from official repository. Please use following commands to setup:
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+[Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+sudo apt-get update
+apt-get policy tdengine
+sudo apt-get install tdengine
+```
 
 ## Quick Run
 

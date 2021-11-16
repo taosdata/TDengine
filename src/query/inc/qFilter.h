@@ -83,6 +83,12 @@ enum {
   RANGE_TYPE_MR_CTX = 3,
 };
 
+enum {
+  FI_ACTION_NO_NEED = 1,
+  FI_ACTION_CONTINUE,
+  FI_ACTION_STOP,
+};
+
 typedef struct OptrStr {
   uint16_t optr;
   char    *str;
@@ -106,6 +112,7 @@ typedef struct SFilterColRange {
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SDataStatis *, int16_t);
+typedef int32_t (*filer_get_col_from_id)(void *, int32_t, void **);
 
 typedef struct SFilterRangeCompare {
   int64_t s;
@@ -323,14 +330,16 @@ typedef struct SFilterInfo {
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
 
-extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
+extern int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols);
-extern int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDataBlock);
+extern int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
 extern bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows);
+extern int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res);
+extern int32_t filterGetIndexedColumnInfo(SFilterInfo* info, char** val, int32_t *order, int32_t *flag);
 
 #ifdef __cplusplus
 }

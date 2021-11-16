@@ -488,7 +488,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
     return -1;
   }
 
-  if (listen(sockFd, 10) < 0) {
+  if (listen(sockFd, 1024) < 0) {
     uError("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;

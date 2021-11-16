@@ -16,11 +16,11 @@
 #include "tsdbint.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
-    "head",  // TSDB_FILE_HEAD
-    "data",  // TSDB_FILE_DATA
-    "last",  // TSDB_FILE_LAST
-    "",      // TSDB_FILE_MAX
-    "meta"   // TSDB_FILE_META
+    "head",     // TSDB_FILE_HEAD
+    "data",     // TSDB_FILE_DATA
+    "last",     // TSDB_FILE_LAST
+    "",         // TSDB_FILE_MAX
+    "meta",     // TSDB_FILE_META
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);

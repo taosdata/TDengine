@@ -80,7 +80,7 @@ class ResultError(DatabaseError):
 
     pass
 
-class LinesError(DatabaseError):
-    """taos_insert_lines errors."""
+class SchemalessError(DatabaseError):
+    """taos_schemaless_insert errors."""
 
     pass

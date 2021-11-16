@@ -22,10 +22,10 @@
 #include "httpResp.h"
 #include "httpSql.h"
 
-#define REST_ROOT_URL_POS   0
-#define REST_ACTION_URL_POS 1
-#define REST_USER_URL_POS   2
-#define REST_PASS_URL_POS   3
+#define REST_ROOT_URL_POS         0
+#define REST_ACTION_URL_POS       1
+#define REST_USER_USEDB_URL_POS   2
+#define REST_PASS_URL_POS         3
 
 void restInitHandle(HttpServer* pServer);
 bool restProcessRequest(struct HttpContext* pContext);

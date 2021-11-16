@@ -1,3 +1,4 @@
+
 @echo off
 echo ==== start Go connector test cases test ====
 cd /d %~dp0
@@ -8,7 +9,7 @@ if "%severIp%"=="" (set severIp=127.0.0.1)
 if "%serverPort%"=="" (set serverPort=6030)
 
 go env -w GO111MODULE=on
-go env -w GOPROXY=https://goproxy.io,direct
+go env -w GOPROXY=https://goproxy.cn,direct
 
 cd case001
 case001.bat %severIp% %serverPort%  
@@ -18,3 +19,10 @@ rem case002.bat
 
 :: cd case002
 :: case002.bat
+
+
+rem cd nanosupport 
+rem nanoCase.bat 
+
+:: cd nanosupport 
+:: nanoCase.bat 
