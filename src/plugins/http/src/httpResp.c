@@ -24,7 +24,7 @@
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 
-const char *httpVersionStr[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/1.2"};
+const char *httpVersionStr[] = {"HTTP/1.0", "HTTP/1.1", "HTTP/2.0"}; /* There is no version 1.2 */
 
 const char *httpRespTemplate[] = {
     // HTTP_RESPONSE_JSON_OK
@@ -52,8 +52,14 @@ static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *
 
   int8_t httpVersion = 0;
   int8_t keepAlive = 0;
+
   if (pContext->parser != NULL) {
     httpVersion = pContext->parser->httpVersion;
+  }
+
+  if (pContext->error == true) {
+    keepAlive = HTTP_KEEPALIVE_DISABLE;
+  } else if (pContext->parser != NULL) {
     keepAlive = pContext->parser->keepAlive;
   }
 

@@ -1417,6 +1417,11 @@ int tsParseInsertSql(SSqlObj *pSql) {
         goto _clean;
       }
 
+      if (sToken.type == TK_ILLEGAL) {  // ,,,, like => insert into t values(now,1),,,,(now+1s,2);
+        code = tscSQLSyntaxErrMsg(pInsertParam->msg, NULL, str);
+        goto _clean;
+      }
+
       /*
        * if no data has been generated during parsing the sql string, error msg will return
        * Otherwise, create the first submit block and submit to virtual node.
