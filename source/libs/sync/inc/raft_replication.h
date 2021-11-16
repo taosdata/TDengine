@@ -20,6 +20,11 @@
 #include "syncInt.h"
 #include "sync_type.h"
 
-int syncRaftReplicate(SSyncRaft* pRaft, int i);
+// syncRaftReplicate sends an append RPC with new entries to the given peer,
+// if necessary. Returns true if a message was sent. The sendIfEmpty
+// argument controls whether messages with no entries will be sent
+// ("empty" messages are useful to convey updated Commit indexes, but
+// are undesirable when we're sending multiple messages in a batch).
+bool syncRaftReplicate(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool sendIfEmpty);
 
 #endif  /* TD_SYNC_RAFT_REPLICATION_H */

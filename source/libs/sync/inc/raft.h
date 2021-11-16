@@ -65,7 +65,8 @@ struct SSyncRaft {
 
   SSyncRaftLog *log;
 
-  int maxMsgSize;
+  uint64_t maxMsgSize;
+  uint64_t maxUncommittedSize;
   SSyncRaftProgressTracker *tracker;
 
   ESyncState state;

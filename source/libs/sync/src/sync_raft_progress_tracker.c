@@ -14,6 +14,7 @@
  */
 
 #include "sync_raft_progress_tracker.h"
+#include "sync_raft_proto.h"
 
 SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
   SSyncRaftProgressTracker* tracker = (SSyncRaftProgressTracker*)malloc(sizeof(SSyncRaftProgressTracker));
@@ -25,13 +26,13 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
 }
 
 void syncRaftResetVotes(SSyncRaftProgressTracker* tracker) {
-  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(SyncRaftVoteResult) * TSDB_MAX_REPLICA);
+  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(ESyncRaftVoteType) * TSDB_MAX_REPLICA);
 }
 
 void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp visit, void* arg) {
   int i;
   for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SSyncRaftProgress* progress = &(tracker->progressMap[i]);
+    SSyncRaftProgress* progress = &(tracker->progressMap.progress[i]);
     visit(i, progress, arg);
   }
 }
@@ -44,17 +45,21 @@ void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant) {
   tracker->votes[i] = grant ? SYNC_RAFT_VOTE_RESP_GRANT : SYNC_RAFT_VOTE_RESP_REJECT;
 }
 
+void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to) {
+
+}
+
 /** 
  * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
  * election outcome is known.
  **/
-SyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted) {
+ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted) {
   int i;
   SSyncRaftProgress* progress;
   int r, g;
 
   for (i = 0, r = 0, g = 0; i < TSDB_MAX_REPLICA; ++i) {
-    progress = &(tracker->progressMap[i]);
+    progress = &(tracker->progressMap.progress[i]);
     if (progress->id == SYNC_NON_NODE_ID) {
       continue;
     }
@@ -73,4 +78,11 @@ SyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* re
   if (rejected) *rejected = r;
   if (granted) *granted = g;
   return syncRaftVoteResult(&(tracker->config.voters), tracker->votes);
+}
+
+void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs) {
+  memcpy(&cs->voters, &tracker->config.voters.incoming, sizeof(SSyncRaftNodeMap));
+  memcpy(&cs->votersOutgoing, &tracker->config.voters.outgoing, sizeof(SSyncRaftNodeMap));
+  memcpy(&cs->learners, &tracker->config.learners, sizeof(SSyncRaftNodeMap));
+  memcpy(&cs->learnersNext, &tracker->config.learnersNext, sizeof(SSyncRaftNodeMap));
 }

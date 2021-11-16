@@ -22,9 +22,9 @@
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const SyncRaftVoteResult* votes) {
-  SyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->majorityConfig[0]), votes);
-  SyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->majorityConfig[1]), votes);
+ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes) {
+  ESyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->incoming), votes);
+  ESyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->outgoing), votes);
 
   if (r1 == r2) {
     // If they agree, return the agreed state.
@@ -38,4 +38,48 @@ SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const 
 
   // One side won, the other one is pending, so the whole outcome is.
   return SYNC_RAFT_VOTE_PENDING;
+}
+
+void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  int i, min;
+
+  for (i = 0, min = -1; i < TSDB_MAX_REPLICA; ++i) {
+    if (config->incoming.nodeId[i] == id) {
+      return;
+    }
+    if (min == -1 && config->incoming.nodeId[i] == SYNC_NON_NODE_ID) {
+      min = i;
+    }
+  }
+
+  assert(min != -1);
+  config->incoming.nodeId[min] = id;
+  config->incoming.replica += 1;
+}
+
+void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  int i;
+
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (config->incoming.nodeId[i] == id) {
+      config->incoming.replica  -= 1;
+      config->incoming.nodeId[i] = SYNC_NON_NODE_ID;
+      break;
+    }
+  }
+
+  assert(config->incoming.replica >= 0);
+}
+
+
+bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
+  int i;
+
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (nodeId == nodeMap->nodeId[i]) {
+      return true;
+    }
+  }
+
+  return false;
 }

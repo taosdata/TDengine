@@ -31,6 +31,10 @@ SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog) {
   return 0;
 }
 
+void syncRaftLogAppliedTo(SSyncRaftLog* pLog, SyncIndex appliedIndex) {
+
+}
+
 bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term) {
   return true;
 }

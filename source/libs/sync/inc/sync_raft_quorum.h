@@ -17,11 +17,11 @@
 #define TD_SYNC_RAFT_QUORUM_H
 
 /**
- * SSyncRaftVoteResult indicates the outcome of a vote.
+ * ESyncRaftVoteResult indicates the outcome of a vote.
  **/
 typedef enum {
 	/**
-	 *  SYNC_RAFT_VOTE_PENDING indicates that the decision of the vote depends on future
+	 * SYNC_RAFT_VOTE_PENDING indicates that the decision of the vote depends on future
 	 * votes, i.e. neither "yes" or "no" has reached quorum yet.
 	 **/
 	SYNC_RAFT_VOTE_PENDING = 1,
@@ -35,6 +35,6 @@ typedef enum {
 	 * SYNC_RAFT_VOTE_WON indicates that the quorum has voted "yes".
 	 **/
 	SYNC_RAFT_VOTE_WON = 3,
-} SSyncRaftVoteResult;
+} ESyncRaftVoteResult;
 
 #endif /* TD_SYNC_RAFT_QUORUM_H */

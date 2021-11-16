@@ -20,13 +20,13 @@
 #include "sync.h"
 #include "syncInt.h"
 
-static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state);
+static void resetProgressState(SSyncRaftProgress* progress, ESyncRaftProgressState state);
 static void probeAcked(SSyncRaftProgress* progress);
 
 static void resumeProgress(SSyncRaftProgress* progress);
 
 void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress) {
-  SSyncRaftInflights* inflights = syncRaftOpenInflights(pRaft->tracker->maxInflight);
+  SSyncRaftInflights* inflights = syncRaftOpenInflights(pRaft->tracker->maxInflightMsgs);
   if (inflights == NULL) {
     return;
   }
@@ -112,6 +112,44 @@ bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
   }
 }
 
+int syncRaftFindProgressIndexByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  int i;
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (progressMap->progress[i].id == id) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  int i, j;
+
+  for (i = 0, j = -1; i < TSDB_MAX_REPLICA; ++i) {
+    if (progressMap->progress[i].id == id) {
+      return i;
+    }
+    if (j == -1 && progressMap->progress[i].id == SYNC_NON_NODE_ID) {
+      j = i;
+    }
+  }
+
+  assert(j != -1);
+
+  progressMap->progress[i].id = id;
+}
+
+void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  int i;
+
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (progressMap->progress[i].id == id) {
+      progressMap->progress[i].id = SYNC_NON_NODE_ID;
+      break;
+    }
+  }
+}
+
 bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
   return syncRaftLogLastIndex(pRaft->log) + 1 == progress->nextIndex;
 }
@@ -149,11 +187,15 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
   progress->pendingSnapshotIndex = snapshotIndex;
 }
 
+void syncRaftCopyProgress(const SSyncRaftProgress* progress, SSyncRaftProgress* out) {
+
+}
+
 /**
  * ResetState moves the Progress into the specified State, resetting ProbeSent,
  * PendingSnapshot, and Inflights.
  **/
-static void resetProgressState(SSyncRaftProgress* progress, RaftProgressState state) {
+static void resetProgressState(SSyncRaftProgress* progress, ESyncRaftProgressState state) {
   progress->probeSent = false;
   progress->pendingSnapshotIndex = 0;
   progress->state = state;
@@ -233,7 +275,7 @@ void syncRaftProgressAbortSnapshot(SSyncRaft* pRaft, int i) {
   progress->state = PROGRESS_STATE_PROBE;
 }
 
-RaftProgressState syncRaftProgressState(SSyncRaft* pRaft, int i) {
+ESyncRaftProgressState syncRaftProgressState(SSyncRaft* pRaft, int i) {
   return pRaft->leaderState.progress[i].state;
 }
 

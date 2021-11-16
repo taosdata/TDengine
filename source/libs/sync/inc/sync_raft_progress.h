@@ -34,7 +34,7 @@
  * 
  * PROGRESS_STATE_PROBE is the initial state.
  **/
-typedef enum RaftProgressState {
+typedef enum ESyncRaftProgressState {
   /**
 	* StateProbe indicates a follower whose last index isn't known. Such a
 	* follower is "probed" (i.e. an append sent periodically) to narrow down
@@ -56,13 +56,22 @@ typedef enum RaftProgressState {
 	* return to StateReplicate.
   **/
   PROGRESS_STATE_SNAPSHOT,
-} RaftProgressState;
+} ESyncRaftProgressState;
+
+static const char* kProgressStateString[] = {
+	"Probe",
+	"Replicate",
+	"Snapshot",
+};
 
 /**
  * Progress represents a follower’s progress in the view of the leader. Leader maintains
  * progresses of all followers, and sends entries to the follower based on its progress.
  **/
 struct SSyncRaftProgress {
+	// index in raft cluster config
+	int selfIndex;
+
 	SyncNodeId id;
 
   SyncIndex nextIndex;
@@ -82,7 +91,7 @@ struct SSyncRaftProgress {
 	* When in StateSnapshot, leader should have sent out snapshot
 	* before and stops sending any replication message.
   **/
-  RaftProgressState state;
+  ESyncRaftProgressState state;
 
 	/** 
    * pendingSnapshotIndex is used in PROGRESS_STATE_SNAPSHOT.
@@ -128,6 +137,15 @@ struct SSyncRaftProgress {
    **/
   bool isLearner;
 };
+
+struct SSyncRaftProgressMap {
+	SSyncRaftProgress progress[TSDB_MAX_REPLICA];
+};
+
+
+static FORCE_INLINE const char* syncRaftProgressStateString(const SSyncRaftProgress* progress) {
+	return kProgressStateString[progress->state];
+}
 
 void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
@@ -187,21 +205,27 @@ static FORCE_INLINE SyncIndex syncRaftProgressNextIndex(SSyncRaftProgress* progr
   return progress->nextIndex;
 }
 
-static FORCE_INLINE RaftProgressState syncRaftProgressInReplicate(SSyncRaftProgress* progress) {
+static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInReplicate(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_STATE_REPLICATE;
 }
 
-static FORCE_INLINE RaftProgressState syncRaftProgressInSnapshot(SSyncRaftProgress* progress) {
+static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInSnapshot(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_STATE_SNAPSHOT;
 }
 
-static FORCE_INLINE RaftProgressState syncRaftProgressInProbe(SSyncRaftProgress* progress) {
+static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInProbe(SSyncRaftProgress* progress) {
   return progress->state == PROGRESS_STATE_PROBE;
 }
 
 static FORCE_INLINE bool syncRaftProgressRecentActive(SSyncRaftProgress* progress) {
   return progress->recentActive;
 }
+
+int syncRaftFindProgressIndexByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id);
+
+int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
+
+void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
 
 /** 
  * return true if progress's log is up-todate
@@ -210,7 +234,9 @@ bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
 void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snapshotIndex);
 
+void syncRaftCopyProgress(const SSyncRaftProgress* from, SSyncRaftProgress* to);
 
+void syncRaftProgressMapCopy(const SSyncRaftProgressMap* from, SSyncRaftProgressMap* to);
 
 #if 0
 
