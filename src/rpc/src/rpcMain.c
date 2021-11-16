@@ -858,7 +858,6 @@ static int rpcProcessReqHead(SRpcConn *pConn, SRpcHead *pHead) {
       tDebug("%s, message body is empty, ignore", pConn->info);
       return TSDB_CODE_RPC_APP_ERROR;
     }
-
     pConn->inTranId = pHead->tranId;
     pConn->inType = pHead->msgType;
     // start the progress timer to monitor the response from server app
