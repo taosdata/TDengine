@@ -32,13 +32,15 @@ void FooDeleter(void* pObj) {
   free(pObj); 
 }
 
-class TqMetaTest : public ::testing::Test {
+class TqMetaUpdateAppendTest : public ::testing::Test {
   protected:
 
     void SetUp() override {
       taosRemoveDir(pathName);
       pMeta = tqStoreOpen(pathName,
-          FooSerializer, FooDeserializer, FooDeleter);
+          FooSerializer, FooDeserializer, FooDeleter,
+          TQ_UPDATE_APPEND
+        );
       ASSERT(pMeta);
     }
 
@@ -50,7 +52,7 @@ class TqMetaTest : public ::testing::Test {
     const char* pathName = "/tmp/tq_test";
 };
 
-TEST_F(TqMetaTest, copyPutTest) {
+TEST_F(TqMetaUpdateAppendTest, copyPutTest) {
   Foo foo;
   foo.a = 3;
   tqHandleCopyPut(pMeta, 1, &foo, sizeof(Foo));
@@ -63,7 +65,7 @@ TEST_F(TqMetaTest, copyPutTest) {
   EXPECT_EQ(pFoo->a, 3);
 }
 
-TEST_F(TqMetaTest, persistTest) {
+TEST_F(TqMetaUpdateAppendTest, persistTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 2;
   tqHandleMovePut(pMeta, 1, pFoo);
@@ -77,7 +79,9 @@ TEST_F(TqMetaTest, persistTest) {
 
   tqStoreClose(pMeta);
   pMeta = tqStoreOpen(pathName,
-      FooSerializer, FooDeserializer, FooDeleter);
+      FooSerializer, FooDeserializer, FooDeleter,
+      TQ_UPDATE_APPEND
+    );
   ASSERT(pMeta);
 
   pBar = (Foo*)tqHandleGet(pMeta, 1);
@@ -88,7 +92,7 @@ TEST_F(TqMetaTest, persistTest) {
   EXPECT_EQ(pBar == NULL, true);
 }
 
-TEST_F(TqMetaTest, uncommittedTest) {
+TEST_F(TqMetaUpdateAppendTest, uncommittedTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
@@ -97,7 +101,7 @@ TEST_F(TqMetaTest, uncommittedTest) {
   EXPECT_EQ(pFoo == NULL, true);
 }
 
-TEST_F(TqMetaTest, abortTest) {
+TEST_F(TqMetaUpdateAppendTest, abortTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
@@ -110,7 +114,7 @@ TEST_F(TqMetaTest, abortTest) {
   EXPECT_EQ(pFoo == NULL, true);
 }
 
-TEST_F(TqMetaTest, deleteTest) {
+TEST_F(TqMetaUpdateAppendTest, deleteTest) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
@@ -135,14 +139,16 @@ TEST_F(TqMetaTest, deleteTest) {
 
   tqStoreClose(pMeta);
   pMeta = tqStoreOpen(pathName,
-      FooSerializer, FooDeserializer, FooDeleter);
+      FooSerializer, FooDeserializer, FooDeleter,
+      TQ_UPDATE_APPEND
+    );
   ASSERT(pMeta);
 
   pFoo = (Foo*) tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo == NULL, true);
 }
 
-TEST_F(TqMetaTest, intxnPersist) {
+TEST_F(TqMetaUpdateAppendTest, intxnPersist) {
   Foo* pFoo = (Foo*)malloc(sizeof(Foo));
   pFoo->a = 3;
   tqHandleMovePut(pMeta, 1, pFoo);
@@ -157,7 +163,9 @@ TEST_F(TqMetaTest, intxnPersist) {
 
   tqStoreClose(pMeta);
   pMeta = tqStoreOpen(pathName,
-      FooSerializer, FooDeserializer, FooDeleter);
+      FooSerializer, FooDeserializer, FooDeleter,
+      TQ_UPDATE_APPEND
+    );
   ASSERT(pMeta);
 
   pFoo1 = (Foo*)tqHandleGet(pMeta, 1);
@@ -170,14 +178,16 @@ TEST_F(TqMetaTest, intxnPersist) {
 
   tqStoreClose(pMeta);
   pMeta = tqStoreOpen(pathName,
-      FooSerializer, FooDeserializer, FooDeleter);
+      FooSerializer, FooDeserializer, FooDeleter,
+      TQ_UPDATE_APPEND
+    );
   ASSERT(pMeta);
 
   pFoo1 = (Foo*)tqHandleGet(pMeta, 1);
   EXPECT_EQ(pFoo1->a, 4);
 }
 
-TEST_F(TqMetaTest, multiplePage) {
+TEST_F(TqMetaUpdateAppendTest, multiplePage) {
   srand(0);
   std::vector<int> v;
   for(int i = 0; i < 1000; i++) {
@@ -195,7 +205,9 @@ TEST_F(TqMetaTest, multiplePage) {
 
   tqStoreClose(pMeta);
   pMeta = tqStoreOpen(pathName,
-      FooSerializer, FooDeserializer, FooDeleter);
+      FooSerializer, FooDeserializer, FooDeleter,
+      TQ_UPDATE_APPEND
+    );
   ASSERT(pMeta);
   
   for(int i = 500; i < 1000; i++) {
@@ -213,7 +225,7 @@ TEST_F(TqMetaTest, multiplePage) {
 
 }
 
-TEST_F(TqMetaTest, multipleRewrite) {
+TEST_F(TqMetaUpdateAppendTest, multipleRewrite) {
   srand(0);
   std::vector<int> v;
   for(int i = 0; i < 1000; i++) {
@@ -244,7 +256,9 @@ TEST_F(TqMetaTest, multipleRewrite) {
 
   tqStoreClose(pMeta);
   pMeta = tqStoreOpen(pathName,
-      FooSerializer, FooDeserializer, FooDeleter);
+      FooSerializer, FooDeserializer, FooDeleter,
+      TQ_UPDATE_APPEND
+    );
   ASSERT(pMeta);
   
   for(int i = 500; i < 1000; i++) {
@@ -263,7 +277,7 @@ TEST_F(TqMetaTest, multipleRewrite) {
 
 }
 
-TEST_F(TqMetaTest, dupCommit) {
+TEST_F(TqMetaUpdateAppendTest, dupCommit) {
   srand(0);
   std::vector<int> v;
   for(int i = 0; i < 1000; i++) {
