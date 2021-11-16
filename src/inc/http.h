@@ -22,8 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 
-int32_t httpGetReqCount();
-int32_t httpClearReqCount();
+int64_t httpGetReqCount();
 int32_t httpGetStatusCodeCount(int index);
 int32_t httpClearStatusCodeCount(int index);
 int32_t httpInitSystem();
