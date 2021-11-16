@@ -153,11 +153,6 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 #if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
 #  cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
 
-#  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-#    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-#  else
-#    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-#  fi
 #  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
 #    cp -r ${connector_dir}/go ${install_dir}/connector
 #  else

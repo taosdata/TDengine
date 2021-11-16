@@ -2029,8 +2029,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg6 = "not support distinct mixed with join"; 
   const char* msg7 = "not support distinct mixed with groupby";
   const char* msg8 = "not support distinct in nest query";
-  const char* msg9 = "not support group by in block func";
-  const char* msg10 = "invalid alias name";
+  const char* msg9 = "invalid alias name";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2055,7 +2054,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
        distIdx     =  hasDistinct ? i : -1;
     }
     if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
     }
 
     int32_t type = pItem->pNode->type;
@@ -2067,10 +2066,6 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
 
       if (pItem->pNode->functionId == TSDB_FUNC_BLKINFO && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
-      }
-
-      if (pItem->pNode->functionId == TSDB_FUNC_BLKINFO && pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
       SUdfInfo* pUdfInfo = NULL;
@@ -5614,7 +5609,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   bool udf = false;
 
   if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
-    int32_t usize = taosArrayGetSize(pQueryInfo->pUdfInfo);
+    int32_t usize = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
     
     for (int32_t i = 0; i < usize; ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -8410,7 +8405,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           
           for (int32_t j = 0; j < usize; ++j) {
             SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
-            int32_t len = strlen(pUdfInfo->name);
+            int32_t len = (int32_t)strlen(pUdfInfo->name);
             if (len == t->n && strncasecmp(info.name, pUdfInfo->name, t->n) == 0) {
               exist = 1;
               break;

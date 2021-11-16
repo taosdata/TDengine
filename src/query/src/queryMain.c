@@ -213,7 +213,10 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   }
 
   *qId = pQInfo->qId;
-  pQInfo->startExecTs = taosGetTimestampSec();
+  if(pQInfo->startExecTs == 0) {
+    pQInfo->startExecTs = taosGetTimestampMs();
+    pQInfo->lastRetrieveTs = pQInfo->startExecTs;
+  }
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:0x%"PRIx64" it is already killed, abort", pQInfo->qId);
@@ -342,6 +345,9 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   } else {
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
   }
+
+  RESET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv));
+  pQInfo->lastRetrieveTs = taosGetTimestampMs();
 
   pQInfo->rspContext = NULL;
   pQInfo->dataReady  = QUERY_RESULT_NOT_READY;
