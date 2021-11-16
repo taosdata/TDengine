@@ -6071,13 +6071,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   bool dbIncluded = false;
 
   SStrToken tmpToken = pAlterSQL->name;
-  const int32_t bufLen = pAlterSQL->name.n;
-  char tmpTokenBuf[bufLen];
+  char *tmpTokenBuf = strndup(pAlterSQL->name.z, pAlterSQL->name.n);
   tmpToken.z = tmpTokenBuf;
-  memcpy(tmpTokenBuf, pAlterSQL->name.z, pAlterSQL->name.n);
   if (tscValidateName(&tmpToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    free(tmpTokenBuf);
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
+  free(tmpTokenBuf);
 
   code = tscSetTableFullName(&pTableMetaInfo->name, &tmpToken, pSql, dbIncluded);
   if (code != TSDB_CODE_SUCCESS) {
