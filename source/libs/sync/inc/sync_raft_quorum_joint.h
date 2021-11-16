@@ -25,8 +25,8 @@
  * majority configurations. Decisions require the support of both majorities.
  **/
 typedef struct SSyncRaftQuorumJointConfig {
-  SSyncCluster outgoing;
-  SSyncCluster incoming;
+  SSyncRaftNodeMap outgoing;
+  SSyncRaftNodeMap incoming;
 } SSyncRaftQuorumJointConfig;
 
 /**

@@ -119,15 +119,15 @@ typedef struct SStateManager {
   int32_t (*readServerState)(struct SStateManager* stateMng, char** ppBuffer, int* n);
 
   // save serialized cluster state data, buffer will be free by Sync
-  void (*saveCluster)(struct SStateManager* stateMng, const char* buffer, int n);
+  void (*saveClusterState)(struct SStateManager* stateMng, const char* buffer, int n);
 
   // read serialized cluster state data, buffer will be free by Sync
-  int32_t (*readCluster)(struct SStateManager* stateMng, char** ppBuffer, int* n);
+  int32_t (*readClusterState)(struct SStateManager* stateMng, char** ppBuffer, int* n);
 } SStateManager;
 
 typedef struct {
   SyncGroupId   vgId;
-  SyncIndex     snapshotIndex;
+  SyncIndex     appliedIndex;
   SSyncCluster  syncCfg;
   SSyncFSM      fsm;
   SSyncLogStore logStore;

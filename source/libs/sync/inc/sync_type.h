@@ -86,7 +86,7 @@ typedef enum {
   // grant the vote request
   SYNC_RAFT_VOTE_RESP_GRANT   = 1,
 
-  //reject the vote request
+  // reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
 } ESyncRaftVoteType;
 

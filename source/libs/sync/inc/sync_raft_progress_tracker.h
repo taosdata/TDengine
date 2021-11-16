@@ -20,6 +20,7 @@
 #include "sync_raft_quorum.h"
 #include "sync_raft_quorum_joint.h"
 #include "sync_raft_progress.h"
+#include "sync_raft_proto.h"
 
 struct SSyncRaftProgressTrackerConfig {
   SSyncRaftQuorumJointConfig voters;
@@ -108,5 +109,7 @@ int syncRaftCheckProgress(const SSyncRaftProgressTrackerConfig* config, SSyncRaf
  * election outcome is known.
  **/
 ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted);
+
+void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs);
 
 #endif  /* _TD_LIBS_SYNC_RAFT_PROGRESS_TRACKER_H */

@@ -14,6 +14,7 @@
  */
 
 #include "sync_raft_progress_tracker.h"
+#include "sync_raft_proto.h"
 
 SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
   SSyncRaftProgressTracker* tracker = (SSyncRaftProgressTracker*)malloc(sizeof(SSyncRaftProgressTracker));
@@ -77,4 +78,11 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
   if (rejected) *rejected = r;
   if (granted) *granted = g;
   return syncRaftVoteResult(&(tracker->config.voters), tracker->votes);
+}
+
+void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs) {
+  memcpy(&cs->voters, &tracker->config.voters.incoming, sizeof(SSyncRaftNodeMap));
+  memcpy(&cs->votersOutgoing, &tracker->config.voters.outgoing, sizeof(SSyncRaftNodeMap));
+  memcpy(&cs->learners, &tracker->config.learners, sizeof(SSyncRaftNodeMap));
+  memcpy(&cs->learnersNext, &tracker->config.learnersNext, sizeof(SSyncRaftNodeMap));
 }

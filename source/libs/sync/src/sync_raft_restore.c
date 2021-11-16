@@ -48,7 +48,7 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs)
         .n = 1,
         .changes = &incoming.changes[i],
       };
-      ret = syncRaftChangerSimpleConfig(changer, &css, &config, &progressMap);
+      ret = syncRaftChangerSimpleConfig(changer, &css, config, progressMap);
       if (ret != 0) {
         goto out;
       }

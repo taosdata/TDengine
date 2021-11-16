@@ -58,11 +58,20 @@ typedef enum ESyncRaftProgressState {
   PROGRESS_STATE_SNAPSHOT,
 } ESyncRaftProgressState;
 
+static const char* kProgressStateString[] = {
+	"Probe",
+	"Replicate",
+	"Snapshot",
+};
+
 /**
  * Progress represents a follower’s progress in the view of the leader. Leader maintains
  * progresses of all followers, and sends entries to the follower based on its progress.
  **/
 struct SSyncRaftProgress {
+	// index in raft cluster config
+	int selfIndex;
+
 	SyncNodeId id;
 
   SyncIndex nextIndex;
@@ -132,6 +141,11 @@ struct SSyncRaftProgress {
 struct SSyncRaftProgressMap {
 	SSyncRaftProgress progress[TSDB_MAX_REPLICA];
 };
+
+
+static FORCE_INLINE const char* syncRaftProgressStateString(const SSyncRaftProgress* progress) {
+	return kProgressStateString[progress->state];
+}
 
 void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress);
 

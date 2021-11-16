@@ -16,106 +16,62 @@
 #include "raft.h"
 #include "raft_log.h"
 #include "sync_raft_progress.h"
+#include "syncInt.h"
 #include "raft_replication.h"
 
-static int sendSnapshot(SSyncRaft* pRaft, int i);
-static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex index, SyncTerm term);
+static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress);
+static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
+                              SyncIndex prevIndex, SyncTerm prevTerm,
+                              const SSyncRaftEntry *entries, int nEntry);
 
-int syncRaftReplicate(SSyncRaft* pRaft, int i) {
-#if 0
+// syncRaftReplicate sends an append RPC with new entries to the given peer,
+// if necessary. Returns true if a message was sent. The sendIfEmpty
+// argument controls whether messages with no entries will be sent
+// ("empty" messages are useful to convey updated Commit indexes, but
+// are undesirable when we're sending multiple messages in a batch).
+bool syncRaftReplicate(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool sendIfEmpty) {
   assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
-  assert(i >= 0 && i < pRaft->leaderState.nProgress);
+  SyncNodeId nodeId = progress->id;
 
-  SyncNodeId nodeId = pRaft->cluster.nodeInfo[i].nodeId;
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
   if (syncRaftProgressIsPaused(progress)) {
-    syncInfo("node %d paused", nodeId);
-    return 0;
+    syncInfo("node [%d:%d] paused", pRaft->selfGroupId, nodeId);
+    return false;
   }
 
   SyncIndex nextIndex = syncRaftProgressNextIndex(progress);
-  SyncIndex snapshotIndex = syncRaftLogSnapshotIndex(pRaft->log);
-  bool inSnapshot = syncRaftProgressInSnapshot(progress);
+  SSyncRaftEntry *entries;
+  int nEntry;   
   SyncIndex prevIndex;
   SyncTerm prevTerm;
 
-  /**
-   * From Section 3.5:
-   *
-   *   When sending an AppendEntries RPC, the leader includes the index and
-   *   term of the entry in its log that immediately precedes the new
-   *   entries. If the follower does not find an entry in its log with the
-   *   same index and term, then it refuses the new entries. The consistency
-   *   check acts as an induction step: the initial empty state of the logs
-   *   satisfies the Log Matching Property, and the consistency check
-   *   preserves the Log Matching Property whenever logs are extended. As a
-   *   result, whenever AppendEntries returns successfully, the leader knows
-   *   that the follower's log is identical to its own log up through the new
-   *   entries (Log Matching Property in Figure 3.2).
-   **/
-  if (nextIndex == 1) {
-    /**
-     * We're including the very first entry, so prevIndex and prevTerm are
-     * null. If the first entry is not available anymore, send the last
-     * snapshot if we're not already sending one. 
-     **/
-    if (snapshotIndex > 0 && !inSnapshot) {
-      goto send_snapshot;
-    }
+  prevIndex = nextIndex - 1;
+  prevTerm = syncRaftLogTermOf(pRaft->log, prevIndex);
+  int ret = syncRaftLogAcquire(pRaft->log, nextIndex, pRaft->maxMsgSize, &entries, &nEntry);
 
-    // otherwise send append entries from start
-    prevIndex = 0;
-    prevTerm = 0;    
-  } else {
-    /**
-     * Set prevIndex and prevTerm to the index and term of the entry at
-     * nextIndex - 1. 
-     **/ 
-    prevIndex = nextIndex - 1;
-    prevTerm = syncRaftLogTermOf(pRaft->log, prevIndex);
-    /**
-     * If the entry is not anymore in our log, send the last snapshot if we're
-     * not doing so already.
-     **/
-    if (prevTerm == SYNC_NON_TERM && !inSnapshot) {
-      goto send_snapshot;
-    }
+  if (nEntry == 0 && !sendIfEmpty) {
+    return false;
   }
 
-  /* Send empty AppendEntries RPC when installing a snaphot */
-  if (inSnapshot) {
-    prevIndex = syncRaftLogLastIndex(pRaft->log);
-    prevTerm = syncRaftLogLastTerm(pRaft->log);
+  if (ret != 0 || prevTerm == SYNC_NON_TERM) {
+    return sendSnapshot(pRaft, progress);
   }
 
-  return sendAppendEntries(pRaft, i, prevIndex, prevTerm);
-
-send_snapshot:
-  if (syncRaftProgressRecentActive(progress)) {
-    /* Only send a snapshot when we have heard from the server */
-    return sendSnapshot(pRaft, i);
-  } else {
-    /* Send empty AppendEntries RPC when we haven't heard from the server */
-    prevIndex = syncRaftLogLastIndex(pRaft->log);
-    prevTerm  = syncRaftLogLastTerm(pRaft->log);
-    return sendAppendEntries(pRaft, i, prevIndex, prevTerm);
-  }
-#endif
-  return 0;
+  return sendAppendEntries(pRaft, progress, prevIndex, prevTerm, entries, nEntry);
 }
 
-static int sendSnapshot(SSyncRaft* pRaft, int i) {
-  return 0;
+static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
+  if (!syncRaftProgressRecentActive(progress)) {
+    return false;
+  }
+  return true;
 }
 
-static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex prevIndex, SyncTerm prevTerm) {
-#if 0
-  SyncIndex nextIndex = prevIndex + 1;
-  SSyncRaftEntry *entries;
-  int nEntry;
-  SNodeInfo* pNode = &(pRaft->cluster.nodeInfo[i]);
-  SSyncRaftProgress* progress = &(pRaft->leaderState.progress[i]);
-  syncRaftLogAcquire(pRaft->log, nextIndex, pRaft->maxMsgSize, &entries, &nEntry);
+static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
+                              SyncIndex prevIndex, SyncTerm prevTerm,
+                              const SSyncRaftEntry *entries, int nEntry) {
+  SyncIndex lastIndex;
+  SyncTerm logTerm = prevTerm;
+  SNodeInfo* pNode = &(pRaft->cluster.nodeInfo[progress->selfIndex]);
 
   SSyncMessage* msg = syncNewAppendMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term,
                                       prevIndex, prevTerm, pRaft->log->commitIndex,
@@ -125,24 +81,27 @@ static int sendAppendEntries(SSyncRaft* pRaft, int i, SyncIndex prevIndex, SyncT
     goto err_release_log;
   }
 
-  pRaft->io.send(msg, pNode);
-
-  if (syncRaftProgressInReplicate(progress)) {
-    SyncIndex lastIndex = nextIndex + nEntry;
-    syncRaftProgressOptimisticNextIndex(progress, lastIndex);
-    syncRaftInflightAdd(&progress->inflights, lastIndex);
-  } else if (syncRaftProgressInProbe(progress)) {
-    syncRaftProgressPause(progress);
-  } else {
-
+  if (nEntry != 0) {
+    switch (progress->state) {
+    // optimistically increase the next when in StateReplicate
+    case PROGRESS_STATE_REPLICATE:
+      lastIndex = entries[nEntry - 1].index;
+      syncRaftProgressOptimisticNextIndex(progress, lastIndex);
+      syncRaftInflightAdd(&progress->inflights, lastIndex);
+      break;
+    case PROGRESS_STATE_PROBE:
+      progress->probeSent = true;
+      break;
+    default:
+      syncFatal("[%d:%d] is sending append in unhandled state %s", 
+                pRaft->selfGroupId, pRaft->selfId, syncRaftProgressStateString(progress));
+      break;
+    }
   }
-
-  syncRaftProgressUpdateSendTick(progress, pRaft->currentTick);
-
-  return 0;
+  pRaft->io.send(msg, pNode);
+  return true;
 
 err_release_log:
-  syncRaftLogRelease(pRaft->log, nextIndex, entries, nEntry);
-#endif
-  return 0;
+  syncRaftLogRelease(pRaft->log, prevIndex + 1, entries, nEntry);
+  return false;
 }
