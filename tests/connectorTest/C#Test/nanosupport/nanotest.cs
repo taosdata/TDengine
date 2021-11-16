@@ -443,6 +443,7 @@ namespace TDengineDriver
 
         public void cleanup()
         {
+            TDengine.Cleanup();
             Console.WriteLine("clean up...");
             System.Environment.Exit(0);
         }

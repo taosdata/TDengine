@@ -150,11 +150,6 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
   fi
-  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  else
-    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-  fi
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else
@@ -183,7 +178,7 @@ pkg_name=${install_dir}-${osType}-${cpuType}
 # fi
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType}
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
 else

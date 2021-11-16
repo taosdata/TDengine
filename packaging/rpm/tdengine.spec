@@ -54,6 +54,12 @@ mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
 cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
+if [ -f %{_compiledir}/test/cfg/taosadapter.toml ]; then
+    cp %{_compiledir}/test/cfg/taosadapter.toml         %{buildroot}%{homepath}/cfg
+fi
+if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
+    cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
+fi
 cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
@@ -62,23 +68,28 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
+if [ -f %{_compiledir}/build/bin/taosadapter ]; then
+    cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
+fi
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
-if [ -d %{_compiledir}/../src/connector/grafanaplugin/dist ]; then
-    cp -r %{_compiledir}/../src/connector/grafanaplugin/dist %{buildroot}%{homepath}/connector/grafanaplugin
-else
-    echo grafanaplugin bundled directory not found!
-    exit 1
-fi
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
 
+if [ -f %{_compiledir}/build/lib/libavro.so.23.0.0 ]; then
+    cp %{_compiledir}/build/lib/libavro.so.23.0.0 %{buildroot}%{homepath}/driver
+    ln -sf libavro.so.23.0.0 %{buildroot}%{homepath}/driver/libavro.so.23
+    ln -sf libavro.so.23 %{buildroot}%{homepath}/driver/libavro.so
+fi
+if [ -f %{_compiledir}/build/lib/libavro.a ]; then
+    cp %{_compiledir}/build/lib/libavro.a %{buildroot}%{homepath}/driver
+fi
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{userlocalpath}/bin
@@ -145,9 +156,14 @@ if pidof taosd &> /dev/null; then
     echo "Stop taosd service success!"
     sleep 1
 fi
-# if taos.cfg already softlink, remove it
+# if taos.cfg already exist, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
-    ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
+    ${csudo} rm -f %{cfg_install_dir}/cfg/taos.cfg   || :
+fi
+
+# if taosadapter.toml already exist, remove it
+if [ -f %{cfg_install_dir}/taosadapter.toml ]; then
+    ${csudo} rm -f %{cfg_install_dir}/cfg/taosadapter.toml || :
 fi
 
 # there can not libtaos.so*, otherwise ln -s  error
@@ -188,6 +204,7 @@ if [ $1 -eq 0 ];then
     # Remove all links
     ${csudo} rm -f ${bin_link_dir}/taos       || :
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
     ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :

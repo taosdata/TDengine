@@ -36,7 +36,7 @@ typedef struct SHashNode {
   uint32_t          dataLen;     // length of data
   uint32_t          keyLen;      // length of the key
   int8_t            removed;     // flag to indicate removed
-  int8_t            count;       // reference count
+  int32_t           count;       // reference count
   char              data[];
 } SHashNode;
 

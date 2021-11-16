@@ -81,6 +81,7 @@ else
 #  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh ${script_dir}/set_core.sh"
   cp ${build_dir}/bin/taos          ${install_dir}/bin/power
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
+  cp ${build_dir}/bin/taosadapter          ${install_dir}/bin/taosadapter ||:
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump
@@ -167,11 +168,6 @@ mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
 
-  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  else
-    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-  fi
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else

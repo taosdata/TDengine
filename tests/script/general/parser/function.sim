@@ -941,6 +941,17 @@ if $data32 != 0.000144445 then
   return -1
 endi
 
+sql insert into t1 values('2015-09-18 00:30:00', 3.0);
+sql select irate(k) from t1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.000000354 then
+  return -1
+endi
+
+
 print ===========================> derivative
 sql drop table t1
 sql drop table tx;

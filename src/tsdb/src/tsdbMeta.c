@@ -545,8 +545,8 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   return *(STable **)ptr;
 }
 
-STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t _version) {
-  return tsdbGetTableSchemaImpl(pTable, true, false, _version);
+STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t _version, int8_t rowType) {
+  return tsdbGetTableSchemaImpl(pTable, true, false, _version, rowType);
 }
 
 int tsdbWLockRepoMeta(STsdbRepo *pRepo) {
@@ -639,32 +639,35 @@ int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
 }
 
 int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
-  ASSERT(pTable->lastCols == NULL);
-
-  int16_t numOfColumn = pSchema->numOfCols;
-
-  pTable->lastCols = (SDataCol*)malloc(numOfColumn * sizeof(SDataCol));
+  TSDB_WLOCK_TABLE(pTable);
   if (pTable->lastCols == NULL) {
-    return -1;
-  }
+    int16_t numOfColumn = pSchema->numOfCols;
 
-  for (int16_t i = 0; i < numOfColumn; ++i) {
-    STColumn *pCol = schemaColAt(pSchema, i);
-    SDataCol* pDataCol = &(pTable->lastCols[i]);
-    pDataCol->bytes = 0;
-    pDataCol->pData = NULL;
-    pDataCol->colId = pCol->colId;
-  }
+    pTable->lastCols = (SDataCol *)malloc(numOfColumn * sizeof(SDataCol));
+    if (pTable->lastCols == NULL) {
+      TSDB_WUNLOCK_TABLE(pTable);
+      return -1;
+    }
 
-  pTable->lastColSVersion = schemaVersion(pSchema);
-  pTable->maxColNum = numOfColumn;
-  pTable->restoreColumnNum = 0;
-  pTable->hasRestoreLastColumn = false;
+    for (int16_t i = 0; i < numOfColumn; ++i) {
+      STColumn *pCol = schemaColAt(pSchema, i);
+      SDataCol *pDataCol = &(pTable->lastCols[i]);
+      pDataCol->bytes = 0;
+      pDataCol->pData = NULL;
+      pDataCol->colId = pCol->colId;
+    }
+
+    pTable->lastColSVersion = schemaVersion(pSchema);
+    pTable->maxColNum = numOfColumn;
+    pTable->restoreColumnNum = 0;
+    pTable->hasRestoreLastColumn = false;
+  }
+  TSDB_WUNLOCK_TABLE(pTable);
   return 0;
 }
 
 STSchema* tsdbGetTableLatestSchema(STable *pTable) {
-  return tsdbGetTableSchemaByVersion(pTable, -1);
+  return tsdbGetTableSchemaByVersion(pTable, -1, -1);
 }
 
 int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
@@ -809,6 +812,7 @@ static STable *tsdbNewTable() {
 
   pTable->lastCols = NULL;
   pTable->restoreColumnNum = 0;
+  pTable->cacheLastConfigVersion = 0;
   pTable->maxColNum = 0;
   pTable->hasRestoreLastColumn = false;
   pTable->lastColSVersion = -1;
@@ -969,7 +973,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
   }
 
   if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
-    STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+    STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
     if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
     if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
   }
@@ -977,7 +981,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
   if (lock && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
   if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
     pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), TABLE_NAME(pTable)->data, pTable->sql,
-                                                   tsdbGetTableSchemaImpl(pTable, false, false, -1), 1);
+                                                   tsdbGetTableSchemaImpl(pTable, false, false, -1, -1), 1);
   }
 
   tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
@@ -996,7 +1000,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   SListNode *pNode = NULL;
   STable *   tTable = NULL;
 
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
   int       maxCols = schemaNCols(pSchema);
   int       maxRowBytes = schemaTLen(pSchema);
 
@@ -1030,7 +1034,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
     for (int i = 0; i < pMeta->maxTables; i++) {
       STable *_pTable = pMeta->tables[i];
       if (_pTable != NULL) {
-        pSchema = tsdbGetTableSchemaImpl(_pTable, false, false, -1);
+        pSchema = tsdbGetTableSchemaImpl(_pTable, false, false, -1, -1);
         maxCols = MAX(maxCols, schemaNCols(pSchema));
         maxRowBytes = MAX(maxRowBytes, schemaTLen(pSchema));
       }

@@ -31,42 +31,6 @@ public class TSDBConnectionTest {
     }
 
     @Test
-    public void runSubscribe() {
-        try {
-            // given
-            TSDBConnection unwrap = conn.unwrap(TSDBConnection.class);
-            TSDBSubscribe subscribe = unwrap.subscribe("topic1", "select * from log.log", false);
-            // when
-            TSDBResultSet rs = subscribe.consume();
-            ResultSetMetaData metaData = rs.getMetaData();
-
-            // then
-            Assert.assertNotNull(rs);
-            Assert.assertEquals(4, metaData.getColumnCount());
-            Assert.assertEquals("ts", metaData.getColumnLabel(1));
-            Assert.assertEquals("level", metaData.getColumnLabel(2));
-            Assert.assertEquals("content", metaData.getColumnLabel(3));
-            Assert.assertEquals("ipaddr", metaData.getColumnLabel(4));
-            rs.next();
-            // row 1
-            {
-                Assert.assertNotNull(rs.getTimestamp(1));
-                Assert.assertNotNull(rs.getTimestamp("ts"));
-                Assert.assertNotNull(rs.getByte(2));
-                Assert.assertNotNull(rs.getByte("level"));
-                Assert.assertNotNull(rs.getString(3));
-                Assert.assertNotNull(rs.getString("content"));
-                Assert.assertNotNull(rs.getString(4));
-                Assert.assertNotNull(rs.getString("ipaddr"));
-            }
-            subscribe.close(false);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    @Test
     public void prepareStatement() throws SQLException {
         PreparedStatement pstmt = conn.prepareStatement("select server_status()");
         ResultSet rs = pstmt.executeQuery();
@@ -391,13 +355,9 @@ public class TSDBConnectionTest {
     }
 
     @Test
-    public void unwrap() {
-        try {
-            TSDBConnection tsdbConnection = conn.unwrap(TSDBConnection.class);
-            Assert.assertNotNull(tsdbConnection);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void unwrap() throws SQLException {
+        TSDBConnection tsdbConnection = conn.unwrap(TSDBConnection.class);
+        Assert.assertNotNull(tsdbConnection);
     }
 
     @Test
@@ -406,32 +366,22 @@ public class TSDBConnectionTest {
     }
 
     @BeforeClass
-    public static void beforeClass() {
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/log?user=root&password=taosdata", properties);
-            // create test database for test cases
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("create database if not exists test");
-            }
-
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
+    public static void beforeClass() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/log?user=root&password=taosdata", properties);
+        // create test database for test cases
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("create database if not exists test");
         }
     }
 
     @AfterClass
-    public static void afterClass() {
-        try {
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public static void afterClass() throws SQLException {
+        if (conn != null)
+            conn.close();
     }
 
 }

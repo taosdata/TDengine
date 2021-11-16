@@ -418,6 +418,9 @@ int tsdbCompact(STsdbRepo *pRepo);
 // no problem return true
 bool tsdbNoProblem(STsdbRepo* pRepo);
 
+// unit of walSize: MB
+int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
+
 #ifdef __cplusplus
 }
 #endif

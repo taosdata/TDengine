@@ -20,7 +20,6 @@
 #include "tdigest.h"
 #include "ttype.h"
 #include "tsdb.h"
-#include "tglobal.h"
 
 #include "qAggMain.h"
 #include "qFill.h"
@@ -172,7 +171,11 @@ typedef struct SDerivInfo {
 } SDerivInfo;
 
 typedef struct {
-  double cumSum;
+  union {
+    double d64CumSum;
+    int64_t i64CumSum;
+    uint64_t u64CumSum;
+  };
 } SCumSumInfo;
 
 typedef struct {
@@ -3175,7 +3178,14 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
     default:
       qError("error input type");
   }
-
+  if (notNullElems > 0) {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
+  }
   GET_RES_INFO(pCtx)->numOfRes += notNullElems;
 }
 
@@ -3350,6 +3360,12 @@ static void diff_function(SQLFunctionCtx *pCtx) {
      */
     assert(pCtx->hasNull);
   } else {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
     int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
 
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
@@ -3892,7 +3908,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
 
   bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
 
-  if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
+  if (pCtx->colId == 0 && pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
     *(TSKEY *)pCtx->pOutput = pCtx->startTs;
   } else if (type == TSDB_FILL_NULL) {
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
@@ -3929,6 +3945,10 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
         }
       }
     } else {
+      if (GET_RES_INFO(pCtx)->numOfRes > 0) {
+        return;
+      }
+    
       // no data generated yet
       if (pCtx->size < 1) {
         return;
@@ -3958,11 +3978,15 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
           if (pCtx->size > 1) {
             ekey = GET_TS_DATA(pCtx, 1);
             if ((ascQuery && ekey < pCtx->startTs) || ((!ascQuery) && ekey > pCtx->startTs)) {
+              setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
+              SET_VAL(pCtx, 1, 1);
               return;
             }
 
             val = ((char*)pCtx->pInput) + pCtx->inputBytes;            
           } else {
+            setNull(pCtx->pOutput, pCtx->inputType, pCtx->inputBytes);
+            SET_VAL(pCtx, 1, 1);
             return;
           }
         } else {
@@ -4007,7 +4031,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
 }
 
-static void interp_function(SQLFunctionCtx *pCtx) {
+static void interp_function(SQLFunctionCtx *pCtx) {  
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
     bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
@@ -4252,9 +4276,21 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
-    if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
+    if (INT64_MIN == pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
+      continue;
+    }
+
+    if (primaryKey[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = primaryKey[i];
+      
       continue;
     }
     
@@ -4689,7 +4725,7 @@ static bool csum_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   }
 
   SCumSumInfo* pCumSumInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pCumSumInfo->cumSum = 0;
+  pCumSumInfo->i64CumSum = 0;
   return true;
 }
 
@@ -4704,8 +4740,6 @@ static void csum_function(SQLFunctionCtx *pCtx) {
   TSKEY* pTimestamp = pCtx->ptsOutputBuf;
   TSKEY* tsList = GET_TS_LIST(pCtx);
 
-  qDebug("%p csum_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
-
   for (; i < pCtx->size && i >= 0; i += step) {
     char* pData = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -4713,20 +4747,30 @@ static void csum_function(SQLFunctionCtx *pCtx) {
       continue;
     }
 
-    double v = 0;
-    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
-    pCumSumInfo->cumSum += v;
+    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+      int64_t v = 0;
+      GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+      pCumSumInfo->i64CumSum += v;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+      uint64_t v = 0;
+      GET_TYPED_DATA(v, uint64_t, pCtx->inputType, pData);
+      pCumSumInfo->u64CumSum += v;
+    } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
+      double v = 0;
+      GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+      pCumSumInfo->d64CumSum += v;
+    }
 
     *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       int64_t *retVal = (int64_t *)pCtx->pOutput;
-      *retVal = (int64_t)(pCumSumInfo->cumSum);
+      *retVal = (int64_t)(pCumSumInfo->i64CumSum);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       uint64_t *retVal = (uint64_t *)pCtx->pOutput;
-      *retVal = (uint64_t)(pCumSumInfo->cumSum);
+      *retVal = (uint64_t)(pCumSumInfo->u64CumSum);
     } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
       double *retVal = (double*) pCtx->pOutput;
-      SET_DOUBLE_VAL(retVal, pCumSumInfo->cumSum);
+      SET_DOUBLE_VAL(retVal, pCumSumInfo->d64CumSum);
     }
 
     ++notNullElems;
@@ -4737,6 +4781,12 @@ static void csum_function(SQLFunctionCtx *pCtx) {
   if (notNullElems == 0) {
     assert(pCtx->hasNull);
   } else {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
     GET_RES_INFO(pCtx)->numOfRes += notNullElems;
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
   }
@@ -4810,6 +4860,12 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
   if (notNullElems <= 0) {
     assert(pCtx->hasNull);
   } else {
+    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+      SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
+      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+      }
+    }
     GET_RES_INFO(pCtx)->numOfRes += notNullElems;
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
   }

@@ -712,6 +712,15 @@ void leakTest(){
 }
 
 #define DB_CNT 500
+void test_same_float(int algo, bool lossy){
+  float ori =  123.456789123;
+  float floats [DB_CNT];
+  for(int i=0; i< DB_CNT; i++){
+    floats[i] = ori;
+  } 
+  DoFloat(floats, DB_CNT, algo, lossy);
+}
+
 void test_same_double(int algo){
   double ori =  3.1415926;
 
@@ -721,7 +730,6 @@ void test_same_double(int algo){
   } 
 
   DoDouble(doubles, DB_CNT, algo);
-
 }
 
 #ifdef TD_TSZ
@@ -781,6 +789,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+   if(strcmp(argv[1], "-samef") == 0) {
+        test_same_float(atoi(argv[2]), true);
+        return 0;
+    }
    if(strcmp(argv[1], "-samed") == 0) {
         test_same_double(atoi(argv[2]));
         return 0;

@@ -20,9 +20,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <string.h>
 
 #include <taos.h>
 
@@ -33,14 +33,14 @@ int     tablesSelectProcessed = 0;
 int64_t st, et;
 
 typedef struct {
-  int       id;
-  TAOS     *taos;
-  char      name[16];
-  time_t    timeStamp;
-  int       value;
-  int       rowsInserted;
-  int       rowsTried;
-  int       rowsRetrieved;
+  int    id;
+  TAOS * taos;
+  char   name[16];
+  time_t timeStamp;
+  int    value;
+  int    rowsInserted;
+  int    rowsTried;
+  int    rowsRetrieved;
 } STable;
 
 void taos_insert_call_back(void *param, TAOS_RES *tres, int code);
@@ -48,7 +48,7 @@ void taos_select_call_back(void *param, TAOS_RES *tres, int code);
 void taos_error(TAOS *taos);
 
 static void queryDB(TAOS *taos, char *command) {
-  int i;
+  int       i;
   TAOS_RES *pSql = NULL;
   int32_t   code = -1;
 
@@ -57,12 +57,12 @@ static void queryDB(TAOS *taos, char *command) {
       taos_free_result(pSql);
       pSql = NULL;
     }
-    
+
     pSql = taos_query(taos, command);
     code = taos_errno(pSql);
     if (0 == code) {
       break;
-    }    
+    }
   }
 
   if (code != 0) {
@@ -76,15 +76,14 @@ static void queryDB(TAOS *taos, char *command) {
   taos_free_result(pSql);
 }
 
-int main(int argc, char *argv[])
-{
-  TAOS   *taos;
-  struct  timeval systemTime;
-  int     i;
-  char    sql[1024]  = { 0 };
-  char    prefix[20] = { 0 };
-  char    db[128]    = { 0 };
-  STable *tableList;
+int main(int argc, char *argv[]) {
+  TAOS *         taos;
+  struct timeval systemTime;
+  int            i;
+  char           sql[1024] = {0};
+  char           prefix[20] = {0};
+  char           db[128] = {0};
+  STable *       tableList;
 
   if (argc != 5) {
     printf("usage: %s server-ip dbname rowsPerTable numOfTables\n", argv[0]);
@@ -101,8 +100,7 @@ int main(int argc, char *argv[])
   memset(tableList, 0, size);
 
   taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
-  if (taos == NULL)
-    taos_error(taos);
+  if (taos == NULL) taos_error(taos);
 
   printf("success to connect to server\n");
 
@@ -122,7 +120,7 @@ int main(int argc, char *argv[])
     sprintf(tableList[i].name, "%s%d", prefix, i);
     sprintf(sql, "create table %s%d (ts timestamp, volume bigint)", prefix, i);
     queryDB(taos, sql);
-  }  
+  }
 
   gettimeofday(&systemTime, NULL);
   for (i = 0; i < numOfTables; ++i)
@@ -138,7 +136,7 @@ int main(int argc, char *argv[])
   tablesInsertProcessed = 0;
   tablesSelectProcessed = 0;
 
-  for (i = 0; i<numOfTables; ++i) {
+  for (i = 0; i < numOfTables; ++i) {
     // insert records in asynchronous API
     sprintf(sql, "insert into %s values(%ld, 0)", tableList[i].name, 1546300800000 + i);
     taos_query_a(taos, sql, taos_insert_call_back, (void *)(tableList + i));
@@ -147,12 +145,12 @@ int main(int argc, char *argv[])
   printf("once insert finished, presse any key to query\n");
   getchar();
 
-  while(1) {
+  while (1) {
     if (tablesInsertProcessed < numOfTables) {
-       printf("wait for process finished\n");
-       sleep(1);
-       continue;
-    }  
+      printf("wait for process finished\n");
+      sleep(1);
+      continue;
+    }
 
     break;
   }
@@ -161,9 +159,8 @@ int main(int argc, char *argv[])
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
-
   for (i = 0; i < numOfTables; ++i) {
-    // select records in asynchronous API 
+    // select records in asynchronous API
     sprintf(sql, "select * from %s", tableList[i].name);
     taos_query_a(taos, sql, taos_select_call_back, (void *)(tableList + i));
   }
@@ -171,17 +168,17 @@ int main(int argc, char *argv[])
   printf("\nonce finished, press any key to exit\n");
   getchar();
 
-  while(1) {
+  while (1) {
     if (tablesSelectProcessed < numOfTables) {
-       printf("wait for process finished\n");
-       sleep(1);
-       continue;
-    }  
+      printf("wait for process finished\n");
+      sleep(1);
+      continue;
+    }
 
     break;
   }
 
-  for (i = 0; i<numOfTables; ++i)  {
+  for (i = 0; i < numOfTables; ++i) {
     printf("%s inserted:%d retrieved:%d\n", tableList[i].name, tableList[i].rowsInserted, tableList[i].rowsRetrieved);
   }
 
@@ -193,60 +190,54 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void taos_error(TAOS *con)
-{
+void taos_error(TAOS *con) {
   fprintf(stderr, "TDengine error: %s\n", taos_errstr(con));
   taos_close(con);
   taos_cleanup();
   exit(1);
 }
 
-void taos_insert_call_back(void *param, TAOS_RES *tres, int code)
-{
-  STable *pTable = (STable *)param;
-  struct  timeval systemTime;
-  char    sql[128];
+void taos_insert_call_back(void *param, TAOS_RES *tres, int code) {
+  STable *       pTable = (STable *)param;
+  struct timeval systemTime;
+  char           sql[128];
 
   pTable->rowsTried++;
 
-  if (code < 0)  {
+  if (code < 0) {
     printf("%s insert failed, code:%d, rows:%d\n", pTable->name, code, pTable->rowsTried);
-  }
-  else if (code == 0) {
+  } else if (code == 0) {
     printf("%s not inserted\n", pTable->name);
-  }
-  else {
+  } else {
     pTable->rowsInserted++;
   }
 
   if (pTable->rowsTried < points) {
     // for this demo, insert another record
-    sprintf(sql, "insert into %s values(%ld, %d)", pTable->name, 1546300800000+pTable->rowsTried*1000, pTable->rowsTried);
+    sprintf(sql, "insert into %s values(%ld, %d)", pTable->name, 1546300800000 + pTable->rowsTried * 1000,
+            pTable->rowsTried);
     taos_query_a(pTable->taos, sql, taos_insert_call_back, (void *)pTable);
-  }
-  else {
+  } else {
     printf("%d rows data are inserted into %s\n", points, pTable->name);
     tablesInsertProcessed++;
     if (tablesInsertProcessed >= numOfTables) {
       gettimeofday(&systemTime, NULL);
       et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-      printf("%lld mseconds to insert %d data points\n", (et - st) / 1000, points*numOfTables);
+      printf("%lld mseconds to insert %d data points\n", (et - st) / 1000, points * numOfTables);
     }
   }
-  
+
   taos_free_result(tres);
 }
 
-void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
-{
-  STable   *pTable = (STable *)param;
+void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows) {
+  STable *       pTable = (STable *)param;
   struct timeval systemTime;
 
   if (numOfRows > 0) {
-
-    for (int i = 0; i<numOfRows; ++i) {
+    for (int i = 0; i < numOfRows; ++i) {
       // synchronous API to retrieve a row from batch of records
-      /*TAOS_ROW row = */(void)taos_fetch_row(tres);
+      /*TAOS_ROW row = */ (void)taos_fetch_row(tres);
       // process row
     }
 
@@ -255,12 +246,10 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
     // retrieve next batch of rows
     taos_fetch_rows_a(tres, taos_retrieve_call_back, pTable);
 
-  }
-  else {
-    if (numOfRows < 0)
-      printf("%s retrieve failed, code:%d\n", pTable->name, numOfRows);
+  } else {
+    if (numOfRows < 0) printf("%s retrieve failed, code:%d\n", pTable->name, numOfRows);
 
-    //taos_free_result(tres);
+    // taos_free_result(tres);
     printf("%d rows data retrieved from %s\n", pTable->rowsRetrieved, pTable->name);
 
     tablesSelectProcessed++;
@@ -272,19 +261,15 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
 
     taos_free_result(tres);
   }
-
-
 }
 
-void taos_select_call_back(void *param, TAOS_RES *tres, int code)
-{
+void taos_select_call_back(void *param, TAOS_RES *tres, int code) {
   STable *pTable = (STable *)param;
 
   if (code == 0 && tres) {
     // asynchronous API to fetch a batch of records
     taos_fetch_rows_a(tres, taos_retrieve_call_back, pTable);
-  }
-  else {
+  } else {
     printf("%s select failed, code:%d\n", pTable->name, code);
     taos_free_result(tres);
     taos_cleanup();

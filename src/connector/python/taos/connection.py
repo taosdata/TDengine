@@ -72,10 +72,9 @@ class TaosConnection(object):
         taos_select_db(self._conn, database)
 
     def execute(self, sql):
-        # type: (str) -> None
+        # type: (str) -> int
         """Simplely execute sql ignoring the results"""
-        res = taos_query(self._conn, sql)
-        taos_free_result(res)
+        return self.query(sql).affected_rows
 
     def query(self, sql):
         # type: (str) -> TaosResult
@@ -117,8 +116,8 @@ class TaosConnection(object):
         stream = taos_open_stream(self._conn, sql, callback, stime, param, callback2)
         return TaosStream(stream)
 
-    def schemaless_insert(self, lines, protocol):
-        # type: (list[str]) -> None
+    def schemaless_insert(self, lines, protocol, precision):
+        # type: (list[str], SmlProtocol, SmlPrecision) -> int
         """
         1.Line protocol and schemaless support
 
@@ -132,7 +131,7 @@ class TaosConnection(object):
         lines = [
             'ste,t2=5,t3=L"ste" c1=true,c2=4,c3="string" 1626056811855516532',
         ]
-        conn.schemaless_insert(lines, 0)
+        conn.schemaless_insert(lines, 0, "ns")
         ```
 
         2.OpenTSDB telnet style API format support
@@ -145,7 +144,7 @@ class TaosConnection(object):
         lines = [
             'cpu_load 1626056811855516532ns 2.0f32 id="tb1",host="host0",interface="eth0"',
         ]
-        conn.schemaless_insert(lines, 1)
+        conn.schemaless_insert(lines, 1, None)
 
 
         3.OpenTSDB HTTP JSON format support
@@ -168,10 +167,11 @@ class TaosConnection(object):
                 }
         }
         ''']
-        conn.schemaless_insert(lines, 2)
+        conn.schemaless_insert(lines, 2, None)
 
         """
-        return taos_schemaless_insert(self._conn, lines, protocol)
+        print(lines, protocol, precision)
+        return taos_schemaless_insert(self._conn, lines, protocol, precision)
 
 
     def cursor(self):
