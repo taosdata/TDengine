@@ -469,7 +469,6 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       createInfo->path.z[createInfo->path.n] = 0;
-
       strdequote(createInfo->path.z);
 
       if (strlen(createInfo->path.z) >= PATH_MAX) {
