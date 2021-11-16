@@ -1289,6 +1289,34 @@ class TDTestCase:
             " fill(linear)"
         ]
         tdSql.prepare()
+        #need insert new data --data type is double or float and tests ceil floor round .
+        tdSql.execute("create table if not exists jsons7(ts timestamp, dataInt int, dataBool bool, datafloat float, datadouble double, dataStr nchar(50)) tags(jtag nchar(128))")
+        tdSql.execute("insert into jsons7_1 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\" \":123,\"tea\":false}') values (now,2,'true',0.9,0.1,'123')")
+        tdSql.query("select * from jsons7")
+        tdSql.checkRows(1)
+        tdSql.execute("insert into jsons7_1 values (now+1s,3,'true',-4.8,-5.5,'123') ")
+        tdSql.execute("insert into jsons7_1 values (now+2s,4,'true',1.9998,2.00001,'123') ")
+        tdSql.execute("insert into jsons7_2 using jsons7 tags('{\"nv\":null,\"tea\":true,\"\":false,\"tag\":123,\"tea\":false}') values (now,5,'true',4.01,2.2,'123') ")
+        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now+3s,-0.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datadouble) values (now+4s,-2.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now+1s,-0.9) ")
+        tdSql.execute("insert into jsons7_2 (ts,datafloat) values (now+2s,-1.9) ")
+        tdSql.query("select ts,ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7")
+        tdSql.checkRows(8)
+        tdSql.checkData(5, 1, None)
+        tdSql.checkData(6, 2, None)
+        tdSql.checkData(7, 3, -2)
+        tdSql.query("select ceil(dataint),ceil(datafloat),ceil(datadouble) from jsons7")
+        tdSql.checkRows(8)
+        tdSql.checkData(5, 1, -1)
+        tdSql.checkData(5, 2, None)
+        tdSql.checkData(7, 0, None)
+        tdSql.checkData(7, 2, -2)
+        tdSql.query("select ts,floor(dataint),floor(datafloat),floor(datadouble) from jsons7")
+        tdSql.query("select floor(dataint),floor(datafloat),floor(datadouble) from jsons7")
+        tdSql.query("select ts,round(dataint),round(datafloat),round(datadouble) from jsons7")
+        tdSql.query("select round(dataint),round(datafloat),round(datadouble) from jsons7")
+
         tdSql.execute(
             "create stable super (ts timestamp, timestamp_col timestamp, int_col int, bigint_col bigint, float_col float,\
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
