@@ -19,16 +19,16 @@
 #include "sync.h"
 #include "sync_type.h"
 
-typedef enum SyncEntryType {
+typedef enum ESyncRaftEntryType {
   SYNC_ENTRY_TYPE_LOG = 1,
-}SyncEntryType;
+} ESyncRaftEntryType;
 
 struct SSyncRaftEntry {
   SyncTerm term;
 
   SyncIndex index;
 
-  SyncEntryType type;
+  ESyncRaftEntryType type;
 
   SSyncBuffer buffer;
 };
@@ -50,6 +50,8 @@ SyncIndex syncRaftLogLastIndex(SSyncRaftLog* pLog);
 SyncIndex syncRaftLogSnapshotIndex(SSyncRaftLog* pLog);
 
 SyncTerm syncRaftLogLastTerm(SSyncRaftLog* pLog);
+
+void syncRaftLogAppliedTo(SSyncRaftLog* pLog, SyncIndex appliedIndex);
 
 bool syncRaftLogIsUptodate(SSyncRaftLog* pLog, SyncIndex index, SyncTerm term);
 

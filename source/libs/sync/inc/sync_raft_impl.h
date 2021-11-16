@@ -26,7 +26,7 @@ void syncRaftBecomePreCandidate(SSyncRaft* pRaft);
 void syncRaftBecomeCandidate(SSyncRaft* pRaft);
 void syncRaftBecomeLeader(SSyncRaft* pRaft);
 
-void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType);
+void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 
 void syncRaftTriggerHeartbeat(SSyncRaft* pRaft);
 
@@ -35,8 +35,20 @@ bool syncRaftIsPromotable(SSyncRaft* pRaft);
 bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft);
 int  syncRaftQuorum(SSyncRaft* pRaft);
 
-SSyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
+bool syncRaftMaybeCommit(SSyncRaft* pRaft);
+
+ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                     bool preVote, bool accept, 
                                     int* rejectNum, int *granted);
+
+static FORCE_INLINE bool syncRaftIsEmptyServerState(const SSyncServerState* serverState) {
+  return serverState->commitIndex == 0 &&
+         serverState->term == SYNC_NON_TERM &&
+         serverState->voteFor == SYNC_NON_NODE_ID;
+}
+
+void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState);
+
+void syncRaftBroadcastAppend(SSyncRaft* pRaft);
 
 #endif /* _TD_LIBS_SYNC_RAFT_IMPL_H */

@@ -31,7 +31,6 @@ static void tickElection(SSyncRaft* pRaft);
 static void tickHeartbeat(SSyncRaft* pRaft);
 
 static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
-static bool maybeCommit(SSyncRaft* pRaft);
 
 static void abortLeaderTransfer(SSyncRaft* pRaft);
 
@@ -127,7 +126,7 @@ int syncRaftQuorum(SSyncRaft* pRaft) {
   return pRaft->cluster.replica / 2 + 1;
 }
 
-SSyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
+ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                       bool preVote, bool grant, 
                                       int* rejected, int *granted) {
   int voterIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
@@ -171,6 +170,25 @@ SSyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
   return granted;
 */
 
+void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState) {
+  SyncIndex commitIndex = serverState->commitIndex;
+  SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
+
+  if (commitIndex < pRaft->log->commitIndex || commitIndex > lastIndex) {
+    syncFatal("[%d:%d] state.commit %"PRId64" is out of range [%" PRId64 ",%" PRId64 "",
+      pRaft->selfGroupId, pRaft->selfId, commitIndex, pRaft->log->commitIndex, lastIndex);
+    return;
+  }
+
+  pRaft->log->commitIndex = commitIndex;
+  pRaft->term = serverState->term;
+  pRaft->voteFor = serverState->voteFor;
+}
+
+void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
+
+}
+
 static int convertClear(SSyncRaft* pRaft) {
 
 }
@@ -186,7 +204,7 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 	 * StateCandidate, we may get stale MsgPreVoteResp messages in this term from
 	 * our pre-candidate state).
    **/
-  RaftMessageType msgType = pMsg->msgType;
+  ESyncRaftMessageType msgType = pMsg->msgType;
 
   if (msgType == RAFT_MSG_INTERNAL_PROP) {
     return 0;
@@ -243,18 +261,16 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
 
   syncRaftLogAppend(pRaft->log, entries, n);
 
-  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap[pRaft->cluster.selfIndex]);
+  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap.progress[pRaft->cluster.selfIndex]);
   syncRaftProgressMaybeUpdate(progress, lastIndex);
-  // Regardless of maybeCommit's return, our caller will call bcastAppend.
-  maybeCommit(pRaft);
+  // Regardless of syncRaftMaybeCommit's return, our caller will call bcastAppend.
+  syncRaftMaybeCommit(pRaft);
 }
 
-/**
- * maybeCommit attempts to advance the commit index. Returns true if
- * the commit index changed (in which case the caller should call
- * r.bcastAppend).
- **/
-static bool maybeCommit(SSyncRaft* pRaft) {
+// syncRaftMaybeCommit attempts to advance the commit index. Returns true if
+// the commit index changed (in which case the caller should call
+// r.bcastAppend).
+bool syncRaftMaybeCommit(SSyncRaft* pRaft) {
   
   return true;
 }

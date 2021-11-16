@@ -109,38 +109,25 @@ typedef struct SSyncLogStore {
   SyncIndex (*logLastIndex)(struct SSyncLogStore* logStore);
 } SSyncLogStore;
 
-typedef struct SSyncServerState {
-  SyncNodeId voteFor;
-  SyncTerm  term;
-  SyncIndex  commitIndex;
-} SSyncServerState;
-
-typedef struct SSyncClusterConfig {
-  // Log index number of current cluster config.
-  SyncIndex index;
-
-  // Log index number of previous cluster config.
-  SyncIndex prevIndex;
-
-  // current cluster
-  const SSyncCluster* cluster;
-} SSyncClusterConfig;
-
 typedef struct SStateManager {
   void* pData;
 
-  int32_t (*saveServerState)(struct SStateManager* stateMng, SSyncServerState* state);
+  // save serialized server state data, buffer will be free by Sync
+  int32_t (*saveServerState)(struct SStateManager* stateMng, const char* buffer, int n);
 
-  int32_t (*readServerState)(struct SStateManager* stateMng, SSyncServerState* state);
+  // read serialized server state data, buffer will be free by Sync
+  int32_t (*readServerState)(struct SStateManager* stateMng, char** ppBuffer, int* n);
 
-  void (*saveCluster)(struct SStateManager* stateMng, const SSyncClusterConfig* cluster);
+  // save serialized cluster state data, buffer will be free by Sync
+  void (*saveClusterState)(struct SStateManager* stateMng, const char* buffer, int n);
 
-  const SSyncClusterConfig* (*readCluster)(struct SStateManager* stateMng);
+  // read serialized cluster state data, buffer will be free by Sync
+  int32_t (*readClusterState)(struct SStateManager* stateMng, char** ppBuffer, int* n);
 } SStateManager;
 
 typedef struct {
   SyncGroupId   vgId;
-  SyncIndex     snapshotIndex;
+  SyncIndex     appliedIndex;
   SSyncCluster  syncCfg;
   SSyncFSM      fsm;
   SSyncLogStore logStore;

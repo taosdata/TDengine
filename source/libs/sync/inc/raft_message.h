@@ -28,7 +28,7 @@
  * outter message start with RAFT_MSG_*, which communicate between cluster peers,
  * need to implement its decode/encode functions.
  **/
-typedef enum RaftMessageType {
+typedef enum ESyncRaftMessageType {
   // client propose a cmd
   RAFT_MSG_INTERNAL_PROP = 1,
 
@@ -40,7 +40,7 @@ typedef enum RaftMessageType {
 
   RAFT_MSG_APPEND = 5,
   RAFT_MSG_APPEND_RESP = 6,
-} RaftMessageType;
+} ESyncRaftMessageType;
 
 typedef struct RaftMsgInternal_Prop {
   const SSyncBuffer *pBuf;
@@ -53,14 +53,14 @@ typedef struct RaftMsgInternal_Election {
 } RaftMsgInternal_Election;
 
 typedef struct RaftMsg_Vote {
-  SyncRaftElectionType cType;
+  ESyncRaftElectionType cType;
   SyncIndex lastIndex;
   SyncTerm lastTerm;
 } RaftMsg_Vote;
 
 typedef struct RaftMsg_VoteResp {
   bool rejected;
-  SyncRaftElectionType cType;
+  ESyncRaftElectionType cType;
 } RaftMsg_VoteResp;
 
 typedef struct RaftMsg_Append_Entries {
@@ -85,7 +85,7 @@ typedef struct RaftMsg_Append_Resp {
 } RaftMsg_Append_Resp;
 
 typedef struct SSyncMessage {
-  RaftMessageType msgType;
+  ESyncRaftMessageType msgType;
   SyncTerm term;
   SyncGroupId groupId;
   SyncNodeId from;
@@ -131,7 +131,7 @@ static FORCE_INLINE SSyncMessage* syncInitElectionMsg(SSyncMessage* pMsg, SyncNo
 }
 
 static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId from,
-                                                SyncTerm term, SyncRaftElectionType cType, 
+                                                SyncTerm term, ESyncRaftElectionType cType, 
                                                 SyncIndex lastIndex, SyncTerm lastTerm) {
   SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
   if (pMsg == NULL) {
@@ -153,7 +153,7 @@ static FORCE_INLINE SSyncMessage* syncNewVoteMsg(SyncGroupId groupId, SyncNodeId
 }
 
 static FORCE_INLINE SSyncMessage* syncNewVoteRespMsg(SyncGroupId groupId, SyncNodeId from,
-                                                  SyncRaftElectionType cType, bool rejected) {
+                                                  ESyncRaftElectionType cType, bool rejected) {
   SSyncMessage* pMsg = (SSyncMessage*)malloc(sizeof(SSyncMessage));
   if (pMsg == NULL) {
     return NULL;
@@ -213,7 +213,7 @@ static FORCE_INLINE SSyncMessage* syncNewEmptyAppendRespMsg(SyncGroupId groupId,
   return pMsg;
 }
 
-static FORCE_INLINE bool syncIsInternalMsg(RaftMessageType msgType) {
+static FORCE_INLINE bool syncIsInternalMsg(ESyncRaftMessageType msgType) {
   return msgType == RAFT_MSG_INTERNAL_PROP ||
          msgType == RAFT_MSG_INTERNAL_ELECTION;
 }

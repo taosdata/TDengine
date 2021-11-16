@@ -18,10 +18,10 @@
 #include "raft_log.h"
 #include "raft_message.h"
 
-void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
+void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   SyncTerm term;
   bool preVote;
-  RaftMessageType voteMsgType;
+  ESyncRaftMessageType voteMsgType;
 
   if (syncRaftIsPromotable(pRaft)) {
     syncDebug("[%d:%d] is unpromotable; campaign() should have been called", pRaft->selfGroupId, pRaft->selfId);
@@ -41,7 +41,7 @@ void syncRaftStartElection(SSyncRaft* pRaft, SyncRaftElectionType cType) {
   }
 
   int quorum = syncRaftQuorum(pRaft);
-  SSyncRaftVoteResult result = syncRaftPollVote(pRaft, pRaft->selfId, preVote, true, NULL, NULL);
+  ESyncRaftVoteResult result = syncRaftPollVote(pRaft, pRaft->selfId, preVote, true, NULL, NULL);
   if (result == SYNC_RAFT_VOTE_WON) {
 		/**
      * We won the election after voting for ourselves (which must mean that

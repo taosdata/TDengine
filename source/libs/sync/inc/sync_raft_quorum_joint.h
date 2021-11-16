@@ -25,14 +25,50 @@
  * majority configurations. Decisions require the support of both majorities.
  **/
 typedef struct SSyncRaftQuorumJointConfig {
-  SSyncCluster majorityConfig[2];
-}SSyncRaftQuorumJointConfig;
+  SSyncRaftNodeMap outgoing;
+  SSyncRaftNodeMap incoming;
+} SSyncRaftQuorumJointConfig;
 
 /**
  * syncRaftVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-SyncRaftVoteResult syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const SyncRaftVoteResult* votes);
+ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes);
+
+static FORCE_INLINE bool syncRaftJointConfigInCluster(const SSyncCluster* cluster, SyncNodeId id) {
+  int i;
+  for (i = 0; i < cluster->replica; ++i) {
+    if (cluster->nodeInfo[i].nodeId == id) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static FORCE_INLINE bool syncRaftJointConfigInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  return syncRaftJointConfigInCluster(&config->outgoing, id);
+}
+
+static FORCE_INLINE bool syncRaftJointConfigInIncoming(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  return syncRaftJointConfigInCluster(&config->incoming, id);
+}
+
+void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id);
+
+void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id);
+
+static FORCE_INLINE const SSyncCluster* syncRaftJointConfigIncoming(const SSyncRaftQuorumJointConfig* config) {
+  return &config->incoming;
+}
+
+static FORCE_INLINE const SSyncCluster* syncRaftJointConfigOutgoing(const SSyncRaftQuorumJointConfig* config) {
+  return &config->outgoing;
+}
+
+static FORCE_INLINE void syncRaftJointConfigClearOutgoing(SSyncRaftQuorumJointConfig* config) {
+  memset(&config->outgoing, 0, sizeof(SSyncCluster));
+}
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

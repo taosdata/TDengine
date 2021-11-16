@@ -17,6 +17,7 @@
 #define _TD_LIBS_SYNC_TYPE_H
 
 #include <stdint.h>
+#include "sync.h"
 #include "osMath.h"
 
 #define SYNC_NON_NODE_ID -1
@@ -28,9 +29,12 @@ typedef uint32_t SyncTick;
 typedef struct SSyncRaft SSyncRaft;
 
 typedef struct SSyncRaftProgress SSyncRaftProgress;
+typedef struct SSyncRaftProgressMap SSyncRaftProgressMap;
 typedef struct SSyncRaftProgressTrackerConfig SSyncRaftProgressTrackerConfig;
 
 typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
+
+typedef struct SSyncRaftChanger SSyncRaftChanger;
 
 typedef struct SSyncRaftLog SSyncRaftLog;
 
@@ -46,11 +50,34 @@ typedef struct SSyncRaftEntry SSyncRaftEntry;
 #endif
 #endif
 
+
+typedef struct SSyncServerState {
+  SyncNodeId voteFor;
+  SyncTerm  term;
+  SyncIndex  commitIndex;
+} SSyncServerState;
+
+typedef struct SSyncClusterConfig {
+  // Log index number of current cluster config.
+  SyncIndex index;
+
+  // Log index number of previous cluster config.
+  SyncIndex prevIndex;
+
+  // current cluster
+  const SSyncCluster* cluster;
+} SSyncClusterConfig;
+
+typedef struct {
+  int32_t   replica;
+  SyncNodeId nodeId[TSDB_MAX_REPLICA];
+} SSyncRaftNodeMap;
+
 typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
   SYNC_RAFT_CAMPAIGN_ELECTION     = 1,
   SYNC_RAFT_CAMPAIGN_TRANSFER     = 2,
-} SyncRaftElectionType;
+} ESyncRaftElectionType;
 
 typedef enum {
   // the init vote resp status
@@ -59,8 +86,8 @@ typedef enum {
   // grant the vote request
   SYNC_RAFT_VOTE_RESP_GRANT   = 1,
 
-  //reject the vote request
+  // reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
-} SyncRaftVoteResult;
+} ESyncRaftVoteType;
 
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

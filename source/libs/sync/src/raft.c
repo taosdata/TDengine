@@ -16,11 +16,19 @@
 #include "raft.h"
 #include "raft_configuration.h"
 #include "raft_log.h"
+#include "sync_raft_restore.h"
 #include "raft_replication.h"
+#include "sync_raft_config_change.h"
 #include "sync_raft_progress_tracker.h"
 #include "syncInt.h"
 
 #define RAFT_READ_LOG_MAX_NUM 100
+
+static int deserializeServerStateFromBuffer(SSyncServerState* server, const char* buffer, int n);
+static int deserializeClusterStateFromBuffer(SSyncConfigState* cluster, const char* buffer, int n);
+
+static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfig* config, 
+                          const SSyncRaftProgressMap* progressMap, SSyncConfigState* cs);
 
 static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
@@ -29,13 +37,16 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   SSyncNode* pNode = pRaft->pNode;
   SSyncServerState serverState;
+  SSyncConfigState confState;
   SStateManager* stateManager;
   SSyncLogStore* logStore;
   SSyncFSM* fsm;
-  SyncIndex initIndex = pInfo->snapshotIndex;
   SSyncBuffer buffer[RAFT_READ_LOG_MAX_NUM];
   int nBuf, limit, i;
-  
+  char* buf;
+  int n;
+  SSyncRaftChanger changer;
+
   memset(pRaft, 0, sizeof(SSyncRaft));
 
   memcpy(&pRaft->fsm, &pInfo->fsm, sizeof(SSyncFSM));
@@ -57,11 +68,53 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
     return -1;
   }
   // read server state
-  if (stateManager->readServerState(stateManager, &serverState) != 0) {
+  if (stateManager->readServerState(stateManager, &buf, &n) != 0) {
     syncError("readServerState for vgid %d fail", pInfo->vgId);
     return -1;
   }
-  assert(initIndex <= serverState.commitIndex);
+  if (deserializeServerStateFromBuffer(&serverState, buf, n) != 0) {
+    syncError("deserializeServerStateFromBuffer for vgid %d fail", pInfo->vgId);
+    return -1;
+  }
+  free(buf);
+  //assert(initIndex <= serverState.commitIndex);
+
+  // read config state
+  if (stateManager->readClusterState(stateManager, &buf, &n) != 0) {
+    syncError("readClusterState for vgid %d fail", pInfo->vgId);
+    return -1;
+  }
+  if (deserializeClusterStateFromBuffer(&confState, buf, n) != 0) {
+    syncError("deserializeClusterStateFromBuffer for vgid %d fail", pInfo->vgId);
+    return -1;
+  }
+  free(buf);
+
+  changer = (SSyncRaftChanger) {
+    .tracker = pRaft->tracker,
+    .lastIndex = syncRaftLogLastIndex(pRaft->log),
+  };
+  if (syncRaftRestoreConfig(&changer, &confState) < 0) {
+    syncError("syncRaftRestoreConfig for vgid %d fail", pInfo->vgId);
+    return -1;
+  }
+
+  if (!syncRaftIsEmptyServerState(&serverState)) {
+    syncRaftLoadState(pRaft, &serverState);
+  }
+
+  if (pInfo->appliedIndex > 0) {
+    syncRaftLogAppliedTo(pRaft->log, pInfo->appliedIndex);
+  }
+
+  syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
+
+
+#if 0
+
+
+
+
 
   // restore fsm state from snapshot index + 1 until commitIndex
   ++initIndex;
@@ -86,6 +139,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
 
   pRaft->selfIndex = pRaft->cluster.selfIndex;
+#endif
 
   syncInfo("[%d:%d] restore vgid %d state: snapshot index success", 
     pRaft->selfGroupId, pRaft->selfId, pInfo->vgId);
@@ -101,7 +155,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     return 0;
   }
 
-  RaftMessageType msgType = pMsg->msgType;
+  ESyncRaftMessageType msgType = pMsg->msgType;
   if (msgType == RAFT_MSG_INTERNAL_ELECTION) {
     syncRaftHandleElectionMessage(pRaft, pMsg);
   } else if (msgType == RAFT_MSG_VOTE) {
@@ -117,6 +171,81 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 int32_t syncRaftTick(SSyncRaft* pRaft) {
   pRaft->currentTick += 1;
   return 0;
+}
+
+static int deserializeServerStateFromBuffer(SSyncServerState* server, const char* buffer, int n) {
+  return 0;
+}
+
+static int deserializeClusterStateFromBuffer(SSyncConfigState* cluster, const char* buffer, int n) {
+  return 0;
+}
+
+static void visitProgressMaybeSendAppend(int i, SSyncRaftProgress* progress, void* arg) {
+  syncRaftReplicate(arg, progress, false);
+}
+
+// switchToConfig reconfigures this node to use the provided configuration. It
+// updates the in-memory state and, when necessary, carries out additional
+// actions such as reacting to the removal of nodes or changed quorum
+// requirements.
+//
+// The inputs usually result from restoring a ConfState or applying a ConfChange.
+static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfig* config, 
+                          const SSyncRaftProgressMap* progressMap, SSyncConfigState* cs) {
+  SyncNodeId selfId = pRaft->selfId;
+  int i;
+  bool exist;
+  SSyncRaftProgress* progress = NULL;
+
+  syncRaftConfigState(pRaft->tracker, cs);
+  i = syncRaftFindProgressIndexByNodeId(&pRaft->tracker->progressMap, selfId);
+  exist = (i != -1);
+
+	// Update whether the node itself is a learner, resetting to false when the
+	// node is removed.
+  if (exist) {
+    progress = &pRaft->tracker->progressMap.progress[i];
+    pRaft->isLearner = progress->isLearner;
+  } else {
+    pRaft->isLearner = false;
+  }
+
+  if ((!exist || pRaft->isLearner) && pRaft->state == TAOS_SYNC_STATE_LEADER) {
+		// This node is leader and was removed or demoted. We prevent demotions
+		// at the time writing but hypothetically we handle them the same way as
+		// removing the leader: stepping down into the next Term.
+		//
+		// TODO(tbg): step down (for sanity) and ask follower with largest Match
+		// to TimeoutNow (to avoid interruption). This might still drop some
+		// proposals but it's better than nothing.
+		//
+		// TODO(tbg): test this branch. It is untested at the time of writing.
+    return;
+  }
+
+	// The remaining steps only make sense if this node is the leader and there
+	// are other nodes.
+  if (pRaft->state != TAOS_SYNC_STATE_LEADER || cs->voters.replica == 0) {
+    return;
+  }
+
+  if (syncRaftMaybeCommit(pRaft)) {
+		// If the configuration change means that more entries are committed now,
+		// broadcast/append to everyone in the updated config.
+    syncRaftBroadcastAppend(pRaft);
+  } else {
+		// Otherwise, still probe the newly added replicas; there's no reason to
+		// let them wait out a heartbeat interval (or the next incoming
+		// proposal).
+    syncRaftProgressVisit(pRaft->tracker, visitProgressMaybeSendAppend, pRaft);
+
+    // If the the leadTransferee was removed or demoted, abort the leadership transfer.
+    SyncNodeId leadTransferee = pRaft->leadTransferee;
+    if (leadTransferee != SYNC_NON_NODE_ID) {
+
+    }
+  }
 }
 
 /**
@@ -140,7 +269,7 @@ static bool preHandleMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
 static bool preHandleNewTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   SyncNodeId leaderId = pMsg->from;
-  RaftMessageType msgType = pMsg->msgType;
+  ESyncRaftMessageType msgType = pMsg->msgType;
 
   if (msgType == RAFT_MSG_VOTE) {
     // TODO
