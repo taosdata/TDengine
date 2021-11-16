@@ -22,14 +22,14 @@
  * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
  * quorum of no has been reached).
  **/
-ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncCluster* config, const ESyncRaftVoteType* votes) {
+ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, const ESyncRaftVoteType* votes) {
   if (config->replica == 0) {
     return SYNC_RAFT_VOTE_WON;
   }
 
   int i, g, r, missing;
   for (i = g = r = missing = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->nodeInfo[i].nodeId == SYNC_NON_NODE_ID) {
+    if (config->nodeId[i] == SYNC_NON_NODE_ID) {
       continue;
     }
 

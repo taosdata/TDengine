@@ -36,34 +36,25 @@ typedef struct SSyncRaftQuorumJointConfig {
  **/
 ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes);
 
-static FORCE_INLINE bool syncRaftJointConfigInCluster(const SSyncCluster* cluster, SyncNodeId id) {
-  int i;
-  for (i = 0; i < cluster->replica; ++i) {
-    if (cluster->nodeInfo[i].nodeId == id) {
-      return true;
-    }
-  }
-
-  return false;
-}
+bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
 
 static FORCE_INLINE bool syncRaftJointConfigInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
-  return syncRaftJointConfigInCluster(&config->outgoing, id);
+  return syncRaftIsInNodeMap(&config->outgoing, id);
 }
 
 static FORCE_INLINE bool syncRaftJointConfigInIncoming(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
-  return syncRaftJointConfigInCluster(&config->incoming, id);
+  return syncRaftIsInNodeMap(&config->incoming, id);
 }
 
 void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id);
 
 void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id);
 
-static FORCE_INLINE const SSyncCluster* syncRaftJointConfigIncoming(const SSyncRaftQuorumJointConfig* config) {
+static FORCE_INLINE const SSyncRaftNodeMap* syncRaftJointConfigIncoming(const SSyncRaftQuorumJointConfig* config) {
   return &config->incoming;
 }
 
-static FORCE_INLINE const SSyncCluster* syncRaftJointConfigOutgoing(const SSyncRaftQuorumJointConfig* config) {
+static FORCE_INLINE const SSyncRaftNodeMap* syncRaftJointConfigOutgoing(const SSyncRaftQuorumJointConfig* config) {
   return &config->outgoing;
 }
 

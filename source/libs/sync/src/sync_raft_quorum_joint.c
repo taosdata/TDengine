@@ -44,16 +44,16 @@ void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNo
   int i, min;
 
   for (i = 0, min = -1; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->incoming.nodeInfo[i].nodeId == id) {
+    if (config->incoming.nodeId[i] == id) {
       return;
     }
-    if (min == -1 && config->incoming.nodeInfo[i].nodeId == SYNC_NON_NODE_ID) {
+    if (min == -1 && config->incoming.nodeId[i] == SYNC_NON_NODE_ID) {
       min = i;
     }
   }
 
   assert(min != -1);
-  config->incoming.nodeInfo[min].nodeId = id;
+  config->incoming.nodeId[min] = id;
   config->incoming.replica += 1;
 }
 
@@ -61,12 +61,25 @@ void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, S
   int i;
 
   for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->incoming.nodeInfo[i].nodeId == id) {
+    if (config->incoming.nodeId[i] == id) {
       config->incoming.replica  -= 1;
-      config->incoming.nodeInfo[i].nodeId = SYNC_NON_NODE_ID;
+      config->incoming.nodeId[i] = SYNC_NON_NODE_ID;
       break;
     }
   }
 
   assert(config->incoming.replica >= 0);
+}
+
+
+bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
+  int i;
+
+  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if (nodeId == nodeMap->nodeId[i]) {
+      return true;
+    }
+  }
+
+  return false;
 }

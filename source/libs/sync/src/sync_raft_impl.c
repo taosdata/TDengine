@@ -185,8 +185,17 @@ void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState) {
   pRaft->voteFor = serverState->voteFor;
 }
 
-void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
+static void visitProgressSendAppend(int i, SSyncRaftProgress* progress, void* arg) {
+  SSyncRaft* pRaft = (SSyncRaft*)arg;
+  if (pRaft->selfId == progress->id) {
+    return;
+  }
 
+  syncRaftReplicate(arg, progress, true);
+}
+
+void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
+  syncRaftProgressVisit(pRaft->tracker, visitProgressSendAppend, pRaft);
 }
 
 static int convertClear(SSyncRaft* pRaft) {
@@ -279,6 +288,7 @@ bool syncRaftMaybeCommit(SSyncRaft* pRaft) {
  * trigger I/O requests for newly appended log entries or heartbeats.
  **/
 static int triggerAll(SSyncRaft* pRaft) {
+  #if 0
   assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
   int i;
 
@@ -287,8 +297,10 @@ static int triggerAll(SSyncRaft* pRaft) {
       continue;
     }
 
-    syncRaftReplicate(pRaft, i);
+    syncRaftReplicate(pRaft, pRaft->tracker->progressMap.progress[i], true);
   }
+  #endif
+  return 0;
 }
 
 static void abortLeaderTransfer(SSyncRaft* pRaft) {

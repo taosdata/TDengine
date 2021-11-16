@@ -26,8 +26,8 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
 static bool hasJointConfig(const SSyncRaftProgressTrackerConfig* config);
 static int applyConfig(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                         SSyncRaftProgressMap* progressMap, const SSyncConfChangeSingleArray* css);
-static int symDiff(const SSyncCluster* l, const SSyncCluster* r);
 
+static int symDiff(const SSyncRaftNodeMap* l, const SSyncRaftNodeMap* r);
 
 static void initProgress(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id, bool isLearner);
@@ -237,27 +237,27 @@ static int applyConfig(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig
 
 // symdiff returns the count of the symmetric difference between the sets of
 // uint64s, i.e. len( (l - r) \union (r - l)).
-static int symDiff(const SSyncCluster* l, const SSyncCluster* r) {
+static int symDiff(const SSyncRaftNodeMap* l, const SSyncRaftNodeMap* r) {
   int n;
   int i;
   int j0, j1;
-  const SSyncCluster* pairs[2][2] = {
+  const SSyncRaftNodeMap* pairs[2][2] = {
     {l, r}, // count elems in l but not in r
     {r, l}, // count elems in r but not in l
   };
 
   for (n = 0, i = 0; i < 2; ++i) {
-    const SSyncCluster** pp = pairs[i];
+    const SSyncRaftNodeMap** pp = pairs[i];
 
-    const SSyncCluster* p0 = pp[0];
-    const SSyncCluster* p1 = pp[1];
-    for (j0 = 0; j0 < p0->replica; ++j0) {
-      SyncNodeId id = p0->nodeInfo[j0].nodeId;
+    const SSyncRaftNodeMap* p0 = pp[0];
+    const SSyncRaftNodeMap* p1 = pp[1];
+    for (j0 = 0; j0 < TSDB_MAX_REPLICA; ++j0) {
+      SyncNodeId id = p0->nodeId[j0];
       if (id == SYNC_NON_NODE_ID) {
         continue;
       }
       for (j1 = 0; j1 < p1->replica; ++j1) {
-        if (p1->nodeInfo[j1].nodeId != SYNC_NON_NODE_ID && p1->nodeInfo[j1].nodeId != id) {
+        if (p1->nodeId[j1] != SYNC_NON_NODE_ID && p1->nodeId[j1] != id) {
           n+=1;
         }
       }
