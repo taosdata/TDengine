@@ -7574,6 +7574,10 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
           if (!isSTable) {
             continue;
           }
+
+          if (TSDB_QUERY_HAS_TYPE(pUp->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) {
+            return invalidOperationMsg(msg, msg5);
+          }
           
           for (int32_t n = 0; n < exprNum; ++n) {
             expr = taosArrayGetP(pUp->exprList, n);
