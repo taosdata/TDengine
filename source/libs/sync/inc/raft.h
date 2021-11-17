@@ -18,6 +18,7 @@
 
 #include "sync.h"
 #include "sync_type.h"
+#include "thash.h"
 #include "raft_message.h"
 #include "sync_raft_impl.h"
 #include "sync_raft_quorum.h"
@@ -43,7 +44,8 @@ struct SSyncRaft {
   // owner sync node
   SSyncNode* pNode;
 
-  SSyncCluster cluster; 
+  // hash map nodeId -> SNodeInfo*
+  SHashObj* nodeInfoMap;
 
   int selfIndex;
   SyncNodeId selfId;

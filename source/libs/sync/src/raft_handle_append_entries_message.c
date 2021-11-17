@@ -16,15 +16,14 @@
 #include "syncInt.h"
 #include "raft.h"
 #include "raft_log.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_message.h"
 
 int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   const RaftMsg_Append_Entries *appendEntries = &(pMsg->appendEntries);
   
-  int peerIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
-  
-  if (peerIndex < 0) {
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  if (pNode == NULL) {
     return 0;
   }
 
@@ -44,6 +43,6 @@ int syncRaftHandleAppendEntriesMessage(SSyncRaft* pRaft, const SSyncMessage* pMs
       pRaft->selfGroupId, pRaft->selfId, pMsg->from, appendEntries->index); 
 
 out:
-  pRaft->io.send(pRespMsg, &(pRaft->cluster.nodeInfo[peerIndex]));
+  pRaft->io.send(pRespMsg, pNode);
   return 0;
 }

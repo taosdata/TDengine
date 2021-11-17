@@ -69,9 +69,12 @@ static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
                               SSyncRaftEntry *entries, int nEntry) {
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, progress->id);
+  if (pNode == NULL) {
+    return false;
+  }
   SyncIndex lastIndex;
-  SyncTerm logTerm = prevTerm;
-  SNodeInfo* pNode = &(pRaft->cluster.nodeInfo[progress->selfIndex]);
+  SyncTerm logTerm = prevTerm;  
 
   SSyncMessage* msg = syncNewAppendMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term,
                                       prevIndex, prevTerm, pRaft->log->commitIndex,

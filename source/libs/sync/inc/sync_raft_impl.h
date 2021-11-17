@@ -51,4 +51,6 @@ void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState);
 
 void syncRaftBroadcastAppend(SSyncRaft* pRaft);
 
+SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id);
+
 #endif /* _TD_LIBS_SYNC_RAFT_IMPL_H */

@@ -15,7 +15,7 @@
 
 #include "syncInt.h"
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_message.h"
 
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
@@ -25,8 +25,8 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   assert(pRaft->state == TAOS_SYNC_STATE_CANDIDATE);
 
-  voterIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
-  if (voterIndex == -1) {
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  if (pNode == NULL) {
     syncError("[%d:%d] recv vote resp from unknown server %d", pRaft->selfGroupId, pRaft->selfId, pMsg->from);
     return 0;
   }

@@ -14,7 +14,7 @@
  */
 
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_log.h"
 #include "raft_replication.h"
 #include "sync_raft_progress_tracker.h"
@@ -123,15 +123,16 @@ bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
 }
 
 int syncRaftQuorum(SSyncRaft* pRaft) {
-  return pRaft->cluster.replica / 2 + 1;
+  return 0;
+  //return pRaft->cluster.replica / 2 + 1;
 }
 
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                       bool preVote, bool grant, 
                                       int* rejected, int *granted) {
-  int voterIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
-  if (voterIndex == -1) {
-    return SYNC_RAFT_VOTE_PENDING;
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, id);
+  if (pNode == NULL) {
+    return true;
   }
 
   if (grant) {
@@ -142,7 +143,7 @@ ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
       pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
   }
 
-  syncRaftRecordVote(pRaft->tracker, voterIndex, grant);
+  syncRaftRecordVote(pRaft->tracker, pNode->nodeId, grant);
   return syncRaftTallyVotes(pRaft->tracker, rejected, granted);
 }
 /*
@@ -154,7 +155,7 @@ ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
       pRaft->selfGroupId, pRaft->selfId, id, pRaft->term);
   }
   
-  int voteIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
+  int voteIndex = syncRaftGetNodeById(pRaft, id);
   assert(voteIndex < pRaft->cluster.replica && voteIndex >= 0);
   assert(pRaft->candidateState.votes[voteIndex] == SYNC_RAFT_VOTE_RESP_UNKNOWN);
 
@@ -196,6 +197,15 @@ static void visitProgressSendAppend(int i, SSyncRaftProgress* progress, void* ar
 
 void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
   syncRaftProgressVisit(pRaft->tracker, visitProgressSendAppend, pRaft);
+}
+
+SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
+  SNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SNodeInfo));
+  if (ppNode != NULL) {
+    return *ppNode;
+  }
+
+  return NULL;
 }
 
 static int convertClear(SSyncRaft* pRaft) {
@@ -269,7 +279,7 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
 
   syncRaftLogAppend(pRaft->log, entries, n);
 
-  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap.progress[pRaft->cluster.selfIndex]);
+  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap.progress[pRaft->selfIndex]);
   syncRaftProgressMaybeUpdate(progress, lastIndex);
   // Regardless of syncRaftMaybeCommit's return, our caller will call bcastAppend.
   syncRaftMaybeCommit(pRaft);

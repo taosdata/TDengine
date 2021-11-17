@@ -14,7 +14,7 @@
  */
 
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_log.h"
 #include "sync_raft_restore.h"
 #include "raft_replication.h"
@@ -58,6 +58,11 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   stateManager = &(pRaft->stateManager);
   logStore = &(pRaft->logStore);
   fsm = &(pRaft->fsm);
+
+  pRaft->nodeInfoMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (pRaft->nodeInfoMap == NULL) {
+    return -1;
+  }
 
   // init progress tracker
   pRaft->tracker = syncRaftOpenProgressTracker();
@@ -290,8 +295,8 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 		 * but it will not receive MsgApp or MsgHeartbeat, so it will not create
 		 * disruptive term increases
     **/
-    int peerIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
-    if (peerIndex < 0) {
+    SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+    if (pNode == NULL) {
       return true;
     }
     SSyncMessage* msg = syncNewEmptyAppendRespMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term);
@@ -299,7 +304,7 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
       return true;
     }
 
-    pRaft->io.send(msg, &(pRaft->cluster.nodeInfo[peerIndex]));
+    pRaft->io.send(msg, pNode);
   } else {
     // ignore other cases
     syncInfo("[%d:%d] [term:%" PRId64 "] ignored a %d message with lower term from %d [term:%" PRId64 "]",

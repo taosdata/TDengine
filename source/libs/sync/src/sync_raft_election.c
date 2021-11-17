@@ -105,6 +105,6 @@ static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       pRaft->selfGroupId, pRaft->selfId, lastTerm, 
       lastIndex, nodeId, pRaft->term);
 
-    pRaft->io.send(pMsg, &(pRaft->cluster.nodeInfo[i]));
+    //pRaft->io.send(pMsg, &(pRaft->cluster.nodeInfo[i]));
   }
 }

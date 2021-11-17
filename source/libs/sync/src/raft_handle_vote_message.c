@@ -15,7 +15,7 @@
 
 #include "syncInt.h"
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_log.h"
 #include "raft_message.h"
 
@@ -23,10 +23,11 @@ static bool canGrantVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 
 int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   SSyncMessage* pRespMsg;
-  int voteIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
-  if (voteIndex == -1) {
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  if (pNode == NULL) {
     return 0;
   }
+
   bool grant;
   SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
   SyncTerm lastTerm = syncRaftLogLastTerm(pRaft->log);
@@ -42,7 +43,7 @@ int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     grant ? "grant" : "reject",
     pMsg->from, pMsg->vote.lastTerm, pMsg->vote.lastIndex, pRaft->term);
 
-  pRaft->io.send(pRespMsg, &(pRaft->cluster.nodeInfo[voteIndex]));
+  pRaft->io.send(pRespMsg, pNode);
   return 0;
 }
 
