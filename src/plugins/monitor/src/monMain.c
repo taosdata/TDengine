@@ -921,6 +921,10 @@ static int32_t monBuildDnodeVnodesSql(char *sql) {
   memset(sqlStr, 0, sizeof(sqlStr));
   snprintf(sqlStr, TSDB_EP_LEN + 14, "show vnodes \"%s\"", tsLocalEp);
   TAOS_RES *result = taos_query(tsMonitor.conn, sqlStr);
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show vnodes \"%s\", reason:%s", tsLocalEp, tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -1095,6 +1099,10 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
   memset(sql, 0, SQL_LENGTH + 1);
   snprintf(sql, SQL_LENGTH, "show %s.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, sql);
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show %s.vgroups, reason:%s", dbName, tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -1133,7 +1141,7 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
     }
     monDebug("save vgroups, sql:%s", sql);
     TAOS_RES *res = taos_query(tsMonitor.conn, sql);
-    int32_t code = taos_errno(res);
+    code = taos_errno(res);
     taos_free_result(res);
     if (code != 0) {
       monError("failed to save vgroup_%d info, reason:%s, sql:%s", vgId, tstrerror(code), tsMonitor.sql);
@@ -1150,6 +1158,10 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
 static void monSaveVgroupsInfo() {
   char *  sql = tsMonitor.sql;
   TAOS_RES *result = taos_query(tsMonitor.conn, "show databases");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show databases, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -1174,6 +1186,10 @@ static void monSaveSlowQueryInfo() {
   bool has_slowquery = false;
 
   TAOS_RES *result = taos_query(tsMonitor.conn, "show queries");
+  int32_t code = taos_errno(result);
+  if (code != TSDB_CODE_SUCCESS) {
+    monError("failed to execute cmd: show queries, reason:%s", tstrerror(code));
+  }
 
   TAOS_ROW    row;
   int32_t     num_fields = taos_num_fields(result);
@@ -1208,7 +1224,7 @@ static void monSaveSlowQueryInfo() {
     return;
   }
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-  int32_t code = taos_errno(res);
+  code = taos_errno(res);
   taos_free_result(res);
 
   if (code != 0) {
