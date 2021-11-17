@@ -965,7 +965,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
       w->skey = *(int64_t*)pInfoData->pData;
       w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pRes->info.rows - 1));
 
-      if (pOperator->pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_DESC && w->skey < w->ekey) {
+      if (pOperator->pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_DESC) {
         SWAP(w->skey, w->ekey, TSKEY);
       }
     }
