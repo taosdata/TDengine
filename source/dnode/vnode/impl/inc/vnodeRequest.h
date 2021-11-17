@@ -23,15 +23,15 @@ extern "C" {
 typedef struct SVnodeReq SVnodeReq;
 typedef struct SVnodeRsp SVnodeRsp;
 
-typedef enum {
-} EVReqT;
+typedef enum {} EVReqT;
+typedef enum {} EVRspT;
 
 struct SVnodeReq {
-  /* TODO */
+  EVReqT type;
 };
 
 struct SVnodeRsp {
-  /* TODO */
+  EVRspT type;
 };
 
 #ifdef __cplusplus

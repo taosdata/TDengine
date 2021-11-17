@@ -16,7 +16,15 @@
 #include "vnodeDef.h"
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  /* TODO */
+  SRpcMsg *pReq;
+  SRpcMsg *pRsp;
+
+  for (size_t i = 0; i < taosArrayGetSize(pMsgs); i++) {
+    pReq = taosArrayGet(pMsgs, i);
+
+    vnodeApplyWMsg(pVnode, pReq, pRsp);
+  }
+
   return 0;
 }
 
